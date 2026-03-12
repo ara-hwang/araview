@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "tauri-image-viewer",
+  "productName": "Image Viewer",
   "version": "0.1.0",
   "identifier": "com.tauri-image-viewer.app",
   "build": {
@@ -12,9 +12,11 @@
   "app": {
     "windows": [
       {
-        "title": "tauri-image-viewer",
-        "width": 800,
-        "height": 600
+        "title": "Image Viewer",
+        "width": 1024,
+        "height": 768,
+        "minWidth": 600,
+        "minHeight": 400
       }
     ],
     "security": {
