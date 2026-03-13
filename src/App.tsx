@@ -30,11 +30,13 @@ function App() {
     handleMouseUp,
     handleDrop,
     handleDragOver,
+    handleContextMenu,
   } = useImageViewer();
 
   return (
     <div
       className="flex flex-col h-screen w-screen"
+      onContextMenu={handleContextMenu}
       onDrop={handleDrop}
       onDragOver={handleDragOver}
     >

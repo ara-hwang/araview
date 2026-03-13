@@ -3,6 +3,7 @@ import { useHotkey } from "@tanstack/react-hotkeys";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
+import { Menu, MenuItem, PredefinedMenuItem } from "@tauri-apps/api/menu";
 import type { ImageInfo, DirectoryImages } from "../types";
 
 export function useImageViewer() {
@@ -176,6 +177,37 @@ export function useImageViewer() {
     e.stopPropagation();
   }, []);
 
+  const handleContextMenu = useCallback(async (e: React.MouseEvent) => {
+    e.preventDefault();
+
+    const navItemPromises = dirImages && dirImages.images.length > 1
+      ? [
+          PredefinedMenuItem.new({ item: "Separator" }),
+          MenuItem.new({ text: "Previous Image", accelerator: "Left", action: () => navigateImage("prev") }),
+          MenuItem.new({ text: "Next Image", accelerator: "Right", action: () => navigateImage("next") }),
+        ]
+      : [];
+
+    const [
+      openItem,
+      ...rest
+    ] = await Promise.all([
+      MenuItem.new({ text: "Open File", accelerator: "CmdOrCtrl+O", action: () => handleOpenFile() }),
+      ...navItemPromises,
+      PredefinedMenuItem.new({ item: "Separator" }),
+      MenuItem.new({ text: "Zoom In", accelerator: "=", action: () => handleZoomIn() }),
+      MenuItem.new({ text: "Zoom Out", accelerator: "-", action: () => handleZoomOut() }),
+      MenuItem.new({ text: "Actual Size", accelerator: "0", action: () => handleResetZoom() }),
+      PredefinedMenuItem.new({ item: "Separator" }),
+      MenuItem.new({ text: "Fit Width", accelerator: "1", action: () => handleFitWidth() }),
+      MenuItem.new({ text: "Fit Height", accelerator: "2", action: () => handleFitHeight() }),
+      MenuItem.new({ text: "Fit to Screen", accelerator: "3", action: () => handleFitScreen() }),
+    ]);
+
+    const menu = await Menu.new({ items: [openItem, ...rest] });
+    await menu.popup();
+  }, [handleOpenFile, handleZoomIn, handleZoomOut, handleResetZoom, handleFitWidth, handleFitHeight, handleFitScreen, dirImages, navigateImage]);
+
   // Listen for files opened via OS file association (double-click / "Open With")
   useEffect(() => {
     const unlistenPromise = listen<string>("open-file", (event) => {
@@ -224,5 +256,6 @@ export function useImageViewer() {
     handleMouseUp,
     handleDrop,
     handleDragOver,
+    handleContextMenu,
   };
 }
