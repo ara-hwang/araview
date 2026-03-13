@@ -81,6 +81,35 @@ export function useImageViewer() {
     setPosition({ x: 0, y: 0 });
   }, []);
 
+  const handleFitWidth = useCallback(() => {
+    if (!containerRef.current || !imageRef.current) return;
+    const containerW = containerRef.current.offsetWidth;
+    const imgW = imageRef.current.offsetWidth;
+    if (imgW === 0) return;
+    setZoom(containerW / imgW);
+    setPosition({ x: 0, y: 0 });
+  }, []);
+
+  const handleFitHeight = useCallback(() => {
+    if (!containerRef.current || !imageRef.current) return;
+    const containerH = containerRef.current.offsetHeight;
+    const imgH = imageRef.current.offsetHeight;
+    if (imgH === 0) return;
+    setZoom(containerH / imgH);
+    setPosition({ x: 0, y: 0 });
+  }, []);
+
+  const handleFitScreen = useCallback(() => {
+    if (!containerRef.current || !imageRef.current) return;
+    const containerW = containerRef.current.offsetWidth;
+    const containerH = containerRef.current.offsetHeight;
+    const imgW = imageRef.current.offsetWidth;
+    const imgH = imageRef.current.offsetHeight;
+    if (imgW === 0 || imgH === 0) return;
+    setZoom(Math.min(containerW / imgW, containerH / imgH));
+    setPosition({ x: 0, y: 0 });
+  }, []);
+
   const handleWheel = useCallback((e: React.WheelEvent) => {
     e.preventDefault();
     if (e.deltaY < 0) {
@@ -165,6 +194,9 @@ export function useImageViewer() {
   useHotkey("=", () => handleZoomIn());
   useHotkey("-", () => handleZoomOut());
   useHotkey("0", () => handleResetZoom());
+  useHotkey("1", () => handleFitWidth());
+  useHotkey("2", () => handleFitHeight());
+  useHotkey("3", () => handleFitScreen());
   useHotkey("Mod+O", () => handleOpenFile());
 
   return {
@@ -183,6 +215,9 @@ export function useImageViewer() {
     handleZoomIn,
     handleZoomOut,
     handleResetZoom,
+    handleFitWidth,
+    handleFitHeight,
+    handleFitScreen,
     handleWheel,
     handleMouseDown,
     handleMouseMove,
