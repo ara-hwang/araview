@@ -20,11 +20,12 @@
           Shell verb key: sets the label and icon shown in the context menu.
           KeyPath="yes" on the first RegistryValue makes this Component's
           key-path so WiX can track installation state.
+          Action="createAndRemoveOnUninstall" ensures the key and all its
+          children are removed when the component is uninstalled.
         -->
         <RegistryKey Root="HKCU"
                      Key="Software\Classes\SystemFileAssociations\image\shell\ImageViewer"
-                     ForceCreateOnInstall="yes"
-                     ForceDeleteOnUninstall="yes">
+                     Action="createAndRemoveOnUninstall">
           <RegistryValue Type="string" Name="" Value="Open with Image Viewer"
                          KeyPath="yes" />
           <RegistryValue Type="string" Name="Icon"
@@ -36,8 +37,7 @@
         -->
         <RegistryKey Root="HKCU"
                      Key="Software\Classes\SystemFileAssociations\image\shell\ImageViewer\command"
-                     ForceCreateOnInstall="yes"
-                     ForceDeleteOnUninstall="yes">
+                     Action="createAndRemoveOnUninstall">
           <RegistryValue Type="string" Name=""
                          Value="&quot;[APPLICATIONFOLDER]Image Viewer.exe&quot; &quot;%1&quot;" />
         </RegistryKey>
