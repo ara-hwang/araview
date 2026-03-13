@@ -14,6 +14,8 @@ function App() {
     position,
     loading,
     error,
+    containerRef,
+    imageRef,
     handleOpenFile,
     navigateImage,
     handleZoomIn,
@@ -51,6 +53,8 @@ function App() {
         zoom={zoom}
         isDragging={isDragging}
         position={position}
+        containerRef={containerRef}
+        imageRef={imageRef}
         onWheel={handleWheel}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
