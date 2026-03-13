@@ -2,7 +2,17 @@
   "mcpServers": {
     "tauri": {
       "command": "npx",
-      "args": ["-y", "@hypothesi/tauri-mcp-server"]
+      "args": [
+        "-y",
+        "@hypothesi/tauri-mcp-server"
+      ]
+    },
+    "shadcn": {
+      "command": "npx",
+      "args": [
+        "shadcn@latest",
+        "mcp"
+      ]
     }
   }
 }
