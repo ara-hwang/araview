@@ -113,12 +113,20 @@ export function useImageViewer() {
 
   const handleWheel = useCallback((e: React.WheelEvent) => {
     e.preventDefault();
-    if (e.deltaY < 0) {
-      setZoom((prev) => Math.min(prev * 1.1, 10));
+    if (e.ctrlKey) {
+      if (e.deltaY < 0) {
+        setZoom((prev) => Math.min(prev * 1.1, 10));
+      } else {
+        setZoom((prev) => Math.max(prev / 1.1, 0.1));
+      }
     } else {
-      setZoom((prev) => Math.max(prev / 1.1, 0.1));
+      if (e.deltaY < 0) {
+        navigateImage("prev");
+      } else {
+        navigateImage("next");
+      }
     }
-  }, []);
+  }, [navigateImage]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     if (image) {
