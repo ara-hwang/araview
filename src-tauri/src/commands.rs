@@ -2,7 +2,7 @@ use base64::{engine::general_purpose, Engine as _};
 use std::fs;
 use std::path::Path;
 
-use crate::image::{get_mime_type, heif_to_jpeg, is_heif_file, is_image_file, DirectoryImages, ImageInfo};
+use crate::image::{get_mime_type, is_image_file, DirectoryImages, ImageInfo};
 
 #[tauri::command]
 pub fn load_image(file_path: String) -> Result<ImageInfo, String> {
@@ -17,12 +17,7 @@ pub fn load_image(file_path: String) -> Result<ImageInfo, String> {
     let data = fs::read(path).map_err(|e| format!("Failed to read file: {}", e))?;
     let metadata = fs::metadata(path).map_err(|e| format!("Failed to read metadata: {}", e))?;
 
-    let (base64_str, served_mime) = if is_heif_file(path) {
-        let jpeg_data = heif_to_jpeg(&data)?;
-        (general_purpose::STANDARD.encode(&jpeg_data), "image/jpeg".to_string())
-    } else {
-        (general_purpose::STANDARD.encode(&data), mime_type.to_string())
-    };
+    let (base64_str, served_mime) = (general_purpose::STANDARD.encode(&data), mime_type.to_string());
 
     let file_name = path
         .file_name()
