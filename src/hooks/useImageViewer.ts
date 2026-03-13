@@ -1,6 +1,7 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useHotkey } from "@tanstack/react-hotkeys";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import type { ImageInfo, DirectoryImages } from "../types";
 
@@ -125,6 +126,17 @@ export function useImageViewer() {
     e.preventDefault();
     e.stopPropagation();
   }, []);
+
+  // Listen for files opened via OS file association (double-click / "Open With")
+  useEffect(() => {
+    const unlistenPromise = listen<string>("open-file", (event) => {
+      loadImage(event.payload);
+    });
+
+    return () => {
+      unlistenPromise.then((fn) => fn());
+    };
+  }, [loadImage]);
 
   // Keyboard shortcuts
   useHotkey("ArrowLeft", () => navigateImage("prev"));
