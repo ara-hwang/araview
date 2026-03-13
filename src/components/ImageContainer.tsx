@@ -1,6 +1,6 @@
 import type { RefObject } from "react";
 import { cn } from "@/lib/utils";
-import type { ImageInfo } from "../types";
+import type { ImageInfo, BackgroundType } from "../types";
 
 interface ImageContainerProps {
   image: ImageInfo | null;
@@ -9,6 +9,7 @@ interface ImageContainerProps {
   zoom: number;
   isDragging: boolean;
   position: { x: number; y: number };
+  background: BackgroundType;
   containerRef: RefObject<HTMLDivElement>;
   imageRef: RefObject<HTMLImageElement>;
   onWheel: (e: React.WheelEvent) => void;
@@ -24,6 +25,7 @@ export function ImageContainer({
   zoom,
   isDragging,
   position,
+  background,
   containerRef,
   imageRef,
   onWheel,
@@ -38,9 +40,11 @@ export function ImageContainer({
       ref={containerRef}
       className={cn(
         "flex-1 overflow-hidden flex items-center justify-center relative bg-[hsl(var(--background))]",
-        "[background-image:linear-gradient(45deg,hsl(var(--muted))_25%,transparent_25%),linear-gradient(-45deg,hsl(var(--muted))_25%,transparent_25%),linear-gradient(45deg,transparent_75%,hsl(var(--muted))_75%),linear-gradient(-45deg,transparent_75%,hsl(var(--muted))_75%)]",
-        "[background-size:20px_20px]",
-        "[background-position:0_0,0_10px,10px_-10px,-10px_0]",
+        background === "checkered" && [
+          "[background-image:linear-gradient(45deg,hsl(var(--muted))_25%,transparent_25%),linear-gradient(-45deg,hsl(var(--muted))_25%,transparent_25%),linear-gradient(45deg,transparent_75%,hsl(var(--muted))_75%),linear-gradient(-45deg,transparent_75%,hsl(var(--muted))_75%)]",
+          "[background-size:20px_20px]",
+          "[background-position:0_0,0_10px,10px_-10px,-10px_0]",
+        ],
         isDragging && "[&]:cursor-grabbing"
       )}
       onWheel={onWheel}
