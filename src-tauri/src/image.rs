@@ -31,5 +31,13 @@ pub fn get_mime_type(path: &Path) -> Option<&'static str> {
 }
 
 pub fn is_image_file(path: &Path) -> bool {
+    if path
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.eq_ignore_ascii_case("cbz"))
+        .unwrap_or(false)
+    {
+        return true;
+    }
     get_mime_type(path).is_some()
 }

@@ -37,7 +37,7 @@
       {
         "name": "Image",
         "description": "Image File",
-        "ext": ["png", "jpg", "jpeg", "gif", "bmp", "webp", "svg", "ico", "tiff", "tif", "avif", "heic", "heif"]
+        "ext": ["png", "jpg", "jpeg", "gif", "bmp", "webp", "svg", "ico", "tiff", "tif", "avif", "heic", "heif", "cbz"]
       }
     ]
   }

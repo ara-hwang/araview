@@ -45,7 +45,7 @@ export function useImageViewer() {
       filters: [
         {
           name: "Images",
-          extensions: ["png", "jpg", "jpeg", "gif", "bmp", "webp", "svg", "ico", "tiff", "tif", "avif", "heic", "heif"],
+          extensions: ["png", "jpg", "jpeg", "gif", "bmp", "webp", "svg", "ico", "tiff", "tif", "avif", "heic", "heif", "cbz"],
         },
       ],
     });
