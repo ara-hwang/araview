@@ -1,5 +1,6 @@
 import type { RefObject } from "react";
 import { cn } from "@/lib/utils";
+import { Spinner } from "@/components/ui/spinner";
 import type { ImageInfo, BackgroundType } from "../types";
 
 interface ImageContainerProps {
@@ -33,7 +34,9 @@ export function ImageContainer({
   onMouseMove,
   onMouseUp,
 }: ImageContainerProps) {
-  const imageSrc = image ? `data:${image.mime_type};base64,${image.base64}` : null;
+  const imageSrc = image
+    ? `data:${image.mime_type};base64,${image.base64}`
+    : null;
 
   return (
     <div
@@ -45,7 +48,7 @@ export function ImageContainer({
           "[background-size:20px_20px]",
           "[background-position:0_0,0_10px,10px_-10px,-10px_0]",
         ],
-        isDragging && "[&]:cursor-grabbing"
+        isDragging && "[&]:cursor-grabbing",
       )}
       onWheel={onWheel}
       onMouseDown={onMouseDown}
@@ -53,29 +56,7 @@ export function ImageContainer({
       onMouseUp={onMouseUp}
       onMouseLeave={onMouseUp}
     >
-      {loading && (
-        <div className="text-base text-[hsl(var(--muted-foreground))] animate-pulse">Loading...</div>
-      )}
-
-      {error && (
-        <div className="text-sm text-[hsl(var(--destructive))] px-6 py-4 bg-[hsl(var(--destructive))]/10 rounded-lg border border-[hsl(var(--destructive))]/20">
-          {error}
-        </div>
-      )}
-
-      {!image && !loading && !error && (
-        <div className="flex flex-col items-center gap-3 text-[hsl(var(--muted-foreground))] pointer-events-none">
-          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" opacity="0.4">
-            <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-            <circle cx="8.5" cy="8.5" r="1.5" />
-            <polyline points="21 15 16 10 5 21" />
-          </svg>
-          <p className="text-base opacity-80">Drag &amp; drop an image here</p>
-          <p className="text-sm opacity-60">or press Ctrl+O to open a file</p>
-        </div>
-      )}
-
-      {imageSrc && !loading && (
+      {imageSrc && (
         <img
           ref={imageRef}
           src={imageSrc}
@@ -87,6 +68,41 @@ export function ImageContainer({
           }}
           draggable={false}
         />
+      )}
+
+      {loading && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
+          <Spinner
+            className="size-8 text-[hsl(var(--muted-foreground))]"
+            aria-label="Loading image"
+          />
+        </div>
+      )}
+
+      {error && (
+        <div className="text-sm text-[hsl(var(--destructive))] px-6 py-4 bg-[hsl(var(--destructive))]/10 rounded-lg border border-[hsl(var(--destructive))]/20">
+          {error}
+        </div>
+      )}
+
+      {!image && !loading && !error && (
+        <div className="flex flex-col items-center gap-3 text-[hsl(var(--muted-foreground))] pointer-events-none">
+          <svg
+            width="64"
+            height="64"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1"
+            opacity="0.4"
+          >
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+            <circle cx="8.5" cy="8.5" r="1.5" />
+            <polyline points="21 15 16 10 5 21" />
+          </svg>
+          <p className="text-base opacity-80">Drag &amp; drop an image here</p>
+          <p className="text-sm opacity-60">or press Ctrl+O to open a file</p>
+        </div>
       )}
     </div>
   );
