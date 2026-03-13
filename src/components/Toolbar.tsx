@@ -1,4 +1,4 @@
-import { FolderOpen, ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from "lucide-react";
+import { FolderOpen, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, ArrowLeftRight, ArrowUpDown, Maximize2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { DirectoryImages } from "../types";
@@ -12,6 +12,9 @@ interface ToolbarProps {
   onZoomIn: () => void;
   onZoomOut: () => void;
   onResetZoom: () => void;
+  onFitWidth: () => void;
+  onFitHeight: () => void;
+  onFitScreen: () => void;
 }
 
 export function Toolbar({
@@ -23,6 +26,9 @@ export function Toolbar({
   onZoomIn,
   onZoomOut,
   onResetZoom,
+  onFitWidth,
+  onFitHeight,
+  onFitScreen,
 }: ToolbarProps) {
   return (
     <div
@@ -53,6 +59,16 @@ export function Toolbar({
       </div>
 
       <div className="flex items-center gap-1" style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}>
+        <Button variant="ghost" size="icon" onClick={onFitWidth} title="Fit to width (1)" className="text-[hsl(var(--muted-foreground))]">
+          <ArrowLeftRight />
+        </Button>
+        <Button variant="ghost" size="icon" onClick={onFitHeight} title="Fit to height (2)" className="text-[hsl(var(--muted-foreground))]">
+          <ArrowUpDown />
+        </Button>
+        <Button variant="ghost" size="icon" onClick={onFitScreen} title="Fit to screen (3)" className="text-[hsl(var(--muted-foreground))]">
+          <Maximize2 />
+        </Button>
+        <div className="w-px h-5 bg-[hsl(var(--border))] mx-1" />
         <Button variant="ghost" size="icon" onClick={onZoomOut} title="Zoom out (-)" className="text-[hsl(var(--muted-foreground))]">
           <ZoomOut />
         </Button>
