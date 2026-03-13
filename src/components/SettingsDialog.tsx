@@ -2,7 +2,7 @@ import { Dialog } from "@base-ui/react";
 import { X } from "lucide-react";
 import { RadioGroupRoot, RadioGroupItem } from "@/components/ui/radio-group";
 import { Button } from "@/components/ui/button";
-import type { Settings, BackgroundType } from "../types";
+import type { Settings, BackgroundType, CacheMode } from "../types";
 
 interface SettingsDialogProps {
   open: boolean;
@@ -44,10 +44,14 @@ export function SettingsDialog({
                 }
               >
                 <RadioGroupItem value="checkered">
-                  <span className="text-sm text-[hsl(var(--foreground))]">Checkered</span>
+                  <span className="text-sm text-[hsl(var(--foreground))]">
+                    Checkered
+                  </span>
                 </RadioGroupItem>
                 <RadioGroupItem value="solid">
-                  <span className="text-sm text-[hsl(var(--foreground))]">Solid color</span>
+                  <span className="text-sm text-[hsl(var(--foreground))]">
+                    Solid color
+                  </span>
                 </RadioGroupItem>
               </RadioGroupRoot>
             </div>
@@ -64,10 +68,43 @@ export function SettingsDialog({
                 }
               >
                 <RadioGroupItem value="stop">
-                  <span className="text-sm text-[hsl(var(--foreground))]">Stop at first / last image</span>
+                  <span className="text-sm text-[hsl(var(--foreground))]">
+                    Stop at first / last image
+                  </span>
                 </RadioGroupItem>
                 <RadioGroupItem value="loop">
-                  <span className="text-sm text-[hsl(var(--foreground))]">Loop through images</span>
+                  <span className="text-sm text-[hsl(var(--foreground))]">
+                    Loop through images
+                  </span>
+                </RadioGroupItem>
+              </RadioGroupRoot>
+            </div>
+
+            {/* Cache */}
+            <div>
+              <p className="text-sm font-medium text-[hsl(var(--foreground))] mb-2">
+                Cache
+              </p>
+              <RadioGroupRoot
+                value={settings.cacheMode}
+                onValueChange={(value) =>
+                  onSettingsChange({ cacheMode: value as CacheMode })
+                }
+              >
+                <RadioGroupItem value="off">
+                  <span className="text-sm text-[hsl(var(--foreground))]">
+                    Off (current image only)
+                  </span>
+                </RadioGroupItem>
+                <RadioGroupItem value="nearby">
+                  <span className="text-sm text-[hsl(var(--foreground))]">
+                    Nearby (previous / next preload)
+                  </span>
+                </RadioGroupItem>
+                <RadioGroupItem value="extended">
+                  <span className="text-sm text-[hsl(var(--foreground))]">
+                    Extended (up to ±3 preload)
+                  </span>
                 </RadioGroupItem>
               </RadioGroupRoot>
             </div>
