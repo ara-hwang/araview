@@ -21,6 +21,9 @@ function App() {
     handleZoomIn,
     handleZoomOut,
     handleResetZoom,
+    handleFitWidth,
+    handleFitHeight,
+    handleFitScreen,
     handleWheel,
     handleMouseDown,
     handleMouseMove,
@@ -44,6 +47,9 @@ function App() {
         onZoomIn={handleZoomIn}
         onZoomOut={handleZoomOut}
         onResetZoom={handleResetZoom}
+        onFitWidth={handleFitWidth}
+        onFitHeight={handleFitHeight}
+        onFitScreen={handleFitScreen}
       />
 
       <ImageContainer
