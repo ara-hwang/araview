@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  WiX fragment – context-menu registry entries for Windows File Explorer.
+
+  These entries place "Open with Image Viewer" in the classic right-click
+  context menu (accessible via "Show more options" in Windows 11) for every
+  file that Windows classifies as an image (SystemFileAssociations\image).
+
+  The keys are written to HKCU so that no administrator privileges are needed.
+  WiX automatically removes them on uninstall because they are modelled as
+  proper Component/RegistryValue elements.
+-->
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+
+  <Fragment>
+    <DirectoryRef Id="APPLICATIONFOLDER">
+      <Component Id="ContextMenuRegistry"
+                 Guid="7A3F2B1E-4C9D-4E8A-B2F6-0D5E7C3A1B9F">
+        <!--
+          Shell verb key: sets the label and icon shown in the context menu.
+          KeyPath="yes" on the first RegistryValue makes this Component's
+          key-path so WiX can track installation state.
+        -->
+        <RegistryKey Root="HKCU"
+                     Key="Software\Classes\SystemFileAssociations\image\shell\ImageViewer"
+                     ForceCreateOnInstall="yes"
+                     ForceDeleteOnUninstall="yes">
+          <RegistryValue Type="string" Name="" Value="Open with Image Viewer"
+                         KeyPath="yes" />
+          <RegistryValue Type="string" Name="Icon"
+                         Value="[APPLICATIONFOLDER]Image Viewer.exe,0" />
+        </RegistryKey>
+        <!--
+          Command sub-key: the executable that Windows launches when the
+          verb is invoked.  %1 is substituted with the selected file path.
+        -->
+        <RegistryKey Root="HKCU"
+                     Key="Software\Classes\SystemFileAssociations\image\shell\ImageViewer\command"
+                     ForceCreateOnInstall="yes"
+                     ForceDeleteOnUninstall="yes">
+          <RegistryValue Type="string" Name=""
+                         Value="&quot;[APPLICATIONFOLDER]Image Viewer.exe&quot; &quot;%1&quot;" />
+        </RegistryKey>
+      </Component>
+    </DirectoryRef>
+  </Fragment>
+
+  <Fragment>
+    <ComponentGroup Id="ContextMenuComponentGroup">
+      <ComponentRef Id="ContextMenuRegistry" />
+    </ComponentGroup>
+  </Fragment>
+
+</Wix>

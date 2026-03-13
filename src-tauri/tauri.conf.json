@@ -39,6 +39,15 @@
         "description": "Image File",
         "ext": ["png", "jpg", "jpeg", "gif", "bmp", "webp", "svg", "ico", "tiff", "tif", "avif", "heic", "heif"]
       }
-    ]
+    ],
+    "windows": {
+      "wix": {
+        "fragmentPaths": ["wix/context-menu.wxs"],
+        "componentGroupRefs": ["ContextMenuComponentGroup"]
+      },
+      "nsis": {
+        "installerHooks": "nsis/installer-hooks.nsi"
+      }
+    }
   }
 }
