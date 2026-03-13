@@ -1,4 +1,5 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback } from "react";
+import { useHotkey } from "@tanstack/react-hotkeys";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import type { ImageInfo, DirectoryImages } from "../types";
@@ -126,37 +127,13 @@ export function useImageViewer() {
   }, []);
 
   // Keyboard shortcuts
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      switch (e.key) {
-        case "ArrowLeft":
-          navigateImage("prev");
-          break;
-        case "ArrowRight":
-          navigateImage("next");
-          break;
-        case "+":
-        case "=":
-          handleZoomIn();
-          break;
-        case "-":
-          handleZoomOut();
-          break;
-        case "0":
-          handleResetZoom();
-          break;
-        case "o":
-          if (e.ctrlKey || e.metaKey) {
-            e.preventDefault();
-            handleOpenFile();
-          }
-          break;
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [navigateImage, handleZoomIn, handleZoomOut, handleResetZoom, handleOpenFile]);
+  useHotkey("ArrowLeft", () => navigateImage("prev"));
+  useHotkey("ArrowRight", () => navigateImage("next"));
+  useHotkey({ key: "+" }, () => handleZoomIn());
+  useHotkey("=", () => handleZoomIn());
+  useHotkey("-", () => handleZoomOut());
+  useHotkey("0", () => handleResetZoom());
+  useHotkey("Mod+O", () => handleOpenFile());
 
   return {
     image,
