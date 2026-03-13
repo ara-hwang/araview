@@ -11,8 +11,10 @@ export interface DirectoryImages {
 }
 
 export type BackgroundType = "checkered" | "solid";
+export type CacheMode = "off" | "nearby" | "extended";
 
 export interface Settings {
   background: BackgroundType;
   loopNavigation: boolean;
+  cacheMode: CacheMode;
 }
