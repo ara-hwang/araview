@@ -29,7 +29,7 @@ function App() {
 
   return (
     <div
-      className="app"
+      className="flex flex-col h-screen w-screen"
       onDrop={handleDrop}
       onDragOver={handleDragOver}
     >
