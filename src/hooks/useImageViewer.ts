@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useHotkey } from "@tanstack/react-hotkeys";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
@@ -15,6 +15,8 @@ export function useImageViewer() {
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const imageRef = useRef<HTMLImageElement>(null);
 
   const loadImage = useCallback(async (filePath: string) => {
     setLoading(true);
@@ -89,20 +91,38 @@ export function useImageViewer() {
   }, []);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (zoom > 1) {
+    if (image) {
       setIsDragging(true);
       setDragStart({ x: e.clientX - position.x, y: e.clientY - position.y });
     }
-  }, [zoom, position]);
+  }, [image, position]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (isDragging) {
-      setPosition({
-        x: e.clientX - dragStart.x,
-        y: e.clientY - dragStart.y,
-      });
+      const newX = e.clientX - dragStart.x;
+      const newY = e.clientY - dragStart.y;
+
+      if (containerRef.current && imageRef.current) {
+        const containerW = containerRef.current.offsetWidth;
+        const containerH = containerRef.current.offsetHeight;
+        const imgW = imageRef.current.offsetWidth;
+        const imgH = imageRef.current.offsetHeight;
+
+        const scaledW = imgW * zoom;
+        const scaledH = imgH * zoom;
+
+        const maxX = Math.abs(scaledW - containerW) / 2;
+        const maxY = Math.abs(scaledH - containerH) / 2;
+
+        setPosition({
+          x: Math.max(-maxX, Math.min(maxX, newX)),
+          y: Math.max(-maxY, Math.min(maxY, newY)),
+        });
+      } else {
+        setPosition({ x: newX, y: newY });
+      }
     }
-  }, [isDragging, dragStart]);
+  }, [isDragging, dragStart, zoom]);
 
   const handleMouseUp = useCallback(() => {
     setIsDragging(false);
@@ -156,6 +176,8 @@ export function useImageViewer() {
     position,
     loading,
     error,
+    containerRef,
+    imageRef,
     handleOpenFile,
     navigateImage,
     handleZoomIn,
