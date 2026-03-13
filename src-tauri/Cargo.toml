@@ -26,4 +26,5 @@ tauri-plugin-dialog = "2.6.0"
 tauri-plugin-fs = "2.4.5"
 base64 = "0.22.1"
 
-
+[target.'cfg(target_os = "windows")'.dependencies]
+winreg = "0.52"

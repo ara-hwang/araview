@@ -1,11 +1,24 @@
 pub mod commands;
 pub mod image;
+#[cfg(target_os = "windows")]
+pub mod context_menu;
 
 use commands::{get_directory_images, load_image};
 use tauri::Emitter;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // On Windows, handle the uninstall hook before starting the UI.
+    #[cfg(target_os = "windows")]
+    {
+        let args: Vec<String> = std::env::args().collect();
+        if args.iter().any(|a| a == "--unregister-context-menu") {
+            context_menu::unregister_context_menu();
+            return;
+        }
+        context_menu::register_context_menu();
+    }
+
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
