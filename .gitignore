@@ -34,3 +34,7 @@ dist-ssr
 # Cursor AI editor
 .cursor/*
 !.cursor/rules
+
+# Rust / Cargo
+# (build artifacts and generated files are covered by src-tauri/.gitignore)
+**/*.rs.bk
