@@ -30,7 +30,7 @@ export function Toolbar({
       style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
     >
       <div className="flex items-center gap-1" style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}>
-        <Button variant="ghost" size="sm" onClick={onOpenFile} title="Open file (Ctrl+O)" className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted))]">
+        <Button variant="ghost" size="sm" onClick={onOpenFile} title="Open file (Ctrl+O)" className="text-[hsl(var(--muted-foreground))]">
           <FolderOpen />
           <span>Open</span>
         </Button>
@@ -39,13 +39,13 @@ export function Toolbar({
       <div className="flex flex-1 items-center justify-center gap-1" style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}>
         {dirImages && dirImages.images.length > 1 && (
           <>
-            <Button variant="ghost" size="icon" onClick={() => onNavigate("prev")} title="Previous image" className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted))]">
+            <Button variant="ghost" size="icon" onClick={() => onNavigate("prev")} title="Previous image" className="text-[hsl(var(--muted-foreground))]">
               <ChevronLeft />
             </Button>
             <span className="text-sm text-[hsl(var(--muted-foreground))] min-w-[60px] text-center tabular-nums">
               {currentIndex + 1} / {dirImages.images.length}
             </span>
-            <Button variant="ghost" size="icon" onClick={() => onNavigate("next")} title="Next image" className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted))]">
+            <Button variant="ghost" size="icon" onClick={() => onNavigate("next")} title="Next image" className="text-[hsl(var(--muted-foreground))]">
               <ChevronRight />
             </Button>
           </>
@@ -53,7 +53,7 @@ export function Toolbar({
       </div>
 
       <div className="flex items-center gap-1" style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}>
-        <Button variant="ghost" size="icon" onClick={onZoomOut} title="Zoom out (-)" className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted))]">
+        <Button variant="ghost" size="icon" onClick={onZoomOut} title="Zoom out (-)" className="text-[hsl(var(--muted-foreground))]">
           <ZoomOut />
         </Button>
         <span
@@ -66,7 +66,7 @@ export function Toolbar({
         >
           {Math.round(zoom * 100)}%
         </span>
-        <Button variant="ghost" size="icon" onClick={onZoomIn} title="Zoom in (+)" className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted))]">
+        <Button variant="ghost" size="icon" onClick={onZoomIn} title="Zoom in (+)" className="text-[hsl(var(--muted-foreground))]">
           <ZoomIn />
         </Button>
       </div>
