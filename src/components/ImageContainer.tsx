@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import type { RefObject } from "react";
 import { cn } from "@/lib/utils";
 import type { ImageInfo } from "../types";
 
@@ -9,6 +9,8 @@ interface ImageContainerProps {
   zoom: number;
   isDragging: boolean;
   position: { x: number; y: number };
+  containerRef: RefObject<HTMLDivElement>;
+  imageRef: RefObject<HTMLImageElement>;
   onWheel: (e: React.WheelEvent) => void;
   onMouseDown: (e: React.MouseEvent) => void;
   onMouseMove: (e: React.MouseEvent) => void;
@@ -22,12 +24,13 @@ export function ImageContainer({
   zoom,
   isDragging,
   position,
+  containerRef,
+  imageRef,
   onWheel,
   onMouseDown,
   onMouseMove,
   onMouseUp,
 }: ImageContainerProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
   const imageSrc = image ? `data:${image.mime_type};base64,${image.base64}` : null;
 
   return (
@@ -70,12 +73,13 @@ export function ImageContainer({
 
       {imageSrc && !loading && (
         <img
+          ref={imageRef}
           src={imageSrc}
           alt={image?.file_name}
           className="max-w-full max-h-full object-contain transition-transform duration-[50ms] ease-out"
           style={{
             transform: `translate(${position.x}px, ${position.y}px) scale(${zoom})`,
-            cursor: zoom > 1 ? (isDragging ? "grabbing" : "grab") : "default",
+            cursor: isDragging ? "grabbing" : "grab",
           }}
           draggable={false}
         />
