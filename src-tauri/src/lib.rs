@@ -2,7 +2,7 @@ pub mod commands;
 pub mod image;
 
 use commands::{get_directory_images, load_image};
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
