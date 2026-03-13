@@ -1,3 +1,6 @@
+import { FolderOpen, ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import type { DirectoryImages } from "../types";
 
 interface ToolbarProps {
@@ -22,55 +25,50 @@ export function Toolbar({
   onResetZoom,
 }: ToolbarProps) {
   return (
-    <div className="toolbar">
-      <div className="toolbar-left">
-        <button className="toolbar-btn" onClick={onOpenFile} title="Open file (Ctrl+O)">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-          </svg>
+    <div
+      className="flex items-center justify-between h-11 px-3 bg-[hsl(var(--card))] border-b border-[hsl(var(--border))] flex-shrink-0"
+      style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
+    >
+      <div className="flex items-center gap-1" style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}>
+        <Button variant="ghost" size="sm" onClick={onOpenFile} title="Open file (Ctrl+O)" className="text-[hsl(var(--muted-foreground))]">
+          <FolderOpen />
           <span>Open</span>
-        </button>
+        </Button>
       </div>
 
-      <div className="toolbar-center">
+      <div className="flex flex-1 items-center justify-center gap-1" style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}>
         {dirImages && dirImages.images.length > 1 && (
           <>
-            <button className="toolbar-btn" onClick={() => onNavigate("prev")} title="Previous image">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <polyline points="15 18 9 12 15 6" />
-              </svg>
-            </button>
-            <span className="image-counter">
+            <Button variant="ghost" size="icon" onClick={() => onNavigate("prev")} title="Previous image" className="text-[hsl(var(--muted-foreground))]">
+              <ChevronLeft />
+            </Button>
+            <span className="text-sm text-[hsl(var(--muted-foreground))] min-w-[60px] text-center tabular-nums">
               {currentIndex + 1} / {dirImages.images.length}
             </span>
-            <button className="toolbar-btn" onClick={() => onNavigate("next")} title="Next image">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <polyline points="9 18 15 12 9 6" />
-              </svg>
-            </button>
+            <Button variant="ghost" size="icon" onClick={() => onNavigate("next")} title="Next image" className="text-[hsl(var(--muted-foreground))]">
+              <ChevronRight />
+            </Button>
           </>
         )}
       </div>
 
-      <div className="toolbar-right">
-        <button className="toolbar-btn" onClick={onZoomOut} title="Zoom out (-)">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="11" cy="11" r="8" />
-            <line x1="21" y1="21" x2="16.65" y2="16.65" />
-            <line x1="8" y1="11" x2="14" y2="11" />
-          </svg>
-        </button>
-        <span className="zoom-level" onClick={onResetZoom} title="Reset zoom (0)">
+      <div className="flex items-center gap-1" style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}>
+        <Button variant="ghost" size="icon" onClick={onZoomOut} title="Zoom out (-)" className="text-[hsl(var(--muted-foreground))]">
+          <ZoomOut />
+        </Button>
+        <span
+          className={cn(
+            "text-sm text-[hsl(var(--muted-foreground))] min-w-[50px] text-center cursor-pointer px-1.5 py-1 rounded tabular-nums",
+            "hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))] transition-colors"
+          )}
+          onClick={onResetZoom}
+          title="Reset zoom (0)"
+        >
           {Math.round(zoom * 100)}%
         </span>
-        <button className="toolbar-btn" onClick={onZoomIn} title="Zoom in (+)">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="11" cy="11" r="8" />
-            <line x1="21" y1="21" x2="16.65" y2="16.65" />
-            <line x1="11" y1="8" x2="11" y2="14" />
-            <line x1="8" y1="11" x2="14" y2="11" />
-          </svg>
-        </button>
+        <Button variant="ghost" size="icon" onClick={onZoomIn} title="Zoom in (+)" className="text-[hsl(var(--muted-foreground))]">
+          <ZoomIn />
+        </Button>
       </div>
     </div>
   );
