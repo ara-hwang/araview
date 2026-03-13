@@ -9,3 +9,10 @@ export interface DirectoryImages {
   images: string[];
   current_index: number;
 }
+
+export type BackgroundType = "checkered" | "solid";
+
+export interface Settings {
+  background: BackgroundType;
+  loopNavigation: boolean;
+}

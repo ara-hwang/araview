@@ -4,7 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import { Menu, MenuItem, PredefinedMenuItem } from "@tauri-apps/api/menu";
-import type { ImageInfo, DirectoryImages } from "../types";
+import type { ImageInfo, DirectoryImages, Settings } from "../types";
 
 export function useImageViewer() {
   const [image, setImage] = useState<ImageInfo | null>(null);
@@ -16,6 +16,11 @@ export function useImageViewer() {
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [settings, setSettings] = useState<Settings>({
+    background: "checkered",
+    loopNavigation: false,
+  });
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
 
@@ -60,14 +65,24 @@ export function useImageViewer() {
 
     let newIndex: number;
     if (direction === "prev") {
-      newIndex = currentIndex > 0 ? currentIndex - 1 : dirImages.images.length - 1;
+      if (currentIndex === 0) {
+        if (!settings.loopNavigation) return;
+        newIndex = dirImages.images.length - 1;
+      } else {
+        newIndex = currentIndex - 1;
+      }
     } else {
-      newIndex = currentIndex < dirImages.images.length - 1 ? currentIndex + 1 : 0;
+      if (currentIndex === dirImages.images.length - 1) {
+        if (!settings.loopNavigation) return;
+        newIndex = 0;
+      } else {
+        newIndex = currentIndex + 1;
+      }
     }
 
     setCurrentIndex(newIndex);
     await loadImage(dirImages.images[newIndex]);
-  }, [dirImages, currentIndex, loadImage]);
+  }, [dirImages, currentIndex, loadImage, settings.loopNavigation]);
 
   const handleZoomIn = useCallback(() => {
     setZoom((prev) => Math.min(prev * 1.25, 10));
@@ -227,6 +242,18 @@ export function useImageViewer() {
     };
   }, [loadImage]);
 
+  const handleOpenSettings = useCallback(() => {
+    setIsSettingsOpen(true);
+  }, []);
+
+  const handleCloseSettings = useCallback(() => {
+    setIsSettingsOpen(false);
+  }, []);
+
+  const handleSettingsChange = useCallback((newSettings: Partial<Settings>) => {
+    setSettings((prev) => ({ ...prev, ...newSettings }));
+  }, []);
+
   // Keyboard shortcuts
   useHotkey("ArrowLeft", () => navigateImage("prev"));
   useHotkey("ArrowRight", () => navigateImage("next"));
@@ -248,6 +275,8 @@ export function useImageViewer() {
     position,
     loading,
     error,
+    settings,
+    isSettingsOpen,
     containerRef,
     imageRef,
     handleOpenFile,
@@ -265,5 +294,8 @@ export function useImageViewer() {
     handleDrop,
     handleDragOver,
     handleContextMenu,
+    handleOpenSettings,
+    handleCloseSettings,
+    handleSettingsChange,
   };
 }

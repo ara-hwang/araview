@@ -1,12 +1,13 @@
-import { FolderOpen, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, ArrowLeftRight, ArrowUpDown, Maximize2 } from "lucide-react";
+import { FolderOpen, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, ArrowLeftRight, ArrowUpDown, Maximize2, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import type { DirectoryImages } from "../types";
+import type { DirectoryImages, Settings as AppSettings } from "../types";
 
 interface ToolbarProps {
   dirImages: DirectoryImages | null;
   currentIndex: number;
   zoom: number;
+  settings: AppSettings;
   onOpenFile: () => void;
   onNavigate: (direction: "prev" | "next") => void;
   onZoomIn: () => void;
@@ -15,12 +16,14 @@ interface ToolbarProps {
   onFitWidth: () => void;
   onFitHeight: () => void;
   onFitScreen: () => void;
+  onOpenSettings: () => void;
 }
 
 export function Toolbar({
   dirImages,
   currentIndex,
   zoom,
+  settings,
   onOpenFile,
   onNavigate,
   onZoomIn,
@@ -29,7 +32,13 @@ export function Toolbar({
   onFitWidth,
   onFitHeight,
   onFitScreen,
+  onOpenSettings,
 }: ToolbarProps) {
+  const isFirst = !dirImages || currentIndex === 0;
+  const isLast = !dirImages || currentIndex === dirImages.images.length - 1;
+  const isPrevDisabled = isFirst && !settings.loopNavigation;
+  const isNextDisabled = isLast && !settings.loopNavigation;
+
   return (
     <div
       className="flex items-center justify-between h-11 px-3 bg-[hsl(var(--card))] border-b border-[hsl(var(--border))] flex-shrink-0"
@@ -45,13 +54,27 @@ export function Toolbar({
       <div className="flex flex-1 items-center justify-center gap-1" style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}>
         {dirImages && dirImages.images.length > 1 && (
           <>
-            <Button variant="ghost" size="icon" onClick={() => onNavigate("prev")} title="Previous image" className="text-[hsl(var(--muted-foreground))]">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => onNavigate("prev")}
+              title="Previous image"
+              className="text-[hsl(var(--muted-foreground))]"
+              disabled={isPrevDisabled}
+            >
               <ChevronLeft />
             </Button>
             <span className="text-sm text-[hsl(var(--muted-foreground))] min-w-[60px] text-center tabular-nums">
               {currentIndex + 1} / {dirImages.images.length}
             </span>
-            <Button variant="ghost" size="icon" onClick={() => onNavigate("next")} title="Next image" className="text-[hsl(var(--muted-foreground))]">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => onNavigate("next")}
+              title="Next image"
+              className="text-[hsl(var(--muted-foreground))]"
+              disabled={isNextDisabled}
+            >
               <ChevronRight />
             </Button>
           </>
@@ -84,6 +107,10 @@ export function Toolbar({
         </span>
         <Button variant="ghost" size="icon" onClick={onZoomIn} title="Zoom in (+)" className="text-[hsl(var(--muted-foreground))]">
           <ZoomIn />
+        </Button>
+        <div className="w-px h-5 bg-[hsl(var(--border))] mx-1" />
+        <Button variant="ghost" size="icon" onClick={onOpenSettings} title="Settings" className="text-[hsl(var(--muted-foreground))]">
+          <Settings />
         </Button>
       </div>
     </div>

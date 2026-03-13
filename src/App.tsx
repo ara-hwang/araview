@@ -2,6 +2,7 @@ import { useImageViewer } from "./hooks/useImageViewer";
 import { Toolbar } from "./components/Toolbar";
 import { ImageContainer } from "./components/ImageContainer";
 import { StatusBar } from "./components/StatusBar";
+import { SettingsDialog } from "./components/SettingsDialog";
 import "./App.css";
 
 function App() {
@@ -14,6 +15,8 @@ function App() {
     position,
     loading,
     error,
+    settings,
+    isSettingsOpen,
     containerRef,
     imageRef,
     handleOpenFile,
@@ -31,6 +34,9 @@ function App() {
     handleDrop,
     handleDragOver,
     handleContextMenu,
+    handleOpenSettings,
+    handleCloseSettings,
+    handleSettingsChange,
   } = useImageViewer();
 
   return (
@@ -44,6 +50,7 @@ function App() {
         dirImages={dirImages}
         currentIndex={currentIndex}
         zoom={zoom}
+        settings={settings}
         onOpenFile={handleOpenFile}
         onNavigate={navigateImage}
         onZoomIn={handleZoomIn}
@@ -52,6 +59,7 @@ function App() {
         onFitWidth={handleFitWidth}
         onFitHeight={handleFitHeight}
         onFitScreen={handleFitScreen}
+        onOpenSettings={handleOpenSettings}
       />
 
       <ImageContainer
@@ -61,6 +69,7 @@ function App() {
         zoom={zoom}
         isDragging={isDragging}
         position={position}
+        background={settings.background}
         containerRef={containerRef}
         imageRef={imageRef}
         onWheel={handleWheel}
@@ -70,6 +79,13 @@ function App() {
       />
 
       <StatusBar image={image} />
+
+      <SettingsDialog
+        open={isSettingsOpen}
+        settings={settings}
+        onClose={handleCloseSettings}
+        onSettingsChange={handleSettingsChange}
+      />
     </div>
   );
 }
