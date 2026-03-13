@@ -6,10 +6,15 @@ use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_fs::init());
+
+    #[cfg(debug_assertions)]
+    let builder = builder.plugin(tauri_plugin_mcp_bridge::init());
+
+    builder
         .invoke_handler(tauri::generate_handler![load_image, get_directory_images])
         .setup(|app| {
             // On Windows and Linux, the OS passes the file path as a CLI argument
