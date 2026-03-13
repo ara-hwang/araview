@@ -26,6 +26,4 @@ tauri-plugin-dialog = "2.6.0"
 tauri-plugin-fs = "2.4.5"
 tauri-plugin-mcp-bridge = "0.2"
 base64 = "0.22.1"
-libheif-rs = "0.20"
-image = { version = "0.25", default-features = false, features = ["jpeg"] }
 
