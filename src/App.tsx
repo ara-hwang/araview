@@ -1,4 +1,5 @@
 import { useImageViewer } from "./hooks/useImageViewer";
+import { TitleBar } from "./components/TitleBar";
 import { Toolbar } from "./components/Toolbar";
 import { ImageContainer } from "./components/ImageContainer";
 import { StatusBar } from "./components/StatusBar";
@@ -46,6 +47,7 @@ function App() {
       onDrop={handleDrop}
       onDragOver={handleDragOver}
     >
+      <TitleBar />
       <Toolbar
         dirImages={dirImages}
         currentIndex={currentIndex}
