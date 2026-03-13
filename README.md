@@ -1,6 +1,6 @@
 # Tauri + React + Typescript
 
-A desktop image viewer built with Tauri, React, and TypeScript. Supports a wide range of image formats including PNG, JPG, GIF, BMP, WebP, SVG, ICO, TIFF, AVIF, HEIC, and HEIF.
+A desktop image viewer built with Tauri, React, and TypeScript. Supports a wide range of image formats including PNG, JPG, GIF, BMP, WebP, SVG, ICO, TIFF, and AVIF.
 
 ## Recommended IDE Setup
 
@@ -27,31 +27,16 @@ sudo apt-get install -y \
   file \
   libssl-dev \
   libayatana-appindicator3-dev \
-  librsvg2-dev \
-  libheif-dev
+  librsvg2-dev
 ```
 
 #### macOS
 
-```bash
-brew install libheif
-```
+No additional system libraries are required.
 
 #### Windows
 
-Install [vcpkg](https://vcpkg.io/) and then run:
-
-```powershell
-vcpkg install libheif:x64-windows
-```
-
-After installation, set the following environment variables (`VCPKG_INSTALLATION_ROOT` is set automatically by the vcpkg installer — for example `C:\vcpkg`):
-
-```powershell
-$env:VCPKG_ROOT = $env:VCPKG_INSTALLATION_ROOT
-$env:PKG_CONFIG_PATH = "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\lib\pkgconfig"
-$env:PATH = "$env:PATH;$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\bin"
-```
+No additional system libraries are required.
 
 ## Development Environment Setup
 
