@@ -76,6 +76,10 @@ function App() {
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
+        dirImages={dirImages}
+        currentIndex={currentIndex}
+        settings={settings}
+        onNavigate={navigateImage}
       />
 
       <StatusBar image={image} />
