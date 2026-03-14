@@ -1,7 +1,9 @@
 import type { RefObject } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Spinner } from "@/components/ui/spinner";
-import type { ImageInfo, BackgroundType } from "../types";
+import { Button } from "@/components/ui/button";
+import type { ImageInfo, BackgroundType, DirectoryImages, Settings as AppSettings } from "../types";
 
 interface ImageContainerProps {
   image: ImageInfo | null;
@@ -17,6 +19,10 @@ interface ImageContainerProps {
   onMouseDown: (e: React.MouseEvent) => void;
   onMouseMove: (e: React.MouseEvent) => void;
   onMouseUp: () => void;
+  dirImages?: DirectoryImages | null;
+  currentIndex?: number;
+  settings?: AppSettings;
+  onNavigate?: (direction: "prev" | "next") => void;
 }
 
 export function ImageContainer({
@@ -33,7 +39,16 @@ export function ImageContainer({
   onMouseDown,
   onMouseMove,
   onMouseUp,
+  dirImages,
+  currentIndex = 0,
+  settings,
+  onNavigate,
 }: ImageContainerProps) {
+  const showNavButtons = !!(dirImages && dirImages.images.length > 1 && onNavigate);
+  const isFirst = !dirImages || currentIndex === 0;
+  const isLast = !dirImages || currentIndex === dirImages.images.length - 1;
+  const isPrevDisabled = isFirst && !(settings?.loopNavigation);
+  const isNextDisabled = isLast && !(settings?.loopNavigation);
   const imageSrc = image
     ? `data:${image.mime_type};base64,${image.base64}`
     : null;
@@ -102,6 +117,31 @@ export function ImageContainer({
           </svg>
           <p className="text-base opacity-80">Drag &amp; drop an image here</p>
           <p className="text-sm opacity-60">or press Ctrl+O to open a file</p>
+        </div>
+      )}
+
+      {showNavButtons && (
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-1 rounded-lg bg-[hsl(var(--card))]/70 backdrop-blur-sm p-1 opacity-40 transition-opacity duration-200 hover:opacity-90 focus-within:opacity-90">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => onNavigate?.("prev")}
+            title="Previous image"
+            className="text-[hsl(var(--foreground))] hover:bg-[hsl(var(--accent))]"
+            disabled={isPrevDisabled}
+          >
+            <ChevronLeft />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => onNavigate?.("next")}
+            title="Next image"
+            className="text-[hsl(var(--foreground))] hover:bg-[hsl(var(--accent))]"
+            disabled={isNextDisabled}
+          >
+            <ChevronRight />
+          </Button>
         </div>
       )}
     </div>
