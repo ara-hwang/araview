@@ -21,6 +21,7 @@ function App() {
     imageRef,
     handleOpenFile,
     navigateImage,
+    navigateToIndex,
     handleZoomIn,
     handleZoomOut,
     handleResetZoom,
@@ -80,6 +81,7 @@ function App() {
         currentIndex={currentIndex}
         settings={settings}
         onNavigate={navigateImage}
+        onNavigateToIndex={navigateToIndex}
       />
 
       <StatusBar image={image} />
