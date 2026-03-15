@@ -1,7 +1,7 @@
 import { Menu, MenuItem, PredefinedMenuItem } from "@tauri-apps/api/menu";
 import type { DirectoryImages } from "../types";
 
-export interface ImageViewerContextMenuActions {
+export type ImageViewerContextMenuActions = {
   onOpenFile: () => void;
   onNavigatePrev: () => void;
   onNavigateNext: () => void;
@@ -11,7 +11,7 @@ export interface ImageViewerContextMenuActions {
   onFitWidth: () => void;
   onFitHeight: () => void;
   onFitScreen: () => void;
-}
+};
 
 export async function showImageViewerContextMenu(
   dirImages: DirectoryImages | null,

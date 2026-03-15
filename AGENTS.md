@@ -49,7 +49,8 @@ tauri-image-viewer/
 - **상태/로직**: `useImageViewer` 훅에 집중. 이미지 캐시, 줌, 드래그, 설정, Tauri `invoke`/`listen` 처리.
 - **UI**: `App.tsx`는 훅에서 받은 핸들러와 상태를 `Toolbar`, `ImageContainer`, `StatusBar`, `SettingsDialog`에 전달.
 - **타입**: `src/types.ts`의 `ImageInfo`, `DirectoryImages`, `Settings`, `BackgroundType`, `CacheMode`는 Rust와 공유. 변경 시 백엔드와 맞출 것.
-- **스타일**: Tailwind 4 + shadcn. 새 UI 컴포넌트는 `src/components/ui/`에 shadcn 추가 후 사용 (`npx shadcn@latest add ...`). **UI 프리미티브는 반드시 @base-ui를 사용하고, @radix-ui는 사용하지 않는다.** components.json에 `"base": "base"`가 설정되어 있으므로 새 컴포넌트 추가 시 base-ui 기반으로 설치된다.
+- **타입 선언**: 객체/프로퍼티 타입은 **`type` 위주로 작성.** `interface` 대신 `type Foo = { ... }` 또는 `type Foo = Base & { ... }`(extends 대체) 사용.
+- **스타일**: Tailwind 4 + shadcn. 새 UI 컴포넌트는 `src/components/ui/`에 shadcn 추가 후 사용 (`npx shadcn@latest add ...`). **UI 프리미티브는 반드시 @base-ui를 사용하고, @radix-ui는 사용하지 않는다.**
 - **경로 별칭**: `@/components`, `@/lib`, `@/hooks` (components.json 기준).
 
 ## 백엔드 (Rust/Tauri)

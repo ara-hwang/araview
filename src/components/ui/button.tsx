@@ -35,11 +35,10 @@ const buttonVariants = cva(
 
 type BaseUIButtonProps = React.ComponentProps<typeof BaseUIButton>;
 
-export interface ButtonProps
-  extends Omit<BaseUIButtonProps, "className">,
-    VariantProps<typeof buttonVariants> {
-  className?: string;
-}
+export type ButtonProps = Omit<BaseUIButtonProps, "className"> &
+  VariantProps<typeof buttonVariants> & {
+    className?: string;
+  };
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant, size, ...props }, ref) => {

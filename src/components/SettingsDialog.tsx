@@ -4,12 +4,12 @@ import { RadioGroupRoot, RadioGroupItem } from "@/components/ui/radio-group";
 import { Button } from "@/components/ui/button";
 import type { Settings, BackgroundType, CacheMode } from "../types";
 
-interface SettingsDialogProps {
+type SettingsDialogProps = {
   open: boolean;
   settings: Settings;
   onClose: () => void;
   onSettingsChange: (settings: Partial<Settings>) => void;
-}
+};
 
 export function SettingsDialog({
   open,

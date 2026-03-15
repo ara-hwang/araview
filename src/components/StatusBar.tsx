@@ -1,9 +1,9 @@
 import type { ImageInfo } from "../types";
 import { formatFileSize } from "../utils/format";
 
-interface StatusBarProps {
+type StatusBarProps = {
   image: ImageInfo | null;
-}
+};
 
 export function StatusBar({ image }: StatusBarProps) {
   if (!image) return null;
