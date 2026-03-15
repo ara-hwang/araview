@@ -1,5 +1,5 @@
 import { useImageViewer } from "./hooks/useImageViewer";
-import { Toolbar } from "./components/Toolbar";
+import Toolbar from "./components/Toolbar";
 import { ImageContainer } from "./components/ImageContainer";
 import { StatusBar } from "./components/StatusBar";
 import { SettingsDialog } from "./components/SettingsDialog";
