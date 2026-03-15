@@ -1,7 +1,9 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { ImageInfo, DirectoryImages, Settings } from "../types";
+import { SUPPORTED_IMAGE_EXTENSIONS } from "../constants/imageExtensions";
 import { showImageViewerContextMenu } from "../utils/contextMenu";
 import { useImageCache } from "./useImageCache";
 import { useZoomPan } from "./useZoomPan";
@@ -28,6 +30,14 @@ export function useImageViewer() {
     useImageCache(settings);
 
   const zoomPan = useZoomPan(containerRef, imageRef, image);
+
+  // 이미지 변경 시 창 제목 변경
+  useEffect(() => {
+    const title = image ? image.file_name : "Image Viewer";
+    getCurrentWindow()
+      .setTitle(title)
+      .catch(() => {});
+  }, [image]);
 
   const loadImage = useCallback(
     async (filePath: string, options?: { refreshDirectory?: boolean }) => {
@@ -89,21 +99,7 @@ export function useImageViewer() {
       filters: [
         {
           name: "Images",
-          extensions: [
-            "png",
-            "jpg",
-            "jpeg",
-            "gif",
-            "bmp",
-            "webp",
-            "svg",
-            "ico",
-            "tiff",
-            "tif",
-            "avif",
-            "heic",
-            "heif",
-          ],
+          extensions: [...SUPPORTED_IMAGE_EXTENSIONS],
         },
       ],
     });
