@@ -3,6 +3,12 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { ImageInfo, DirectoryImages, Settings } from "../types";
+import {
+  getSettings,
+  subscribeToSettings,
+  updateSettings,
+  initSettingsFromStore,
+} from "../store/appStore";
 import { SUPPORTED_IMAGE_EXTENSIONS } from "../constants/imageExtensions";
 import { showImageViewerContextMenu } from "../utils/contextMenu";
 import { useImageCache } from "./useImageCache";
@@ -16,11 +22,7 @@ export function useImageViewer() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [settings, setSettings] = useState<Settings>({
-    background: "checkered",
-    loopNavigation: false,
-    cacheMode: "nearby",
-  });
+  const [settings, setSettings] = useState<Settings>(() => getSettings());
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -30,6 +32,18 @@ export function useImageViewer() {
     useImageCache(settings);
 
   const zoomPan = useZoomPan(containerRef, imageRef, image);
+
+  useEffect(() => {
+    const subscription = subscribeToSettings((next) => {
+      setSettings(next);
+    });
+
+    void initSettingsFromStore();
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
 
   // 이미지 변경 시 창 제목 변경
   useEffect(() => {
@@ -223,7 +237,7 @@ export function useImageViewer() {
   const handleOpenSettings = useCallback(() => setIsSettingsOpen(true), []);
   const handleCloseSettings = useCallback(() => setIsSettingsOpen(false), []);
   const handleSettingsChange = useCallback((newSettings: Partial<Settings>) => {
-    setSettings((prev) => ({ ...prev, ...newSettings }));
+    void updateSettings(newSettings);
   }, []);
 
   useImageViewerHotkeys({
