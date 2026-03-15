@@ -72,17 +72,20 @@ export function ImageContainer({
       onMouseLeave={onMouseUp}
     >
       {imageSrc && (
-        <img
-          ref={imageRef}
-          src={imageSrc}
-          alt={image?.file_name}
-          className="max-w-full max-h-full object-contain transition-transform duration-[50ms] ease-out"
-          style={{
-            transform: `translate(${position.x}px, ${position.y}px) scale(${zoom})`,
-            cursor: isDragging ? "grabbing" : "grab",
-          }}
-          draggable={false}
-        />
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <img
+            ref={imageRef}
+            src={imageSrc}
+            alt={image?.file_name}
+            className="max-w-full max-h-full object-contain transition-transform duration-[50ms] ease-out pointer-events-auto"
+            style={{
+              transform: `translate(${position.x}px, ${position.y}px) scale(${zoom})`,
+              transformOrigin: "center center",
+              cursor: isDragging ? "grabbing" : "grab",
+            }}
+            draggable={false}
+          />
+        </div>
       )}
 
       {loading && (

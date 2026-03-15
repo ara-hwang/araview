@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import { useHotkey } from "@tanstack/react-hotkeys";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
@@ -48,8 +48,21 @@ export function useImageViewer() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
+  const prevZoomRef = useRef(1);
   const imageCacheRef = useRef<Map<string, ImageInfo>>(new Map());
   const inflightLoadsRef = useRef<Map<string, Promise<ImageInfo>>>(new Map());
+
+  /** 뷰어에 꽉 차게 맞추는 줌(최소 줌). ref 미준비 시 1 반환해 공백 방지 */
+  const getFitZoom = useCallback(() => {
+    if (!containerRef.current || !imageRef.current) return 1;
+    const cw = containerRef.current.offsetWidth;
+    const ch = containerRef.current.offsetHeight;
+    const iw = imageRef.current.offsetWidth;
+    const ih = imageRef.current.offsetHeight;
+    if (iw <= 0 || ih <= 0) return 1;
+    const fit = Math.min(cw / iw, ch / ih);
+    return fit * (1 + 1e-6);
+  }, []);
 
   const trimCacheToLimit = useCallback((limit: number) => {
     const cache = imageCacheRef.current;
@@ -158,6 +171,7 @@ export function useImageViewer() {
         setImage(imgInfo);
         setZoom(1);
         setPosition({ x: 0, y: 0 });
+        prevZoomRef.current = 1;
 
         let resolvedDirInfo = dirImages;
 
@@ -263,8 +277,9 @@ export function useImageViewer() {
   }, []);
 
   const handleZoomOut = useCallback(() => {
-    setZoom((prev) => Math.max(prev / 1.25, 0.1));
-  }, []);
+    const minZoom = getFitZoom();
+    setZoom((prev) => Math.max(prev / 1.25, minZoom));
+  }, [getFitZoom]);
 
   const handleResetZoom = useCallback(() => {
     setZoom(1);
@@ -304,10 +319,11 @@ export function useImageViewer() {
     (e: React.WheelEvent) => {
       e.preventDefault();
       if (e.ctrlKey) {
+        const minZoom = getFitZoom();
         if (e.deltaY < 0) {
           setZoom((prev) => Math.min(prev * 1.1, 10));
         } else {
-          setZoom((prev) => Math.max(prev / 1.1, 0.1));
+          setZoom((prev) => Math.max(prev / 1.1, minZoom));
         }
       } else {
         if (e.deltaY < 0) {
@@ -317,7 +333,7 @@ export function useImageViewer() {
         }
       }
     },
-    [navigateImage],
+    [navigateImage, getFitZoom],
   );
 
   const handleMouseDown = useCallback(
@@ -332,29 +348,34 @@ export function useImageViewer() {
 
   const handleMouseMove = useCallback(
     (e: React.MouseEvent) => {
-      if (isDragging) {
+      if (isDragging && containerRef.current && imageRef.current) {
+        const containerW = containerRef.current.offsetWidth;
+        const containerH = containerRef.current.offsetHeight;
+        const imgW = imageRef.current.offsetWidth;
+        const imgH = imageRef.current.offsetHeight;
+        const scaledW = imgW * zoom;
+        const scaledH = imgH * zoom;
+
+        // 뷰어에 다 들어오면 드래그로 이동하지 않고 항상 중앙 유지
+        if (scaledW <= containerW && scaledH <= containerH) {
+          setPosition({ x: 0, y: 0 });
+          return;
+        }
+
         const newX = e.clientX - dragStart.x;
         const newY = e.clientY - dragStart.y;
+        const maxX = Math.abs(scaledW - containerW) / 2;
+        const maxY = Math.abs(scaledH - containerH) / 2;
 
-        if (containerRef.current && imageRef.current) {
-          const containerW = containerRef.current.offsetWidth;
-          const containerH = containerRef.current.offsetHeight;
-          const imgW = imageRef.current.offsetWidth;
-          const imgH = imageRef.current.offsetHeight;
-
-          const scaledW = imgW * zoom;
-          const scaledH = imgH * zoom;
-
-          const maxX = Math.abs(scaledW - containerW) / 2;
-          const maxY = Math.abs(scaledH - containerH) / 2;
-
-          setPosition({
-            x: Math.max(-maxX, Math.min(maxX, newX)),
-            y: Math.max(-maxY, Math.min(maxY, newY)),
-          });
-        } else {
-          setPosition({ x: newX, y: newY });
-        }
+        setPosition({
+          x: Math.max(-maxX, Math.min(maxX, newX)),
+          y: Math.max(-maxY, Math.min(maxY, newY)),
+        });
+      } else if (isDragging) {
+        setPosition({
+          x: e.clientX - dragStart.x,
+          y: e.clientY - dragStart.y,
+        });
       }
     },
     [isDragging, dragStart, zoom],
@@ -494,6 +515,43 @@ export function useImageViewer() {
   useEffect(() => {
     trimCacheToLimit(getCacheLimit(settings.cacheMode));
   }, [settings.cacheMode, trimCacheToLimit]);
+
+  // 뷰어에 이미지가 다 들어오면 항상 중앙(0,0)으로 유지
+  useLayoutEffect(() => {
+    if (!image || !containerRef.current || !imageRef.current) return;
+    const containerW = containerRef.current.offsetWidth;
+    const containerH = containerRef.current.offsetHeight;
+    const imgW = imageRef.current.offsetWidth;
+    const imgH = imageRef.current.offsetHeight;
+    const scaledW = imgW * zoom;
+    const scaledH = imgH * zoom;
+    if (scaledW <= containerW && scaledH <= containerH) {
+      setPosition({ x: 0, y: 0 });
+    }
+  }, [image, zoom]);
+
+  // 확대/축소 시 화면 중앙 기준 보정 후, 가장자리 기준으로 클램프해 한쪽만 공백 나지 않게 함
+  useLayoutEffect(() => {
+    if (prevZoomRef.current === zoom) return;
+    const ratio = zoom / prevZoomRef.current;
+    setPosition((p) => {
+      const newX = p.x * ratio;
+      const newY = p.y * ratio;
+      if (!containerRef.current || !imageRef.current) return { x: newX, y: newY };
+      const cw = containerRef.current.offsetWidth;
+      const ch = containerRef.current.offsetHeight;
+      const iw = imageRef.current.offsetWidth;
+      const ih = imageRef.current.offsetHeight;
+      const scaledW = iw * zoom;
+      const scaledH = ih * zoom;
+      const maxX = scaledW >= cw ? (scaledW - cw) / 2 : 0;
+      const maxY = scaledH >= ch ? (scaledH - ch) / 2 : 0;
+      const clampX = scaledW >= cw ? Math.max(-maxX, Math.min(maxX, newX)) : 0;
+      const clampY = scaledH >= ch ? Math.max(-maxY, Math.min(maxY, newY)) : 0;
+      return { x: clampX, y: clampY };
+    });
+    prevZoomRef.current = zoom;
+  }, [zoom]);
 
   const handleOpenSettings = useCallback(() => {
     setIsSettingsOpen(true);
