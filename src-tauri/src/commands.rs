@@ -17,7 +17,10 @@ pub fn load_image(file_path: String) -> Result<ImageInfo, String> {
     let data = fs::read(path).map_err(|e| format!("Failed to read file: {}", e))?;
     let metadata = fs::metadata(path).map_err(|e| format!("Failed to read metadata: {}", e))?;
 
-    let (base64_str, served_mime) = (general_purpose::STANDARD.encode(&data), mime_type.to_string());
+    let (base64_str, served_mime) = (
+        general_purpose::STANDARD.encode(&data),
+        mime_type.to_string(),
+    );
 
     let file_name = path
         .file_name()
