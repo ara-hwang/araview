@@ -272,6 +272,19 @@ export function useImageViewer() {
     [dirImages, currentIndex, loadImage, settings.loopNavigation],
   );
 
+  const navigateToIndex = useCallback(
+    async (index: number) => {
+      if (!dirImages || dirImages.images.length === 0) return;
+      const clamped = Math.max(
+        0,
+        Math.min(index, dirImages.images.length - 1),
+      );
+      setCurrentIndex(clamped);
+      await loadImage(dirImages.images[clamped], { refreshDirectory: false });
+    },
+    [dirImages, loadImage],
+  );
+
   const handleZoomIn = useCallback(() => {
     setZoom((prev) => Math.min(prev * 1.25, 10));
   }, []);
@@ -482,6 +495,7 @@ export function useImageViewer() {
       handleFitScreen,
       dirImages,
       navigateImage,
+      navigateToIndex,
     ],
   );
 
@@ -592,6 +606,7 @@ export function useImageViewer() {
     imageRef,
     handleOpenFile,
     navigateImage,
+    navigateToIndex,
     handleZoomIn,
     handleZoomOut,
     handleResetZoom,
