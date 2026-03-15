@@ -4,6 +4,14 @@ import { ImageContainer } from "./components/ImageContainer";
 import { StatusBar } from "./components/StatusBar";
 import { SettingsDialog } from "./components/SettingsDialog";
 import "./App.css";
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyTitle,
+} from "./components/ui/empty";
+import { Button } from "./components/ui/button";
 
 function App() {
   const {
@@ -63,26 +71,38 @@ function App() {
         onOpenSettings={handleOpenSettings}
       />
 
-      <ImageContainer
-        image={image}
-        loading={loading}
-        error={error}
-        zoom={zoom}
-        isDragging={isDragging}
-        position={position}
-        background={settings.background}
-        containerRef={containerRef}
-        imageRef={imageRef}
-        onWheel={handleWheel}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        dirImages={dirImages}
-        currentIndex={currentIndex}
-        settings={settings}
-        onNavigate={navigateImage}
-        onNavigateToIndex={navigateToIndex}
-      />
+      {!image ? (
+        <Empty>
+          <EmptyHeader>
+            <EmptyTitle>No Image</EmptyTitle>
+            <EmptyDescription>No image found</EmptyDescription>
+          </EmptyHeader>
+          <EmptyContent>
+            <Button onClick={handleOpenFile}>Open File</Button>
+          </EmptyContent>
+        </Empty>
+      ) : (
+        <ImageContainer
+          image={image}
+          loading={loading}
+          error={error}
+          zoom={zoom}
+          isDragging={isDragging}
+          position={position}
+          background={settings.background}
+          containerRef={containerRef}
+          imageRef={imageRef}
+          onWheel={handleWheel}
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          dirImages={dirImages}
+          currentIndex={currentIndex}
+          settings={settings}
+          onNavigate={navigateImage}
+          onNavigateToIndex={navigateToIndex}
+        />
+      )}
 
       <StatusBar image={image} />
 

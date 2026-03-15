@@ -1,51 +1,83 @@
-import * as React from "react";
-import { cn } from "@/lib/utils";
+"use client"
 
-type ProgressProps = React.ComponentPropsWithoutRef<"div"> & {
-  value?: number;
-  /** 트랙 위를 움직이는 원형 핸들 스타일 (썸) */
-  variant?: "fill" | "thumb";
-};
+import { Progress as ProgressPrimitive } from "@base-ui/react/progress"
 
-const Progress = React.forwardRef<HTMLDivElement, ProgressProps>(
-  ({ className, value = 0, variant = "fill", ...props }, ref) => {
-    const pct = Math.min(100, Math.max(0, value));
-    const isThumb = variant === "thumb";
+import { cn } from "@/lib/utils"
 
-    return (
-      <div
-        ref={ref}
-        role="progressbar"
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-valuenow={Math.round(value)}
-        className={cn(
-          "relative w-full overflow-visible rounded-full",
-          isThumb
-            ? "h-1.5 px-1.5 bg-[hsl(var(--muted))] border border-[hsl(var(--border))]"
-            : "h-4 bg-[hsl(var(--secondary))]",
-          className
-        )}
-        {...props}
-      >
-        {isThumb ? (
-          <div
-            className="absolute top-1/2 size-3 rounded-full bg-[hsl(var(--primary))] shadow-sm transition-all pointer-events-none"
-            style={{
-              left: `calc(0.375rem + (100% - 0.75rem) * ${pct / 100})`,
-              transform: "translate(-50%, -50%)",
-            }}
-          />
-        ) : (
-          <div
-            className="h-full flex-1 bg-[hsl(var(--primary))] transition-all rounded-full"
-            style={{ width: `${pct}%` }}
-          />
-        )}
-      </div>
-    );
-  }
-);
-Progress.displayName = "Progress";
+function Progress({
+  className,
+  children,
+  value,
+  ...props
+}: ProgressPrimitive.Root.Props) {
+  return (
+    <ProgressPrimitive.Root
+      value={value}
+      data-slot="progress"
+      className={cn("flex flex-wrap gap-3", className)}
+      {...props}
+    >
+      {children}
+      <ProgressTrack>
+        <ProgressIndicator />
+      </ProgressTrack>
+    </ProgressPrimitive.Root>
+  )
+}
 
-export { Progress };
+function ProgressTrack({ className, ...props }: ProgressPrimitive.Track.Props) {
+  return (
+    <ProgressPrimitive.Track
+      className={cn(
+        "relative flex h-1 w-full items-center overflow-x-hidden rounded-full bg-muted",
+        className
+      )}
+      data-slot="progress-track"
+      {...props}
+    />
+  )
+}
+
+function ProgressIndicator({
+  className,
+  ...props
+}: ProgressPrimitive.Indicator.Props) {
+  return (
+    <ProgressPrimitive.Indicator
+      data-slot="progress-indicator"
+      className={cn("h-full bg-primary transition-all", className)}
+      {...props}
+    />
+  )
+}
+
+function ProgressLabel({ className, ...props }: ProgressPrimitive.Label.Props) {
+  return (
+    <ProgressPrimitive.Label
+      className={cn("text-sm font-medium", className)}
+      data-slot="progress-label"
+      {...props}
+    />
+  )
+}
+
+function ProgressValue({ className, ...props }: ProgressPrimitive.Value.Props) {
+  return (
+    <ProgressPrimitive.Value
+      className={cn(
+        "ml-auto text-sm text-muted-foreground tabular-nums",
+        className
+      )}
+      data-slot="progress-value"
+      {...props}
+    />
+  )
+}
+
+export {
+  Progress,
+  ProgressTrack,
+  ProgressIndicator,
+  ProgressLabel,
+  ProgressValue,
+}

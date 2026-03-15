@@ -106,7 +106,6 @@ export function ImageNavBar({
           </span>
         )}
         <Progress
-          variant="thumb"
           value={
             dirImages.images.length > 0
               ? ((currentIndex + 1) / dirImages.images.length) * 100
