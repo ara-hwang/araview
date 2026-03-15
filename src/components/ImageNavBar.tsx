@@ -4,13 +4,13 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import type { DirectoryImages, Settings as AppSettings } from "../types";
 
-interface ImageNavBarProps {
+type ImageNavBarProps = {
   dirImages: DirectoryImages;
   currentIndex: number;
   settings?: AppSettings;
   onNavigate: (direction: "prev" | "next") => void;
   onNavigateToIndex: (index: number) => void;
-}
+};
 
 export function ImageNavBar({
   dirImages,

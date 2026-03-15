@@ -15,12 +15,12 @@ import type { DirectoryImages, Settings as AppSettings } from "../types";
 
 const noDragStyle = { WebkitAppRegion: "no-drag" } as React.CSSProperties;
 
-interface ToolbarNavProps {
+type ToolbarNavProps = {
   dirImages: DirectoryImages | null;
   currentIndex: number;
   loopNavigation: boolean;
   onNavigate: (direction: "prev" | "next") => void;
-}
+};
 
 function ToolbarNav({
   dirImages,
@@ -70,7 +70,7 @@ function ToolbarNav({
   );
 }
 
-interface ToolbarZoomProps {
+type ToolbarZoomProps = {
   zoom: number;
   onZoomIn: () => void;
   onZoomOut: () => void;
@@ -79,7 +79,7 @@ interface ToolbarZoomProps {
   onFitHeight: () => void;
   onFitScreen: () => void;
   onOpenSettings: () => void;
-}
+};
 
 function ToolbarZoom({
   zoom,
@@ -163,7 +163,7 @@ function ToolbarZoom({
   );
 }
 
-interface ToolbarProps {
+type ToolbarProps = {
   dirImages: DirectoryImages | null;
   currentIndex: number;
   zoom: number;
@@ -177,7 +177,7 @@ interface ToolbarProps {
   onFitHeight: () => void;
   onFitScreen: () => void;
   onOpenSettings: () => void;
-}
+};
 
 export function Toolbar({
   dirImages,

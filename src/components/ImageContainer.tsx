@@ -9,7 +9,7 @@ import type {
   Settings as AppSettings,
 } from "../types";
 
-interface ImageContainerProps {
+type ImageContainerProps = {
   image: ImageInfo | null;
   loading: boolean;
   error: string | null;
@@ -28,7 +28,7 @@ interface ImageContainerProps {
   settings?: AppSettings;
   onNavigate?: (direction: "prev" | "next") => void;
   onNavigateToIndex?: (index: number) => void;
-}
+};
 
 export function ImageContainer({
   image,

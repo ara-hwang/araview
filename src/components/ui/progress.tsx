@@ -1,11 +1,11 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
-interface ProgressProps extends React.ComponentPropsWithoutRef<"div"> {
+type ProgressProps = React.ComponentPropsWithoutRef<"div"> & {
   value?: number;
   /** 트랙 위를 움직이는 원형 핸들 스타일 (썸) */
   variant?: "fill" | "thumb";
-}
+};
 
 const Progress = React.forwardRef<HTMLDivElement, ProgressProps>(
   ({ className, value = 0, variant = "fill", ...props }, ref) => {

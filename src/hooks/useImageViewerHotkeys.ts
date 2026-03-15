@@ -1,6 +1,6 @@
 import { useHotkey } from "@tanstack/react-hotkeys";
 
-interface ImageViewerHotkeysParams {
+type ImageViewerHotkeysParams = {
   onNavigatePrev: () => void;
   onNavigateNext: () => void;
   onZoomIn: () => void;
@@ -10,7 +10,7 @@ interface ImageViewerHotkeysParams {
   onFitHeight: () => void;
   onFitScreen: () => void;
   onOpenFile: () => void;
-}
+};
 
 export function useImageViewerHotkeys({
   onNavigatePrev,
