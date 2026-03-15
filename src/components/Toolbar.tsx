@@ -42,7 +42,7 @@ function ToolbarNav({
       {showNav && dirImages && (
         <>
           <Button
-            variant="ghost"
+            variant="outline"
             size="icon"
             onClick={() => onNavigate("prev")}
             title="Previous image"
@@ -55,7 +55,7 @@ function ToolbarNav({
             {currentIndex + 1} / {dirImages.images.length}
           </span>
           <Button
-            variant="ghost"
+            variant="outline"
             size="icon"
             onClick={() => onNavigate("next")}
             title="Next image"
@@ -94,7 +94,7 @@ function ToolbarZoom({
   return (
     <div className="flex items-center gap-1" style={noDragStyle}>
       <Button
-        variant="ghost"
+        variant="outline"
         size="icon"
         onClick={onFitWidth}
         title="Fit to width (1)"
@@ -103,7 +103,7 @@ function ToolbarZoom({
         <ArrowLeftRight />
       </Button>
       <Button
-        variant="ghost"
+        variant="outline"
         size="icon"
         onClick={onFitHeight}
         title="Fit to height (2)"
@@ -112,7 +112,7 @@ function ToolbarZoom({
         <ArrowUpDown />
       </Button>
       <Button
-        variant="ghost"
+        variant="outline"
         size="icon"
         onClick={onFitScreen}
         title="Fit to screen (3)"
@@ -122,7 +122,7 @@ function ToolbarZoom({
       </Button>
       <div className="w-px h-5 bg-[hsl(var(--border))] mx-1" />
       <Button
-        variant="ghost"
+        variant="outline"
         size="icon"
         onClick={onZoomOut}
         title="Zoom out (-)"
@@ -141,7 +141,7 @@ function ToolbarZoom({
         {Math.round(zoom * 100)}%
       </span>
       <Button
-        variant="ghost"
+        variant="outline"
         size="icon"
         onClick={onZoomIn}
         title="Zoom in (+)"
@@ -151,7 +151,7 @@ function ToolbarZoom({
       </Button>
       <div className="w-px h-5 bg-[hsl(var(--border))] mx-1" />
       <Button
-        variant="ghost"
+        variant="outline"
         size="icon"
         onClick={onOpenSettings}
         title="Settings"
@@ -201,7 +201,7 @@ export function Toolbar({
     >
       <div className="flex items-center gap-1" style={noDragStyle}>
         <Button
-          variant="ghost"
+          variant="outline"
           size="sm"
           onClick={onOpenFile}
           title="Open file (Ctrl+O)"
