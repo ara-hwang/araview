@@ -7,7 +7,7 @@
 **tauri-image-viewer**는 Tauri 2 기반 데스크톱 이미지 뷰어입니다.  
 지원 형식: PNG, JPG, GIF, BMP, WebP, SVG, ICO, TIFF, AVIF.
 
-- **프론트엔드**: React 18, TypeScript, Vite 6, Tailwind CSS 4, shadcn/ui
+- **프론트엔드**: React 18, TypeScript, Vite 6, Tailwind CSS 4, shadcn/ui (**@base-ui** 사용, @radix-ui 사용 금지)
 - **백엔드**: Rust (Tauri 2), 파일/이미지 처리
 - **실행**: `npm run tauri dev` (개발), `npm run tauri build` (빌드)
 
@@ -39,7 +39,7 @@ tauri-image-viewer/
 │   │   └── image.rs          # MIME 타입, ImageInfo/DirectoryImages, is_image_file
 │   ├── Cargo.toml
 │   └── tauri.conf.json       # Tauri 설정
-├── components.json           # shadcn 설정 (aliases: @/components, @/lib, @/hooks)
+├── components.json           # shadcn 설정 (base: base, aliases: @/components, @/lib, @/hooks)
 ├── package.json
 └── AGENTS.md                 # 이 파일
 ```
@@ -49,7 +49,7 @@ tauri-image-viewer/
 - **상태/로직**: `useImageViewer` 훅에 집중. 이미지 캐시, 줌, 드래그, 설정, Tauri `invoke`/`listen` 처리.
 - **UI**: `App.tsx`는 훅에서 받은 핸들러와 상태를 `Toolbar`, `ImageContainer`, `StatusBar`, `SettingsDialog`에 전달.
 - **타입**: `src/types.ts`의 `ImageInfo`, `DirectoryImages`, `Settings`, `BackgroundType`, `CacheMode`는 Rust와 공유. 변경 시 백엔드와 맞출 것.
-- **스타일**: Tailwind 4 + shadcn. 새 UI 컴포넌트는 `src/components/ui/`에 shadcn 추가 후 사용 (`npx shadcn@latest add ...`).
+- **스타일**: Tailwind 4 + shadcn. 새 UI 컴포넌트는 `src/components/ui/`에 shadcn 추가 후 사용 (`npx shadcn@latest add ...`). **UI 프리미티브는 반드시 @base-ui를 사용하고, @radix-ui는 사용하지 않는다.** components.json에 `"base": "base"`가 설정되어 있으므로 새 컴포넌트 추가 시 base-ui 기반으로 설치된다.
 - **경로 별칭**: `@/components`, `@/lib`, `@/hooks` (components.json 기준).
 
 ## 백엔드 (Rust/Tauri)
@@ -63,7 +63,7 @@ tauri-image-viewer/
 1. **이미지 로드/디렉터리 목록**: Rust `commands.rs` + `image.rs`, 프론트 `useImageViewer.ts` (invoke, 캐시, prefetch).
 2. **줌/드래그/핫키**: `useImageViewer.ts` + `ImageContainer.tsx`.
 3. **설정(배경, 루프, 캐시 모드)**: `types.ts`의 `Settings`, `useImageViewer`, `SettingsDialog`.
-4. **UI 컴포넌트 추가**: shadcn 사용 시 `components.json`과 `@/` alias 유지. 기존 `Toolbar`/`StatusBar` 패턴 따르기.
+4. **UI 컴포넌트 추가**: shadcn 사용 시 `components.json`과 `@/` alias 유지. **@base-ui 사용, @radix-ui 사용 금지.** 기존 `Toolbar`/`StatusBar` 패턴 따르기.
 5. **타입 변경**: `src/types.ts`와 `src-tauri/src/image.rs`(및 commands에서 쓰는 구조체)를 동시에 맞출 것.
 6. **Merge**: 사용자 규칙에 따라 no fast-forward merge만 사용.
 
