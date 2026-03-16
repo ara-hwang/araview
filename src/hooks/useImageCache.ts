@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import type { ImageInfo, Settings } from "../types";
+import type { ImageInfo } from "../types";
 import { getCacheLimit, getPrefetchDistance } from "../utils/cacheConfig";
+import { useSettingsStore } from "@/store/settingsStore";
 
-export function useImageCache(
-  settings: Pick<Settings, "cacheMode" | "loopNavigation">,
-) {
+export function useImageCache() {
+  const settings = useSettingsStore();
   const imageCacheRef = useRef<Map<string, ImageInfo>>(new Map());
   const inflightLoadsRef = useRef<Map<string, Promise<ImageInfo>>>(new Map());
 

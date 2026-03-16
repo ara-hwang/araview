@@ -134,7 +134,7 @@ export default function Toolbar({
 }: ToolbarProps) {
   return (
     <div
-      className="flex justify-between p-2 bg-[hsl(var(--card))] border-b border-[hsl(var(--border))] "
+      className="flex justify-between p-2 bg-[hsl(var(--card))]"
       style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
     >
       <div className="flex items-center gap-1" style={noDragStyle}>

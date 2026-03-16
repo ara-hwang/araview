@@ -2,8 +2,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import type { Settings, BackgroundType, CacheMode } from "../types";
-import { useSettingsStore } from "../hooks/useSettingsStore";
-import { updateSettings } from "../store/appStore";
+import { updateSettings, useSettingsStore } from "@/store/settingsStore";
 
 type SettingsDialogProps = {
   open: boolean;
@@ -34,14 +33,14 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
                 handleSettingsChange({ background: value as BackgroundType })
               }
             >
-              <div className="flex items-center gap-3">
+              <RadioGroupItemContainer>
                 <RadioGroupItem value="checkered" id="checkered" />
                 <Label htmlFor="checkered">Checkered</Label>
-              </div>
-              <div className="flex items-center gap-3">
+              </RadioGroupItemContainer>
+              <RadioGroupItemContainer>
                 <RadioGroupItem value="solid" id="solid" />
                 <Label htmlFor="solid">Solid color</Label>
-              </div>
+              </RadioGroupItemContainer>
             </RadioGroup>
           </div>
 
@@ -55,14 +54,14 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
                 handleSettingsChange({ loopNavigation: value === "loop" })
               }
             >
-              <div className="flex items-center gap-3">
+              <RadioGroupItemContainer>
                 <RadioGroupItem value="stop" id="stop" />
                 <Label htmlFor="stop">Stop at first / last image</Label>
-              </div>
-              <div className="flex items-center gap-3">
+              </RadioGroupItemContainer>
+              <RadioGroupItemContainer>
                 <RadioGroupItem value="loop" id="loop" />
                 <Label htmlFor="loop">Loop through images</Label>
-              </div>
+              </RadioGroupItemContainer>
             </RadioGroup>
           </div>
 
@@ -77,22 +76,26 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
                 handleSettingsChange({ cacheMode: value as CacheMode })
               }
             >
-              <div className="flex items-center gap-3">
+              <RadioGroupItemContainer>
                 <RadioGroupItem value="off" id="off" />
                 <Label htmlFor="off">Off (current image only)</Label>
-              </div>
-              <div className="flex items-center gap-3">
+              </RadioGroupItemContainer>
+              <RadioGroupItemContainer>
                 <RadioGroupItem value="nearby" id="nearby" />
                 <Label htmlFor="nearby">Nearby (previous / next preload)</Label>
-              </div>
-              <div className="flex items-center gap-3">
+              </RadioGroupItemContainer>
+              <RadioGroupItemContainer>
                 <RadioGroupItem value="extended" id="extended" />
                 <Label htmlFor="extended">Extended (up to ±3 preload)</Label>
-              </div>
+              </RadioGroupItemContainer>
             </RadioGroup>
           </div>
         </div>
       </DialogContent>
     </Dialog>
   );
+}
+
+function RadioGroupItemContainer(props: { children: React.ReactNode }) {
+  return <div className="flex items-center gap-3">{props.children}</div>;
 }

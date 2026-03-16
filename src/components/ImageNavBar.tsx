@@ -3,7 +3,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import type { DirectoryImages } from "../types";
-import { useSettingsStore } from "../hooks/useSettingsStore";
+import { useSettingsStore } from "../store/settingsStore";
 
 type ImageNavBarProps = {
   dirImages: DirectoryImages;

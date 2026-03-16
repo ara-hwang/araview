@@ -7,6 +7,7 @@ import { StatusBar } from "./components/StatusBar";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { Empty, EmptyContent } from "./components/ui/empty";
 import { Button } from "./components/ui/button";
+import { Separator } from "./components/ui/separator";
 
 function App() {
   const {
@@ -60,6 +61,8 @@ function App() {
         onOpenSettings={handleOpenSettings}
       />
 
+      <Separator />
+
       {!image ? (
         <Empty>
           <EmptyContent>
@@ -86,6 +89,8 @@ function App() {
           onNavigateToIndex={navigateToIndex}
         />
       )}
+
+      <Separator />
 
       <StatusBar image={image} />
 
