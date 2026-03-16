@@ -3,47 +3,31 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { ImageInfo, DirectoryImages, Settings } from "../types";
-import {
-  getSettings,
-  subscribeToSettings,
-  updateSettings,
-  initSettingsFromStore,
-} from "../store/appStore";
 import { SUPPORTED_IMAGE_EXTENSIONS } from "../constants/imageExtensions";
 import { showImageViewerContextMenu } from "../utils/contextMenu";
 import { useImageCache } from "./useImageCache";
 import { useZoomPan } from "./useZoomPan";
 import { useImageViewerHotkeys } from "./useImageViewerHotkeys";
 import { useOpenFileListener } from "./useOpenFileListener";
+import { updateSettings, useSettingsStore } from "@/store/settingsStore";
 
 export function useImageViewer() {
+  const settings = useSettingsStore();
+
   const [image, setImage] = useState<ImageInfo | null>(null);
   const [dirImages, setDirImages] = useState<DirectoryImages | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [settings, setSettings] = useState<Settings>(() => getSettings());
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
 
   const { getOrLoadImage, prefetchNearbyImages, getPrefetchDistance } =
-    useImageCache(settings);
+    useImageCache();
 
   const zoomPan = useZoomPan(containerRef, imageRef, image);
-
-  useEffect(() => {
-    const subscription = subscribeToSettings((next) => {
-      setSettings(next);
-    });
-
-    void initSettingsFromStore();
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, []);
 
   // 이미지 변경 시 창 제목 변경
   useEffect(() => {

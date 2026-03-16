@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { createStore } from "@tanstack/store";
 import { Store as TauriStore } from "@tauri-apps/plugin-store";
 import type { Settings } from "../types";
@@ -8,7 +9,7 @@ const DEFAULT_SETTINGS: Settings = {
   cacheMode: "nearby",
 };
 
-const appStore = createStore<{ settings: Settings }>({
+const settingsStore = createStore<{ settings: Settings }>({
   settings: DEFAULT_SETTINGS,
 });
 
@@ -21,21 +22,21 @@ const getTauriStore = (): Promise<TauriStore> => {
   return tauriStorePromise;
 };
 
-export const getSettings = () => appStore.state.settings;
+export const getSettings = () => settingsStore.state.settings;
 
 export const subscribeToSettings = (listener: (settings: Settings) => void) => {
-  return appStore.subscribe((state) => {
+  return settingsStore.subscribe((state) => {
     listener(state.settings);
   });
 };
 
 export const updateSettings = async (partial: Partial<Settings>) => {
   const next = {
-    ...appStore.state.settings,
+    ...settingsStore.state.settings,
     ...partial,
   };
 
-  appStore.setState((state) => ({
+  settingsStore.setState((state) => ({
     ...state,
     settings: next,
   }));
@@ -53,9 +54,8 @@ export const initSettingsFromStore = async () => {
   try {
     const store = await getTauriStore();
     const stored = await store.get<Settings>("settings");
-    console.log(stored);
     if (stored) {
-      appStore.setState((state) => ({
+      settingsStore.setState((state) => ({
         ...state,
         settings: {
           ...DEFAULT_SETTINGS,
@@ -66,4 +66,20 @@ export const initSettingsFromStore = async () => {
   } catch {
     // 초기 로드 실패 시 기본값 유지
   }
+};
+
+export const useSettingsStore = () => {
+  const [settings, setSettings] = useState<Settings>(() => getSettings());
+
+  useEffect(() => {
+    const subscription = subscribeToSettings((next) => {
+      setSettings(next);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  return settings;
 };

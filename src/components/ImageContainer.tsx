@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 import { Spinner } from "@/components/ui/spinner";
 import { ImageNavBar } from "./ImageNavBar";
 import type { ImageInfo, DirectoryImages } from "../types";
-import { useSettingsStore } from "../hooks/useSettingsStore";
+import { useSettingsStore } from "../store/settingsStore";
 
 type ImageContainerProps = {
   image: ImageInfo | null;
