@@ -3,6 +3,15 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import type { Settings, CacheMode } from "@/types/settings";
 import { updateSettings, useSettingsStore } from "@/store/settingsStore";
+import { HardDriveIcon, NavigationIcon } from "lucide-react";
+import {
+  Field,
+  FieldDescription,
+  FieldGroup,
+  FieldLegend,
+  FieldSeparator,
+  FieldSet,
+} from "./ui/field";
 
 type SettingsDialogProps = {
   open: boolean;
@@ -20,60 +29,78 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
       <DialogContent>
         <DialogTitle>Settings</DialogTitle>
-
-        <div className="space-y-5">
-          <div>
-            <p className="text-lg font-medium text-[hsl(var(--foreground))] mb-2">
-              Navigation
-            </p>
+        <FieldGroup>
+          {/* Navigation */}
+          <CustomFieldSet
+            icon={<NavigationIcon className="size-4" />}
+            title="Navigation"
+            description="Navigation mode for the image viewer"
+          >
             <RadioGroup
               value={settings.loopNavigation ? "loop" : "stop"}
               onValueChange={(value) =>
                 handleSettingsChange({ loopNavigation: value === "loop" })
               }
             >
-              <RadioGroupItemContainer>
+              <Field orientation="horizontal">
                 <RadioGroupItem value="stop" id="stop" />
                 <Label htmlFor="stop">Stop at first / last image</Label>
-              </RadioGroupItemContainer>
-              <RadioGroupItemContainer>
+              </Field>
+              <Field orientation="horizontal">
                 <RadioGroupItem value="loop" id="loop" />
                 <Label htmlFor="loop">Loop through images</Label>
-              </RadioGroupItemContainer>
+              </Field>
             </RadioGroup>
-          </div>
+          </CustomFieldSet>
+
+          <FieldSeparator />
 
           {/* Cache */}
-          <div>
-            <p className="text-lg font-medium text-[hsl(var(--foreground))] mb-2">
-              Cache
-            </p>
+          <CustomFieldSet
+            icon={<HardDriveIcon className="size-4" />}
+            title="Cache"
+            description="Cache mode for the image viewer"
+          >
             <RadioGroup
               value={settings.cacheMode}
               onValueChange={(value) =>
                 handleSettingsChange({ cacheMode: value as CacheMode })
               }
             >
-              <RadioGroupItemContainer>
+              <Field orientation="horizontal">
                 <RadioGroupItem value="off" id="off" />
                 <Label htmlFor="off">Off (current image only)</Label>
-              </RadioGroupItemContainer>
-              <RadioGroupItemContainer>
+              </Field>
+              <Field orientation="horizontal">
                 <RadioGroupItem value="nearby" id="nearby" />
                 <Label htmlFor="nearby">Nearby (previous / next preload)</Label>
-              </RadioGroupItemContainer>
-              <RadioGroupItemContainer>
+              </Field>
+              <Field orientation="horizontal">
                 <RadioGroupItem value="extended" id="extended" />
                 <Label htmlFor="extended">Extended (up to ±3 preload)</Label>
-              </RadioGroupItemContainer>
+              </Field>
             </RadioGroup>
-          </div>
-        </div>
+          </CustomFieldSet>
+        </FieldGroup>
       </DialogContent>
     </Dialog>
   );
 }
 
-function RadioGroupItemContainer(props: { children: React.ReactNode }) {
-  return <div className="flex items-center gap-3">{props.children}</div>;
+function CustomFieldSet(props: {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <FieldSet>
+      <FieldLegend className="flex items-center gap-2">
+        {props.icon}
+        {props.title}
+      </FieldLegend>
+      <FieldDescription>{props.description}</FieldDescription>
+      {props.children}
+    </FieldSet>
+  );
 }
