@@ -1,4 +1,4 @@
-import type { Settings } from "../types";
+import type { Settings } from "@/types/settings";
 
 export function getCacheLimit(mode: Settings["cacheMode"]): number {
   switch (mode) {

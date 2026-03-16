@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
 import { createStore } from "@tanstack/store";
 import { Store as TauriStore } from "@tauri-apps/plugin-store";
-import type { Settings } from "../types";
+import type { Settings } from "@/types/settings";
 
 const DEFAULT_SETTINGS: Settings = {
-  background: "checkered",
   loopNavigation: false,
   cacheMode: "nearby",
+  viewMode: "single",
 };
 
 const settingsStore = createStore<{ settings: Settings }>({
