@@ -12,13 +12,8 @@ import { Separator } from "./components/ui/separator";
 function App() {
   const {
     image,
-    dirImages,
-    currentIndex,
-    zoom,
     isDragging,
     position,
-    loading,
-    error,
     isSettingsOpen,
     containerRef,
     imageRef,
@@ -50,7 +45,6 @@ function App() {
       onDragOver={handleDragOver}
     >
       <Toolbar
-        zoom={zoom}
         onOpenFile={handleOpenFile}
         onZoomIn={handleZoomIn}
         onZoomOut={handleZoomOut}
@@ -72,9 +66,6 @@ function App() {
       ) : (
         <ImageContainer
           image={image}
-          loading={loading}
-          error={error}
-          zoom={zoom}
           isDragging={isDragging}
           position={position}
           containerRef={containerRef}
@@ -83,8 +74,6 @@ function App() {
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
-          dirImages={dirImages}
-          currentIndex={currentIndex}
           onNavigate={navigateImage}
           onNavigateToIndex={navigateToIndex}
         />

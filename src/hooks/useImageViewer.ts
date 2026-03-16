@@ -18,8 +18,6 @@ export function useImageViewer() {
   const settings = useSettingsStore();
 
   const [image, setImage] = useState<ImageInfo | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -42,8 +40,7 @@ export function useImageViewer() {
     async (filePath: string, options?: { refreshDirectory?: boolean }) => {
       const refreshDirectory = options?.refreshDirectory ?? true;
 
-      setLoading(true);
-      setError(null);
+      void updateApp({ loading: true, error: null });
       try {
         const imgInfo = await getOrLoadImage(filePath);
         setImage(imgInfo);
@@ -76,10 +73,10 @@ export function useImageViewer() {
           );
         }
       } catch (e) {
-        setError(String(e));
+        void updateApp({ error: String(e), loading: false });
         setImage(null);
       } finally {
-        setLoading(false);
+        void updateApp({ loading: false });
       }
     },
     [
@@ -228,6 +225,10 @@ export function useImageViewer() {
   useOpenFileListener(loadImage);
 
   useEffect(() => {
+    void updateApp({ zoom: zoomPan.zoom });
+  }, [zoomPan.zoom]);
+
+  useEffect(() => {
     if (!app.dirImages?.images.length) return;
     prefetchNearbyImages(
       app.dirImages.images,
@@ -262,11 +263,8 @@ export function useImageViewer() {
 
   return {
     image,
-    zoom: zoomPan.zoom,
     isDragging: zoomPan.isDragging,
     position: zoomPan.position,
-    loading,
-    error,
     settings,
     isSettingsOpen,
     containerRef,

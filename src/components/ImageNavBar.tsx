@@ -28,7 +28,7 @@ export function ImageNavBar({
     <div className="absolute bottom-6 flex items-center gap-4 opacity-50 hover:opacity-100 border border-border rounded-md p-2 w-xl">
       <ButtonGroup>
         <Button
-          variant="ghost"
+          variant="outline"
           size="icon"
           onClick={() => onNavigate("prev")}
           title="Previous image"
@@ -37,7 +37,7 @@ export function ImageNavBar({
           <ChevronLeft />
         </Button>
         <Button
-          variant="ghost"
+          variant="outline"
           size="icon"
           onClick={() => onNavigate("next")}
           title="Next image"

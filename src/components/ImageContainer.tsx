@@ -7,9 +7,6 @@ import { useAppStore } from "@/store/appStore";
 
 type ImageContainerProps = {
   image: ImageInfo | null;
-  loading: boolean;
-  error: string | null;
-  zoom: number;
   isDragging: boolean;
   position: { x: number; y: number };
   containerRef: RefObject<HTMLDivElement>;
@@ -24,9 +21,6 @@ type ImageContainerProps = {
 
 export function ImageContainer({
   image,
-  loading,
-  error,
-  zoom,
   isDragging,
   position,
   containerRef,
@@ -38,7 +32,7 @@ export function ImageContainer({
   onNavigate,
   onNavigateToIndex,
 }: ImageContainerProps) {
-  const dirImages = useAppStore().dirImages;
+  const { dirImages, loading, error, zoom } = useAppStore();
 
   const showNavBar = !!(
     dirImages.images.length > 1 &&
@@ -69,7 +63,7 @@ export function ImageContainer({
             ref={imageRef}
             src={imageSrc}
             alt={image?.file_name}
-            className="max-w-full max-h-full object-contain transition-transform duration-[50ms] ease-out pointer-events-auto"
+            className="max-w-full max-h-full object-contain transition-transform duration-50 ease-out pointer-events-auto"
             style={{
               transform: `translate(${position.x}px, ${position.y}px) scale(${zoom})`,
               transformOrigin: "center center",
