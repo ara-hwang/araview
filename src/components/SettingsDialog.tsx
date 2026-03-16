@@ -1,7 +1,7 @@
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import type { Settings, BackgroundType, CacheMode } from "@/types/settings";
+import type { Settings, CacheMode } from "@/types/settings";
 import { updateSettings, useSettingsStore } from "@/store/settingsStore";
 
 type SettingsDialogProps = {
@@ -22,28 +22,6 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
         <DialogTitle>Settings</DialogTitle>
 
         <div className="space-y-5">
-          {/* Background */}
-          <div>
-            <p className="text-lg font-medium text-[hsl(var(--foreground))] mb-2">
-              Background
-            </p>
-            <RadioGroup
-              value={settings.background}
-              onValueChange={(value) =>
-                handleSettingsChange({ background: value as BackgroundType })
-              }
-            >
-              <RadioGroupItemContainer>
-                <RadioGroupItem value="checkered" id="checkered" />
-                <Label htmlFor="checkered">Checkered</Label>
-              </RadioGroupItemContainer>
-              <RadioGroupItemContainer>
-                <RadioGroupItem value="solid" id="solid" />
-                <Label htmlFor="solid">Solid color</Label>
-              </RadioGroupItemContainer>
-            </RadioGroup>
-          </div>
-
           <div>
             <p className="text-lg font-medium text-[hsl(var(--foreground))] mb-2">
               Navigation
