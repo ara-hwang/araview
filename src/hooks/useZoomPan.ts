@@ -11,13 +11,15 @@ import {
   clampPosition,
   isFullyContained,
 } from "../utils/zoomPanUtils";
+import { updateApp, useAppStore } from "@/store/appStore";
 
 export function useZoomPan(
   containerRef: RefObject<HTMLDivElement | null>,
   imageRef: RefObject<HTMLImageElement | null>,
   image: ImageInfo | null,
 ) {
-  const [zoom, setZoom] = useState(1);
+  const app = useAppStore();
+
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
@@ -35,16 +37,16 @@ export function useZoomPan(
   }, [containerRef, imageRef]);
 
   const handleZoomIn = useCallback(() => {
-    setZoom((prev) => Math.min(prev * 1.25, 10));
-  }, []);
+    void updateApp({ zoom: Math.min(app.zoom * 1.25, 10) });
+  }, [app.zoom]);
 
   const handleZoomOut = useCallback(() => {
     const minZoom = getFitZoom();
-    setZoom((prev) => Math.max(prev / 1.25, minZoom));
-  }, [getFitZoom]);
+    void updateApp({ zoom: Math.max(app.zoom / 1.25, minZoom) });
+  }, [getFitZoom, app.zoom]);
 
   const handleResetZoom = useCallback(() => {
-    setZoom(1);
+    void updateApp({ zoom: 1 });
     setPosition({ x: 0, y: 0 });
   }, []);
 
@@ -53,7 +55,7 @@ export function useZoomPan(
     const containerW = containerRef.current.offsetWidth;
     const imgW = imageRef.current.offsetWidth;
     if (imgW === 0) return;
-    setZoom(containerW / imgW);
+    void updateApp({ zoom: containerW / imgW });
     setPosition({ x: 0, y: 0 });
   }, [containerRef, imageRef]);
 
@@ -62,7 +64,7 @@ export function useZoomPan(
     const containerH = containerRef.current.offsetHeight;
     const imgH = imageRef.current.offsetHeight;
     if (imgH === 0) return;
-    setZoom(containerH / imgH);
+    void updateApp({ zoom: containerH / imgH });
     setPosition({ x: 0, y: 0 });
   }, [containerRef, imageRef]);
 
@@ -73,7 +75,7 @@ export function useZoomPan(
     const iw = imageRef.current.offsetWidth;
     const ih = imageRef.current.offsetHeight;
     if (iw === 0 || ih === 0) return;
-    setZoom(Math.min(cw / iw, ch / ih));
+    void updateApp({ zoom: Math.min(cw / iw, ch / ih) });
     setPosition({ x: 0, y: 0 });
   }, [containerRef, imageRef]);
 
@@ -97,17 +99,17 @@ export function useZoomPan(
         const ch = containerRef.current.offsetHeight;
         const iw = imageRef.current.offsetWidth;
         const ih = imageRef.current.offsetHeight;
-        if (isFullyContained(cw, ch, iw, ih, zoom)) {
+        if (isFullyContained(cw, ch, iw, ih, app.zoom)) {
           setPosition({ x: 0, y: 0 });
           return;
         }
-        const { maxX, maxY } = getPositionBounds(cw, ch, iw, ih, zoom);
+        const { maxX, maxY } = getPositionBounds(cw, ch, iw, ih, app.zoom);
         setPosition(clampPosition(newX, newY, maxX, maxY));
       } else {
         setPosition({ x: newX, y: newY });
       }
     },
-    [isDragging, dragStart, zoom, containerRef, imageRef],
+    [isDragging, dragStart, app.zoom, containerRef, imageRef],
   );
 
   const handleMouseUp = useCallback(() => {
@@ -120,13 +122,13 @@ export function useZoomPan(
       if (e.ctrlKey) {
         const minZoom = getFitZoom();
         if (e.deltaY < 0) {
-          setZoom((prev) => Math.min(prev * 1.1, 10));
+          void updateApp({ zoom: Math.min(app.zoom * 1.1, 10) });
         } else {
-          setZoom((prev) => Math.max(prev / 1.1, minZoom));
+          void updateApp({ zoom: Math.max(app.zoom / 1.1, minZoom) });
         }
       }
     },
-    [getFitZoom],
+    [getFitZoom, app.zoom],
   );
 
   useLayoutEffect(() => {
@@ -135,20 +137,20 @@ export function useZoomPan(
     const ch = containerRef.current.offsetHeight;
     const iw = imageRef.current.offsetWidth;
     const ih = imageRef.current.offsetHeight;
-    if (isFullyContained(cw, ch, iw, ih, zoom)) {
+    if (isFullyContained(cw, ch, iw, ih, app.zoom)) {
       setPosition({ x: 0, y: 0 });
     }
-  }, [image, zoom, containerRef, imageRef]);
+  }, [image, app.zoom, containerRef, imageRef]);
 
   const resetView = useCallback(() => {
-    setZoom(1);
+    void updateApp({ zoom: 1 });
     setPosition({ x: 0, y: 0 });
     prevZoomRef.current = 1;
   }, []);
 
   useLayoutEffect(() => {
-    if (prevZoomRef.current === zoom) return;
-    const ratio = zoom / prevZoomRef.current;
+    if (prevZoomRef.current === app.zoom) return;
+    const ratio = app.zoom / prevZoomRef.current;
     setPosition((p) => {
       const newX = p.x * ratio;
       const newY = p.y * ratio;
@@ -158,17 +160,15 @@ export function useZoomPan(
       const ch = containerRef.current.offsetHeight;
       const iw = imageRef.current.offsetWidth;
       const ih = imageRef.current.offsetHeight;
-      const { maxX, maxY } = getPositionBounds(cw, ch, iw, ih, zoom);
+      const { maxX, maxY } = getPositionBounds(cw, ch, iw, ih, app.zoom);
       return clampPosition(newX, newY, maxX, maxY);
     });
-    prevZoomRef.current = zoom;
-  }, [zoom, containerRef, imageRef]);
+    prevZoomRef.current = app.zoom;
+  }, [app.zoom, containerRef, imageRef]);
 
   return {
-    zoom,
     position,
     isDragging,
-    setZoom,
     setPosition,
     resetView,
     getFitZoom,

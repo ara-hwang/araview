@@ -145,10 +145,7 @@ export function useImageViewer() {
 
       const dirImages = app.dirImages;
 
-      const clamped = Math.max(
-        0,
-        Math.min(index, dirImages.images.length - 1),
-      );
+      const clamped = Math.max(0, Math.min(index, dirImages.images.length - 1));
       await loadImage(dirImages.images[clamped], {
         refreshDirectory: false,
       });
@@ -223,10 +220,6 @@ export function useImageViewer() {
   );
 
   useOpenFileListener(loadImage);
-
-  useEffect(() => {
-    void updateApp({ zoom: zoomPan.zoom });
-  }, [zoomPan.zoom]);
 
   useEffect(() => {
     if (!app.dirImages?.images.length) return;
