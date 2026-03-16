@@ -18,7 +18,6 @@ function App() {
     position,
     loading,
     error,
-    settings,
     isSettingsOpen,
     containerRef,
     imageRef,
@@ -40,7 +39,6 @@ function App() {
     handleContextMenu,
     handleOpenSettings,
     handleCloseSettings,
-    handleSettingsChange,
   } = useImageViewer();
 
   return (
@@ -51,12 +49,8 @@ function App() {
       onDragOver={handleDragOver}
     >
       <Toolbar
-        dirImages={dirImages}
-        currentIndex={currentIndex}
         zoom={zoom}
-        settings={settings}
         onOpenFile={handleOpenFile}
-        onNavigate={navigateImage}
         onZoomIn={handleZoomIn}
         onZoomOut={handleZoomOut}
         onResetZoom={handleResetZoom}
@@ -80,7 +74,6 @@ function App() {
           zoom={zoom}
           isDragging={isDragging}
           position={position}
-          background={settings.background}
           containerRef={containerRef}
           imageRef={imageRef}
           onWheel={handleWheel}
@@ -89,7 +82,6 @@ function App() {
           onMouseUp={handleMouseUp}
           dirImages={dirImages}
           currentIndex={currentIndex}
-          settings={settings}
           onNavigate={navigateImage}
           onNavigateToIndex={navigateToIndex}
         />
@@ -97,12 +89,7 @@ function App() {
 
       <StatusBar image={image} />
 
-      <SettingsDialog
-        open={isSettingsOpen}
-        settings={settings}
-        onClose={handleCloseSettings}
-        onSettingsChange={handleSettingsChange}
-      />
+      <SettingsDialog open={isSettingsOpen} onClose={handleCloseSettings} />
     </div>
   );
 }

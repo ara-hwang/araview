@@ -2,12 +2,12 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import type { DirectoryImages, Settings as AppSettings } from "../types";
+import type { DirectoryImages } from "../types";
+import { useSettingsStore } from "../hooks/useSettingsStore";
 
 type ImageNavBarProps = {
   dirImages: DirectoryImages;
   currentIndex: number;
-  settings?: AppSettings;
   onNavigate: (direction: "prev" | "next") => void;
   onNavigateToIndex: (index: number) => void;
 };
@@ -15,10 +15,10 @@ type ImageNavBarProps = {
 export function ImageNavBar({
   dirImages,
   currentIndex,
-  settings,
   onNavigate,
   onNavigateToIndex,
 }: ImageNavBarProps) {
+  const settings = useSettingsStore();
   const [isProgressHovered, setIsProgressHovered] = useState(false);
   const progressTrackRef = useRef<HTMLDivElement>(null);
   const isDraggingProgressRef = useRef(false);

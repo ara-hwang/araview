@@ -2,12 +2,8 @@ import type { RefObject } from "react";
 import { cn } from "@/lib/utils";
 import { Spinner } from "@/components/ui/spinner";
 import { ImageNavBar } from "./ImageNavBar";
-import type {
-  ImageInfo,
-  BackgroundType,
-  DirectoryImages,
-  Settings as AppSettings,
-} from "../types";
+import type { ImageInfo, DirectoryImages } from "../types";
+import { useSettingsStore } from "../hooks/useSettingsStore";
 
 type ImageContainerProps = {
   image: ImageInfo | null;
@@ -16,7 +12,6 @@ type ImageContainerProps = {
   zoom: number;
   isDragging: boolean;
   position: { x: number; y: number };
-  background: BackgroundType;
   containerRef: RefObject<HTMLDivElement>;
   imageRef: RefObject<HTMLImageElement>;
   onWheel: (e: React.WheelEvent) => void;
@@ -25,7 +20,6 @@ type ImageContainerProps = {
   onMouseUp: () => void;
   dirImages?: DirectoryImages | null;
   currentIndex?: number;
-  settings?: AppSettings;
   onNavigate?: (direction: "prev" | "next") => void;
   onNavigateToIndex?: (index: number) => void;
 };
@@ -37,7 +31,6 @@ export function ImageContainer({
   zoom,
   isDragging,
   position,
-  background,
   containerRef,
   imageRef,
   onWheel,
@@ -46,10 +39,12 @@ export function ImageContainer({
   onMouseUp,
   dirImages,
   currentIndex = 0,
-  settings,
   onNavigate,
   onNavigateToIndex,
 }: ImageContainerProps) {
+  const settings = useSettingsStore();
+  const background = settings.background;
+
   const showNavBar = !!(
     dirImages &&
     dirImages.images.length > 1 &&
@@ -134,7 +129,6 @@ export function ImageContainer({
         <ImageNavBar
           dirImages={dirImages}
           currentIndex={currentIndex}
-          settings={settings}
           onNavigate={onNavigate}
           onNavigateToIndex={onNavigateToIndex}
         />
