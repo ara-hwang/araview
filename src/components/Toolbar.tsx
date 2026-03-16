@@ -42,7 +42,6 @@ function ToolbarRight({
           size="icon"
           onClick={onFitWidth}
           title="Fit to width (1)"
-          className="text-[hsl(var(--muted-foreground))]"
         >
           <ArrowLeftRight />
         </Button>
@@ -51,7 +50,6 @@ function ToolbarRight({
           size="icon"
           onClick={onFitHeight}
           title="Fit to height (2)"
-          className="text-[hsl(var(--muted-foreground))]"
         >
           <ArrowUpDown />
         </Button>
@@ -60,7 +58,6 @@ function ToolbarRight({
           size="icon"
           onClick={onFitScreen}
           title="Fit to screen (3)"
-          className="text-[hsl(var(--muted-foreground))]"
         >
           <Maximize2 />
         </Button>
@@ -75,7 +72,6 @@ function ToolbarRight({
           size="icon"
           onClick={onZoomOut}
           title="Zoom out (-)"
-          className="text-[hsl(var(--muted-foreground))]"
         >
           <ZoomOut />
         </Button>
@@ -87,7 +83,6 @@ function ToolbarRight({
           size="icon"
           onClick={onZoomIn}
           title="Zoom in (+)"
-          className="text-[hsl(var(--muted-foreground))]"
         >
           <ZoomIn />
         </Button>
@@ -100,7 +95,6 @@ function ToolbarRight({
         size="icon"
         onClick={onOpenSettings}
         title="Settings"
-        className="text-[hsl(var(--muted-foreground))]"
       >
         <Settings />
       </Button>
@@ -134,7 +128,7 @@ export default function Toolbar({
 }: ToolbarProps) {
   return (
     <div
-      className="flex justify-between p-2 bg-[hsl(var(--card))]"
+      className="flex justify-between p-2"
       style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
     >
       <div className="flex items-center gap-1" style={noDragStyle}>
@@ -142,7 +136,6 @@ export default function Toolbar({
           variant="outline"
           onClick={onOpenFile}
           title="Open file (Ctrl+O)"
-          className="text-[hsl(var(--muted-foreground))]"
         >
           <FolderOpen />
           Open
