@@ -1,8 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
-import { getCurrentWindow } from "@tauri-apps/api/window";
-import type { ImageInfo, DirectoryImages } from "../types";
+import type { DirectoryImages } from "../types";
 import type { Settings } from "@/types/settings";
 import { SUPPORTED_IMAGE_EXTENSIONS } from "../constants/imageExtensions";
 import { showImageViewerContextMenu } from "../utils/contextMenu";
@@ -20,7 +19,6 @@ export function useImageViewer() {
   const app = useAppStore();
   const settings = useSettingsStore();
 
-  const [image, setImage] = useState<ImageInfo | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -30,15 +28,7 @@ export function useImageViewer() {
     useImageCache();
 
   // 실제 줌/팬 로직은 별도 훅(useZoomPan)에 위임하고 여기서는 핸들러만 받아서 노출
-  const zoomPan = useZoomPan(containerRef, imageRef, image);
-
-  // 이미지 변경 시 창 제목 변경
-  useEffect(() => {
-    const title = image ? image.file_name : "Image Viewer";
-    getCurrentWindow()
-      .setTitle(title)
-      .catch(() => {});
-  }, [image]);
+  const zoomPan = useZoomPan(containerRef, imageRef);
 
   // 단일 파일을 로드하고, 필요시 디렉터리 이미지 목록까지 갱신하는 핵심 로더
   const loadImage = useCallback(
@@ -48,7 +38,7 @@ export function useImageViewer() {
       void updateApp({ loading: true, error: null });
       try {
         const imgInfo = await getOrLoadImage(filePath);
-        setImage(imgInfo);
+        void updateApp({ imageInfo: imgInfo });
         zoomPan.resetView();
 
         let resolvedDirInfo = app.dirImages;
@@ -79,7 +69,7 @@ export function useImageViewer() {
         }
       } catch (e) {
         void updateApp({ error: String(e), loading: false });
-        setImage(null);
+        void updateApp({ imageInfo: null });
       } finally {
         void updateApp({ loading: false });
       }
@@ -266,8 +256,6 @@ export function useImageViewer() {
   });
 
   return {
-    image,
-    settings,
     isSettingsOpen,
     containerRef,
     imageRef,

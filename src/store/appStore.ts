@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { createStore } from "@tanstack/store";
-import { DirectoryImages } from "@/types";
+import { DirectoryImages, ImageInfo } from "@/types";
 
 type App = {
   theme: "system" | "light" | "dark";
   zoom: number;
   dirImages: DirectoryImages;
+  imageInfo: ImageInfo | null;
   error: string | null;
   loading: boolean;
   position: { x: number; y: number };
@@ -16,6 +17,7 @@ const appStore = createStore<{ app: App }>({
   app: {
     theme: "system",
     zoom: 1,
+    imageInfo: null,
     dirImages: {
       images: [],
       current_index: 0,

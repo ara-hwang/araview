@@ -5,7 +5,6 @@ import {
   useRef,
   type RefObject,
 } from "react";
-import type { ImageInfo } from "../types";
 import {
   getPositionBounds,
   clampPosition,
@@ -19,7 +18,6 @@ import { updateApp, useAppStore } from "@/store/appStore";
 export function useZoomPan(
   containerRef: RefObject<HTMLDivElement | null>,
   imageRef: RefObject<HTMLImageElement | null>,
-  image: ImageInfo | null,
 ) {
   const app = useAppStore();
 
@@ -81,7 +79,7 @@ export function useZoomPan(
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
-      if (image) {
+      if (app.imageInfo) {
         void updateApp({ isDragging: true });
         setDragStart({
           x: e.clientX - app.position.x,
@@ -89,7 +87,7 @@ export function useZoomPan(
         });
       }
     },
-    [image, app.position],
+    [app.imageInfo, app.position],
   );
 
   const handleMouseMove = useCallback(
@@ -139,7 +137,7 @@ export function useZoomPan(
 
   // 현재 줌 배율에서 이미지가 컨테이너 안에 완전히 들어오면 위치를 (0,0)으로 정렬
   useLayoutEffect(() => {
-    if (!image || !containerRef.current || !imageRef.current) return;
+    if (!app.imageInfo || !containerRef.current || !imageRef.current) return;
     const cw = containerRef.current.offsetWidth;
     const ch = containerRef.current.offsetHeight;
     const iw = imageRef.current.offsetWidth;
@@ -147,7 +145,7 @@ export function useZoomPan(
     if (isFullyContained(cw, ch, iw, ih, app.zoom)) {
       void updateApp({ position: { x: 0, y: 0 } });
     }
-  }, [image, app.zoom, containerRef, imageRef]);
+  }, [app.imageInfo, app.zoom, containerRef, imageRef]);
 
   const resetView = useCallback(() => {
     void updateApp({ zoom: 1, position: { x: 0, y: 0 } });

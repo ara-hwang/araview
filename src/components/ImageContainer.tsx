@@ -2,11 +2,9 @@ import type { RefObject } from "react";
 import { cn } from "@/lib/utils";
 import { Spinner } from "@/components/ui/spinner";
 import { ImageNavBar } from "./ImageNavBar";
-import type { ImageInfo } from "../types";
 import { useAppStore } from "@/store/appStore";
 
 type ImageContainerProps = {
-  image: ImageInfo | null;
   containerRef: RefObject<HTMLDivElement>;
   imageRef: RefObject<HTMLImageElement>;
   onWheel: (e: React.WheelEvent) => void;
@@ -18,7 +16,6 @@ type ImageContainerProps = {
 };
 
 export function ImageContainer({
-  image,
   containerRef,
   imageRef,
   onWheel,
@@ -28,17 +25,16 @@ export function ImageContainer({
   onNavigate,
   onNavigateToIndex,
 }: ImageContainerProps) {
-  const { dirImages, loading, error, zoom, position, isDragging } =
-    useAppStore();
+  const app = useAppStore();
 
   const showNavBar = !!(
-    dirImages.images.length > 1 &&
+    app.dirImages.images.length > 1 &&
     onNavigate &&
     onNavigateToIndex
   );
 
-  const imageSrc = image
-    ? `data:${image.mime_type};base64,${image.base64}`
+  const imageSrc = app.imageInfo
+    ? `data:${app.imageInfo.mime_type};base64,${app.imageInfo.base64}`
     : null;
 
   return (
@@ -46,7 +42,7 @@ export function ImageContainer({
       ref={containerRef}
       className={cn(
         "flex-1 overflow-hidden flex items-center justify-center relative bg-[hsl(var(--background))]",
-        isDragging && "[&]:cursor-grabbing",
+        app.isDragging && "[&]:cursor-grabbing",
       )}
       onWheel={onWheel}
       onMouseDown={onMouseDown}
@@ -59,19 +55,19 @@ export function ImageContainer({
           <img
             ref={imageRef}
             src={imageSrc}
-            alt={image?.file_name}
+            alt={app.imageInfo?.file_name}
             className="max-w-full max-h-full object-contain transition-transform duration-50 ease-out pointer-events-auto"
             style={{
-              transform: `translate(${position.x}px, ${position.y}px) scale(${zoom})`,
+              transform: `translate(${app.position.x}px, ${app.position.y}px) scale(${app.zoom})`,
               transformOrigin: "center center",
-              cursor: isDragging ? "grabbing" : "grab",
+              cursor: app.isDragging ? "grabbing" : "grab",
             }}
             draggable={false}
           />
         </div>
       )}
 
-      {loading && (
+      {app.loading && (
         <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
           <Spinner
             className="size-8 text-[hsl(var(--muted-foreground))]"
@@ -80,9 +76,9 @@ export function ImageContainer({
         </div>
       )}
 
-      {error && (
+      {app.error && (
         <div className="text-sm text-[hsl(var(--destructive))] px-6 py-4 bg-[hsl(var(--destructive))]/10 rounded-lg border border-[hsl(var(--destructive))]/20">
-          {error}
+          {app.error}
         </div>
       )}
 

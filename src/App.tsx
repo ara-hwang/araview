@@ -8,10 +8,14 @@ import { SettingsDialog } from "./components/SettingsDialog";
 import { Empty, EmptyContent } from "./components/ui/empty";
 import { Button } from "./components/ui/button";
 import { Separator } from "./components/ui/separator";
+import { useEffect } from "react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import { useAppStore } from "./store/appStore";
 
 function App() {
+  const app = useAppStore();
+
   const {
-    image,
     isSettingsOpen,
     containerRef,
     imageRef,
@@ -35,6 +39,14 @@ function App() {
     handleCloseSettings,
   } = useImageViewer();
 
+  // 이미지 변경 시 창 제목 변경
+  useEffect(() => {
+    const title = app.imageInfo ? app.imageInfo.file_name : "Image Viewer";
+    getCurrentWindow()
+      .setTitle(title)
+      .catch(() => {});
+  }, [app.imageInfo]);
+
   return (
     <div
       className="flex flex-col h-screen w-screen"
@@ -55,7 +67,7 @@ function App() {
 
       <Separator />
 
-      {!image ? (
+      {!app.imageInfo ? (
         <Empty>
           <EmptyContent>
             <Button onClick={handleOpenFile}>Open File</Button>
@@ -63,7 +75,6 @@ function App() {
         </Empty>
       ) : (
         <ImageContainer
-          image={image}
           containerRef={containerRef}
           imageRef={imageRef}
           onWheel={handleWheel}
@@ -77,7 +88,7 @@ function App() {
 
       <Separator />
 
-      <StatusBar image={image} />
+      <StatusBar />
 
       <SettingsDialog open={isSettingsOpen} onClose={handleCloseSettings} />
     </div>
