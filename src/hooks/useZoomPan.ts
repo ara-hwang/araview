@@ -13,6 +13,9 @@ import {
 } from "../utils/zoomPanUtils";
 import { updateApp, useAppStore } from "@/store/appStore";
 
+// 이미지 컨테이너 내부에서 줌/팬(드래그) 상태를 관리하고
+// 전역 `appStore`의 position/zoom 값을 일관되게 업데이트하는 훅
+
 export function useZoomPan(
   containerRef: RefObject<HTMLDivElement | null>,
   imageRef: RefObject<HTMLImageElement | null>,
@@ -118,6 +121,7 @@ export function useZoomPan(
     void updateApp({ isDragging: false });
   }, []);
 
+  // Ctrl + 휠로만 줌을 처리하고, 스크롤 이동은 상위 훅(useImageViewer)에서 처리
   const handleWheel = useCallback(
     (e: React.WheelEvent) => {
       e.preventDefault();
@@ -133,6 +137,7 @@ export function useZoomPan(
     [getFitZoom, app.zoom],
   );
 
+  // 현재 줌 배율에서 이미지가 컨테이너 안에 완전히 들어오면 위치를 (0,0)으로 정렬
   useLayoutEffect(() => {
     if (!image || !containerRef.current || !imageRef.current) return;
     const cw = containerRef.current.offsetWidth;
@@ -149,6 +154,8 @@ export function useZoomPan(
     prevZoomRef.current = 1;
   }, []);
 
+  // 줌 값이 바뀔 때 기존 position 비율을 유지하면서,
+  // 컨테이너를 벗어나지 않도록 clamp 해서 position을 재계산
   useLayoutEffect(() => {
     if (prevZoomRef.current === app.zoom) return;
     const ratio = app.zoom / prevZoomRef.current;

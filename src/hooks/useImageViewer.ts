@@ -13,6 +13,9 @@ import { useOpenFileListener } from "./useOpenFileListener";
 import { updateSettings, useSettingsStore } from "@/store/settingsStore";
 import { updateApp, useAppStore } from "@/store/appStore";
 
+// 이미지 로드, 디렉터리 내 내비게이션, 줌/팬, 드래그&드롭, 설정 변경까지
+// 이미지 뷰어 화면에 필요한 모든 상태와 이벤트 핸들러를 제공하는 최상위 훅
+
 export function useImageViewer() {
   const app = useAppStore();
   const settings = useSettingsStore();
@@ -26,6 +29,7 @@ export function useImageViewer() {
   const { getOrLoadImage, prefetchNearbyImages, getPrefetchDistance } =
     useImageCache();
 
+  // 실제 줌/팬 로직은 별도 훅(useZoomPan)에 위임하고 여기서는 핸들러만 받아서 노출
   const zoomPan = useZoomPan(containerRef, imageRef, image);
 
   // 이미지 변경 시 창 제목 변경
@@ -36,6 +40,7 @@ export function useImageViewer() {
       .catch(() => {});
   }, [image]);
 
+  // 단일 파일을 로드하고, 필요시 디렉터리 이미지 목록까지 갱신하는 핵심 로더
   const loadImage = useCallback(
     async (filePath: string, options?: { refreshDirectory?: boolean }) => {
       const refreshDirectory = options?.refreshDirectory ?? true;
@@ -102,6 +107,7 @@ export function useImageViewer() {
     if (selected) await loadImage(selected);
   }, [loadImage]);
 
+  // 이전/다음 이미지로 이동 (루프 내비게이션 옵션 고려)
   const navigateImage = useCallback(
     async (direction: "prev" | "next") => {
       if (!app.dirImages || app.dirImages.images.length <= 1) return;
@@ -139,6 +145,7 @@ export function useImageViewer() {
     [app.dirImages, loadImage, settings.loopNavigation],
   );
 
+  // 썸네일/시퀀스에서 특정 인덱스로 바로 점프
   const navigateToIndex = useCallback(
     async (index: number) => {
       if (!app.dirImages || app.dirImages.images.length === 0) return;
@@ -160,6 +167,7 @@ export function useImageViewer() {
     [app.dirImages, loadImage],
   );
 
+  // Ctrl + 휠은 줌, 그 외 휠은 이전/다음 이미지 이동
   const handleWheel = useCallback(
     (e: React.WheelEvent) => {
       e.preventDefault();
@@ -172,6 +180,7 @@ export function useImageViewer() {
     [zoomPan.handleWheel, navigateImage],
   );
 
+  // 파일 드롭으로 이미지 열기 (Tauri 파일 path 사용)
   const handleDrop = useCallback(
     async (e: React.DragEvent) => {
       e.preventDefault();
@@ -191,6 +200,7 @@ export function useImageViewer() {
     e.stopPropagation();
   }, []);
 
+  // 우클릭 컨텍스트 메뉴에서 이미지/줌 관련 액션 제공
   const handleContextMenu = useCallback(
     async (e: React.MouseEvent) => {
       e.preventDefault();
@@ -221,6 +231,7 @@ export function useImageViewer() {
 
   useOpenFileListener(loadImage);
 
+  // 디렉터리/설정이 바뀔 때마다 주변 이미지 프리패치
   useEffect(() => {
     if (!app.dirImages?.images.length) return;
     prefetchNearbyImages(

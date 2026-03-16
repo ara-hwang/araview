@@ -4,11 +4,15 @@ import type { ImageInfo } from "../types";
 import { getCacheLimit, getPrefetchDistance } from "../utils/cacheConfig";
 import { useSettingsStore } from "@/store/settingsStore";
 
+// Tauri 백엔드에서 불러온 이미지를 메모리 캐시에 저장하고,
+// 설정에 따라 캐시 용량/프리패치 범위를 제어하는 훅
+
 export function useImageCache() {
   const settings = useSettingsStore();
   const imageCacheRef = useRef<Map<string, ImageInfo>>(new Map());
   const inflightLoadsRef = useRef<Map<string, Promise<ImageInfo>>>(new Map());
 
+  // LRU 비슷하게, 오래된 항목부터 제거해서 캐시 크기를 limit 이하로 유지
   const trimCacheToLimit = useCallback((limit: number) => {
     const cache = imageCacheRef.current;
     while (cache.size > limit) {
@@ -28,6 +32,7 @@ export function useImageCache() {
     [settings.cacheMode, trimCacheToLimit],
   );
 
+  // 단일 이미지를 캐시/진행 중 요청을 우선 확인한 뒤 필요한 경우만 실제 invoke 호출
   const getOrLoadImage = useCallback(
     async (filePath: string): Promise<ImageInfo> => {
       const cached = imageCacheRef.current.get(filePath);
@@ -51,6 +56,7 @@ export function useImageCache() {
     [cacheImage],
   );
 
+  // 현재 인덱스를 기준으로 앞/뒤 prefetchDistance 만큼의 이미지를 미리 로드
   const prefetchNearbyImages = useCallback(
     (
       images: string[],
@@ -88,6 +94,7 @@ export function useImageCache() {
     [getOrLoadImage],
   );
 
+  // 캐시 모드가 바뀌면 즉시 캐시 크기를 재조정
   useEffect(() => {
     trimCacheToLimit(getCacheLimit(settings.cacheMode));
   }, [settings.cacheMode, trimCacheToLimit]);
