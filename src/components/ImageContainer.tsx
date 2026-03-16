@@ -7,8 +7,6 @@ import { useAppStore } from "@/store/appStore";
 
 type ImageContainerProps = {
   image: ImageInfo | null;
-  isDragging: boolean;
-  position: { x: number; y: number };
   containerRef: RefObject<HTMLDivElement>;
   imageRef: RefObject<HTMLImageElement>;
   onWheel: (e: React.WheelEvent) => void;
@@ -21,8 +19,6 @@ type ImageContainerProps = {
 
 export function ImageContainer({
   image,
-  isDragging,
-  position,
   containerRef,
   imageRef,
   onWheel,
@@ -32,7 +28,7 @@ export function ImageContainer({
   onNavigate,
   onNavigateToIndex,
 }: ImageContainerProps) {
-  const { dirImages, loading, error, zoom } = useAppStore();
+  const { dirImages, loading, error, zoom, position, isDragging } = useAppStore();
 
   const showNavBar = !!(
     dirImages.images.length > 1 &&

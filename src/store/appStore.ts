@@ -8,6 +8,8 @@ type App = {
   dirImages: DirectoryImages;
   error: string | null;
   loading: boolean;
+  position: { x: number; y: number };
+  isDragging: boolean;
 };
 
 const appStore = createStore<{ app: App }>({
@@ -20,6 +22,8 @@ const appStore = createStore<{ app: App }>({
     },
     error: null,
     loading: false,
+    position: { x: 0, y: 0 },
+    isDragging: false,
   },
 });
 

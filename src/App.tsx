@@ -12,8 +12,6 @@ import { Separator } from "./components/ui/separator";
 function App() {
   const {
     image,
-    isDragging,
-    position,
     isSettingsOpen,
     containerRef,
     imageRef,
@@ -66,8 +64,6 @@ function App() {
       ) : (
         <ImageContainer
           image={image}
-          isDragging={isDragging}
-          position={position}
           containerRef={containerRef}
           imageRef={imageRef}
           onWheel={handleWheel}
