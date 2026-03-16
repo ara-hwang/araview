@@ -20,8 +20,6 @@ export function useZoomPan(
 ) {
   const app = useAppStore();
 
-  const [position, setPosition] = useState({ x: 0, y: 0 });
-  const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const prevZoomRef = useRef(1);
 
@@ -46,8 +44,7 @@ export function useZoomPan(
   }, [getFitZoom, app.zoom]);
 
   const handleResetZoom = useCallback(() => {
-    void updateApp({ zoom: 1 });
-    setPosition({ x: 0, y: 0 });
+    void updateApp({ zoom: 1, position: { x: 0, y: 0 } });
   }, []);
 
   const handleFitWidth = useCallback(() => {
@@ -55,8 +52,7 @@ export function useZoomPan(
     const containerW = containerRef.current.offsetWidth;
     const imgW = imageRef.current.offsetWidth;
     if (imgW === 0) return;
-    void updateApp({ zoom: containerW / imgW });
-    setPosition({ x: 0, y: 0 });
+    void updateApp({ zoom: containerW / imgW, position: { x: 0, y: 0 } });
   }, [containerRef, imageRef]);
 
   const handleFitHeight = useCallback(() => {
@@ -64,8 +60,7 @@ export function useZoomPan(
     const containerH = containerRef.current.offsetHeight;
     const imgH = imageRef.current.offsetHeight;
     if (imgH === 0) return;
-    void updateApp({ zoom: containerH / imgH });
-    setPosition({ x: 0, y: 0 });
+    void updateApp({ zoom: containerH / imgH, position: { x: 0, y: 0 } });
   }, [containerRef, imageRef]);
 
   const handleFitScreen = useCallback(() => {
@@ -75,23 +70,28 @@ export function useZoomPan(
     const iw = imageRef.current.offsetWidth;
     const ih = imageRef.current.offsetHeight;
     if (iw === 0 || ih === 0) return;
-    void updateApp({ zoom: Math.min(cw / iw, ch / ih) });
-    setPosition({ x: 0, y: 0 });
+    void updateApp({
+      zoom: Math.min(cw / iw, ch / ih),
+      position: { x: 0, y: 0 },
+    });
   }, [containerRef, imageRef]);
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
       if (image) {
-        setIsDragging(true);
-        setDragStart({ x: e.clientX - position.x, y: e.clientY - position.y });
+        void updateApp({ isDragging: true });
+        setDragStart({
+          x: e.clientX - app.position.x,
+          y: e.clientY - app.position.y,
+        });
       }
     },
-    [image, position],
+    [image, app.position],
   );
 
   const handleMouseMove = useCallback(
     (e: React.MouseEvent) => {
-      if (!isDragging) return;
+      if (!app.isDragging) return;
       const newX = e.clientX - dragStart.x;
       const newY = e.clientY - dragStart.y;
       if (containerRef.current && imageRef.current) {
@@ -100,20 +100,22 @@ export function useZoomPan(
         const iw = imageRef.current.offsetWidth;
         const ih = imageRef.current.offsetHeight;
         if (isFullyContained(cw, ch, iw, ih, app.zoom)) {
-          setPosition({ x: 0, y: 0 });
+          void updateApp({ position: { x: 0, y: 0 } });
           return;
         }
         const { maxX, maxY } = getPositionBounds(cw, ch, iw, ih, app.zoom);
-        setPosition(clampPosition(newX, newY, maxX, maxY));
+        void updateApp({
+          position: clampPosition(newX, newY, maxX, maxY),
+        });
       } else {
-        setPosition({ x: newX, y: newY });
+        void updateApp({ position: { x: newX, y: newY } });
       }
     },
-    [isDragging, dragStart, app.zoom, containerRef, imageRef],
+    [app.isDragging, dragStart, app.zoom, containerRef, imageRef],
   );
 
   const handleMouseUp = useCallback(() => {
-    setIsDragging(false);
+    void updateApp({ isDragging: false });
   }, []);
 
   const handleWheel = useCallback(
@@ -138,38 +140,39 @@ export function useZoomPan(
     const iw = imageRef.current.offsetWidth;
     const ih = imageRef.current.offsetHeight;
     if (isFullyContained(cw, ch, iw, ih, app.zoom)) {
-      setPosition({ x: 0, y: 0 });
+      void updateApp({ position: { x: 0, y: 0 } });
     }
   }, [image, app.zoom, containerRef, imageRef]);
 
   const resetView = useCallback(() => {
-    void updateApp({ zoom: 1 });
-    setPosition({ x: 0, y: 0 });
+    void updateApp({ zoom: 1, position: { x: 0, y: 0 } });
     prevZoomRef.current = 1;
   }, []);
 
   useLayoutEffect(() => {
     if (prevZoomRef.current === app.zoom) return;
     const ratio = app.zoom / prevZoomRef.current;
-    setPosition((p) => {
-      const newX = p.x * ratio;
-      const newY = p.y * ratio;
-      if (!containerRef.current || !imageRef.current)
-        return { x: newX, y: newY };
+    const base = app.position;
+    const newX = base.x * ratio;
+    const newY = base.y * ratio;
+    if (!containerRef.current || !imageRef.current) {
+      void updateApp({ position: { x: newX, y: newY } });
+    } else {
       const cw = containerRef.current.offsetWidth;
       const ch = containerRef.current.offsetHeight;
       const iw = imageRef.current.offsetWidth;
       const ih = imageRef.current.offsetHeight;
       const { maxX, maxY } = getPositionBounds(cw, ch, iw, ih, app.zoom);
-      return clampPosition(newX, newY, maxX, maxY);
-    });
+      void updateApp({
+        position: clampPosition(newX, newY, maxX, maxY),
+      });
+    }
     prevZoomRef.current = app.zoom;
-  }, [app.zoom, containerRef, imageRef]);
+  }, [app.zoom, app.position, containerRef, imageRef]);
 
   return {
-    position,
-    isDragging,
-    setPosition,
+    position: app.position,
+    isDragging: app.isDragging,
     resetView,
     getFitZoom,
     handleZoomIn,

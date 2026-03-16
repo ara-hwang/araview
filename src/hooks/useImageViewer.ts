@@ -256,8 +256,6 @@ export function useImageViewer() {
 
   return {
     image,
-    isDragging: zoomPan.isDragging,
-    position: zoomPan.position,
     settings,
     isSettingsOpen,
     containerRef,
