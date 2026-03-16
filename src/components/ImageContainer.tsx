@@ -89,26 +89,6 @@ export function ImageContainer({
         </div>
       )}
 
-      {!image && !loading && !error && (
-        <div className="flex flex-col items-center gap-3 text-[hsl(var(--muted-foreground))] pointer-events-none">
-          <svg
-            width="64"
-            height="64"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1"
-            opacity="0.4"
-          >
-            <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-            <circle cx="8.5" cy="8.5" r="1.5" />
-            <polyline points="21 15 16 10 5 21" />
-          </svg>
-          <p className="text-base opacity-80">Drag &amp; drop an image here</p>
-          <p className="text-sm opacity-60">or press Ctrl+O to open a file</p>
-        </div>
-      )}
-
       {showNavBar && onNavigate && onNavigateToIndex && (
         <ImageNavBar
           onNavigate={onNavigate}
