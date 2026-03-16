@@ -28,7 +28,8 @@ export function ImageContainer({
   onNavigate,
   onNavigateToIndex,
 }: ImageContainerProps) {
-  const { dirImages, loading, error, zoom, position, isDragging } = useAppStore();
+  const { dirImages, loading, error, zoom, position, isDragging } =
+    useAppStore();
 
   const showNavBar = !!(
     dirImages.images.length > 1 &&
