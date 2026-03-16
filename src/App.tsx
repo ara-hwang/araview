@@ -1,16 +1,11 @@
+import "./App.css";
+
 import { useImageViewer } from "./hooks/useImageViewer";
 import Toolbar from "./components/Toolbar";
 import { ImageContainer } from "./components/ImageContainer";
 import { StatusBar } from "./components/StatusBar";
 import { SettingsDialog } from "./components/SettingsDialog";
-import "./App.css";
-import {
-  Empty,
-  EmptyContent,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyTitle,
-} from "./components/ui/empty";
+import { Empty, EmptyContent } from "./components/ui/empty";
 import { Button } from "./components/ui/button";
 
 function App() {
@@ -73,10 +68,6 @@ function App() {
 
       {!image ? (
         <Empty>
-          <EmptyHeader>
-            <EmptyTitle>No Image</EmptyTitle>
-            <EmptyDescription>No image found</EmptyDescription>
-          </EmptyHeader>
           <EmptyContent>
             <Button onClick={handleOpenFile}>Open File</Button>
           </EmptyContent>
