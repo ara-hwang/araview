@@ -2,8 +2,8 @@ import type { RefObject } from "react";
 import { cn } from "@/lib/utils";
 import { Spinner } from "@/components/ui/spinner";
 import { ImageNavBar } from "./ImageNavBar";
-import type { ImageInfo, DirectoryImages } from "../types";
-import { useSettingsStore } from "../store/settingsStore";
+import type { ImageInfo } from "../types";
+import { useAppStore } from "@/store/appStore";
 
 type ImageContainerProps = {
   image: ImageInfo | null;
@@ -18,8 +18,6 @@ type ImageContainerProps = {
   onMouseDown: (e: React.MouseEvent) => void;
   onMouseMove: (e: React.MouseEvent) => void;
   onMouseUp: () => void;
-  dirImages?: DirectoryImages | null;
-  currentIndex?: number;
   onNavigate?: (direction: "prev" | "next") => void;
   onNavigateToIndex?: (index: number) => void;
 };
@@ -37,20 +35,17 @@ export function ImageContainer({
   onMouseDown,
   onMouseMove,
   onMouseUp,
-  dirImages,
-  currentIndex = 0,
   onNavigate,
   onNavigateToIndex,
 }: ImageContainerProps) {
-  const settings = useSettingsStore();
-  const background = settings.background;
+  const dirImages = useAppStore().dirImages;
 
   const showNavBar = !!(
-    dirImages &&
     dirImages.images.length > 1 &&
     onNavigate &&
     onNavigateToIndex
   );
+
   const imageSrc = image
     ? `data:${image.mime_type};base64,${image.base64}`
     : null;
@@ -60,11 +55,6 @@ export function ImageContainer({
       ref={containerRef}
       className={cn(
         "flex-1 overflow-hidden flex items-center justify-center relative bg-[hsl(var(--background))]",
-        background === "checkered" && [
-          "[background-image:linear-gradient(45deg,hsl(var(--muted))_25%,transparent_25%),linear-gradient(-45deg,hsl(var(--muted))_25%,transparent_25%),linear-gradient(45deg,transparent_75%,hsl(var(--muted))_75%),linear-gradient(-45deg,transparent_75%,hsl(var(--muted))_75%)]",
-          "[background-size:20px_20px]",
-          "[background-position:0_0,0_10px,10px_-10px,-10px_0]",
-        ],
         isDragging && "[&]:cursor-grabbing",
       )}
       onWheel={onWheel}
@@ -125,10 +115,8 @@ export function ImageContainer({
         </div>
       )}
 
-      {showNavBar && dirImages && onNavigate && onNavigateToIndex && (
+      {showNavBar && onNavigate && onNavigateToIndex && (
         <ImageNavBar
-          dirImages={dirImages}
-          currentIndex={currentIndex}
           onNavigate={onNavigate}
           onNavigateToIndex={onNavigateToIndex}
         />

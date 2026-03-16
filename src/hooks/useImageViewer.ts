@@ -11,13 +11,13 @@ import { useZoomPan } from "./useZoomPan";
 import { useImageViewerHotkeys } from "./useImageViewerHotkeys";
 import { useOpenFileListener } from "./useOpenFileListener";
 import { updateSettings, useSettingsStore } from "@/store/settingsStore";
+import { updateApp, useAppStore } from "@/store/appStore";
 
 export function useImageViewer() {
+  const app = useAppStore();
   const settings = useSettingsStore();
 
   const [image, setImage] = useState<ImageInfo | null>(null);
-  const [dirImages, setDirImages] = useState<DirectoryImages | null>(null);
-  const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -49,7 +49,7 @@ export function useImageViewer() {
         setImage(imgInfo);
         zoomPan.resetView();
 
-        let resolvedDirInfo = dirImages;
+        let resolvedDirInfo = app.dirImages;
 
         if (
           refreshDirectory ||
@@ -60,14 +60,14 @@ export function useImageViewer() {
             "get_directory_images",
             { filePath },
           );
-          setDirImages(resolvedDirInfo);
+
+          updateApp({ dirImages: resolvedDirInfo });
         }
 
         if (resolvedDirInfo) {
           const resolvedIndex = resolvedDirInfo.images.indexOf(filePath);
           const nextIndex =
             resolvedIndex >= 0 ? resolvedIndex : resolvedDirInfo.current_index;
-          setCurrentIndex(nextIndex);
           prefetchNearbyImages(
             resolvedDirInfo.images,
             nextIndex,
@@ -83,7 +83,7 @@ export function useImageViewer() {
       }
     },
     [
-      dirImages,
+      app.dirImages,
       getOrLoadImage,
       prefetchNearbyImages,
       getPrefetchDistance,
@@ -107,39 +107,63 @@ export function useImageViewer() {
 
   const navigateImage = useCallback(
     async (direction: "prev" | "next") => {
-      if (!dirImages || dirImages.images.length <= 1) return;
+      if (!app.dirImages || app.dirImages.images.length <= 1) return;
+
+      const dirImages = app.dirImages;
 
       let newIndex: number;
       if (direction === "prev") {
-        if (currentIndex === 0) {
+        if (dirImages.current_index === 0) {
           if (!settings.loopNavigation) return;
           newIndex = dirImages.images.length - 1;
         } else {
-          newIndex = currentIndex - 1;
+          newIndex = dirImages.current_index - 1;
         }
       } else {
-        if (currentIndex === dirImages.images.length - 1) {
+        if (dirImages.current_index === dirImages.images.length - 1) {
           if (!settings.loopNavigation) return;
           newIndex = 0;
         } else {
-          newIndex = currentIndex + 1;
+          newIndex = dirImages.current_index + 1;
         }
       }
 
-      setCurrentIndex(newIndex);
-      await loadImage(dirImages.images[newIndex], { refreshDirectory: false });
+      await loadImage(dirImages.images[newIndex], {
+        refreshDirectory: false,
+      });
+
+      void updateApp({
+        dirImages: {
+          ...dirImages,
+          current_index: newIndex,
+        },
+      });
     },
-    [dirImages, currentIndex, loadImage, settings.loopNavigation],
+    [app.dirImages, loadImage, settings.loopNavigation],
   );
 
   const navigateToIndex = useCallback(
     async (index: number) => {
-      if (!dirImages || dirImages.images.length === 0) return;
-      const clamped = Math.max(0, Math.min(index, dirImages.images.length - 1));
-      setCurrentIndex(clamped);
-      await loadImage(dirImages.images[clamped], { refreshDirectory: false });
+      if (!app.dirImages || app.dirImages.images.length === 0) return;
+
+      const dirImages = app.dirImages;
+
+      const clamped = Math.max(
+        0,
+        Math.min(index, dirImages.images.length - 1),
+      );
+      await loadImage(dirImages.images[clamped], {
+        refreshDirectory: false,
+      });
+
+      void updateApp({
+        dirImages: {
+          ...dirImages,
+          current_index: clamped,
+        },
+      });
     },
-    [dirImages, loadImage],
+    [app.dirImages, loadImage],
   );
 
   const handleWheel = useCallback(
@@ -176,7 +200,7 @@ export function useImageViewer() {
   const handleContextMenu = useCallback(
     async (e: React.MouseEvent) => {
       e.preventDefault();
-      await showImageViewerContextMenu(dirImages, {
+      await showImageViewerContextMenu(app.dirImages, {
         onOpenFile: handleOpenFile,
         onNavigatePrev: () => navigateImage("prev"),
         onNavigateNext: () => navigateImage("next"),
@@ -189,7 +213,7 @@ export function useImageViewer() {
       });
     },
     [
-      dirImages,
+      app.dirImages,
       handleOpenFile,
       navigateImage,
       zoomPan.handleZoomIn,
@@ -204,16 +228,15 @@ export function useImageViewer() {
   useOpenFileListener(loadImage);
 
   useEffect(() => {
-    if (!dirImages?.images.length) return;
+    if (!app.dirImages?.images.length) return;
     prefetchNearbyImages(
-      dirImages.images,
-      currentIndex,
+      app.dirImages.images,
+      app.dirImages.current_index,
       settings.loopNavigation,
       getPrefetchDistance(),
     );
   }, [
-    dirImages,
-    currentIndex,
+    app.dirImages,
     settings.loopNavigation,
     prefetchNearbyImages,
     getPrefetchDistance,
@@ -239,8 +262,6 @@ export function useImageViewer() {
 
   return {
     image,
-    dirImages,
-    currentIndex,
     zoom: zoomPan.zoom,
     isDragging: zoomPan.isDragging,
     position: zoomPan.position,
