@@ -9,13 +9,3 @@ export type DirectoryImages = {
   images: string[];
   current_index: number;
 };
-
-export type BackgroundType = "checkered" | "solid";
-
-export type CacheMode = "off" | "nearby" | "extended";
-
-export type Settings = {
-  background: BackgroundType;
-  loopNavigation: boolean;
-  cacheMode: CacheMode;
-};

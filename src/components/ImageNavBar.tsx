@@ -1,9 +1,10 @@
-import { useState, useRef, useEffect, useCallback } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useRef, useEffect, useCallback } from "react";
+import { ChevronLeft, ChevronRight, PinIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
 import type { DirectoryImages } from "../types";
 import { useSettingsStore } from "../store/settingsStore";
+import { Slider } from "./ui/slider";
+import { ButtonGroup } from "./ui/button-group";
 
 type ImageNavBarProps = {
   dirImages: DirectoryImages;
@@ -19,15 +20,17 @@ export function ImageNavBar({
   onNavigateToIndex,
 }: ImageNavBarProps) {
   const settings = useSettingsStore();
-  const [isProgressHovered, setIsProgressHovered] = useState(false);
+
   const progressTrackRef = useRef<HTMLDivElement>(null);
   const isDraggingProgressRef = useRef(false);
 
+  // 맨 앞·맨 뒤 이미지 여부와 설정에 따른 이전/다음 비활성화 상태 계산
   const isFirst = currentIndex === 0;
   const isLast = currentIndex === dirImages.images.length - 1;
   const isPrevDisabled = isFirst && !settings?.loopNavigation;
   const isNextDisabled = isLast && !settings?.loopNavigation;
 
+  // 프로그레스 바에서 마우스 위치를 현재 이미지 인덱스로 변환
   const getIndexFromClientX = useCallback(
     (clientX: number): number | null => {
       if (!progressTrackRef.current || !dirImages.images.length) return null;
@@ -42,6 +45,7 @@ export function ImageNavBar({
     [dirImages.images.length],
   );
 
+  // 계산된 인덱스로 바로 이동 (드래그/클릭 공통 처리)
   const handleProgressPointer = useCallback(
     (clientX: number) => {
       const index = getIndexFromClientX(clientX);
@@ -50,6 +54,7 @@ export function ImageNavBar({
     [getIndexFromClientX, onNavigateToIndex],
   );
 
+  // 문서 전체에서 마우스 이동/업 이벤트를 감지해 드래그 중 프로그레스 바 갱신
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
       if (isDraggingProgressRef.current) handleProgressPointer(e.clientX);
@@ -66,14 +71,14 @@ export function ImageNavBar({
   }, [handleProgressPointer]);
 
   return (
-    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-3 rounded-full bg-[hsl(var(--card))]/70 backdrop-blur-sm px-2 py-2 opacity-40 transition-opacity duration-200 hover:opacity-90 focus-within:opacity-90">
-      <div className="flex items-center shrink-0">
+    // 하단 중앙에 고정된 내비게이션 바 (이전/다음 버튼 + 진행률 표시)
+    <div className="absolute bottom-6 flex items-center gap-4 opacity-50 hover:opacity-100 border border-border rounded-md p-2 w-xl">
+      <ButtonGroup>
         <Button
           variant="ghost"
           size="icon"
           onClick={() => onNavigate("prev")}
           title="Previous image"
-          className="size-9 rounded-full text-[hsl(var(--foreground))] hover:bg-[hsl(var(--accent))]"
           disabled={isPrevDisabled}
         >
           <ChevronLeft />
@@ -83,37 +88,24 @@ export function ImageNavBar({
           size="icon"
           onClick={() => onNavigate("next")}
           title="Next image"
-          className="size-9 rounded-full text-[hsl(var(--foreground))] hover:bg-[hsl(var(--accent))]"
           disabled={isNextDisabled}
         >
           <ChevronRight />
         </Button>
-      </div>
-      <div
-        ref={progressTrackRef}
-        className="relative flex flex-col items-center justify-center cursor-pointer"
-        onMouseEnter={() => setIsProgressHovered(true)}
-        onMouseLeave={() => setIsProgressHovered(false)}
-        onMouseDown={(e) => {
-          e.stopPropagation();
-          isDraggingProgressRef.current = true;
-          handleProgressPointer(e.clientX);
-        }}
-      >
-        {isProgressHovered && (
-          <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 text-xs text-[hsl(var(--foreground))] tabular-nums px-2 py-1 rounded-md bg-[hsl(var(--muted))]/90 whitespace-nowrap">
-            {currentIndex + 1} / {dirImages.images.length}
-          </span>
-        )}
-        <Progress
-          value={
-            dirImages.images.length > 0
-              ? ((currentIndex + 1) / dirImages.images.length) * 100
-              : 0
-          }
-          className="w-28"
-        />
-      </div>
+      </ButtonGroup>
+
+      {/* 슬라이더를 클릭/드래그해서 원하는 위치로 점프 이동 */}
+      <Slider
+        value={[currentIndex]}
+        min={0}
+        max={dirImages.images.length - 1}
+        step={1}
+        onValueChange={(value) => onNavigateToIndex(value as number)}
+      />
+
+      <Button variant="ghost" size="icon" title="Pin Navigation Bar">
+        <PinIcon />
+      </Button>
     </div>
   );
 }
