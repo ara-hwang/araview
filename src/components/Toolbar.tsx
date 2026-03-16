@@ -10,11 +10,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { ButtonGroup, ButtonGroupText } from "./ui/button-group";
 import { Separator } from "./ui/separator";
+import { useAppStore } from "@/store/appStore";
 
 const noDragStyle = { WebkitAppRegion: "no-drag" } as React.CSSProperties;
 
 type ToolbarRightProps = {
-  zoom: number;
   onZoomIn: () => void;
   onZoomOut: () => void;
   onResetZoom: () => void;
@@ -25,7 +25,6 @@ type ToolbarRightProps = {
 };
 
 function ToolbarRight({
-  zoom,
   onZoomIn,
   onZoomOut,
   onResetZoom,
@@ -34,6 +33,7 @@ function ToolbarRight({
   onFitScreen,
   onOpenSettings,
 }: ToolbarRightProps) {
+  const { zoom } = useAppStore();
   return (
     <div className="flex items-center gap-1" style={noDragStyle}>
       <ButtonGroup>
@@ -103,7 +103,6 @@ function ToolbarRight({
 }
 
 type ToolbarProps = {
-  zoom: number;
   onOpenFile: () => void;
   onZoomIn: () => void;
   onZoomOut: () => void;
@@ -116,7 +115,6 @@ type ToolbarProps = {
 
 // 위쪽 툴바
 export default function Toolbar({
-  zoom,
   onOpenFile,
   onZoomIn,
   onZoomOut,
@@ -143,7 +141,6 @@ export default function Toolbar({
       </div>
 
       <ToolbarRight
-        zoom={zoom}
         onZoomIn={onZoomIn}
         onZoomOut={onZoomOut}
         onResetZoom={onResetZoom}

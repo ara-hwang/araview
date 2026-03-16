@@ -4,16 +4,22 @@ import { DirectoryImages } from "@/types";
 
 type App = {
   theme: "system" | "light" | "dark";
+  zoom: number;
   dirImages: DirectoryImages;
+  error: string | null;
+  loading: boolean;
 };
 
 const appStore = createStore<{ app: App }>({
   app: {
     theme: "system",
+    zoom: 1,
     dirImages: {
       images: [],
       current_index: 0,
     },
+    error: null,
+    loading: false,
   },
 });
 
