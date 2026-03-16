@@ -10,7 +10,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { ButtonGroup, ButtonGroupText } from "./ui/button-group";
 import { Separator } from "./ui/separator";
-import type { DirectoryImages, Settings as AppSettings } from "../types";
 
 const noDragStyle = { WebkitAppRegion: "no-drag" } as React.CSSProperties;
 
@@ -110,12 +109,8 @@ function ToolbarRight({
 }
 
 type ToolbarProps = {
-  dirImages: DirectoryImages | null;
-  currentIndex: number;
   zoom: number;
-  settings: AppSettings;
   onOpenFile: () => void;
-  onNavigate: (direction: "prev" | "next") => void;
   onZoomIn: () => void;
   onZoomOut: () => void;
   onResetZoom: () => void;

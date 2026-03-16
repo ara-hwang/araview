@@ -2,20 +2,21 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import type { Settings, BackgroundType, CacheMode } from "../types";
+import { useSettingsStore } from "../hooks/useSettingsStore";
+import { updateSettings } from "../store/appStore";
 
 type SettingsDialogProps = {
   open: boolean;
-  settings: Settings;
   onClose: () => void;
-  onSettingsChange: (settings: Partial<Settings>) => void;
 };
 
-export function SettingsDialog({
-  open,
-  settings,
-  onClose,
-  onSettingsChange,
-}: SettingsDialogProps) {
+export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
+  const settings = useSettingsStore();
+
+  const handleSettingsChange = (next: Partial<Settings>) => {
+    void updateSettings(next);
+  };
+
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
       <DialogContent>
@@ -30,7 +31,7 @@ export function SettingsDialog({
             <RadioGroup
               value={settings.background}
               onValueChange={(value) =>
-                onSettingsChange({ background: value as BackgroundType })
+                handleSettingsChange({ background: value as BackgroundType })
               }
             >
               <div className="flex items-center gap-3">
@@ -51,7 +52,7 @@ export function SettingsDialog({
             <RadioGroup
               value={settings.loopNavigation ? "loop" : "stop"}
               onValueChange={(value) =>
-                onSettingsChange({ loopNavigation: value === "loop" })
+                handleSettingsChange({ loopNavigation: value === "loop" })
               }
             >
               <div className="flex items-center gap-3">
@@ -73,7 +74,7 @@ export function SettingsDialog({
             <RadioGroup
               value={settings.cacheMode}
               onValueChange={(value) =>
-                onSettingsChange({ cacheMode: value as CacheMode })
+                handleSettingsChange({ cacheMode: value as CacheMode })
               }
             >
               <div className="flex items-center gap-3">
