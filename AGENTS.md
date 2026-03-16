@@ -20,12 +20,15 @@ tauri-image-viewer/
 │   ├── main.tsx
 │   ├── types.ts              # ImageInfo, DirectoryImages, Settings 등 공용 타입
 │   ├── hooks/
-│   │   └── useImageViewer.ts # 이미지 로드/캐시, 줌, 드래그, 설정, Tauri invoke
+│   │   ├── useImageViewer.ts # 이미지 로드/디렉터리 관리, 줌, 드래그, 설정, Tauri invoke
+│   │   └── useImageCache.ts  # 이미지 캐시/프리페치 관리
 │   ├── components/
 │   │   ├── Toolbar.tsx       # 열기, 이전/다음, 줌, 설정
 │   │   ├── ImageContainer.tsx# 이미지 표시, 휠 줌, 드래그
+│   │   ├── ImageNavBar.tsx   # 하단 이미지 시퀀스/프로그레스 내비게이션
 │   │   ├── StatusBar.tsx     # 파일명/크기 등 상태
 │   │   ├── SettingsDialog.tsx
+│   │   ├── theme-provider.tsx# 다크/라이트/시스템 테마 및 단축키(D) 토글
 │   │   └── ui/               # shadcn 컴포넌트 (button, radio-group, spinner 등)
 │   ├── lib/
 │   │   └── utils.ts          # cn() 등 유틸
@@ -46,8 +49,8 @@ tauri-image-viewer/
 
 ## 프론트엔드 (React/TypeScript)
 
-- **상태/로직**: `useImageViewer` 훅에 집중. 이미지 캐시, 줌, 드래그, 설정, Tauri `invoke`/`listen` 처리.
-- **UI**: `App.tsx`는 훅에서 받은 핸들러와 상태를 `Toolbar`, `ImageContainer`, `StatusBar`, `SettingsDialog`에 전달.
+- **상태/로직**: `useImageViewer` 훅에 집중. 이미지/디렉터리 상태, 줌, 드래그, 설정, Tauri `invoke`/`listen` 처리. 고급 캐시/프리페치는 `useImageCache`로 분리.
+- **UI**: `App.tsx`는 훅에서 받은 핸들러와 상태를 `Toolbar`, `ImageContainer`, `ImageNavBar`, `StatusBar`, `SettingsDialog`에 전달하며, 루트는 `ThemeProvider`로 감싸 테마(다크/라이트/시스템)를 관리.
 - **타입**: `src/types.ts`의 `ImageInfo`, `DirectoryImages`, `Settings`, `BackgroundType`, `CacheMode`는 Rust와 공유. 변경 시 백엔드와 맞출 것.
 - **타입 선언**: 객체/프로퍼티 타입은 **`type` 위주로 작성.** `interface` 대신 `type Foo = { ... }` 또는 `type Foo = Base & { ... }`(extends 대체) 사용.
 - **스타일**: Tailwind 4 + shadcn. 새 UI 컴포넌트는 `src/components/ui/`에 shadcn 추가 후 사용 (`npx shadcn@latest add ...`). **UI 프리미티브는 반드시 @base-ui를 사용하고, @radix-ui는 사용하지 않는다.**
