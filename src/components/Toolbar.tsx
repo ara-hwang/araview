@@ -1,12 +1,16 @@
 import {
-  FolderOpen,
-  ZoomIn,
-  ZoomOut,
   ArrowLeftRight,
   ArrowUpDown,
+  FolderOpen,
   Maximize2,
+  Minus,
   Settings,
+  Square,
+  X,
+  ZoomIn,
+  ZoomOut,
 } from "lucide-react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup, ButtonGroupText } from "./ui/button-group";
 import { Separator } from "./ui/separator";
@@ -34,6 +38,20 @@ function ToolbarRight({
   onOpenSettings,
 }: ToolbarRightProps) {
   const { zoom } = useAppStore();
+  const appWindow = getCurrentWindow();
+
+  const handleMinimize = () => {
+    void appWindow.minimize();
+  };
+
+  const handleMaximize = () => {
+    void appWindow.toggleMaximize();
+  };
+
+  const handleClose = () => {
+    void appWindow.close();
+  };
+
   return (
     <div className="flex items-center gap-1" style={noDragStyle}>
       <ButtonGroup>
@@ -98,6 +116,34 @@ function ToolbarRight({
       >
         <Settings />
       </Button>
+
+      {/* 윈도우 컨트롤 버튼 */}
+      <ButtonGroup>
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={handleMinimize}
+          title="Minimize"
+        >
+          <Minus className="h-3 w-3" />
+        </Button>
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={handleMaximize}
+          title="Maximize / Restore"
+        >
+          <Square className="h-3 w-3" />
+        </Button>
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={handleClose}
+          title="Close"
+        >
+          <X className="h-3 w-3" />
+        </Button>
+      </ButtonGroup>
     </div>
   );
 }
