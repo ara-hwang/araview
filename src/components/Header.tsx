@@ -1,4 +1,3 @@
-import type React from "react"
 import { Minus, Square, X } from "lucide-react"
 import { getCurrentWindow } from "@tauri-apps/api/window"
 import { Button } from "@/components/ui/button"
@@ -16,17 +15,18 @@ import {
 import { ButtonGroupText } from "./ui/button-group"
 import { Separator } from "./ui/separator"
 import { useImageViewer } from "@/hooks/useImageViewer"
-import { Navigate } from "@tanstack/react-router"
+import { useNavigate } from "@tanstack/react-router"
 import { getApp } from "@/store/appStore"
 
 // 위쪽 툴바
 export default function Header() {
   const appWindow = getCurrentWindow()
+  const navigate = useNavigate()
 
   const imageViewer = useImageViewer()
 
   const handleOpenSettings = () => {
-    void Navigate({ to: "/settings" })
+    void navigate({ to: "/page/settings" })
   }
 
   const handleMinimize = () => {
@@ -42,10 +42,7 @@ export default function Header() {
   }
 
   return (
-    <div
-      className="flex justify-between p-2"
-      style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
-    >
+    <div className="drag flex justify-between p-2">
       <ButtonGroup>
         <Button
           variant="outline"
@@ -115,6 +112,7 @@ export default function Header() {
           </ButtonGroup>
         </ButtonGroup>
 
+        {/* 설정 */}
         <ButtonGroup>
           <Button
             variant="outline"
@@ -127,29 +125,34 @@ export default function Header() {
         </ButtonGroup>
 
         <ButtonGroup>
+          {/* 최소화 */}
           <Button
             variant="outline"
             size="icon"
             onClick={handleMinimize}
             title="Minimize"
           >
-            <Minus className="h-3 w-3" />
+            <Minus />
           </Button>
+
+          {/* 최대화 / 복구 */}
           <Button
             variant="outline"
             size="icon"
             onClick={handleMaximize}
             title="Maximize / Restore"
           >
-            <Square className="h-3 w-3" />
+            <Square />
           </Button>
+
+          {/* 닫기 */}
           <Button
             variant="outline"
             size="icon"
             onClick={handleClose}
             title="Close"
           >
-            <X className="h-3 w-3" />
+            <X />
           </Button>
         </ButtonGroup>
       </ButtonGroup>
