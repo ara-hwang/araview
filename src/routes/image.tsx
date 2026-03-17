@@ -6,7 +6,7 @@ import { getApp } from "@/store/appStore"
 export const Route = createFileRoute("/image")({
   beforeLoad: () => {
     if (!getApp().imageInfo) {
-      throw redirect({ to: "/" })
+      throw redirect({ to: "/image" })
     }
   },
   component: ImagePage
