@@ -130,3 +130,16 @@
     @apply font-sans;
   }
 }
+
+/* 드래그 가능 (타이틀바) */
+@utility drag {
+  -webkit-app-region: drag;
+  * {
+    @apply no-drag;
+  }
+}
+
+/* 드래그 불가 */
+@utility no-drag {
+  -webkit-app-region: no-drag;
+}
