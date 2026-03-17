@@ -1,10 +1,10 @@
-import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
-import tailwindcss from "@tailwindcss/vite";
-import { tanstackRouter } from "@tanstack/router-plugin/vite";
-import path from "node:path";
+import { defineConfig } from "vite"
+import react from "@vitejs/plugin-react"
+import tailwindcss from "@tailwindcss/vite"
+import { tanstackRouter } from "@tanstack/router-plugin/vite"
+import path from "node:path"
 
-const host = process.env.TAURI_DEV_HOST;
+const host = process.env.TAURI_DEV_HOST
 
 // https://vitejs.dev/config/
 export default defineConfig(async () => ({
@@ -12,15 +12,15 @@ export default defineConfig(async () => ({
     tanstackRouter({
       routesDirectory: "./src/routes",
       generatedRouteTree: "./src/routeTree.gen.ts",
-      autoCodeSplitting: true,
+      autoCodeSplitting: true
     }),
     react(),
-    tailwindcss(),
+    tailwindcss()
   ],
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "./src"),
-    },
+      "@": path.resolve(__dirname, "./src")
+    }
   },
   clearScreen: false,
   server: {
@@ -31,11 +31,11 @@ export default defineConfig(async () => ({
       ? {
           protocol: "ws",
           host,
-          port: 1421,
+          port: 1421
         }
       : undefined,
     watch: {
-      ignored: ["**/src-tauri/**"],
-    },
-  },
-}));
+      ignored: ["**/src-tauri/**"]
+    }
+  }
+}))

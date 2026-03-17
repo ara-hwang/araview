@@ -1,13 +1,13 @@
-import { useAppStore } from "@/store/appStore";
-import { formatFileSize } from "../utils/format";
+import { useAppStore } from "@/store/appStore"
+import { formatFileSize } from "../utils/format"
 
 export function StatusBar() {
-  const app = useAppStore();
+  const app = useAppStore()
   // if (!app.imageInfo) return null;
 
   return (
-    <div className="absolute w-full bottom-0 flex items-center justify-between h-6 px-2 bg-background/30 text-xs backdrop-blur-sm">
-      <span className="overflow-hidden text-ellipsis whitespace-nowrap max-w-[60%]">
+    <div className="bg-background/30 absolute bottom-0 flex h-6 w-full items-center justify-between px-2 text-xs backdrop-blur-sm">
+      <span className="max-w-[60%] overflow-hidden text-ellipsis whitespace-nowrap">
         {app.imageInfo?.file_name ?? "Empty"}
       </span>
       <span>
@@ -15,5 +15,5 @@ export function StatusBar() {
         {app.imageInfo?.mime_type ?? "Unknown"}
       </span>
     </div>
-  );
+  )
 }

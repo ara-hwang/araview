@@ -1,16 +1,16 @@
-import { createFileRoute, redirect } from "@tanstack/react-router";
-import { useImageViewer } from "@/hooks/useImageViewer";
-import { ImageContainer } from "@/components/ImageContainer";
-import { getApp } from "@/store/appStore";
+import { createFileRoute, redirect } from "@tanstack/react-router"
+import { useImageViewer } from "@/hooks/useImageViewer"
+import { ImageContainer } from "@/components/ImageContainer"
+import { getApp } from "@/store/appStore"
 
 export const Route = createFileRoute("/image")({
   beforeLoad: () => {
     if (!getApp().imageInfo) {
-      throw redirect({ to: "/" });
+      throw redirect({ to: "/" })
     }
   },
-  component: ImagePage,
-});
+  component: ImagePage
+})
 
 function ImagePage() {
   const {
@@ -24,12 +24,12 @@ function ImagePage() {
     handleMouseUp,
     handleDrop,
     handleDragOver,
-    handleContextMenu,
-  } = useImageViewer();
+    handleContextMenu
+  } = useImageViewer()
 
   return (
     <div
-      className="flex flex-col h-full w-full"
+      className="flex h-full w-full flex-col"
       onContextMenu={handleContextMenu}
       onDrop={handleDrop}
       onDragOver={handleDragOver}
@@ -45,5 +45,5 @@ function ImagePage() {
         onNavigateToIndex={navigateToIndex}
       />
     </div>
-  );
+  )
 }

@@ -1,43 +1,43 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useImageViewer } from "@/hooks/useImageViewer";
-import { Empty, EmptyContent } from "@/components/ui/empty";
-import { Button } from "@/components/ui/button";
-import { useEffect } from "react";
-import { getCurrentWindow } from "@tauri-apps/api/window";
-import { useAppStore } from "@/store/appStore";
+import { createFileRoute, useNavigate } from "@tanstack/react-router"
+import { useImageViewer } from "@/hooks/useImageViewer"
+import { Empty, EmptyContent } from "@/components/ui/empty"
+import { Button } from "@/components/ui/button"
+import { useEffect } from "react"
+import { getCurrentWindow } from "@tauri-apps/api/window"
+import { useAppStore } from "@/store/appStore"
 
 export const Route = createFileRoute("/")({
-  component: HomePage,
-});
+  component: HomePage
+})
 
 function HomePage() {
-  const app = useAppStore();
-  const navigate = useNavigate();
+  const app = useAppStore()
+  const navigate = useNavigate()
 
   // 이미지 변경 시 창 제목 변경
   useEffect(() => {
-    const title = app.imageInfo ? app.imageInfo.file_name : "Image Viewer";
+    const title = app.imageInfo ? app.imageInfo.file_name : "Image Viewer"
     getCurrentWindow()
       .setTitle(title)
-      .catch(() => {});
-  }, [app.imageInfo]);
+      .catch(() => {})
+  }, [app.imageInfo])
 
   // 이미지가 로드되면 이미지 페이지로 이동
   useEffect(() => {
     if (app.imageInfo) {
-      void navigate({ to: "/image" });
+      void navigate({ to: "/image" })
     }
-  }, [app.imageInfo, navigate]);
+  }, [app.imageInfo, navigate])
 
   const { handleOpenFile, handleDrop, handleDragOver, handleContextMenu } =
-    useImageViewer();
+    useImageViewer()
 
   return (
     <div
       onContextMenu={handleContextMenu}
       onDrop={handleDrop}
       onDragOver={handleDragOver}
-      className="w-full h-full flex flex-col items-center justify-center"
+      className="flex h-full w-full flex-col items-center justify-center"
     >
       <Empty>
         <EmptyContent>
@@ -45,5 +45,5 @@ function HomePage() {
         </EmptyContent>
       </Empty>
     </div>
-  );
+  )
 }
