@@ -25,7 +25,10 @@ export function ImageNavBar({
 
   return (
     // 하단 중앙에 고정된 내비게이션 바 (이전/다음 버튼 + 진행률 표시)
-    <div className="border-border absolute bottom-6 flex w-xl items-center gap-4 rounded-md border p-2 opacity-50 hover:opacity-100">
+    <div
+      className="bg-background/75 border-border absolute bottom-12 flex w-xl items-center gap-4 rounded-md border p-2 opacity-50 hover:opacity-100"
+      onMouseDown={(e) => e.stopPropagation()}
+    >
       <ButtonGroup>
         <Button
           variant="outline"
