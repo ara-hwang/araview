@@ -2,7 +2,6 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
 import type { Settings, CacheMode } from "@/types/settings";
 import { updateSettings, useSettingsStore } from "@/store/settingsStore";
 import { HardDriveIcon, NavigationIcon, ArrowLeft } from "lucide-react";
@@ -16,49 +15,22 @@ import {
 } from "@/components/ui/field";
 import { getApp } from "@/store/appStore";
 
-export const Route = createFileRoute("/settings")({
+export const Route = createFileRoute("/settings/")({
   component: SettingsPage,
+  staticData: {
+    headerLeftSlot: <SettingsHeaderSlot />,
+  },
 });
 
 function SettingsPage() {
   const settings = useSettingsStore();
-  const navigate = useNavigate();
 
   const handleSettingsChange = (next: Partial<Settings>) => {
     void updateSettings(next);
   };
 
-  const handleBack = () => {
-    // 이미지가 로드되어 있으면 이미지 페이지로, 아니면 홈으로 이동
-    void navigate({ to: getApp().imageInfo ? "/image" : "/" });
-  };
-
   return (
-    <div className="flex flex-col h-screen w-screen">
-      {/* Header */}
-      <div
-        className="flex items-center gap-2 p-2"
-        style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
-      >
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={handleBack}
-          title="Back"
-          style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
-        >
-          <ArrowLeft />
-        </Button>
-        <span
-          className="text-sm font-medium"
-          style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
-        >
-          Settings
-        </span>
-      </div>
-
-      <Separator />
-
+    <div className="flex flex-1 flex-col">
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-6">
         <FieldGroup>
@@ -115,6 +87,32 @@ function SettingsPage() {
           </CustomFieldSet>
         </FieldGroup>
       </div>
+    </div>
+  );
+}
+
+function SettingsHeaderSlot() {
+  const navigate = useNavigate();
+
+  const handleBack = () => {
+    void navigate({ to: getApp().imageInfo ? "/image" : "/" });
+  };
+
+  return (
+    <div
+      className="flex items-center gap-2"
+      style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+    >
+      <Button
+        variant="outline"
+        size="icon"
+        onClick={handleBack}
+        title="Back"
+        style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+      >
+        <ArrowLeft />
+      </Button>
+      <span className="text-sm font-medium">Settings</span>
     </div>
   );
 }

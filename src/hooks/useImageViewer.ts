@@ -1,15 +1,14 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
 import type { DirectoryImages } from "../types";
-import type { Settings } from "@/types/settings";
 import { SUPPORTED_IMAGE_EXTENSIONS } from "../constants/imageExtensions";
 import { showImageViewerContextMenu } from "../utils/contextMenu";
 import { useImageCache } from "./useImageCache";
 import { useZoomPan } from "./useZoomPan";
 import { useImageViewerHotkeys } from "./useImageViewerHotkeys";
 import { useOpenFileListener } from "./useOpenFileListener";
-import { updateSettings, useSettingsStore } from "@/store/settingsStore";
+import { useSettingsStore } from "@/store/settingsStore";
 import { updateApp, useAppStore } from "@/store/appStore";
 
 // 이미지 로드, 디렉터리 내 내비게이션, 줌/팬, 드래그&드롭, 설정 변경까지
@@ -18,8 +17,6 @@ import { updateApp, useAppStore } from "@/store/appStore";
 export function useImageViewer() {
   const app = useAppStore();
   const settings = useSettingsStore();
-
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
@@ -237,12 +234,6 @@ export function useImageViewer() {
     getPrefetchDistance,
   ]);
 
-  const handleOpenSettings = useCallback(() => setIsSettingsOpen(true), []);
-  const handleCloseSettings = useCallback(() => setIsSettingsOpen(false), []);
-  const handleSettingsChange = useCallback((newSettings: Partial<Settings>) => {
-    void updateSettings(newSettings);
-  }, []);
-
   useImageViewerHotkeys({
     onNavigatePrev: () => navigateImage("prev"),
     onNavigateNext: () => navigateImage("next"),
@@ -256,7 +247,6 @@ export function useImageViewer() {
   });
 
   return {
-    isSettingsOpen,
     containerRef,
     imageRef,
     handleOpenFile,
@@ -275,8 +265,5 @@ export function useImageViewer() {
     handleDrop,
     handleDragOver,
     handleContextMenu,
-    handleOpenSettings,
-    handleCloseSettings,
-    handleSettingsChange,
   };
 }
