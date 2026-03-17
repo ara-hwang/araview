@@ -1,8 +1,8 @@
-import type React from "react";
-import { Minus, Square, X } from "lucide-react";
-import { getCurrentWindow } from "@tauri-apps/api/window";
-import { Button } from "@/components/ui/button";
-import { ButtonGroup } from "./ui/button-group";
+import type React from "react"
+import { Minus, Square, X } from "lucide-react"
+import { getCurrentWindow } from "@tauri-apps/api/window"
+import { Button } from "@/components/ui/button"
+import { ButtonGroup } from "./ui/button-group"
 
 import {
   ArrowLeftRight,
@@ -11,39 +11,39 @@ import {
   Maximize2,
   Settings,
   ZoomIn,
-  ZoomOut,
-} from "lucide-react";
-import { ButtonGroupText } from "./ui/button-group";
-import { Separator } from "./ui/separator";
-import { useImageViewer } from "@/hooks/useImageViewer";
-import { Navigate } from "@tanstack/react-router";
-import { getApp } from "@/store/appStore";
+  ZoomOut
+} from "lucide-react"
+import { ButtonGroupText } from "./ui/button-group"
+import { Separator } from "./ui/separator"
+import { useImageViewer } from "@/hooks/useImageViewer"
+import { Navigate } from "@tanstack/react-router"
+import { getApp } from "@/store/appStore"
 
 // 위쪽 툴바
 export default function Header() {
-  const appWindow = getCurrentWindow();
+  const appWindow = getCurrentWindow()
 
-  const imageViewer = useImageViewer();
+  const imageViewer = useImageViewer()
 
   const handleOpenSettings = () => {
-    void Navigate({ to: "/settings" });
-  };
+    void Navigate({ to: "/settings" })
+  }
 
   const handleMinimize = () => {
-    void appWindow.minimize();
-  };
+    void appWindow.minimize()
+  }
 
   const handleMaximize = () => {
-    void appWindow.toggleMaximize();
-  };
+    void appWindow.toggleMaximize()
+  }
 
   const handleClose = () => {
-    void appWindow.close();
-  };
+    void appWindow.close()
+  }
 
   return (
     <div
-      className="p-2 flex justify-between"
+      className="flex justify-between p-2"
       style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
     >
       <ButtonGroup>
@@ -154,5 +154,5 @@ export default function Header() {
         </ButtonGroup>
       </ButtonGroup>
     </div>
-  );
+  )
 }

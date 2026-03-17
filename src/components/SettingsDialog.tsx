@@ -1,29 +1,29 @@
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import type { Settings, CacheMode } from "@/types/settings";
-import { updateSettings, useSettingsStore } from "@/store/settingsStore";
-import { HardDriveIcon, NavigationIcon } from "lucide-react";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+import type { Settings, CacheMode } from "@/types/settings"
+import { updateSettings, useSettingsStore } from "@/store/settingsStore"
+import { HardDriveIcon, NavigationIcon } from "lucide-react"
 import {
   Field,
   FieldDescription,
   FieldGroup,
   FieldLegend,
   FieldSeparator,
-  FieldSet,
-} from "./ui/field";
+  FieldSet
+} from "./ui/field"
 
 type SettingsDialogProps = {
-  open: boolean;
-  onClose: () => void;
-};
+  open: boolean
+  onClose: () => void
+}
 
 export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
-  const settings = useSettingsStore();
+  const settings = useSettingsStore()
 
   const handleSettingsChange = (next: Partial<Settings>) => {
-    void updateSettings(next);
-  };
+    void updateSettings(next)
+  }
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
@@ -84,14 +84,14 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
         </FieldGroup>
       </DialogContent>
     </Dialog>
-  );
+  )
 }
 
 function CustomFieldSet(props: {
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-  children: React.ReactNode;
+  icon: React.ReactNode
+  title: string
+  description: string
+  children: React.ReactNode
 }) {
   return (
     <FieldSet>
@@ -102,5 +102,5 @@ function CustomFieldSet(props: {
       <FieldDescription>{props.description}</FieldDescription>
       {props.children}
     </FieldSet>
-  );
+  )
 }

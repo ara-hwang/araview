@@ -11,8 +11,8 @@ export const SUPPORTED_IMAGE_EXTENSIONS = [
   "ico",
   "tiff",
   "tif",
-  "avif",
-] as const;
+  "avif"
+] as const
 
 export type SupportedImageExtension =
-  (typeof SUPPORTED_IMAGE_EXTENSIONS)[number];
+  (typeof SUPPORTED_IMAGE_EXTENSIONS)[number]

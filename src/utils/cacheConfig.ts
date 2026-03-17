@@ -1,25 +1,25 @@
-import type { Settings } from "@/types/settings";
+import type { Settings } from "@/types/settings"
 
 export function getCacheLimit(mode: Settings["cacheMode"]): number {
   switch (mode) {
     case "off":
-      return 1;
+      return 1
     case "extended":
-      return 64;
+      return 64
     case "nearby":
     default:
-      return 24;
+      return 24
   }
 }
 
 export function getPrefetchDistance(mode: Settings["cacheMode"]): number {
   switch (mode) {
     case "off":
-      return 0;
+      return 0
     case "extended":
-      return 3;
+      return 3
     case "nearby":
     default:
-      return 1;
+      return 1
   }
 }

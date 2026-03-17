@@ -1,33 +1,33 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
-import type { Settings, CacheMode } from "@/types/settings";
-import { updateSettings, useSettingsStore } from "@/store/settingsStore";
-import { HardDriveIcon, NavigationIcon, ArrowLeft } from "lucide-react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Label } from "@/components/ui/label"
+import { Button } from "@/components/ui/button"
+import type { Settings, CacheMode } from "@/types/settings"
+import { updateSettings, useSettingsStore } from "@/store/settingsStore"
+import { HardDriveIcon, NavigationIcon, ArrowLeft } from "lucide-react"
 import {
   Field,
   FieldDescription,
   FieldGroup,
   FieldLegend,
   FieldSeparator,
-  FieldSet,
-} from "@/components/ui/field";
-import { getApp } from "@/store/appStore";
+  FieldSet
+} from "@/components/ui/field"
+import { getApp } from "@/store/appStore"
 
 export const Route = createFileRoute("/settings/")({
   component: SettingsPage,
   staticData: {
-    headerLeftSlot: <SettingsHeaderSlot />,
-  },
-});
+    headerLeftSlot: <SettingsHeaderSlot />
+  }
+})
 
 function SettingsPage() {
-  const settings = useSettingsStore();
+  const settings = useSettingsStore()
 
   const handleSettingsChange = (next: Partial<Settings>) => {
-    void updateSettings(next);
-  };
+    void updateSettings(next)
+  }
 
   return (
     <div className="flex flex-1 flex-col">
@@ -88,15 +88,15 @@ function SettingsPage() {
         </FieldGroup>
       </div>
     </div>
-  );
+  )
 }
 
 function SettingsHeaderSlot() {
-  const navigate = useNavigate();
+  const navigate = useNavigate()
 
   const handleBack = () => {
-    void navigate({ to: getApp().imageInfo ? "/image" : "/" });
-  };
+    void navigate({ to: getApp().imageInfo ? "/image" : "/" })
+  }
 
   return (
     <div
@@ -114,14 +114,14 @@ function SettingsHeaderSlot() {
       </Button>
       <span className="text-sm font-medium">Settings</span>
     </div>
-  );
+  )
 }
 
 function CustomFieldSet(props: {
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-  children: React.ReactNode;
+  icon: React.ReactNode
+  title: string
+  description: string
+  children: React.ReactNode
 }) {
   return (
     <FieldSet>
@@ -132,5 +132,5 @@ function CustomFieldSet(props: {
       <FieldDescription>{props.description}</FieldDescription>
       {props.children}
     </FieldSet>
-  );
+  )
 }

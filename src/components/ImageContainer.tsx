@@ -1,19 +1,19 @@
-import type { RefObject } from "react";
-import { cn } from "@/lib/utils";
-import { Spinner } from "@/components/ui/spinner";
-import { ImageNavBar } from "./ImageNavBar";
-import { useAppStore } from "@/store/appStore";
+import type { RefObject } from "react"
+import { cn } from "@/lib/utils"
+import { Spinner } from "@/components/ui/spinner"
+import { ImageNavBar } from "./ImageNavBar"
+import { useAppStore } from "@/store/appStore"
 
 type ImageContainerProps = {
-  containerRef: RefObject<HTMLDivElement>;
-  imageRef: RefObject<HTMLImageElement>;
-  onWheel: (e: React.WheelEvent) => void;
-  onMouseDown: (e: React.MouseEvent) => void;
-  onMouseMove: (e: React.MouseEvent) => void;
-  onMouseUp: () => void;
-  onNavigate?: (direction: "prev" | "next") => void;
-  onNavigateToIndex?: (index: number) => void;
-};
+  containerRef: RefObject<HTMLDivElement>
+  imageRef: RefObject<HTMLImageElement>
+  onWheel: (e: React.WheelEvent) => void
+  onMouseDown: (e: React.MouseEvent) => void
+  onMouseMove: (e: React.MouseEvent) => void
+  onMouseUp: () => void
+  onNavigate?: (direction: "prev" | "next") => void
+  onNavigateToIndex?: (index: number) => void
+}
 
 export function ImageContainer({
   containerRef,
@@ -23,26 +23,26 @@ export function ImageContainer({
   onMouseMove,
   onMouseUp,
   onNavigate,
-  onNavigateToIndex,
+  onNavigateToIndex
 }: ImageContainerProps) {
-  const app = useAppStore();
+  const app = useAppStore()
 
   const showNavBar = !!(
     app.dirImages.images.length > 1 &&
     onNavigate &&
     onNavigateToIndex
-  );
+  )
 
   const imageSrc = app.imageInfo
     ? `data:${app.imageInfo.mime_type};base64,${app.imageInfo.base64}`
-    : null;
+    : null
 
   return (
     <div
       ref={containerRef}
       className={cn(
-        "flex-1 overflow-hidden flex items-center justify-center relative bg-[hsl(var(--background))]",
-        app.isDragging && "[&]:cursor-grabbing",
+        "relative flex flex-1 items-center justify-center overflow-hidden bg-[hsl(var(--background))]",
+        app.isDragging && "[&]:cursor-grabbing"
       )}
       onWheel={onWheel}
       onMouseDown={onMouseDown}
@@ -51,16 +51,16 @@ export function ImageContainer({
       onMouseLeave={onMouseUp}
     >
       {imageSrc && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
           <img
             ref={imageRef}
             src={imageSrc}
             alt={app.imageInfo?.file_name}
-            className="max-w-full max-h-full object-contain transition-transform duration-50 ease-out pointer-events-auto"
+            className="pointer-events-auto max-h-full max-w-full object-contain transition-transform duration-50 ease-out"
             style={{
               transform: `translate(${app.position.x}px, ${app.position.y}px) scale(${app.zoom})`,
               transformOrigin: "center center",
-              cursor: app.isDragging ? "grabbing" : "grab",
+              cursor: app.isDragging ? "grabbing" : "grab"
             }}
             draggable={false}
           />
@@ -68,7 +68,7 @@ export function ImageContainer({
       )}
 
       {app.loading && (
-        <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
+        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
           <Spinner
             className="size-8 text-[hsl(var(--muted-foreground))]"
             aria-label="Loading image"
@@ -77,7 +77,7 @@ export function ImageContainer({
       )}
 
       {app.error && (
-        <div className="text-sm text-[hsl(var(--destructive))] px-6 py-4 bg-[hsl(var(--destructive))]/10 rounded-lg border border-[hsl(var(--destructive))]/20">
+        <div className="rounded-lg border border-[hsl(var(--destructive))]/20 bg-[hsl(var(--destructive))]/10 px-6 py-4 text-sm text-[hsl(var(--destructive))]">
           {app.error}
         </div>
       )}
@@ -89,5 +89,5 @@ export function ImageContainer({
         />
       )}
     </div>
-  );
+  )
 }

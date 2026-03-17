@@ -6,14 +6,14 @@ export function getPositionBounds(
   containerH: number,
   imgW: number,
   imgH: number,
-  zoom: number,
+  zoom: number
 ): { maxX: number; maxY: number } {
-  const scaledW = imgW * zoom;
-  const scaledH = imgH * zoom;
+  const scaledW = imgW * zoom
+  const scaledH = imgH * zoom
   return {
     maxX: scaledW >= containerW ? (scaledW - containerW) / 2 : 0,
-    maxY: scaledH >= containerH ? (scaledH - containerH) / 2 : 0,
-  };
+    maxY: scaledH >= containerH ? (scaledH - containerH) / 2 : 0
+  }
 }
 
 /**
@@ -23,12 +23,12 @@ export function clampPosition(
   x: number,
   y: number,
   maxX: number,
-  maxY: number,
+  maxY: number
 ): { x: number; y: number } {
   return {
     x: maxX > 0 ? Math.max(-maxX, Math.min(maxX, x)) : 0,
-    y: maxY > 0 ? Math.max(-maxY, Math.min(maxY, y)) : 0,
-  };
+    y: maxY > 0 ? Math.max(-maxY, Math.min(maxY, y)) : 0
+  }
 }
 
 /**
@@ -39,9 +39,9 @@ export function isFullyContained(
   containerH: number,
   imgW: number,
   imgH: number,
-  zoom: number,
+  zoom: number
 ): boolean {
-  const scaledW = imgW * zoom;
-  const scaledH = imgH * zoom;
-  return scaledW <= containerW && scaledH <= containerH;
+  const scaledW = imgW * zoom
+  const scaledH = imgH * zoom
+  return scaledW <= containerW && scaledH <= containerH
 }

@@ -43,9 +43,12 @@
   "devDependencies": {
     "@tanstack/router-plugin": "^1.166.12",
     "@tauri-apps/cli": "^2",
+    "@types/node": "^25.5.0",
     "@types/react": "^18.3.1",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
+    "prettier": "^3.8.1",
+    "prettier-plugin-tailwindcss": "^0.7.2",
     "shadcn": "^4.0.6",
     "typescript": "~5.6.2",
     "vite": "^6.0.3"
