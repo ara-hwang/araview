@@ -1,10 +1,11 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router"
-import { useImageViewer } from "@/hooks/useImageViewer"
 import { Empty, EmptyContent } from "@/components/ui/empty"
 import { Button } from "@/components/ui/button"
 import { useEffect } from "react"
 import { getCurrentWindow } from "@tauri-apps/api/window"
 import { useAppStore } from "@/store/appStore"
+import { useImageLoader } from "@/hooks/useImageLoader"
+import { useImageViewerContextMenu } from "@/hooks/useContextMenu"
 
 export const Route = createFileRoute("/")({
   component: HomePage
@@ -29,8 +30,18 @@ function HomePage() {
     }
   }, [app.imageInfo, navigate])
 
-  const { handleOpenFile, handleDrop, handleDragOver, handleContextMenu } =
-    useImageViewer()
+  const { handleOpenFile, handleDrop, handleDragOver } = useImageLoader()
+  const handleContextMenu = useImageViewerContextMenu(app.dirImages, {
+    onOpenFile: handleOpenFile,
+    onNavigatePrev: () => {},
+    onNavigateNext: () => {},
+    onZoomIn: () => {},
+    onZoomOut: () => {},
+    onResetZoom: () => {},
+    onFitWidth: () => {},
+    onFitHeight: () => {},
+    onFitScreen: () => {}
+  })
 
   return (
     <div

@@ -1,8 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
-import type { Settings, CacheMode } from "@/types/settings"
-import { updateSettings, useSettingsStore } from "@/store/settingsStore"
+import { useSettingsStore, type CacheMode } from "@/store/settingsStore"
 import { HardDriveIcon, NavigationIcon } from "lucide-react"
 import {
   Field,
@@ -20,10 +19,6 @@ export const Route = createFileRoute("/page/settings")({
 function SettingsPage() {
   const settings = useSettingsStore()
 
-  const handleSettingsChange = (next: Partial<Settings>) => {
-    void updateSettings(next)
-  }
-
   return (
     <div className="flex flex-col gap-2 p-2">
       {/* Content */}
@@ -37,7 +32,7 @@ function SettingsPage() {
           <RadioGroup
             value={settings.loopNavigation ? "loop" : "stop"}
             onValueChange={(value) =>
-              handleSettingsChange({ loopNavigation: value === "loop" })
+              settings.setLoopNavigation(value === "loop")
             }
           >
             <Field orientation="horizontal">
@@ -61,9 +56,7 @@ function SettingsPage() {
         >
           <RadioGroup
             value={settings.cacheMode}
-            onValueChange={(value) =>
-              handleSettingsChange({ cacheMode: value as CacheMode })
-            }
+            onValueChange={(value) => settings.setCacheMode(value as CacheMode)}
           >
             <Field orientation="horizontal">
               <RadioGroupItem value="off" id="off" />
