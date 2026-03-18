@@ -76,3 +76,38 @@ tauri-image-viewer/
 - 개발: `npm run tauri dev`
 - 프로덕션 빌드: `npm run tauri build` (결과물: `src-tauri/target/release/bundle/`)
 - 상세 설정/빌드 옵션: 저장소 루트의 `README.md` 참고.
+
+## Cursor Cloud specific instructions
+
+### 시스템 의존성 (Linux)
+
+Tauri 2를 Linux에서 빌드하려면 다음 패키지가 필요합니다 (README 참고):
+
+```bash
+sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libssl-dev libayatana-appindicator3-dev librsvg2-dev
+```
+
+### Rust 툴체인
+
+- 기본 Rust 1.83은 너무 오래됨 — `time` 크레이트 등이 `edition2024`를 요구합니다. `rustup default stable`로 최신 안정 버전(1.85+)을 사용해야 합니다.
+- 업데이트 후 `rustup default stable`을 반드시 실행하여 기본 툴체인으로 설정해야 합니다.
+
+### 서비스 구성
+
+자체 완결형 데스크톱 앱이므로 외부 서비스(DB, API, Docker)가 필요 없습니다.
+
+| 명령 | 설명 |
+|---|---|
+| `npm install` | 프론트엔드 의존성 설치 |
+| `npm run tauri dev` | 개발 서버 (Vite + Tauri) |
+| `npm run build` | 프론트엔드 빌드 (`tsc && vite build`) |
+| `cargo build` (in `src-tauri/`) | Rust 백엔드 빌드 |
+| `npx tsc --noEmit` | TypeScript 타입 체크 |
+| `npx prettier --check "src/**/*.{ts,tsx}"` | Prettier 포맷 검사 |
+| `cargo clippy` (in `src-tauri/`) | Rust lint |
+
+### 주의사항
+
+- `npm run tauri dev`는 Vite 개발 서버(port 1420)와 Tauri 데스크톱 앱을 동시에 시작합니다. X11 디스플레이(`:1`)가 필요합니다.
+- VM 환경에서 `libEGL warning: DRI3 error` 경고가 나타날 수 있으나 기능에 영향 없습니다.
+- 이 프로젝트에는 별도의 자동화된 테스트 스위트가 없습니다. 수동 테스트로 검증합니다.
