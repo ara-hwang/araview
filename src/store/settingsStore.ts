@@ -5,8 +5,6 @@ export type CacheMode = "off" | "nearby" | "extended"
 
 export type ViewMode = "single" | "left-to-right" | "right-to-left" | "webtoon"
 
-export type fillMode = "fit-to-width" | "fit-to-height" | "fit-to-screen"
-
 export type SettingsState = {
   loopNavigation: boolean
   cacheMode: CacheMode
@@ -39,7 +37,7 @@ export const useSettingsStore = create<SettingsStore>((set) => ({
     set(() => ({
       cacheMode: nextCacheMode
     })),
-  setViewMode: (nextViewMode: SettingsState["viewMode"]) =>
+  setViewMode: (nextViewMode) =>
     set(() => ({
       viewMode: nextViewMode
     }))

@@ -16,11 +16,9 @@ import { ButtonGroupText } from "./ui/button-group"
 import { Separator } from "./ui/separator"
 import { useNavigate } from "@tanstack/react-router"
 import {
-  fitToHeight,
-  fitToScreen,
-  fitToWidth,
   getApp,
   resetZoomPan,
+  setZoomToFit,
   zoomIn,
   zoomOut
 } from "@/store/appStore"
@@ -68,7 +66,7 @@ export default function Header() {
             <Button
               variant="outline"
               size="icon"
-              onClick={fitToWidth}
+              onClick={() => setZoomToFit("width")}
               title="Fit to width (1)"
             >
               <ArrowLeftRight />
@@ -76,7 +74,7 @@ export default function Header() {
             <Button
               variant="outline"
               size="icon"
-              onClick={fitToHeight}
+              onClick={() => setZoomToFit("height")}
               title="Fit to height (2)"
             >
               <ArrowUpDown />
@@ -84,7 +82,7 @@ export default function Header() {
             <Button
               variant="outline"
               size="icon"
-              onClick={fitToScreen}
+              onClick={() => setZoomToFit("screen")}
               title="Fit to screen (3)"
             >
               <Maximize2 />

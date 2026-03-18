@@ -10,8 +10,7 @@ import {
   zoomOutBy,
   resetZoomPan,
   startDrag,
-  moveDrag,
-  stopDrag
+  moveDrag
 } from "@/store/appStore"
 
 // 이미지 컨테이너 내부에서 줌/팬(드래그) 상태를 관리하고
@@ -19,6 +18,7 @@ import {
 
 export function useZoomPan() {
   const app = useAppStore()
+  const setIsDragging = useAppStore((state) => state.setIsDragging)
 
   const prevZoomRef = useRef(1)
 
@@ -36,7 +36,7 @@ export function useZoomPan() {
   }, [])
 
   const handleMouseUp = useCallback(() => {
-    stopDrag()
+    setIsDragging(false)
   }, [])
 
   // Ctrl + 휠로만 줌을 처리하고, 스크롤 이동은 상위 훅(useImageViewer)에서 처리

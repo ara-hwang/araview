@@ -2,7 +2,7 @@ import { create } from "zustand"
 import { DirectoryImages, ImageInfo } from "@/types"
 import { clampPosition, getPositionBounds } from "@/utils/zoomPanUtils"
 
-type App = {
+type AppState = {
   theme: "system" | "light" | "dark"
   zoom: number
   dirImages: DirectoryImages
@@ -19,7 +19,26 @@ type App = {
   dragStart: { x: number; y: number }
 }
 
-const initialApp: App = {
+type AppStoreActions = {
+  setTheme: (nextTheme: AppState["theme"]) => void
+  setZoom: (nextZoom: AppState["zoom"]) => void
+  setDirImages: (nextDirImages: AppState["dirImages"]) => void
+  setImageInfo: (nextImageInfo: AppState["imageInfo"]) => void
+  setError: (nextError: AppState["error"]) => void
+  setLoading: (nextLoading: AppState["loading"]) => void
+  setPosition: (nextPosition: AppState["position"]) => void
+  setIsDragging: (nextIsDragging: AppState["isDragging"]) => void
+  setContainerElement: (
+    nextContainerElement: AppState["containerElement"]
+  ) => void
+  setImageElement: (nextImageElement: AppState["imageElement"]) => void
+  setViewportSize: (nextViewportSize: AppState["viewportSize"]) => void
+  setContainerSize: (nextContainerSize: AppState["containerSize"]) => void
+  setImageSize: (nextImageSize: AppState["imageSize"]) => void
+  setDragStart: (nextDragStart: AppState["dragStart"]) => void
+}
+
+const initialApp: AppState = {
   theme: "system",
   zoom: 1,
   imageInfo: null,
@@ -39,18 +58,29 @@ const initialApp: App = {
   dragStart: { x: 0, y: 0 }
 }
 
-export const useAppStore = create<App>(() => initialApp)
+export const useAppStore = create<AppState & AppStoreActions>((set) => ({
+  ...initialApp,
+  setTheme: (nextTheme) => set({ theme: nextTheme }),
+  setZoom: (nextZoom) => set({ zoom: nextZoom }),
+  setDirImages: (nextDirImages) => set({ dirImages: nextDirImages }),
+  setImageInfo: (nextImageInfo) => set({ imageInfo: nextImageInfo }),
+  setError: (nextError) => set({ error: nextError }),
+  setLoading: (nextLoading) => set({ loading: nextLoading }),
+  setPosition: (nextPosition) => set({ position: nextPosition }),
+  setIsDragging: (nextIsDragging) => set({ isDragging: nextIsDragging }),
+  setContainerElement: (nextContainerElement) =>
+    set({ containerElement: nextContainerElement }),
+  setImageElement: (nextImageElement) =>
+    set({ imageElement: nextImageElement }),
+  setViewportSize: (nextViewportSize) =>
+    set({ viewportSize: nextViewportSize }),
+  setContainerSize: (nextContainerSize) =>
+    set({ containerSize: nextContainerSize }),
+  setImageSize: (nextImageSize) => set({ imageSize: nextImageSize }),
+  setDragStart: (nextDragStart) => set({ dragStart: nextDragStart })
+}))
 
 export const getApp = () => useAppStore.getState()
-
-export const updateApp = async (partial: Partial<App>) => {
-  const next = {
-    ...useAppStore.getState(),
-    ...partial
-  }
-
-  useAppStore.setState(next)
-}
 
 export const getFitZoom = (): number => {
   const { containerSize, imageSize } = useAppStore.getState()
@@ -82,10 +112,6 @@ export const setZoomToFit = (mode: "width" | "height" | "screen") => {
     position: { x: 0, y: 0 }
   }))
 }
-
-export const fitToWidth = () => setZoomToFit("width")
-export const fitToHeight = () => setZoomToFit("height")
-export const fitToScreen = () => setZoomToFit("screen")
 
 export const zoomInBy = (factor = 1.25) => {
   const { zoom } = useAppStore.getState()
@@ -146,8 +172,4 @@ export const moveDrag = (clientX: number, clientY: number) => {
   } else {
     useAppStore.setState((s) => ({ ...s, position: { x: newX, y: newY } }))
   }
-}
-
-export const stopDrag = () => {
-  useAppStore.setState({ isDragging: false })
 }
