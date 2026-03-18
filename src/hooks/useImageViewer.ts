@@ -9,7 +9,14 @@ import { useZoomPan } from "./useZoomPan"
 import { useImageViewerHotkeys } from "./useImageViewerHotkeys"
 import { useOpenFileListener } from "./useOpenFileListener"
 import { useSettingsStore } from "@/store/settingsStore"
-import { updateApp, useAppStore } from "@/store/appStore"
+import {
+  setDirImages,
+  setError,
+  setImageInfo,
+  setLoading,
+  updateDirImagesIndex,
+  useAppStore
+} from "@/store/appStore"
 
 // 이미지 로드, 디렉터리 내 내비게이션, 줌/팬, 드래그&드롭, 설정 변경까지
 // 이미지 뷰어 화면에 필요한 모든 상태와 이벤트 핸들러를 제공하는 최상위 훅
@@ -32,10 +39,10 @@ export function useImageViewer() {
     async (filePath: string, options?: { refreshDirectory?: boolean }) => {
       const refreshDirectory = options?.refreshDirectory ?? true
 
-      void updateApp({ loading: true, error: null })
+      setLoading(true)
       try {
         const imgInfo = await getOrLoadImage(filePath)
-        void updateApp({ imageInfo: imgInfo })
+        setImageInfo(imgInfo)
         zoomPan.resetView()
 
         let resolvedDirInfo = app.dirImages
@@ -50,7 +57,7 @@ export function useImageViewer() {
             { filePath }
           )
 
-          updateApp({ dirImages: resolvedDirInfo })
+          setDirImages(resolvedDirInfo)
         }
 
         if (resolvedDirInfo) {
@@ -65,10 +72,10 @@ export function useImageViewer() {
           )
         }
       } catch (e) {
-        void updateApp({ error: String(e), loading: false })
-        void updateApp({ imageInfo: null })
+        setError(String(e))
+        setImageInfo(null)
       } finally {
-        void updateApp({ loading: false })
+        setLoading(false)
       }
     },
     [
@@ -118,16 +125,8 @@ export function useImageViewer() {
         }
       }
 
-      await loadImage(dirImages.images[newIndex], {
-        refreshDirectory: false
-      })
-
-      void updateApp({
-        dirImages: {
-          ...dirImages,
-          current_index: newIndex
-        }
-      })
+      await loadImage(dirImages.images[newIndex], { refreshDirectory: false })
+      updateDirImagesIndex(newIndex)
     },
     [app.dirImages, loadImage, settings.loopNavigation]
   )
@@ -138,18 +137,10 @@ export function useImageViewer() {
       if (!app.dirImages || app.dirImages.images.length === 0) return
 
       const dirImages = app.dirImages
-
       const clamped = Math.max(0, Math.min(index, dirImages.images.length - 1))
-      await loadImage(dirImages.images[clamped], {
-        refreshDirectory: false
-      })
 
-      void updateApp({
-        dirImages: {
-          ...dirImages,
-          current_index: clamped
-        }
-      })
+      await loadImage(dirImages.images[clamped], { refreshDirectory: false })
+      updateDirImagesIndex(clamped)
     },
     [app.dirImages, loadImage]
   )

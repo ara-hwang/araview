@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react"
-import { createStore } from "@tanstack/store"
+import { useStore } from "zustand"
+import { createStore } from "zustand"
 import { Store as TauriStore } from "@tauri-apps/plugin-store"
 import type { Settings } from "@/types/settings"
 
@@ -9,9 +9,7 @@ const DEFAULT_SETTINGS: Settings = {
   viewMode: "single"
 }
 
-const settingsStore = createStore<{ settings: Settings }>({
-  settings: DEFAULT_SETTINGS
-})
+const settingsStore = createStore<Settings>(() => DEFAULT_SETTINGS)
 
 let tauriStorePromise: Promise<TauriStore> | null = null
 
@@ -22,24 +20,19 @@ const getTauriStore = (): Promise<TauriStore> => {
   return tauriStorePromise
 }
 
-export const getSettings = () => settingsStore.state.settings
+export const getSettings = () => settingsStore.getState()
 
 export const subscribeToSettings = (listener: (settings: Settings) => void) => {
-  return settingsStore.subscribe((state) => {
-    listener(state.settings)
-  })
+  return settingsStore.subscribe(listener)
 }
 
 export const updateSettings = async (partial: Partial<Settings>) => {
   const next = {
-    ...settingsStore.state.settings,
+    ...settingsStore.getState(),
     ...partial
   }
 
-  settingsStore.setState((state) => ({
-    ...state,
-    settings: next
-  }))
+  settingsStore.setState(next)
 
   try {
     const store = await getTauriStore()
@@ -54,32 +47,12 @@ export const initSettingsFromStore = async () => {
   try {
     const store = await getTauriStore()
     const stored = await store.get<Settings>("settings")
-    if (stored) {
-      settingsStore.setState((state) => ({
-        ...state,
-        settings: {
-          ...DEFAULT_SETTINGS,
-          ...stored
-        }
-      }))
-    }
+    if (stored) settingsStore.setState({ ...DEFAULT_SETTINGS, ...stored })
   } catch {
     // 초기 로드 실패 시 기본값 유지
   }
 }
 
 export const useSettingsStore = () => {
-  const [settings, setSettings] = useState<Settings>(() => getSettings())
-
-  useEffect(() => {
-    const subscription = subscribeToSettings((next) => {
-      setSettings(next)
-    })
-
-    return () => {
-      subscription.unsubscribe()
-    }
-  }, [])
-
-  return settings
+  return useStore(settingsStore)
 }

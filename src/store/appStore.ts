@@ -1,5 +1,4 @@
-import { useEffect, useState } from "react"
-import { createStore } from "@tanstack/store"
+import { create } from "zustand"
 import { DirectoryImages, ImageInfo } from "@/types"
 
 type App = {
@@ -13,54 +12,105 @@ type App = {
   isDragging: boolean
 }
 
-const appStore = createStore<{ app: App }>({
-  app: {
-    theme: "system",
-    zoom: 1,
-    imageInfo: null,
-    dirImages: {
-      images: [],
-      current_index: 0
-    },
-    error: null,
-    loading: false,
-    position: { x: 0, y: 0 },
-    isDragging: false
-  }
-})
-
-export const getApp = () => appStore.state.app
-
-export const subscribeToApp = (listener: (app: App) => void) => {
-  return appStore.subscribe((state) => {
-    listener(state.app)
-  })
+const initialApp: App = {
+  theme: "system",
+  zoom: 1,
+  imageInfo: null,
+  dirImages: {
+    images: [],
+    current_index: 0
+  },
+  error: null,
+  loading: false,
+  position: { x: 0, y: 0 },
+  isDragging: false
 }
+
+export const useAppStore = create<App>(() => initialApp)
+
+export const getApp = () => useAppStore.getState()
+
+export const subscribeToApp = (listener: (app: App) => void) =>
+  useAppStore.subscribe(listener)
 
 export const updateApp = async (partial: Partial<App>) => {
   const next = {
-    ...appStore.state.app,
+    ...useAppStore.getState(),
     ...partial
   }
 
-  appStore.setState((state) => ({
+  useAppStore.setState(next)
+}
+
+export const resetAppState = () => {
+  useAppStore.setState(initialApp)
+}
+
+export const setLoading = (loading: boolean) => {
+  useAppStore.setState((state) => ({
     ...state,
-    app: next
+    loading,
+    ...(loading ? { error: null } : {})
   }))
 }
 
-export const useAppStore = () => {
-  const [app, setApp] = useState<App>(() => getApp())
+export const setError = (error: string | null) => {
+  useAppStore.setState((state) => ({
+    ...state,
+    error
+  }))
+}
 
-  useEffect(() => {
-    const subscription = subscribeToApp((next) => {
-      setApp(next)
-    })
+export const setImageInfo = (imageInfo: ImageInfo | null) => {
+  useAppStore.setState((state) => ({
+    ...state,
+    imageInfo
+  }))
+}
 
-    return () => {
-      subscription.unsubscribe()
+export const setDirImages = (dirImages: DirectoryImages) => {
+  useAppStore.setState((state) => ({
+    ...state,
+    dirImages
+  }))
+}
+
+export const setTheme = (theme: App["theme"]) => {
+  useAppStore.setState((state) => ({
+    ...state,
+    theme
+  }))
+}
+
+export const setZoom = (zoom: number) => {
+  useAppStore.setState((state) => ({
+    ...state,
+    zoom
+  }))
+}
+
+export const setPosition = (position: { x: number; y: number }) => {
+  useAppStore.setState((state) => ({
+    ...state,
+    position
+  }))
+}
+
+export const setDragging = (isDragging: boolean) => {
+  useAppStore.setState((state) => ({
+    ...state,
+    isDragging
+  }))
+}
+
+export const updateDirImagesIndex = (nextIndex: number) => {
+  const { dirImages } = useAppStore.getState()
+  if (!dirImages?.images?.length) return
+
+  useAppStore.setState({
+    dirImages: {
+      ...dirImages,
+      current_index: Math.max(0, Math.min(nextIndex, dirImages.images.length - 1))
     }
-  }, [])
-
-  return app
+  })
 }
