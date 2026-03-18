@@ -25,6 +25,7 @@
         }
       ]
     },
-    "store:default"
+    "store:default",
+    "window-state:default"
   ]
 }
