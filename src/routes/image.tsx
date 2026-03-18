@@ -21,6 +21,8 @@ export const Route = createFileRoute("/image")({
 })
 
 function ImagePage() {
+  const dirImages = useAppStore((state) => state.dirImages)
+
   const { containerRef, imageRef } = useViewerElements()
 
   const zoomPan = useZoomPan()
@@ -42,9 +44,7 @@ function ImagePage() {
 
   useOpenFileListener(loadImageAndReset)
 
-  const app = useAppStore()
-
-  const handleContextMenu = useImageViewerContextMenu(app.dirImages, {
+  const handleContextMenu = useImageViewerContextMenu(dirImages, {
     onOpenFile: handleOpenFile,
     onNavigatePrev: () => void navigateImage("prev"),
     onNavigateNext: () => void navigateImage("next")

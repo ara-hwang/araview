@@ -1,3 +1,4 @@
+import { useShallow } from "zustand/react/shallow"
 import { createFileRoute, useNavigate } from "@tanstack/react-router"
 import { Empty, EmptyContent } from "@/components/ui/empty"
 import { Button } from "@/components/ui/button"
@@ -11,7 +12,12 @@ export const Route = createFileRoute("/")({
 })
 
 function HomePage() {
-  const app = useAppStore()
+  const app = useAppStore(
+    useShallow((state) => ({
+      imageInfo: state.imageInfo,
+      dirImages: state.dirImages
+    }))
+  )
   const navigate = useNavigate()
 
   // 이미지 변경 시 창 제목 변경

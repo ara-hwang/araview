@@ -12,12 +12,22 @@ import {
   startDrag,
   moveDrag
 } from "@/store/appStore"
+import { useShallow } from "zustand/react/shallow"
 
 // 이미지 컨테이너 내부에서 줌/팬(드래그) 상태를 관리하고
 // 전역 `appStore`의 position/zoom 값을 일관되게 업데이트하는 훅
 
 export function useZoomPan() {
-  const app = useAppStore()
+  const app = useAppStore(
+    useShallow((state) => ({
+      imageInfo: state.imageInfo,
+      position: state.position,
+      zoom: state.zoom,
+      isDragging: state.isDragging,
+      containerSize: state.containerSize,
+      imageSize: state.imageSize
+    }))
+  )
   const setIsDragging = useAppStore((state) => state.setIsDragging)
 
   const prevZoomRef = useRef(1)
