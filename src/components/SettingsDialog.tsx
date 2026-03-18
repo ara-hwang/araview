@@ -16,6 +16,7 @@ import {
   FieldSeparator,
   FieldSet
 } from "./ui/field"
+import { useShallow } from "zustand/react/shallow"
 
 type SettingsDialogProps = {
   open: boolean
@@ -23,7 +24,13 @@ type SettingsDialogProps = {
 }
 
 export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
-  const settings = useSettingsStore()
+  const settings = useSettingsStore(
+    useShallow((state) => ({
+      loopNavigation: state.loopNavigation,
+      cacheMode: state.cacheMode,
+      viewMode: state.viewMode
+    }))
+  )
 
   const handleSettingsChange = (next: Partial<SettingsState>) => {
     void updateSettings(next)

@@ -8,7 +8,7 @@ import { useSettingsStore } from "@/store/settingsStore"
 // 설정에 따라 캐시 용량/프리패치 범위를 제어하는 훅
 
 export function useImageCache() {
-  const settings = useSettingsStore()
+  const cacheMode = useSettingsStore((state) => state.cacheMode)
   const imageCacheRef = useRef<Map<string, ImageInfo>>(new Map())
   const inflightLoadsRef = useRef<Map<string, Promise<ImageInfo>>>(new Map())
 
@@ -27,9 +27,9 @@ export function useImageCache() {
       const cache = imageCacheRef.current
       if (cache.has(filePath)) cache.delete(filePath)
       cache.set(filePath, imgInfo)
-      trimCacheToLimit(getCacheLimit(settings.cacheMode))
+      trimCacheToLimit(getCacheLimit(cacheMode))
     },
-    [settings.cacheMode, trimCacheToLimit]
+    [cacheMode, trimCacheToLimit]
   )
 
   // 단일 이미지를 캐시/진행 중 요청을 우선 확인한 뒤 필요한 경우만 실제 invoke 호출
@@ -96,12 +96,12 @@ export function useImageCache() {
 
   // 캐시 모드가 바뀌면 즉시 캐시 크기를 재조정
   useEffect(() => {
-    trimCacheToLimit(getCacheLimit(settings.cacheMode))
-  }, [settings.cacheMode, trimCacheToLimit])
+    trimCacheToLimit(getCacheLimit(cacheMode))
+  }, [cacheMode, trimCacheToLimit])
 
   return {
     getOrLoadImage,
     prefetchNearbyImages,
-    getPrefetchDistance: () => getPrefetchDistance(settings.cacheMode)
+    getPrefetchDistance: () => getPrefetchDistance(cacheMode)
   }
 }

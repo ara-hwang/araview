@@ -14,14 +14,14 @@ export function ImageNavBar({
   onNavigate,
   onNavigateToIndex
 }: ImageNavBarProps) {
-  const dirImages = useAppStore().dirImages
-  const settings = useSettingsStore()
+  const dirImages = useAppStore((state) => state.dirImages)
+  const loopNavigation = useSettingsStore((state) => state.loopNavigation)
 
   // 맨 앞·맨 뒤 이미지 여부와 설정에 따른 이전/다음 비활성화 상태 계산
   const isFirst = dirImages.current_index === 0
   const isLast = dirImages.current_index === dirImages.images.length - 1
-  const isPrevDisabled = isFirst && !settings?.loopNavigation
-  const isNextDisabled = isLast && !settings?.loopNavigation
+  const isPrevDisabled = isFirst && !loopNavigation
+  const isNextDisabled = isLast && !loopNavigation
 
   return (
     // 하단 중앙에 고정된 내비게이션 바 (이전/다음 버튼 + 진행률 표시)

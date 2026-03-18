@@ -3,6 +3,7 @@ import { cn } from "@/lib/utils"
 import { Spinner } from "@/components/ui/spinner"
 import { ImageNavBar } from "./ImageNavBar"
 import { useAppStore } from "@/store/appStore"
+import { useShallow } from "zustand/react/shallow"
 
 type ImageContainerProps = {
   containerRef: RefObject<HTMLDivElement>
@@ -25,7 +26,17 @@ export function ImageContainer({
   onNavigate,
   onNavigateToIndex
 }: ImageContainerProps) {
-  const app = useAppStore()
+  const app = useAppStore(
+    useShallow((state) => ({
+      loading: state.loading,
+      error: state.error,
+      dirImages: state.dirImages,
+      imageInfo: state.imageInfo,
+      position: state.position,
+      zoom: state.zoom,
+      isDragging: state.isDragging
+    }))
+  )
 
   const showNavBar = !!(
     app.dirImages.images.length > 1 &&

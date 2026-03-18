@@ -11,13 +11,22 @@ import {
   FieldSeparator,
   FieldSet
 } from "@/components/ui/field"
+import { useShallow } from "zustand/react/shallow"
 
 export const Route = createFileRoute("/page/settings")({
   component: SettingsPage
 })
 
 function SettingsPage() {
-  const settings = useSettingsStore()
+  const settings = useSettingsStore(
+    useShallow((state) => ({
+      loopNavigation: state.loopNavigation,
+      cacheMode: state.cacheMode,
+      viewMode: state.viewMode
+    }))
+  )
+  const setLoopNavigation = useSettingsStore((state) => state.setLoopNavigation)
+  const setCacheMode = useSettingsStore((state) => state.setCacheMode)
 
   return (
     <div className="flex flex-col gap-2 p-2">
@@ -31,9 +40,7 @@ function SettingsPage() {
         >
           <RadioGroup
             value={settings.loopNavigation ? "loop" : "stop"}
-            onValueChange={(value) =>
-              settings.setLoopNavigation(value === "loop")
-            }
+            onValueChange={(value) => setLoopNavigation(value === "loop")}
           >
             <Field orientation="horizontal">
               <RadioGroupItem value="stop" id="stop" />
@@ -56,7 +63,7 @@ function SettingsPage() {
         >
           <RadioGroup
             value={settings.cacheMode}
-            onValueChange={(value) => settings.setCacheMode(value as CacheMode)}
+            onValueChange={(value) => setCacheMode(value as CacheMode)}
           >
             <Field orientation="horizontal">
               <RadioGroupItem value="off" id="off" />
