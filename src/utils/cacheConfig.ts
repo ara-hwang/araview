@@ -1,6 +1,6 @@
-import type { Settings } from "@/types/settings"
+import type { CacheMode } from "@/store/settingsStore"
 
-export function getCacheLimit(mode: Settings["cacheMode"]): number {
+export function getCacheLimit(mode: CacheMode): number {
   switch (mode) {
     case "off":
       return 1
@@ -12,7 +12,7 @@ export function getCacheLimit(mode: Settings["cacheMode"]): number {
   }
 }
 
-export function getPrefetchDistance(mode: Settings["cacheMode"]): number {
+export function getPrefetchDistance(mode: CacheMode): number {
   switch (mode) {
     case "off":
       return 0

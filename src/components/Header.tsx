@@ -14,16 +14,24 @@ import {
 } from "lucide-react"
 import { ButtonGroupText } from "./ui/button-group"
 import { Separator } from "./ui/separator"
-import { useImageViewer } from "@/hooks/useImageViewer"
 import { useNavigate } from "@tanstack/react-router"
-import { getApp } from "@/store/appStore"
+import {
+  fitToHeight,
+  fitToScreen,
+  fitToWidth,
+  getApp,
+  resetZoomPan,
+  zoomIn,
+  zoomOut
+} from "@/store/appStore"
+import { useImageLoader } from "@/hooks/useImageLoader"
 
 // 위쪽 툴바
 export default function Header() {
   const appWindow = getCurrentWindow()
   const navigate = useNavigate()
 
-  const imageViewer = useImageViewer()
+  const { handleOpenFile } = useImageLoader()
 
   const handleOpenSettings = () => {
     void navigate({ to: "/page/settings" })
@@ -46,7 +54,7 @@ export default function Header() {
       <ButtonGroup>
         <Button
           variant="outline"
-          onClick={imageViewer.handleOpenFile}
+          onClick={handleOpenFile}
           title="Open file (Ctrl+O)"
         >
           <FolderOpen />
@@ -60,7 +68,7 @@ export default function Header() {
             <Button
               variant="outline"
               size="icon"
-              onClick={imageViewer.handleFitWidth}
+              onClick={fitToWidth}
               title="Fit to width (1)"
             >
               <ArrowLeftRight />
@@ -68,7 +76,7 @@ export default function Header() {
             <Button
               variant="outline"
               size="icon"
-              onClick={imageViewer.handleFitHeight}
+              onClick={fitToHeight}
               title="Fit to height (2)"
             >
               <ArrowUpDown />
@@ -76,7 +84,7 @@ export default function Header() {
             <Button
               variant="outline"
               size="icon"
-              onClick={imageViewer.handleFitScreen}
+              onClick={fitToScreen}
               title="Fit to screen (3)"
             >
               <Maximize2 />
@@ -90,21 +98,18 @@ export default function Header() {
             <Button
               variant="outline"
               size="icon"
-              onClick={imageViewer.handleZoomOut}
+              onClick={zoomOut}
               title="Zoom out (-)"
             >
               <ZoomOut />
             </Button>
-            <ButtonGroupText
-              className="tabular-nums"
-              onClick={imageViewer.handleResetZoom}
-            >
+            <ButtonGroupText className="tabular-nums" onClick={resetZoomPan}>
               {Math.round(getApp().zoom * 100)}%
             </ButtonGroupText>
             <Button
               variant="outline"
               size="icon"
-              onClick={imageViewer.handleZoomIn}
+              onClick={zoomIn}
               title="Zoom in (+)"
             >
               <ZoomIn />

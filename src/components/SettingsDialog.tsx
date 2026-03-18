@@ -1,8 +1,12 @@
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
-import type { Settings, CacheMode } from "@/types/settings"
-import { updateSettings, useSettingsStore } from "@/store/settingsStore"
+import {
+  updateSettings,
+  useSettingsStore,
+  type CacheMode,
+  type SettingsState
+} from "@/store/settingsStore"
 import { HardDriveIcon, NavigationIcon } from "lucide-react"
 import {
   Field,
@@ -21,7 +25,7 @@ type SettingsDialogProps = {
 export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
   const settings = useSettingsStore()
 
-  const handleSettingsChange = (next: Partial<Settings>) => {
+  const handleSettingsChange = (next: Partial<SettingsState>) => {
     void updateSettings(next)
   }
 

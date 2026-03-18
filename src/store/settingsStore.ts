@@ -1,16 +1,51 @@
-import { useStore } from "zustand"
-import { createStore } from "zustand"
+import { create } from "zustand"
 import { Store as TauriStore } from "@tauri-apps/plugin-store"
-import type { Settings } from "@/types/settings"
 
-const DEFAULT_SETTINGS: Settings = {
+export type CacheMode = "off" | "nearby" | "extended"
+
+export type ViewMode = "single" | "left-to-right" | "right-to-left" | "webtoon"
+
+export type fillMode = "fit-to-width" | "fit-to-height" | "fit-to-screen"
+
+export type SettingsState = {
+  loopNavigation: boolean
+  cacheMode: CacheMode
+  viewMode: ViewMode
+}
+
+type SettingsStoreActions = {
+  setLoopNavigation: (
+    nextLoopNavigation: SettingsState["loopNavigation"]
+  ) => void
+  setCacheMode: (nextCacheMode: SettingsState["cacheMode"]) => void
+  setViewMode: (nextViewMode: SettingsState["viewMode"]) => void
+}
+
+type SettingsStore = SettingsState & SettingsStoreActions
+
+const initialSettings: SettingsState = {
   loopNavigation: false,
   cacheMode: "nearby",
   viewMode: "single"
 }
 
-const settingsStore = createStore<Settings>(() => DEFAULT_SETTINGS)
+export const useSettingsStore = create<SettingsStore>((set) => ({
+  ...initialSettings,
+  setLoopNavigation: (nextLoopNavigation) =>
+    set(() => ({
+      loopNavigation: nextLoopNavigation
+    })),
+  setCacheMode: (nextCacheMode) =>
+    set(() => ({
+      cacheMode: nextCacheMode
+    })),
+  setViewMode: (nextViewMode: SettingsState["viewMode"]) =>
+    set(() => ({
+      viewMode: nextViewMode
+    }))
+}))
 
+// Tauri 스토어
 let tauriStorePromise: Promise<TauriStore> | null = null
 
 const getTauriStore = (): Promise<TauriStore> => {
@@ -20,19 +55,15 @@ const getTauriStore = (): Promise<TauriStore> => {
   return tauriStorePromise
 }
 
-export const getSettings = () => settingsStore.getState()
+export const getSettings = () => useSettingsStore.getState()
 
-export const subscribeToSettings = (listener: (settings: Settings) => void) => {
-  return settingsStore.subscribe(listener)
-}
-
-export const updateSettings = async (partial: Partial<Settings>) => {
+export const updateSettings = async (partial: Partial<SettingsState>) => {
   const next = {
-    ...settingsStore.getState(),
+    ...getSettings(),
     ...partial
   }
 
-  settingsStore.setState(next)
+  useSettingsStore.setState(next)
 
   try {
     const store = await getTauriStore()
@@ -46,13 +77,9 @@ export const updateSettings = async (partial: Partial<Settings>) => {
 export const initSettingsFromStore = async () => {
   try {
     const store = await getTauriStore()
-    const stored = await store.get<Settings>("settings")
-    if (stored) settingsStore.setState({ ...DEFAULT_SETTINGS, ...stored })
+    const stored = await store.get<SettingsState>("settings")
+    if (stored) useSettingsStore.setState({ ...initialSettings, ...stored })
   } catch {
     // 초기 로드 실패 시 기본값 유지
   }
-}
-
-export const useSettingsStore = () => {
-  return useStore(settingsStore)
 }

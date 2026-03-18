@@ -1,4 +1,5 @@
 import { Menu, MenuItem, PredefinedMenuItem } from "@tauri-apps/api/menu"
+import { useCallback } from "react"
 import type { DirectoryImages } from "../types"
 
 export type ImageViewerContextMenuActions = {
@@ -77,4 +78,17 @@ export async function showImageViewerContextMenu(
 
   const menu = await Menu.new({ items: [openItem, ...rest] })
   await menu.popup()
+}
+
+export function useImageViewerContextMenu(
+  dirImages: DirectoryImages | null,
+  actions: ImageViewerContextMenuActions
+) {
+  return useCallback(
+    async (e: React.MouseEvent) => {
+      e.preventDefault()
+      await showImageViewerContextMenu(dirImages, actions)
+    },
+    [dirImages, actions]
+  )
 }
