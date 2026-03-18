@@ -42,6 +42,9 @@
     "vaul": "^1.1.2",
     "zustand": "^5.0.0"
   },
+  "engines": {
+    "node": ">=22"
+  },
   "devDependencies": {
     "@tanstack/router-plugin": "^1.166.13",
     "@tauri-apps/cli": "^2.10.1",
