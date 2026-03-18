@@ -1,17 +1,12 @@
 import { Menu, MenuItem, PredefinedMenuItem } from "@tauri-apps/api/menu"
 import { useCallback } from "react"
 import type { DirectoryImages } from "../types"
+import { resetZoomPan, setZoomToFit, zoomIn, zoomOut } from "@/store/appStore"
 
 export type ImageViewerContextMenuActions = {
   onOpenFile: () => void
   onNavigatePrev: () => void
   onNavigateNext: () => void
-  onZoomIn: () => void
-  onZoomOut: () => void
-  onResetZoom: () => void
-  onFitWidth: () => void
-  onFitHeight: () => void
-  onFitScreen: () => void
 }
 
 export async function showImageViewerContextMenu(
@@ -46,33 +41,33 @@ export async function showImageViewerContextMenu(
     MenuItem.new({
       text: "Zoom In",
       accelerator: "=",
-      action: () => actions.onZoomIn()
+      action: () => zoomIn()
     }),
     MenuItem.new({
       text: "Zoom Out",
       accelerator: "-",
-      action: () => actions.onZoomOut()
+      action: () => zoomOut()
     }),
     MenuItem.new({
       text: "Actual Size",
       accelerator: "0",
-      action: () => actions.onResetZoom()
+      action: () => resetZoomPan()
     }),
     PredefinedMenuItem.new({ item: "Separator" }),
     MenuItem.new({
       text: "Fit Width",
       accelerator: "1",
-      action: () => actions.onFitWidth()
+      action: () => setZoomToFit("width")
     }),
     MenuItem.new({
       text: "Fit Height",
       accelerator: "2",
-      action: () => actions.onFitHeight()
+      action: () => setZoomToFit("height")
     }),
     MenuItem.new({
       text: "Fit to Screen",
       accelerator: "3",
-      action: () => actions.onFitScreen()
+      action: () => setZoomToFit("screen")
     })
   ])
 
