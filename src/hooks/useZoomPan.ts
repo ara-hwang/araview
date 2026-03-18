@@ -10,7 +10,12 @@ import {
   clampPosition,
   isFullyContained
 } from "../utils/zoomPanUtils"
-import { updateApp, useAppStore } from "@/store/appStore"
+import {
+  setDragging,
+  setPosition,
+  setZoom,
+  useAppStore
+} from "@/store/appStore"
 
 // 이미지 컨테이너 내부에서 줌/팬(드래그) 상태를 관리하고
 // 전역 `appStore`의 position/zoom 값을 일관되게 업데이트하는 훅
@@ -36,16 +41,17 @@ export function useZoomPan(
   }, [containerRef, imageRef])
 
   const handleZoomIn = useCallback(() => {
-    void updateApp({ zoom: Math.min(app.zoom * 1.25, 10) })
+    setZoom(Math.min(app.zoom * 1.25, 10))
   }, [app.zoom])
 
   const handleZoomOut = useCallback(() => {
     const minZoom = getFitZoom()
-    void updateApp({ zoom: Math.max(app.zoom / 1.25, minZoom) })
+    setZoom(Math.max(app.zoom / 1.25, minZoom))
   }, [getFitZoom, app.zoom])
 
   const handleResetZoom = useCallback(() => {
-    void updateApp({ zoom: 1, position: { x: 0, y: 0 } })
+    setZoom(1)
+    setPosition({ x: 0, y: 0 })
   }, [])
 
   const handleFitWidth = useCallback(() => {
@@ -53,7 +59,8 @@ export function useZoomPan(
     const containerW = containerRef.current.offsetWidth
     const imgW = imageRef.current.offsetWidth
     if (imgW === 0) return
-    void updateApp({ zoom: containerW / imgW, position: { x: 0, y: 0 } })
+    setZoom(containerW / imgW)
+    setPosition({ x: 0, y: 0 })
   }, [containerRef, imageRef])
 
   const handleFitHeight = useCallback(() => {
@@ -61,7 +68,8 @@ export function useZoomPan(
     const containerH = containerRef.current.offsetHeight
     const imgH = imageRef.current.offsetHeight
     if (imgH === 0) return
-    void updateApp({ zoom: containerH / imgH, position: { x: 0, y: 0 } })
+    setZoom(containerH / imgH)
+    setPosition({ x: 0, y: 0 })
   }, [containerRef, imageRef])
 
   const handleFitScreen = useCallback(() => {
@@ -71,16 +79,14 @@ export function useZoomPan(
     const iw = imageRef.current.offsetWidth
     const ih = imageRef.current.offsetHeight
     if (iw === 0 || ih === 0) return
-    void updateApp({
-      zoom: Math.min(cw / iw, ch / ih),
-      position: { x: 0, y: 0 }
-    })
+    setZoom(Math.min(cw / iw, ch / ih))
+    setPosition({ x: 0, y: 0 })
   }, [containerRef, imageRef])
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
       if (app.imageInfo) {
-        void updateApp({ isDragging: true })
+        setDragging(true)
         setDragStart({
           x: e.clientX - app.position.x,
           y: e.clientY - app.position.y
@@ -101,22 +107,20 @@ export function useZoomPan(
         const iw = imageRef.current.offsetWidth
         const ih = imageRef.current.offsetHeight
         if (isFullyContained(cw, ch, iw, ih, app.zoom)) {
-          void updateApp({ position: { x: 0, y: 0 } })
+          setPosition({ x: 0, y: 0 })
           return
         }
         const { maxX, maxY } = getPositionBounds(cw, ch, iw, ih, app.zoom)
-        void updateApp({
-          position: clampPosition(newX, newY, maxX, maxY)
-        })
+        setPosition(clampPosition(newX, newY, maxX, maxY))
       } else {
-        void updateApp({ position: { x: newX, y: newY } })
+        setPosition({ x: newX, y: newY })
       }
     },
     [app.isDragging, dragStart, app.zoom, containerRef, imageRef]
   )
 
   const handleMouseUp = useCallback(() => {
-    void updateApp({ isDragging: false })
+    setDragging(false)
   }, [])
 
   // Ctrl + 휠로만 줌을 처리하고, 스크롤 이동은 상위 훅(useImageViewer)에서 처리
@@ -126,9 +130,9 @@ export function useZoomPan(
       if (e.ctrlKey) {
         const minZoom = getFitZoom()
         if (e.deltaY < 0) {
-          void updateApp({ zoom: Math.min(app.zoom * 1.1, 10) })
+          setZoom(Math.min(app.zoom * 1.1, 10))
         } else {
-          void updateApp({ zoom: Math.max(app.zoom / 1.1, minZoom) })
+          setZoom(Math.max(app.zoom / 1.1, minZoom))
         }
       }
     },
@@ -143,12 +147,13 @@ export function useZoomPan(
     const iw = imageRef.current.offsetWidth
     const ih = imageRef.current.offsetHeight
     if (isFullyContained(cw, ch, iw, ih, app.zoom)) {
-      void updateApp({ position: { x: 0, y: 0 } })
+      setPosition({ x: 0, y: 0 })
     }
   }, [app.imageInfo, app.zoom, containerRef, imageRef])
 
   const resetView = useCallback(() => {
-    void updateApp({ zoom: 1, position: { x: 0, y: 0 } })
+    setZoom(1)
+    setPosition({ x: 0, y: 0 })
     prevZoomRef.current = 1
   }, [])
 
@@ -161,16 +166,14 @@ export function useZoomPan(
     const newX = base.x * ratio
     const newY = base.y * ratio
     if (!containerRef.current || !imageRef.current) {
-      void updateApp({ position: { x: newX, y: newY } })
+      setPosition({ x: newX, y: newY })
     } else {
       const cw = containerRef.current.offsetWidth
       const ch = containerRef.current.offsetHeight
       const iw = imageRef.current.offsetWidth
       const ih = imageRef.current.offsetHeight
       const { maxX, maxY } = getPositionBounds(cw, ch, iw, ih, app.zoom)
-      void updateApp({
-        position: clampPosition(newX, newY, maxX, maxY)
-      })
+      setPosition(clampPosition(newX, newY, maxX, maxY))
     }
     prevZoomRef.current = app.zoom
   }, [app.zoom, app.position, containerRef, imageRef])
