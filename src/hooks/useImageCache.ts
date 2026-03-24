@@ -1,7 +1,11 @@
-import { useCallback, useEffect, useRef } from "react"
+import { useCallback, useEffect, useMemo, useRef } from "react"
 import { invoke } from "@tauri-apps/api/core"
 import type { ImageInfo } from "../types"
-import { getCacheLimit, getPrefetchDistance } from "../utils/cacheConfig"
+import {
+  getCacheByteLimit,
+  getCacheLimit,
+  getPrefetchDistance
+} from "../utils/cacheConfig"
 import { useSettingsStore } from "@/store/settingsStore"
 
 // Tauri 백엔드에서 불러온 이미지를 메모리 캐시에 저장하고,
@@ -10,26 +14,68 @@ import { useSettingsStore } from "@/store/settingsStore"
 export function useImageCache() {
   const cacheMode = useSettingsStore((state) => state.cacheMode)
   const imageCacheRef = useRef<Map<string, ImageInfo>>(new Map())
+  const imageCacheBytesRef = useRef<Map<string, number>>(new Map())
+  const totalCacheBytesRef = useRef<number>(0)
   const inflightLoadsRef = useRef<Map<string, Promise<ImageInfo>>>(new Map())
 
-  // LRU 비슷하게, 오래된 항목부터 제거해서 캐시 크기를 limit 이하로 유지
-  const trimCacheToLimit = useCallback((limit: number) => {
-    const cache = imageCacheRef.current
-    while (cache.size > limit) {
-      const oldestKey = cache.keys().next().value
-      if (!oldestKey) break
-      cache.delete(oldestKey)
-    }
+  const cacheLimit = useMemo(() => getCacheLimit(cacheMode), [cacheMode])
+  const cacheByteLimit = useMemo(
+    () => getCacheByteLimit(cacheMode),
+    [cacheMode]
+  )
+
+  const estimateImageBytes = useCallback((imgInfo: ImageInfo): number => {
+    // JS string은 보통 UTF-16(2 bytes/char)로 저장됨. base64는 ASCII라서 대략 2B/char로 추정.
+    // (정확한 메모리 사용량은 엔진/GC에 따라 달라서, 보수적 추정치로 LRU 트리밍에 사용)
+    return imgInfo.base64.length * 2
   }, [])
+
+  const deleteFromCache = useCallback((filePath: string) => {
+    const bytesMap = imageCacheBytesRef.current
+    const prevBytes = bytesMap.get(filePath) ?? 0
+    imageCacheRef.current.delete(filePath)
+    bytesMap.delete(filePath)
+    totalCacheBytesRef.current = Math.max(
+      0,
+      totalCacheBytesRef.current - prevBytes
+    )
+  }, [])
+
+  // LRU 비슷하게, 오래된 항목부터 제거해서 캐시를 예산 이하로 유지
+  const trimCacheToBudget = useCallback(
+    (limitCount: number, limitBytes: number) => {
+      const cache = imageCacheRef.current
+      while (
+        cache.size > limitCount ||
+        totalCacheBytesRef.current > limitBytes
+      ) {
+        const oldestKey = cache.keys().next().value
+        if (!oldestKey) break
+        deleteFromCache(oldestKey)
+      }
+    },
+    [deleteFromCache]
+  )
 
   const cacheImage = useCallback(
     (filePath: string, imgInfo: ImageInfo) => {
       const cache = imageCacheRef.current
-      if (cache.has(filePath)) cache.delete(filePath)
+      if (cache.has(filePath)) deleteFromCache(filePath)
       cache.set(filePath, imgInfo)
-      trimCacheToLimit(getCacheLimit(cacheMode))
+
+      const bytes = estimateImageBytes(imgInfo)
+      imageCacheBytesRef.current.set(filePath, bytes)
+      totalCacheBytesRef.current += bytes
+
+      trimCacheToBudget(cacheLimit, cacheByteLimit)
     },
-    [cacheMode, trimCacheToLimit]
+    [
+      cacheByteLimit,
+      cacheLimit,
+      deleteFromCache,
+      estimateImageBytes,
+      trimCacheToBudget
+    ]
   )
 
   // 단일 이미지를 캐시/진행 중 요청을 우선 확인한 뒤 필요한 경우만 실제 invoke 호출
@@ -96,8 +142,8 @@ export function useImageCache() {
 
   // 캐시 모드가 바뀌면 즉시 캐시 크기를 재조정
   useEffect(() => {
-    trimCacheToLimit(getCacheLimit(cacheMode))
-  }, [cacheMode, trimCacheToLimit])
+    trimCacheToBudget(cacheLimit, cacheByteLimit)
+  }, [cacheByteLimit, cacheLimit, trimCacheToBudget])
 
   return {
     getOrLoadImage,

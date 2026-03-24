@@ -1,7 +1,12 @@
 import { create } from "zustand"
 import { Store as TauriStore } from "@tauri-apps/plugin-store"
 
-export type CacheMode = "off" | "nearby" | "extended"
+export type CacheMode =
+  | "off"
+  | "nearby"
+  | "extended"
+  | "memory-1gb"
+  | "memory-2gb"
 
 export type ViewMode = "single" | "left-to-right" | "right-to-left" | "webtoon"
 
