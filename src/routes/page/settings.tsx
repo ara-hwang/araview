@@ -77,6 +77,14 @@ function SettingsPage() {
               <RadioGroupItem value="extended" id="extended" />
               <Label htmlFor="extended">Extended (up to ±3 preload)</Label>
             </Field>
+            <Field orientation="horizontal">
+              <RadioGroupItem value="memory-1gb" id="memory-1gb" />
+              <Label htmlFor="memory-1gb">Memory limit (1 GB)</Label>
+            </Field>
+            <Field orientation="horizontal">
+              <RadioGroupItem value="memory-2gb" id="memory-2gb" />
+              <Label htmlFor="memory-2gb">Memory limit (2 GB)</Label>
+            </Field>
           </RadioGroup>
         </CustomFieldSet>
       </FieldGroup>
