@@ -1,7 +1,7 @@
 pub mod commands;
 pub mod image;
 
-use commands::{get_directory_images, load_image};
+use commands::{get_directory_images, get_exif_data, load_image};
 use tauri::Emitter;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -14,7 +14,7 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init());
 
     builder
-        .invoke_handler(tauri::generate_handler![load_image, get_directory_images])
+        .invoke_handler(tauri::generate_handler![load_image, get_directory_images, get_exif_data])
         .setup(|app| {
             // On Windows and Linux, the OS passes the file path as a CLI argument
             // when the app is launched via a file association.

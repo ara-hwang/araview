@@ -1,5 +1,7 @@
 use base64::{engine::general_purpose, Engine as _};
+use std::collections::HashMap;
 use std::fs;
+use std::io::BufReader;
 use std::path::Path;
 
 use crate::image::{get_mime_type, is_image_file, DirectoryImages, ImageInfo};
@@ -64,4 +66,31 @@ pub fn get_directory_images(file_path: String) -> Result<DirectoryImages, String
         images,
         current_index,
     })
+}
+
+#[tauri::command]
+pub fn get_exif_data(file_path: String) -> Result<HashMap<String, String>, String> {
+    let path = Path::new(&file_path);
+
+    if !path.exists() {
+        return Err("File not found".to_string());
+    }
+
+    let file = fs::File::open(path).map_err(|e| format!("Failed to open file: {}", e))?;
+    let mut reader = BufReader::new(file);
+
+    let exif_reader = exif::Reader::new();
+    let exif = exif_reader
+        .read_from_container(&mut reader)
+        .map_err(|e| format!("No EXIF data found: {}", e))?;
+
+    let mut data = HashMap::new();
+
+    for field in exif.fields() {
+        let tag_name = field.tag.to_string();
+        let value = field.display_value().with_unit(&exif).to_string();
+        data.insert(tag_name, value);
+    }
+
+    Ok(data)
 }
