@@ -9,3 +9,5 @@ export type DirectoryImages = {
   images: string[]
   current_index: number
 }
+
+export type ExifData = Record<string, string>

@@ -1,5 +1,5 @@
 import { create } from "zustand"
-import { DirectoryImages, ImageInfo } from "@/types"
+import { DirectoryImages, ExifData, ImageInfo } from "@/types"
 import { clampPosition, getPositionBounds } from "@/utils/zoomPanUtils"
 
 type AppState = {
@@ -17,6 +17,8 @@ type AppState = {
   containerSize: { width: number; height: number }
   imageSize: { width: number; height: number }
   dragStart: { x: number; y: number }
+  exifData: ExifData | null
+  showExifPanel: boolean
 }
 
 type AppStoreActions = {
@@ -36,6 +38,8 @@ type AppStoreActions = {
   setContainerSize: (nextContainerSize: AppState["containerSize"]) => void
   setImageSize: (nextImageSize: AppState["imageSize"]) => void
   setDragStart: (nextDragStart: AppState["dragStart"]) => void
+  setExifData: (nextExifData: AppState["exifData"]) => void
+  setShowExifPanel: (nextShowExifPanel: AppState["showExifPanel"]) => void
 }
 
 const initialApp: AppState = {
@@ -55,7 +59,9 @@ const initialApp: AppState = {
   viewportSize: { width: 0, height: 0 },
   containerSize: { width: 0, height: 0 },
   imageSize: { width: 0, height: 0 },
-  dragStart: { x: 0, y: 0 }
+  dragStart: { x: 0, y: 0 },
+  exifData: null,
+  showExifPanel: false
 }
 
 export const useAppStore = create<AppState & AppStoreActions>((set) => ({
@@ -77,7 +83,10 @@ export const useAppStore = create<AppState & AppStoreActions>((set) => ({
   setContainerSize: (nextContainerSize) =>
     set({ containerSize: nextContainerSize }),
   setImageSize: (nextImageSize) => set({ imageSize: nextImageSize }),
-  setDragStart: (nextDragStart) => set({ dragStart: nextDragStart })
+  setDragStart: (nextDragStart) => set({ dragStart: nextDragStart }),
+  setExifData: (nextExifData) => set({ exifData: nextExifData }),
+  setShowExifPanel: (nextShowExifPanel) =>
+    set({ showExifPanel: nextShowExifPanel })
 }))
 
 export const getApp = () => useAppStore.getState()

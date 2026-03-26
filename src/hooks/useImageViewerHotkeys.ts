@@ -6,6 +6,7 @@ type ImageViewerHotkeysParams = {
   onNavigatePrev: () => void
   onNavigateNext: () => void
   onOpenFile: () => void
+  onToggleExif: () => void
 }
 
 // 이미지 내비게이션/줌/파일 열기 등에 대한 모든 단축키를 한 곳에서 등록하는 훅
@@ -21,4 +22,5 @@ export function useImageViewerHotkeys(props: ImageViewerHotkeysParams) {
   useHotkey("2", () => setZoomToFit("height"))
   useHotkey("3", () => setZoomToFit("screen"))
   useHotkey("Mod+O", props.onOpenFile)
+  useHotkey("I", props.onToggleExif)
 }

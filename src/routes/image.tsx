@@ -2,6 +2,7 @@ import { createFileRoute, redirect } from "@tanstack/react-router"
 import { ImageContainer } from "@/components/ImageContainer"
 import { getApp, useAppStore } from "@/store/appStore"
 import { useDirectoryNavigation } from "@/hooks/useDirectoryNavigation"
+import { useExifLoader } from "@/hooks/useExifLoader"
 import { useImageLoader } from "@/hooks/useImageLoader"
 import { useImageViewerContextMenu } from "@/hooks/useContextMenu"
 import { useImageViewerHotkeys } from "@/hooks/useImageViewerHotkeys"
@@ -29,6 +30,7 @@ function ImagePage() {
 
   const { loadImage, handleOpenFile, handleDrop, handleDragOver } =
     useImageLoader()
+  const { toggleExifPanel } = useExifLoader()
 
   // 이미지 로드 후 줌/팬 초기화
   const loadImageAndReset = useCallback(
@@ -53,7 +55,8 @@ function ImagePage() {
   useImageViewerHotkeys({
     onNavigatePrev: () => void navigateImage("prev"),
     onNavigateNext: () => void navigateImage("next"),
-    onOpenFile: handleOpenFile
+    onOpenFile: handleOpenFile,
+    onToggleExif: () => void toggleExifPanel()
   })
 
   return (
