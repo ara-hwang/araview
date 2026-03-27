@@ -7,6 +7,7 @@ import {
   ArrowLeftRight,
   ArrowUpDown,
   FolderOpen,
+  Info,
   Maximize2,
   Settings,
   ZoomIn,
@@ -23,6 +24,7 @@ import {
   zoomOut
 } from "@/store/appStore"
 import { useImageLoader } from "@/hooks/useImageLoader"
+import { useExifLoader } from "@/hooks/useExifLoader"
 
 // 위쪽 툴바
 export default function Header() {
@@ -30,6 +32,7 @@ export default function Header() {
   const navigate = useNavigate()
 
   const { handleOpenFile } = useImageLoader()
+  const { toggleExifPanel } = useExifLoader()
 
   const handleOpenSettings = () => {
     void navigate({ to: "/page/settings" })
@@ -115,8 +118,16 @@ export default function Header() {
           </ButtonGroup>
         </ButtonGroup>
 
-        {/* 설정 */}
+        {/* EXIF & 설정 */}
         <ButtonGroup>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => void toggleExifPanel()}
+            title="EXIF info (I)"
+          >
+            <Info />
+          </Button>
           <Button
             variant="outline"
             size="icon"
