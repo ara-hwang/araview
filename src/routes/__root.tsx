@@ -3,6 +3,7 @@ import { ThemeProvider } from "@/components/theme-provider"
 import Header from "@/components/Header"
 import { Separator } from "@/components/ui/separator"
 import { StatusBar } from "@/components/StatusBar"
+import { ExifPanel } from "@/components/ExifPanel"
 
 export const Route = createRootRoute({
   component: RootLayout,
@@ -20,6 +21,7 @@ function RootLayout() {
           <StatusBar />
         </div>
       </div>
+      <ExifPanel />
     </ThemeProvider>
   )
 }
