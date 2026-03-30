@@ -115,7 +115,7 @@
 
 ### 2.2 이미지 정보 패널 강화 (P1)
 
-**현재 상태**: EXIF 데이터만 표시. 히스토그램이나 색상 정보 없음.
+**현재 상태**: `ExifPanel.tsx`와 `useExifLoader.ts`를 통해 EXIF 메타데이터를 추출·표시하고 있으나 (Camera, Exposure, Image, Lens, DateTime, GPS, Software 카테고리), 히스토그램이나 색상 정보는 없음.
 
 **구현 계획**:
 - **히스토그램**: RGB 채널별 히스토그램 표시 (Rust에서 계산, `recharts`로 시각화)
@@ -189,7 +189,7 @@
 
 **최적화 계획**:
 - **Tauri asset protocol** 활용: base64 대신 `asset://` 프로토콜로 파일 직접 로드
-  - 메모리 사용량 ~33% 감소 (base64 오버헤드 제거)
+  - 메모리 사용량 약 33% 감소 추정 (base64 인코딩은 원본 대비 약 33% 크기 증가를 유발)
   - IPC 직렬화/역직렬화 비용 제거
 - 점진적 로딩: 저해상도 프리뷰 먼저 표시 후 고해상도 로드
 - `commands.rs`의 `load_image`를 asset protocol 기반으로 리팩토링
@@ -238,7 +238,7 @@
 
 ### 3.4 메모리 사용량 최적화 (P2)
 
-**현재 상태**: base64 인코딩으로 원본 대비 ~33% 메모리 오버헤드. `useImageCache.ts`에서 `string.length × 2`로 추정.
+**현재 상태**: base64 인코딩으로 원본 대비 약 33% 메모리 오버헤드 (base64는 3바이트를 4문자로 표현). `useImageCache.ts`에서 `string.length × 2`로 추정.
 
 **최적화 계획**:
 - Phase 3.1의 asset protocol 도입으로 base64 오버헤드 제거
@@ -325,7 +325,7 @@
 **현재 상태**: 11개 포맷 지원 (PNG, JPG, JPEG, GIF, BMP, WebP, SVG, ICO, TIFF, TIF, AVIF).
 
 **추가 후보**:
-- **HEIC/HEIF**: iPhone 기본 포맷 — `libheif` 바인딩 활용
+- **HEIC/HEIF**: iPhone 기본 포맷 — `heif-decoder` 크레이트 검토 (LGPL 라이선스 이슈가 있는 `libheif` 대신 MIT/Apache 라이선스 대안 우선)
 - **RAW**: 카메라 RAW 포맷 (CR2, NEF, ARW 등) — `rawloader` 크레이트
 - **PSD**: Photoshop 파일 미리보기 — `psd` 크레이트
 - **JXL (JPEG XL)**: 차세대 이미지 포맷 — `jxl-oxide` 크레이트
@@ -472,7 +472,15 @@ let data = fs::read(&path)?;
 let base64 = general_purpose::STANDARD.encode(&data);
 
 // 개선 방식 (asset protocol)
-// → 프론트엔드에서 asset://localhost/{path} 로 직접 참조
+// Rust 커맨드에서 파일 경로를 asset URL로 변환하여 반환
+#[tauri::command]
+fn get_asset_url(app: tauri::AppHandle, file_path: String) -> Result<String, String> {
+    let path = std::path::PathBuf::from(&file_path);
+    // asset scope에 경로 등록 후 URL 반환
+    let url = format!("asset://localhost/{}", urlencoding::encode(&file_path));
+    Ok(url)
+}
+// 프론트엔드에서 <img src={assetUrl} /> 로 직접 사용
 ```
 
 ### ViewMode 구현 방향 (Phase 1.1)
@@ -493,4 +501,4 @@ switch (viewMode) {
 
 ### HEIC 포맷 지원 시 고려사항 (Phase 4.4)
 
-HEIC/HEIF 디코딩은 라이선스 이슈가 있을 수 있으므로, `libheif` 사용 시 LGPL 라이선스를 확인해야 합니다. 대안으로 `heif-decoder` 크레이트를 검토합니다.
+HEIC/HEIF 디코딩에 널리 쓰이는 `libheif`는 LGPL 라이선스이므로, 상용 배포 시 라이선스 호환성을 확인해야 합니다. MIT/Apache 라이선스인 `heif-decoder` 크레이트를 우선 검토하되, 디코딩 품질 및 지원 범위가 충분하지 않을 경우 `libheif`의 동적 링크 방식을 대안으로 검토합니다.
