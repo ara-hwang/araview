@@ -4,8 +4,11 @@ import { Empty, EmptyContent } from "@/components/ui/empty"
 import { Button } from "@/components/ui/button"
 import { useEffect } from "react"
 import { getCurrentWindow } from "@tauri-apps/api/window"
+import { convertFileSrc } from "@tauri-apps/api/core"
+import { X } from "lucide-react"
 import { useAppStore } from "@/store/appStore"
 import { useImageLoader } from "@/hooks/useImageLoader"
+import { useRecentFilesStore } from "@/store/recentFilesStore"
 
 export const Route = createFileRoute("/")({
   component: HomePage
@@ -19,6 +22,9 @@ function HomePage() {
     }))
   )
   const navigate = useNavigate()
+  const recentFiles = useRecentFilesStore((s) => s.files)
+  const removeRecent = useRecentFilesStore((s) => s.remove)
+  const clearRecent = useRecentFilesStore((s) => s.clear)
 
   // 이미지 변경 시 창 제목 변경
   useEffect(() => {
@@ -35,7 +41,8 @@ function HomePage() {
     }
   }, [app.imageInfo, navigate])
 
-  const { handleOpenFile, handleDrop, handleDragOver } = useImageLoader()
+  const { loadImage, handleOpenFile, handleDrop, handleDragOver } =
+    useImageLoader()
 
   return (
     <div
@@ -44,13 +51,74 @@ function HomePage() {
       }}
       onDrop={handleDrop}
       onDragOver={handleDragOver}
-      className="flex h-full w-full flex-col items-center justify-center"
+      className="flex h-full w-full flex-col items-center justify-center gap-8 p-8"
     >
       <Empty>
         <EmptyContent>
           <Button onClick={handleOpenFile}>Open File</Button>
         </EmptyContent>
       </Empty>
+
+      {recentFiles.length > 0 && (
+        <div className="w-full max-w-4xl">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-muted-foreground text-sm font-medium">
+              최근 파일
+            </h2>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => void clearRecent()}
+            >
+              전체 지우기
+            </Button>
+          </div>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+            {recentFiles.map((path) => {
+              const name = path.split(/[\\/]/).pop() ?? path
+              return (
+                <div
+                  key={path}
+                  className="group border-border bg-card hover:border-primary relative overflow-hidden rounded-md border"
+                >
+                  <button
+                    type="button"
+                    onClick={() => void loadImage(path)}
+                    className="flex w-full flex-col items-start gap-2 p-2 text-left"
+                    title={path}
+                  >
+                    <div className="bg-muted aspect-square w-full overflow-hidden rounded">
+                      <img
+                        src={convertFileSrc(path)}
+                        alt=""
+                        loading="lazy"
+                        className="h-full w-full object-cover"
+                        draggable={false}
+                        onError={(e) => {
+                          ;(e.currentTarget as HTMLImageElement).style.visibility =
+                            "hidden"
+                        }}
+                      />
+                    </div>
+                    <span className="w-full truncate text-xs">{name}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      void removeRecent(path)
+                    }}
+                    className="bg-background/80 absolute top-1 right-1 rounded p-1 opacity-0 transition-opacity group-hover:opacity-100"
+                    title="목록에서 제거"
+                  >
+                    <X className="size-3" />
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

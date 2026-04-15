@@ -1,4 +1,5 @@
 import { createRootRoute, Outlet } from "@tanstack/react-router"
+import { Toaster } from "sonner"
 import { ThemeProvider } from "@/components/theme-provider"
 import Header from "@/components/Header"
 import { Separator } from "@/components/ui/separator"
@@ -22,6 +23,7 @@ function RootLayout() {
         </div>
       </div>
       <ExifPanel />
+      <Toaster position="bottom-right" richColors closeButton />
     </ThemeProvider>
   )
 }

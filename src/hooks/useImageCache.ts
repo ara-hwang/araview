@@ -25,9 +25,9 @@ export function useImageCache() {
   )
 
   const estimateImageBytes = useCallback((imgInfo: ImageInfo): number => {
-    // JS string은 보통 UTF-16(2 bytes/char)로 저장됨. base64는 ASCII라서 대략 2B/char로 추정.
-    // (정확한 메모리 사용량은 엔진/GC에 따라 달라서, 보수적 추정치로 LRU 트리밍에 사용)
-    return imgInfo.base64.length * 2
+    // Asset Protocol 전환 이후 이미지 데이터는 프론트 메모리에 상주하지 않는다.
+    // 메타데이터만 캐시하므로, LRU 예산 계산에는 실제 파일 크기를 사용한다.
+    return imgInfo.file_size
   }, [])
 
   const deleteFromCache = useCallback((filePath: string) => {
