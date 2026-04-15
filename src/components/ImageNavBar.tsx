@@ -1,9 +1,12 @@
 import { ChevronLeft, ChevronRight, PinIcon } from "lucide-react"
+import { convertFileSrc } from "@tauri-apps/api/core"
+import { useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { useSettingsStore } from "../store/settingsStore"
 import { Slider } from "./ui/slider"
 import { ButtonGroup } from "./ui/button-group"
 import { useAppStore } from "@/store/appStore"
+import { cn } from "@/lib/utils"
 
 type ImageNavBarProps = {
   onNavigate: (direction: "prev" | "next") => void
@@ -23,12 +26,55 @@ export function ImageNavBar({
   const isPrevDisabled = isFirst && !loopNavigation
   const isNextDisabled = isLast && !loopNavigation
 
+  // 현재 인덱스 주변의 썸네일 창 (양쪽 4장씩, 총 최대 9장)
+  const thumbnails = useMemo(() => {
+    const THUMB_WINDOW = 4
+    const total = dirImages.images.length
+    if (total === 0) return [] as { index: number; path: string }[]
+    const start = Math.max(0, dirImages.current_index - THUMB_WINDOW)
+    const end = Math.min(total, dirImages.current_index + THUMB_WINDOW + 1)
+    const out: { index: number; path: string }[] = []
+    for (let i = start; i < end; i += 1) {
+      out.push({ index: i, path: dirImages.images[i] })
+    }
+    return out
+  }, [dirImages.images, dirImages.current_index])
+
   return (
     // 하단 중앙에 고정된 내비게이션 바 (이전/다음 버튼 + 진행률 표시)
     <div
-      className="bg-background/75 border-border absolute bottom-12 flex w-xl items-center gap-4 rounded-md border p-2 opacity-50 hover:opacity-100"
+      className="bg-background/75 border-border absolute bottom-12 flex w-xl flex-col gap-2 rounded-md border p-2 opacity-50 hover:opacity-100"
       onMouseDown={(e) => e.stopPropagation()}
     >
+      {/* 썸네일 스트립 */}
+      {thumbnails.length > 1 && (
+        <div className="flex items-center justify-center gap-1">
+          {thumbnails.map(({ index, path }) => (
+            <button
+              key={path}
+              type="button"
+              onClick={() => onNavigateToIndex(index)}
+              className={cn(
+                "h-12 w-12 shrink-0 overflow-hidden rounded border-2 transition-all",
+                index === dirImages.current_index
+                  ? "border-primary scale-110"
+                  : "border-transparent opacity-60 hover:opacity-100"
+              )}
+              title={path.split(/[\\/]/).pop()}
+            >
+              <img
+                src={convertFileSrc(path)}
+                alt=""
+                loading="lazy"
+                className="h-full w-full object-cover"
+                draggable={false}
+              />
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="flex items-center gap-4">
       <ButtonGroup>
         <Button
           variant="outline"
@@ -65,6 +111,7 @@ export function ImageNavBar({
       <Button variant="ghost" size="icon" title="Pin Navigation Bar">
         <PinIcon />
       </Button>
+      </div>
     </div>
   )
 }

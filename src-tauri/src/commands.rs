@@ -1,4 +1,3 @@
-use base64::{engine::general_purpose, Engine as _};
 use std::collections::HashMap;
 use std::fs;
 use std::io::BufReader;
@@ -16,13 +15,7 @@ pub fn load_image(file_path: String) -> Result<ImageInfo, String> {
 
     let mime_type = get_mime_type(path).ok_or_else(|| "Unsupported image format".to_string())?;
 
-    let data = fs::read(path).map_err(|e| format!("Failed to read file: {}", e))?;
     let metadata = fs::metadata(path).map_err(|e| format!("Failed to read metadata: {}", e))?;
-
-    let (base64_str, served_mime) = (
-        general_purpose::STANDARD.encode(&data),
-        mime_type.to_string(),
-    );
 
     let file_name = path
         .file_name()
@@ -31,8 +24,8 @@ pub fn load_image(file_path: String) -> Result<ImageInfo, String> {
         .to_string();
 
     Ok(ImageInfo {
-        base64: base64_str,
-        mime_type: served_mime,
+        file_path: file_path.clone(),
+        mime_type: mime_type.to_string(),
         file_name,
         file_size: metadata.len(),
     })
@@ -66,6 +59,46 @@ pub fn get_directory_images(file_path: String) -> Result<DirectoryImages, String
         images,
         current_index,
     })
+}
+
+// 드롭된 경로를 해석한다. 파일이면 그대로, 디렉토리면 내부의 첫 이미지 경로를 반환.
+#[tauri::command]
+pub fn resolve_dropped_path(path: String) -> Result<String, String> {
+    let p = Path::new(&path);
+
+    if !p.exists() {
+        return Err("Path not found".to_string());
+    }
+
+    if p.is_file() {
+        return Ok(path);
+    }
+
+    if p.is_dir() {
+        let entries =
+            fs::read_dir(p).map_err(|e| format!("Failed to read directory: {}", e))?;
+
+        let mut images: Vec<String> = Vec::new();
+        for entry in entries {
+            if let Ok(entry) = entry {
+                let entry_path = entry.path();
+                if entry_path.is_file() && is_image_file(&entry_path) {
+                    if let Some(s) = entry_path.to_str() {
+                        images.push(s.to_string());
+                    }
+                }
+            }
+        }
+
+        if images.is_empty() {
+            return Err("No images found in directory".to_string());
+        }
+
+        images.sort_by(|a, b| a.to_lowercase().cmp(&b.to_lowercase()));
+        return Ok(images.remove(0));
+    }
+
+    Err("Unsupported path type".to_string())
 }
 
 #[tauri::command]

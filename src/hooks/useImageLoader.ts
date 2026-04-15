@@ -1,11 +1,13 @@
 import { useCallback } from "react"
 import { open } from "@tauri-apps/plugin-dialog"
 import { invoke } from "@tauri-apps/api/core"
+import { toast } from "sonner"
 import type { DirectoryImages } from "@/types"
 import { SUPPORTED_IMAGE_EXTENSIONS } from "@/constants/imageExtensions"
 import { useImageCache } from "@/hooks/useImageCache"
 import { useSettingsStore } from "@/store/settingsStore"
 import { useAppStore } from "@/store/appStore"
+import { useRecentFilesStore } from "@/store/recentFilesStore"
 
 type LoadImageOptions = {
   refreshDirectory?: boolean
@@ -27,6 +29,7 @@ export function useImageLoader() {
       try {
         const imgInfo = await getOrLoadImage(filePath)
         useAppStore.setState({ imageInfo: imgInfo })
+        void useRecentFilesStore.getState().add(filePath)
         options?.onAfterLoad?.()
 
         let resolvedDirInfo = dirImages
@@ -55,8 +58,12 @@ export function useImageLoader() {
           )
         }
       } catch (e) {
-        useAppStore.setState({ error: String(e) })
+        const message = String(e)
+        useAppStore.setState({ error: message })
         useAppStore.setState({ imageInfo: null })
+        toast.error("이미지를 불러오지 못했습니다", {
+          description: message
+        })
       } finally {
         useAppStore.setState({ loading: false })
       }
@@ -88,10 +95,22 @@ export function useImageLoader() {
       e.preventDefault()
       e.stopPropagation()
       const files = e.dataTransfer.files
-      if (files.length > 0) {
-        const file = files[0]
-        const filePath = (file as { path?: string }).path
-        if (filePath) await loadImage(filePath)
+      if (files.length === 0) return
+
+      // 첫 번째 드롭 항목만 사용 (파일 또는 폴더)
+      const first = files[0]
+      const droppedPath = (first as { path?: string }).path
+      if (!droppedPath) return
+
+      try {
+        const resolved = await invoke<string>("resolve_dropped_path", {
+          path: droppedPath
+        })
+        await loadImage(resolved)
+      } catch (err) {
+        toast.error("드롭한 항목을 열 수 없습니다", {
+          description: String(err)
+        })
       }
     },
     [loadImage]
@@ -106,6 +125,7 @@ export function useImageLoader() {
     loadImage,
     handleOpenFile,
     handleDrop,
-    handleDragOver
+    handleDragOver,
+    getOrLoadImage
   }
 }

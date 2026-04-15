@@ -3,7 +3,7 @@ use std::path::Path;
 
 #[derive(Serialize)]
 pub struct ImageInfo {
-    pub base64: String,
+    pub file_path: String,
     pub mime_type: String,
     pub file_name: String,
     pub file_size: u64,

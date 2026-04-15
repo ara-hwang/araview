@@ -4,6 +4,10 @@ import { getApp, useAppStore } from "@/store/appStore"
 import { useDirectoryNavigation } from "@/hooks/useDirectoryNavigation"
 import { useExifLoader } from "@/hooks/useExifLoader"
 import { useImageLoader } from "@/hooks/useImageLoader"
+import { useMultiPageImages } from "@/hooks/useMultiPageImages"
+import { useSlideshow } from "@/hooks/useSlideshow"
+import { useFullscreen } from "@/hooks/useFullscreen"
+import { useCopyImage } from "@/hooks/useCopyImage"
 import { useImageViewerContextMenu } from "@/hooks/useContextMenu"
 import { useImageViewerHotkeys } from "@/hooks/useImageViewerHotkeys"
 import { useOpenFileListener } from "@/hooks/useOpenFileListener"
@@ -28,8 +32,15 @@ function ImagePage() {
 
   const zoomPan = useZoomPan()
 
-  const { loadImage, handleOpenFile, handleDrop, handleDragOver } =
-    useImageLoader()
+  const {
+    loadImage,
+    handleOpenFile,
+    handleDrop,
+    handleDragOver,
+    getOrLoadImage
+  } = useImageLoader()
+
+  const { viewMode, pages } = useMultiPageImages(getOrLoadImage)
   const { toggleExifPanel } = useExifLoader()
 
   // 이미지 로드 후 줌/팬 초기화
@@ -52,11 +63,18 @@ function ImagePage() {
     onNavigateNext: () => void navigateImage("next")
   })
 
+  const slideshow = useSlideshow(() => void navigateImage("next"))
+  const fullscreen = useFullscreen()
+  const { copy: copyImage } = useCopyImage()
+
   useImageViewerHotkeys({
     onNavigatePrev: () => void navigateImage("prev"),
     onNavigateNext: () => void navigateImage("next"),
     onOpenFile: handleOpenFile,
-    onToggleExif: () => void toggleExifPanel()
+    onToggleExif: () => void toggleExifPanel(),
+    onToggleSlideshow: slideshow.toggle,
+    onToggleFullscreen: () => void fullscreen.toggle(),
+    onCopyImage: () => void copyImage()
   })
 
   return (
@@ -75,6 +93,8 @@ function ImagePage() {
         onMouseUp={zoomPan.handleMouseUp}
         onNavigate={navigateImage}
         onNavigateToIndex={navigateToIndex}
+        viewMode={viewMode}
+        pages={pages}
       />
     </div>
   )

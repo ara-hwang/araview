@@ -19,6 +19,9 @@ type AppState = {
   dragStart: { x: number; y: number }
   exifData: ExifData | null
   showExifPanel: boolean
+  rotation: 0 | 90 | 180 | 270
+  flipH: boolean
+  flipV: boolean
 }
 
 type AppStoreActions = {
@@ -61,7 +64,10 @@ const initialApp: AppState = {
   imageSize: { width: 0, height: 0 },
   dragStart: { x: 0, y: 0 },
   exifData: null,
-  showExifPanel: false
+  showExifPanel: false,
+  rotation: 0,
+  flipH: false,
+  flipV: false
 }
 
 export const useAppStore = create<AppState & AppStoreActions>((set) => ({
@@ -139,7 +145,36 @@ export const zoomIn = () => zoomInBy(1.25)
 export const zoomOut = () => zoomOutBy(1.25)
 
 export const resetZoomPan = () => {
-  useAppStore.setState((s) => ({ ...s, zoom: 1, position: { x: 0, y: 0 } }))
+  useAppStore.setState((s) => ({
+    ...s,
+    zoom: 1,
+    position: { x: 0, y: 0 },
+    rotation: 0,
+    flipH: false,
+    flipV: false
+  }))
+}
+
+export const rotateCW = () => {
+  useAppStore.setState((s) => {
+    const next = ((s.rotation + 90) % 360) as AppState["rotation"]
+    return { rotation: next }
+  })
+}
+
+export const rotateCCW = () => {
+  useAppStore.setState((s) => {
+    const next = ((s.rotation + 270) % 360) as AppState["rotation"]
+    return { rotation: next }
+  })
+}
+
+export const flipHorizontal = () => {
+  useAppStore.setState((s) => ({ flipH: !s.flipH }))
+}
+
+export const flipVertical = () => {
+  useAppStore.setState((s) => ({ flipV: !s.flipV }))
 }
 
 export const updateDirImagesIndex = (nextIndex: number) => {

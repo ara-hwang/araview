@@ -1,5 +1,6 @@
 import { create } from "zustand"
 import { Store as TauriStore } from "@tauri-apps/plugin-store"
+import { toast } from "sonner"
 
 export type CacheMode =
   | "off"
@@ -14,6 +15,7 @@ export type SettingsState = {
   loopNavigation: boolean
   cacheMode: CacheMode
   viewMode: ViewMode
+  slideshowIntervalMs: number
 }
 
 type SettingsStoreActions = {
@@ -22,6 +24,9 @@ type SettingsStoreActions = {
   ) => void
   setCacheMode: (nextCacheMode: SettingsState["cacheMode"]) => void
   setViewMode: (nextViewMode: SettingsState["viewMode"]) => void
+  setSlideshowIntervalMs: (
+    nextSlideshowIntervalMs: SettingsState["slideshowIntervalMs"]
+  ) => void
 }
 
 type SettingsStore = SettingsState & SettingsStoreActions
@@ -29,7 +34,8 @@ type SettingsStore = SettingsState & SettingsStoreActions
 const initialSettings: SettingsState = {
   loopNavigation: false,
   cacheMode: "nearby",
-  viewMode: "single"
+  viewMode: "single",
+  slideshowIntervalMs: 3000
 }
 
 export const useSettingsStore = create<SettingsStore>((set) => ({
@@ -45,6 +51,10 @@ export const useSettingsStore = create<SettingsStore>((set) => ({
   setViewMode: (nextViewMode) =>
     set(() => ({
       viewMode: nextViewMode
+    })),
+  setSlideshowIntervalMs: (nextSlideshowIntervalMs) =>
+    set(() => ({
+      slideshowIntervalMs: nextSlideshowIntervalMs
     }))
 }))
 
@@ -72,8 +82,9 @@ export const updateSettings = async (partial: Partial<SettingsState>) => {
     const store = await getTauriStore()
     await store.set("settings", next)
     await store.save()
-  } catch {
-    // 설정 저장 실패는 UI 동작을 막지 않음
+  } catch (e) {
+    // 설정 저장 실패는 UI 동작을 막지 않지만 사용자에게 알림
+    toast.error("설정 저장 실패", { description: String(e) })
   }
 }
 
@@ -82,7 +93,8 @@ export const initSettingsFromStore = async () => {
     const store = await getTauriStore()
     const stored = await store.get<SettingsState>("settings")
     if (stored) useSettingsStore.setState({ ...initialSettings, ...stored })
-  } catch {
-    // 초기 로드 실패 시 기본값 유지
+  } catch (e) {
+    // 초기 로드 실패 시 기본값 유지하되 콘솔에 기록
+    console.warn("[settings] Failed to load persisted settings:", e)
   }
 }
