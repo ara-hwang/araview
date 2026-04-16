@@ -7,8 +7,17 @@ type LoadImageFn = (
   options?: { refreshDirectory?: boolean }
 ) => Promise<void>
 
-export function useDirectoryNavigation(loadImage: LoadImageFn) {
+type LoadArchiveImageFn = (
+  archivePath: string,
+  entryName: string
+) => Promise<void>
+
+export function useDirectoryNavigation(
+  loadImage: LoadImageFn,
+  loadArchiveImageByIndex?: LoadArchiveImageFn
+) {
   const dirImages = useAppStore((state) => state.dirImages)
+  const archivePath = useAppStore((state) => state.archivePath)
   const loopNavigation = useSettingsStore((state) => state.loopNavigation)
 
   // 이전 또는 다음 이미지로 이동
@@ -33,10 +42,17 @@ export function useDirectoryNavigation(loadImage: LoadImageFn) {
         }
       }
 
+      // 아카이브 모드
+      if (archivePath && loadArchiveImageByIndex) {
+        await loadArchiveImageByIndex(archivePath, dirImages.images[newIndex])
+        updateDirImagesIndex(newIndex)
+        return
+      }
+
       await loadImage(dirImages.images[newIndex], { refreshDirectory: false })
       updateDirImagesIndex(newIndex)
     },
-    [dirImages, loadImage, loopNavigation]
+    [dirImages, loadImage, loopNavigation, archivePath, loadArchiveImageByIndex]
   )
 
   // 원하는 인덱스로 이동
@@ -44,13 +60,19 @@ export function useDirectoryNavigation(loadImage: LoadImageFn) {
     async (index: number) => {
       if (!dirImages || dirImages.images.length === 0) return
 
-      // 인덱스를 0과 이미지 개수 - 1 사이로 제한
       const clamped = Math.max(0, Math.min(index, dirImages.images.length - 1))
+
+      // 아카이브 모드
+      if (archivePath && loadArchiveImageByIndex) {
+        await loadArchiveImageByIndex(archivePath, dirImages.images[clamped])
+        updateDirImagesIndex(clamped)
+        return
+      }
 
       await loadImage(dirImages.images[clamped], { refreshDirectory: false })
       updateDirImagesIndex(clamped)
     },
-    [dirImages, loadImage]
+    [dirImages, loadImage, archivePath, loadArchiveImageByIndex]
   )
 
   return { navigateImage, navigateToIndex }

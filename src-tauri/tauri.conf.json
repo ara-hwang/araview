@@ -56,6 +56,13 @@
           "tif",
           "avif"
         ]
+      },
+      {
+        "name": "Comic Book Archive",
+        "description": "Comic Book Archive File",
+        "ext": [
+          "cbz"
+        ]
       }
     ]
   }

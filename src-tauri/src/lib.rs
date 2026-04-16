@@ -1,7 +1,8 @@
+pub mod archive;
 pub mod commands;
 pub mod image;
 
-use commands::{get_directory_images, get_exif_data, load_image, resolve_dropped_path};
+use commands::{get_archive_images, get_directory_images, get_exif_data, load_archive_image, load_image, resolve_dropped_path};
 use tauri::Emitter;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -18,7 +19,9 @@ pub fn run() {
             load_image,
             get_directory_images,
             get_exif_data,
-            resolve_dropped_path
+            resolve_dropped_path,
+            get_archive_images,
+            load_archive_image
         ])
         .setup(|app| {
             // On Windows and Linux, the OS passes the file path as a CLI argument

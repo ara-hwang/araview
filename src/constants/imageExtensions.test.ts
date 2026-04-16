@@ -15,12 +15,13 @@ describe("SUPPORTED_IMAGE_EXTENSIONS", () => {
       "tiff",
       "tif",
       "avif",
+      "cbz"
     ]
     expect([...SUPPORTED_IMAGE_EXTENSIONS]).toEqual(expected)
   })
 
-  it("has 11 supported extensions", () => {
-    expect(SUPPORTED_IMAGE_EXTENSIONS).toHaveLength(11)
+  it("has 12 supported extensions", () => {
+    expect(SUPPORTED_IMAGE_EXTENSIONS).toHaveLength(12)
   })
 
   it("includes common web image formats", () => {

@@ -34,6 +34,7 @@ function ImagePage() {
 
   const {
     loadImage,
+    loadArchiveImageByIndex,
     handleOpenFile,
     handleDrop,
     handleDragOver,
@@ -50,8 +51,10 @@ function ImagePage() {
     [loadImage, zoomPan.resetView]
   )
 
-  const { navigateImage, navigateToIndex } =
-    useDirectoryNavigation(loadImageAndReset)
+  const { navigateImage, navigateToIndex } = useDirectoryNavigation(
+    loadImageAndReset,
+    loadArchiveImageByIndex
+  )
 
   const handleWheel = useWheelNavigation(zoomPan, navigateImage)
 

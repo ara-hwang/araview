@@ -11,7 +11,8 @@ export const SUPPORTED_IMAGE_EXTENSIONS = [
   "ico",
   "tiff",
   "tif",
-  "avif"
+  "avif",
+  "cbz"
 ] as const
 
 export type SupportedImageExtension =

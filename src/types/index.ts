@@ -11,3 +11,8 @@ export type DirectoryImages = {
 }
 
 export type ExifData = Record<string, string>
+
+export type ArchiveState = {
+  /** 현재 열린 아카이브 파일의 절대 경로 (null이면 일반 모드) */
+  archivePath: string | null
+}

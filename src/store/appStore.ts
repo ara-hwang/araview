@@ -22,6 +22,8 @@ type AppState = {
   rotation: 0 | 90 | 180 | 270
   flipH: boolean
   flipV: boolean
+  /** 아카이브 모드: 현재 열린 아카이브 파일 경로 (null이면 일반 모드) */
+  archivePath: string | null
 }
 
 type AppStoreActions = {
@@ -67,7 +69,8 @@ const initialApp: AppState = {
   showExifPanel: false,
   rotation: 0,
   flipH: false,
-  flipV: false
+  flipV: false,
+  archivePath: null
 }
 
 export const useAppStore = create<AppState & AppStoreActions>((set) => ({

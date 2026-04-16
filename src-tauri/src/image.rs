@@ -26,12 +26,28 @@ pub fn get_mime_type(path: &Path) -> Option<&'static str> {
         "ico" => Some("image/x-icon"),
         "tiff" | "tif" => Some("image/tiff"),
         "avif" => Some("image/avif"),
+        "cbz" => Some("application/vnd.comicbook+zip"),
         _ => None,
     }
 }
 
 pub fn is_image_file(path: &Path) -> bool {
-    get_mime_type(path).is_some()
+    match get_mime_type(path) {
+        Some(mime) => !mime.starts_with("application/"),
+        None => false,
+    }
+}
+
+pub fn is_archive_file(path: &Path) -> bool {
+    matches!(
+        get_mime_type(path),
+        Some("application/vnd.comicbook+zip")
+    )
+}
+
+/// 순수 이미지이거나 아카이브인 경우 모두 지원 파일로 간주
+pub fn is_supported_file(path: &Path) -> bool {
+    is_image_file(path) || is_archive_file(path)
 }
 
 #[cfg(test)]
@@ -100,6 +116,14 @@ mod tests {
     }
 
     #[test]
+    fn test_get_mime_type_cbz() {
+        assert_eq!(
+            get_mime_type(Path::new("comic.cbz")),
+            Some("application/vnd.comicbook+zip")
+        );
+    }
+
+    #[test]
     fn test_get_mime_type_unknown_extension() {
         assert_eq!(get_mime_type(Path::new("doc.pdf")), None);
         assert_eq!(get_mime_type(Path::new("file.txt")), None);
@@ -140,6 +164,22 @@ mod tests {
         assert!(!is_image_file(Path::new("README")));
         assert!(!is_image_file(Path::new("script.js")));
         assert!(!is_image_file(Path::new("style.css")));
+        assert!(!is_image_file(Path::new("comic.cbz")));
+    }
+
+    #[test]
+    fn test_is_archive_file() {
+        assert!(is_archive_file(Path::new("comic.cbz")));
+        assert!(is_archive_file(Path::new("comic.CBZ")));
+        assert!(!is_archive_file(Path::new("photo.png")));
+        assert!(!is_archive_file(Path::new("archive.zip")));
+    }
+
+    #[test]
+    fn test_is_supported_file() {
+        assert!(is_supported_file(Path::new("photo.png")));
+        assert!(is_supported_file(Path::new("comic.cbz")));
+        assert!(!is_supported_file(Path::new("doc.pdf")));
     }
 
     #[test]
