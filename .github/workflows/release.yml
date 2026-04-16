@@ -9,24 +9,7 @@ jobs:
   publish-tauri:
     permissions:
       contents: write
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: ubuntu-22.04
-            args: ""
-            rust_target: ""
-          - platform: macos-latest
-            args: "--target aarch64-apple-darwin"
-            rust_target: aarch64-apple-darwin
-          - platform: macos-latest
-            args: "--target x86_64-apple-darwin"
-            rust_target: x86_64-apple-darwin
-          - platform: windows-latest
-            args: ""
-            rust_target: ""
-
-    runs-on: ${{ matrix.platform }}
+    runs-on: windows-latest
 
     steps:
       - uses: actions/checkout@v4
@@ -38,35 +21,13 @@ jobs:
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.rust_target }}
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
         with:
           workspaces: "./src-tauri -> target"
 
-      - name: Install dependencies (ubuntu only)
-        if: matrix.platform == 'ubuntu-22.04'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev \
-            build-essential \
-            curl \
-            wget \
-            file \
-            libssl-dev \
-            libayatana-appindicator3-dev \
-            librsvg2-dev \
-            libheif-dev
-
-      - name: Install libheif (macOS only)
-        if: matrix.platform == 'macos-latest'
-        run: brew install libheif
-
       - name: Install libheif via vcpkg (windows only)
-        if: matrix.platform == 'windows-latest'
         run: |
           vcpkg install libheif:x64-windows
           echo "VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT" | Out-File -FilePath $env:GITHUB_ENV -Append
@@ -86,4 +47,3 @@ jobs:
           releaseBody: "See the assets to download this version and install."
           releaseDraft: true
           prerelease: false
-          args: ${{ matrix.args }}
