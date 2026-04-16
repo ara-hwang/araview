@@ -1,244 +1,153 @@
-# AGENTS.md — Tauri Image Viewer
+# AGENTS.md - Tauri Image Viewer
 
-This document provides guidance for AI assistants (Claude, Cursor, Copilot, etc.) working on this repository.
+This document provides repository-specific guidance for AI coding assistants.
 
 ## Project Overview
 
-**tauri-image-viewer** is a cross-platform desktop image viewer built with Tauri 2 + React 18. It supports 11 image formats: PNG, JPG, JPEG, GIF, BMP, WebP, SVG, ICO, TIFF, TIF, AVIF.
+`tauri-image-viewer` is a desktop image viewer built with Tauri 2 + React 18 + TypeScript.
 
-- **Frontend**: React 18, TypeScript, Vite 6, Tailwind CSS 4, shadcn/ui (**@base-ui** — never @radix-ui)
-- **Backend**: Rust, Tauri 2 — file I/O, image loading, MIME detection
-- **State**: Zustand 5 (in-memory) + Tauri Store plugin (persistent settings)
-- **Routing**: TanStack Router v1 with auto-generated route tree
-- **Node version**: 22 (`node --version` must be ≥22)
-- **Rust MSRV**: 1.94 (use `rustup default stable`)
+- Frontend: React 18, TypeScript, Vite 6, Tailwind CSS 4, TanStack Router v1, Zustand 5
+- Backend: Rust + Tauri 2 commands (`src-tauri/src/commands.rs`)
+- UI primitives: shadcn/ui built on `@base-ui/react` (do not introduce `@radix-ui/*`)
+- Package manager/runtime assumptions: Node.js `>=22`, npm scripts in `package.json`
 
-## Key Commands
+## Current Feature Scope
+
+- Supported file extensions: `png`, `jpg`, `jpeg`, `gif`, `bmp`, `webp`, `svg`, `ico`, `tiff`, `tif`, `avif`, `cbz`
+- Input flows: file picker, drag-and-drop (file/folder), OS file association open
+- Viewer controls: zoom, fit-to-width/height/screen, pan, rotate, flip
+- Navigation: previous/next, slider jump, thumbnail strip, optional loop navigation
+- Extra features: EXIF panel, slideshow, fullscreen, copy image to clipboard (PNG), recent files
+- Multi-page view modes: `single`, `left-to-right`, `right-to-left`, `webtoon`
+
+## Commands
 
 ```bash
 # Development
-npm install                             # Install frontend deps
-npm run tauri dev                       # Start Vite (port 1420) + Tauri app
+npm install
+npm run tauri dev
 
 # Build
-npm run tauri build                     # Full desktop build → src-tauri/target/release/bundle/
-npm run build                           # Frontend only (tsc + vite build)
+npm run build
+npm run tauri build
 
-# Type checking & linting
-npx tsc --noEmit                        # TypeScript check
-npx prettier --check "src/**/*.{ts,tsx}" # Format check
-npx prettier --write "src/**/*.{ts,tsx}" # Auto-format
-cd src-tauri && cargo clippy            # Rust lint
+# Frontend tests / checks
+npm test
+npm run test:watch
+npx tsc --noEmit
+npx prettier --check "src/**/*.{ts,tsx}"
+npx prettier --write "src/**/*.{ts,tsx}"
 
-# Tests
-npm test                                # Run Vitest once
-npm run test:watch                      # Vitest watch mode
-cd src-tauri && cargo test              # Rust unit tests
+# Rust tests / lint
+cd src-tauri && cargo test
+cd src-tauri && cargo clippy
 ```
 
-> **Note**: `npm run tauri dev` requires an X11 display (`:1`). In VM environments, `libEGL DRI3` warnings are safe to ignore.
+## Important Paths
 
-## Directory Structure
+- Frontend routes: `src/routes/`
+- Business logic hooks: `src/hooks/`
+- Stores: `src/store/`
+- Shared TS types: `src/types/index.ts`
+- Extension source of truth: `src/constants/imageExtensions.ts`
+- Rust commands: `src-tauri/src/commands.rs`
+- MIME/extension logic and tests: `src-tauri/src/image.rs`
+- Tauri app setup and command registration: `src-tauri/src/lib.rs`
+- Tauri config and file associations: `src-tauri/tauri.conf.json`
 
-```
-tauri-image-viewer/
-├── src/                              # Frontend (React/TypeScript)
-│   ├── components/
-│   │   ├── Header.tsx               # Toolbar: Open, Zoom, Settings, window controls
-│   │   ├── ImageContainer.tsx       # Main image display (zoom, pan, drag-drop)
-│   │   ├── ImageNavBar.tsx          # Bottom thumbnail/progress navigation bar
-│   │   ├── StatusBar.tsx            # File info (name, size, MIME type)
-│   │   ├── SettingsDialog.tsx       # Settings modal (cache, loop, view mode)
-│   │   ├── theme-provider.tsx       # Dark/Light/System theme + D hotkey
-│   │   └── ui/                      # Auto-generated shadcn/ui components (do not edit manually)
-│   ├── constants/
-│   │   └── imageExtensions.ts       # Supported extension list (single source of truth)
-│   ├── hooks/                        # All business logic lives here
-│   │   ├── useImageLoader.ts        # File open dialog, drag-drop, load image + directory
-│   │   ├── useImageCache.ts         # LRU in-memory cache with byte budget + prefetch
-│   │   ├── useZoomPan.ts            # Mouse drag pan + position clamping
-│   │   ├── useDirectoryNavigation.ts# Prev/next image navigation with loop support
-│   │   ├── useImageViewerHotkeys.ts # Keyboard shortcuts
-│   │   ├── useOpenFileListener.ts   # Tauri "open-file" event listener
-│   │   ├── useWheelNavigation.ts    # Mouse wheel: zoom or navigate
-│   │   ├── useViewerElements.ts     # Container/image DOM refs
-│   │   └── useContextMenu.ts        # Right-click context menu
-│   ├── lib/
-│   │   └── utils.ts                 # cn() class merge utility
-│   ├── routes/
-│   │   ├── __root.tsx               # Root layout (Header + StatusBar)
-│   │   ├── index.tsx                # Home page / file picker
-│   │   ├── image.tsx                # Image viewer page
-│   │   └── page/
-│   │       ├── route.tsx            # Page layout wrapper
-│   │       └── settings.tsx         # Settings page
-│   ├── store/
-│   │   ├── appStore.ts              # Zustand: zoom, position, imageInfo, dirImages, loading
-│   │   └── settingsStore.ts         # Zustand + Tauri Store: cacheMode, loopNavigation, viewMode
-│   ├── types/
-│   │   └── index.ts                 # Shared TypeScript types (ImageInfo, DirectoryImages)
-│   └── utils/
-│       ├── cacheConfig.ts           # Cache limits/prefetch distance per cacheMode
-│       ├── zoomPanUtils.ts          # Math: position bounds, clamp, fit-zoom
-│       └── format.ts                # Formatters: file size, etc.
-│
-├── src-tauri/                        # Backend (Rust/Tauri)
-│   ├── src/
-│   │   ├── lib.rs                   # Tauri setup, plugins, CLI arg / macOS file open handlers
-│   │   ├── main.rs                  # Binary entry point
-│   │   ├── commands.rs              # #[tauri::command]: load_image, get_directory_images
-│   │   └── image.rs                 # MIME detection, is_image_file — with unit tests
-│   ├── Cargo.toml
-│   └── tauri.conf.json              # Window config (frameless, 1024×768, file associations)
-│
-├── components.json                  # shadcn/ui config (style: base-nova, uses @base-ui)
-├── package.json
-├── vite.config.ts                   # Vite + TanStack Router + Tailwind plugins
-├── vitest.config.ts                 # jsdom environment, src/**/*.test.{ts,tsx}
-├── tsconfig.json                    # Strict mode, ES2020, excludes src/components/ui
-└── AGENTS.md                        # This file
-```
+## Architecture Notes
 
-## Architecture
+### Frontend <-> Backend contract
 
-### Frontend → Backend Communication
+Frontend uses `invoke()` for these commands:
 
-The frontend invokes two Rust commands via Tauri's IPC:
+- `load_image(file_path)`
+- `get_directory_images(file_path)`
+- `resolve_dropped_path(path)`
+- `get_exif_data(file_path)`
+- `get_archive_images(file_path)`
+- `load_archive_image(archive_path, entry_name)`
 
-| Command | File | Description |
-|---|---|---|
-| `load_image(file_path)` | `commands.rs` | Read file, detect MIME, encode to base64 → `ImageInfo` |
-| `get_directory_images(file_path)` | `commands.rs` | List sibling images in directory → `DirectoryImages` |
+When app is opened from file association, backend emits `open-file` event.
 
-The backend emits an `"open-file"` event (path string) to the frontend when:
-- **Windows/Linux**: App launched with a file path CLI argument (`lib.rs` setup hook)
-- **macOS**: `RunEvent::Opened` (file association)
+- Windows/Linux: CLI argument path in `.setup()`
+- macOS: `RunEvent::Opened` URL handling
 
-The frontend listens via `useOpenFileListener.ts`.
+Frontend listener: `src/hooks/useOpenFileListener.ts`.
 
-### Shared Types
+### Shared types and data model
 
-These types are serialized by Rust (`serde`) and deserialized by TypeScript. **Keep them in sync.**
+Keep Rust `serde` output aligned with TypeScript types.
 
-```typescript
-// src/types/index.ts
-type ImageInfo = {
-  base64: string       // Base64-encoded image data
-  mime_type: string    // e.g., "image/png"
-  file_name: string
-  file_size: number    // bytes
-}
+`ImageInfo` currently contains file metadata only:
 
-type DirectoryImages = {
-  images: string[]         // Absolute paths to all images in directory
-  current_index: number    // Index of current image in list
-}
-```
+- `file_path`
+- `mime_type`
+- `file_name`
+- `file_size`
 
-### State Management
+Do not reintroduce base64 payload fields unless explicitly required.
 
-**`appStore.ts`** (Zustand, in-memory):
-- `imageInfo`: current image data
-- `dirImages`: directory listing + current index
-- `zoom`, `position`: viewer state
-- `loading`, `error`, `isDragging`
-- `containerSize`, `imageSize`, `viewportSize`
-- Actions: `setZoomToFit()`, `zoomIn()`, `zoomOut()`, `resetZoomPan()`, `startDrag()`, `moveDrag()`
+### Rendering path
 
-**`settingsStore.ts`** (Zustand + Tauri Store plugin, persistent):
-- `cacheMode`: `"off" | "nearby" | "extended" | "memory-1gb" | "memory-2gb"`
-- `loopNavigation`: boolean
-- `viewMode`: `"single" | "left-to-right" | "right-to-left" | "webtoon"`
+Image rendering is path-based:
 
-### Image Cache
+- Backend returns filesystem path
+- Frontend converts path via `convertFileSrc(...)`
 
-`useImageCache.ts` implements an LRU in-memory cache:
+### Persistence
 
-| Mode | Max Images | Max Bytes | Prefetch Distance |
-|---|---|---|---|
-| `off` | 1 | — | 0 |
-| `nearby` | 24 | — | 1 |
-| `extended` | 64 | — | 3 |
-| `memory-1gb` | unlimited | 1 GB | 2 |
-| `memory-2gb` | unlimited | 2 GB | 3 |
+Tauri Store (`settings.json`) is used for:
 
-- Deduplicates in-flight requests (same file loading simultaneously waits for first)
-- Evicts LRU entries when count or byte budget is exceeded
-- Estimates base64 size as `string.length × 2` bytes
+- Viewer settings (`settingsStore`)
+- Recent files (`recentFilesStore`)
 
-## Coding Conventions
+## Code Conventions
 
-### TypeScript
+### TypeScript / React
 
-- **Use `type` not `interface`** for object/property types:
-  ```typescript
-  // Correct
-  type ImageInfo = { base64: string; mime_type: string }
-  // Wrong
-  interface ImageInfo { base64: string; mime_type: string }
-  ```
-- Strict mode is enabled — no unused locals/parameters
-- Path alias `@/` maps to `src/` (configured in tsconfig and vite.config)
-- Do not manually edit files in `src/components/ui/` — they are shadcn auto-generated
+- Prefer `type` over `interface` in this repository style
+- Keep business/domain logic inside hooks in `src/hooks/`
+- Keep components mostly presentational
+- Use Zustand selectors + `useShallow` for grouped subscriptions
+- Keep path alias usage consistent: `@/...`
+- Do not manually edit generated primitives in `src/components/ui/`
 
-### React & Components
+### Rust / Tauri
 
-- Business logic belongs in hooks (`src/hooks/`), not components
-- Components receive handlers and state from hooks as props
-- Use `useShallow` from Zustand when subscribing to multiple store fields
-- Components use Tailwind CSS 4 classes for styling
-- Use **`@base-ui/react`** for UI primitives — never `@radix-ui`
-- Add new shadcn components with: `npx shadcn@latest add <component>`
+- Add new Tauri commands in `src-tauri/src/commands.rs`
+- Register every new command in `src-tauri/src/lib.rs` `invoke_handler`
+- Keep extension and MIME logic in `src-tauri/src/image.rs`
+- Add/update Rust unit tests when changing supported formats
 
-### Rust
+## Common Change Playbooks
 
-- All Tauri commands are in `commands.rs`; image utilities in `image.rs`
-- Add unit tests for new image format support in `image.rs`
-- Command signatures must match TypeScript `invoke()` calls — update both together
-- Format with `rustfmt`, lint with `cargo clippy --deny warnings`
+### Add a new supported format
 
-### Git
+1. Update MIME mapping in `src-tauri/src/image.rs`
+2. Add/update tests in `src-tauri/src/image.rs`
+3. Update `src/constants/imageExtensions.ts`
+4. Update `src-tauri/tauri.conf.json` file associations if needed
+5. Update docs (`README.md` and this file when relevant)
 
-- Use **no-fast-forward merges** only: `git merge --no-ff`
-- Commit messages may be in English or Korean
+### Add a new backend command
 
-## Adding a New Image Format
+1. Implement command in `src-tauri/src/commands.rs` with `#[tauri::command]`
+2. Register in `src-tauri/src/lib.rs`
+3. Call from frontend using `invoke(...)` (usually from a hook)
+4. Update TypeScript types if payload/response shape changes
 
-1. `src-tauri/src/image.rs` — add extension to `get_mime_type()` and `is_image_file()`
-2. `src-tauri/src/image.rs` — add unit tests for the new extension
-3. `src/constants/imageExtensions.ts` — add the extension to the constants list
-4. `tauri.conf.json` — add to `fileAssociations` if desktop file association is desired
-5. Update the README format list
+## Testing Guidance
 
-## Adding a Tauri Command
+- Frontend test files: `src/**/*.test.{ts,tsx}`
+- Rust tests are colocated with source modules
+- Minimum validation after non-trivial changes:
+  1. `npm test`
+  2. `cd src-tauri && cargo test`
+  3. `npx tsc --noEmit`
 
-1. Define the Rust function in `src-tauri/src/commands.rs` with `#[tauri::command]`
-2. Register it in the `.invoke_handler()` call in `src-tauri/src/lib.rs`
-3. Call it from the frontend with `invoke("command_name", { arg })` — typically in a hook
+## Window / UX Notes
 
-## Testing
-
-**Frontend** (Vitest + jsdom):
-- Test files: `src/**/*.test.{ts,tsx}`
-- Existing tests: `imageExtensions`, `utils`, `cacheConfig`, `format`, `zoomPanUtils`
-- Run: `npm test`
-
-**Backend** (Rust):
-- Tests are co-located in source files (e.g., `image.rs` has 18 test cases)
-- Run: `cd src-tauri && cargo test`
-
-## Linux System Dependencies
-
-Required to build Tauri on Linux (Debian/Ubuntu):
-
-```bash
-sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file \
-  libssl-dev libayatana-appindicator3-dev librsvg2-dev
-```
-
-## Window & UI Notes
-
-- The window is **frameless** (no OS decorations) — `Header.tsx` provides the custom titlebar with minimize/maximize/close controls
-- Window state (size, position) is persisted via `tauri-plugin-window-state`
-- Theme (dark/light/system) is managed by `theme-provider.tsx`; press `D` to cycle themes
-- The app starts hidden and is shown after the webview is ready (`tauri.conf.json`: `visible: false`)
+- App window is frameless (`decorations: false`), custom titlebar is in `src/components/Header.tsx`
+- Window state persistence uses `tauri-plugin-window-state`
+- App starts hidden (`visible: false`) and appears after webview startup
