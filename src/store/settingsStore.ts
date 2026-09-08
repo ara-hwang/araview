@@ -3,11 +3,7 @@ import { Store as TauriStore } from "@tauri-apps/plugin-store"
 import { toast } from "sonner"
 
 export type CacheMode =
-  | "off"
-  | "nearby"
-  | "extended"
-  | "memory-1gb"
-  | "memory-2gb"
+  "off" | "nearby" | "extended" | "memory-1gb" | "memory-2gb"
 
 export type ViewMode = "single" | "left-to-right" | "right-to-left" | "webtoon"
 
@@ -82,10 +78,17 @@ export const updateSettings = async (partial: Partial<SettingsState>) => {
     const store = await getTauriStore()
     await store.set("settings", next)
     await store.save()
+    return true
   } catch (e) {
     // 설정 저장 실패는 UI 동작을 막지 않지만 사용자에게 알림
     toast.error("설정 저장 실패", { description: String(e) })
+    return false
   }
+}
+
+export const resetSettings = async () => {
+  const saved = await updateSettings({ ...initialSettings })
+  if (saved) toast.success("설정을 초기화했습니다")
 }
 
 export const initSettingsFromStore = async () => {

@@ -11,8 +11,6 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ImageRouteImport } from './routes/image'
-import { Route as PageRouteRouteImport } from './routes/page/route'
-import { Route as PageSettingsRouteImport } from './routes/page/settings'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -24,47 +22,30 @@ const ImageRoute = ImageRouteImport.update({
   path: '/image',
   getParentRoute: () => rootRouteImport,
 } as any)
-const PageRouteRoute = PageRouteRouteImport.update({
-  id: '/page',
-  path: '/page',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PageSettingsRoute = PageSettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
-  getParentRoute: () => PageRouteRoute,
-} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/page': typeof PageRouteRouteWithChildren
   '/image': typeof ImageRoute
-  '/page/settings': typeof PageSettingsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/page': typeof PageRouteRouteWithChildren
   '/image': typeof ImageRoute
-  '/page/settings': typeof PageSettingsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/page': typeof PageRouteRouteWithChildren
   '/image': typeof ImageRoute
-  '/page/settings': typeof PageSettingsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/page' | '/image' | '/page/settings'
+  fullPaths: '/' | '/image'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/page' | '/image' | '/page/settings'
-  id: '__root__' | '/' | '/page' | '/image' | '/page/settings'
+  to: '/' | '/image'
+  id: '__root__' | '/' | '/image'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  PageRouteRoute: typeof PageRouteRouteWithChildren
   ImageRoute: typeof ImageRoute
 }
 
@@ -84,38 +65,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ImageRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/page': {
-      id: '/page'
-      path: '/page'
-      fullPath: '/page'
-      preLoaderRoute: typeof PageRouteRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/page/settings': {
-      id: '/page/settings'
-      path: '/settings'
-      fullPath: '/page/settings'
-      preLoaderRoute: typeof PageSettingsRouteImport
-      parentRoute: typeof PageRouteRoute
-    }
   }
 }
 
-interface PageRouteRouteChildren {
-  PageSettingsRoute: typeof PageSettingsRoute
-}
-
-const PageRouteRouteChildren: PageRouteRouteChildren = {
-  PageSettingsRoute: PageSettingsRoute,
-}
-
-const PageRouteRouteWithChildren = PageRouteRoute._addFileChildren(
-  PageRouteRouteChildren,
-)
-
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  PageRouteRoute: PageRouteRouteWithChildren,
   ImageRoute: ImageRoute,
 }
 export const routeTree = rootRouteImport

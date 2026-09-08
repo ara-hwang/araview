@@ -157,3 +157,28 @@ pub fn load_archive_image(archive_path: String, entry_name: String) -> Result<Im
 
     crate::image::load_viewable(&extracted_path)
 }
+
+#[tauri::command]
+pub fn get_file_associations() -> Result<Vec<crate::file_assoc::FileAssociation>, String> {
+    crate::file_assoc::list_associations()
+}
+
+#[tauri::command]
+pub fn set_file_association(
+    extension: String,
+    associate: bool,
+) -> Result<crate::file_assoc::FileAssociation, String> {
+    crate::file_assoc::set_association(&extension, associate)
+}
+
+#[tauri::command]
+pub fn set_all_file_associations(
+    associate: bool,
+) -> Result<Vec<crate::file_assoc::FileAssociation>, String> {
+    crate::file_assoc::set_all_associations(associate)
+}
+
+#[tauri::command]
+pub fn open_default_apps_settings() -> Result<(), String> {
+    crate::file_assoc::open_default_apps_settings()
+}

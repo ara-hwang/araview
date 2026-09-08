@@ -87,12 +87,15 @@ cd src-tauri && cargo clippy
 
 ## 설정 항목
 
-- **Navigation**: 끝에서 정지 또는 루프 이동
-- **Cache Mode**
+설정은 헤더의 설정 버튼으로 여는 다이얼로그에서 관리합니다. 왼쪽 사이드바로 분류를 전환합니다.
+
+- **일반 / Navigation**: 끝에서 정지 또는 루프 이동
+- **일반 / Cache Mode**
   - `off`: 현재 이미지만 유지
   - `nearby`: 인접 이미지 중심 프리패치
   - `extended`: 더 넓은 범위 프리패치
   - `memory-1gb` / `memory-2gb`: 메모리 상한 기반 캐시
+- **확장자 연결**: 지원 확장자를 이 앱의 기본 프로그램으로 등록/해제. Windows 10/11은 일부 기본 앱 변경을 OS 설정에서만 허용할 수 있습니다.
 - **View Mode**: `single`, `left-to-right`, `right-to-left`, `webtoon`
 - **Slideshow Interval**: 슬라이드쇼 간격(ms)
 
@@ -107,6 +110,10 @@ cd src-tauri && cargo clippy
   - `get_exif_data(file_path)`
   - `get_archive_images(file_path)`
   - `load_archive_image(archive_path, entry_name)`
+  - `get_file_associations()`
+  - `set_file_association(extension, associate)`
+  - `set_all_file_associations(associate)`
+  - `open_default_apps_settings()`
 - 백엔드는 파일 경로/메타데이터를 반환하고, 프론트는 `convertFileSrc`로 렌더링합니다.
 - 파일 연동으로 앱이 실행되면 `open-file` 이벤트를 통해 대상 파일을 자동 오픈합니다.
 
@@ -123,6 +130,7 @@ src/
 
 src-tauri/
   src/commands.rs    # Tauri command
+  src/file_assoc.rs  # Windows 확장자 연결(레지스트리)
   src/image.rs       # MIME/확장자 판별, load_viewable
   src/heif.rs        # HEIC/HEIF 디코드 및 JPEG sidecar
   src/process_temp.rs # 프로세스 수명 임시 디렉터리
@@ -133,4 +141,4 @@ src-tauri/
 ## 참고
 
 - 앱 창은 프레임리스(`decorations: false`)로 동작합니다.
-- 파일 연결은 `src-tauri/tauri.conf.json`의 `bundle.fileAssociations`에서 관리합니다.
+- 파일 연결은 설정 다이얼로그의 확장자 탭에서 변경할 수 있습니다. 설치본 기본 연결은 `src-tauri/tauri.conf.json`의 `bundle.fileAssociations`에도 선언됩니다.
