@@ -18,6 +18,7 @@ This document provides repository-specific guidance for AI coding assistants.
 - Viewer controls: zoom, fit-to-width/height/screen, pan, rotate, flip
 - Navigation: previous/next, slider jump, thumbnail strip, optional loop navigation
 - Extra features: EXIF panel, slideshow, fullscreen, copy image to clipboard (PNG), recent files
+- File associations: per-extension default app registration from the settings dialog
 - Multi-page view modes: `single`, `left-to-right`, `right-to-left`, `webtoon`
 
 ## Commands
@@ -52,6 +53,7 @@ cd src-tauri && cargo clippy
 - Extension source of truth: `src/constants/imageExtensions.ts`
 - Rust commands: `src-tauri/src/commands.rs`
 - MIME/extension logic and tests: `src-tauri/src/image.rs`
+- Windows file association registry: `src-tauri/src/file_assoc.rs`
 - HEIC/HEIF JPEG sidecar decode: `src-tauri/src/heif.rs`
 - Tauri app setup and command registration: `src-tauri/src/lib.rs`
 - Tauri config and file associations: `src-tauri/tauri.conf.json`
@@ -68,6 +70,10 @@ Frontend uses `invoke()` for these commands:
 - `get_exif_data(file_path)`
 - `get_archive_images(file_path)`
 - `load_archive_image(archive_path, entry_name)`
+- `get_file_associations()`
+- `set_file_association(extension, associate)`
+- `set_all_file_associations(associate)`
+- `open_default_apps_settings()`
 
 When app is opened from file association, Windows passes the file path as a CLI argument. Backend reads it in `.setup()` and emits `open-file`.
 

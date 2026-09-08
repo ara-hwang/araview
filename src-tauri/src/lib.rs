@@ -1,12 +1,14 @@
 pub mod archive;
 pub mod commands;
+pub mod file_assoc;
 pub mod heif;
 pub mod image;
 pub mod process_temp;
 
 use commands::{
-    get_archive_images, get_directory_images, get_exif_data, load_archive_image, load_image,
-    resolve_dropped_path,
+    get_archive_images, get_directory_images, get_exif_data, get_file_associations,
+    load_archive_image, load_image, open_default_apps_settings, resolve_dropped_path,
+    set_all_file_associations, set_file_association,
 };
 use tauri::Emitter;
 
@@ -23,7 +25,11 @@ pub fn run() {
             get_exif_data,
             resolve_dropped_path,
             get_archive_images,
-            load_archive_image
+            load_archive_image,
+            get_file_associations,
+            set_file_association,
+            set_all_file_associations,
+            open_default_apps_settings
         ])
         .setup(|app| {
             // Windows passes the file path as a CLI argument

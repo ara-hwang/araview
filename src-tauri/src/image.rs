@@ -18,6 +18,11 @@ pub enum PaintStrategy {
 
 const TRANSCODE_MIMES: &[&str] = &["image/heic", "image/heif"];
 
+pub const SUPPORTED_EXTENSIONS: &[&str] = &[
+    "png", "jpg", "jpeg", "gif", "bmp", "webp", "svg", "ico", "tiff", "tif", "avif", "heic",
+    "heif", "cbz",
+];
+
 #[derive(Serialize)]
 pub struct DirectoryImages {
     pub images: Vec<String>,
@@ -244,6 +249,17 @@ mod tests {
         assert!(is_supported_file(Path::new("photo.png")));
         assert!(is_supported_file(Path::new("comic.cbz")));
         assert!(!is_supported_file(Path::new("doc.pdf")));
+    }
+
+    #[test]
+    fn supported_extensions_all_have_mime_types() {
+        for ext in SUPPORTED_EXTENSIONS {
+            assert!(
+                get_mime_type(Path::new(&format!("file.{ext}"))).is_some(),
+                "missing MIME mapping for .{ext}"
+            );
+        }
+        assert_eq!(SUPPORTED_EXTENSIONS.len(), 14);
     }
 
     #[test]

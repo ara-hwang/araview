@@ -1,125 +1,115 @@
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
-import { Label } from "@/components/ui/label"
+import { useState } from "react"
 import {
-  updateSettings,
-  useSettingsStore,
-  type CacheMode,
-  type SettingsState
-} from "@/store/settingsStore"
-import { HardDriveIcon, NavigationIcon } from "lucide-react"
-import {
-  Field,
-  FieldDescription,
-  FieldGroup,
-  FieldLegend,
-  FieldSeparator,
-  FieldSet
-} from "./ui/field"
-import { useShallow } from "zustand/react/shallow"
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle
+} from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Separator } from "@/components/ui/separator"
+import { GeneralSettingsPanel } from "@/components/settings/GeneralSettingsPanel"
+import { ExtensionSettingsPanel } from "@/components/settings/ExtensionSettingsPanel"
+import { resetSettings } from "@/store/settingsStore"
+import { cn } from "cn"
+import { FileTypeIcon, SettingsIcon } from "lucide-react"
+
+type SettingsTab = "general" | "extensions"
 
 type SettingsDialogProps = {
   open: boolean
   onClose: () => void
 }
 
-export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
-  const settings = useSettingsStore(
-    useShallow((state) => ({
-      loopNavigation: state.loopNavigation,
-      cacheMode: state.cacheMode,
-      viewMode: state.viewMode
-    }))
-  )
+const SIDEBAR_ITEMS: {
+  id: SettingsTab
+  label: string
+  icon: typeof SettingsIcon
+}[] = [
+  { id: "general", label: "일반", icon: SettingsIcon },
+  { id: "extensions", label: "확장자", icon: FileTypeIcon }
+]
 
-  const handleSettingsChange = (next: Partial<SettingsState>) => {
-    void updateSettings(next)
+export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
+  const [tab, setTab] = useState<SettingsTab>("general")
+
+  const close = () => {
+    setTab("general")
+    onClose()
+  }
+
+  const handleOpenChange = (isOpen: boolean) => {
+    if (!isOpen) close()
   }
 
   return (
-    <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <DialogContent>
-        <DialogTitle>Settings</DialogTitle>
-        <FieldGroup>
-          {/* Navigation */}
-          <CustomFieldSet
-            icon={<NavigationIcon className="size-4" />}
-            title="Navigation"
-            description="Navigation mode for the image viewer"
-          >
-            <RadioGroup
-              value={settings.loopNavigation ? "loop" : "stop"}
-              onValueChange={(value) =>
-                handleSettingsChange({ loopNavigation: value === "loop" })
-              }
-            >
-              <Field orientation="horizontal">
-                <RadioGroupItem value="stop" id="stop" />
-                <Label htmlFor="stop">Stop at first / last image</Label>
-              </Field>
-              <Field orientation="horizontal">
-                <RadioGroupItem value="loop" id="loop" />
-                <Label htmlFor="loop">Loop through images</Label>
-              </Field>
-            </RadioGroup>
-          </CustomFieldSet>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent className="no-drag w-[720px] max-w-[calc(100%-2rem)] gap-0 overflow-hidden p-0 sm:max-w-[720px]">
+        <div className="flex h-[min(560px,80vh)] flex-col">
+          <div className="border-b px-4 py-3 pr-12">
+            <DialogTitle>환경 설정</DialogTitle>
+            <DialogDescription className="sr-only">
+              이미지 뷰어 설정과 파일 확장자 연결을 변경합니다.
+            </DialogDescription>
+          </div>
 
-          <FieldSeparator />
+          <div className="flex min-h-0 flex-1">
+            <aside className="flex w-44 shrink-0 flex-col border-r">
+              <nav className="flex flex-1 flex-col gap-1 p-2">
+                {SIDEBAR_ITEMS.map((item) => {
+                  const Icon = item.icon
+                  const active = tab === item.id
+                  return (
+                    <Button
+                      key={item.id}
+                      variant="ghost"
+                      className={cn(
+                        "w-full justify-start",
+                        active &&
+                          "bg-primary/10 text-primary hover:bg-primary/10 hover:text-primary"
+                      )}
+                      onClick={() => setTab(item.id)}
+                    >
+                      <Icon data-icon="inline-start" />
+                      {item.label}
+                    </Button>
+                  )
+                })}
+              </nav>
+              <Separator />
+              <div className="p-2">
+                <Button
+                  variant="ghost"
+                  className="w-full"
+                  onClick={() => void resetSettings()}
+                >
+                  초기화
+                </Button>
+              </div>
+            </aside>
 
-          {/* Cache */}
-          <CustomFieldSet
-            icon={<HardDriveIcon className="size-4" />}
-            title="Cache"
-            description="Cache mode for the image viewer"
-          >
-            <RadioGroup
-              value={settings.cacheMode}
-              onValueChange={(value) =>
-                handleSettingsChange({ cacheMode: value as CacheMode })
-              }
-            >
-              <Field orientation="horizontal">
-                <RadioGroupItem value="off" id="off" />
-                <Label htmlFor="off">Off (current image only)</Label>
-              </Field>
-              <Field orientation="horizontal">
-                <RadioGroupItem value="nearby" id="nearby" />
-                <Label htmlFor="nearby">Nearby (previous / next preload)</Label>
-              </Field>
-              <Field orientation="horizontal">
-                <RadioGroupItem value="extended" id="extended" />
-                <Label htmlFor="extended">Extended (up to ±3 preload)</Label>
-              </Field>
-              <Field orientation="horizontal">
-                <RadioGroupItem value="memory-1gb" id="memory-1gb" />
-                <Label htmlFor="memory-1gb">Memory limit (1 GB)</Label>
-              </Field>
-              <Field orientation="horizontal">
-                <RadioGroupItem value="memory-2gb" id="memory-2gb" />
-                <Label htmlFor="memory-2gb">Memory limit (2 GB)</Label>
-              </Field>
-            </RadioGroup>
-          </CustomFieldSet>
-        </FieldGroup>
+            <div className="flex min-w-0 flex-1 flex-col">
+              <ScrollArea className="h-full min-h-0 flex-1">
+                <div className="p-4">
+                  {tab === "general" ? (
+                    <>
+                      <h3 className="mb-4 text-base font-medium">일반 설정</h3>
+                      <GeneralSettingsPanel />
+                    </>
+                  ) : (
+                    <ExtensionSettingsPanel
+                      active={open && tab === "extensions"}
+                    />
+                  )}
+                </div>
+              </ScrollArea>
+              <div className="flex justify-end border-t p-3">
+                <Button onClick={close}>확인</Button>
+              </div>
+            </div>
+          </div>
+        </div>
       </DialogContent>
     </Dialog>
-  )
-}
-
-function CustomFieldSet(props: {
-  icon: React.ReactNode
-  title: string
-  description: string
-  children: React.ReactNode
-}) {
-  return (
-    <FieldSet>
-      <FieldLegend className="flex items-center gap-2">
-        {props.icon}
-        {props.title}
-      </FieldLegend>
-      <FieldDescription>{props.description}</FieldDescription>
-      {props.children}
-    </FieldSet>
   )
 }
