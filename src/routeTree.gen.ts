@@ -9,11 +9,16 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as IndexRouteImport } from './routes/index'
 import { Route as ImageRouteImport } from './routes/image'
 import { Route as PageRouteRouteImport } from './routes/page/route'
-import { Route as IndexRouteImport } from './routes/index'
 import { Route as PageSettingsRouteImport } from './routes/page/settings'
 
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ImageRoute = ImageRouteImport.update({
   id: '/image',
   path: '/image',
@@ -22,11 +27,6 @@ const ImageRoute = ImageRouteImport.update({
 const PageRouteRoute = PageRouteRouteImport.update({
   id: '/page',
   path: '/page',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PageSettingsRoute = PageSettingsRouteImport.update({
@@ -70,6 +70,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/image': {
       id: '/image'
       path: '/image'
@@ -82,13 +89,6 @@ declare module '@tanstack/react-router' {
       path: '/page'
       fullPath: '/page'
       preLoaderRoute: typeof PageRouteRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/page/settings': {
