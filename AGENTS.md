@@ -18,7 +18,7 @@ This document provides repository-specific guidance for AI coding assistants.
 - Viewer controls: zoom, fit-to-width/height/screen, pan, rotate, flip
 - Navigation: previous/next, slider jump, thumbnail strip, optional loop navigation
 - Extra features: EXIF panel, slideshow, fullscreen, copy image to clipboard (PNG), recent files
-- File associations: per-extension default app registration from the settings dialog
+- File associations: settings open the Windows per-extension default-app picker; silent UserChoice writes are not possible
 - Multi-page view modes: `single`, `left-to-right`, `right-to-left`, `webtoon`
 
 ## Commands

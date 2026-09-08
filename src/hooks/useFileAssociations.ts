@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react"
 import { invoke } from "@tauri-apps/api/core"
+import { getCurrentWindow } from "@tauri-apps/api/window"
 import { toast } from "sonner"
 import type { FileAssociation } from "@/types"
 
@@ -30,6 +31,25 @@ export function useFileAssociations(enabled: boolean) {
   useEffect(() => {
     if (!enabled) return
     void refresh()
+
+    let cancelled = false
+    let unlisten: (() => void) | undefined
+    void getCurrentWindow()
+      .onFocusChanged(({ payload: focused }) => {
+        if (focused) void refresh()
+      })
+      .then((fn) => {
+        if (cancelled) {
+          fn()
+          return
+        }
+        unlisten = fn
+      })
+
+    return () => {
+      cancelled = true
+      unlisten?.()
+    }
   }, [enabled, refresh])
 
   const setAssociation = useCallback(
@@ -43,11 +63,8 @@ export function useFileAssociations(enabled: boolean) {
         setItems((prev) =>
           prev.map((item) => (item.extension === extension ? next : item))
         )
-        if (associate && !next.associated) {
-          toast.warning("Windows에서 기본 앱 확인이 필요합니다")
-        }
       } catch (error) {
-        toast.error("확장자 연결에 실패했습니다", {
+        toast.error("기본 앱 선택 창을 열지 못했습니다", {
           description: String(error)
         })
       } finally {
@@ -67,13 +84,11 @@ export function useFileAssociations(enabled: boolean) {
         }
       )
       setItems(next)
-      if (associate && hasBlockedAssociation(next)) {
-        toast.warning(
-          "일부 확장자는 Windows 기본 앱 설정에서 확인이 필요합니다"
-        )
-      }
+      toast.info("Windows 설정에서 기본 앱을 선택하세요")
     } catch (error) {
-      toast.error("확장자 연결에 실패했습니다", { description: String(error) })
+      toast.error("Windows 설정을 열지 못했습니다", {
+        description: String(error)
+      })
     } finally {
       setPendingAll(false)
     }

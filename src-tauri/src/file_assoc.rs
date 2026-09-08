@@ -1,7 +1,11 @@
+use std::ffi::c_void;
+use std::os::windows::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
+use std::ptr;
+use std::time::Duration;
 
 use serde::Serialize;
-use winreg::enums::{HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, KEY_READ, KEY_SET_VALUE};
+use winreg::enums::{HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE};
 use winreg::{RegKey, HKEY};
 
 use crate::image::SUPPORTED_EXTENSIONS;
@@ -28,22 +32,24 @@ pub fn list_associations() -> Result<Vec<FileAssociation>, String> {
         .collect()
 }
 
-pub fn set_association(extension: &str, associate: bool) -> Result<FileAssociation, String> {
+pub fn set_association(
+    extension: &str,
+    _associate: bool,
+    parent_hwnd: *mut c_void,
+) -> Result<FileAssociation, String> {
     let ext = parse_extension(extension)?;
     let exe = current_exe()?;
     ensure_application_registration(&exe)?;
-    apply_association(&ext, associate, &exe)?;
-    notify_assoc_changed();
-    status_for(&ext, &exe)
+    if open_extension_picker(&ext, parent_hwnd).is_err() {
+        open_settings_uri(&file_extension_settings_uri(&ext))?;
+    }
+    status_after_picker(&ext, &exe)
 }
 
-pub fn set_all_associations(associate: bool) -> Result<Vec<FileAssociation>, String> {
+pub fn set_all_associations(_associate: bool) -> Result<Vec<FileAssociation>, String> {
     let exe = current_exe()?;
     ensure_application_registration(&exe)?;
-    for ext in SUPPORTED_EXTENSIONS {
-        apply_association(ext, associate, &exe)?;
-    }
-    notify_assoc_changed();
+    open_settings_uri(&default_apps_settings_uri())?;
     SUPPORTED_EXTENSIONS
         .iter()
         .map(|ext| status_for(ext, &exe))
@@ -51,11 +57,20 @@ pub fn set_all_associations(associate: bool) -> Result<Vec<FileAssociation>, Str
 }
 
 pub fn open_default_apps_settings() -> Result<(), String> {
-    std::process::Command::new("explorer.exe")
-        .arg("ms-settings:defaultapps")
-        .spawn()
-        .map_err(|e| format!("Failed to open Windows default apps settings: {e}"))?;
-    Ok(())
+    let exe = current_exe()?;
+    ensure_application_registration(&exe)?;
+    open_settings_uri(&default_apps_settings_uri())
+}
+
+pub fn default_apps_settings_uri() -> String {
+    format!(
+        "ms-settings:defaultapps?registeredAppUser={}",
+        APP_NAME.replace(' ', "%20")
+    )
+}
+
+pub fn file_extension_settings_uri(ext: &str) -> String {
+    format!("ms-settings:defaultapps?fileExtension=.{ext}")
 }
 
 pub fn prog_id_for(ext: &str) -> String {
@@ -74,8 +89,15 @@ pub fn parse_extension(raw: &str) -> Result<String, String> {
 }
 
 pub fn is_our_prog_id(prog_id: &str) -> bool {
-    let prefix = format!("{BUNDLE_ID}.");
-    prog_id.eq_ignore_ascii_case(BUNDLE_ID) || starts_with_ignore_ascii_case(prog_id, &prefix)
+    let bundle_prefix = format!("{BUNDLE_ID}.");
+    if prog_id.eq_ignore_ascii_case(BUNDLE_ID)
+        || starts_with_ignore_ascii_case(prog_id, &bundle_prefix)
+    {
+        return true;
+    }
+    let installer_prefix = format!("{APP_NAME}.");
+    prog_id.eq_ignore_ascii_case(APP_NAME)
+        || starts_with_ignore_ascii_case(prog_id, &installer_prefix)
 }
 
 pub fn extract_exe_from_command(command: &str) -> Option<String> {
@@ -94,7 +116,7 @@ fn current_exe() -> Result<PathBuf, String> {
 }
 
 fn status_for(ext: &str, exe: &Path) -> Result<FileAssociation, String> {
-    let user_choice = read_user_choice(ext);
+    let user_choice = read_user_choice_latest(ext).or_else(|| read_user_choice(ext));
     let classes_default = read_classes_default(HKEY_CURRENT_USER, ext)
         .or_else(|| read_classes_default(HKEY_LOCAL_MACHINE, ext));
     let current_prog_id = user_choice.clone().or(classes_default);
@@ -122,72 +144,6 @@ fn is_handled_by_us(prog_id: &str, exe: &Path) -> bool {
         .is_some_and(|command_exe| paths_equal(&command_exe, exe))
 }
 
-fn apply_association(ext: &str, associate: bool, exe: &Path) -> Result<(), String> {
-    if associate {
-        associate_extension(ext, exe)
-    } else {
-        unassociate_extension(ext, exe)
-    }
-}
-
-fn associate_extension(ext: &str, exe: &Path) -> Result<(), String> {
-    let prog_id = prog_id_for(ext);
-    write_prog_id(&prog_id, ext, exe)?;
-
-    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
-    let (ext_key, _) = hkcu.create_subkey(classes_ext_path(ext)).map_err(reg_err)?;
-
-    if let Ok(current) = ext_key.get_value::<String, _>("") {
-        if !current.is_empty() && !is_our_prog_id(&current) {
-            let backup_name = format!("{prog_id}_backup");
-            let _ = ext_key.set_value(&backup_name, &current);
-        }
-    }
-
-    ext_key.set_value("", &prog_id).map_err(reg_err)?;
-
-    let (open_with, _) = ext_key.create_subkey("OpenWithProgids").map_err(reg_err)?;
-    open_with.set_value(&prog_id, &"").map_err(reg_err)?;
-
-    let (file_exts, _) = hkcu
-        .create_subkey(file_exts_open_with_path(ext))
-        .map_err(reg_err)?;
-    file_exts.set_value(&prog_id, &"").map_err(reg_err)?;
-
-    Ok(())
-}
-
-fn unassociate_extension(ext: &str, exe: &Path) -> Result<(), String> {
-    let prog_id = prog_id_for(ext);
-    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
-    let Ok(ext_key) = hkcu.open_subkey_with_flags(classes_ext_path(ext), KEY_READ | KEY_SET_VALUE)
-    else {
-        return Ok(());
-    };
-
-    if let Ok(current) = ext_key.get_value::<String, _>("") {
-        if is_handled_by_us(&current, exe) {
-            let backup_name = format!("{current}_backup");
-            if let Ok(previous) = ext_key.get_value::<String, _>(&backup_name) {
-                ext_key.set_value("", &previous).map_err(reg_err)?;
-            } else {
-                let _ = ext_key.delete_value("");
-            }
-        }
-    }
-
-    if let Ok(open_with) = ext_key.open_subkey_with_flags("OpenWithProgids", KEY_SET_VALUE) {
-        let _ = open_with.delete_value(&prog_id);
-    }
-
-    if let Ok(file_exts) = hkcu.open_subkey_with_flags(file_exts_open_with_path(ext), KEY_SET_VALUE)
-    {
-        let _ = file_exts.delete_value(&prog_id);
-    }
-
-    Ok(())
-}
-
 fn ensure_application_registration(exe: &Path) -> Result<(), String> {
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
     let (capabilities, _) = hkcu.create_subkey(CAPABILITIES_PATH).map_err(reg_err)?;
@@ -209,6 +165,7 @@ fn ensure_application_registration(exe: &Path) -> Result<(), String> {
             .set_value(format!(".{ext}"), &prog_id_for(ext))
             .map_err(reg_err)?;
         write_prog_id(&prog_id_for(ext), ext, exe)?;
+        register_open_with(ext)?;
     }
 
     let (registered, _) = hkcu
@@ -217,6 +174,20 @@ fn ensure_application_registration(exe: &Path) -> Result<(), String> {
     registered
         .set_value(APP_NAME, &CAPABILITIES_PATH)
         .map_err(reg_err)?;
+    Ok(())
+}
+
+fn register_open_with(ext: &str) -> Result<(), String> {
+    let prog_id = prog_id_for(ext);
+    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+    let (ext_key, _) = hkcu.create_subkey(classes_ext_path(ext)).map_err(reg_err)?;
+    let (open_with, _) = ext_key.create_subkey("OpenWithProgids").map_err(reg_err)?;
+    open_with.set_value(&prog_id, &"").map_err(reg_err)?;
+
+    let (file_exts, _) = hkcu
+        .create_subkey(file_exts_open_with_path(ext))
+        .map_err(reg_err)?;
+    file_exts.set_value(&prog_id, &"").map_err(reg_err)?;
     Ok(())
 }
 
@@ -257,6 +228,21 @@ fn read_user_choice(ext: &str) -> Option<String> {
         ))
         .ok()?;
     nonempty_reg_string(key.get_value("ProgId").ok())
+}
+
+fn read_user_choice_latest(ext: &str) -> Option<String> {
+    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+    let key = hkcu
+        .open_subkey(user_choice_latest_prog_id_path(ext))
+        .ok()?;
+    nonempty_reg_string(key.get_value("ProgId").ok())
+        .or_else(|| nonempty_reg_string(key.get_value("").ok()))
+}
+
+fn user_choice_latest_prog_id_path(ext: &str) -> String {
+    format!(
+        r"Software\Microsoft\Windows\CurrentVersion\Explorer\FileExts\.{ext}\UserChoiceLatest\ProgId"
+    )
 }
 
 fn read_classes_default(hive: HKEY, ext: &str) -> Option<String> {
@@ -308,29 +294,182 @@ fn reg_err(error: impl std::fmt::Display) -> String {
     format!("Registry error: {error}")
 }
 
-fn notify_assoc_changed() {
-    const SHCNE_ASSOCCHANGED: i32 = 0x0800_0000;
-    const SHCNF_IDLIST: u32 = 0x0000;
-    // SAFETY: SHCNE_ASSOCCHANGED with SHCNF_IDLIST and null items is the documented
-    // shell notification for file association changes.
-    unsafe {
-        SHChangeNotify(
-            SHCNE_ASSOCCHANGED,
-            SHCNF_IDLIST,
-            std::ptr::null(),
-            std::ptr::null(),
-        );
+fn open_settings_uri(uri: &str) -> Result<(), String> {
+    let file: Vec<u16> = std::ffi::OsStr::new(uri)
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect();
+    const SW_SHOWNORMAL: i32 = 1;
+    // SAFETY: ShellExecuteW is called with a NUL-terminated UTF-16 URI and null
+    // optional arguments, which matches the documented "open a URI" usage.
+    let result = unsafe {
+        ShellExecuteW(
+            ptr::null_mut(),
+            ptr::null(),
+            file.as_ptr(),
+            ptr::null(),
+            ptr::null(),
+            SW_SHOWNORMAL,
+        )
+    };
+    if result <= 32 {
+        return Err(format!(
+            "Failed to open Windows default apps settings (code {result})"
+        ));
     }
+    Ok(())
+}
+
+fn status_after_picker(ext: &str, exe: &Path) -> Result<FileAssociation, String> {
+    let first = status_for(ext, exe)?;
+    for _ in 0..8 {
+        std::thread::sleep(Duration::from_millis(125));
+        let next = status_for(ext, exe)?;
+        if next != first {
+            return Ok(next);
+        }
+    }
+    status_for(ext, exe)
+}
+
+fn open_extension_picker(ext: &str, parent_hwnd: *mut c_void) -> Result<(), String> {
+    let dotted = format!(".{ext}");
+    let wide: Vec<u16> = std::ffi::OsStr::new(&dotted)
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect();
+    let clsid = read_open_with_launcher_clsid()?;
+
+    // SAFETY: COM is initialized on this thread, CLSID/IID are well-formed, and
+    // the IOpenWithLauncher pointer is released before CoUninitialize.
+    unsafe {
+        let init_hr = CoInitializeEx(ptr::null_mut(), COINIT_APARTMENTTHREADED);
+        if init_hr < 0 && init_hr != RPC_E_CHANGED_MODE {
+            return Err(format!("COM initialize failed ({init_hr:#x})"));
+        }
+        let should_uninit = init_hr == 0;
+
+        let mut punk: *mut c_void = ptr::null_mut();
+        let create_hr = CoCreateInstance(
+            &clsid,
+            ptr::null_mut(),
+            CLSCTX_LOCAL_SERVER,
+            &IID_IOPEN_WITH_LAUNCHER,
+            &mut punk,
+        );
+        if create_hr < 0 || punk.is_null() {
+            if should_uninit {
+                CoUninitialize();
+            }
+            return Err(format!("OpenWithLauncher create failed ({create_hr:#x})"));
+        }
+
+        CoAllowSetForegroundWindow(punk, ptr::null_mut());
+
+        let launcher = punk as *mut IOpenWithLauncher;
+        let launch_hr = ((*(*launcher).vtbl).launch)(launcher, parent_hwnd, wide.as_ptr(), 0x2004);
+        ((*(*launcher).vtbl).release)(launcher);
+
+        if should_uninit {
+            CoUninitialize();
+        }
+
+        if launch_hr >= 0 || launch_hr == HRESULT_CANCELLED {
+            Ok(())
+        } else {
+            Err(format!("OpenWithLauncher launch failed ({launch_hr:#x})"))
+        }
+    }
+}
+
+fn read_open_with_launcher_clsid() -> Result<Guid, String> {
+    guid_from_string(&read_open_with_launcher_clsid_string()?)
+}
+
+fn read_open_with_launcher_clsid_string() -> Result<String, String> {
+    let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
+    let key = hklm
+        .open_subkey(r"SOFTWARE\Microsoft\Windows\CurrentVersion\OpenWith")
+        .map_err(reg_err)?;
+    key.get_value("OpenWithLauncher").map_err(reg_err)
+}
+
+fn guid_from_string(value: &str) -> Result<Guid, String> {
+    let wide: Vec<u16> = std::ffi::OsStr::new(value)
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect();
+    let mut guid = Guid {
+        data1: 0,
+        data2: 0,
+        data3: 0,
+        data4: [0; 8],
+    };
+    let hr = unsafe { CLSIDFromString(wide.as_ptr(), &mut guid) };
+    if hr < 0 {
+        return Err(format!("Invalid OpenWithLauncher CLSID: {value}"));
+    }
+    Ok(guid)
+}
+
+#[repr(C)]
+struct Guid {
+    data1: u32,
+    data2: u16,
+    data3: u16,
+    data4: [u8; 8],
+}
+
+#[repr(C)]
+struct IOpenWithLauncher {
+    vtbl: *const IOpenWithLauncherVtbl,
+}
+
+#[repr(C)]
+struct IOpenWithLauncherVtbl {
+    query_interface:
+        unsafe extern "system" fn(*mut IOpenWithLauncher, *const Guid, *mut *mut c_void) -> i32,
+    add_ref: unsafe extern "system" fn(*mut IOpenWithLauncher) -> u32,
+    release: unsafe extern "system" fn(*mut IOpenWithLauncher) -> u32,
+    launch: unsafe extern "system" fn(*mut IOpenWithLauncher, *mut c_void, *const u16, i32) -> i32,
+}
+
+const COINIT_APARTMENTTHREADED: u32 = 0x2;
+const CLSCTX_LOCAL_SERVER: u32 = 0x4;
+const RPC_E_CHANGED_MODE: i32 = 0x8001_0106u32 as i32;
+const HRESULT_CANCELLED: i32 = 0x8007_04C7u32 as i32;
+const IID_IOPEN_WITH_LAUNCHER: Guid = Guid {
+    data1: 0x6A28_3FE2,
+    data2: 0xECFA,
+    data3: 0x4599,
+    data4: [0x91, 0xC4, 0xE8, 0x09, 0x57, 0x13, 0x7B, 0x26],
+};
+
+#[link(name = "ole32")]
+extern "system" {
+    fn CoInitializeEx(pvreserved: *mut c_void, dwcoinit: u32) -> i32;
+    fn CoUninitialize();
+    fn CoCreateInstance(
+        rclsid: *const Guid,
+        punkouter: *mut c_void,
+        dwclscontext: u32,
+        riid: *const Guid,
+        ppv: *mut *mut c_void,
+    ) -> i32;
+    fn CLSIDFromString(lpsz: *const u16, pclsid: *mut Guid) -> i32;
+    fn CoAllowSetForegroundWindow(punk: *mut c_void, reserved: *mut c_void) -> i32;
 }
 
 #[link(name = "shell32")]
 extern "system" {
-    fn SHChangeNotify(
-        w_event_id: i32,
-        u_flags: u32,
-        dw_item1: *const std::ffi::c_void,
-        dw_item2: *const std::ffi::c_void,
-    );
+    fn ShellExecuteW(
+        hwnd: *mut c_void,
+        lp_operation: *const u16,
+        lp_file: *const u16,
+        lp_parameters: *const u16,
+        lp_directory: *const u16,
+        n_show_cmd: i32,
+    ) -> isize;
 }
 
 #[cfg(test)]
@@ -355,6 +494,8 @@ mod tests {
     fn is_our_prog_id_matches_bundle_prefix() {
         assert!(is_our_prog_id("com.tauri-image-viewer.app.png"));
         assert!(is_our_prog_id("COM.TAURI-IMAGE-VIEWER.APP.JPG"));
+        assert!(is_our_prog_id("Image Viewer.png"));
+        assert!(is_our_prog_id("image viewer.jpg"));
         assert!(!is_our_prog_id("Image"));
         assert!(!is_our_prog_id("jpegfile"));
         assert!(!is_our_prog_id("AppX123"));
@@ -384,5 +525,52 @@ mod tests {
             default_icon(exe),
             r#""C:\Program Files\Image Viewer\app.exe",0"#
         );
+    }
+
+    #[test]
+    fn default_apps_settings_uri_uses_registered_app_user() {
+        assert_eq!(
+            default_apps_settings_uri(),
+            "ms-settings:defaultapps?registeredAppUser=Image%20Viewer"
+        );
+    }
+
+    #[test]
+    fn file_extension_settings_uri_targets_the_extension() {
+        assert_eq!(
+            file_extension_settings_uri("png"),
+            "ms-settings:defaultapps?fileExtension=.png"
+        );
+        assert_eq!(
+            file_extension_settings_uri("cbz"),
+            "ms-settings:defaultapps?fileExtension=.cbz"
+        );
+    }
+
+    #[test]
+    fn guid_from_string_parses_braced_clsid() {
+        let guid = guid_from_string("{6A283FE2-ECFA-4599-91C4-E80957137B26}").unwrap();
+        assert_eq!(guid.data1, 0x6A28_3FE2);
+        assert_eq!(guid.data2, 0xECFA);
+        assert_eq!(guid.data3, 0x4599);
+        assert_eq!(
+            guid.data4,
+            [0x91, 0xC4, 0xE8, 0x09, 0x57, 0x13, 0x7B, 0x26]
+        );
+    }
+
+    #[test]
+    fn user_choice_latest_path_targets_prog_id_subkey() {
+        assert_eq!(
+            user_choice_latest_prog_id_path("png"),
+            r"Software\Microsoft\Windows\CurrentVersion\Explorer\FileExts\.png\UserChoiceLatest\ProgId"
+        );
+    }
+
+    #[test]
+    fn open_with_launcher_clsid_is_registered() {
+        let value = read_open_with_launcher_clsid_string().unwrap();
+        assert!(value.starts_with('{'));
+        assert!(guid_from_string(&value).is_ok());
     }
 }

@@ -41,7 +41,8 @@ export function ExtensionSettingsPanel({
       <div className="flex flex-col gap-1">
         <h3 className="text-base font-medium">확장자 연결</h3>
         <p className="text-muted-foreground text-sm">
-          이 앱을 해당 파일 형식의 기본 프로그램으로 연결합니다.
+          연결을 바꾸면 해당 확장자의 기본 앱 선택 창이 열립니다. Windows는 앱이
+          기본 프로그램을 직접 지정하는 것을 허용하지 않습니다.
         </p>
       </div>
 
@@ -109,9 +110,8 @@ export function ExtensionSettingsPanel({
           <CircleAlertIcon />
           <AlertTitle>Windows에서 기본 앱을 확인해야 합니다</AlertTitle>
           <AlertDescription>
-            Windows 10/11은 일부 확장자의 기본 앱 변경을 OS 설정에서만
-            허용합니다. 연결을 켠 뒤에도 적용되지 않으면 Windows 설정에서 Image
-            Viewer를 선택하세요.
+            Windows 10/11은 기본 앱 변경을 시스템 선택 창에서만 허용합니다. 열린
+            창에서 Image Viewer를 선택하세요.
           </AlertDescription>
         </Alert>
       ) : null}
