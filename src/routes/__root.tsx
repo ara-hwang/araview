@@ -1,5 +1,5 @@
 import { createRootRoute, Outlet } from "@tanstack/react-router"
-import { Toaster } from "sonner"
+import { Toaster } from "@/components/ui/sonner"
 import { ThemeProvider } from "@/components/theme-provider"
 import Header from "@/components/Header"
 import { Separator } from "@/components/ui/separator"
