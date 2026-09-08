@@ -1,6 +1,11 @@
 import { create } from "zustand"
 import { DirectoryImages, ExifData, ImageInfo } from "@/types"
-import { clampPosition, getPositionBounds } from "@/utils/zoomPanUtils"
+import {
+  clampPosition,
+  getFitZoomFromSizes,
+  getMinZoom,
+  getPositionBounds
+} from "@/utils/zoomPanUtils"
 
 type AppState = {
   theme: "system" | "light" | "dark"
@@ -102,11 +107,12 @@ export const getApp = () => useAppStore.getState()
 
 export const getFitZoom = (): number => {
   const { containerSize, imageSize } = useAppStore.getState()
-  const { width: cw, height: ch } = containerSize
-  const { width: iw, height: ih } = imageSize
-  if (iw <= 0 || ih <= 0) return 1
-  const fit = Math.min(cw / iw, ch / ih)
-  return fit * (1 + 1e-6)
+  return getFitZoomFromSizes(
+    containerSize.width,
+    containerSize.height,
+    imageSize.width,
+    imageSize.height
+  )
 }
 
 export const setZoomToFit = (mode: "width" | "height" | "screen") => {
@@ -138,8 +144,13 @@ export const zoomInBy = (factor = 1.25) => {
 }
 
 export const zoomOutBy = (factor = 1.25) => {
-  const minZoom = getFitZoom()
-  const { zoom } = useAppStore.getState()
+  const { zoom, containerSize, imageSize } = useAppStore.getState()
+  const minZoom = getMinZoom(
+    containerSize.width,
+    containerSize.height,
+    imageSize.width,
+    imageSize.height
+  )
   const next = Math.max(zoom / factor, minZoom)
   useAppStore.setState((s) => ({ ...s, zoom: next }))
 }
@@ -150,12 +161,20 @@ export const zoomOut = () => zoomOutBy(1.25)
 export const resetZoomPan = () => {
   useAppStore.setState((s) => ({
     ...s,
-    zoom: 1,
+    zoom: Math.min(1, getFitZoom()),
     position: { x: 0, y: 0 },
     rotation: 0,
     flipH: false,
     flipV: false
   }))
+}
+
+export const applyImageNaturalSize = (width: number, height: number) => {
+  if (width <= 0 || height <= 0) return
+  const prev = useAppStore.getState().imageSize
+  if (prev.width === width && prev.height === height) return
+  useAppStore.setState({ imageSize: { width, height } })
+  resetZoomPan()
 }
 
 export const rotateCW = () => {

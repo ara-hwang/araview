@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest"
-import { getPositionBounds, clampPosition, isFullyContained } from "./zoomPanUtils"
+import {
+  getPositionBounds,
+  clampPosition,
+  isFullyContained,
+  getFitZoomFromSizes,
+  getMinZoom
+} from "./zoomPanUtils"
 
 describe("getPositionBounds", () => {
   it("returns 0 bounds when image fits inside container", () => {
@@ -82,5 +88,30 @@ describe("isFullyContained", () => {
 
   it("returns true when zoom keeps image within container", () => {
     expect(isFullyContained(800, 600, 200, 150, 2)).toBe(true)
+  })
+})
+
+describe("getFitZoomFromSizes", () => {
+  it("returns 1 when sizes are not ready", () => {
+    expect(getFitZoomFromSizes(0, 600, 400, 300)).toBe(1)
+    expect(getFitZoomFromSizes(800, 600, 0, 300)).toBe(1)
+  })
+
+  it("fits a large image to the container", () => {
+    expect(getFitZoomFromSizes(800, 600, 1600, 1200)).toBe(0.5)
+  })
+
+  it("is greater than 1 when the image is smaller than the container", () => {
+    expect(getFitZoomFromSizes(800, 600, 400, 300)).toBe(2)
+  })
+})
+
+describe("getMinZoom", () => {
+  it("does not force small images above 100%", () => {
+    expect(getMinZoom(800, 600, 400, 300)).toBe(1)
+  })
+
+  it("allows large images to shrink to fit", () => {
+    expect(getMinZoom(800, 600, 1600, 1200)).toBe(0.5)
   })
 })

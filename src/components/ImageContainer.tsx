@@ -1,9 +1,9 @@
-import type { RefObject } from "react"
+import { useLayoutEffect, type RefObject } from "react"
 import { convertFileSrc } from "@tauri-apps/api/core"
 import { cn } from "@/lib/utils"
 import { Spinner } from "@/components/ui/spinner"
 import { ImageNavBar } from "./ImageNavBar"
-import { useAppStore } from "@/store/appStore"
+import { applyImageNaturalSize, useAppStore } from "@/store/appStore"
 import { useShallow } from "zustand/react/shallow"
 import type { ViewMode } from "@/store/settingsStore"
 import type { MultiPage } from "@/hooks/useMultiPageImages"
@@ -47,7 +47,8 @@ export function ImageContainer({
       isDragging: state.isDragging,
       rotation: state.rotation,
       flipH: state.flipH,
-      flipV: state.flipV
+      flipV: state.flipV,
+      imageSize: state.imageSize
     }))
   )
 
@@ -58,6 +59,13 @@ export function ImageContainer({
   )
 
   const imageSrc = app.imageInfo ? toSrc(app.imageInfo) : null
+
+  useLayoutEffect(() => {
+    const img = imageRef.current
+    if (img?.complete && img.naturalWidth > 0) {
+      applyImageNaturalSize(img.naturalWidth, img.naturalHeight)
+    }
+  }, [imageSrc, imageRef])
 
   const isMulti = viewMode !== "single" && pages.length > 0
 
@@ -81,11 +89,17 @@ export function ImageContainer({
             ref={imageRef}
             src={imageSrc}
             alt={app.imageInfo?.file_name}
-            className="pointer-events-auto max-h-full max-w-full object-contain transition-transform duration-50 ease-out"
+            className="pointer-events-auto object-contain transition-transform duration-50 ease-out"
             style={{
+              width: app.imageSize.width || undefined,
+              height: app.imageSize.height || undefined,
               transform: `translate(${app.position.x}px, ${app.position.y}px) scale(${app.zoom * (app.flipH ? -1 : 1)}, ${app.zoom * (app.flipV ? -1 : 1)}) rotate(${app.rotation}deg)`,
               transformOrigin: "center center",
               cursor: app.isDragging ? "grabbing" : "grab"
+            }}
+            onLoad={(event) => {
+              const img = event.currentTarget
+              applyImageNaturalSize(img.naturalWidth, img.naturalHeight)
             }}
             draggable={false}
           />

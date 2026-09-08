@@ -17,11 +17,11 @@ import { ButtonGroupText } from "./ui/button-group"
 import { Separator } from "./ui/separator"
 import { useNavigate } from "@tanstack/react-router"
 import {
-  getApp,
   resetZoomPan,
   setZoomToFit,
   zoomIn,
-  zoomOut
+  zoomOut,
+  useAppStore
 } from "@/store/appStore"
 import { useImageLoader } from "@/hooks/useImageLoader"
 import { useExifLoader } from "@/hooks/useExifLoader"
@@ -30,6 +30,7 @@ import { useExifLoader } from "@/hooks/useExifLoader"
 export default function Header() {
   const appWindow = getCurrentWindow()
   const navigate = useNavigate()
+  const zoom = useAppStore((state) => state.zoom)
 
   const { handleOpenFile } = useImageLoader()
   const { toggleExifPanel } = useExifLoader()
@@ -105,7 +106,7 @@ export default function Header() {
               <ZoomOut />
             </Button>
             <ButtonGroupText className="tabular-nums" onClick={resetZoomPan}>
-              {Math.round(getApp().zoom * 100)}%
+              {Math.round(zoom * 100)}%
             </ButtonGroupText>
             <Button
               variant="outline"

@@ -32,6 +32,35 @@ export function clampPosition(
 }
 
 /**
+ * 원본 이미지 픽셀을 컨테이너에 맞출 때의 배율.
+ * 크기를 아직 모르면 1을 반환합니다.
+ */
+export function getFitZoomFromSizes(
+  containerW: number,
+  containerH: number,
+  imgW: number,
+  imgH: number
+): number {
+  if (containerW <= 0 || containerH <= 0 || imgW <= 0 || imgH <= 0) return 1
+  const fit = Math.min(containerW / imgW, containerH / imgH)
+  if (!Number.isFinite(fit) || fit <= 0) return 1
+  return fit
+}
+
+/**
+ * 축소 하한. 작은 이미지는 100%까지, 큰 이미지는 화면 맞춤 배율까지 허용합니다.
+ * 화면 맞춤(>100%)을 하한으로 두면 한 번 확대한 뒤 원래 크기로 돌아가지 못합니다.
+ */
+export function getMinZoom(
+  containerW: number,
+  containerH: number,
+  imgW: number,
+  imgH: number
+): number {
+  return Math.min(1, getFitZoomFromSizes(containerW, containerH, imgW, imgH))
+}
+
+/**
  * 이미지가 컨테이너에 완전히 들어가는지 여부
  */
 export function isFullyContained(

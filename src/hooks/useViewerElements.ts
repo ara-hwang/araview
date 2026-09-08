@@ -26,22 +26,13 @@ export function useViewerElements() {
 
   useEffect(() => {
     const containerElement = containerRef.current
-    const imageElement = imageRef.current
     if (!containerElement) return
 
     const resizeObserver = new ResizeObserver((entries) => {
       for (const entry of entries) {
-        const target = entry.target
-        if (target === containerElement) {
+        if (entry.target === containerElement) {
           useAppStore.setState({
             containerSize: {
-              width: entry.contentRect.width,
-              height: entry.contentRect.height
-            }
-          })
-        } else if (target === imageElement) {
-          useAppStore.setState({
-            imageSize: {
               width: entry.contentRect.width,
               height: entry.contentRect.height
             }
@@ -51,7 +42,6 @@ export function useViewerElements() {
     })
 
     resizeObserver.observe(containerElement)
-    if (imageElement) resizeObserver.observe(imageElement)
 
     useAppStore.setState({
       containerSize: {
@@ -59,14 +49,6 @@ export function useViewerElements() {
         height: containerElement.clientHeight
       }
     })
-    if (imageElement) {
-      useAppStore.setState({
-        imageSize: {
-          width: imageElement.clientWidth,
-          height: imageElement.clientHeight
-        }
-      })
-    }
 
     return () => {
       resizeObserver.disconnect()
