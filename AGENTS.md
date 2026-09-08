@@ -4,7 +4,7 @@ This document provides repository-specific guidance for AI coding assistants.
 
 ## Project Overview
 
-`tauri-image-viewer` is a desktop image viewer built with Tauri 2 + React 18 + TypeScript.
+`tauri-image-viewer` is a Windows desktop image viewer built with Tauri 2 + React 18 + TypeScript. Windows 10/11 x64 is the only supported OS.
 
 - Frontend: React 18, TypeScript, Vite 6, Tailwind CSS 4, TanStack Router v1, Zustand 5
 - Backend: Rust + Tauri 2 commands (`src-tauri/src/commands.rs`)
@@ -69,10 +69,7 @@ Frontend uses `invoke()` for these commands:
 - `get_archive_images(file_path)`
 - `load_archive_image(archive_path, entry_name)`
 
-When app is opened from file association, backend emits `open-file` event.
-
-- Windows/Linux: CLI argument path in `.setup()`
-- macOS: `RunEvent::Opened` URL handling
+When app is opened from file association, Windows passes the file path as a CLI argument. Backend reads it in `.setup()` and emits `open-file`.
 
 Frontend listener: `src/hooks/useOpenFileListener.ts`.
 
