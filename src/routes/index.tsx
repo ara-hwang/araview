@@ -1,6 +1,11 @@
 import { useShallow } from "zustand/react/shallow"
 import { createFileRoute, useNavigate } from "@tanstack/react-router"
-import { Empty, EmptyContent } from "@/components/ui/empty"
+import {
+  Empty,
+  EmptyContent,
+  EmptyHeader,
+  EmptyMedia
+} from "@/components/ui/empty"
 import { Button } from "@/components/ui/button"
 import { useEffect } from "react"
 import { getCurrentWindow } from "@tauri-apps/api/window"
@@ -60,6 +65,18 @@ function HomePage() {
       className="flex h-full w-full flex-col items-center justify-center gap-8 p-8"
     >
       <Empty>
+        <EmptyHeader>
+          <EmptyMedia>
+            <img
+              src="/app-icon.png"
+              alt="Image Viewer"
+              width={96}
+              height={96}
+              className="size-24 rounded-2xl"
+              draggable={false}
+            />
+          </EmptyMedia>
+        </EmptyHeader>
         <EmptyContent>
           <Button onClick={handleOpenFile}>Open File</Button>
         </EmptyContent>

@@ -51,17 +51,27 @@ export default function Header() {
 
   return (
     <>
-      <div className="drag flex justify-between p-2">
-        <ButtonGroup>
-          <Button
-            variant="outline"
-            onClick={handleOpenFile}
-            title="Open file (Ctrl+O)"
-          >
-            <FolderOpen />
-            Open
-          </Button>
-        </ButtonGroup>
+      <div className="drag flex items-center justify-between p-2">
+        <div className="flex items-center gap-2">
+          <img
+            src="/app-icon.png"
+            alt=""
+            width={32}
+            height={32}
+            className="size-8 rounded-lg"
+            draggable={false}
+          />
+          <ButtonGroup>
+            <Button
+              variant="outline"
+              onClick={handleOpenFile}
+              title="Open file (Ctrl+O)"
+            >
+              <FolderOpen data-icon="inline-start" />
+              Open
+            </Button>
+          </ButtonGroup>
+        </div>
 
         <ButtonGroup>
           <ButtonGroup>
