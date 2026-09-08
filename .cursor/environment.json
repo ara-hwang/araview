@@ -1,0 +1,5 @@
+{
+  "name": "tauri-image-viewer",
+  "install": "npm ci",
+  "user": "ubuntu"
+}
