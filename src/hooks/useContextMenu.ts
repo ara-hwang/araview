@@ -33,7 +33,7 @@ export async function showImageViewerContextMenu(
   const [openItem, ...rest] = await Promise.all([
     MenuItem.new({
       text: "Open File",
-      accelerator: "CmdOrCtrl+O",
+      accelerator: "Ctrl+O",
       action: () => actions.onOpenFile()
     }),
     ...navItems,

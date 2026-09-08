@@ -33,7 +33,7 @@ export function useImageViewerHotkeys(props: ImageViewerHotkeysParams) {
   useHotkey("1", () => setZoomToFit("width"))
   useHotkey("2", () => setZoomToFit("height"))
   useHotkey("3", () => setZoomToFit("screen"))
-  useHotkey("Mod+O", props.onOpenFile)
+  useHotkey("Control+O", props.onOpenFile)
   useHotkey("I", props.onToggleExif)
   useHotkey("R", rotateCW)
   useHotkey("Shift+R", rotateCCW)
@@ -42,5 +42,5 @@ export function useImageViewerHotkeys(props: ImageViewerHotkeysParams) {
   useHotkey("Space", props.onToggleSlideshow)
   useHotkey("F5", props.onToggleSlideshow)
   useHotkey("F11", props.onToggleFullscreen)
-  useHotkey("Mod+C", props.onCopyImage)
+  useHotkey("Control+C", props.onCopyImage)
 }

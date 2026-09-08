@@ -27,7 +27,7 @@ jobs:
         with:
           workspaces: "./src-tauri -> target"
 
-      - name: Install libheif via vcpkg (windows only)
+      - name: Install libheif via vcpkg
         run: |
           vcpkg install "libheif[core]:x64-windows"
           echo "VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT" | Out-File -FilePath $env:GITHUB_ENV -Append

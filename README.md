@@ -1,6 +1,6 @@
 # Tauri Image Viewer
 
-Tauri 2 + React 18 + TypeScript 기반의 데스크톱 이미지 뷰어입니다.
+Tauri 2 + React 18 + TypeScript 기반의 Windows 데스크톱 이미지 뷰어입니다.
 
 - 일반 이미지 포맷과 만화 아카이브(`.cbz`)를 지원합니다.
 - 폴더 내 이미지 탐색, EXIF 표시, 슬라이드쇼, 멀티 페이지 보기 모드를 제공합니다.
@@ -23,32 +23,11 @@ Tauri 2 + React 18 + TypeScript 기반의 데스크톱 이미지 뷰어입니다
 
 ## 요구 사항
 
+- **OS**: Windows 10/11 (x64)
 - **Node.js**: `>= 22`
 - **Rust**: stable (`1.94` 이상 권장)
 
-### Linux 시스템 라이브러리 (Ubuntu/Debian)
-
-```bash
-sudo apt-get update
-sudo apt-get install -y \
-  libwebkit2gtk-4.1-dev \
-  build-essential \
-  curl \
-  wget \
-  file \
-  libssl-dev \
-  libayatana-appindicator3-dev \
-  librsvg2-dev \
-  libheif-dev
-```
-
-macOS:
-
-```bash
-brew install libheif
-```
-
-Windows: install [vcpkg](https://vcpkg.io/), then:
+HEIC/HEIF를 쓰려면 [vcpkg](https://vcpkg.io/)로 `libheif`를 설치합니다.
 
 ```powershell
 vcpkg install "libheif[core]:x64-windows"
@@ -58,7 +37,7 @@ $env:Path += ";$env:VCPKG_ROOT\installed\x64-windows\bin"
 
 `[core]`는 HEVC 디코더 `libde265`만 넣고, 인코더 `x265`는 빼는 설치입니다. 앱은 HEIC를 인코드하지 않습니다.
 
-앱은 `libheif`를 동적 링크합니다. `embedded-libheif` Cargo 기능은 켜지 마세요. Windows 설치본은 vcpkg DLL이 실행 파일 옆에 있어야 합니다. `VCPKG_ROOT`가 있으면 `src-tauri/build.rs`가 `heif.dll`과 `libde265.dll`을 복사합니다.
+앱은 `libheif`를 동적 링크합니다. `embedded-libheif` Cargo 기능은 켜지 마세요. 설치본은 vcpkg DLL이 실행 파일 옆에 있어야 합니다. `VCPKG_ROOT`가 있으면 `src-tauri/build.rs`가 `heif.dll`과 `libde265.dll`을 복사합니다.
 
 ## 시작하기
 
@@ -101,10 +80,10 @@ cd src-tauri && cargo clippy
 
 ## 단축키
 
-- **파일/탐색**: `Ctrl/Cmd+O`(열기), `Left`/`Right`(이전/다음)
+- **파일/탐색**: `Ctrl+O`(열기), `Left`/`Right`(이전/다음)
 - **줌**: `+`, `=`, `-`, `0`(초기화), `1`(가로 맞춤), `2`(세로 맞춤), `3`(화면 맞춤)
 - **이미지 조작**: `R`(시계 회전), `Shift+R`(반시계 회전), `H`(좌우 반전), `V`(상하 반전)
-- **기타**: `I`(EXIF), `Space` 또는 `F5`(슬라이드쇼), `F11`(전체화면), `Ctrl/Cmd+C`(이미지 복사), `D`(테마 전환)
+- **기타**: `I`(EXIF), `Space` 또는 `F5`(슬라이드쇼), `F11`(전체화면), `Ctrl+C`(이미지 복사), `D`(테마 전환)
 
 ## 설정 항목
 
