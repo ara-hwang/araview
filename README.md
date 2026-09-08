@@ -95,7 +95,7 @@ cd src-tauri && cargo clippy
   - `nearby`: 인접 이미지 중심 프리패치
   - `extended`: 더 넓은 범위 프리패치
   - `memory-1gb` / `memory-2gb`: 메모리 상한 기반 캐시
-- **확장자 연결**: 지원 확장자를 이 앱의 기본 프로그램으로 등록/해제. Windows 10/11은 일부 기본 앱 변경을 OS 설정에서만 허용할 수 있습니다.
+- **확장자 연결**: 연결을 바꾸면 해당 확장자의 Windows 기본 앱 선택 창이 열립니다.
 - **View Mode**: `single`, `left-to-right`, `right-to-left`, `webtoon`
 - **Slideshow Interval**: 슬라이드쇼 간격(ms)
 

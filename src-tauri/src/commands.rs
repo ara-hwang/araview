@@ -165,10 +165,18 @@ pub fn get_file_associations() -> Result<Vec<crate::file_assoc::FileAssociation>
 
 #[tauri::command]
 pub fn set_file_association(
+    window: tauri::WebviewWindow,
     extension: String,
     associate: bool,
 ) -> Result<crate::file_assoc::FileAssociation, String> {
-    crate::file_assoc::set_association(&extension, associate)
+    crate::file_assoc::set_association(&extension, associate, window_hwnd(&window))
+}
+
+fn window_hwnd(window: &tauri::WebviewWindow) -> *mut std::ffi::c_void {
+    window
+        .hwnd()
+        .map(|hwnd| hwnd.0 as *mut std::ffi::c_void)
+        .unwrap_or(std::ptr::null_mut())
 }
 
 #[tauri::command]
