@@ -18,6 +18,7 @@ type ImageContainerProps = {
   onMouseUp: () => void
   onNavigate?: (direction: "prev" | "next") => void
   onNavigateToIndex?: (index: number) => void
+  getOrLoadImage?: (filePath: string) => Promise<ImageInfo>
   viewMode?: ViewMode
   pages?: MultiPage[]
 }
@@ -33,6 +34,7 @@ export function ImageContainer({
   onMouseUp,
   onNavigate,
   onNavigateToIndex,
+  getOrLoadImage,
   viewMode = "single",
   pages = []
 }: ImageContainerProps) {
@@ -55,7 +57,8 @@ export function ImageContainer({
   const showNavBar = !!(
     app.dirImages.images.length > 1 &&
     onNavigate &&
-    onNavigateToIndex
+    onNavigateToIndex &&
+    getOrLoadImage
   )
 
   const imageSrc = app.imageInfo ? toSrc(app.imageInfo) : null
@@ -129,7 +132,7 @@ export function ImageContainer({
 
       {/* Webtoon: 세로 스크롤 */}
       {isMulti && viewMode === "webtoon" && (
-        <div className="absolute inset-0 overflow-y-auto overflow-x-hidden">
+        <div className="absolute inset-0 overflow-x-hidden overflow-y-auto">
           <div className="flex flex-col items-center">
             {pages.map((page) => (
               <img
@@ -159,10 +162,11 @@ export function ImageContainer({
         </div>
       )}
 
-      {showNavBar && onNavigate && onNavigateToIndex && (
+      {showNavBar && onNavigate && onNavigateToIndex && getOrLoadImage && (
         <ImageNavBar
           onNavigate={onNavigate}
           onNavigateToIndex={onNavigateToIndex}
+          getOrLoadImage={getOrLoadImage}
         />
       )}
     </div>

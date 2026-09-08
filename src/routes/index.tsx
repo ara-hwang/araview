@@ -4,10 +4,10 @@ import { Empty, EmptyContent } from "@/components/ui/empty"
 import { Button } from "@/components/ui/button"
 import { useEffect } from "react"
 import { getCurrentWindow } from "@tauri-apps/api/window"
-import { convertFileSrc } from "@tauri-apps/api/core"
 import { X } from "lucide-react"
 import { useAppStore } from "@/store/appStore"
 import { useImageLoader } from "@/hooks/useImageLoader"
+import { usePaintSrcs } from "@/hooks/usePaintSrcs"
 import { useRecentFilesStore } from "@/store/recentFilesStore"
 
 export const Route = createFileRoute("/")({
@@ -41,8 +41,14 @@ function HomePage() {
     }
   }, [app.imageInfo, navigate])
 
-  const { loadImage, handleOpenFile, handleDrop, handleDragOver } =
-    useImageLoader()
+  const {
+    loadImage,
+    getOrLoadImage,
+    handleOpenFile,
+    handleDrop,
+    handleDragOver
+  } = useImageLoader()
+  const urls = usePaintSrcs(recentFiles, getOrLoadImage)
 
   return (
     <div
@@ -76,6 +82,7 @@ function HomePage() {
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
             {recentFiles.map((path) => {
               const name = path.split(/[\\/]/).pop() ?? path
+              const src = urls.get(path)
               return (
                 <div
                   key={path}
@@ -88,17 +95,20 @@ function HomePage() {
                     title={path}
                   >
                     <div className="bg-muted aspect-square w-full overflow-hidden rounded">
-                      <img
-                        src={convertFileSrc(path)}
-                        alt=""
-                        loading="lazy"
-                        className="h-full w-full object-cover"
-                        draggable={false}
-                        onError={(e) => {
-                          ;(e.currentTarget as HTMLImageElement).style.visibility =
-                            "hidden"
-                        }}
-                      />
+                      {src ? (
+                        <img
+                          src={src}
+                          alt=""
+                          loading="lazy"
+                          className="h-full w-full object-cover"
+                          draggable={false}
+                          onError={(e) => {
+                            ;(
+                              e.currentTarget as HTMLImageElement
+                            ).style.visibility = "hidden"
+                          }}
+                        />
+                      ) : null}
                     </div>
                     <span className="w-full truncate text-xs">{name}</span>
                   </button>

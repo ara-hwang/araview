@@ -322,10 +322,11 @@
 
 ### 4.4 추가 이미지 포맷 지원 (P2)
 
-**현재 상태**: 11개 포맷 지원 (PNG, JPG, JPEG, GIF, BMP, WebP, SVG, ICO, TIFF, TIF, AVIF).
+**현재 상태**: 14개 포맷 지원 (PNG, JPG, JPEG, GIF, BMP, WebP, SVG, ICO, TIFF, TIF, AVIF, HEIC, HEIF, CBZ).
+
+**HEIC/HEIF**: 구현됨. `libheif-rs`가 vcpkg `libheif[core]`를 동적 링크하고, 로드 시 JPEG sidecar를 만듭니다. HEVC 디코드는 `libde265`만 쓰고 `x265`는 넣지 않습니다. WebView2는 HEIC를 그리지 못합니다.
 
 **추가 후보**:
-- **HEIC/HEIF**: iPhone 기본 포맷 — `heif-decoder` 크레이트 검토 (LGPL 라이선스 이슈가 있는 `libheif` 대신 MIT/Apache 라이선스 대안 우선)
 - **RAW**: 카메라 RAW 포맷 (CR2, NEF, ARW 등) — `rawloader` 크레이트
 - **PSD**: Photoshop 파일 미리보기 — `psd` 크레이트
 - **JXL (JPEG XL)**: 차세대 이미지 포맷 — `jxl-oxide` 크레이트
@@ -501,4 +502,4 @@ switch (viewMode) {
 
 ### HEIC 포맷 지원 시 고려사항 (Phase 4.4)
 
-HEIC/HEIF 디코딩에 널리 쓰이는 `libheif`는 LGPL 라이선스이므로, 상용 배포 시 라이선스 호환성을 확인해야 합니다. MIT/Apache 라이선스인 `heif-decoder` 크레이트를 우선 검토하되, 디코딩 품질 및 지원 범위가 충분하지 않을 경우 `libheif`의 동적 링크 방식을 대안으로 검토합니다.
+HEIC/HEIF는 `libheif[core]`를 동적 링크합니다. `embedded-libheif`는 켜지 않습니다. 디코드는 LGPL인 `libheif`와 `libde265`만 쓰고, GPL인 `x265`는 넣지 않습니다. 배포 시 동적 링크와 라이선스 고지를 유지해야 합니다. EXIF는 아직 소스 경로의 `kamadak-exif`만 사용하므로 HEIC에서는 비어 있는 경우가 많습니다.

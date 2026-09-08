@@ -2,52 +2,14 @@ use std::collections::HashMap;
 use std::fs;
 use std::io::BufReader;
 use std::path::Path;
-use std::sync::Mutex;
-
-use once_cell::sync::Lazy;
 
 use crate::archive;
-use crate::image::{get_mime_type, is_archive_file, is_image_file, is_supported_file, DirectoryImages, ImageInfo};
-
-// 아카이브 추출용 임시 디렉토리 (앱 종료 시 자동 정리)
-static ARCHIVE_TEMP_DIR: Lazy<Mutex<Option<tempfile::TempDir>>> =
-    Lazy::new(|| Mutex::new(None));
-
-fn get_or_create_temp_dir() -> Result<std::path::PathBuf, String> {
-    let mut guard = ARCHIVE_TEMP_DIR.lock().map_err(|e| e.to_string())?;
-    if let Some(ref td) = *guard {
-        return Ok(td.path().to_path_buf());
-    }
-    let td = tempfile::TempDir::new().map_err(|e| format!("Failed to create temp dir: {}", e))?;
-    let path = td.path().to_path_buf();
-    *guard = Some(td);
-    Ok(path)
-}
+use crate::image::{is_archive_file, is_supported_file, DirectoryImages, ImageInfo};
+use crate::process_temp::process_temp_dir;
 
 #[tauri::command]
 pub fn load_image(file_path: String) -> Result<ImageInfo, String> {
-    let path = Path::new(&file_path);
-
-    if !path.exists() {
-        return Err("File not found".to_string());
-    }
-
-    let mime_type = get_mime_type(path).ok_or_else(|| "Unsupported image format".to_string())?;
-
-    let metadata = fs::metadata(path).map_err(|e| format!("Failed to read metadata: {}", e))?;
-
-    let file_name = path
-        .file_name()
-        .and_then(|n| n.to_str())
-        .unwrap_or("unknown")
-        .to_string();
-
-    Ok(ImageInfo {
-        file_path: file_path.clone(),
-        mime_type: mime_type.to_string(),
-        file_name,
-        file_size: metadata.len(),
-    })
+    crate::image::load_viewable(Path::new(&file_path))
 }
 
 #[tauri::command]
@@ -62,7 +24,7 @@ pub fn get_directory_images(file_path: String) -> Result<DirectoryImages, String
     for entry in entries {
         if let Ok(entry) = entry {
             let entry_path = entry.path();
-                if entry_path.is_file() && is_supported_file(&entry_path) {
+            if entry_path.is_file() && is_supported_file(&entry_path) {
                 if let Some(path_str) = entry_path.to_str() {
                     images.push(path_str.to_string());
                 }
@@ -94,14 +56,13 @@ pub fn resolve_dropped_path(path: String) -> Result<String, String> {
     }
 
     if p.is_dir() {
-        let entries =
-            fs::read_dir(p).map_err(|e| format!("Failed to read directory: {}", e))?;
+        let entries = fs::read_dir(p).map_err(|e| format!("Failed to read directory: {}", e))?;
 
         let mut images: Vec<String> = Vec::new();
         for entry in entries {
             if let Ok(entry) = entry {
                 let entry_path = entry.path();
-            if entry_path.is_file() && is_supported_file(&entry_path) {
+                if entry_path.is_file() && is_supported_file(&entry_path) {
                     if let Some(s) = entry_path.to_str() {
                         images.push(s.to_string());
                     }
@@ -175,17 +136,14 @@ pub fn get_archive_images(file_path: String) -> Result<DirectoryImages, String> 
 /// 아카이브에서 특정 엔트리를 추출하여 ImageInfo를 반환
 /// entry_name은 get_archive_images에서 반환된 엔트리 이름
 #[tauri::command]
-pub fn load_archive_image(
-    archive_path: String,
-    entry_name: String,
-) -> Result<ImageInfo, String> {
+pub fn load_archive_image(archive_path: String, entry_name: String) -> Result<ImageInfo, String> {
     let arch_path = Path::new(&archive_path);
 
     if !arch_path.exists() {
         return Err("Archive not found".to_string());
     }
 
-    let temp_dir = get_or_create_temp_dir()?;
+    let temp_dir = process_temp_dir()?;
 
     // 아카이브 이름 기반 서브 디렉토리를 만들어 충돌 방지
     let archive_stem = arch_path
@@ -193,27 +151,9 @@ pub fn load_archive_image(
         .and_then(|n| n.to_str())
         .unwrap_or("archive");
     let sub_dir = temp_dir.join(archive_stem);
-    fs::create_dir_all(&sub_dir)
-        .map_err(|e| format!("Failed to create sub dir: {}", e))?;
+    fs::create_dir_all(&sub_dir).map_err(|e| format!("Failed to create sub dir: {}", e))?;
 
     let extracted_path = archive::extract_archive_image(arch_path, &entry_name, &sub_dir)?;
 
-    let mime_type = get_mime_type(&extracted_path)
-        .ok_or_else(|| "Cannot detect MIME type of extracted image".to_string())?;
-
-    let metadata = fs::metadata(&extracted_path)
-        .map_err(|e| format!("Failed to read metadata: {}", e))?;
-
-    let file_name = extracted_path
-        .file_name()
-        .and_then(|n| n.to_str())
-        .unwrap_or("unknown")
-        .to_string();
-
-    Ok(ImageInfo {
-        file_path: extracted_path.to_string_lossy().to_string(),
-        mime_type: mime_type.to_string(),
-        file_name,
-        file_size: metadata.len(),
-    })
+    crate::image::load_viewable(&extracted_path)
 }

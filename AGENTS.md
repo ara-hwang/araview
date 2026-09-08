@@ -13,7 +13,7 @@ This document provides repository-specific guidance for AI coding assistants.
 
 ## Current Feature Scope
 
-- Supported file extensions: `png`, `jpg`, `jpeg`, `gif`, `bmp`, `webp`, `svg`, `ico`, `tiff`, `tif`, `avif`, `cbz`
+- Supported file extensions: `png`, `jpg`, `jpeg`, `gif`, `bmp`, `webp`, `svg`, `ico`, `tiff`, `tif`, `avif`, `heic`, `heif`, `cbz`
 - Input flows: file picker, drag-and-drop (file/folder), OS file association open
 - Viewer controls: zoom, fit-to-width/height/screen, pan, rotate, flip
 - Navigation: previous/next, slider jump, thumbnail strip, optional loop navigation
@@ -52,6 +52,7 @@ cd src-tauri && cargo clippy
 - Extension source of truth: `src/constants/imageExtensions.ts`
 - Rust commands: `src-tauri/src/commands.rs`
 - MIME/extension logic and tests: `src-tauri/src/image.rs`
+- HEIC/HEIF JPEG sidecar decode: `src-tauri/src/heif.rs`
 - Tauri app setup and command registration: `src-tauri/src/lib.rs`
 - Tauri config and file associations: `src-tauri/tauri.conf.json`
 
@@ -92,8 +93,9 @@ Do not reintroduce base64 payload fields unless explicitly required.
 
 Image rendering is path-based:
 
-- Backend returns filesystem path
-- Frontend converts path via `convertFileSrc(...)`
+- Backend returns a filesystem path the WebView can decode (`ImageInfo.file_path`)
+- HEIC/HEIF is transcoded to a JPEG sidecar under the process temp dir at load
+- Frontend converts that path via `convertFileSrc(...)`
 
 ### Persistence
 

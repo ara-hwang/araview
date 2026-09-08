@@ -8,7 +8,7 @@ Tauri 2 + React 18 + TypeScript 기반의 데스크톱 이미지 뷰어입니다
 
 ## 주요 기능
 
-- **지원 포맷**: `png`, `jpg`, `jpeg`, `gif`, `bmp`, `webp`, `svg`, `ico`, `tiff`, `tif`, `avif`, `cbz`
+- **지원 포맷**: `png`, `jpg`, `jpeg`, `gif`, `bmp`, `webp`, `svg`, `ico`, `tiff`, `tif`, `avif`, `heic`, `heif`, `cbz`
 - **파일 열기 방식**: 파일 선택, 드래그 앤 드롭(파일/폴더), OS 파일 연동으로 앱 실행
 - **탐색**: 이전/다음 이동, 썸네일/슬라이더 이동, 루프 내비게이션
 - **보기**: 확대/축소, 화면 맞춤(가로/세로/전체), 회전, 좌우/상하 반전
@@ -38,10 +38,27 @@ sudo apt-get install -y \
   file \
   libssl-dev \
   libayatana-appindicator3-dev \
-  librsvg2-dev
+  librsvg2-dev \
+  libheif-dev
 ```
 
-macOS/Windows는 추가 시스템 라이브러리가 필요하지 않습니다.
+macOS:
+
+```bash
+brew install libheif
+```
+
+Windows: install [vcpkg](https://vcpkg.io/), then:
+
+```powershell
+vcpkg install "libheif[core]:x64-windows"
+$env:VCPKG_ROOT = "<vcpkg root>"
+$env:Path += ";$env:VCPKG_ROOT\installed\x64-windows\bin"
+```
+
+`[core]`는 HEVC 디코더 `libde265`만 넣고, 인코더 `x265`는 빼는 설치입니다. 앱은 HEIC를 인코드하지 않습니다.
+
+앱은 `libheif`를 동적 링크합니다. `embedded-libheif` Cargo 기능은 켜지 마세요. Windows 설치본은 vcpkg DLL이 실행 파일 옆에 있어야 합니다. `VCPKG_ROOT`가 있으면 `src-tauri/build.rs`가 `heif.dll`과 `libde265.dll`을 복사합니다.
 
 ## 시작하기
 
@@ -127,7 +144,9 @@ src/
 
 src-tauri/
   src/commands.rs    # Tauri command
-  src/image.rs       # MIME/확장자 판별 유틸
+  src/image.rs       # MIME/확장자 판별, load_viewable
+  src/heif.rs        # HEIC/HEIF 디코드 및 JPEG sidecar
+  src/process_temp.rs # 프로세스 수명 임시 디렉터리
   src/archive.rs     # CBZ 목록/추출 처리
   src/lib.rs         # Tauri 앱 설정 및 command 등록
 ```

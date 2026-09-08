@@ -39,6 +39,9 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "resources": {
+      "generated/libheif-dlls/*.dll": "../"
+    },
     "fileAssociations": [
       {
         "name": "Image",
@@ -54,7 +57,9 @@
           "ico",
           "tiff",
           "tif",
-          "avif"
+          "avif",
+          "heic",
+          "heif"
         ]
       },
       {
