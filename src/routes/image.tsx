@@ -96,6 +96,7 @@ function ImagePage() {
         onMouseUp={zoomPan.handleMouseUp}
         onNavigate={navigateImage}
         onNavigateToIndex={navigateToIndex}
+        getOrLoadImage={getOrLoadImage}
         viewMode={viewMode}
         pages={pages}
       />

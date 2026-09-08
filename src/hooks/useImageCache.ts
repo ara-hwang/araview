@@ -7,6 +7,7 @@ import {
   getPrefetchDistance
 } from "../utils/cacheConfig"
 import { useSettingsStore } from "@/store/settingsStore"
+import { useAppStore } from "@/store/appStore"
 
 // Tauri 백엔드에서 불러온 이미지를 메모리 캐시에 저장하고,
 // 설정에 따라 캐시 용량/프리패치 범위를 제어하는 훅
@@ -87,7 +88,16 @@ export function useImageCache() {
       const inflight = inflightLoadsRef.current.get(filePath)
       if (inflight) return inflight
 
-      const promise = invoke<ImageInfo>("load_image", { filePath })
+      // Listing keys in archive mode are zip entry names, not filesystem paths.
+      const archivePath = useAppStore.getState().archivePath
+      const promise = (
+        archivePath
+          ? invoke<ImageInfo>("load_archive_image", {
+              archivePath,
+              entryName: filePath
+            })
+          : invoke<ImageInfo>("load_image", { filePath })
+      )
         .then((imgInfo) => {
           cacheImage(filePath, imgInfo)
           return imgInfo
