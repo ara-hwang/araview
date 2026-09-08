@@ -156,3 +156,12 @@ Tauri Store (`settings.json`) is used for:
 - App window is frameless (`decorations: false`), custom titlebar is in `src/components/Header.tsx`
 - Window state persistence uses `tauri-plugin-window-state`
 - App starts hidden (`visible: false`) and appears after webview startup
+
+## Cursor Cloud specific instructions
+
+Cloud Agent VMs are Linux. This product targets Windows 10/11 x64 only, so treat Cloud work as frontend/logic validation, not a substitute for a Windows Tauri run.
+
+- Bootstrap is `npm ci` (Node `>=22`). Frontend checks that work here: `npm test`, `npx tsc --noEmit`, `npx prettier --check "src/**/*.{ts,tsx}"`.
+- Vite listens on `http://127.0.0.1:1420` (`npm run dev`). Use it for layout and React UI only. Browser preview cannot call Tauri `invoke()`, file dialogs, or the asset protocol.
+- Do not run `npm run tauri dev` or `npm run tauri build` on Cloud Agent Linux. Those need Windows WebView2, file associations, and vcpkg `libheif`.
+- `cd src-tauri && cargo test` and `cargo clippy` need Windows (`winreg`, HEIC sidecars). Do not expect them to succeed on Cloud Agent Linux.

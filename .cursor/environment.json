@@ -1,5 +1,12 @@
 {
   "name": "tauri-image-viewer",
+  "user": "ubuntu",
   "install": "npm ci",
-  "user": "ubuntu"
+  "start": "if curl -sf http://127.0.0.1:1420 >/dev/null; then exit 0; fi\nnpm run dev -- --host 127.0.0.1 --port 1420 >/tmp/vite-dev.log 2>&1 &\nfor i in $(seq 1 60); do\n  if curl -sf http://127.0.0.1:1420 >/dev/null; then exit 0; fi\n  sleep 1\ndone\necho 'Vite failed to become ready on :1420' >&2\nexit 1",
+  "ports": [
+    {
+      "name": "Vite",
+      "port": 1420
+    }
+  ]
 }
