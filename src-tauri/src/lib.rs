@@ -1,8 +1,13 @@
 pub mod archive;
 pub mod commands;
+pub mod heif;
 pub mod image;
+pub mod process_temp;
 
-use commands::{get_archive_images, get_directory_images, get_exif_data, load_archive_image, load_image, resolve_dropped_path};
+use commands::{
+    get_archive_images, get_directory_images, get_exif_data, load_archive_image, load_image,
+    resolve_dropped_path,
+};
 use tauri::Emitter;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

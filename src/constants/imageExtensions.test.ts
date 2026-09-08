@@ -15,13 +15,15 @@ describe("SUPPORTED_IMAGE_EXTENSIONS", () => {
       "tiff",
       "tif",
       "avif",
+      "heic",
+      "heif",
       "cbz"
     ]
     expect([...SUPPORTED_IMAGE_EXTENSIONS]).toEqual(expected)
   })
 
-  it("has 12 supported extensions", () => {
-    expect(SUPPORTED_IMAGE_EXTENSIONS).toHaveLength(12)
+  it("has 14 supported extensions", () => {
+    expect(SUPPORTED_IMAGE_EXTENSIONS).toHaveLength(14)
   })
 
   it("includes common web image formats", () => {
@@ -34,11 +36,12 @@ describe("SUPPORTED_IMAGE_EXTENSIONS", () => {
 
   it("includes modern image formats", () => {
     expect(SUPPORTED_IMAGE_EXTENSIONS).toContain("avif")
+    expect(SUPPORTED_IMAGE_EXTENSIONS).toContain("heic")
+    expect(SUPPORTED_IMAGE_EXTENSIONS).toContain("heif")
   })
 
   it("does not include unsupported formats", () => {
     expect(SUPPORTED_IMAGE_EXTENSIONS).not.toContain("psd")
     expect(SUPPORTED_IMAGE_EXTENSIONS).not.toContain("raw")
-    expect(SUPPORTED_IMAGE_EXTENSIONS).not.toContain("heic")
   })
 })

@@ -1,5 +1,4 @@
 import { ChevronLeft, ChevronRight, PinIcon } from "lucide-react"
-import { convertFileSrc } from "@tauri-apps/api/core"
 import { useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { useSettingsStore } from "../store/settingsStore"
@@ -7,15 +6,21 @@ import { Slider } from "./ui/slider"
 import { ButtonGroup } from "./ui/button-group"
 import { useAppStore } from "@/store/appStore"
 import { cn } from "@/lib/utils"
+import { usePaintSrcs } from "@/hooks/usePaintSrcs"
+import type { ImageInfo } from "@/types"
+
+type GetOrLoadImage = (filePath: string) => Promise<ImageInfo>
 
 type ImageNavBarProps = {
   onNavigate: (direction: "prev" | "next") => void
   onNavigateToIndex: (index: number) => void
+  getOrLoadImage: GetOrLoadImage
 }
 
 export function ImageNavBar({
   onNavigate,
-  onNavigateToIndex
+  onNavigateToIndex,
+  getOrLoadImage
 }: ImageNavBarProps) {
   const dirImages = useAppStore((state) => state.dirImages)
   const loopNavigation = useSettingsStore((state) => state.loopNavigation)
@@ -40,6 +45,9 @@ export function ImageNavBar({
     return out
   }, [dirImages.images, dirImages.current_index])
 
+  const thumbPaths = useMemo(() => thumbnails.map((t) => t.path), [thumbnails])
+  const urls = usePaintSrcs(thumbPaths, getOrLoadImage)
+
   return (
     // 하단 중앙에 고정된 내비게이션 바 (이전/다음 버튼 + 진행률 표시)
     <div
@@ -49,68 +57,75 @@ export function ImageNavBar({
       {/* 썸네일 스트립 */}
       {thumbnails.length > 1 && (
         <div className="flex items-center justify-center gap-1">
-          {thumbnails.map(({ index, path }) => (
-            <button
-              key={path}
-              type="button"
-              onClick={() => onNavigateToIndex(index)}
-              className={cn(
-                "h-12 w-12 shrink-0 overflow-hidden rounded border-2 transition-all",
-                index === dirImages.current_index
-                  ? "border-primary scale-110"
-                  : "border-transparent opacity-60 hover:opacity-100"
-              )}
-              title={path.split(/[\\/]/).pop()}
-            >
-              <img
-                src={convertFileSrc(path)}
-                alt=""
-                loading="lazy"
-                className="h-full w-full object-cover"
-                draggable={false}
-              />
-            </button>
-          ))}
+          {thumbnails.map(({ index, path }) => {
+            const src = urls.get(path)
+            return (
+              <button
+                key={path}
+                type="button"
+                onClick={() => onNavigateToIndex(index)}
+                className={cn(
+                  "h-12 w-12 shrink-0 overflow-hidden rounded border-2 transition-all",
+                  index === dirImages.current_index
+                    ? "border-primary scale-110"
+                    : "border-transparent opacity-60 hover:opacity-100"
+                )}
+                title={path.split(/[\\/]/).pop()}
+              >
+                {src ? (
+                  <img
+                    src={src}
+                    alt=""
+                    loading="lazy"
+                    className="h-full w-full object-cover"
+                    draggable={false}
+                  />
+                ) : null}
+              </button>
+            )
+          })}
         </div>
       )}
 
       <div className="flex items-center gap-4">
-      <ButtonGroup>
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={() => onNavigate("prev")}
-          title="Previous image"
-          disabled={isPrevDisabled}
-        >
-          <ChevronLeft />
-        </Button>
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={() => onNavigate("next")}
-          title="Next image"
-          disabled={isNextDisabled}
-        >
-          <ChevronRight />
-        </Button>
-      </ButtonGroup>
+        <ButtonGroup>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => onNavigate("prev")}
+            title="Previous image"
+            disabled={isPrevDisabled}
+          >
+            <ChevronLeft />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => onNavigate("next")}
+            title="Next image"
+            disabled={isNextDisabled}
+          >
+            <ChevronRight />
+          </Button>
+        </ButtonGroup>
 
-      {/* 슬라이더를 클릭/드래그해서 원하는 위치로 점프 이동 */}
-      <Slider
-        value={[dirImages.current_index]}
-        min={0}
-        max={dirImages.images.length - 1}
-        step={1}
-        onValueChange={(value) => {
-          const nextIndex = Array.isArray(value) ? value[0] : (value as number)
-          onNavigateToIndex(nextIndex)
-        }}
-      />
+        {/* 슬라이더를 클릭/드래그해서 원하는 위치로 점프 이동 */}
+        <Slider
+          value={[dirImages.current_index]}
+          min={0}
+          max={dirImages.images.length - 1}
+          step={1}
+          onValueChange={(value) => {
+            const nextIndex = Array.isArray(value)
+              ? value[0]
+              : (value as number)
+            onNavigateToIndex(nextIndex)
+          }}
+        />
 
-      <Button variant="ghost" size="icon" title="Pin Navigation Bar">
-        <PinIcon />
-      </Button>
+        <Button variant="ghost" size="icon" title="Pin Navigation Bar">
+          <PinIcon />
+        </Button>
       </div>
     </div>
   )

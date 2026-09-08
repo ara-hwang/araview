@@ -12,6 +12,8 @@ export const SUPPORTED_IMAGE_EXTENSIONS = [
   "tiff",
   "tif",
   "avif",
+  "heic",
+  "heif",
   "cbz"
 ] as const
 
