@@ -324,7 +324,7 @@
 
 **현재 상태**: 14개 포맷 지원 (PNG, JPG, JPEG, GIF, BMP, WebP, SVG, ICO, TIFF, TIF, AVIF, HEIC, HEIF, CBZ).
 
-**HEIC/HEIF**: 구현됨. `libheif-rs`가 vcpkg `libheif`를 동적 링크하고, 로드 시 JPEG sidecar를 만듭니다. WebView2는 HEIC를 그리지 못합니다.
+**HEIC/HEIF**: 구현됨. `libheif-rs`가 vcpkg `libheif[core]`를 동적 링크하고, 로드 시 JPEG sidecar를 만듭니다. HEVC 디코드는 `libde265`만 쓰고 `x265`는 넣지 않습니다. WebView2는 HEIC를 그리지 못합니다.
 
 **추가 후보**:
 - **RAW**: 카메라 RAW 포맷 (CR2, NEF, ARW 등) — `rawloader` 크레이트
@@ -502,4 +502,4 @@ switch (viewMode) {
 
 ### HEIC 포맷 지원 시 고려사항 (Phase 4.4)
 
-HEIC/HEIF는 `libheif`를 동적 링크합니다. `embedded-libheif`는 켜지 않습니다. `libheif`는 LGPL이므로 배포 시 동적 링크와 라이선스 고지를 유지해야 합니다. EXIF는 아직 소스 경로의 `kamadak-exif`만 사용하므로 HEIC에서는 비어 있는 경우가 많습니다.
+HEIC/HEIF는 `libheif[core]`를 동적 링크합니다. `embedded-libheif`는 켜지 않습니다. 디코드는 LGPL인 `libheif`와 `libde265`만 쓰고, GPL인 `x265`는 넣지 않습니다. 배포 시 동적 링크와 라이선스 고지를 유지해야 합니다. EXIF는 아직 소스 경로의 `kamadak-exif`만 사용하므로 HEIC에서는 비어 있는 경우가 많습니다.

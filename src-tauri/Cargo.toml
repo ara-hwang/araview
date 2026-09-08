@@ -36,7 +36,7 @@ libheif-rs = { version = "3", default-features = false, features = ["v1_17"] }
 
 [package.metadata.vcpkg]
 git = "https://github.com/microsoft/vcpkg"
-dependencies = ["libheif"]
+dependencies = ["libheif[core]"]
 
 [package.metadata.vcpkg.target]
-x86_64-pc-windows-msvc = { triplet = "x64-windows", dependencies = ["libheif"] }
+x86_64-pc-windows-msvc = { triplet = "x64-windows", dependencies = ["libheif[core]"] }

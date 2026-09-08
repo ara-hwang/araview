@@ -29,7 +29,7 @@ jobs:
 
       - name: Install libheif via vcpkg (windows only)
         run: |
-          vcpkg install libheif:x64-windows
+          vcpkg install "libheif[core]:x64-windows"
           echo "VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT" | Out-File -FilePath $env:GITHUB_ENV -Append
           echo "VCPKGRS_DYNAMIC=1" | Out-File -FilePath $env:GITHUB_ENV -Append
           echo "PKG_CONFIG_PATH=$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\lib\pkgconfig" | Out-File -FilePath $env:GITHUB_ENV -Append

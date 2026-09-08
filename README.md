@@ -51,12 +51,14 @@ brew install libheif
 Windows: install [vcpkg](https://vcpkg.io/), then:
 
 ```powershell
-vcpkg install libheif:x64-windows
+vcpkg install "libheif[core]:x64-windows"
 $env:VCPKG_ROOT = "<vcpkg root>"
 $env:Path += ";$env:VCPKG_ROOT\installed\x64-windows\bin"
 ```
 
-앱은 `libheif`를 동적 링크합니다. `embedded-libheif` Cargo 기능은 켜지 마세요. Windows 설치본은 vcpkg DLL이 실행 파일 옆에 있어야 합니다. `VCPKG_ROOT`가 있으면 `src-tauri/build.rs`가 그 DLL을 복사합니다.
+`[core]`는 HEVC 디코더 `libde265`만 넣고, 인코더 `x265`는 빼는 설치입니다. 앱은 HEIC를 인코드하지 않습니다.
+
+앱은 `libheif`를 동적 링크합니다. `embedded-libheif` Cargo 기능은 켜지 마세요. Windows 설치본은 vcpkg DLL이 실행 파일 옆에 있어야 합니다. `VCPKG_ROOT`가 있으면 `src-tauri/build.rs`가 `heif.dll`과 `libde265.dll`을 복사합니다.
 
 ## 시작하기
 

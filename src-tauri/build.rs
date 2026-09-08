@@ -52,29 +52,8 @@ fn copy_libheif_dlls() {
 }
 
 fn is_libheif_runtime_dll(name: &str) -> bool {
-    let lower = name.to_ascii_lowercase();
-    lower.ends_with(".dll")
-        && [
-            "heif",
-            "libde265",
-            "libx265",
-            "x265",
-            "aom",
-            "avif",
-            "dav1d",
-            "jpeg",
-            "turbojpeg",
-            "libpng",
-            "zlib",
-            "lzma",
-            "brotli",
-            "sharpyuv",
-            "libwebp",
-            "libyuv",
-            "libxml2",
-            "iconv",
-            "charset",
-        ]
-        .iter()
-        .any(|needle| lower.contains(needle))
+    matches!(
+        name.to_ascii_lowercase().as_str(),
+        "heif.dll" | "libde265.dll"
+    )
 }
