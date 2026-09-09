@@ -40,6 +40,7 @@ function HomePage() {
   const removeFavorite = useFavoritesStore((s) => s.remove)
   const clearFavorites = useFavoritesStore((s) => s.clear)
   const autoOpenLastFile = useSettingsStore((s) => s.autoOpenLastFile)
+  const recordRecentFiles = useSettingsStore((s) => s.recordRecentFiles)
   const autoOpenedRef = useRef(false)
 
   // 이미지 변경 시 창 제목 변경
@@ -72,12 +73,23 @@ function HomePage() {
   useEffect(() => {
     if (autoOpenedRef.current) return
     if (!autoOpenLastFile) return
+    if (!recordRecentFiles) return
     if (app.imageInfo) return
     if (recentFiles.length === 0) return
     autoOpenedRef.current = true
     void loadImage(recentFiles[0])
-  }, [autoOpenLastFile, recentFiles, app.imageInfo, loadImage])
-  const urls = usePaintSrcs([...favorites, ...recentFiles], getOrLoadImage)
+  }, [
+    autoOpenLastFile,
+    recordRecentFiles,
+    recentFiles,
+    app.imageInfo,
+    loadImage
+  ])
+  const visibleRecentFiles = recordRecentFiles ? recentFiles : []
+  const urls = usePaintSrcs(
+    [...favorites, ...visibleRecentFiles],
+    getOrLoadImage
+  )
   const isFavorite = (path: string) => favorites.includes(path)
 
   return (
@@ -148,11 +160,11 @@ function HomePage() {
         </div>
       )}
 
-      {recentFiles.length > 0 && (
+      {visibleRecentFiles.length > 0 && (
         <div className="w-full border-t pt-6">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-muted-foreground text-xs tabular-nums">
-              {t("home.recent", { count: recentFiles.length })}
+              {t("home.recent", { count: visibleRecentFiles.length })}
             </h2>
             <Button
               size="sm"
@@ -164,7 +176,7 @@ function HomePage() {
             </Button>
           </div>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-            {recentFiles.map((path) => (
+            {visibleRecentFiles.map((path) => (
               <HomeFileCard
                 key={path}
                 path={path}

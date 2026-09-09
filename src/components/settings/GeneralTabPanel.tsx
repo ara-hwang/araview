@@ -8,7 +8,13 @@ import {
   type AppLanguage,
   type SettingsState
 } from "@/store/settingsStore"
-import { House, NavigationArrow, Translate } from "@phosphor-icons/react"
+import { useRecentFilesStore } from "@/store/recentFilesStore"
+import {
+  ClockCounterClockwise,
+  House,
+  NavigationArrow,
+  Translate
+} from "@phosphor-icons/react"
 import { useTranslation } from "react-i18next"
 import { useShallow } from "zustand/react/shallow"
 
@@ -18,12 +24,23 @@ export function GeneralTabPanel() {
     useShallow((state) => ({
       language: state.language,
       loopNavigation: state.loopNavigation,
-      autoOpenLastFile: state.autoOpenLastFile
+      autoOpenLastFile: state.autoOpenLastFile,
+      recordRecentFiles: state.recordRecentFiles
     }))
   )
 
   const handleSettingsChange = (next: Partial<SettingsState>) => {
     void updateSettings(next)
+  }
+
+  const handleRecentChange = (value: string) => {
+    const enabled = value === "on"
+    if (enabled) {
+      handleSettingsChange({ recordRecentFiles: true })
+      return
+    }
+    handleSettingsChange({ recordRecentFiles: false, autoOpenLastFile: false })
+    void useRecentFilesStore.getState().clear()
   }
 
   return (
@@ -63,6 +80,7 @@ export function GeneralTabPanel() {
       >
         <RadioGroup
           value={settings.autoOpenLastFile ? "on" : "off"}
+          disabled={!settings.recordRecentFiles}
           onValueChange={(value) =>
             handleSettingsChange({ autoOpenLastFile: value === "on" })
           }
@@ -77,6 +95,32 @@ export function GeneralTabPanel() {
             <RadioGroupItem value="on" id="settings-startup-on" />
             <Label htmlFor="settings-startup-on">
               {t("settings.startup.last")}
+            </Label>
+          </Field>
+        </RadioGroup>
+      </SettingsFieldSet>
+
+      <FieldSeparator />
+
+      <SettingsFieldSet
+        icon={<ClockCounterClockwise className="size-6" />}
+        title={t("settings.recent.title")}
+        description={t("settings.recent.desc")}
+      >
+        <RadioGroup
+          value={settings.recordRecentFiles ? "on" : "off"}
+          onValueChange={handleRecentChange}
+        >
+          <Field orientation="horizontal">
+            <RadioGroupItem value="on" id="settings-recent-on" />
+            <Label htmlFor="settings-recent-on">
+              {t("settings.recent.on")}
+            </Label>
+          </Field>
+          <Field orientation="horizontal">
+            <RadioGroupItem value="off" id="settings-recent-off" />
+            <Label htmlFor="settings-recent-off">
+              {t("settings.recent.off")}
             </Label>
           </Field>
         </RadioGroup>
