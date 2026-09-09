@@ -76,7 +76,7 @@ export function HomeFileCard({
           e.stopPropagation()
           onRemove(path)
         }}
-        className="bg-background/80 absolute top-1 right-1 rounded p-1 opacity-0 transition-opacity group-hover:opacity-100"
+        className="bg-background/80 hover:bg-destructive/10 hover:text-destructive dark:hover:bg-destructive/20 absolute top-1 right-1 rounded p-1 opacity-0 transition-opacity group-hover:opacity-100"
         title={t("home.card.remove")}
         aria-label={t("home.card.remove")}
       >

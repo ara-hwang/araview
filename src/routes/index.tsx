@@ -123,6 +123,7 @@ function HomePage() {
             <Button
               size="sm"
               variant="ghost"
+              className="hover:bg-destructive/10 hover:text-destructive dark:hover:bg-destructive/20"
               onClick={() => void clearFavorites()}
             >
               {t("home.clearAll")}
@@ -153,6 +154,7 @@ function HomePage() {
             <Button
               size="sm"
               variant="ghost"
+              className="hover:bg-destructive/10 hover:text-destructive dark:hover:bg-destructive/20"
               onClick={() => void clearRecent()}
             >
               {t("home.clearAll")}
