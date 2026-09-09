@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, PinIcon } from "lucide-react"
+import { ChevronLeft, ChevronRight } from "lucide-react"
 import { useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { useSettingsStore } from "../store/settingsStore"
@@ -51,7 +51,7 @@ export function ImageNavBar({
   return (
     // 하단 중앙에 고정된 내비게이션 바 (이전/다음 버튼 + 진행률 표시)
     <div
-      className="bg-background/75 border-border absolute bottom-12 flex w-xl flex-col gap-2 rounded-md border p-2 opacity-50 hover:opacity-100"
+      className="bg-background/75 border-border absolute bottom-12 flex w-xl max-w-[calc(100%-2rem)] flex-col gap-2 rounded-md border p-2 opacity-50 hover:opacity-100"
       onMouseDown={(e) => e.stopPropagation()}
     >
       {/* 썸네일 스트립 */}
@@ -111,6 +111,7 @@ export function ImageNavBar({
 
         {/* 슬라이더를 클릭/드래그해서 원하는 위치로 점프 이동 */}
         <Slider
+          aria-label="Image position"
           value={[dirImages.current_index]}
           min={0}
           max={dirImages.images.length - 1}
@@ -122,10 +123,6 @@ export function ImageNavBar({
             onNavigateToIndex(nextIndex)
           }}
         />
-
-        <Button variant="ghost" size="icon" title="Pin Navigation Bar">
-          <PinIcon />
-        </Button>
       </div>
     </div>
   )

@@ -54,7 +54,6 @@ export const useSettingsStore = create<SettingsStore>((set) => ({
     }))
 }))
 
-// Tauri 스토어
 let tauriStorePromise: Promise<TauriStore> | null = null
 
 const getTauriStore = (): Promise<TauriStore> => {

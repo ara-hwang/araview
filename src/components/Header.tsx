@@ -94,7 +94,6 @@ export default function Header() {
 
             <Separator orientation="vertical" />
 
-            {/* 확대율 */}
             <ButtonGroup>
               <Button
                 variant="outline"
@@ -118,7 +117,6 @@ export default function Header() {
             </ButtonGroup>
           </ButtonGroup>
 
-          {/* EXIF & 설정 */}
           <ButtonGroup>
             <Button
               variant="outline"
@@ -139,7 +137,6 @@ export default function Header() {
           </ButtonGroup>
 
           <ButtonGroup>
-            {/* 최소화 */}
             <Button
               variant="outline"
               size="icon"
@@ -149,7 +146,6 @@ export default function Header() {
               <Minus />
             </Button>
 
-            {/* 최대화 / 복구 */}
             <Button
               variant="outline"
               size="icon"
@@ -159,7 +155,6 @@ export default function Header() {
               <Square />
             </Button>
 
-            {/* 닫기 */}
             <Button
               variant="outline"
               size="icon"

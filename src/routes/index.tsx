@@ -1,6 +1,11 @@
 import { useShallow } from "zustand/react/shallow"
 import { createFileRoute, useNavigate } from "@tanstack/react-router"
-import { Empty, EmptyContent } from "@/components/ui/empty"
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyTitle
+} from "@/components/ui/empty"
 import { Button } from "@/components/ui/button"
 import { useEffect } from "react"
 import { getCurrentWindow } from "@tauri-apps/api/window"
@@ -61,6 +66,10 @@ function HomePage() {
     >
       <Empty>
         <EmptyContent>
+          <EmptyTitle>표시할 이미지가 없습니다</EmptyTitle>
+          <EmptyDescription>
+            파일을 여기로 끌어다 놓거나 Open File 버튼으로 선택하세요.
+          </EmptyDescription>
           <Button onClick={handleOpenFile}>Open File</Button>
         </EmptyContent>
       </Empty>

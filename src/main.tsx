@@ -6,7 +6,6 @@ import { initSettingsFromStore } from "@/store/settingsStore"
 import { useRecentFilesStore } from "@/store/recentFilesStore"
 import "./App.css"
 
-// 영구 저장소에서 설정과 최근 파일 목록을 초기화
 void initSettingsFromStore()
 void useRecentFilesStore.getState().init()
 
