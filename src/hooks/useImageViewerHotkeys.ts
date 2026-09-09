@@ -14,6 +14,7 @@ type ImageViewerHotkeysParams = {
   onNavigatePrev: () => void
   onNavigateNext: () => void
   onOpenFile: () => void
+  onCloseImage: () => void
   onToggleExif: () => void
   onToggleSlideshow: () => void
   onToggleFullscreen: () => void
@@ -41,6 +42,7 @@ export function useImageViewerHotkeys(props: ImageViewerHotkeysParams) {
   useHotkey("2", () => setZoomToFit("height"))
   useHotkey("3", () => setZoomToFit("screen"))
   useHotkey("Control+O", props.onOpenFile)
+  useHotkey("Escape", props.onCloseImage)
   useHotkey("I", props.onToggleExif)
   useHotkey("R", rotateCW)
   useHotkey("Shift+R", rotateCCW)

@@ -4,7 +4,7 @@ import { invoke } from "@tauri-apps/api/core"
 import { confirm } from "@tauri-apps/plugin-dialog"
 import { openPath, revealItemInDir } from "@tauri-apps/plugin-opener"
 import { toast } from "sonner"
-import { useAppStore } from "@/store/appStore"
+import { closeImage, useAppStore } from "@/store/appStore"
 import { useRecentFilesStore } from "@/store/recentFilesStore"
 import { useFavoritesStore } from "@/store/favoritesStore"
 import i18n from "@/i18n"
@@ -111,11 +111,7 @@ export function useFileOperations({ loadImage }: { loadImage: LoadImageFn }) {
     )
 
     if (!next) {
-      useAppStore.setState({
-        imageInfo: null,
-        dirImages: { images: [], current_index: 0 },
-        error: null
-      })
+      closeImage()
       toast.success(i18n.t("toast.trash.done"))
       void navigate({ to: "/" })
       return

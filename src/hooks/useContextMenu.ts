@@ -17,6 +17,7 @@ import i18n from "@/i18n"
 
 export type ImageViewerContextMenuActions = {
   onOpenFile: () => void
+  onCloseImage: () => void
   onNavigatePrev: () => void
   onNavigateNext: () => void
   onToggleExif: () => void
@@ -54,11 +55,16 @@ export async function showImageViewerContextMenu(
         ]
       : []
 
-  const [openItem, ...rest] = await Promise.all([
+  const [openItem, closeItem, ...rest] = await Promise.all([
     MenuItem.new({
       text: t("menu.open"),
       accelerator: "Ctrl+O",
       action: () => actions.onOpenFile()
+    }),
+    MenuItem.new({
+      text: t("menu.closeImage"),
+      accelerator: "Esc",
+      action: () => actions.onCloseImage()
     }),
     ...navItems,
     PredefinedMenuItem.new({ item: "Separator" }),
@@ -187,7 +193,7 @@ export async function showImageViewerContextMenu(
     })
   ])
 
-  const menu = await Menu.new({ items: [openItem, ...rest] })
+  const menu = await Menu.new({ items: [openItem, closeItem, ...rest] })
   await menu.popup()
 }
 

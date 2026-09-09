@@ -3,6 +3,8 @@
     "title": "Image Viewer"
   },
   "header": {
+    "home": "홈",
+    "homeTitle": "이미지 닫기 (Esc)",
     "open": "열기",
     "openTitle": "파일 열기 (Ctrl+O)",
     "fitWidth": "너비",
@@ -201,6 +203,7 @@
   },
   "menu": {
     "open": "파일 열기",
+    "closeImage": "이미지 닫기",
     "prev": "이전 이미지",
     "next": "다음 이미지",
     "zoomIn": "확대",
