@@ -41,6 +41,8 @@ import { useCloseImage } from "@/hooks/useCloseImage"
 import { useExifLoader } from "@/hooks/useExifLoader"
 import { useAlwaysOnTop } from "@/hooks/useAlwaysOnTop"
 import { SettingsDialog } from "@/components/SettingsDialog"
+import { useSettingsStore } from "@/store/settingsStore"
+import { formatShortcutDisplay } from "@/constants/shortcuts"
 import { useTranslation } from "react-i18next"
 
 // 위쪽 툴바
@@ -49,6 +51,9 @@ export default function Header() {
   const [appWindow] = useState(() => getCurrentWindow())
   const zoom = useAppStore((state) => state.zoom)
   const hasImage = useAppStore((state) => state.imageInfo !== null)
+  const shortcuts = useSettingsStore((state) => state.shortcuts)
+  const withShortcut = (label: string, binding: string) =>
+    binding ? `${label} (${formatShortcutDisplay(binding)})` : label
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [isMaximized, setIsMaximized] = useState(false)
 
@@ -111,8 +116,8 @@ export default function Header() {
             variant="outline"
             onClick={handleGoHome}
             disabled={!hasImage}
-            title={t("header.homeTitle")}
-            aria-label={t("header.homeTitle")}
+            title={withShortcut(t("header.home"), shortcuts.closeImage)}
+            aria-label={withShortcut(t("header.home"), shortcuts.closeImage)}
           >
             <House />
             <span className="hidden md:inline">{t("header.home")}</span>
@@ -120,8 +125,8 @@ export default function Header() {
           <Button
             variant="outline"
             onClick={handleOpenFile}
-            title={t("header.openTitle")}
-            aria-label={t("header.openTitle")}
+            title={withShortcut(t("header.open"), shortcuts.openFile)}
+            aria-label={withShortcut(t("header.open"), shortcuts.openFile)}
           >
             <FolderOpen />
             <span className="hidden md:inline">{t("header.open")}</span>
@@ -135,8 +140,11 @@ export default function Header() {
                 variant="ghost"
                 onClick={() => setZoomToFit("width")}
                 disabled={!hasImage}
-                title={t("header.fitWidthTitle")}
-                aria-label={t("header.fitWidthTitle")}
+                title={withShortcut(t("header.fitWidth"), shortcuts.fitWidth)}
+                aria-label={withShortcut(
+                  t("header.fitWidth"),
+                  shortcuts.fitWidth
+                )}
               >
                 <ArrowsHorizontal />
                 <span className="hidden md:inline">{t("header.fitWidth")}</span>
@@ -145,8 +153,11 @@ export default function Header() {
                 variant="ghost"
                 onClick={() => setZoomToFit("height")}
                 disabled={!hasImage}
-                title={t("header.fitHeightTitle")}
-                aria-label={t("header.fitHeightTitle")}
+                title={withShortcut(t("header.fitHeight"), shortcuts.fitHeight)}
+                aria-label={withShortcut(
+                  t("header.fitHeight"),
+                  shortcuts.fitHeight
+                )}
               >
                 <ArrowsVertical />
                 <span className="hidden md:inline">
@@ -157,8 +168,11 @@ export default function Header() {
                 variant="ghost"
                 onClick={() => setZoomToFit("screen")}
                 disabled={!hasImage}
-                title={t("header.fitScreenTitle")}
-                aria-label={t("header.fitScreenTitle")}
+                title={withShortcut(t("header.fitScreen"), shortcuts.fitScreen)}
+                aria-label={withShortcut(
+                  t("header.fitScreen"),
+                  shortcuts.fitScreen
+                )}
               >
                 <ArrowsOut />
                 <span className="hidden md:inline">
@@ -174,8 +188,11 @@ export default function Header() {
                 variant="ghost"
                 onClick={zoomOut}
                 disabled={!hasImage}
-                title={t("header.zoomOutTitle")}
-                aria-label={t("header.zoomOutTitle")}
+                title={withShortcut(t("header.zoomOut"), shortcuts.zoomOut)}
+                aria-label={withShortcut(
+                  t("header.zoomOut"),
+                  shortcuts.zoomOut
+                )}
               >
                 <MagnifyingGlassMinus />
                 <span className="hidden md:inline">{t("header.zoomOut")}</span>
@@ -191,8 +208,8 @@ export default function Header() {
                 variant="ghost"
                 onClick={zoomIn}
                 disabled={!hasImage}
-                title={t("header.zoomInTitle")}
-                aria-label={t("header.zoomInTitle")}
+                title={withShortcut(t("header.zoomIn"), shortcuts.zoomIn)}
+                aria-label={withShortcut(t("header.zoomIn"), shortcuts.zoomIn)}
               >
                 <MagnifyingGlassPlus />
                 <span className="hidden md:inline">{t("header.zoomIn")}</span>
@@ -207,8 +224,11 @@ export default function Header() {
                 size="icon"
                 onClick={rotateCCW}
                 disabled={!hasImage}
-                title={t("header.rotateCcwTitle")}
-                aria-label={t("header.rotateCcwTitle")}
+                title={withShortcut(t("menu.rotateCcw"), shortcuts.rotateCCW)}
+                aria-label={withShortcut(
+                  t("menu.rotateCcw"),
+                  shortcuts.rotateCCW
+                )}
               >
                 <ArrowCounterClockwise />
               </Button>
@@ -217,8 +237,11 @@ export default function Header() {
                 size="icon"
                 onClick={rotateCW}
                 disabled={!hasImage}
-                title={t("header.rotateCwTitle")}
-                aria-label={t("header.rotateCwTitle")}
+                title={withShortcut(t("menu.rotateCw"), shortcuts.rotateCW)}
+                aria-label={withShortcut(
+                  t("menu.rotateCw"),
+                  shortcuts.rotateCW
+                )}
               >
                 <ArrowClockwise />
               </Button>
@@ -227,8 +250,8 @@ export default function Header() {
                 size="icon"
                 onClick={flipHorizontal}
                 disabled={!hasImage}
-                title={t("header.flipHTitle")}
-                aria-label={t("header.flipHTitle")}
+                title={withShortcut(t("menu.flipH"), shortcuts.flipH)}
+                aria-label={withShortcut(t("menu.flipH"), shortcuts.flipH)}
               >
                 <FlipHorizontal />
               </Button>
@@ -237,8 +260,8 @@ export default function Header() {
                 size="icon"
                 onClick={flipVertical}
                 disabled={!hasImage}
-                title={t("header.flipVTitle")}
-                aria-label={t("header.flipVTitle")}
+                title={withShortcut(t("menu.flipV"), shortcuts.flipV)}
+                aria-label={withShortcut(t("menu.flipV"), shortcuts.flipV)}
               >
                 <FlipVertical />
               </Button>
@@ -250,8 +273,8 @@ export default function Header() {
               variant="outline"
               onClick={() => void toggleExifPanel()}
               disabled={!hasImage}
-              title={t("header.infoTitle")}
-              aria-label={t("header.infoTitle")}
+              title={withShortcut(t("header.info"), shortcuts.toggleExif)}
+              aria-label={withShortcut(t("header.info"), shortcuts.toggleExif)}
             >
               <Info />
               <span className="hidden md:inline">{t("header.info")}</span>
@@ -272,8 +295,14 @@ export default function Header() {
               variant="outline"
               size="icon"
               onClick={() => void toggleAlwaysOnTop()}
-              title={t("header.alwaysOnTopTitle")}
-              aria-label={t("header.alwaysOnTopTitle")}
+              title={withShortcut(
+                t("header.alwaysOnTop"),
+                shortcuts.toggleAlwaysOnTop
+              )}
+              aria-label={withShortcut(
+                t("header.alwaysOnTop"),
+                shortcuts.toggleAlwaysOnTop
+              )}
               aria-pressed={alwaysOnTop}
               className={cn(
                 alwaysOnTop &&

@@ -11,8 +11,9 @@ import {
   zoomIn,
   zoomOut
 } from "@/store/appStore"
-import { cycleViewerBackground } from "@/store/settingsStore"
+import { cycleViewerBackground, getSettings } from "@/store/settingsStore"
 import { toggleShuffleAndRefresh } from "@/utils/directoryOptions"
+import { toTauriAccelerator } from "@/constants/shortcuts"
 import i18n from "@/i18n"
 
 export type ImageViewerContextMenuActions = {
@@ -39,18 +40,20 @@ export async function showImageViewerContextMenu(
   actions: ImageViewerContextMenuActions
 ): Promise<void> {
   const t = i18n.t.bind(i18n)
+  const s = getSettings().shortcuts
+  const acc = (binding: string) => toTauriAccelerator(binding)
   const navItems =
     dirImages && dirImages.images.length > 1
       ? [
           PredefinedMenuItem.new({ item: "Separator" }),
           MenuItem.new({
             text: t("menu.prev"),
-            accelerator: "Left",
+            accelerator: acc(s.navigatePrev),
             action: () => actions.onNavigatePrev()
           }),
           MenuItem.new({
             text: t("menu.next"),
-            accelerator: "Right",
+            accelerator: acc(s.navigateNext),
             action: () => actions.onNavigateNext()
           })
         ]
@@ -59,142 +62,142 @@ export async function showImageViewerContextMenu(
   const [openItem, closeItem, ...rest] = await Promise.all([
     MenuItem.new({
       text: t("menu.open"),
-      accelerator: "Ctrl+O",
+      accelerator: acc(s.openFile),
       action: () => actions.onOpenFile()
     }),
     MenuItem.new({
       text: t("menu.closeImage"),
-      accelerator: "Esc",
+      accelerator: acc(s.closeImage),
       action: () => actions.onCloseImage()
     }),
     ...navItems,
     PredefinedMenuItem.new({ item: "Separator" }),
     MenuItem.new({
       text: t("menu.zoomIn"),
-      accelerator: "=",
+      accelerator: acc(s.zoomIn),
       action: () => zoomIn()
     }),
     MenuItem.new({
       text: t("menu.zoomOut"),
-      accelerator: "-",
+      accelerator: acc(s.zoomOut),
       action: () => zoomOut()
     }),
     MenuItem.new({
       text: t("menu.actualSize"),
-      accelerator: "0",
+      accelerator: acc(s.resetView),
       action: () => resetZoomPan()
     }),
     PredefinedMenuItem.new({ item: "Separator" }),
     MenuItem.new({
       text: t("menu.fitWidth"),
-      accelerator: "1",
+      accelerator: acc(s.fitWidth),
       action: () => setZoomToFit("width")
     }),
     MenuItem.new({
       text: t("menu.fitHeight"),
-      accelerator: "2",
+      accelerator: acc(s.fitHeight),
       action: () => setZoomToFit("height")
     }),
     MenuItem.new({
       text: t("menu.fitScreen"),
-      accelerator: "3",
+      accelerator: acc(s.fitScreen),
       action: () => setZoomToFit("screen")
     }),
     PredefinedMenuItem.new({ item: "Separator" }),
     MenuItem.new({
       text: t("menu.rotateCw"),
-      accelerator: "R",
+      accelerator: acc(s.rotateCW),
       action: () => rotateCW()
     }),
     MenuItem.new({
       text: t("menu.rotateCcw"),
-      accelerator: "Shift+R",
+      accelerator: acc(s.rotateCCW),
       action: () => rotateCCW()
     }),
     MenuItem.new({
       text: t("menu.flipH"),
-      accelerator: "H",
+      accelerator: acc(s.flipH),
       action: () => flipHorizontal()
     }),
     MenuItem.new({
       text: t("menu.flipV"),
-      accelerator: "V",
+      accelerator: acc(s.flipV),
       action: () => flipVertical()
     }),
     PredefinedMenuItem.new({ item: "Separator" }),
     MenuItem.new({
       text: t("menu.toggleExif"),
-      accelerator: "I",
+      accelerator: acc(s.toggleExif),
       action: () => actions.onToggleExif()
     }),
     MenuItem.new({
       text: t("menu.toggleSlideshow"),
-      accelerator: "Space",
+      accelerator: acc(s.toggleSlideshow),
       action: () => actions.onToggleSlideshow()
     }),
     MenuItem.new({
       text: t("menu.toggleFullscreen"),
-      accelerator: "F11",
+      accelerator: acc(s.toggleFullscreen),
       action: () => actions.onToggleFullscreen()
     }),
     MenuItem.new({
       text: t("menu.toggleAlwaysOnTop"),
-      accelerator: "T",
+      accelerator: acc(s.toggleAlwaysOnTop),
       action: () => actions.onToggleAlwaysOnTop()
     }),
     MenuItem.new({
       text: t("menu.copyImage"),
-      accelerator: "Ctrl+C",
+      accelerator: acc(s.copyImage),
       action: () => actions.onCopyImage()
     }),
     PredefinedMenuItem.new({ item: "Separator" }),
     MenuItem.new({
       text: t("menu.cycleBg"),
-      accelerator: "B",
+      accelerator: acc(s.cycleBackground),
       action: () => cycleViewerBackground()
     }),
     MenuItem.new({
       text: t("menu.toggleShuffle"),
-      accelerator: "S",
+      accelerator: acc(s.toggleShuffle),
       action: () => toggleShuffleAndRefresh()
     }),
     PredefinedMenuItem.new({ item: "Separator" }),
     MenuItem.new({
       text: t("menu.trash"),
-      accelerator: "Del",
+      accelerator: acc(s.trashFile),
       action: () => actions.onTrashFile()
     }),
     MenuItem.new({
       text: t("menu.reveal"),
-      accelerator: "Ctrl+Shift+E",
+      accelerator: acc(s.revealInExplorer),
       action: () => actions.onRevealInExplorer()
     }),
     MenuItem.new({
       text: t("menu.openExternal"),
-      accelerator: "Ctrl+Shift+O",
+      accelerator: acc(s.openExternal),
       action: () => actions.onOpenExternal()
     }),
     PredefinedMenuItem.new({ item: "Separator" }),
     MenuItem.new({
       text: t("menu.rename"),
-      accelerator: "F2",
+      accelerator: acc(s.renameFile),
       action: () => actions.onRenameFile()
     }),
     MenuItem.new({
       text: t("menu.copyPath"),
-      accelerator: "Ctrl+Shift+C",
+      accelerator: acc(s.copyPath),
       action: () => actions.onCopyPath()
     }),
     PredefinedMenuItem.new({ item: "Separator" }),
     MenuItem.new({
       text: t("menu.saveEdits"),
-      accelerator: "Ctrl+S",
+      accelerator: acc(s.saveEdits),
       action: () => actions.onSaveEdits()
     }),
     PredefinedMenuItem.new({ item: "Separator" }),
     MenuItem.new({
       text: t("menu.toggleFavorite"),
-      accelerator: "F",
+      accelerator: acc(s.toggleFavorite),
       action: () => actions.onToggleFavorite()
     })
   ])

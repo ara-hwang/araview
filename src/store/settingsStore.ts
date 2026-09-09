@@ -7,6 +7,14 @@ import i18n, {
   setI18nLanguage,
   type AppLanguage
 } from "@/i18n"
+import {
+  DEFAULT_MOUSE,
+  DEFAULT_SHORTCUTS,
+  DEFAULT_WHEEL,
+  sanitizeMouseMap,
+  sanitizeShortcutMap,
+  sanitizeWheelMap
+} from "@/constants/shortcuts"
 
 export type { AppLanguage }
 
@@ -18,6 +26,8 @@ export type ViewMode = "single" | "left-to-right" | "right-to-left" | "webtoon"
 export type ViewerBackground = "theme" | "black" | "white" | "checker"
 
 export type DirSortKey = "name" | "date" | "size"
+
+export type { MouseMap, ShortcutMap, WheelMap } from "@/constants/shortcuts"
 
 export type SettingsState = {
   language: AppLanguage
@@ -34,6 +44,9 @@ export type SettingsState = {
   sortDescending: boolean
   shuffle: boolean
   includeSubfolders: boolean
+  shortcuts: import("@/constants/shortcuts").ShortcutMap
+  wheel: import("@/constants/shortcuts").WheelMap
+  mouse: import("@/constants/shortcuts").MouseMap
 }
 
 type SettingsStoreActions = {
@@ -63,8 +76,13 @@ const initialSettings: SettingsState = {
   sortKey: "name",
   sortDescending: false,
   shuffle: false,
-  includeSubfolders: false
+  includeSubfolders: false,
+  shortcuts: { ...DEFAULT_SHORTCUTS },
+  wheel: { ...DEFAULT_WHEEL },
+  mouse: { ...DEFAULT_MOUSE }
 }
+
+export const DEFAULT_SETTINGS: SettingsState = { ...initialSettings }
 
 export const useSettingsStore = create<SettingsStore>((set) => ({
   ...initialSettings,
@@ -150,6 +168,15 @@ export const resetSettings = async () => {
   if (saved) toast.success(i18n.t("toast.settings.resetDone"))
 }
 
+export const resetShortcutsToDefault = async () => {
+  const saved = await updateSettings({
+    shortcuts: { ...DEFAULT_SHORTCUTS },
+    wheel: { ...DEFAULT_WHEEL },
+    mouse: { ...DEFAULT_MOUSE }
+  })
+  if (saved) toast.success(i18n.t("toast.settings.resetDone"))
+}
+
 export const initSettingsFromStore = async () => {
   const systemLanguage = detectSystemLanguage()
   try {
@@ -160,7 +187,19 @@ export const initSettingsFromStore = async () => {
       null
     const language = storedLanguage ?? systemLanguage
     if (stored) {
-      useSettingsStore.setState({ ...initialSettings, ...stored, language })
+      const storedRecord = stored as Partial<SettingsState> & {
+        shortcuts?: unknown
+        wheel?: unknown
+        mouse?: unknown
+      }
+      useSettingsStore.setState({
+        ...initialSettings,
+        ...stored,
+        language,
+        shortcuts: sanitizeShortcutMap(storedRecord.shortcuts),
+        wheel: sanitizeWheelMap(storedRecord.wheel),
+        mouse: sanitizeMouseMap(storedRecord.mouse)
+      })
     } else {
       useSettingsStore.setState({
         ...initialSettings,

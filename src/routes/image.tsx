@@ -1,7 +1,8 @@
 import { createFileRoute, redirect } from "@tanstack/react-router"
 import { ImageContainer } from "@/components/ImageContainer"
-import { getApp, useAppStore } from "@/store/appStore"
-import { useSettingsStore } from "@/store/settingsStore"
+import { getApp, useAppStore, zoomIn, zoomOut } from "@/store/appStore"
+import { getSettings, useSettingsStore } from "@/store/settingsStore"
+import type { MouseAction } from "@/constants/shortcuts"
 import { useDirectoryNavigation } from "@/hooks/useDirectoryNavigation"
 import { useExifLoader } from "@/hooks/useExifLoader"
 import { useImageLoader } from "@/hooks/useImageLoader"
@@ -129,7 +130,7 @@ function ImagePage() {
     [saveEdits]
   )
 
-  const handleContextMenu = useImageViewerContextMenu(dirImages, {
+  const baseContextMenu = useImageViewerContextMenu(dirImages, {
     onOpenFile: handleOpenFile,
     onCloseImage: handleCloseImage,
     onNavigatePrev: () => void navigateImage("prev"),
@@ -147,6 +148,76 @@ function ImagePage() {
     onSaveEdits: () => setSaveOpen(true),
     onToggleFavorite: () => void toggleFavoriteCurrent()
   })
+
+  const runMouseAction = useCallback(
+    (action: MouseAction, e?: React.MouseEvent) => {
+      switch (action) {
+        case "prev":
+          void navigateImage("prev")
+          break
+        case "next":
+          void navigateImage("next")
+          break
+        case "zoomIn":
+          zoomIn()
+          break
+        case "zoomOut":
+          zoomOut()
+          break
+        case "toggleFullscreen":
+          void fullscreen.toggle()
+          break
+        case "contextMenu":
+          if (e) void baseContextMenu(e)
+          break
+        case "pan":
+        case "none":
+        default:
+          break
+      }
+    },
+    [baseContextMenu, fullscreen, navigateImage]
+  )
+
+  const handleDoubleClick = useCallback(
+    (e: React.MouseEvent) => {
+      const action = getSettings().mouse.doubleClick
+      if (action === "pan" || action === "none") return
+      e.preventDefault()
+      runMouseAction(action, e)
+    },
+    [runMouseAction]
+  )
+
+  const handleMiddleClick = useCallback(
+    (e: React.MouseEvent) => {
+      const action = getSettings().mouse.middleClick
+      if (action === "pan" || action === "none") {
+        e.preventDefault()
+        return
+      }
+      e.preventDefault()
+      runMouseAction(action, e)
+    },
+    [runMouseAction]
+  )
+
+  const handleContextMenu = useCallback(
+    (e: React.MouseEvent) => {
+      const action = getSettings().mouse.rightClick
+      if (!action || action === "contextMenu") {
+        void baseContextMenu(e)
+        return
+      }
+      if (action === "pan" || action === "none") {
+        e.preventDefault()
+        return
+      }
+      e.preventDefault()
+      runMouseAction(action, e)
+    },
+    [baseContextMenu, runMouseAction]
+  )
 
   useImageViewerHotkeys({
     onNavigatePrev: () => void navigateImage("prev"),
@@ -185,6 +256,8 @@ function ImagePage() {
         onMouseDown={zoomPan.handleMouseDown}
         onMouseMove={zoomPan.handleMouseMove}
         onMouseUp={zoomPan.handleMouseUp}
+        onDoubleClick={handleDoubleClick}
+        onMiddleClick={handleMiddleClick}
         onNavigate={navigateImage}
         onNavigateToIndex={navigateToIndex}
         getOrLoadImage={getOrLoadImage}
