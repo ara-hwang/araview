@@ -2,6 +2,7 @@ import { useCallback, useLayoutEffect, useRef } from "react"
 import {
   getPositionBounds,
   clampPosition,
+  getOrientedImageSize,
   isFullyContained
 } from "../utils/zoomPanUtils"
 import {
@@ -25,7 +26,8 @@ export function useZoomPan() {
       zoom: state.zoom,
       isDragging: state.isDragging,
       containerSize: state.containerSize,
-      imageSize: state.imageSize
+      imageSize: state.imageSize,
+      rotation: state.rotation
     }))
   )
   const setIsDragging = useAppStore((state) => state.setIsDragging)
@@ -66,13 +68,18 @@ export function useZoomPan() {
     if (!app.imageInfo) return
     const cw = app.containerSize.width
     const ch = app.containerSize.height
-    const iw = app.imageSize.width
-    const ih = app.imageSize.height
+    const oriented = getOrientedImageSize(
+      app.imageSize.width,
+      app.imageSize.height,
+      app.rotation
+    )
+    const iw = oriented.width
+    const ih = oriented.height
     if (cw <= 0 || ch <= 0 || iw <= 0 || ih <= 0) return
     if (isFullyContained(cw, ch, iw, ih, app.zoom)) {
       useAppStore.setState({ position: { x: 0, y: 0 } })
     }
-  }, [app.imageInfo, app.zoom, app.containerSize, app.imageSize])
+  }, [app.imageInfo, app.zoom, app.containerSize, app.imageSize, app.rotation])
 
   const resetView = useCallback(() => {
     resetZoomPan()
@@ -89,8 +96,13 @@ export function useZoomPan() {
     const newY = base.y * ratio
     const cw = app.containerSize.width
     const ch = app.containerSize.height
-    const iw = app.imageSize.width
-    const ih = app.imageSize.height
+    const oriented = getOrientedImageSize(
+      app.imageSize.width,
+      app.imageSize.height,
+      app.rotation
+    )
+    const iw = oriented.width
+    const ih = oriented.height
     if (cw <= 0 || ch <= 0 || iw <= 0 || ih <= 0) {
       useAppStore.setState({ position: { x: newX, y: newY } })
     } else {
@@ -98,7 +110,7 @@ export function useZoomPan() {
       useAppStore.setState({ position: clampPosition(newX, newY, maxX, maxY) })
     }
     prevZoomRef.current = app.zoom
-  }, [app.zoom, app.position, app.containerSize, app.imageSize])
+  }, [app.zoom, app.position, app.containerSize, app.imageSize, app.rotation])
 
   return {
     position: app.position,

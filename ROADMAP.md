@@ -2,6 +2,11 @@
 
 > **Tauri Image Viewer** 의 향후 기능 추가, 최적화 및 개선 아이디어를 정리한 로드맵입니다.
 > 우선순위(P0 ~ P3)와 단계(Phase)를 기준으로 정리되어 있습니다.
+>
+> ## 구현 현황 (2026-09-09 기준)
+>
+> - ✅ 완료: 뷰 모드 렌더(`useMultiPageImages` + `ImageContainer`), 회전/뒤집기(`appStore` + CSS transform + `R/Shift+R/H/V`), 클립보드 복사 PNG(`useCopyImage`), 슬라이드쇼 코어(`useSlideshow` + `Space/F5` + 간격 설정), 최근 파일 목록(최대 20개, `settings.json`), Asset Protocol 경로 기반 렌더링(base64 제거).
+> - ✅ Phase 1 폴리시 완료: 설정 UI 노출(viewMode/간격/자동열기), 헤더 회전/뒤집기 + 컨텍스트 메뉴 풀셋, 양면 2장 넘김 + 회전 bounds, 슬라이드쇼 진행바 오버레이, 다중 DnD + 오버레이, 에러 분류 + 홈으로 복구, EXIF 아카이브修正·썸네일 alt·테마 데드코드 제거.
 
 ---
 
@@ -9,11 +14,11 @@
 
 > 이미 코드베이스에 구조가 잡혀 있으나 아직 완성되지 않은 기능, 또는 사용자 경험에 직결되는 핵심 개선.
 
-### 1.1 뷰 모드 구현 (P0)
+### 1.1 뷰 모드 구현 (P0) — ✅ 렌더 완료 / 폴리시 남음
 
-**현재 상태**: `settingsStore.ts`에 `ViewMode` 타입(`single | left-to-right | right-to-left | webtoon`)이 정의되어 있고 `SettingsDialog.tsx`에서 설정할 수 있지만, 실제 `ImageContainer.tsx`에서 뷰 모드에 따른 렌더링 로직이 구현되어 있지 않음.
+**현재 상태 (2026-09-09)**: `settingsStore.ViewMode` + `ImageContainer` + `useMultiPageImages`로 `single(1장) / left-to-right(현재+다음) / right-to-left(현재+다음) / webtoon(이전+현재+다음)` 렌더 완료. 남은 폴리시는 Phase 1-3 (모드별 넘김 단위, 프리페치, zoom/pan 활성화, 회전 bounds).
 
-**구현 계획**:
+**당시 구현 계획 (보존)**:
 - `ImageContainer.tsx`에서 `viewMode` 상태를 구독하여 레이아웃 분기
 - **single**: 현재 동작 유지 (단일 이미지 표시)
 - **left-to-right**: 두 페이지를 좌→우로 나란히 표시 (만화/코믹스용)
@@ -30,11 +35,11 @@
 
 ---
 
-### 1.2 이미지 회전 및 뒤집기 (P0)
+### 1.2 이미지 회전 및 뒤집기 (P0) — ✅ 완료
 
-**현재 상태**: 회전/뒤집기 기능 없음.
+**현재 상태 (2026-09-09)**: `appStore.rotation/flipH/flipV` + `ImageContainer` CSS transform + `R/Shift+R/H/V` + `resetZoomPan` 초기화 완료. 남은 것은 헤더 버튼/컨텍스트 메뉴 노출(Phase 1-2)과 90°/270° bounds 반영(Phase 1-3).
 
-**구현 계획**:
+**당시 구현 계획 (보존)**:
 - `appStore.ts`에 `rotation` (0, 90, 180, 270)과 `flip` (none, horizontal, vertical) 상태 추가
 - `ImageContainer.tsx`에서 CSS `transform: rotate() scaleX()` 적용
 - 단축키 추가: `R` (시계 방향 90°), `Shift+R` (반시계 방향 90°), `H` (수평 뒤집기), `V` (수직 뒤집기)
@@ -51,11 +56,11 @@
 
 ---
 
-### 1.3 클립보드 복사 (P1)
+### 1.3 클립보드 복사 (P1) — ✅ 완료
 
-**현재 상태**: 이미지 클립보드 복사 기능 없음.
+**현재 상태 (2026-09-09)**: `useCopyImage`로 Asset URL fetch → Canvas PNG 재인코딩 → `ClipboardItem` 복사 + `Ctrl+C` 완료. 남은 것은 헤더 버튼 노출(Phase 1-2)과 파일 경로 복사 옵션.
 
-**구현 계획**:
+**당시 구현 계획 (보존)**:
 - `Ctrl+C`로 현재 이미지를 클립보드에 복사
 - Tauri의 클립보드 플러그인 (`tauri-plugin-clipboard-manager`) 활용
 - 컨텍스트 메뉴에 "이미지 복사" 항목 추가
@@ -69,11 +74,11 @@
 
 ---
 
-### 1.4 슬라이드쇼 모드 (P1)
+### 1.4 슬라이드쇼 모드 (P1) — ✅ 코어 완료 / 폴리시 남음
 
-**현재 상태**: 자동 재생 기능 없음.
+**현재 상태 (2026-09-09)**: `useSlideshow` 간격(`slideshowIntervalMs`, 기본 3000ms) + `Space/F5` 토글 + 토스트 + 루프 연동 완료. 남은 폴리시는 진행바/오버레이/전체화면 연동/헤더 버튼(Phase 1-4, 1-2). 설정 UI 미노출(Phase 1-1).
 
-**구현 계획**:
+**당시 구현 계획 (보존)**:
 - 단축키 `Space` 또는 `F5`로 슬라이드쇼 시작/정지
 - 설정 가능한 간격 (1초 ~ 30초, 기본 3초)
 - 전체화면 지원 (Tauri window fullscreen API)
@@ -130,11 +135,11 @@
 
 ---
 
-### 2.3 최근 파일 목록 (P2)
+### 2.3 최근 파일 목록 (P2) — ✅ 완료 (최대 20개)
 
-**현재 상태**: 앱을 다시 열면 이전에 본 이미지를 기억하지 않음.
+**현재 상태 (2026-09-09)**: `recentFilesStore` + `settings.json` 영속화 + 홈 그리드 + 개별 삭제/전체 삭제 + `navigate(/image)` 완료. 남은 옵션은 앱 시작 시 마지막 이미지 자동 열기(Phase 1-7).
 
-**구현 계획**:
+**당시 구현 계획 (보존)**:
 - Tauri Store에 최근 열어본 파일 목록 저장 (최대 50개)
 - 홈 화면(`index.tsx`)에 최근 파일 목록 표시
 - 마지막으로 본 이미지를 앱 시작 시 자동으로 열기 옵션
@@ -183,11 +188,11 @@
 
 > 대용량 이미지 및 대량 파일 처리 시 성능을 개선하는 최적화.
 
-### 3.1 스트리밍 이미지 디코딩 (P1)
+### 3.1 스트리밍 이미지 디코딩 (P1) — ✅ 완료 (asset protocol)
 
-**현재 상태**: 이미지 전체를 base64로 인코딩하여 프론트엔드로 전달. 대용량 이미지(20MB+ RAW/TIFF)에서 메모리 사용량이 높고 전송이 느림.
+**현재 상태 (2026-09-09)**: `ImageInfo.file_path` + `convertFileSrc` 경로 기반 렌더링으로 base64 제거 완료. HEIC만 JPEG sidecar transcoding. 남은 것은 저해상도 프리뷰 우선 표시(선택).
 
-**최적화 계획**:
+**당시 최적화 계획 (보존)**:
 - **Tauri asset protocol** 활용: base64 대신 `asset://` 프로토콜로 파일 직접 로드
   - 메모리 사용량 약 33% 감소 추정 (base64 인코딩은 원본 대비 약 33% 크기 증가를 유발)
   - IPC 직렬화/역직렬화 비용 제거

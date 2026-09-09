@@ -143,3 +143,12 @@
 @utility no-drag {
   -webkit-app-region: no-drag;
 }
+
+@keyframes slideshow-progress {
+  from {
+    width: 0%;
+  }
+  to {
+    width: 100%;
+  }
+}

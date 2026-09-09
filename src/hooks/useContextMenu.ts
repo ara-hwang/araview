@@ -1,12 +1,25 @@
 import { Menu, MenuItem, PredefinedMenuItem } from "@tauri-apps/api/menu"
 import { useCallback } from "react"
 import type { DirectoryImages } from "../types"
-import { resetZoomPan, setZoomToFit, zoomIn, zoomOut } from "@/store/appStore"
+import {
+  flipHorizontal,
+  flipVertical,
+  resetZoomPan,
+  rotateCCW,
+  rotateCW,
+  setZoomToFit,
+  zoomIn,
+  zoomOut
+} from "@/store/appStore"
 
 export type ImageViewerContextMenuActions = {
   onOpenFile: () => void
   onNavigatePrev: () => void
   onNavigateNext: () => void
+  onToggleExif: () => void
+  onToggleSlideshow: () => void
+  onToggleFullscreen: () => void
+  onCopyImage: () => void
 }
 
 export async function showImageViewerContextMenu(
@@ -68,6 +81,48 @@ export async function showImageViewerContextMenu(
       text: "Fit to Screen",
       accelerator: "3",
       action: () => setZoomToFit("screen")
+    }),
+    PredefinedMenuItem.new({ item: "Separator" }),
+    MenuItem.new({
+      text: "Rotate Clockwise",
+      accelerator: "R",
+      action: () => rotateCW()
+    }),
+    MenuItem.new({
+      text: "Rotate Counterclockwise",
+      accelerator: "Shift+R",
+      action: () => rotateCCW()
+    }),
+    MenuItem.new({
+      text: "Flip Horizontal",
+      accelerator: "H",
+      action: () => flipHorizontal()
+    }),
+    MenuItem.new({
+      text: "Flip Vertical",
+      accelerator: "V",
+      action: () => flipVertical()
+    }),
+    PredefinedMenuItem.new({ item: "Separator" }),
+    MenuItem.new({
+      text: "Toggle EXIF Panel",
+      accelerator: "I",
+      action: () => actions.onToggleExif()
+    }),
+    MenuItem.new({
+      text: "Toggle Slideshow",
+      accelerator: "Space",
+      action: () => actions.onToggleSlideshow()
+    }),
+    MenuItem.new({
+      text: "Toggle Fullscreen",
+      accelerator: "F11",
+      action: () => actions.onToggleFullscreen()
+    }),
+    MenuItem.new({
+      text: "Copy Image",
+      accelerator: "Ctrl+C",
+      action: () => actions.onCopyImage()
     })
   ])
 

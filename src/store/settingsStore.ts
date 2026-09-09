@@ -12,6 +12,7 @@ export type SettingsState = {
   cacheMode: CacheMode
   viewMode: ViewMode
   slideshowIntervalMs: number
+  autoOpenLastFile: boolean
 }
 
 type SettingsStoreActions = {
@@ -31,7 +32,8 @@ const initialSettings: SettingsState = {
   loopNavigation: false,
   cacheMode: "nearby",
   viewMode: "single",
-  slideshowIntervalMs: 3000
+  slideshowIntervalMs: 3000,
+  autoOpenLastFile: false
 }
 
 export const useSettingsStore = create<SettingsStore>((set) => ({

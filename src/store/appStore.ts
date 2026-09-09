@@ -4,11 +4,11 @@ import {
   clampPosition,
   getFitZoomFromSizes,
   getMinZoom,
+  getOrientedImageSize,
   getPositionBounds
 } from "@/utils/zoomPanUtils"
 
 type AppState = {
-  theme: "system" | "light" | "dark"
   zoom: number
   dirImages: DirectoryImages
   imageInfo: ImageInfo | null
@@ -32,7 +32,6 @@ type AppState = {
 }
 
 type AppStoreActions = {
-  setTheme: (nextTheme: AppState["theme"]) => void
   setZoom: (nextZoom: AppState["zoom"]) => void
   setDirImages: (nextDirImages: AppState["dirImages"]) => void
   setImageInfo: (nextImageInfo: AppState["imageInfo"]) => void
@@ -53,7 +52,6 @@ type AppStoreActions = {
 }
 
 const initialApp: AppState = {
-  theme: "system",
   zoom: 1,
   imageInfo: null,
   dirImages: {
@@ -80,7 +78,6 @@ const initialApp: AppState = {
 
 export const useAppStore = create<AppState & AppStoreActions>((set) => ({
   ...initialApp,
-  setTheme: (nextTheme) => set({ theme: nextTheme }),
   setZoom: (nextZoom) => set({ zoom: nextZoom }),
   setDirImages: (nextDirImages) => set({ dirImages: nextDirImages }),
   setImageInfo: (nextImageInfo) => set({ imageInfo: nextImageInfo }),
@@ -106,19 +103,29 @@ export const useAppStore = create<AppState & AppStoreActions>((set) => ({
 export const getApp = () => useAppStore.getState()
 
 export const getFitZoom = (): number => {
-  const { containerSize, imageSize } = useAppStore.getState()
+  const { containerSize, imageSize, rotation } = useAppStore.getState()
+  const oriented = getOrientedImageSize(
+    imageSize.width,
+    imageSize.height,
+    rotation
+  )
   return getFitZoomFromSizes(
     containerSize.width,
     containerSize.height,
-    imageSize.width,
-    imageSize.height
+    oriented.width,
+    oriented.height
   )
 }
 
 export const setZoomToFit = (mode: "width" | "height" | "screen") => {
-  const { containerSize, imageSize } = useAppStore.getState()
+  const { containerSize, imageSize, rotation } = useAppStore.getState()
   const { width: cw, height: ch } = containerSize
-  const { width: iw, height: ih } = imageSize
+  const oriented = getOrientedImageSize(
+    imageSize.width,
+    imageSize.height,
+    rotation
+  )
+  const { width: iw, height: ih } = oriented
 
   if (iw <= 0 || ih <= 0) return
 
@@ -144,12 +151,17 @@ export const zoomInBy = (factor = 1.25) => {
 }
 
 export const zoomOutBy = (factor = 1.25) => {
-  const { zoom, containerSize, imageSize } = useAppStore.getState()
+  const { zoom, containerSize, imageSize, rotation } = useAppStore.getState()
+  const oriented = getOrientedImageSize(
+    imageSize.width,
+    imageSize.height,
+    rotation
+  )
   const minZoom = getMinZoom(
     containerSize.width,
     containerSize.height,
-    imageSize.width,
-    imageSize.height
+    oriented.width,
+    oriented.height
   )
   const next = Math.max(zoom / factor, minZoom)
   useAppStore.setState((s) => ({ ...s, zoom: next }))
@@ -229,7 +241,12 @@ export const moveDrag = (clientX: number, clientY: number) => {
   const newY = clientY - state.dragStart.y
 
   const { width: cw, height: ch } = state.containerSize
-  const { width: iw, height: ih } = state.imageSize
+  const oriented = getOrientedImageSize(
+    state.imageSize.width,
+    state.imageSize.height,
+    state.rotation
+  )
+  const { width: iw, height: ih } = oriented
 
   if (cw > 0 && ch > 0 && iw > 0 && ih > 0) {
     const { maxX, maxY } = getPositionBounds(cw, ch, iw, ih, state.zoom)

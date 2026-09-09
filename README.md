@@ -96,8 +96,9 @@ cd src-tauri && cargo clippy
   - `extended`: 더 넓은 범위 프리패치
   - `memory-1gb` / `memory-2gb`: 메모리 상한 기반 캐시
 - **확장자 연결**: 연결을 바꾸면 해당 확장자의 Windows 기본 앱 선택 창이 열립니다.
-- **View Mode**: `single`, `left-to-right`, `right-to-left`, `webtoon`
-- **Slideshow Interval**: 슬라이드쇼 간격(ms)
+- **View Mode**: `single`, `left-to-right`, `right-to-left`, `webtoon` (양면 모드는 2장씩 넘김)
+- **Slideshow Interval**: 슬라이드쇼 간격(ms, 1~30초)
+- **시작**: 홈 화면 표시 또는 마지막 파일 자동 열기
 
 설정과 최근 파일 목록은 Tauri Store(`settings.json`)에 저장됩니다.
 

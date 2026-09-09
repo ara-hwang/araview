@@ -31,5 +31,5 @@ export function useSlideshow(onNavigateNext: () => void) {
 
   const stop = useCallback(() => setActive(false), [])
 
-  return { active, toggle, stop }
+  return { active, toggle, stop, intervalMs }
 }

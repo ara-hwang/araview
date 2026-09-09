@@ -1,5 +1,6 @@
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
+import { Slider } from "@/components/ui/slider"
 import {
   Field,
   FieldDescription,
@@ -12,9 +13,15 @@ import {
   updateSettings,
   useSettingsStore,
   type CacheMode,
-  type SettingsState
+  type SettingsState,
+  type ViewMode
 } from "@/store/settingsStore"
-import { HardDriveIcon, NavigationIcon } from "lucide-react"
+import {
+  HardDriveIcon,
+  ImagesIcon,
+  NavigationIcon,
+  TimerIcon
+} from "lucide-react"
 import type { ReactNode } from "react"
 import { useShallow } from "zustand/react/shallow"
 
@@ -22,7 +29,10 @@ export function GeneralSettingsPanel() {
   const settings = useSettingsStore(
     useShallow((state) => ({
       loopNavigation: state.loopNavigation,
-      cacheMode: state.cacheMode
+      cacheMode: state.cacheMode,
+      viewMode: state.viewMode,
+      slideshowIntervalMs: state.slideshowIntervalMs,
+      autoOpenLastFile: state.autoOpenLastFile
     }))
   )
 
@@ -52,6 +62,59 @@ export function GeneralSettingsPanel() {
             <Label htmlFor="settings-nav-loop">처음/마지막으로 순환</Label>
           </Field>
         </RadioGroup>
+      </CustomFieldSet>
+
+      <FieldSeparator />
+
+      <CustomFieldSet
+        icon={<ImagesIcon />}
+        title="보기 모드"
+        description="단일 / 양면 / 세로 스크롤 표시 방식"
+      >
+        <RadioGroup
+          value={settings.viewMode}
+          onValueChange={(value) =>
+            handleSettingsChange({ viewMode: value as ViewMode })
+          }
+        >
+          <Field orientation="horizontal">
+            <RadioGroupItem value="single" id="settings-view-single" />
+            <Label htmlFor="settings-view-single">단일</Label>
+          </Field>
+          <Field orientation="horizontal">
+            <RadioGroupItem value="left-to-right" id="settings-view-ltr" />
+            <Label htmlFor="settings-view-ltr">좌→우 두 페이지</Label>
+          </Field>
+          <Field orientation="horizontal">
+            <RadioGroupItem value="right-to-left" id="settings-view-rtl" />
+            <Label htmlFor="settings-view-rtl">우→좌 두 페이지</Label>
+          </Field>
+          <Field orientation="horizontal">
+            <RadioGroupItem value="webtoon" id="settings-view-webtoon" />
+            <Label htmlFor="settings-view-webtoon">웹툰 스크롤</Label>
+          </Field>
+        </RadioGroup>
+      </CustomFieldSet>
+
+      <FieldSeparator />
+
+      <CustomFieldSet
+        icon={<TimerIcon />}
+        title="슬라이드쇼 간격"
+        description={`자동 넘김 간격 (${(settings.slideshowIntervalMs / 1000).toFixed(1)}초)`}
+      >
+        <Slider
+          aria-label="Slideshow interval"
+          value={[settings.slideshowIntervalMs]}
+          min={1000}
+          max={30000}
+          step={500}
+          onValueChange={(value) => {
+            const next = Array.isArray(value) ? value[0] : (value as number)
+            if (typeof next === "number")
+              handleSettingsChange({ slideshowIntervalMs: next })
+          }}
+        />
       </CustomFieldSet>
 
       <FieldSeparator />
@@ -90,6 +153,29 @@ export function GeneralSettingsPanel() {
           <Field orientation="horizontal">
             <RadioGroupItem value="memory-2gb" id="settings-cache-2gb" />
             <Label htmlFor="settings-cache-2gb">메모리 제한 (2 GB)</Label>
+          </Field>
+        </RadioGroup>
+      </CustomFieldSet>
+      <FieldSeparator />
+
+      <CustomFieldSet
+        icon={<NavigationIcon />}
+        title="시작"
+        description="앱 실행 시 마지막으로 본 이미지 자동 열기"
+      >
+        <RadioGroup
+          value={settings.autoOpenLastFile ? "on" : "off"}
+          onValueChange={(value) =>
+            handleSettingsChange({ autoOpenLastFile: value === "on" })
+          }
+        >
+          <Field orientation="horizontal">
+            <RadioGroupItem value="off" id="settings-startup-off" />
+            <Label htmlFor="settings-startup-off">홈 화면 표시</Label>
+          </Field>
+          <Field orientation="horizontal">
+            <RadioGroupItem value="on" id="settings-startup-on" />
+            <Label htmlFor="settings-startup-on">마지막 파일 자동 열기</Label>
           </Field>
         </RadioGroup>
       </CustomFieldSet>
