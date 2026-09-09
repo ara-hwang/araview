@@ -6,6 +6,7 @@ import { openPath, revealItemInDir } from "@tauri-apps/plugin-opener"
 import { toast } from "sonner"
 import { closeImage, useAppStore } from "@/store/appStore"
 import { useRecentFilesStore } from "@/store/recentFilesStore"
+import { useSettingsStore } from "@/store/settingsStore"
 import { useFavoritesStore } from "@/store/favoritesStore"
 import i18n from "@/i18n"
 import type { ImageInfo } from "@/types"
@@ -182,9 +183,11 @@ export function useFileOperations({ loadImage }: { loadImage: LoadImageFn }) {
       error: null
     })
     const recent = useRecentFilesStore.getState()
-    void recent
-      .remove(imageInfo.file_path)
-      .then(() => recent.add(nextInfo.file_path))
+    void recent.remove(imageInfo.file_path).then(() => {
+      if (useSettingsStore.getState().recordRecentFiles) {
+        return recent.add(nextInfo.file_path)
+      }
+    })
     void useFavoritesStore
       .getState()
       .replace(imageInfo.file_path, nextInfo.file_path)
@@ -239,7 +242,9 @@ export function useFileOperations({ loadImage }: { loadImage: LoadImageFn }) {
         return false
       }
 
-      void useRecentFilesStore.getState().add(nextInfo.file_path)
+      if (useSettingsStore.getState().recordRecentFiles) {
+        void useRecentFilesStore.getState().add(nextInfo.file_path)
+      }
       toast.success(i18n.t("toast.save.done"), {
         description: nextInfo.file_name,
         duration: 2000

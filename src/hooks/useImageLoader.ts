@@ -54,7 +54,9 @@ export function useImageLoader() {
         error: null
       })
 
-      void useRecentFilesStore.getState().add(archivePath)
+      if (useSettingsStore.getState().recordRecentFiles) {
+        void useRecentFilesStore.getState().add(archivePath)
+      }
     } catch (e) {
       const message = String(e)
       useAppStore.setState({
@@ -105,7 +107,9 @@ export function useImageLoader() {
       try {
         const imgInfo = await getOrLoadImage(filePath)
         useAppStore.setState({ imageInfo: imgInfo })
-        void useRecentFilesStore.getState().add(filePath)
+        if (useSettingsStore.getState().recordRecentFiles) {
+          void useRecentFilesStore.getState().add(filePath)
+        }
         options?.onAfterLoad?.()
 
         let resolvedDirInfo = dirImages

@@ -26,6 +26,7 @@ export type SettingsState = {
   viewMode: ViewMode
   slideshowIntervalMs: number
   autoOpenLastFile: boolean
+  recordRecentFiles: boolean
   viewerBackground: ViewerBackground
   autoHideUI: boolean
   sortKey: DirSortKey
@@ -54,6 +55,7 @@ const initialSettings: SettingsState = {
   viewMode: "single",
   slideshowIntervalMs: 3000,
   autoOpenLastFile: false,
+  recordRecentFiles: true,
   viewerBackground: "theme",
   autoHideUI: false,
   sortKey: "name",

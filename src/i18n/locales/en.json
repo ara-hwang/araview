@@ -117,6 +117,12 @@
       "home": "Show home screen",
       "last": "Auto-open last file"
     },
+    "recent": {
+      "title": "Recent files",
+      "desc": "Save opened images to the home screen. Turning off clears history and stops recording.",
+      "on": "Record on",
+      "off": "Record off"
+    },
     "ext": {
       "title": "File associations",
       "desc": "Changing an association opens the default app picker for that extension. Windows does not allow apps to set defaults directly.",
