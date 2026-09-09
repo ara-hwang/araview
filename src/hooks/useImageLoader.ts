@@ -11,7 +11,7 @@ import { useAppStore } from "@/store/appStore"
 import { useRecentFilesStore } from "@/store/recentFilesStore"
 import { buildDirListOptions } from "@/utils/directoryOptions"
 
-const ARCHIVE_EXTENSIONS = ["cbz"]
+const ARCHIVE_EXTENSIONS = ["cbz", "cb7"]
 
 function isArchiveFile(filePath: string): boolean {
   const ext = filePath.split(".").pop()?.toLowerCase() ?? ""
@@ -26,6 +26,7 @@ type LoadImageOptions = {
 export function useImageLoader() {
   const dirImages = useAppStore((state) => state.dirImages)
   const loopNavigation = useSettingsStore((state) => state.loopNavigation)
+  const viewMode = useSettingsStore((state) => state.viewMode)
 
   const { getOrLoadImage, prefetchNearbyImages, getPrefetchDistance } =
     useImageCache()
@@ -133,11 +134,19 @@ export function useImageLoader() {
           const resolvedIndex = resolvedDirInfo.images.indexOf(filePath)
           const nextIndex =
             resolvedIndex >= 0 ? resolvedIndex : resolvedDirInfo.current_index
+          // 보기 모드별 프리페치: 양면은 짝 페이지를, webtoon은 스크롤 앞쪽을 더 넓게.
+          const baseDistance = getPrefetchDistance()
+          const prefetchDistance =
+            viewMode === "webtoon"
+              ? baseDistance * 2
+              : viewMode === "single"
+                ? baseDistance
+                : baseDistance + 1
           prefetchNearbyImages(
             resolvedDirInfo.images,
             nextIndex,
             loopNavigation,
-            getPrefetchDistance()
+            prefetchDistance
           )
         }
       } catch (e) {
@@ -157,6 +166,7 @@ export function useImageLoader() {
       getPrefetchDistance,
       prefetchNearbyImages,
       loopNavigation,
+      viewMode,
       loadArchive
     ]
   )

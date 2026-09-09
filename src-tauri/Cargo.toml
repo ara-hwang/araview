@@ -37,6 +37,8 @@ winreg = "0.56.0"
 tauri-plugin-mcp-bridge = "0.13"
 trash = "3"
 image = "0.25"
+notify = "8"
+sevenz-rust2 = "0.22.2"
 
 [package.metadata.vcpkg]
 git = "https://github.com/microsoft/vcpkg"

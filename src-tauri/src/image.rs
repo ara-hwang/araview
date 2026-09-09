@@ -20,7 +20,7 @@ const TRANSCODE_MIMES: &[&str] = &["image/heic", "image/heif"];
 
 pub const SUPPORTED_EXTENSIONS: &[&str] = &[
     "png", "jpg", "jpeg", "gif", "bmp", "webp", "svg", "ico", "tiff", "tif", "avif", "heic",
-    "heif", "cbz",
+    "heif", "cbz", "cb7",
 ];
 
 #[derive(Serialize)]
@@ -43,6 +43,7 @@ pub fn get_mime_type(path: &Path) -> Option<&'static str> {
         "heic" => Some("image/heic"),
         "heif" => Some("image/heif"),
         "cbz" => Some("application/vnd.comicbook+zip"),
+        "cb7" => Some("application/x-7z-compressed"),
         _ => None,
     }
 }
@@ -112,7 +113,10 @@ pub fn is_image_file(path: &Path) -> bool {
 }
 
 pub fn is_archive_file(path: &Path) -> bool {
-    matches!(get_mime_type(path), Some("application/vnd.comicbook+zip"))
+    matches!(
+        get_mime_type(path),
+        Some("application/vnd.comicbook+zip" | "application/x-7z-compressed")
+    )
 }
 
 /// 순수 이미지이거나 아카이브인 경우 모두 지원 파일로 간주
@@ -209,6 +213,18 @@ mod tests {
     }
 
     #[test]
+    fn test_get_mime_type_cb7() {
+        assert_eq!(
+            get_mime_type(Path::new("comic.cb7")),
+            Some("application/x-7z-compressed")
+        );
+        assert_eq!(
+            get_mime_type(Path::new("comic.CB7")),
+            Some("application/x-7z-compressed")
+        );
+    }
+
+    #[test]
     fn test_get_mime_type_unknown_extension() {
         assert_eq!(get_mime_type(Path::new("doc.pdf")), None);
         assert_eq!(get_mime_type(Path::new("file.txt")), None);
@@ -258,6 +274,8 @@ mod tests {
     fn test_is_archive_file() {
         assert!(is_archive_file(Path::new("comic.cbz")));
         assert!(is_archive_file(Path::new("comic.CBZ")));
+        assert!(is_archive_file(Path::new("comic.cb7")));
+        assert!(is_archive_file(Path::new("comic.CB7")));
         assert!(!is_archive_file(Path::new("photo.png")));
         assert!(!is_archive_file(Path::new("archive.zip")));
     }
@@ -266,6 +284,7 @@ mod tests {
     fn test_is_supported_file() {
         assert!(is_supported_file(Path::new("photo.png")));
         assert!(is_supported_file(Path::new("comic.cbz")));
+        assert!(is_supported_file(Path::new("comic.cb7")));
         assert!(!is_supported_file(Path::new("doc.pdf")));
     }
 
@@ -277,7 +296,7 @@ mod tests {
                 "missing MIME mapping for .{ext}"
             );
         }
-        assert_eq!(SUPPORTED_EXTENSIONS.len(), 14);
+        assert_eq!(SUPPORTED_EXTENSIONS.len(), 15);
     }
 
     #[test]

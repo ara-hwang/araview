@@ -21,10 +21,7 @@ pub fn get_directory_images(
     let path = Path::new(&file_path);
     let parent = path.parent().ok_or("Cannot get parent directory")?;
 
-    let mut images: Vec<ImageEntry> = Vec::new();
-    collect_images(parent, opts.recursive, &mut images)?;
-
-    sort_images(&mut images, &opts, parent);
+    let images = crate::dir_cache::get_sorted_images(parent, &opts)?;
     let paths: Vec<String> = images.into_iter().map(|e| e.path).collect();
 
     let current_index = paths.iter().position(|p| p == &file_path).unwrap_or(0);
@@ -56,98 +53,6 @@ pub enum DirSortKey {
     Name,
     Date,
     Size,
-}
-
-struct ImageEntry {
-    path: String,
-    modified: Option<std::time::SystemTime>,
-    size: u64,
-}
-
-fn collect_images(dir: &Path, recursive: bool, out: &mut Vec<ImageEntry>) -> Result<(), String> {
-    let mut stack = vec![dir.to_path_buf()];
-    while let Some(current) = stack.pop() {
-        let entries =
-            fs::read_dir(&current).map_err(|e| format!("Failed to read directory: {}", e))?;
-        for entry in entries {
-            let entry = entry.map_err(|e| format!("Failed to read entry: {}", e))?;
-            let entry_path = entry.path();
-            if entry_path.is_dir() {
-                if recursive {
-                    stack.push(entry_path);
-                }
-                continue;
-            }
-            if !entry_path.is_file() || !is_supported_file(&entry_path) {
-                continue;
-            }
-            let Some(path_str) = entry_path.to_str().map(str::to_string) else {
-                continue;
-            };
-            let (modified, size) = entry
-                .metadata()
-                .map(|m| (m.modified().ok(), m.len()))
-                .unwrap_or((None, 0));
-            out.push(ImageEntry {
-                path: path_str,
-                modified,
-                size,
-            });
-        }
-    }
-    Ok(())
-}
-
-fn sort_images(images: &mut [ImageEntry], opts: &DirListOptions, dir: &Path) {
-    if opts.shuffle {
-        // 새로고침해도 순서가 바뀌지 않게 폴더 경로 해시를 시드로 사용
-        deterministic_shuffle(images, dir_seed(dir));
-    } else {
-        match opts.sort_key {
-            DirSortKey::Name => {
-                images.sort_by_key(|e| e.path.to_lowercase())
-            }
-            DirSortKey::Date => images.sort_by(|a, b| {
-                a.modified
-                    .cmp(&b.modified)
-                    .then_with(|| a.path.to_lowercase().cmp(&b.path.to_lowercase()))
-            }),
-            DirSortKey::Size => images.sort_by(|a, b| {
-                a.size
-                    .cmp(&b.size)
-                    .then_with(|| a.path.to_lowercase().cmp(&b.path.to_lowercase()))
-            }),
-        }
-    }
-    if opts.descending {
-        images.reverse();
-    }
-}
-
-fn dir_seed(dir: &Path) -> u64 {
-    // djb2 해시 (추가 크레이트 없이 결정적 셔플용)
-    let mut hash: u64 = 5381;
-    for b in dir.to_string_lossy().bytes() {
-        hash = hash.wrapping_mul(33).wrapping_add(b as u64);
-    }
-    hash
-}
-
-fn deterministic_shuffle(images: &mut [ImageEntry], mut seed: u64) {
-    if seed == 0 {
-        seed = 0x9E3779B97F4A7C15;
-    }
-    // xorshift64* + Fisher-Yates
-    let mut rand = move || {
-        seed ^= seed >> 12;
-        seed ^= seed << 25;
-        seed ^= seed >> 27;
-        seed.wrapping_mul(0x2545F4914F6CDD1D)
-    };
-    for i in (1..images.len()).rev() {
-        let j = (rand() % (i as u64 + 1)) as usize;
-        images.swap(i, j);
-    }
 }
 
 // 드롭된 경로를 해석한다. 파일이면 그대로, 디렉토리면 내부의 첫 이미지 경로를 반환.
@@ -214,7 +119,7 @@ pub fn get_exif_data(file_path: String) -> Result<HashMap<String, String>, Strin
     Ok(data)
 }
 
-/// 아카이브(CBZ/CBR) 파일 내부의 이미지 엔트리 목록을 반환
+/// 아카이브(CBZ/CB7) 파일 내부의 이미지 엔트리 목록을 반환
 #[tauri::command]
 pub fn get_archive_images(file_path: String) -> Result<DirectoryImages, String> {
     let path = Path::new(&file_path);
@@ -295,6 +200,18 @@ pub fn set_all_file_associations(
 #[tauri::command]
 pub fn open_default_apps_settings() -> Result<(), String> {
     crate::file_assoc::open_default_apps_settings()
+}
+
+/// 썸네일 스트립용 축소 JPEG 경로 반환. 디코드 불가 시 에러 → 프론트는 원본으로 폴백.
+#[tauri::command]
+pub fn generate_thumbnail(
+    file_path: String,
+    max_side: Option<u32>,
+) -> Result<crate::thumbnail::ThumbnailInfo, String> {
+    crate::thumbnail::generate_thumbnail(
+        Path::new(&file_path),
+        max_side.unwrap_or_else(crate::thumbnail::default_max_side),
+    )
 }
 
 /// 현재 이미지를 OS 휴지통으로 이동 (영구 삭제 아님)

@@ -3,10 +3,11 @@
 > **Tauri Image Viewer** 의 향후 기능 추가, 최적화 및 개선 아이디어를 정리한 로드맵입니다.
 > 우선순위(P0 ~ P3)와 단계(Phase)를 기준으로 정리되어 있습니다.
 >
-> ## 구현 현황 (2026-09-09 기준)
+> ## 구현 현황 (2026-09-09 기준 + 포맷/성능 라운드)
 >
 > - ✅ 완료: 뷰 모드 렌더(`useMultiPageImages` + `ImageContainer`), 회전/뒤집기(`appStore` + CSS transform + `R/Shift+R/H/V`), 클립보드 복사 PNG(`useCopyImage`), 슬라이드쇼 코어(`useSlideshow` + `Space/F5` + 간격 설정), 최근 파일 목록(최대 20개, `settings.json`), Asset Protocol 경로 기반 렌더링(base64 제거).
 > - ✅ Phase 1 폴리시 완료: 설정 UI 노출(viewMode/간격/자동열기), 헤더 회전/뒤집기 + 컨텍스트 메뉴 풀셋, 양면 2장 넘김 + 회전 bounds, 슬라이드쇼 진행바 오버레이, 다중 DnD + 오버레이, 에러 분류 + 홈으로 복구, EXIF 아카이브修正·썸네일 alt·테마 데드코드 제거.
+> - ✅ 포맷/성능 라운드: 디렉토리 스캔 캐시+워처(`dir_cache.rs` + `notify`), 썸네일 파이프라인(`thumbnail.rs` + `generate_thumbnail` + `useThumbnailSrcs`, 500MB cap), 렌더링 성능(rAF 팬 스로틀·`translate3d`+`will-change`·Webtoon 지연 로드·모드별 프리페치), CB7 아카이브 지원(`sevenz-rust2`, 15개 확장자). CBR은 네이티브 unrar 의존성 문제로 보류. QOI/JXL/RAW/PSD는 JPEG sidecar 전제가 필요해 제외 유지.
 
 ---
 
@@ -100,7 +101,7 @@
 
 ### 2.1 썸네일 그리드 뷰 (P1)
 
-**현재 상태**: 디렉토리 내 이미지를 순차적으로만 탐색 가능.
+**현재 상태 (포맷/성능 라운드)**: 썸네일 파이프라인 완료. `generate_thumbnail` 백엔드(`thumbnail.rs`, `image` 크레이트 리사이즈 → `process_temp/thumbs/` JPEG 캐시, 500MB cap·원자적 발행) + `useThumbnailSrcs` 훅(실패 시 원본 폴백) + `ImageNavBar` 스트립 적용. 전체 그리드 뷰 UI는 미구현.
 
 **구현 계획**:
 - `ImageNavBar.tsx`를 확장하여 썸네일 그리드 모드 추가
@@ -210,7 +211,7 @@
 
 ### 3.2 썸네일 생성 최적화 (P2)
 
-**현재 상태**: 썸네일 기능 없음. 모든 이미지를 원본 크기로 로드.
+**현재 상태 (포맷/성능 라운드)**: 완료. `thumbnail.rs`가 `image` 크레이트로 리사이즈 썸네일을 만들고 `process_temp/thumbs/`에 캐시(500MB cap, 오래된 순 제거). 사용자 폴더에 `.thumbcache/`를 만들지 않음. 백그라운드 비동기 생성은 프론트 `useThumbnailSrcs`의 fire-and-forget 호출로 처리(`tokio::spawn` 미도입).
 
 **최적화 계획**:
 - Rust 백엔드에서 `image` 크레이트로 리사이즈된 썸네일 생성
@@ -227,7 +228,7 @@
 
 ### 3.3 디렉토리 스캐닝 최적화 (P2)
 
-**현재 상태**: `get_directory_images`가 매번 디렉토리 전체를 스캔. 수천 개 파일이 있는 폴더에서 느릴 수 있음.
+**현재 상태 (포맷/성능 라운드)**: 완료. `src-tauri/src/dir_cache.rs`가 디렉토리+옵션별 정렬 목록을 캐시. 일반 모드는 폴더 mtime 지문으로 적중 판정, 재귀 모드는 워처 기반. `notify` 크레이트 워처가 변경 시 해당 캐시 무효화. 캐시 상한 128개.
 
 **최적화 계획**:
 - 디렉토리 스캔 결과를 Rust 측에서 캐싱 (파일 수정 시간 기반 무효화)
@@ -259,7 +260,7 @@
 
 ### 3.5 렌더링 성능 최적화 (P3)
 
-**현재 상태**: CSS transform으로 zoom/pan 처리. 초대형 이미지에서 리페인트 비용 높을 수 있음.
+**현재 상태 (포맷/성능 라운드)**: 부분 완료. Single 모드 `translate3d` + `will-change: transform`, `useZoomPan` rAF 기반 팬 스로틀, Webtoon `IntersectionObserver` 지연 로드(`rootMargin 100%`), viewMode별 프리페치(single=d·양면=d+1·webtoon=d×2). 타일 기반 렌더링은 미도입.
 
 **최적화 계획**:
 - `will-change: transform` CSS 속성으로 GPU 레이어 분리
@@ -327,15 +328,16 @@
 
 ### 4.4 추가 이미지 포맷 지원 (P2)
 
-**현재 상태**: 14개 포맷 지원 (PNG, JPG, JPEG, GIF, BMP, WebP, SVG, ICO, TIFF, TIF, AVIF, HEIC, HEIF, CBZ).
+**현재 상태 (포맷/성능 라운드)**: 15개 포맷 지원 (PNG, JPG, JPEG, GIF, BMP, WebP, SVG, ICO, TIFF, TIF, AVIF, HEIC, HEIF, CBZ, CB7). CB7은 `sevenz-rust2`(순수 Rust) 목록/추출 지원.
 
 **HEIC/HEIF**: 구현됨. `libheif-rs`가 vcpkg `libheif[core]`를 동적 링크하고, 로드 시 JPEG sidecar를 만듭니다. HEVC 디코드는 `libde265`만 쓰고 `x265`는 넣지 않습니다. WebView2는 HEIC를 그리지 못합니다.
 
 **추가 후보**:
-- **RAW**: 카메라 RAW 포맷 (CR2, NEF, ARW 등) — `rawloader` 크레이트
-- **PSD**: Photoshop 파일 미리보기 — `psd` 크레이트
-- **JXL (JPEG XL)**: 차세대 이미지 포맷 — `jxl-oxide` 크레이트
-- **QOI**: 빠른 무손실 포맷
+- **RAW**: 카메라 RAW 포맷 (CR2, NEF, ARW 등) — `rawloader` 크레이트. JPEG sidecar 전제가 필요해 제외 유지.
+- **PSD**: Photoshop 파일 미리보기 — `psd` 크레이트. JPEG sidecar 전제가 필요해 제외 유지.
+- **JXL (JPEG XL)**: 차세대 이미지 포맷 — `jxl-oxide` 크레이트. JPEG sidecar 전제가 필요해 제외 유지.
+- **QOI**: 빠른 무손실 포맷. 백엔드 디코드(`image` 크레이트)는 가능하나 WebView2 네이티브 렌더 불가로 sidecar 전제가 필요해 제외 유지.
+- **CBR**: RAR 디코딩에 네이티브 unrar 라이브러리 동봉(라이선스·배포 부담)이 필요해 보류. CB7 우선 지원 완료.
 
 **관련 파일**:
 - `src-tauri/Cargo.toml` — 포맷별 크레이트 추가

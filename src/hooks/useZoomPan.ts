@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useRef } from "react"
+import { useCallback, useEffect, useLayoutEffect, useRef } from "react"
 import {
   getPositionBounds,
   clampPosition,
@@ -33,6 +33,15 @@ export function useZoomPan() {
   const setIsDragging = useAppStore((state) => state.setIsDragging)
 
   const prevZoomRef = useRef(1)
+  // 고빈도 mousemove를 rAF당 1회로 합쳐 zustand 갱신 폭주를 방지
+  const rafRef = useRef(0)
+  const pendingPosRef = useRef<{ x: number; y: number } | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (rafRef.current !== 0) cancelAnimationFrame(rafRef.current)
+    }
+  }, [])
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
@@ -44,7 +53,14 @@ export function useZoomPan() {
   )
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    moveDrag(e.clientX, e.clientY)
+    pendingPosRef.current = { x: e.clientX, y: e.clientY }
+    if (rafRef.current !== 0) return
+    rafRef.current = requestAnimationFrame(() => {
+      rafRef.current = 0
+      const pending = pendingPosRef.current
+      pendingPosRef.current = null
+      if (pending) moveDrag(pending.x, pending.y)
+    })
   }, [])
 
   const handleMouseUp = useCallback(() => {

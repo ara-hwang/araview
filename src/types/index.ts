@@ -10,6 +10,12 @@ export type DirectoryImages = {
   current_index: number
 }
 
+export type ThumbnailInfo = {
+  file_path: string
+  width: number
+  height: number
+}
+
 export type ExifData = Record<string, string>
 
 export type ArchiveState = {

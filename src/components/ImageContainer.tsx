@@ -1,4 +1,4 @@
-import { useLayoutEffect, type RefObject } from "react"
+import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react"
 import { convertFileSrc } from "@tauri-apps/api/core"
 import { useNavigate } from "@tanstack/react-router"
 import { cn } from "@/lib/utils"
@@ -39,6 +39,50 @@ type ImageContainerProps = {
 }
 
 const toSrc = (info: ImageInfo) => convertFileSrc(info.file_path)
+
+// Webtoon용 지연 로드 이미지. 뷰포트 근처(상하 1화면 여유)에 들어올 때만
+// src를 부여해 오프스크린 디코드 비용을 피한다.
+function WebtoonPageImage({ src, alt }: { src: string; alt: string }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [nearby, setNearby] = useState(false)
+
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    if (typeof IntersectionObserver === "undefined") {
+      setNearby(true)
+      return
+    }
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          setNearby(true)
+          io.disconnect()
+        }
+      },
+      { rootMargin: "100% 0px" }
+    )
+    io.observe(el)
+    return () => io.disconnect()
+  }, [])
+
+  return (
+    <div ref={ref} className="flex w-full justify-center">
+      {nearby ? (
+        <img
+          src={src}
+          alt={alt}
+          className="max-w-full object-contain"
+          draggable={false}
+          loading="lazy"
+          decoding="async"
+        />
+      ) : (
+        <div className="bg-muted/40 min-h-64 w-full" aria-hidden="true" />
+      )}
+    </div>
+  )
+}
 
 export function ImageContainer({
   containerRef,
@@ -143,8 +187,9 @@ export function ImageContainer({
             style={{
               width: app.imageSize.width || undefined,
               height: app.imageSize.height || undefined,
-              transform: `translate(${app.position.x}px, ${app.position.y}px) scale(${app.zoom * (app.flipH ? -1 : 1)}, ${app.zoom * (app.flipV ? -1 : 1)}) rotate(${app.rotation}deg)`,
+              transform: `translate3d(${app.position.x}px, ${app.position.y}px, 0) scale(${app.zoom * (app.flipH ? -1 : 1)}, ${app.zoom * (app.flipV ? -1 : 1)}) rotate(${app.rotation}deg)`,
               transformOrigin: "center center",
+              willChange: "transform",
               cursor: app.isDragging ? "grabbing" : "grab"
             }}
             onLoad={(event) => {
@@ -182,12 +227,10 @@ export function ImageContainer({
         <div className="absolute inset-0 overflow-x-hidden overflow-y-auto">
           <div className="flex flex-col items-center">
             {pages.map((page) => (
-              <img
+              <WebtoonPageImage
                 key={page.path}
                 src={toSrc(page.info)}
                 alt={page.info.file_name}
-                className="max-w-full object-contain"
-                draggable={false}
               />
             ))}
           </div>

@@ -371,6 +371,7 @@
     "avif": "AVIF image",
     "heic": "HEIC image",
     "heif": "HEIF image",
-    "cbz": "Comic archive"
+    "cbz": "Comic archive",
+    "cb7": "Comic archive"
   }
 }
