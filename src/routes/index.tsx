@@ -16,7 +16,7 @@ import { usePaintSrcs } from "@/hooks/usePaintSrcs"
 import { useRecentFilesStore } from "@/store/recentFilesStore"
 import { useFavoritesStore } from "@/store/favoritesStore"
 import { HomeFileCard } from "@/components/HomeFileCard"
-import { Star } from "lucide-react"
+import { Star } from "@phosphor-icons/react"
 import { useTranslation } from "react-i18next"
 
 export const Route = createFileRoute("/")({
@@ -117,7 +117,10 @@ function HomePage() {
         <div className="w-full border-t pt-6">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-muted-foreground flex items-center gap-1.5 text-xs tabular-nums">
-              <Star className="size-3.5 fill-yellow-400 text-yellow-400" />
+              <Star
+                weight="fill"
+                className="size-3.5 fill-yellow-400 text-yellow-400"
+              />
               {t("home.favorites", { count: favorites.length })}
             </h2>
             <Button

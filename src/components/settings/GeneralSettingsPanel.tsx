@@ -22,16 +22,16 @@ import {
 } from "@/store/settingsStore"
 import { applySortSettings } from "@/utils/directoryOptions"
 import {
-  ArrowUpDown,
-  HardDriveIcon,
-  ImagesIcon,
-  Languages,
-  NavigationIcon,
-  PaletteIcon,
-  PresentationIcon,
+  ArrowsVertical,
+  HardDrive,
+  Images,
+  Translate,
+  NavigationArrow,
+  Palette,
+  Presentation,
   Shuffle,
-  TimerIcon
-} from "lucide-react"
+  Timer
+} from "@phosphor-icons/react"
 import type { ReactNode } from "react"
 import { useTranslation } from "react-i18next"
 import { useShallow } from "zustand/react/shallow"
@@ -73,7 +73,7 @@ export function GeneralSettingsPanel() {
   return (
     <FieldGroup>
       <CustomFieldSet
-        icon={<Languages />}
+        icon={<Translate className="size-6" />}
         title={t("settings.language.title")}
         description={t("settings.language.desc")}
       >
@@ -101,7 +101,7 @@ export function GeneralSettingsPanel() {
       <FieldSeparator />
 
       <CustomFieldSet
-        icon={<NavigationIcon />}
+        icon={<NavigationArrow className="size-6" />}
         title={t("settings.nav.title")}
         description={t("settings.nav.desc")}
       >
@@ -125,7 +125,7 @@ export function GeneralSettingsPanel() {
       <FieldSeparator />
 
       <CustomFieldSet
-        icon={<ImagesIcon />}
+        icon={<Images className="size-6" />}
         title={t("settings.view.title")}
         description={t("settings.view.desc")}
       >
@@ -161,7 +161,7 @@ export function GeneralSettingsPanel() {
       <FieldSeparator />
 
       <CustomFieldSet
-        icon={<ArrowUpDown />}
+        icon={<ArrowsVertical className="size-6" />}
         title={t("settings.sort.title")}
         description={t("settings.sort.desc")}
       >
@@ -239,7 +239,7 @@ export function GeneralSettingsPanel() {
       <FieldSeparator />
 
       <CustomFieldSet
-        icon={<TimerIcon />}
+        icon={<Timer className="size-6" />}
         title={t("settings.slideshow.title")}
         description={t("settings.slideshow.desc", {
           sec: (settings.slideshowIntervalMs / 1000).toFixed(1)
@@ -262,7 +262,7 @@ export function GeneralSettingsPanel() {
       <FieldSeparator />
 
       <CustomFieldSet
-        icon={<PaletteIcon />}
+        icon={<Palette className="size-6" />}
         title={t("settings.bg.title")}
         description={t("settings.bg.desc")}
       >
@@ -298,7 +298,7 @@ export function GeneralSettingsPanel() {
       <FieldSeparator />
 
       <CustomFieldSet
-        icon={<PresentationIcon />}
+        icon={<Presentation className="size-6" />}
         title={t("settings.present.title")}
         description={t("settings.present.desc")}
       >
@@ -319,7 +319,7 @@ export function GeneralSettingsPanel() {
       <FieldSeparator />
 
       <CustomFieldSet
-        icon={<HardDriveIcon />}
+        icon={<HardDrive className="size-6" />}
         title={t("settings.cache.title")}
         description={t("settings.cache.desc")}
       >
@@ -364,7 +364,7 @@ export function GeneralSettingsPanel() {
       <FieldSeparator />
 
       <CustomFieldSet
-        icon={<NavigationIcon />}
+        icon={<NavigationArrow className="size-6" />}
         title={t("settings.startup.title")}
         description={t("settings.startup.desc")}
       >

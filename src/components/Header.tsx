@@ -1,23 +1,23 @@
 import { useEffect, useState } from "react"
 import { getCurrentWindow } from "@tauri-apps/api/window"
 import {
-  ArrowLeftRight,
-  ArrowUpDown,
+  ArrowsHorizontal,
+  ArrowsOut,
+  ArrowsVertical,
+  ArrowClockwise,
+  ArrowCounterClockwise,
   Copy,
-  FlipHorizontal2,
-  FlipVertical2,
+  FlipHorizontal,
+  FlipVertical,
   FolderOpen,
+  Gear,
   Info,
-  Maximize2,
+  MagnifyingGlassMinus,
+  MagnifyingGlassPlus,
   Minus,
-  RotateCcw,
-  RotateCw,
-  Settings,
   Square,
-  X,
-  ZoomIn,
-  ZoomOut
-} from "lucide-react"
+  X
+} from "@phosphor-icons/react"
 import { Button } from "@/components/ui/button"
 import { ButtonGroup } from "./ui/button-group"
 import { ButtonGroupText } from "./ui/button-group"
@@ -119,7 +119,7 @@ export default function Header() {
                 title={t("header.fitWidthTitle")}
                 aria-label={t("header.fitWidthTitle")}
               >
-                <ArrowLeftRight />
+                <ArrowsHorizontal />
                 <span className="hidden md:inline">{t("header.fitWidth")}</span>
               </Button>
               <Button
@@ -128,7 +128,7 @@ export default function Header() {
                 title={t("header.fitHeightTitle")}
                 aria-label={t("header.fitHeightTitle")}
               >
-                <ArrowUpDown />
+                <ArrowsVertical />
                 <span className="hidden md:inline">
                   {t("header.fitHeight")}
                 </span>
@@ -139,7 +139,7 @@ export default function Header() {
                 title={t("header.fitScreenTitle")}
                 aria-label={t("header.fitScreenTitle")}
               >
-                <Maximize2 />
+                <ArrowsOut />
                 <span className="hidden md:inline">
                   {t("header.fitScreen")}
                 </span>
@@ -155,7 +155,7 @@ export default function Header() {
                 title={t("header.zoomOutTitle")}
                 aria-label={t("header.zoomOutTitle")}
               >
-                <ZoomOut />
+                <MagnifyingGlassMinus />
                 <span className="hidden md:inline">{t("header.zoomOut")}</span>
               </Button>
               <ButtonGroupText className="tabular-nums" onClick={resetZoomPan}>
@@ -167,7 +167,7 @@ export default function Header() {
                 title={t("header.zoomInTitle")}
                 aria-label={t("header.zoomInTitle")}
               >
-                <ZoomIn />
+                <MagnifyingGlassPlus />
                 <span className="hidden md:inline">{t("header.zoomIn")}</span>
               </Button>
             </ButtonGroup>
@@ -182,7 +182,7 @@ export default function Header() {
                 title={t("header.rotateCcwTitle")}
                 aria-label={t("header.rotateCcwTitle")}
               >
-                <RotateCcw />
+                <ArrowCounterClockwise />
               </Button>
               <Button
                 variant="ghost"
@@ -191,7 +191,7 @@ export default function Header() {
                 title={t("header.rotateCwTitle")}
                 aria-label={t("header.rotateCwTitle")}
               >
-                <RotateCw />
+                <ArrowClockwise />
               </Button>
               <Button
                 variant="ghost"
@@ -200,7 +200,7 @@ export default function Header() {
                 title={t("header.flipHTitle")}
                 aria-label={t("header.flipHTitle")}
               >
-                <FlipHorizontal2 />
+                <FlipHorizontal />
               </Button>
               <Button
                 variant="ghost"
@@ -209,7 +209,7 @@ export default function Header() {
                 title={t("header.flipVTitle")}
                 aria-label={t("header.flipVTitle")}
               >
-                <FlipVertical2 />
+                <FlipVertical />
               </Button>
             </ButtonGroup>
           </ButtonGroup>
@@ -230,7 +230,7 @@ export default function Header() {
               title={t("header.settingsTitle")}
               aria-label={t("header.settingsTitle")}
             >
-              <Settings />
+              <Gear />
               <span className="hidden md:inline">{t("header.settings")}</span>
             </Button>
           </ButtonGroup>

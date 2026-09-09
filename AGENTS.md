@@ -117,6 +117,9 @@ Tauri Store (`settings.json`) is used for:
 - Use Zustand selectors + `useShallow` for grouped subscriptions
 - Keep path alias usage consistent: `@/...`
 - Do not manually edit generated primitives in `src/components/ui/`
+- Icon family is Phosphor (`@phosphor-icons/react`), typeface is Pretendard
+  Variable (see `DESIGN.md`); newly added shadcn components arrive with
+  `lucide-react` imports, swap them to Phosphor equivalents on arrival
 
 ### Rust / Tauri
 
@@ -160,13 +163,28 @@ Tauri Store (`settings.json`) is used for:
 - Window state persistence uses `tauri-plugin-window-state`
 - App starts hidden (`visible: false`) and appears after webview startup
 
-<!-- antislop:start -->
-## antislop
-For UI, copy, people, mobile layout, or code comments work, read `.agents/skills/antislop/SKILL.md` (core) and then the skill for the task:
-- UI / visual: `.agents/skills/antislop-ui/SKILL.md`
-- Copy & text: `.agents/skills/antislop-copywriting/SKILL.md`
-- People: `.agents/skills/antislop-human/SKILL.md`
-- Mobile / responsive: `.agents/skills/antislop-layoutmobile/SKILL.md`
-- Code comments: `.agents/skills/antislop-code/SKILL.md`
-Before starting, ask the user when antislop applies: during the work, or after it is done.
-<!-- antislop:end -->
+<!-- impeccable:start -->
+## Design workflow (impeccable)
+
+Product truth lives in `PRODUCT.md`; incumbent visual system in `DESIGN.md`.
+For UI work, run `.opencode/skills/impeccable/scripts/impeccable.cmd context`
+once per session, then route: `audit` / `critique` for review, `polish` before
+shipping, `harden` for errors/i18n/edge cases, `typeset` / `layout` for
+typography and spacing. This repo has no automatic design hook in opencode,
+so after finishing changed UI run the detector manually:
+
+```bash
+npx impeccable detect --json <changed targets>
+```
+
+Non-negotiables carried over from the previous design filter:
+
+- Every data view ships empty, loading, and error states.
+- Every control is keyboard reachable and operable with a visible focus indicator.
+- No em dash (`—`) in UI copy; use comma, period, colon, or parentheses.
+- No fabricated claims, statistics, testimonials, or ghost navigation targets.
+- Never generate final logos, avatars, or statistics without explicit
+  instructions; use honest placeholders instead.
+- Verify by running the app and clicking through every interactive element
+  (`/verify-ui`); report the click-through element by element.
+<!-- impeccable:end -->
