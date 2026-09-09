@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:up": "pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/Start-TauriDev.ps1",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
