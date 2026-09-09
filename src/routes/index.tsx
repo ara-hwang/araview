@@ -62,23 +62,30 @@ function HomePage() {
       }}
       onDrop={handleDrop}
       onDragOver={handleDragOver}
-      className="flex h-full w-full flex-col items-center justify-center gap-8 p-8"
+      className="mx-auto flex h-full w-full max-w-4xl flex-col justify-center gap-10 p-8 sm:p-12"
     >
-      <Empty>
-        <EmptyContent>
-          <EmptyTitle>표시할 이미지가 없습니다</EmptyTitle>
+      <Empty className="items-start border-none p-0 text-left">
+        <EmptyContent className="max-w-md items-start gap-3 text-left">
+          <p className="text-muted-foreground text-xs tabular-nums">
+            01, Empty
+          </p>
+          <EmptyTitle className="text-2xl font-semibold">
+            표시할 이미지가 없습니다
+          </EmptyTitle>
           <EmptyDescription>
             파일을 여기로 끌어다 놓거나 Open File 버튼으로 선택하세요.
           </EmptyDescription>
-          <Button onClick={handleOpenFile}>Open File</Button>
+          <Button onClick={handleOpenFile} className="mt-1">
+            Open File
+          </Button>
         </EmptyContent>
       </Empty>
 
       {recentFiles.length > 0 && (
-        <div className="w-full max-w-4xl">
+        <div className="w-full border-t pt-6">
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-muted-foreground text-sm font-medium">
-              최근 파일
+            <h2 className="text-muted-foreground text-xs tabular-nums">
+              최근 파일, {recentFiles.length}
             </h2>
             <Button
               size="sm"

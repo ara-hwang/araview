@@ -51,7 +51,7 @@ export function ImageNavBar({
   return (
     // 하단 중앙에 고정된 내비게이션 바 (이전/다음 버튼 + 진행률 표시)
     <div
-      className="bg-background/75 border-border absolute bottom-12 flex w-xl max-w-[calc(100%-2rem)] flex-col gap-2 rounded-md border p-2 opacity-50 hover:opacity-100"
+      className="bg-background border-border absolute bottom-12 flex w-xl max-w-[calc(100%-2rem)] flex-col gap-2 rounded-md border p-2 shadow-lg"
       onMouseDown={(e) => e.stopPropagation()}
     >
       {/* 썸네일 스트립 */}

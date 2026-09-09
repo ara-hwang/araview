@@ -51,7 +51,7 @@ export default function Header() {
 
   return (
     <>
-      <div className="drag flex justify-between p-2">
+      <div className="drag bg-background flex justify-between gap-2 border-b p-2">
         <ButtonGroup>
           <Button
             variant="outline"
@@ -67,7 +67,7 @@ export default function Header() {
           <ButtonGroup>
             <ButtonGroup>
               <Button
-                variant="outline"
+                variant="ghost"
                 size="icon"
                 onClick={() => setZoomToFit("width")}
                 title="Fit to width (1)"
@@ -75,7 +75,7 @@ export default function Header() {
                 <ArrowLeftRight />
               </Button>
               <Button
-                variant="outline"
+                variant="ghost"
                 size="icon"
                 onClick={() => setZoomToFit("height")}
                 title="Fit to height (2)"
@@ -83,7 +83,7 @@ export default function Header() {
                 <ArrowUpDown />
               </Button>
               <Button
-                variant="outline"
+                variant="ghost"
                 size="icon"
                 onClick={() => setZoomToFit("screen")}
                 title="Fit to screen (3)"
@@ -96,7 +96,7 @@ export default function Header() {
 
             <ButtonGroup>
               <Button
-                variant="outline"
+                variant="ghost"
                 size="icon"
                 onClick={zoomOut}
                 title="Zoom out (-)"
@@ -107,7 +107,7 @@ export default function Header() {
                 {Math.round(zoom * 100)}%
               </ButtonGroupText>
               <Button
-                variant="outline"
+                variant="ghost"
                 size="icon"
                 onClick={zoomIn}
                 title="Zoom in (+)"
