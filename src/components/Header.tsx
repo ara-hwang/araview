@@ -1,8 +1,9 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { getCurrentWindow } from "@tauri-apps/api/window"
 import {
   ArrowLeftRight,
   ArrowUpDown,
+  Copy,
   FlipHorizontal2,
   FlipVertical2,
   FolderOpen,
@@ -40,19 +41,54 @@ import { useTranslation } from "react-i18next"
 // 위쪽 툴바
 export default function Header() {
   const { t } = useTranslation()
-  const appWindow = getCurrentWindow()
+  const [appWindow] = useState(() => getCurrentWindow())
   const zoom = useAppStore((state) => state.zoom)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [isMaximized, setIsMaximized] = useState(false)
 
   const { handleOpenFile } = useImageLoader()
   const { toggleExifPanel } = useExifLoader()
+
+  useEffect(() => {
+    let cancelled = false
+    let unlisten: (() => void) | undefined
+
+    const syncMaximized = () => {
+      void appWindow
+        .isMaximized()
+        .then((value) => {
+          if (!cancelled) setIsMaximized(value)
+        })
+        .catch(() => {})
+    }
+
+    syncMaximized()
+    void appWindow
+      .onResized(syncMaximized)
+      .then((fn) => {
+        unlisten = fn
+      })
+      .catch(() => {})
+
+    return () => {
+      cancelled = true
+      unlisten?.()
+    }
+  }, [appWindow])
 
   const handleMinimize = () => {
     void appWindow.minimize()
   }
 
   const handleMaximize = () => {
-    void appWindow.toggleMaximize()
+    void (async () => {
+      try {
+        await appWindow.toggleMaximize()
+        setIsMaximized(await appWindow.isMaximized())
+      } catch {
+        // jsdom/테스트 환경에서는 Tauri 창 API가 없으므로 무시
+      }
+    })()
   }
 
   const handleClose = () => {
@@ -216,8 +252,9 @@ export default function Header() {
               onClick={handleMaximize}
               title={t("header.maximize")}
               aria-label={t("header.maximize")}
+              aria-pressed={isMaximized}
             >
-              <Square />
+              {isMaximized ? <Copy /> : <Square />}
             </Button>
 
             <Button
@@ -226,6 +263,7 @@ export default function Header() {
               onClick={handleClose}
               title={t("header.close")}
               aria-label={t("header.close")}
+              className="hover:border-red-600 hover:bg-red-600 hover:text-white dark:hover:border-red-600 dark:hover:bg-red-600"
             >
               <X />
             </Button>

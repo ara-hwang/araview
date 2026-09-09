@@ -86,7 +86,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
               <div className="p-2">
                 <Button
                   variant="ghost"
-                  className="w-full"
+                  className="hover:bg-destructive/10 hover:text-destructive dark:hover:bg-destructive/20 w-full"
                   onClick={() => void resetSettings()}
                 >
                   {t("settings.reset")}
