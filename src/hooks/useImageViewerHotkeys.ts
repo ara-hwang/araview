@@ -18,6 +18,7 @@ type ImageViewerHotkeysParams = {
   onToggleExif: () => void
   onToggleSlideshow: () => void
   onToggleFullscreen: () => void
+  onToggleAlwaysOnTop: () => void
   onCopyImage: () => void
   onTrashFile: () => void
   onRevealInExplorer: () => void
@@ -51,6 +52,7 @@ export function useImageViewerHotkeys(props: ImageViewerHotkeysParams) {
   useHotkey("Space", props.onToggleSlideshow)
   useHotkey("F5", props.onToggleSlideshow)
   useHotkey("F11", props.onToggleFullscreen)
+  useHotkey("T", props.onToggleAlwaysOnTop)
   useHotkey("Control+C", props.onCopyImage)
   useHotkey("Delete", props.onTrashFile)
   useHotkey("Control+Shift+E", props.onRevealInExplorer)

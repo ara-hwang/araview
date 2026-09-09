@@ -25,6 +25,8 @@
     "infoTitle": "EXIF 정보 (I)",
     "settings": "설정",
     "settingsTitle": "설정",
+    "alwaysOnTop": "맨 위에 두기",
+    "alwaysOnTopTitle": "창을 항상 위에 두기 (T)",
     "minimize": "최소화",
     "maximize": "최대화 / 복원",
     "close": "닫기"
@@ -101,6 +103,11 @@
       "title": "프레젠테이션",
       "desc": "3초 무입력 시 상단바/하단바 자동 숨김 (움직이면 복귀)",
       "autohide": "UI 자동 숨김"
+    },
+    "window": {
+      "title": "창",
+      "desc": "다른 창 위에 항상 표시",
+      "alwaysOnTop": "맨 위에 두기"
     },
     "cache": {
       "title": "캐시",
@@ -225,6 +232,7 @@
     "toggleExif": "EXIF 패널 토글",
     "toggleSlideshow": "슬라이드쇼 토글",
     "toggleFullscreen": "전체화면 토글",
+    "toggleAlwaysOnTop": "맨 위에 두기 토글",
     "copyImage": "이미지 복사",
     "cycleBg": "배경 순환",
     "toggleShuffle": "셔플 토글",
@@ -268,6 +276,9 @@
     },
     "fullscreen": {
       "fail": "전체화면 전환 실패"
+    },
+    "alwaysOnTop": {
+      "fail": "맨 위에 두기 전환 실패"
     },
     "reveal": {
       "empty": "표시할 파일이 없습니다",

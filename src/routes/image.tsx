@@ -8,6 +8,7 @@ import { useImageLoader } from "@/hooks/useImageLoader"
 import { useMultiPageImages } from "@/hooks/useMultiPageImages"
 import { useSlideshow } from "@/hooks/useSlideshow"
 import { useFullscreen } from "@/hooks/useFullscreen"
+import { useAlwaysOnTop } from "@/hooks/useAlwaysOnTop"
 import { useCopyImage } from "@/hooks/useCopyImage"
 import { useFileOperations } from "@/hooks/useFileOperations"
 import { useIdleHide } from "@/hooks/useIdleHide"
@@ -76,6 +77,7 @@ function ImagePage() {
 
   const slideshow = useSlideshow(() => void navigateImage("next"))
   const fullscreen = useFullscreen()
+  const { toggle: toggleAlwaysOnTop } = useAlwaysOnTop()
   const { copy: copyImage } = useCopyImage()
   const {
     trashCurrent,
@@ -135,6 +137,7 @@ function ImagePage() {
     onToggleExif: () => void toggleExifPanel(),
     onToggleSlideshow: slideshow.toggle,
     onToggleFullscreen: () => void fullscreen.toggle(),
+    onToggleAlwaysOnTop: () => void toggleAlwaysOnTop(),
     onCopyImage: () => void copyImage(),
     onTrashFile: () => void trashCurrent(),
     onRevealInExplorer: () => void revealCurrent(),
@@ -153,6 +156,7 @@ function ImagePage() {
     onToggleExif: () => void toggleExifPanel(),
     onToggleSlideshow: slideshow.toggle,
     onToggleFullscreen: () => void fullscreen.toggle(),
+    onToggleAlwaysOnTop: () => void toggleAlwaysOnTop(),
     onCopyImage: () => void copyImage(),
     onTrashFile: () => void trashCurrent(),
     onRevealInExplorer: () => void revealCurrent(),

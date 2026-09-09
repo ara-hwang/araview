@@ -23,6 +23,7 @@ export type ImageViewerContextMenuActions = {
   onToggleExif: () => void
   onToggleSlideshow: () => void
   onToggleFullscreen: () => void
+  onToggleAlwaysOnTop: () => void
   onCopyImage: () => void
   onTrashFile: () => void
   onRevealInExplorer: () => void
@@ -135,6 +136,11 @@ export async function showImageViewerContextMenu(
       text: t("menu.toggleFullscreen"),
       accelerator: "F11",
       action: () => actions.onToggleFullscreen()
+    }),
+    MenuItem.new({
+      text: t("menu.toggleAlwaysOnTop"),
+      accelerator: "T",
+      action: () => actions.onToggleAlwaysOnTop()
     }),
     MenuItem.new({
       text: t("menu.copyImage"),

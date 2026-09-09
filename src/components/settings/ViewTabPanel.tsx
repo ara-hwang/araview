@@ -11,7 +11,13 @@ import {
   type ViewerBackground,
   type ViewMode
 } from "@/store/settingsStore"
-import { Images, Palette, Presentation, Timer } from "@phosphor-icons/react"
+import {
+  Images,
+  Palette,
+  Presentation,
+  PushPin,
+  Timer
+} from "@phosphor-icons/react"
 import { useTranslation } from "react-i18next"
 import { useShallow } from "zustand/react/shallow"
 
@@ -22,6 +28,7 @@ export function ViewTabPanel() {
       viewMode: state.viewMode,
       viewerBackground: state.viewerBackground,
       autoHideUI: state.autoHideUI,
+      alwaysOnTop: state.alwaysOnTop,
       slideshowIntervalMs: state.slideshowIntervalMs
     }))
   )
@@ -119,6 +126,27 @@ export function ViewTabPanel() {
           />
           <Label htmlFor="settings-autohide">
             {t("settings.present.autohide")}
+          </Label>
+        </Field>
+      </SettingsFieldSet>
+
+      <FieldSeparator />
+
+      <SettingsFieldSet
+        icon={<PushPin className="size-6" />}
+        title={t("settings.window.title")}
+        description={t("settings.window.desc")}
+      >
+        <Field orientation="horizontal">
+          <Switch
+            id="settings-always-on-top"
+            checked={settings.alwaysOnTop}
+            onCheckedChange={(checked) =>
+              handleSettingsChange({ alwaysOnTop: checked === true })
+            }
+          />
+          <Label htmlFor="settings-always-on-top">
+            {t("settings.window.alwaysOnTop")}
           </Label>
         </Field>
       </SettingsFieldSet>
