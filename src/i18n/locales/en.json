@@ -32,12 +32,24 @@
     "desc": "Change viewer settings and file associations.",
     "tabs": {
       "general": "General",
+      "view": "View",
+      "list": "Browsing",
+      "performance": "Performance",
       "extensions": "Extensions"
     },
     "reset": "Reset",
     "confirm": "Done",
     "general": {
       "title": "General settings"
+    },
+    "viewTab": {
+      "title": "View settings"
+    },
+    "listTab": {
+      "title": "Browsing settings"
+    },
+    "performanceTab": {
+      "title": "Performance settings"
     },
     "language": {
       "title": "Language",
