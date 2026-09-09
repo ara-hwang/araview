@@ -2,7 +2,7 @@ use std::fs;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
-use crate::image::{get_mime_type, is_image_file};
+use crate::image::is_image_file;
 
 /// 아카이브 내부의 이미지 엔트리 이름을 정렬된 순서로 반환
 pub fn list_archive_images(archive_path: &Path) -> Result<Vec<String>, String> {
@@ -61,7 +61,7 @@ fn list_zip_images(archive_path: &Path) -> Result<Vec<String>, String> {
         }
     }
 
-    images.sort_by(|a, b| a.to_lowercase().cmp(&b.to_lowercase()));
+    images.sort_by_key(|n| n.to_lowercase());
     Ok(images)
 }
 

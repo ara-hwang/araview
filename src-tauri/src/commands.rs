@@ -105,7 +105,7 @@ fn sort_images(images: &mut [ImageEntry], opts: &DirListOptions, dir: &Path) {
     } else {
         match opts.sort_key {
             DirSortKey::Name => {
-                images.sort_by(|a, b| a.path.to_lowercase().cmp(&b.path.to_lowercase()))
+                images.sort_by_key(|e| e.path.to_lowercase())
             }
             DirSortKey::Date => images.sort_by(|a, b| {
                 a.modified
@@ -167,13 +167,11 @@ pub fn resolve_dropped_path(path: String) -> Result<String, String> {
         let entries = fs::read_dir(p).map_err(|e| format!("Failed to read directory: {}", e))?;
 
         let mut images: Vec<String> = Vec::new();
-        for entry in entries {
-            if let Ok(entry) = entry {
-                let entry_path = entry.path();
-                if entry_path.is_file() && is_supported_file(&entry_path) {
-                    if let Some(s) = entry_path.to_str() {
-                        images.push(s.to_string());
-                    }
+        for entry in entries.flatten() {
+            let entry_path = entry.path();
+            if entry_path.is_file() && is_supported_file(&entry_path) {
+                if let Some(s) = entry_path.to_str() {
+                    images.push(s.to_string());
                 }
             }
         }
@@ -182,7 +180,7 @@ pub fn resolve_dropped_path(path: String) -> Result<String, String> {
             return Err("No images found in directory".to_string());
         }
 
-        images.sort_by(|a, b| a.to_lowercase().cmp(&b.to_lowercase()));
+        images.sort_by_key(|s| s.to_lowercase());
         return Ok(images.remove(0));
     }
 
@@ -283,7 +281,7 @@ pub fn set_file_association(
 fn window_hwnd(window: &tauri::WebviewWindow) -> *mut std::ffi::c_void {
     window
         .hwnd()
-        .map(|hwnd| hwnd.0 as *mut std::ffi::c_void)
+        .map(|hwnd| hwnd.0)
         .unwrap_or(std::ptr::null_mut())
 }
 
