@@ -26,6 +26,7 @@
       ]
     },
     "store:default",
-    "window-state:default"
+    "window-state:default",
+    "mcp-bridge:default"
   ]
 }
