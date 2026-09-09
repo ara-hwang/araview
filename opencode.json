@@ -1,8 +1,6 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "instructions": [
-    "AGENTS.md"
-  ],
+  "instructions": ["AGENTS.md"],
   "permission": {
     "websearch": "allow",
     "webfetch": "allow",
@@ -17,20 +15,17 @@
   "mcp": {
     "tauri": {
       "type": "local",
-      "command": [
-        "npx",
-        "-y",
-        "@hypothesi/tauri-mcp-server"
-      ],
+      "command": ["npx", "-y", "@hypothesi/tauri-mcp-server"],
       "enabled": true
     },
     "shadcn": {
       "type": "local",
-      "command": [
-        "npx",
-        "shadcn@latest",
-        "mcp"
-      ],
+      "command": ["npx", "shadcn@latest", "mcp"],
+      "enabled": true
+    },
+    "mgd-inspiration": {
+      "type": "remote",
+      "url": "https://madegooddesigns.com/inspiration/mcp",
       "enabled": true
     }
   }
