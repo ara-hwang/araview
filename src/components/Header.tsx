@@ -56,10 +56,11 @@ export default function Header() {
           <Button
             variant="outline"
             onClick={handleOpenFile}
-            title="Open file (Ctrl+O)"
+            title="파일 열기 (Ctrl+O)"
+            aria-label="파일 열기 (Ctrl+O)"
           >
             <FolderOpen />
-            Open
+            <span className="hidden md:inline">열기</span>
           </Button>
         </ButtonGroup>
 
@@ -68,27 +69,30 @@ export default function Header() {
             <ButtonGroup>
               <Button
                 variant="ghost"
-                size="icon"
                 onClick={() => setZoomToFit("width")}
-                title="Fit to width (1)"
+                title="너비에 맞춤 (1)"
+                aria-label="너비에 맞춤 (1)"
               >
                 <ArrowLeftRight />
+                <span className="hidden md:inline">너비</span>
               </Button>
               <Button
                 variant="ghost"
-                size="icon"
                 onClick={() => setZoomToFit("height")}
-                title="Fit to height (2)"
+                title="높이에 맞춤 (2)"
+                aria-label="높이에 맞춤 (2)"
               >
                 <ArrowUpDown />
+                <span className="hidden md:inline">높이</span>
               </Button>
               <Button
                 variant="ghost"
-                size="icon"
                 onClick={() => setZoomToFit("screen")}
-                title="Fit to screen (3)"
+                title="화면에 맞춤 (3)"
+                aria-label="화면에 맞춤 (3)"
               >
                 <Maximize2 />
+                <span className="hidden md:inline">화면</span>
               </Button>
             </ButtonGroup>
 
@@ -97,22 +101,24 @@ export default function Header() {
             <ButtonGroup>
               <Button
                 variant="ghost"
-                size="icon"
                 onClick={zoomOut}
-                title="Zoom out (-)"
+                title="축소 (-)"
+                aria-label="축소 (-)"
               >
                 <ZoomOut />
+                <span className="hidden md:inline">축소</span>
               </Button>
               <ButtonGroupText className="tabular-nums" onClick={resetZoomPan}>
                 {Math.round(zoom * 100)}%
               </ButtonGroupText>
               <Button
                 variant="ghost"
-                size="icon"
                 onClick={zoomIn}
-                title="Zoom in (+)"
+                title="확대 (+)"
+                aria-label="확대 (+)"
               >
                 <ZoomIn />
+                <span className="hidden md:inline">확대</span>
               </Button>
             </ButtonGroup>
           </ButtonGroup>
@@ -120,19 +126,21 @@ export default function Header() {
           <ButtonGroup>
             <Button
               variant="outline"
-              size="icon"
               onClick={() => void toggleExifPanel()}
-              title="EXIF info (I)"
+              title="EXIF 정보 (I)"
+              aria-label="EXIF 정보 (I)"
             >
               <Info />
+              <span className="hidden md:inline">정보</span>
             </Button>
             <Button
               variant="outline"
-              size="icon"
               onClick={() => setSettingsOpen(true)}
-              title="Settings"
+              title="설정"
+              aria-label="설정"
             >
               <Settings />
+              <span className="hidden md:inline">설정</span>
             </Button>
           </ButtonGroup>
 
@@ -141,7 +149,8 @@ export default function Header() {
               variant="outline"
               size="icon"
               onClick={handleMinimize}
-              title="Minimize"
+              title="최소화"
+              aria-label="최소화"
             >
               <Minus />
             </Button>
@@ -150,7 +159,8 @@ export default function Header() {
               variant="outline"
               size="icon"
               onClick={handleMaximize}
-              title="Maximize / Restore"
+              title="최대화 / 복원"
+              aria-label="최대화 / 복원"
             >
               <Square />
             </Button>
@@ -159,7 +169,8 @@ export default function Header() {
               variant="outline"
               size="icon"
               onClick={handleClose}
-              title="Close"
+              title="닫기"
+              aria-label="닫기"
             >
               <X />
             </Button>
