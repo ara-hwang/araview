@@ -13,7 +13,7 @@ This document provides repository-specific guidance for AI coding assistants.
 
 ## Current Feature Scope
 
-- Supported file extensions: `png`, `jpg`, `jpeg`, `gif`, `bmp`, `webp`, `svg`, `ico`, `tiff`, `tif`, `avif`, `heic`, `heif`, `cbz`
+- Supported file extensions: `png`, `jpg`, `jpeg`, `gif`, `bmp`, `webp`, `svg`, `ico`, `tiff`, `tif`, `avif`, `heic`, `heif`, `cbz`, `cb7`
 - Input flows: file picker, drag-and-drop (file/folder), OS file association open
 - Viewer controls: zoom, fit-to-width/height/screen, pan, rotate, flip
 - Navigation: previous/next, slider jump, thumbnail strip, optional loop navigation

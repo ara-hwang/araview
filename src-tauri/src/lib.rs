@@ -1,15 +1,17 @@
 pub mod archive;
 pub mod commands;
+pub mod dir_cache;
 pub mod file_assoc;
 pub mod heif;
 pub mod image;
 pub mod process_temp;
 pub mod save;
+pub mod thumbnail;
 
 use commands::{
-    get_archive_images, get_directory_images, get_exif_data, get_file_associations,
-    load_archive_image, load_image, open_default_apps_settings, rename_file, resolve_dropped_path,
-    set_all_file_associations, set_file_association, trash_file,
+    generate_thumbnail, get_archive_images, get_directory_images, get_exif_data,
+    get_file_associations, load_archive_image, load_image, open_default_apps_settings, rename_file,
+    resolve_dropped_path, set_all_file_associations, set_file_association, trash_file,
 };
 use save::save_image_edits;
 use tauri::Emitter;
@@ -30,6 +32,7 @@ pub fn run() {
             load_image,
             get_directory_images,
             get_exif_data,
+            generate_thumbnail,
             resolve_dropped_path,
             get_archive_images,
             load_archive_image,

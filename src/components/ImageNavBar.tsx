@@ -6,7 +6,7 @@ import { Slider } from "./ui/slider"
 import { ButtonGroup } from "./ui/button-group"
 import { useAppStore } from "@/store/appStore"
 import { cn } from "@/lib/utils"
-import { usePaintSrcs } from "@/hooks/usePaintSrcs"
+import { useThumbnailSrcs } from "@/hooks/useThumbnailSrcs"
 import type { ImageInfo } from "@/types"
 import { useTranslation } from "react-i18next"
 
@@ -51,7 +51,7 @@ export function ImageNavBar({
   }, [dirImages.images, dirImages.current_index])
 
   const thumbPaths = useMemo(() => thumbnails.map((t) => t.path), [thumbnails])
-  const urls = usePaintSrcs(thumbPaths, getOrLoadImage)
+  const urls = useThumbnailSrcs(thumbPaths, getOrLoadImage)
 
   return (
     // 하단 중앙에 고정된 내비게이션 바 (이전/다음 버튼 + 진행률 표시)

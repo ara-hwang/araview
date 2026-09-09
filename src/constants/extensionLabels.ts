@@ -19,6 +19,7 @@ type ExtensionLabelKey =
   | "heic"
   | "heif"
   | "cbz"
+  | "cb7"
 
 const EXTENSION_I18N_KEYS: Record<ExtensionLabelKey, string> = {
   png: "ext.png",
@@ -34,7 +35,8 @@ const EXTENSION_I18N_KEYS: Record<ExtensionLabelKey, string> = {
   avif: "ext.avif",
   heic: "ext.heic",
   heif: "ext.heif",
-  cbz: "ext.cbz"
+  cbz: "ext.cbz",
+  cb7: "ext.cb7"
 }
 
 /** @deprecated Use `extensionLabel()` which follows the active language. */
@@ -52,7 +54,8 @@ export const EXTENSION_LABELS: Record<SupportedImageExtension, string> = {
   avif: "AVIF 이미지",
   heic: "HEIC 이미지",
   heif: "HEIF 이미지",
-  cbz: "만화 아카이브"
+  cbz: "만화 아카이브",
+  cb7: "만화 아카이브"
 }
 
 export function extensionLabel(ext: string): string {

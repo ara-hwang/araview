@@ -2,13 +2,13 @@
 
 Tauri 2 + React 18 + TypeScript 기반의 Windows 데스크톱 이미지 뷰어입니다.
 
-- 일반 이미지 포맷과 만화 아카이브(`.cbz`)를 지원합니다.
+- 일반 이미지 포맷과 만화 아카이브(`.cbz`, `.cb7`)를 지원합니다.
 - 폴더 내 이미지 탐색, EXIF 표시, 슬라이드쇼, 멀티 페이지 보기 모드를 제공합니다.
 - 로컬 파일 경로 기반 렌더링(Asset Protocol)으로 동작합니다.
 
 ## 주요 기능
 
-- **지원 포맷**: `png`, `jpg`, `jpeg`, `gif`, `bmp`, `webp`, `svg`, `ico`, `tiff`, `tif`, `avif`, `heic`, `heif`, `cbz`
+- **지원 포맷**: `png`, `jpg`, `jpeg`, `gif`, `bmp`, `webp`, `svg`, `ico`, `tiff`, `tif`, `avif`, `heic`, `heif`, `cbz`, `cb7`
 - **파일 열기 방식**: 파일 선택, 드래그 앤 드롭(파일/폴더), OS 파일 연동으로 앱 실행
 - **탐색**: 이전/다음 이동, 썸네일/슬라이더 이동, 루프 내비게이션
 - **보기**: 확대/축소, 화면 맞춤(가로/세로/전체), 회전, 좌우/상하 반전
@@ -109,6 +109,7 @@ cd src-tauri && cargo clippy
 - 프론트엔드는 Tauri IPC로 백엔드 명령을 호출합니다.
   - `load_image(file_path)`
   - `get_directory_images(file_path)`
+  - `generate_thumbnail(file_path, max_side?)`
   - `resolve_dropped_path(path)`
   - `get_exif_data(file_path)`
   - `get_archive_images(file_path)`
