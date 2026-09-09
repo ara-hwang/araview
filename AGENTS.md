@@ -150,6 +150,9 @@ Tauri Store (`settings.json`) is used for:
   1. `npm test`
   2. `cd src-tauri && cargo test`
   3. `npx tsc --noEmit`
+- Runtime verification via Tauri MCP (dev app + MCP bridge on `:9223`):
+  1. `npm run dev:up` (idempotent launcher, waits for `:1420` + `:9223`)
+  2. Run `/verify-ui` (screenshot + click-through + console check)
 
 ## Window / UX Notes
 
