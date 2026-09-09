@@ -1,4 +1,17 @@
 /**
+ * 90°/270° 회전 시 가로/세로를 교체한 이미지 크기를 반환합니다.
+ */
+export function getOrientedImageSize(
+  imgW: number,
+  imgH: number,
+  rotation: 0 | 90 | 180 | 270
+): { width: number; height: number } {
+  return rotation === 90 || rotation === 270
+    ? { width: imgH, height: imgW }
+    : { width: imgW, height: imgH }
+}
+
+/**
  * 컨테이너·이미지 크기와 줌으로 이동 가능한 최대 오프셋(절반)을 계산합니다.
  */
 export function getPositionBounds(

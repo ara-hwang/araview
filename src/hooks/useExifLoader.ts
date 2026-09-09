@@ -5,14 +5,17 @@ import type { ExifData } from "@/types"
 
 export function useExifLoader() {
   const toggleExifPanel = useCallback(async () => {
-    const { showExifPanel, dirImages } = useAppStore.getState()
+    const { showExifPanel, imageInfo } = useAppStore.getState()
 
     if (showExifPanel) {
       useAppStore.setState({ showExifPanel: false })
       return
     }
 
-    const filePath = dirImages.images[dirImages.current_index]
+    // imageInfo.file_path가 정답: 아카이브 모드에서는 추출된 임시 경로,
+    // 일반 모드에서는 실제 파일 경로. dirImages entry는 아카이브에서
+    // zip 내부 이름이라 get_exif_data에 그대로 쓸 수 없다.
+    const filePath = imageInfo?.file_path
     if (!filePath) return
 
     try {

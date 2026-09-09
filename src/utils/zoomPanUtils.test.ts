@@ -4,8 +4,33 @@ import {
   clampPosition,
   isFullyContained,
   getFitZoomFromSizes,
-  getMinZoom
+  getMinZoom,
+  getOrientedImageSize
 } from "./zoomPanUtils"
+
+describe("getOrientedImageSize", () => {
+  it("keeps size for 0/180 rotation", () => {
+    expect(getOrientedImageSize(400, 300, 0)).toEqual({
+      width: 400,
+      height: 300
+    })
+    expect(getOrientedImageSize(400, 300, 180)).toEqual({
+      width: 400,
+      height: 300
+    })
+  })
+
+  it("swaps size for 90/270 rotation", () => {
+    expect(getOrientedImageSize(400, 300, 90)).toEqual({
+      width: 300,
+      height: 400
+    })
+    expect(getOrientedImageSize(400, 300, 270)).toEqual({
+      width: 300,
+      height: 400
+    })
+  })
+})
 
 describe("getPositionBounds", () => {
   it("returns 0 bounds when image fits inside container", () => {

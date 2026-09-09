@@ -1,9 +1,12 @@
 import { useLayoutEffect, type RefObject } from "react"
 import { convertFileSrc } from "@tauri-apps/api/core"
+import { useNavigate } from "@tanstack/react-router"
 import { cn } from "@/lib/utils"
 import { Spinner } from "@/components/ui/spinner"
+import { Button } from "@/components/ui/button"
 import { ImageNavBar } from "./ImageNavBar"
 import { applyImageNaturalSize, useAppStore } from "@/store/appStore"
+import { classifyError } from "@/utils/appError"
 import { useShallow } from "zustand/react/shallow"
 import type { ViewMode } from "@/store/settingsStore"
 import type { MultiPage } from "@/hooks/useMultiPageImages"
@@ -21,6 +24,10 @@ type ImageContainerProps = {
   getOrLoadImage?: (filePath: string) => Promise<ImageInfo>
   viewMode?: ViewMode
   pages?: MultiPage[]
+  slideshowActive?: boolean
+  slideshowIntervalMs?: number
+  onToggleSlideshow?: () => void
+  onToggleFullscreen?: () => void
 }
 
 const toSrc = (info: ImageInfo) => convertFileSrc(info.file_path)
@@ -36,7 +43,11 @@ export function ImageContainer({
   onNavigateToIndex,
   getOrLoadImage,
   viewMode = "single",
-  pages = []
+  pages = [],
+  slideshowActive = false,
+  slideshowIntervalMs = 3000,
+  onToggleSlideshow,
+  onToggleFullscreen
 }: ImageContainerProps) {
   const app = useAppStore(
     useShallow((state) => ({
@@ -62,6 +73,13 @@ export function ImageContainer({
   )
 
   const imageSrc = app.imageInfo ? toSrc(app.imageInfo) : null
+  const navigate = useNavigate()
+  const classified = app.error ? classifyError(app.error) : null
+
+  const handleGoHome = () => {
+    useAppStore.setState({ error: null })
+    void navigate({ to: "/" })
+  }
 
   useLayoutEffect(() => {
     const img = imageRef.current
@@ -156,9 +174,76 @@ export function ImageContainer({
         </div>
       )}
 
-      {app.error && (
-        <div className="rounded-lg border border-[hsl(var(--destructive))]/20 bg-[hsl(var(--destructive))]/10 px-6 py-4 text-sm text-[hsl(var(--destructive))]">
-          {app.error}
+      {slideshowActive && (
+        <div
+          className="bg-background/90 border-border absolute top-2 left-1/2 z-20 w-64 -translate-x-1/2 rounded-md border px-3 py-2 shadow-lg"
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-center justify-between gap-2 text-xs">
+            <span aria-live="polite">
+              슬라이드쇼 {app.dirImages.current_index + 1}/
+              {app.dirImages.images.length} ·{" "}
+              {(slideshowIntervalMs / 1000).toFixed(1)}초
+            </span>
+            <span className="flex gap-1">
+              {onToggleFullscreen && (
+                <button
+                  type="button"
+                  onClick={onToggleFullscreen}
+                  className="rounded px-1.5 py-0.5 hover:bg-[hsl(var(--accent))]"
+                  title="전체화면 (F11)"
+                  aria-label="전체화면 (F11)"
+                >
+                  전체화면
+                </button>
+              )}
+              {onToggleSlideshow && (
+                <button
+                  type="button"
+                  onClick={onToggleSlideshow}
+                  className="rounded px-1.5 py-0.5 hover:bg-[hsl(var(--accent))]"
+                  title="슬라이드쇼 정지 (Space)"
+                  aria-label="슬라이드쇼 정지 (Space)"
+                >
+                  정지
+                </button>
+              )}
+            </span>
+          </div>
+          <div className="bg-muted mt-1.5 h-1 overflow-hidden rounded-full">
+            <div
+              key={`${app.dirImages.current_index}-${slideshowIntervalMs}`}
+              className="bg-primary h-full"
+              style={{
+                animation: `slideshow-progress ${slideshowIntervalMs}ms linear forwards`
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {app.error && classified && (
+        <div
+          role="alert"
+          className="bg-background max-w-md rounded-lg border border-[hsl(var(--destructive))]/20 px-6 py-4 text-sm shadow-lg"
+        >
+          <p className="font-medium text-[hsl(var(--destructive))]">
+            {classified.title}
+          </p>
+          <p className="text-muted-foreground mt-1 break-words">{app.error}</p>
+          <p className="text-muted-foreground mt-1">{classified.hint}</p>
+          <div className="mt-3 flex gap-2">
+            <Button size="sm" onClick={handleGoHome}>
+              홈으로 돌아가기
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => useAppStore.setState({ error: null })}
+            >
+              닫기
+            </Button>
+          </div>
         </div>
       )}
 

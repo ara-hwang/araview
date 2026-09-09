@@ -7,10 +7,11 @@ import {
   EmptyTitle
 } from "@/components/ui/empty"
 import { Button } from "@/components/ui/button"
-import { useEffect } from "react"
+import { useEffect, useRef } from "react"
 import { getCurrentWindow } from "@tauri-apps/api/window"
 import { X } from "lucide-react"
 import { useAppStore } from "@/store/appStore"
+import { useSettingsStore } from "@/store/settingsStore"
 import { useImageLoader } from "@/hooks/useImageLoader"
 import { usePaintSrcs } from "@/hooks/usePaintSrcs"
 import { useRecentFilesStore } from "@/store/recentFilesStore"
@@ -30,6 +31,8 @@ function HomePage() {
   const recentFiles = useRecentFilesStore((s) => s.files)
   const removeRecent = useRecentFilesStore((s) => s.remove)
   const clearRecent = useRecentFilesStore((s) => s.clear)
+  const autoOpenLastFile = useSettingsStore((s) => s.autoOpenLastFile)
+  const autoOpenedRef = useRef(false)
 
   // 이미지 변경 시 창 제목 변경
   useEffect(() => {
@@ -51,8 +54,21 @@ function HomePage() {
     getOrLoadImage,
     handleOpenFile,
     handleDrop,
-    handleDragOver
+    handleDragOver,
+    handleDragEnter,
+    handleDragLeave,
+    isDragOver
   } = useImageLoader()
+
+  // 시작 옵션: 마지막 파일 자동 열기 (스토어 로드 후 1회)
+  useEffect(() => {
+    if (autoOpenedRef.current) return
+    if (!autoOpenLastFile) return
+    if (app.imageInfo) return
+    if (recentFiles.length === 0) return
+    autoOpenedRef.current = true
+    void loadImage(recentFiles[0])
+  }, [autoOpenLastFile, recentFiles, app.imageInfo, loadImage])
   const urls = usePaintSrcs(recentFiles, getOrLoadImage)
 
   return (
@@ -62,8 +78,17 @@ function HomePage() {
       }}
       onDrop={handleDrop}
       onDragOver={handleDragOver}
-      className="mx-auto flex h-full w-full max-w-4xl flex-col justify-center gap-10 p-8 sm:p-12"
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      className="relative mx-auto flex h-full w-full max-w-4xl flex-col justify-center gap-10 p-8 sm:p-12"
     >
+      {isDragOver && (
+        <div className="border-primary bg-background/80 pointer-events-none absolute inset-0 z-30 flex items-center justify-center border-2 border-dashed">
+          <p className="bg-background rounded-md border px-4 py-2 text-sm">
+            여기에 놓아 열기
+          </p>
+        </div>
+      )}
       <Empty className="items-start border-none p-0 text-left">
         <EmptyContent className="max-w-md items-start gap-3 text-left">
           <p className="text-muted-foreground text-xs tabular-nums">
@@ -114,7 +139,7 @@ function HomePage() {
                       {src ? (
                         <img
                           src={src}
-                          alt=""
+                          alt={name}
                           loading="lazy"
                           className="h-full w-full object-cover"
                           draggable={false}

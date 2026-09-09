@@ -3,10 +3,14 @@ import { getCurrentWindow } from "@tauri-apps/api/window"
 import {
   ArrowLeftRight,
   ArrowUpDown,
+  FlipHorizontal2,
+  FlipVertical2,
   FolderOpen,
   Info,
   Maximize2,
   Minus,
+  RotateCcw,
+  RotateCw,
   Settings,
   Square,
   X,
@@ -18,7 +22,11 @@ import { ButtonGroup } from "./ui/button-group"
 import { ButtonGroupText } from "./ui/button-group"
 import { Separator } from "./ui/separator"
 import {
+  flipHorizontal,
+  flipVertical,
   resetZoomPan,
+  rotateCCW,
+  rotateCW,
   setZoomToFit,
   zoomIn,
   zoomOut,
@@ -119,6 +127,47 @@ export default function Header() {
               >
                 <ZoomIn />
                 <span className="hidden md:inline">확대</span>
+              </Button>
+            </ButtonGroup>
+
+            <Separator orientation="vertical" />
+
+            <ButtonGroup>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={rotateCCW}
+                title="반시계 회전 (Shift+R)"
+                aria-label="반시계 회전 (Shift+R)"
+              >
+                <RotateCcw />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={rotateCW}
+                title="시계 회전 (R)"
+                aria-label="시계 회전 (R)"
+              >
+                <RotateCw />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={flipHorizontal}
+                title="좌우 반전 (H)"
+                aria-label="좌우 반전 (H)"
+              >
+                <FlipHorizontal2 />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={flipVertical}
+                title="상하 반전 (V)"
+                aria-label="상하 반전 (V)"
+              >
+                <FlipVertical2 />
               </Button>
             </ButtonGroup>
           </ButtonGroup>

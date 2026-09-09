@@ -19,25 +19,36 @@ export function useDirectoryNavigation(
   const dirImages = useAppStore((state) => state.dirImages)
   const archivePath = useAppStore((state) => state.archivePath)
   const loopNavigation = useSettingsStore((state) => state.loopNavigation)
+  const viewMode = useSettingsStore((state) => state.viewMode)
+
+  // 양면 보기(ltr/rtl)는 2장씩 넘기고, 나머지는 1장씩 넘긴다.
+  const step =
+    viewMode === "left-to-right" || viewMode === "right-to-left" ? 2 : 1
 
   const navigateImage = useCallback(
     async (direction: "prev" | "next") => {
       if (!dirImages || dirImages.images.length <= 1) return
 
+      const last = dirImages.images.length - 1
       let newIndex: number
       if (direction === "prev") {
-        if (dirImages.current_index === 0) {
+        newIndex = dirImages.current_index - step
+        if (newIndex < 0) {
           if (!loopNavigation) return
-          newIndex = dirImages.images.length - 1
-        } else {
-          newIndex = dirImages.current_index - 1
+          newIndex =
+            ((newIndex % dirImages.images.length) + dirImages.images.length) %
+            dirImages.images.length
         }
       } else {
-        if (dirImages.current_index === dirImages.images.length - 1) {
-          if (!loopNavigation) return
-          newIndex = 0
-        } else {
-          newIndex = dirImages.current_index + 1
+        newIndex = dirImages.current_index + step
+        if (newIndex > last) {
+          if (!loopNavigation) {
+            // 끝에서 멈춤 모드라도 마지막 장은 볼 수 있게 clamps
+            if (dirImages.current_index === last) return
+            newIndex = last
+          } else {
+            newIndex = newIndex % dirImages.images.length
+          }
         }
       }
 
@@ -50,7 +61,14 @@ export function useDirectoryNavigation(
       await loadImage(dirImages.images[newIndex], { refreshDirectory: false })
       updateDirImagesIndex(newIndex)
     },
-    [dirImages, loadImage, loopNavigation, archivePath, loadArchiveImageByIndex]
+    [
+      dirImages,
+      loadImage,
+      loopNavigation,
+      archivePath,
+      loadArchiveImageByIndex,
+      step
+    ]
   )
 
   const navigateToIndex = useCallback(

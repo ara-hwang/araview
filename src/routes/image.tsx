@@ -38,6 +38,9 @@ function ImagePage() {
     handleOpenFile,
     handleDrop,
     handleDragOver,
+    handleDragEnter,
+    handleDragLeave,
+    isDragOver,
     getOrLoadImage
   } = useImageLoader()
 
@@ -60,15 +63,19 @@ function ImagePage() {
 
   useOpenFileListener(loadImageAndReset)
 
-  const handleContextMenu = useImageViewerContextMenu(dirImages, {
-    onOpenFile: handleOpenFile,
-    onNavigatePrev: () => void navigateImage("prev"),
-    onNavigateNext: () => void navigateImage("next")
-  })
-
   const slideshow = useSlideshow(() => void navigateImage("next"))
   const fullscreen = useFullscreen()
   const { copy: copyImage } = useCopyImage()
+
+  const handleContextMenu = useImageViewerContextMenu(dirImages, {
+    onOpenFile: handleOpenFile,
+    onNavigatePrev: () => void navigateImage("prev"),
+    onNavigateNext: () => void navigateImage("next"),
+    onToggleExif: () => void toggleExifPanel(),
+    onToggleSlideshow: slideshow.toggle,
+    onToggleFullscreen: () => void fullscreen.toggle(),
+    onCopyImage: () => void copyImage()
+  })
 
   useImageViewerHotkeys({
     onNavigatePrev: () => void navigateImage("prev"),
@@ -82,10 +89,12 @@ function ImagePage() {
 
   return (
     <div
-      className="flex h-full w-full flex-col"
+      className="relative flex h-full w-full flex-col"
       onContextMenu={handleContextMenu}
       onDrop={handleDrop}
       onDragOver={handleDragOver}
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
     >
       <ImageContainer
         containerRef={containerRef}
@@ -99,7 +108,18 @@ function ImagePage() {
         getOrLoadImage={getOrLoadImage}
         viewMode={viewMode}
         pages={pages}
+        slideshowActive={slideshow.active}
+        slideshowIntervalMs={slideshow.intervalMs}
+        onToggleSlideshow={slideshow.toggle}
+        onToggleFullscreen={() => void fullscreen.toggle()}
       />
+      {isDragOver && (
+        <div className="border-primary bg-background/80 pointer-events-none absolute inset-0 z-30 flex items-center justify-center border-2 border-dashed">
+          <p className="bg-background rounded-md border px-4 py-2 text-sm">
+            여기에 놓아 열기
+          </p>
+        </div>
+      )}
     </div>
   )
 }

@@ -59,6 +59,7 @@ export function ImageNavBar({
         <div className="flex items-center justify-center gap-1">
           {thumbnails.map(({ index, path }) => {
             const src = urls.get(path)
+            const name = path.split(/[\\/]/).pop() ?? path
             return (
               <button
                 key={path}
@@ -70,12 +71,13 @@ export function ImageNavBar({
                     ? "border-primary scale-110"
                     : "border-transparent opacity-60 hover:opacity-100"
                 )}
-                title={path.split(/[\\/]/).pop()}
+                title={name}
+                aria-label={`이미지 ${index + 1}: ${name}`}
               >
                 {src ? (
                   <img
                     src={src}
-                    alt=""
+                    alt={name}
                     loading="lazy"
                     className="h-full w-full object-cover"
                     draggable={false}

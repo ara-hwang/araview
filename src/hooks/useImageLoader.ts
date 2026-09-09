@@ -1,4 +1,4 @@
-import { useCallback } from "react"
+import { useCallback, useRef, useState } from "react"
 import { open } from "@tauri-apps/plugin-dialog"
 import { invoke } from "@tauri-apps/api/core"
 import { toast } from "sonner"
@@ -27,6 +27,9 @@ export function useImageLoader() {
 
   const { getOrLoadImage, prefetchNearbyImages, getPrefetchDistance } =
     useImageCache()
+
+  const [isDragOver, setIsDragOver] = useState(false)
+  const dragDepthRef = useRef(0)
 
   /** 아카이브 파일을 열어 내부 첫 이미지를 표시 */
   const loadArchive = useCallback(async (archivePath: string) => {
@@ -166,27 +169,44 @@ export function useImageLoader() {
     async (e: React.DragEvent) => {
       e.preventDefault()
       e.stopPropagation()
-      const files = e.dataTransfer.files
+      dragDepthRef.current = 0
+      setIsDragOver(false)
+      const files = Array.from(e.dataTransfer.files)
       if (files.length === 0) return
 
-      // 첫 번째 드롭 항목만 사용 (파일 또는 폴더)
-      const first = files[0]
-      const droppedPath = (first as { path?: string }).path
-      if (!droppedPath) return
+      const rawPaths = files
+        .map((f) => (f as { path?: string }).path)
+        .filter((p): p is string => !!p)
+      if (rawPaths.length === 0) return
 
-      if (isArchiveFile(droppedPath)) {
-        await loadImage(droppedPath)
+      // 여러 파일/폴더 드롭: 각각 해석 후 첫 이미지를 열고 나머지는 알림
+      const resolved: string[] = []
+      for (const raw of rawPaths) {
+        if (isArchiveFile(raw)) {
+          resolved.push(raw)
+          continue
+        }
+        try {
+          const one = await invoke<string>("resolve_dropped_path", {
+            path: raw
+          })
+          resolved.push(one)
+        } catch {
+          // 해석 실패 항목은 건너뜀
+        }
+      }
+      if (resolved.length === 0) {
+        toast.error("드롭한 항목을 열 수 없습니다", {
+          description: rawPaths[0]
+        })
         return
       }
 
-      try {
-        const resolved = await invoke<string>("resolve_dropped_path", {
-          path: droppedPath
-        })
-        await loadImage(resolved)
-      } catch (err) {
-        toast.error("드롭한 항목을 열 수 없습니다", {
-          description: String(err)
+      resolved.sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()))
+      await loadImage(resolved[0])
+      if (resolved.length > 1) {
+        toast.info(`${resolved.length}개 중 첫 이미지를 표시합니다`, {
+          duration: 2000
         })
       }
     },
@@ -196,6 +216,21 @@ export function useImageLoader() {
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
+    setIsDragOver(true)
+  }, [])
+
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    dragDepthRef.current += 1
+    setIsDragOver(true)
+  }, [])
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1)
+    if (dragDepthRef.current === 0) setIsDragOver(false)
   }, [])
 
   return {
@@ -204,6 +239,9 @@ export function useImageLoader() {
     handleOpenFile,
     handleDrop,
     handleDragOver,
+    handleDragEnter,
+    handleDragLeave,
+    isDragOver,
     getOrLoadImage
   }
 }
