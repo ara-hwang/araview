@@ -4,6 +4,7 @@ import { createRouter, RouterProvider } from "@tanstack/react-router"
 import { routeTree } from "./routeTree.gen"
 import { initI18n, detectSystemLanguage } from "@/i18n"
 import { initSettingsFromStore } from "@/store/settingsStore"
+import { applyAlwaysOnTopFromSettings } from "@/hooks/useAlwaysOnTop"
 import { useRecentFilesStore } from "@/store/recentFilesStore"
 import { useFavoritesStore } from "@/store/favoritesStore"
 import "./App.css"
@@ -11,6 +12,7 @@ import "./App.css"
 async function bootstrap() {
   await initI18n(detectSystemLanguage())
   await initSettingsFromStore()
+  await applyAlwaysOnTopFromSettings()
   await Promise.all([
     useRecentFilesStore.getState().init(),
     useFavoritesStore.getState().init()

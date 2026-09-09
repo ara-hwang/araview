@@ -29,6 +29,7 @@ export type SettingsState = {
   recordRecentFiles: boolean
   viewerBackground: ViewerBackground
   autoHideUI: boolean
+  alwaysOnTop: boolean
   sortKey: DirSortKey
   sortDescending: boolean
   shuffle: boolean
@@ -58,6 +59,7 @@ const initialSettings: SettingsState = {
   recordRecentFiles: true,
   viewerBackground: "theme",
   autoHideUI: false,
+  alwaysOnTop: false,
   sortKey: "name",
   sortDescending: false,
   shuffle: false,

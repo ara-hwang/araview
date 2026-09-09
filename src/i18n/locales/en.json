@@ -25,6 +25,8 @@
     "infoTitle": "EXIF info (I)",
     "settings": "Settings",
     "settingsTitle": "Settings",
+    "alwaysOnTop": "Always on top",
+    "alwaysOnTopTitle": "Keep window always on top (T)",
     "minimize": "Minimize",
     "maximize": "Maximize / Restore",
     "close": "Close"
@@ -101,6 +103,11 @@
       "title": "Presentation",
       "desc": "Auto-hide top/bottom bars after 3s idle (move to show)",
       "autohide": "Auto-hide UI"
+    },
+    "window": {
+      "title": "Window",
+      "desc": "Keep above other windows",
+      "alwaysOnTop": "Always on top"
     },
     "cache": {
       "title": "Cache",
@@ -225,6 +232,7 @@
     "toggleExif": "Toggle EXIF Panel",
     "toggleSlideshow": "Toggle Slideshow",
     "toggleFullscreen": "Toggle Fullscreen",
+    "toggleAlwaysOnTop": "Toggle Always on Top",
     "copyImage": "Copy Image",
     "cycleBg": "Cycle Background",
     "toggleShuffle": "Toggle Shuffle",
@@ -268,6 +276,9 @@
     },
     "fullscreen": {
       "fail": "Failed to toggle fullscreen"
+    },
+    "alwaysOnTop": {
+      "fail": "Failed to toggle always on top"
     },
     "reveal": {
       "empty": "No file to show",

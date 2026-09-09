@@ -16,6 +16,7 @@ import {
   MagnifyingGlassMinus,
   MagnifyingGlassPlus,
   Minus,
+  PushPin,
   Square,
   X
 } from "@phosphor-icons/react"
@@ -38,6 +39,7 @@ import {
 import { useImageLoader } from "@/hooks/useImageLoader"
 import { useCloseImage } from "@/hooks/useCloseImage"
 import { useExifLoader } from "@/hooks/useExifLoader"
+import { useAlwaysOnTop } from "@/hooks/useAlwaysOnTop"
 import { SettingsDialog } from "@/components/SettingsDialog"
 import { useTranslation } from "react-i18next"
 
@@ -53,6 +55,7 @@ export default function Header() {
   const { handleOpenFile } = useImageLoader()
   const handleGoHome = useCloseImage()
   const { toggleExifPanel } = useExifLoader()
+  const { alwaysOnTop, toggle: toggleAlwaysOnTop } = useAlwaysOnTop()
 
   useEffect(() => {
     let cancelled = false
@@ -265,6 +268,20 @@ export default function Header() {
           </ButtonGroup>
 
           <ButtonGroup>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => void toggleAlwaysOnTop()}
+              title={t("header.alwaysOnTopTitle")}
+              aria-label={t("header.alwaysOnTopTitle")}
+              aria-pressed={alwaysOnTop}
+              className={cn(
+                alwaysOnTop &&
+                  "border-primary/40 bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary"
+              )}
+            >
+              <PushPin weight={alwaysOnTop ? "fill" : "regular"} />
+            </Button>
             <Button
               variant="outline"
               size="icon"
