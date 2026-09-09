@@ -20,7 +20,6 @@ export function useDirectoryNavigation(
   const archivePath = useAppStore((state) => state.archivePath)
   const loopNavigation = useSettingsStore((state) => state.loopNavigation)
 
-  // 이전 또는 다음 이미지로 이동
   const navigateImage = useCallback(
     async (direction: "prev" | "next") => {
       if (!dirImages || dirImages.images.length <= 1) return
@@ -42,7 +41,6 @@ export function useDirectoryNavigation(
         }
       }
 
-      // 아카이브 모드
       if (archivePath && loadArchiveImageByIndex) {
         await loadArchiveImageByIndex(archivePath, dirImages.images[newIndex])
         updateDirImagesIndex(newIndex)
@@ -55,14 +53,12 @@ export function useDirectoryNavigation(
     [dirImages, loadImage, loopNavigation, archivePath, loadArchiveImageByIndex]
   )
 
-  // 원하는 인덱스로 이동
   const navigateToIndex = useCallback(
     async (index: number) => {
       if (!dirImages || dirImages.images.length === 0) return
 
       const clamped = Math.max(0, Math.min(index, dirImages.images.length - 1))
 
-      // 아카이브 모드
       if (archivePath && loadArchiveImageByIndex) {
         await loadArchiveImageByIndex(archivePath, dirImages.images[clamped])
         updateDirImagesIndex(clamped)

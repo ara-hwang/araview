@@ -32,13 +32,11 @@ export function useImageLoader() {
   const loadArchive = useCallback(async (archivePath: string) => {
     useAppStore.setState({ loading: true, archivePath })
     try {
-      // 아카이브 내부 이미지 목록 가져오기
       const archiveImages = await invoke<DirectoryImages>(
         "get_archive_images",
         { filePath: archivePath }
       )
 
-      // 첫 번째 이미지 추출
       const firstEntry = archiveImages.images[0]
       const imgInfo = await invoke<ImageInfo>("load_archive_image", {
         archivePath,
@@ -88,14 +86,12 @@ export function useImageLoader() {
 
   const loadImage = useCallback(
     async (filePath: string, options?: LoadImageOptions) => {
-      // 아카이브 파일이면 아카이브 모드로 전환
       if (isArchiveFile(filePath)) {
         await loadArchive(filePath)
         options?.onAfterLoad?.()
         return
       }
 
-      // 일반 이미지: 아카이브 모드 해제
       useAppStore.setState({ archivePath: null })
 
       const refreshDirectory = options?.refreshDirectory ?? true
@@ -178,7 +174,6 @@ export function useImageLoader() {
       const droppedPath = (first as { path?: string }).path
       if (!droppedPath) return
 
-      // 아카이브 파일이 드롭된 경우 직접 처리
       if (isArchiveFile(droppedPath)) {
         await loadImage(droppedPath)
         return
