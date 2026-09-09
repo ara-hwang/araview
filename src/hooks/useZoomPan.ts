@@ -13,7 +13,12 @@ import {
   startDrag,
   moveDrag
 } from "@/store/appStore"
+import { getSettings } from "@/store/settingsStore"
 import { useShallow } from "zustand/react/shallow"
+
+function getMouseSettings() {
+  return getSettings().mouse
+}
 
 // 이미지 컨테이너 내부에서 줌/팬(드래그) 상태를 관리하고
 // 전역 `appStore`의 position/zoom 값을 일관되게 업데이트하는 훅
@@ -45,6 +50,8 @@ export function useZoomPan() {
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
+      if (e.button !== 0) return
+      if (getMouseSettings().leftDrag !== "pan") return
       if (app.imageInfo) {
         startDrag(e.clientX, e.clientY)
       }
@@ -67,15 +74,13 @@ export function useZoomPan() {
     setIsDragging(false)
   }, [])
 
-  // Ctrl + 휠로만 줌을 처리하고, 스크롤 이동은 상위 훅(useImageViewer)에서 처리
+  // 휠 매핑에서 줌으로 결정된 경우에만 호출된다. 방향에 따라 확대/축소한다.
   const handleWheel = useCallback((e: React.WheelEvent) => {
     e.preventDefault()
-    if (e.ctrlKey) {
-      if (e.deltaY < 0) {
-        zoomInBy(1.1)
-      } else {
-        zoomOutBy(1.1)
-      }
+    if (e.deltaY < 0) {
+      zoomInBy(1.1)
+    } else if (e.deltaY > 0) {
+      zoomOutBy(1.1)
     }
   }, [])
 

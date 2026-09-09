@@ -25,6 +25,8 @@ type ImageContainerProps = {
   onMouseDown: (e: React.MouseEvent) => void
   onMouseMove: (e: React.MouseEvent) => void
   onMouseUp: () => void
+  onDoubleClick?: (e: React.MouseEvent) => void
+  onMiddleClick?: (e: React.MouseEvent) => void
   onNavigate?: (direction: "prev" | "next") => void
   onNavigateToIndex?: (index: number) => void
   getOrLoadImage?: (filePath: string) => Promise<ImageInfo>
@@ -91,6 +93,8 @@ export function ImageContainer({
   onMouseDown,
   onMouseMove,
   onMouseUp,
+  onDoubleClick,
+  onMiddleClick,
   onNavigate,
   onNavigateToIndex,
   getOrLoadImage,
@@ -175,6 +179,10 @@ export function ImageContainer({
       onMouseMove={viewMode === "single" ? onMouseMove : undefined}
       onMouseUp={viewMode === "single" ? onMouseUp : undefined}
       onMouseLeave={viewMode === "single" ? onMouseUp : undefined}
+      onDoubleClick={onDoubleClick}
+      onAuxClick={(e) => {
+        if (e.button === 1 && onMiddleClick) onMiddleClick(e)
+      }}
     >
       {/* Single mode: 기존 줌/팬 동작 */}
       {!isMulti && imageSrc && (

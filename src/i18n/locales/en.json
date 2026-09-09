@@ -39,6 +39,7 @@
       "view": "View",
       "list": "Browsing",
       "performance": "Performance",
+      "shortcuts": "Shortcuts",
       "extensions": "Extensions"
     },
     "reset": "Reset",
@@ -54,6 +55,67 @@
     },
     "performanceTab": {
       "title": "Performance settings"
+    },
+    "shortcutsTab": {
+      "title": "Shortcuts and mouse"
+    },
+    "shortcuts": {
+      "title": "Keyboard shortcuts",
+      "desc": "Select an item, then press the keys you want. Each key can belong to one action.",
+      "captureHint": "Select an item to change it",
+      "capturing": "Waiting for input, Esc cancels",
+      "unbound": "None",
+      "clear": "Clear",
+      "restore": "Restore default",
+      "resetAll": "Reset shortcuts and mouse",
+      "conflictTitle": "Key already in use",
+      "conflictDesc": "{{key}} is already assigned to {{action}}. Replace it? The other action becomes unassigned.",
+      "replace": "Replace",
+      "cancel": "Cancel",
+      "reserved": "Tab is reserved for focus navigation",
+      "invalid": "This key combination cannot be assigned"
+    },
+    "wheel": {
+      "title": "Wheel actions",
+      "desc": "Choose what each modifier plus wheel direction does. In webtoon mode vertical scroll wins.",
+      "slot": {
+        "wheelUp": "Wheel up",
+        "wheelDown": "Wheel down",
+        "ctrl+wheelUp": "Ctrl plus wheel up",
+        "ctrl+wheelDown": "Ctrl plus wheel down",
+        "shift+wheelUp": "Shift plus wheel up",
+        "shift+wheelDown": "Shift plus wheel down",
+        "alt+wheelUp": "Alt plus wheel up",
+        "alt+wheelDown": "Alt plus wheel down"
+      },
+      "action": {
+        "prev": "Previous image",
+        "next": "Next image",
+        "zoomIn": "Zoom in",
+        "zoomOut": "Zoom out",
+        "none": "None"
+      }
+    },
+    "mouse": {
+      "title": "Mouse actions",
+      "desc": "Choose click and drag behavior. If right-click no longer opens the menu, use the header settings button instead.",
+      "trigger": {
+        "leftDrag": "Left drag",
+        "middleClick": "Middle click",
+        "doubleClick": "Double click",
+        "rightClick": "Right click"
+      },
+      "action": {
+        "pan": "Pan",
+        "prev": "Previous image",
+        "next": "Next image",
+        "zoomIn": "Zoom in",
+        "zoomOut": "Zoom out",
+        "toggleFullscreen": "Toggle fullscreen",
+        "contextMenu": "Open menu",
+        "none": "None"
+      },
+      "rightClickWarning": "Turning off the right-click menu removes menu access over the image"
     },
     "language": {
       "title": "Language",

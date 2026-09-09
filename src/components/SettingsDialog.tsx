@@ -12,13 +12,22 @@ import { GeneralTabPanel } from "@/components/settings/GeneralTabPanel"
 import { ViewTabPanel } from "@/components/settings/ViewTabPanel"
 import { ListTabPanel } from "@/components/settings/ListTabPanel"
 import { PerformanceTabPanel } from "@/components/settings/PerformanceTabPanel"
+import { ShortcutsTabPanel } from "@/components/settings/ShortcutsTabPanel"
 import { ExtensionSettingsPanel } from "@/components/settings/ExtensionSettingsPanel"
 import { resetSettings } from "@/store/settingsStore"
 import { cn } from "cn"
-import { ArrowsDownUp, Eye, FileText, Gauge, Gear } from "@phosphor-icons/react"
+import {
+  ArrowsDownUp,
+  Eye,
+  FileText,
+  Gauge,
+  Gear,
+  Keyboard
+} from "@phosphor-icons/react"
 import { useTranslation } from "react-i18next"
 
-type SettingsTab = "general" | "view" | "list" | "performance" | "extensions"
+type SettingsTab =
+  "general" | "view" | "list" | "performance" | "shortcuts" | "extensions"
 
 type SettingsDialogProps = {
   open: boolean
@@ -43,6 +52,11 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
       icon: Gauge
     },
     {
+      id: "shortcuts",
+      label: t("settings.tabs.shortcuts"),
+      icon: Keyboard
+    },
+    {
       id: "extensions",
       label: t("settings.tabs.extensions"),
       icon: FileText
@@ -53,7 +67,8 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
     general: t("settings.general.title"),
     view: t("settings.viewTab.title"),
     list: t("settings.listTab.title"),
-    performance: t("settings.performanceTab.title")
+    performance: t("settings.performanceTab.title"),
+    shortcuts: t("settings.shortcutsTab.title")
   }
 
   const close = () => {
@@ -129,6 +144,8 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
                         <ViewTabPanel />
                       ) : tab === "list" ? (
                         <ListTabPanel />
+                      ) : tab === "shortcuts" ? (
+                        <ShortcutsTabPanel />
                       ) : (
                         <PerformanceTabPanel />
                       )}

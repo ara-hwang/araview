@@ -39,6 +39,7 @@
       "view": "보기",
       "list": "목록",
       "performance": "성능",
+      "shortcuts": "단축키",
       "extensions": "확장자"
     },
     "reset": "초기화",
@@ -54,6 +55,67 @@
     },
     "performanceTab": {
       "title": "성능 설정"
+    },
+    "shortcutsTab": {
+      "title": "단축키와 마우스 설정"
+    },
+    "shortcuts": {
+      "title": "키보드 단축키",
+      "desc": "항목을 선택한 뒤 원하는 키를 누르세요. 같은 키는 한 동작에만 지정됩니다.",
+      "captureHint": "변경할 항목을 선택하세요",
+      "capturing": "입력 대기 중, Esc는 취소",
+      "unbound": "없음",
+      "clear": "해제",
+      "restore": "기본값으로",
+      "resetAll": "단축키와 마우스 초기화",
+      "conflictTitle": "이미 사용 중인 키입니다",
+      "conflictDesc": "{{key}} 키는 이미 {{action}}에 지정되어 있습니다. 교체할까요? 기존 동작은 해제로 바뀝니다.",
+      "replace": "교체",
+      "cancel": "취소",
+      "reserved": "Tab 키는 포커스 이동용이라 지정할 수 없습니다",
+      "invalid": "지정할 수 없는 키 조합입니다"
+    },
+    "wheel": {
+      "title": "휠 동작",
+      "desc": "수식키와 휠 방향 조합마다 수행할 동작을 고르세요. 웹툰 모드에서는 세로 스크롤이 우선합니다.",
+      "slot": {
+        "wheelUp": "휠 위",
+        "wheelDown": "휠 아래",
+        "ctrl+wheelUp": "Ctrl과 휠 위",
+        "ctrl+wheelDown": "Ctrl과 휠 아래",
+        "shift+wheelUp": "Shift와 휠 위",
+        "shift+wheelDown": "Shift와 휠 아래",
+        "alt+wheelUp": "Alt와 휠 위",
+        "alt+wheelDown": "Alt와 휠 아래"
+      },
+      "action": {
+        "prev": "이전 이미지",
+        "next": "다음 이미지",
+        "zoomIn": "확대",
+        "zoomOut": "축소",
+        "none": "없음"
+      }
+    },
+    "mouse": {
+      "title": "마우스 동작",
+      "desc": "클릭과 드래그 동작을 고르세요. 우클릭 메뉴를 다른 동작으로 바꾸면 설정 버튼으로 메뉴를 대신 여세요.",
+      "trigger": {
+        "leftDrag": "왼쪽 드래그",
+        "middleClick": "가운데 클릭",
+        "doubleClick": "더블클릭",
+        "rightClick": "오른쪽 클릭"
+      },
+      "action": {
+        "pan": "이동",
+        "prev": "이전 이미지",
+        "next": "다음 이미지",
+        "zoomIn": "확대",
+        "zoomOut": "축소",
+        "toggleFullscreen": "전체화면 전환",
+        "contextMenu": "메뉴 열기",
+        "none": "없음"
+      },
+      "rightClickWarning": "오른쪽 클릭 메뉴를 끄면 이미지 위에서 메뉴를 열 수 없습니다"
     },
     "language": {
       "title": "언어",
