@@ -18,6 +18,7 @@ import {
   type SaveEditsPayload,
   type SaveOutputFormat
 } from "@/utils/imageEdits"
+import { useTranslation } from "react-i18next"
 
 type SaveEditsDialogProps = {
   open: boolean
@@ -25,22 +26,23 @@ type SaveEditsDialogProps = {
   onClose: () => void
 }
 
-const FORMATS: { value: SaveOutputFormat; label: string }[] = [
-  { value: "keep", label: "원본 유지" },
-  { value: "png", label: "PNG" },
-  { value: "jpg", label: "JPEG" },
-  { value: "webp", label: "WebP" }
-]
-
 export function SaveEditsDialog({
   open,
   onSubmit,
   onClose
 }: SaveEditsDialogProps) {
+  const { t } = useTranslation()
   const rotation = useAppStore((state) => state.rotation)
   const flipH = useAppStore((state) => state.flipH)
   const flipV = useAppStore((state) => state.flipV)
   const fileName = useAppStore((state) => state.imageInfo?.file_name) ?? ""
+
+  const FORMATS: { value: SaveOutputFormat; label: string }[] = [
+    { value: "keep", label: t("dialog.save.keep") },
+    { value: "png", label: "PNG" },
+    { value: "jpg", label: "JPEG" },
+    { value: "webp", label: "WebP" }
+  ]
 
   const [format, setFormat] = useState<SaveOutputFormat>("keep")
   const [overwrite, setOverwrite] = useState(true)
@@ -68,14 +70,23 @@ export function SaveEditsDialog({
     >
       <DialogContent className="no-drag">
         <DialogHeader>
-          <DialogTitle>편집 내용 저장</DialogTitle>
+          <DialogTitle>{t("dialog.save.title")}</DialogTitle>
           <DialogDescription>
-            {fileName} · {describeTransform(rotation, flipH, flipV)}
+            {fileName} ·{" "}
+            {describeTransform(
+              rotation,
+              flipH,
+              flipV,
+              t as unknown as (
+                key: string,
+                vars?: Record<string, string | number>
+              ) => string
+            )}
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-col gap-1.5">
-          <span className="text-sm font-medium">포맷</span>
+          <span className="text-sm font-medium">{t("dialog.save.format")}</span>
           <RadioGroup
             value={format}
             onValueChange={(value) => setFormat(value as SaveOutputFormat)}
@@ -90,43 +101,42 @@ export function SaveEditsDialog({
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <span className="text-sm font-medium">저장 방식</span>
+          <span className="text-sm font-medium">{t("dialog.save.saveAs")}</span>
           <RadioGroup
             value={overwrite ? "overwrite" : "new"}
             onValueChange={(value) => setOverwrite(value === "overwrite")}
           >
             <Field orientation="horizontal">
               <RadioGroupItem value="overwrite" id="save-dest-overwrite" />
-              <Label htmlFor="save-dest-overwrite">원본에 덮어쓰기</Label>
+              <Label htmlFor="save-dest-overwrite">
+                {t("dialog.save.overwrite")}
+              </Label>
             </Field>
             <Field orientation="horizontal">
               <RadioGroupItem value="new" id="save-dest-new" />
-              <Label htmlFor="save-dest-new">새 파일로 저장</Label>
+              <Label htmlFor="save-dest-new">{t("dialog.save.newFile")}</Label>
             </Field>
           </RadioGroup>
           {!overwrite && (
             <input
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
-              placeholder="비우면 자동으로 이름 생성 (확장자는 포맷 기준)"
+              placeholder={t("dialog.save.newNamePlaceholder")}
               spellCheck={false}
               autoComplete="off"
-              aria-label="새 파일 이름"
+              aria-label={t("dialog.save.newNameAria")}
               className="border-input focus-visible:ring-ring flex h-9 w-full rounded-md border bg-transparent px-3 py-1 text-sm shadow-xs transition-colors outline-none focus-visible:ring-1"
             />
           )}
         </div>
 
-        <p className="text-muted-foreground text-xs">
-          포맷 변경·HEIC·GIF 등은 항상 새 파일로 저장됩니다. GIF는 첫 프레임만
-          저장됩니다.
-        </p>
+        <p className="text-muted-foreground text-xs">{t("dialog.save.note")}</p>
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
-            취소
+            {t("dialog.cancel")}
           </Button>
-          <Button onClick={submit}>저장</Button>
+          <Button onClick={submit}>{t("dialog.save.submit")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -90,6 +90,7 @@ cd src-tauri && cargo clippy
 
 설정은 헤더의 설정 버튼으로 여는 다이얼로그에서 관리합니다. 왼쪽 사이드바로 분류를 전환합니다.
 
+- **일반 / Language**: 한국어 / English (OS 언어 자동 감지, 변경 즉시 적용)
 - **일반 / Navigation**: 끝에서 정지 또는 루프 이동
 - **일반 / Cache Mode**
   - `off`: 현재 이미지만 유지

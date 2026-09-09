@@ -1,5 +1,6 @@
 import { Star, X } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useTranslation } from "react-i18next"
 
 type HomeFileCardProps = {
   path: string
@@ -18,6 +19,7 @@ export function HomeFileCard({
   onRemove,
   onToggleFavorite
 }: HomeFileCardProps) {
+  const { t } = useTranslation()
   const name = path.split(/[\\/]/).pop() ?? path
 
   return (
@@ -55,8 +57,10 @@ export function HomeFileCard({
           "bg-background/80 absolute top-1 left-1 rounded p-1 transition-opacity",
           isFavorite ? "opacity-100" : "opacity-0 group-hover:opacity-100"
         )}
-        title={isFavorite ? "즐겨찾기 해제" : "즐겨찾기 추가"}
-        aria-label={isFavorite ? "즐겨찾기 해제" : "즐겨찾기 추가"}
+        title={isFavorite ? t("home.card.favRemove") : t("home.card.favAdd")}
+        aria-label={
+          isFavorite ? t("home.card.favRemove") : t("home.card.favAdd")
+        }
         aria-pressed={isFavorite}
       >
         <Star
@@ -73,7 +77,8 @@ export function HomeFileCard({
           onRemove(path)
         }}
         className="bg-background/80 absolute top-1 right-1 rounded p-1 opacity-0 transition-opacity group-hover:opacity-100"
-        title="목록에서 제거"
+        title={t("home.card.remove")}
+        aria-label={t("home.card.remove")}
       >
         <X className="size-3" />
       </button>

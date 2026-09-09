@@ -13,6 +13,7 @@ import { ExtensionSettingsPanel } from "@/components/settings/ExtensionSettingsP
 import { resetSettings } from "@/store/settingsStore"
 import { cn } from "cn"
 import { FileTypeIcon, SettingsIcon } from "lucide-react"
+import { useTranslation } from "react-i18next"
 
 type SettingsTab = "general" | "extensions"
 
@@ -21,17 +22,22 @@ type SettingsDialogProps = {
   onClose: () => void
 }
 
-const SIDEBAR_ITEMS: {
-  id: SettingsTab
-  label: string
-  icon: typeof SettingsIcon
-}[] = [
-  { id: "general", label: "일반", icon: SettingsIcon },
-  { id: "extensions", label: "확장자", icon: FileTypeIcon }
-]
-
 export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
+  const { t } = useTranslation()
   const [tab, setTab] = useState<SettingsTab>("general")
+
+  const SIDEBAR_ITEMS: {
+    id: SettingsTab
+    label: string
+    icon: typeof SettingsIcon
+  }[] = [
+    { id: "general", label: t("settings.tabs.general"), icon: SettingsIcon },
+    {
+      id: "extensions",
+      label: t("settings.tabs.extensions"),
+      icon: FileTypeIcon
+    }
+  ]
 
   const close = () => {
     setTab("general")
@@ -47,9 +53,9 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
       <DialogContent className="no-drag w-[720px] max-w-[calc(100%-2rem)] gap-0 overflow-hidden p-0 sm:max-w-[720px]">
         <div className="flex h-[min(560px,80vh)] flex-col">
           <div className="border-b px-4 py-3 pr-12">
-            <DialogTitle>환경 설정</DialogTitle>
+            <DialogTitle>{t("settings.title")}</DialogTitle>
             <DialogDescription className="sr-only">
-              이미지 뷰어 설정과 파일 확장자 연결을 변경합니다.
+              {t("settings.desc")}
             </DialogDescription>
           </div>
 
@@ -83,7 +89,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
                   className="w-full"
                   onClick={() => void resetSettings()}
                 >
-                  초기화
+                  {t("settings.reset")}
                 </Button>
               </div>
             </aside>
@@ -93,7 +99,9 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
                 <div className="p-4">
                   {tab === "general" ? (
                     <>
-                      <h3 className="mb-4 text-base font-medium">일반 설정</h3>
+                      <h3 className="mb-4 text-base font-medium">
+                        {t("settings.general.title")}
+                      </h3>
                       <GeneralSettingsPanel />
                     </>
                   ) : (
@@ -104,7 +112,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
                 </div>
               </ScrollArea>
               <div className="flex justify-end border-t p-3">
-                <Button onClick={close}>확인</Button>
+                <Button onClick={close}>{t("settings.confirm")}</Button>
               </div>
             </div>
           </div>

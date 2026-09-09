@@ -8,6 +8,7 @@ import { useAppStore } from "@/store/appStore"
 import { cn } from "@/lib/utils"
 import { usePaintSrcs } from "@/hooks/usePaintSrcs"
 import type { ImageInfo } from "@/types"
+import { useTranslation } from "react-i18next"
 
 type GetOrLoadImage = (filePath: string) => Promise<ImageInfo>
 
@@ -25,6 +26,7 @@ export function ImageNavBar({
   getOrLoadImage,
   hidden = false
 }: ImageNavBarProps) {
+  const { t } = useTranslation()
   const dirImages = useAppStore((state) => state.dirImages)
   const loopNavigation = useSettingsStore((state) => state.loopNavigation)
 
@@ -78,7 +80,7 @@ export function ImageNavBar({
                     : "border-transparent opacity-60 hover:opacity-100"
                 )}
                 title={name}
-                aria-label={`이미지 ${index + 1}: ${name}`}
+                aria-label={t("viewer.nav.thumb", { index: index + 1, name })}
               >
                 {src ? (
                   <img
@@ -101,7 +103,8 @@ export function ImageNavBar({
             variant="outline"
             size="icon"
             onClick={() => onNavigate("prev")}
-            title="Previous image"
+            title={t("viewer.nav.prev")}
+            aria-label={t("viewer.nav.prev")}
             disabled={isPrevDisabled}
           >
             <ChevronLeft />
@@ -110,7 +113,8 @@ export function ImageNavBar({
             variant="outline"
             size="icon"
             onClick={() => onNavigate("next")}
-            title="Next image"
+            title={t("viewer.nav.next")}
+            aria-label={t("viewer.nav.next")}
             disabled={isNextDisabled}
           >
             <ChevronRight />
@@ -119,7 +123,7 @@ export function ImageNavBar({
 
         {/* 슬라이더를 클릭/드래그해서 원하는 위치로 점프 이동 */}
         <Slider
-          aria-label="Image position"
+          aria-label={t("viewer.nav.slider")}
           value={[dirImages.current_index]}
           min={0}
           max={dirImages.images.length - 1}

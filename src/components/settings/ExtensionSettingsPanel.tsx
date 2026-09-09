@@ -15,6 +15,7 @@ import {
   useFileAssociations
 } from "@/hooks/useFileAssociations"
 import { CircleAlertIcon } from "lucide-react"
+import { useTranslation } from "react-i18next"
 
 type ExtensionSettingsPanelProps = {
   active: boolean
@@ -23,6 +24,7 @@ type ExtensionSettingsPanelProps = {
 export function ExtensionSettingsPanel({
   active
 }: ExtensionSettingsPanelProps) {
+  const { t } = useTranslation()
   const {
     items,
     loading,
@@ -39,10 +41,9 @@ export function ExtensionSettingsPanel({
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-1">
-        <h3 className="text-base font-medium">확장자 연결</h3>
+        <h3 className="text-base font-medium">{t("settings.ext.title")}</h3>
         <p className="text-muted-foreground text-sm">
-          연결을 바꾸면 해당 확장자의 기본 앱 선택 창이 열립니다. Windows는 앱이
-          기본 프로그램을 직접 지정하는 것을 허용하지 않습니다.
+          {t("settings.ext.desc")}
         </p>
       </div>
 
@@ -54,7 +55,7 @@ export function ExtensionSettingsPanel({
           onClick={() => void setAllAssociations(true)}
         >
           {pendingAll ? <Spinner data-icon="inline-start" /> : null}
-          모두 연결
+          {t("settings.ext.connectAll")}
         </Button>
         <Button
           variant="outline"
@@ -62,14 +63,14 @@ export function ExtensionSettingsPanel({
           disabled={busy}
           onClick={() => void setAllAssociations(false)}
         >
-          모두 해제
+          {t("settings.ext.disconnectAll")}
         </Button>
       </div>
 
       {loading && items.length === 0 ? (
         <div className="text-muted-foreground flex items-center gap-2 text-sm">
           <Spinner />
-          연결 상태를 확인하는 중
+          {t("settings.ext.loading")}
         </div>
       ) : (
         <FieldGroup className="gap-3">
@@ -87,7 +88,7 @@ export function ExtensionSettingsPanel({
                   <FieldDescription>
                     {extensionLabel(item.extension)}
                     {item.needs_os_confirmation && !item.associated
-                      ? " · Windows 기본 앱 확인 필요"
+                      ? t("settings.ext.needsConfirm")
                       : null}
                   </FieldDescription>
                 </FieldContent>
@@ -108,11 +109,8 @@ export function ExtensionSettingsPanel({
       {blocked ? (
         <Alert>
           <CircleAlertIcon />
-          <AlertTitle>Windows에서 기본 앱을 확인해야 합니다</AlertTitle>
-          <AlertDescription>
-            Windows 10/11은 기본 앱 변경을 시스템 선택 창에서만 허용합니다. 열린
-            창에서 Image Viewer를 선택하세요.
-          </AlertDescription>
+          <AlertTitle>{t("settings.ext.blockedTitle")}</AlertTitle>
+          <AlertDescription>{t("settings.ext.blockedDesc")}</AlertDescription>
         </Alert>
       ) : null}
 
@@ -122,7 +120,7 @@ export function ExtensionSettingsPanel({
         className="self-start"
         onClick={() => void openDefaultAppsSettings()}
       >
-        Windows 기본 앱 설정 열기
+        {t("settings.ext.openSettings")}
       </Button>
     </div>
   )

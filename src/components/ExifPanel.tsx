@@ -8,6 +8,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useAppStore } from "@/store/appStore"
 import { useShallow } from "zustand/react/shallow"
+import { useTranslation } from "react-i18next"
 
 const EXIF_CATEGORIES: Record<string, string[]> = {
   Camera: ["Make", "Model", "LensModel", "LensMake", "BodySerialNumber"],
@@ -57,6 +58,7 @@ function formatTagName(tag: string): string {
 }
 
 export function ExifPanel() {
+  const { t } = useTranslation()
   const { exifData, showExifPanel } = useAppStore(
     useShallow((state) => ({
       exifData: state.exifData,
@@ -91,7 +93,7 @@ export function ExifPanel() {
       ([key]) => !categorized.has(key)
     )
     if (otherEntries.length > 0) {
-      sections.push({ title: "Other", entries: otherEntries })
+      sections.push({ title: t("exif.other"), entries: otherEntries })
     }
   }
 
@@ -99,18 +101,14 @@ export function ExifPanel() {
     <Sheet open={showExifPanel} onOpenChange={handleOpenChange}>
       <SheetContent side="right" className="flex flex-col p-0">
         <SheetHeader className="border-b px-4 py-3">
-          <SheetTitle>EXIF Information</SheetTitle>
-          <SheetDescription>
-            Image metadata and camera settings
-          </SheetDescription>
+          <SheetTitle>{t("exif.title")}</SheetTitle>
+          <SheetDescription>{t("exif.desc")}</SheetDescription>
         </SheetHeader>
 
         <ScrollArea className="flex-1 overflow-auto">
           <div className="p-4">
             {!exifData || sections.length === 0 ? (
-              <p className="text-muted-foreground text-sm">
-                No EXIF data available for this image.
-              </p>
+              <p className="text-muted-foreground text-sm">{t("exif.empty")}</p>
             ) : (
               <div className="space-y-4">
                 {sections.map((section) => (

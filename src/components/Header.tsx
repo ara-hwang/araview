@@ -35,9 +35,11 @@ import {
 import { useImageLoader } from "@/hooks/useImageLoader"
 import { useExifLoader } from "@/hooks/useExifLoader"
 import { SettingsDialog } from "@/components/SettingsDialog"
+import { useTranslation } from "react-i18next"
 
 // 위쪽 툴바
 export default function Header() {
+  const { t } = useTranslation()
   const appWindow = getCurrentWindow()
   const zoom = useAppStore((state) => state.zoom)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -64,11 +66,11 @@ export default function Header() {
           <Button
             variant="outline"
             onClick={handleOpenFile}
-            title="파일 열기 (Ctrl+O)"
-            aria-label="파일 열기 (Ctrl+O)"
+            title={t("header.openTitle")}
+            aria-label={t("header.openTitle")}
           >
             <FolderOpen />
-            <span className="hidden md:inline">열기</span>
+            <span className="hidden md:inline">{t("header.open")}</span>
           </Button>
         </ButtonGroup>
 
@@ -78,29 +80,33 @@ export default function Header() {
               <Button
                 variant="ghost"
                 onClick={() => setZoomToFit("width")}
-                title="너비에 맞춤 (1)"
-                aria-label="너비에 맞춤 (1)"
+                title={t("header.fitWidthTitle")}
+                aria-label={t("header.fitWidthTitle")}
               >
                 <ArrowLeftRight />
-                <span className="hidden md:inline">너비</span>
+                <span className="hidden md:inline">{t("header.fitWidth")}</span>
               </Button>
               <Button
                 variant="ghost"
                 onClick={() => setZoomToFit("height")}
-                title="높이에 맞춤 (2)"
-                aria-label="높이에 맞춤 (2)"
+                title={t("header.fitHeightTitle")}
+                aria-label={t("header.fitHeightTitle")}
               >
                 <ArrowUpDown />
-                <span className="hidden md:inline">높이</span>
+                <span className="hidden md:inline">
+                  {t("header.fitHeight")}
+                </span>
               </Button>
               <Button
                 variant="ghost"
                 onClick={() => setZoomToFit("screen")}
-                title="화면에 맞춤 (3)"
-                aria-label="화면에 맞춤 (3)"
+                title={t("header.fitScreenTitle")}
+                aria-label={t("header.fitScreenTitle")}
               >
                 <Maximize2 />
-                <span className="hidden md:inline">화면</span>
+                <span className="hidden md:inline">
+                  {t("header.fitScreen")}
+                </span>
               </Button>
             </ButtonGroup>
 
@@ -110,11 +116,11 @@ export default function Header() {
               <Button
                 variant="ghost"
                 onClick={zoomOut}
-                title="축소 (-)"
-                aria-label="축소 (-)"
+                title={t("header.zoomOutTitle")}
+                aria-label={t("header.zoomOutTitle")}
               >
                 <ZoomOut />
-                <span className="hidden md:inline">축소</span>
+                <span className="hidden md:inline">{t("header.zoomOut")}</span>
               </Button>
               <ButtonGroupText className="tabular-nums" onClick={resetZoomPan}>
                 {Math.round(zoom * 100)}%
@@ -122,11 +128,11 @@ export default function Header() {
               <Button
                 variant="ghost"
                 onClick={zoomIn}
-                title="확대 (+)"
-                aria-label="확대 (+)"
+                title={t("header.zoomInTitle")}
+                aria-label={t("header.zoomInTitle")}
               >
                 <ZoomIn />
-                <span className="hidden md:inline">확대</span>
+                <span className="hidden md:inline">{t("header.zoomIn")}</span>
               </Button>
             </ButtonGroup>
 
@@ -137,8 +143,8 @@ export default function Header() {
                 variant="ghost"
                 size="icon"
                 onClick={rotateCCW}
-                title="반시계 회전 (Shift+R)"
-                aria-label="반시계 회전 (Shift+R)"
+                title={t("header.rotateCcwTitle")}
+                aria-label={t("header.rotateCcwTitle")}
               >
                 <RotateCcw />
               </Button>
@@ -146,8 +152,8 @@ export default function Header() {
                 variant="ghost"
                 size="icon"
                 onClick={rotateCW}
-                title="시계 회전 (R)"
-                aria-label="시계 회전 (R)"
+                title={t("header.rotateCwTitle")}
+                aria-label={t("header.rotateCwTitle")}
               >
                 <RotateCw />
               </Button>
@@ -155,8 +161,8 @@ export default function Header() {
                 variant="ghost"
                 size="icon"
                 onClick={flipHorizontal}
-                title="좌우 반전 (H)"
-                aria-label="좌우 반전 (H)"
+                title={t("header.flipHTitle")}
+                aria-label={t("header.flipHTitle")}
               >
                 <FlipHorizontal2 />
               </Button>
@@ -164,8 +170,8 @@ export default function Header() {
                 variant="ghost"
                 size="icon"
                 onClick={flipVertical}
-                title="상하 반전 (V)"
-                aria-label="상하 반전 (V)"
+                title={t("header.flipVTitle")}
+                aria-label={t("header.flipVTitle")}
               >
                 <FlipVertical2 />
               </Button>
@@ -176,20 +182,20 @@ export default function Header() {
             <Button
               variant="outline"
               onClick={() => void toggleExifPanel()}
-              title="EXIF 정보 (I)"
-              aria-label="EXIF 정보 (I)"
+              title={t("header.infoTitle")}
+              aria-label={t("header.infoTitle")}
             >
               <Info />
-              <span className="hidden md:inline">정보</span>
+              <span className="hidden md:inline">{t("header.info")}</span>
             </Button>
             <Button
               variant="outline"
               onClick={() => setSettingsOpen(true)}
-              title="설정"
-              aria-label="설정"
+              title={t("header.settingsTitle")}
+              aria-label={t("header.settingsTitle")}
             >
               <Settings />
-              <span className="hidden md:inline">설정</span>
+              <span className="hidden md:inline">{t("header.settings")}</span>
             </Button>
           </ButtonGroup>
 
@@ -198,8 +204,8 @@ export default function Header() {
               variant="outline"
               size="icon"
               onClick={handleMinimize}
-              title="최소화"
-              aria-label="최소화"
+              title={t("header.minimize")}
+              aria-label={t("header.minimize")}
             >
               <Minus />
             </Button>
@@ -208,8 +214,8 @@ export default function Header() {
               variant="outline"
               size="icon"
               onClick={handleMaximize}
-              title="최대화 / 복원"
-              aria-label="최대화 / 복원"
+              title={t("header.maximize")}
+              aria-label={t("header.maximize")}
             >
               <Square />
             </Button>
@@ -218,8 +224,8 @@ export default function Header() {
               variant="outline"
               size="icon"
               onClick={handleClose}
-              title="닫기"
-              aria-label="닫기"
+              title={t("header.close")}
+              aria-label={t("header.close")}
             >
               <X />
             </Button>

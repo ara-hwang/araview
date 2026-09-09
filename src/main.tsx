@@ -2,14 +2,22 @@ import React from "react"
 import ReactDOM from "react-dom/client"
 import { createRouter, RouterProvider } from "@tanstack/react-router"
 import { routeTree } from "./routeTree.gen"
+import { initI18n, detectSystemLanguage } from "@/i18n"
 import { initSettingsFromStore } from "@/store/settingsStore"
 import { useRecentFilesStore } from "@/store/recentFilesStore"
 import { useFavoritesStore } from "@/store/favoritesStore"
 import "./App.css"
 
-void initSettingsFromStore()
-void useRecentFilesStore.getState().init()
-void useFavoritesStore.getState().init()
+async function bootstrap() {
+  await initI18n(detectSystemLanguage())
+  await initSettingsFromStore()
+  await Promise.all([
+    useRecentFilesStore.getState().init(),
+    useFavoritesStore.getState().init()
+  ])
+}
+
+void bootstrap()
 
 const router = createRouter({ routeTree })
 

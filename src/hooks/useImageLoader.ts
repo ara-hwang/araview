@@ -2,6 +2,7 @@ import { useCallback, useRef, useState } from "react"
 import { open } from "@tauri-apps/plugin-dialog"
 import { invoke } from "@tauri-apps/api/core"
 import { toast } from "sonner"
+import i18n from "@/i18n"
 import type { DirectoryImages, ImageInfo } from "@/types"
 import { SUPPORTED_IMAGE_EXTENSIONS } from "@/constants/imageExtensions"
 import { useImageCache } from "@/hooks/useImageCache"
@@ -61,7 +62,7 @@ export function useImageLoader() {
         imageInfo: null,
         archivePath: null
       })
-      toast.error("아카이브를 불러오지 못했습니다", { description: message })
+      toast.error(i18n.t("toast.load.archiveFail"), { description: message })
     } finally {
       useAppStore.setState({ loading: false })
     }
@@ -80,7 +81,7 @@ export function useImageLoader() {
       } catch (e) {
         const message = String(e)
         useAppStore.setState({ error: message })
-        toast.error("이미지를 불러오지 못했습니다", { description: message })
+        toast.error(i18n.t("toast.load.imageFail"), { description: message })
       } finally {
         useAppStore.setState({ loading: false })
       }
@@ -139,7 +140,7 @@ export function useImageLoader() {
         const message = String(e)
         useAppStore.setState({ error: message })
         useAppStore.setState({ imageInfo: null })
-        toast.error("이미지를 불러오지 못했습니다", {
+        toast.error(i18n.t("toast.load.imageFail"), {
           description: message
         })
       } finally {
@@ -161,7 +162,7 @@ export function useImageLoader() {
       multiple: false,
       filters: [
         {
-          name: "Images",
+          name: i18n.t("picker.images"),
           extensions: [...SUPPORTED_IMAGE_EXTENSIONS]
         }
       ]
@@ -200,7 +201,7 @@ export function useImageLoader() {
         }
       }
       if (resolved.length === 0) {
-        toast.error("드롭한 항목을 열 수 없습니다", {
+        toast.error(i18n.t("toast.drop.fail"), {
           description: rawPaths[0]
         })
         return
@@ -209,7 +210,7 @@ export function useImageLoader() {
       resolved.sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()))
       await loadImage(resolved[0])
       if (resolved.length > 1) {
-        toast.info(`${resolved.length}개 중 첫 이미지를 표시합니다`, {
+        toast.info(i18n.t("toast.drop.firstOf", { count: resolved.length }), {
           duration: 2000
         })
       }
