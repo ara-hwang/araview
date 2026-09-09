@@ -1,6 +1,14 @@
 import { create } from "zustand"
 import { Store as TauriStore } from "@tauri-apps/plugin-store"
 import { toast } from "sonner"
+import i18n, {
+  detectSystemLanguage,
+  normalizeLanguage,
+  setI18nLanguage,
+  type AppLanguage
+} from "@/i18n"
+
+export type { AppLanguage }
 
 export type CacheMode =
   "off" | "nearby" | "extended" | "memory-1gb" | "memory-2gb"
@@ -12,6 +20,7 @@ export type ViewerBackground = "theme" | "black" | "white" | "checker"
 export type DirSortKey = "name" | "date" | "size"
 
 export type SettingsState = {
+  language: AppLanguage
   loopNavigation: boolean
   cacheMode: CacheMode
   viewMode: ViewMode
@@ -39,6 +48,7 @@ type SettingsStoreActions = {
 type SettingsStore = SettingsState & SettingsStoreActions
 
 const initialSettings: SettingsState = {
+  language: "ko",
   loopNavigation: false,
   cacheMode: "nearby",
   viewMode: "single",
@@ -108,6 +118,10 @@ export const updateSettings = async (partial: Partial<SettingsState>) => {
 
   useSettingsStore.setState(next)
 
+  if (partial.language && partial.language !== i18n.language) {
+    await setI18nLanguage(partial.language)
+  }
+
   try {
     const store = await getTauriStore()
     await store.set("settings", next)
@@ -115,23 +129,47 @@ export const updateSettings = async (partial: Partial<SettingsState>) => {
     return true
   } catch (e) {
     // 설정 저장 실패는 UI 동작을 막지 않지만 사용자에게 알림
-    toast.error("설정 저장 실패", { description: String(e) })
+    toast.error(i18n.t("toast.settings.saveFail"), { description: String(e) })
     return false
   }
 }
 
+export const setLanguage = async (language: AppLanguage) => {
+  await updateSettings({ language })
+}
+
 export const resetSettings = async () => {
-  const saved = await updateSettings({ ...initialSettings })
-  if (saved) toast.success("설정을 초기화했습니다")
+  const saved = await updateSettings({
+    ...initialSettings,
+    language: getSettings().language
+  })
+  if (saved) toast.success(i18n.t("toast.settings.resetDone"))
 }
 
 export const initSettingsFromStore = async () => {
+  const systemLanguage = detectSystemLanguage()
   try {
     const store = await getTauriStore()
     const stored = await store.get<SettingsState>("settings")
-    if (stored) useSettingsStore.setState({ ...initialSettings, ...stored })
+    const storedLanguage =
+      normalizeLanguage((stored as { language?: unknown } | null)?.language) ??
+      null
+    const language = storedLanguage ?? systemLanguage
+    if (stored) {
+      useSettingsStore.setState({ ...initialSettings, ...stored, language })
+    } else {
+      useSettingsStore.setState({
+        ...initialSettings,
+        language: systemLanguage
+      })
+    }
+    await setI18nLanguage(language)
+    return language
   } catch (e) {
     // 초기 로드 실패 시 기본값 유지하되 콘솔에 기록
     console.warn("[settings] Failed to load persisted settings:", e)
+    useSettingsStore.setState({ ...initialSettings, language: systemLanguage })
+    await setI18nLanguage(systemLanguage)
+    return systemLanguage
   }
 }

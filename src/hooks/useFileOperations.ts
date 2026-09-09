@@ -7,6 +7,7 @@ import { toast } from "sonner"
 import { useAppStore } from "@/store/appStore"
 import { useRecentFilesStore } from "@/store/recentFilesStore"
 import { useFavoritesStore } from "@/store/favoritesStore"
+import i18n from "@/i18n"
 import type { ImageInfo } from "@/types"
 import type { SaveEditsPayload } from "@/utils/imageEdits"
 
@@ -52,13 +53,13 @@ export function useFileOperations({ loadImage }: { loadImage: LoadImageFn }) {
     const { imageInfo, archivePath } = useAppStore.getState()
     const target = getEffectivePath(imageInfo?.file_path ?? null, archivePath)
     if (!target) {
-      toast.error("표시할 파일이 없습니다")
+      toast.error(i18n.t("toast.reveal.empty"))
       return
     }
     try {
       await revealItemInDir(target)
     } catch (e) {
-      toast.error("탐색기에서 보기 실패", { description: String(e) })
+      toast.error(i18n.t("toast.reveal.fail"), { description: String(e) })
     }
   }, [])
 
@@ -66,37 +67,37 @@ export function useFileOperations({ loadImage }: { loadImage: LoadImageFn }) {
     const { imageInfo, archivePath } = useAppStore.getState()
     const target = getEffectivePath(imageInfo?.file_path ?? null, archivePath)
     if (!target) {
-      toast.error("열 파일이 없습니다")
+      toast.error(i18n.t("toast.external.empty"))
       return
     }
     try {
       await openPath(target)
     } catch (e) {
-      toast.error("외부 앱으로 열기 실패", { description: String(e) })
+      toast.error(i18n.t("toast.external.fail"), { description: String(e) })
     }
   }, [])
 
   const trashCurrent = useCallback(async () => {
     const { imageInfo, dirImages, archivePath } = useAppStore.getState()
     if (!imageInfo) {
-      toast.error("삭제할 이미지가 없습니다")
+      toast.error(i18n.t("toast.trash.empty"))
       return
     }
     if (archivePath) {
-      toast.info("아카이브 모드에서는 삭제할 수 없습니다")
+      toast.info(i18n.t("toast.trash.noArchive"))
       return
     }
 
     const ok = await confirm(
-      `${imageInfo.file_name}을(를) 휴지통으로 이동할까요?`,
-      { title: "파일 삭제", kind: "warning" }
+      i18n.t("confirm.trash.message", { name: imageInfo.file_name }),
+      { title: i18n.t("confirm.trash.title"), kind: "warning" }
     ).catch(() => false)
     if (!ok) return
 
     try {
       await invoke("trash_file", { filePath: imageInfo.file_path })
     } catch (e) {
-      toast.error("휴지통 이동 실패", { description: String(e) })
+      toast.error(i18n.t("toast.trash.fail"), { description: String(e) })
       return
     }
 
@@ -115,12 +116,12 @@ export function useFileOperations({ loadImage }: { loadImage: LoadImageFn }) {
         dirImages: { images: [], current_index: 0 },
         error: null
       })
-      toast.success("휴지통으로 이동했습니다")
+      toast.success(i18n.t("toast.trash.done"))
       void navigate({ to: "/" })
       return
     }
 
-    toast.success("휴지통으로 이동했습니다", {
+    toast.success(i18n.t("toast.trash.done"), {
       description: imageInfo.file_name,
       duration: 2000
     })
@@ -131,14 +132,17 @@ export function useFileOperations({ loadImage }: { loadImage: LoadImageFn }) {
     const { imageInfo, archivePath } = useAppStore.getState()
     const target = getEffectivePath(imageInfo?.file_path ?? null, archivePath)
     if (!target) {
-      toast.error("복사할 경로가 없습니다")
+      toast.error(i18n.t("toast.path.empty"))
       return
     }
     try {
       await navigator.clipboard.writeText(target)
-      toast.success("경로 복사 완료", { description: target, duration: 1500 })
+      toast.success(i18n.t("toast.path.done"), {
+        description: target,
+        duration: 1500
+      })
     } catch (e) {
-      toast.error("경로 복사 실패", { description: String(e) })
+      toast.error(i18n.t("toast.path.fail"), { description: String(e) })
     }
   }, [])
 
@@ -146,15 +150,15 @@ export function useFileOperations({ loadImage }: { loadImage: LoadImageFn }) {
   const renameCurrent = useCallback(async (newName: string) => {
     const { imageInfo, dirImages, archivePath } = useAppStore.getState()
     if (!imageInfo) {
-      toast.error("이름을 바꿀 이미지가 없습니다")
+      toast.error(i18n.t("toast.rename.empty"))
       return false
     }
     if (archivePath) {
-      toast.info("아카이브 모드에서는 이름을 바꿀 수 없습니다")
+      toast.info(i18n.t("toast.rename.noArchive"))
       return false
     }
     if (!newName.trim()) {
-      toast.error("파일 이름을 입력하세요")
+      toast.error(i18n.t("toast.rename.blank"))
       return false
     }
 
@@ -165,7 +169,7 @@ export function useFileOperations({ loadImage }: { loadImage: LoadImageFn }) {
         newName: newName.trim()
       })
     } catch (e) {
-      toast.error("이름 변경 실패", { description: String(e) })
+      toast.error(i18n.t("toast.rename.fail"), { description: String(e) })
       return false
     }
 
@@ -189,7 +193,7 @@ export function useFileOperations({ loadImage }: { loadImage: LoadImageFn }) {
       .getState()
       .replace(imageInfo.file_path, nextInfo.file_path)
 
-    toast.success("이름 변경 완료", {
+    toast.success(i18n.t("toast.rename.done"), {
       description: nextInfo.file_name,
       duration: 2000
     })
@@ -201,11 +205,11 @@ export function useFileOperations({ loadImage }: { loadImage: LoadImageFn }) {
     async (payload: SaveEditsPayload) => {
       const { imageInfo, archivePath } = useAppStore.getState()
       if (!imageInfo) {
-        toast.error("저장할 이미지가 없습니다")
+        toast.error(i18n.t("toast.save.empty"))
         return false
       }
       if (archivePath) {
-        toast.info("아카이브 모드에서는 저장할 수 없습니다")
+        toast.info(i18n.t("toast.save.noArchive"))
         return false
       }
       const noChange =
@@ -214,14 +218,16 @@ export function useFileOperations({ loadImage }: { loadImage: LoadImageFn }) {
         !payload.flipV &&
         payload.format === null
       if (noChange) {
-        toast.info("적용할 변경 사항이 없습니다")
+        toast.info(i18n.t("toast.save.noChange"))
         return false
       }
 
       if (payload.overwrite) {
         const ok = await confirm(
-          `${imageInfo.file_name}에 변경 사항을 덮어씁니다. 계속할까요?`,
-          { title: "덮어쓰기 저장", kind: "warning" }
+          i18n.t("confirm.overwrite.message", {
+            name: imageInfo.file_name
+          }),
+          { title: i18n.t("confirm.overwrite.title"), kind: "warning" }
         ).catch(() => false)
         if (!ok) return false
       }
@@ -233,12 +239,12 @@ export function useFileOperations({ loadImage }: { loadImage: LoadImageFn }) {
           options: payload
         })
       } catch (e) {
-        toast.error("저장 실패", { description: String(e) })
+        toast.error(i18n.t("toast.save.fail"), { description: String(e) })
         return false
       }
 
       void useRecentFilesStore.getState().add(nextInfo.file_path)
-      toast.success("저장 완료", {
+      toast.success(i18n.t("toast.save.done"), {
         description: nextInfo.file_name,
         duration: 2000
       })
@@ -254,12 +260,12 @@ export function useFileOperations({ loadImage }: { loadImage: LoadImageFn }) {
     const { imageInfo, archivePath } = useAppStore.getState()
     const target = getEffectivePath(imageInfo?.file_path ?? null, archivePath)
     if (!target) {
-      toast.error("즐겨찾기할 파일이 없습니다")
+      toast.error(i18n.t("toast.fav.empty"))
       return
     }
     const added = await useFavoritesStore.getState().toggle(target)
     toast.success(
-      added ? "즐겨찾기에 추가했습니다" : "즐겨찾기에서 제거했습니다",
+      added ? i18n.t("toast.fav.added") : i18n.t("toast.fav.removed"),
       {
         duration: 1500
       }

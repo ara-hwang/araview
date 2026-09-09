@@ -13,6 +13,7 @@ import {
 import {
   updateSettings,
   useSettingsStore,
+  type AppLanguage,
   type CacheMode,
   type DirSortKey,
   type SettingsState,
@@ -24,6 +25,7 @@ import {
   ArrowUpDown,
   HardDriveIcon,
   ImagesIcon,
+  Languages,
   NavigationIcon,
   PaletteIcon,
   PresentationIcon,
@@ -31,11 +33,14 @@ import {
   TimerIcon
 } from "lucide-react"
 import type { ReactNode } from "react"
+import { useTranslation } from "react-i18next"
 import { useShallow } from "zustand/react/shallow"
 
 export function GeneralSettingsPanel() {
+  const { t } = useTranslation()
   const settings = useSettingsStore(
     useShallow((state) => ({
+      language: state.language,
       loopNavigation: state.loopNavigation,
       cacheMode: state.cacheMode,
       viewMode: state.viewMode,
@@ -68,9 +73,37 @@ export function GeneralSettingsPanel() {
   return (
     <FieldGroup>
       <CustomFieldSet
+        icon={<Languages />}
+        title={t("settings.language.title")}
+        description={t("settings.language.desc")}
+      >
+        <RadioGroup
+          value={settings.language}
+          onValueChange={(value) =>
+            handleSettingsChange({ language: value as AppLanguage })
+          }
+        >
+          <Field orientation="horizontal">
+            <RadioGroupItem value="ko" id="settings-lang-ko" />
+            <Label htmlFor="settings-lang-ko">
+              {t("settings.language.ko")}
+            </Label>
+          </Field>
+          <Field orientation="horizontal">
+            <RadioGroupItem value="en" id="settings-lang-en" />
+            <Label htmlFor="settings-lang-en">
+              {t("settings.language.en")}
+            </Label>
+          </Field>
+        </RadioGroup>
+      </CustomFieldSet>
+
+      <FieldSeparator />
+
+      <CustomFieldSet
         icon={<NavigationIcon />}
-        title="내비게이션"
-        description="처음/마지막 이미지에서의 이동 방식"
+        title={t("settings.nav.title")}
+        description={t("settings.nav.desc")}
       >
         <RadioGroup
           value={settings.loopNavigation ? "loop" : "stop"}
@@ -80,11 +113,11 @@ export function GeneralSettingsPanel() {
         >
           <Field orientation="horizontal">
             <RadioGroupItem value="stop" id="settings-nav-stop" />
-            <Label htmlFor="settings-nav-stop">처음/마지막에서 멈춤</Label>
+            <Label htmlFor="settings-nav-stop">{t("settings.nav.stop")}</Label>
           </Field>
           <Field orientation="horizontal">
             <RadioGroupItem value="loop" id="settings-nav-loop" />
-            <Label htmlFor="settings-nav-loop">처음/마지막으로 순환</Label>
+            <Label htmlFor="settings-nav-loop">{t("settings.nav.loop")}</Label>
           </Field>
         </RadioGroup>
       </CustomFieldSet>
@@ -93,8 +126,8 @@ export function GeneralSettingsPanel() {
 
       <CustomFieldSet
         icon={<ImagesIcon />}
-        title="보기 모드"
-        description="단일 / 양면 / 세로 스크롤 표시 방식"
+        title={t("settings.view.title")}
+        description={t("settings.view.desc")}
       >
         <RadioGroup
           value={settings.viewMode}
@@ -104,19 +137,23 @@ export function GeneralSettingsPanel() {
         >
           <Field orientation="horizontal">
             <RadioGroupItem value="single" id="settings-view-single" />
-            <Label htmlFor="settings-view-single">단일</Label>
+            <Label htmlFor="settings-view-single">
+              {t("settings.view.single")}
+            </Label>
           </Field>
           <Field orientation="horizontal">
             <RadioGroupItem value="left-to-right" id="settings-view-ltr" />
-            <Label htmlFor="settings-view-ltr">좌→우 두 페이지</Label>
+            <Label htmlFor="settings-view-ltr">{t("settings.view.ltr")}</Label>
           </Field>
           <Field orientation="horizontal">
             <RadioGroupItem value="right-to-left" id="settings-view-rtl" />
-            <Label htmlFor="settings-view-rtl">우→좌 두 페이지</Label>
+            <Label htmlFor="settings-view-rtl">{t("settings.view.rtl")}</Label>
           </Field>
           <Field orientation="horizontal">
             <RadioGroupItem value="webtoon" id="settings-view-webtoon" />
-            <Label htmlFor="settings-view-webtoon">웹툰 스크롤</Label>
+            <Label htmlFor="settings-view-webtoon">
+              {t("settings.view.webtoon")}
+            </Label>
           </Field>
         </RadioGroup>
       </CustomFieldSet>
@@ -125,8 +162,8 @@ export function GeneralSettingsPanel() {
 
       <CustomFieldSet
         icon={<ArrowUpDown />}
-        title="정렬"
-        description="폴더 내 이미지 순서 (S 키로 셔플 토글)"
+        title={t("settings.sort.title")}
+        description={t("settings.sort.desc")}
       >
         <RadioGroup
           value={settings.shuffle ? "shuffle" : settings.sortKey}
@@ -143,21 +180,27 @@ export function GeneralSettingsPanel() {
         >
           <Field orientation="horizontal">
             <RadioGroupItem value="name" id="settings-sort-name" />
-            <Label htmlFor="settings-sort-name">이름</Label>
+            <Label htmlFor="settings-sort-name">
+              {t("settings.sort.name")}
+            </Label>
           </Field>
           <Field orientation="horizontal">
             <RadioGroupItem value="date" id="settings-sort-date" />
-            <Label htmlFor="settings-sort-date">수정한 날짜</Label>
+            <Label htmlFor="settings-sort-date">
+              {t("settings.sort.date")}
+            </Label>
           </Field>
           <Field orientation="horizontal">
             <RadioGroupItem value="size" id="settings-sort-size" />
-            <Label htmlFor="settings-sort-size">파일 크기</Label>
+            <Label htmlFor="settings-sort-size">
+              {t("settings.sort.size")}
+            </Label>
           </Field>
           <Field orientation="horizontal">
             <RadioGroupItem value="shuffle" id="settings-sort-shuffle" />
             <Label htmlFor="settings-sort-shuffle">
               <span className="flex items-center gap-1">
-                <Shuffle className="size-3.5" /> 셔플
+                <Shuffle className="size-3.5" /> {t("settings.sort.shuffle")}
               </span>
             </Label>
           </Field>
@@ -170,11 +213,13 @@ export function GeneralSettingsPanel() {
         >
           <Field orientation="horizontal">
             <RadioGroupItem value="asc" id="settings-sort-asc" />
-            <Label htmlFor="settings-sort-asc">오름차순</Label>
+            <Label htmlFor="settings-sort-asc">{t("settings.sort.asc")}</Label>
           </Field>
           <Field orientation="horizontal">
             <RadioGroupItem value="desc" id="settings-sort-desc" />
-            <Label htmlFor="settings-sort-desc">내림차순</Label>
+            <Label htmlFor="settings-sort-desc">
+              {t("settings.sort.descOrder")}
+            </Label>
           </Field>
         </RadioGroup>
         <Field orientation="horizontal">
@@ -185,7 +230,9 @@ export function GeneralSettingsPanel() {
               handleSortChange({ includeSubfolders: checked === true })
             }
           />
-          <Label htmlFor="settings-subfolders">하위 폴더 포함</Label>
+          <Label htmlFor="settings-subfolders">
+            {t("settings.sort.subfolders")}
+          </Label>
         </Field>
       </CustomFieldSet>
 
@@ -193,11 +240,13 @@ export function GeneralSettingsPanel() {
 
       <CustomFieldSet
         icon={<TimerIcon />}
-        title="슬라이드쇼 간격"
-        description={`자동 넘김 간격 (${(settings.slideshowIntervalMs / 1000).toFixed(1)}초)`}
+        title={t("settings.slideshow.title")}
+        description={t("settings.slideshow.desc", {
+          sec: (settings.slideshowIntervalMs / 1000).toFixed(1)
+        })}
       >
         <Slider
-          aria-label="Slideshow interval"
+          aria-label={t("settings.slideshow.aria")}
           value={[settings.slideshowIntervalMs]}
           min={1000}
           max={30000}
@@ -214,8 +263,8 @@ export function GeneralSettingsPanel() {
 
       <CustomFieldSet
         icon={<PaletteIcon />}
-        title="배경"
-        description="이미지 영역 배경 (B 키로 순환)"
+        title={t("settings.bg.title")}
+        description={t("settings.bg.desc")}
       >
         <RadioGroup
           value={settings.viewerBackground}
@@ -227,20 +276,20 @@ export function GeneralSettingsPanel() {
         >
           <Field orientation="horizontal">
             <RadioGroupItem value="theme" id="settings-bg-theme" />
-            <Label htmlFor="settings-bg-theme">테마 기본값</Label>
+            <Label htmlFor="settings-bg-theme">{t("settings.bg.theme")}</Label>
           </Field>
           <Field orientation="horizontal">
             <RadioGroupItem value="black" id="settings-bg-black" />
-            <Label htmlFor="settings-bg-black">검정</Label>
+            <Label htmlFor="settings-bg-black">{t("settings.bg.black")}</Label>
           </Field>
           <Field orientation="horizontal">
             <RadioGroupItem value="white" id="settings-bg-white" />
-            <Label htmlFor="settings-bg-white">흰색</Label>
+            <Label htmlFor="settings-bg-white">{t("settings.bg.white")}</Label>
           </Field>
           <Field orientation="horizontal">
             <RadioGroupItem value="checker" id="settings-bg-checker" />
             <Label htmlFor="settings-bg-checker">
-              체커보드 (투명 이미지 확인용)
+              {t("settings.bg.checker")}
             </Label>
           </Field>
         </RadioGroup>
@@ -250,8 +299,8 @@ export function GeneralSettingsPanel() {
 
       <CustomFieldSet
         icon={<PresentationIcon />}
-        title="프레젠테이션"
-        description="3초 무입력 시 상단바/하단바 자동 숨김 (움직이면 복귀)"
+        title={t("settings.present.title")}
+        description={t("settings.present.desc")}
       >
         <Field orientation="horizontal">
           <Switch
@@ -261,7 +310,9 @@ export function GeneralSettingsPanel() {
               handleSettingsChange({ autoHideUI: checked === true })
             }
           />
-          <Label htmlFor="settings-autohide">UI 자동 숨김</Label>
+          <Label htmlFor="settings-autohide">
+            {t("settings.present.autohide")}
+          </Label>
         </Field>
       </CustomFieldSet>
 
@@ -269,8 +320,8 @@ export function GeneralSettingsPanel() {
 
       <CustomFieldSet
         icon={<HardDriveIcon />}
-        title="캐시"
-        description="이미지 미리 로드 범위"
+        title={t("settings.cache.title")}
+        description={t("settings.cache.desc")}
       >
         <RadioGroup
           value={settings.cacheMode}
@@ -280,27 +331,33 @@ export function GeneralSettingsPanel() {
         >
           <Field orientation="horizontal">
             <RadioGroupItem value="off" id="settings-cache-off" />
-            <Label htmlFor="settings-cache-off">끄기 (현재 이미지만)</Label>
+            <Label htmlFor="settings-cache-off">
+              {t("settings.cache.off")}
+            </Label>
           </Field>
           <Field orientation="horizontal">
             <RadioGroupItem value="nearby" id="settings-cache-nearby" />
             <Label htmlFor="settings-cache-nearby">
-              인접 (이전/다음 미리 로드)
+              {t("settings.cache.nearby")}
             </Label>
           </Field>
           <Field orientation="horizontal">
             <RadioGroupItem value="extended" id="settings-cache-extended" />
             <Label htmlFor="settings-cache-extended">
-              확장 (최대 ±3 미리 로드)
+              {t("settings.cache.extended")}
             </Label>
           </Field>
           <Field orientation="horizontal">
             <RadioGroupItem value="memory-1gb" id="settings-cache-1gb" />
-            <Label htmlFor="settings-cache-1gb">메모리 제한 (1 GB)</Label>
+            <Label htmlFor="settings-cache-1gb">
+              {t("settings.cache.gb1")}
+            </Label>
           </Field>
           <Field orientation="horizontal">
             <RadioGroupItem value="memory-2gb" id="settings-cache-2gb" />
-            <Label htmlFor="settings-cache-2gb">메모리 제한 (2 GB)</Label>
+            <Label htmlFor="settings-cache-2gb">
+              {t("settings.cache.gb2")}
+            </Label>
           </Field>
         </RadioGroup>
       </CustomFieldSet>
@@ -308,8 +365,8 @@ export function GeneralSettingsPanel() {
 
       <CustomFieldSet
         icon={<NavigationIcon />}
-        title="시작"
-        description="앱 실행 시 마지막으로 본 이미지 자동 열기"
+        title={t("settings.startup.title")}
+        description={t("settings.startup.desc")}
       >
         <RadioGroup
           value={settings.autoOpenLastFile ? "on" : "off"}
@@ -319,11 +376,15 @@ export function GeneralSettingsPanel() {
         >
           <Field orientation="horizontal">
             <RadioGroupItem value="off" id="settings-startup-off" />
-            <Label htmlFor="settings-startup-off">홈 화면 표시</Label>
+            <Label htmlFor="settings-startup-off">
+              {t("settings.startup.home")}
+            </Label>
           </Field>
           <Field orientation="horizontal">
             <RadioGroupItem value="on" id="settings-startup-on" />
-            <Label htmlFor="settings-startup-on">마지막 파일 자동 열기</Label>
+            <Label htmlFor="settings-startup-on">
+              {t("settings.startup.last")}
+            </Label>
           </Field>
         </RadioGroup>
       </CustomFieldSet>

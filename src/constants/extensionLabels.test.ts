@@ -1,10 +1,15 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, beforeAll } from "vitest"
 import { SUPPORTED_IMAGE_EXTENSIONS } from "./imageExtensions"
 import {
   EXTENSION_LABELS,
   extensionLabel,
   isSupportedExtension
 } from "./extensionLabels"
+import { initI18n } from "@/i18n"
+
+beforeAll(async () => {
+  await initI18n("ko")
+})
 
 describe("extensionLabels", () => {
   it("covers every supported extension", () => {
@@ -19,8 +24,13 @@ describe("extensionLabels", () => {
     expect(isSupportedExtension("pdf")).toBe(false)
   })
 
-  it("returns the mapped label for known extensions", () => {
+  it("returns the mapped label for known extensions", async () => {
+    await initI18n("ko")
     expect(extensionLabel("png")).toBe("PNG 이미지")
     expect(extensionLabel("cbz")).toBe("만화 아카이브")
+    await initI18n("en")
+    expect(extensionLabel("png")).toBe("PNG image")
+    expect(extensionLabel("cbz")).toBe("Comic archive")
+    await initI18n("ko")
   })
 })

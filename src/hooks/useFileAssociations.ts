@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react"
 import { invoke } from "@tauri-apps/api/core"
 import { getCurrentWindow } from "@tauri-apps/api/window"
 import { toast } from "sonner"
+import i18n from "@/i18n"
 import type { FileAssociation } from "@/types"
 
 export function hasBlockedAssociation(items: FileAssociation[]): boolean {
@@ -20,7 +21,7 @@ export function useFileAssociations(enabled: boolean) {
       const next = await invoke<FileAssociation[]>("get_file_associations")
       setItems(next)
     } catch (error) {
-      toast.error("확장자 연결 상태를 불러오지 못했습니다", {
+      toast.error(i18n.t("toast.assoc.loadFail"), {
         description: String(error)
       })
     } finally {
@@ -64,7 +65,7 @@ export function useFileAssociations(enabled: boolean) {
           prev.map((item) => (item.extension === extension ? next : item))
         )
       } catch (error) {
-        toast.error("기본 앱 선택 창을 열지 못했습니다", {
+        toast.error(i18n.t("toast.assoc.openFail"), {
           description: String(error)
         })
       } finally {
@@ -84,9 +85,9 @@ export function useFileAssociations(enabled: boolean) {
         }
       )
       setItems(next)
-      toast.info("Windows 설정에서 기본 앱을 선택하세요")
+      toast.info(i18n.t("toast.assoc.pickInfo"))
     } catch (error) {
-      toast.error("Windows 설정을 열지 못했습니다", {
+      toast.error(i18n.t("toast.assoc.settingsFail"), {
         description: String(error)
       })
     } finally {
@@ -98,7 +99,7 @@ export function useFileAssociations(enabled: boolean) {
     try {
       await invoke("open_default_apps_settings")
     } catch (error) {
-      toast.error("Windows 설정을 열지 못했습니다", {
+      toast.error(i18n.t("toast.assoc.settingsFail"), {
         description: String(error)
       })
     }

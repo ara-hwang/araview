@@ -17,12 +17,14 @@ import { useRecentFilesStore } from "@/store/recentFilesStore"
 import { useFavoritesStore } from "@/store/favoritesStore"
 import { HomeFileCard } from "@/components/HomeFileCard"
 import { Star } from "lucide-react"
+import { useTranslation } from "react-i18next"
 
 export const Route = createFileRoute("/")({
   component: HomePage
 })
 
 function HomePage() {
+  const { t } = useTranslation()
   const app = useAppStore(
     useShallow((state) => ({
       imageInfo: state.imageInfo,
@@ -42,11 +44,11 @@ function HomePage() {
 
   // 이미지 변경 시 창 제목 변경
   useEffect(() => {
-    const title = app.imageInfo ? app.imageInfo.file_name : "Image Viewer"
+    const title = app.imageInfo ? app.imageInfo.file_name : t("app.title")
     getCurrentWindow()
       .setTitle(title)
       .catch(() => {})
-  }, [app.imageInfo])
+  }, [app.imageInfo, t])
 
   // 이미지가 로드되면 이미지 페이지로 이동
   useEffect(() => {
@@ -92,23 +94,21 @@ function HomePage() {
       {isDragOver && (
         <div className="border-primary bg-background/80 pointer-events-none absolute inset-0 z-30 flex items-center justify-center border-2 border-dashed">
           <p className="bg-background rounded-md border px-4 py-2 text-sm">
-            여기에 놓아 열기
+            {t("home.drop")}
           </p>
         </div>
       )}
       <Empty className="items-start border-none p-0 text-left">
         <EmptyContent className="max-w-md items-start gap-3 text-left">
           <p className="text-muted-foreground text-xs tabular-nums">
-            01, Empty
+            {t("home.emptyTag")}
           </p>
           <EmptyTitle className="text-2xl font-semibold">
-            표시할 이미지가 없습니다
+            {t("home.emptyTitle")}
           </EmptyTitle>
-          <EmptyDescription>
-            파일을 여기로 끌어다 놓거나 Open File 버튼으로 선택하세요.
-          </EmptyDescription>
+          <EmptyDescription>{t("home.emptyDesc")}</EmptyDescription>
           <Button onClick={handleOpenFile} className="mt-1">
-            Open File
+            {t("home.openFile")}
           </Button>
         </EmptyContent>
       </Empty>
@@ -118,14 +118,14 @@ function HomePage() {
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-muted-foreground flex items-center gap-1.5 text-xs tabular-nums">
               <Star className="size-3.5 fill-yellow-400 text-yellow-400" />
-              즐겨찾기, {favorites.length}
+              {t("home.favorites", { count: favorites.length })}
             </h2>
             <Button
               size="sm"
               variant="ghost"
               onClick={() => void clearFavorites()}
             >
-              전체 지우기
+              {t("home.clearAll")}
             </Button>
           </div>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
@@ -148,14 +148,14 @@ function HomePage() {
         <div className="w-full border-t pt-6">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-muted-foreground text-xs tabular-nums">
-              최근 파일, {recentFiles.length}
+              {t("home.recent", { count: recentFiles.length })}
             </h2>
             <Button
               size="sm"
               variant="ghost"
               onClick={() => void clearRecent()}
             >
-              전체 지우기
+              {t("home.clearAll")}
             </Button>
           </div>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">

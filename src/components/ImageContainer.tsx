@@ -9,6 +9,7 @@ import { applyImageNaturalSize, useAppStore } from "@/store/appStore"
 import { useSettingsStore } from "@/store/settingsStore"
 import { classifyError } from "@/utils/appError"
 import { useShallow } from "zustand/react/shallow"
+import { useTranslation } from "react-i18next"
 import type { ViewMode } from "@/store/settingsStore"
 import type { MultiPage } from "@/hooks/useMultiPageImages"
 import type { ImageInfo } from "@/types"
@@ -53,6 +54,7 @@ export function ImageContainer({
   onToggleFullscreen,
   chromeHidden = false
 }: ImageContainerProps) {
+  const { t } = useTranslation()
   const app = useAppStore(
     useShallow((state) => ({
       loading: state.loading,
@@ -82,6 +84,9 @@ export function ImageContainer({
   const imageSrc = app.imageInfo ? toSrc(app.imageInfo) : null
   const navigate = useNavigate()
   const classified = app.error ? classifyError(app.error) : null
+  const tx = t as unknown as (key: string) => string
+  const classifiedTitle = classified ? tx(classified.titleKey) : null
+  const classifiedHint = classified ? tx(classified.hintKey) : null
 
   const handleGoHome = () => {
     useAppStore.setState({ error: null })
@@ -189,7 +194,7 @@ export function ImageContainer({
         <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
           <Spinner
             className="size-8 text-[hsl(var(--muted-foreground))]"
-            aria-label="Loading image"
+            aria-label={t("viewer.loading")}
           />
         </div>
       )}
@@ -201,9 +206,11 @@ export function ImageContainer({
         >
           <div className="flex items-center justify-between gap-2 text-xs">
             <span aria-live="polite">
-              슬라이드쇼 {app.dirImages.current_index + 1}/
-              {app.dirImages.images.length} ·{" "}
-              {(slideshowIntervalMs / 1000).toFixed(1)}초
+              {t("viewer.slideshow.label", {
+                index: app.dirImages.current_index + 1,
+                total: app.dirImages.images.length,
+                sec: (slideshowIntervalMs / 1000).toFixed(1)
+              })}
             </span>
             <span className="flex gap-1">
               {onToggleFullscreen && (
@@ -211,10 +218,10 @@ export function ImageContainer({
                   type="button"
                   onClick={onToggleFullscreen}
                   className="rounded px-1.5 py-0.5 hover:bg-[hsl(var(--accent))]"
-                  title="전체화면 (F11)"
-                  aria-label="전체화면 (F11)"
+                  title={t("viewer.slideshow.fullscreenTitle")}
+                  aria-label={t("viewer.slideshow.fullscreenTitle")}
                 >
-                  전체화면
+                  {t("viewer.slideshow.fullscreen")}
                 </button>
               )}
               {onToggleSlideshow && (
@@ -222,10 +229,10 @@ export function ImageContainer({
                   type="button"
                   onClick={onToggleSlideshow}
                   className="rounded px-1.5 py-0.5 hover:bg-[hsl(var(--accent))]"
-                  title="슬라이드쇼 정지 (Space)"
-                  aria-label="슬라이드쇼 정지 (Space)"
+                  title={t("viewer.slideshow.stopTitle")}
+                  aria-label={t("viewer.slideshow.stopTitle")}
                 >
-                  정지
+                  {t("viewer.slideshow.stop")}
                 </button>
               )}
             </span>
@@ -248,20 +255,20 @@ export function ImageContainer({
           className="bg-background max-w-md rounded-lg border border-[hsl(var(--destructive))]/20 px-6 py-4 text-sm shadow-lg"
         >
           <p className="font-medium text-[hsl(var(--destructive))]">
-            {classified.title}
+            {classifiedTitle}
           </p>
           <p className="text-muted-foreground mt-1 break-words">{app.error}</p>
-          <p className="text-muted-foreground mt-1">{classified.hint}</p>
+          <p className="text-muted-foreground mt-1">{classifiedHint}</p>
           <div className="mt-3 flex gap-2">
             <Button size="sm" onClick={handleGoHome}>
-              홈으로 돌아가기
+              {t("viewer.error.home")}
             </Button>
             <Button
               size="sm"
               variant="outline"
               onClick={() => useAppStore.setState({ error: null })}
             >
-              닫기
+              {t("viewer.error.dismiss")}
             </Button>
           </div>
         </div>

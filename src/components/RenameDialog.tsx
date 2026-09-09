@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
+import { useTranslation } from "react-i18next"
 
 type RenameDialogProps = {
   open: boolean
@@ -23,6 +24,7 @@ export function RenameDialog({
   onSubmit,
   onClose
 }: RenameDialogProps) {
+  const { t } = useTranslation()
   const [name, setName] = useState(initialName)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -55,13 +57,11 @@ export function RenameDialog({
     >
       <DialogContent className="no-drag">
         <DialogHeader>
-          <DialogTitle>이름 변경</DialogTitle>
-          <DialogDescription>
-            같은 폴더 안에서 확장자 포함 전체 파일명을 입력하세요.
-          </DialogDescription>
+          <DialogTitle>{t("dialog.rename.title")}</DialogTitle>
+          <DialogDescription>{t("dialog.rename.desc")}</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-2">
-          <Label htmlFor="rename-input">파일 이름</Label>
+          <Label htmlFor="rename-input">{t("dialog.rename.label")}</Label>
           <input
             ref={inputRef}
             id="rename-input"
@@ -77,13 +77,13 @@ export function RenameDialog({
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
-            취소
+            {t("dialog.cancel")}
           </Button>
           <Button
             onClick={submit}
             disabled={!name.trim() || name.trim() === initialName}
           >
-            변경
+            {t("dialog.rename.submit")}
           </Button>
         </DialogFooter>
       </DialogContent>

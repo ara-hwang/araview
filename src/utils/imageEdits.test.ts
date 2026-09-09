@@ -1,14 +1,28 @@
 import { describe, expect, it } from "vitest"
 import { buildSaveEditsPayload, describeTransform } from "@/utils/imageEdits"
+import ko from "@/i18n/locales/ko.json"
+
+const t = (key: string, vars?: Record<string, string | number>) => {
+  const parts = key.split(".")
+  let cur: unknown = ko
+  for (const p of parts) cur = (cur as Record<string, unknown>)[p]
+  let text = cur as string
+  if (vars) {
+    for (const [k, v] of Object.entries(vars)) {
+      text = text.replace(`{{${k}}}`, String(v))
+    }
+  }
+  return text
+}
 
 describe("describeTransform", () => {
   it("변경 없으면 표시", () => {
-    expect(describeTransform(0, false, false)).toBe("변경 없음")
+    expect(describeTransform(0, false, false, t)).toBe("변경 없음")
   })
 
   it("회전+반전 조합 요약", () => {
-    expect(describeTransform(90, true, false)).toBe("회전 90° · 좌우 반전")
-    expect(describeTransform(0, false, true)).toBe("상하 반전")
+    expect(describeTransform(90, true, false, t)).toBe("회전 90° · 좌우 반전")
+    expect(describeTransform(0, false, true, t)).toBe("상하 반전")
   })
 })
 

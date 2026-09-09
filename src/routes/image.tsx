@@ -23,6 +23,7 @@ import { useViewerElements } from "@/hooks/useViewerElements"
 import { useWheelNavigation } from "@/hooks/useWheelNavigation"
 import { useZoomPan } from "@/hooks/useZoomPan"
 import { useCallback, useState } from "react"
+import { useTranslation } from "react-i18next"
 
 export const Route = createFileRoute("/image")({
   beforeLoad: () => {
@@ -34,6 +35,7 @@ export const Route = createFileRoute("/image")({
 })
 
 function ImagePage() {
+  const { t } = useTranslation()
   const dirImages = useAppStore((state) => state.dirImages)
 
   const { containerRef, imageRef } = useViewerElements()
@@ -174,7 +176,7 @@ function ImagePage() {
       {isDragOver && (
         <div className="border-primary bg-background/80 pointer-events-none absolute inset-0 z-30 flex items-center justify-center border-2 border-dashed">
           <p className="bg-background rounded-md border px-4 py-2 text-sm">
-            여기에 놓아 열기
+            {t("home.drop")}
           </p>
         </div>
       )}

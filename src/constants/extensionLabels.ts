@@ -2,7 +2,42 @@ import {
   SUPPORTED_IMAGE_EXTENSIONS,
   type SupportedImageExtension
 } from "@/constants/imageExtensions"
+import i18n from "@/i18n"
 
+type ExtensionLabelKey =
+  | "png"
+  | "jpg"
+  | "jpeg"
+  | "gif"
+  | "bmp"
+  | "webp"
+  | "svg"
+  | "ico"
+  | "tiff"
+  | "tif"
+  | "avif"
+  | "heic"
+  | "heif"
+  | "cbz"
+
+const EXTENSION_I18N_KEYS: Record<ExtensionLabelKey, string> = {
+  png: "ext.png",
+  jpg: "ext.jpg",
+  jpeg: "ext.jpeg",
+  gif: "ext.gif",
+  bmp: "ext.bmp",
+  webp: "ext.webp",
+  svg: "ext.svg",
+  ico: "ext.ico",
+  tiff: "ext.tiff",
+  tif: "ext.tif",
+  avif: "ext.avif",
+  heic: "ext.heic",
+  heif: "ext.heif",
+  cbz: "ext.cbz"
+}
+
+/** @deprecated Use `extensionLabel()` which follows the active language. */
 export const EXTENSION_LABELS: Record<SupportedImageExtension, string> = {
   png: "PNG 이미지",
   jpg: "JPEG 이미지",
@@ -22,7 +57,8 @@ export const EXTENSION_LABELS: Record<SupportedImageExtension, string> = {
 
 export function extensionLabel(ext: string): string {
   if (isSupportedExtension(ext)) {
-    return EXTENSION_LABELS[ext]
+    const tx = i18n.t as unknown as (key: string) => string
+    return tx(EXTENSION_I18N_KEYS[ext])
   }
   return ext.toUpperCase()
 }

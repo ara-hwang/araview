@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core"
 import { toast } from "sonner"
 import { useAppStore } from "@/store/appStore"
+import i18n from "@/i18n"
 import {
   getSettings,
   updateSettings,
@@ -43,7 +44,7 @@ export async function refreshDirectoryListing(): Promise<void> {
     })
     useAppStore.setState({ dirImages })
   } catch (e) {
-    toast.error("목록 새로고침 실패", { description: String(e) })
+    toast.error(i18n.t("toast.dir.refreshFail"), { description: String(e) })
   }
 }
 

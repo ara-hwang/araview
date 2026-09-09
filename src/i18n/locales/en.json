@@ -1,0 +1,344 @@
+{
+  "app": {
+    "title": "Image Viewer"
+  },
+  "header": {
+    "open": "Open",
+    "openTitle": "Open file (Ctrl+O)",
+    "fitWidth": "Width",
+    "fitWidthTitle": "Fit width (1)",
+    "fitHeight": "Height",
+    "fitHeightTitle": "Fit height (2)",
+    "fitScreen": "Screen",
+    "fitScreenTitle": "Fit to screen (3)",
+    "zoomOut": "Zoom out",
+    "zoomOutTitle": "Zoom out (-)",
+    "zoomIn": "Zoom in",
+    "zoomInTitle": "Zoom in (+)",
+    "rotateCcwTitle": "Rotate counterclockwise (Shift+R)",
+    "rotateCwTitle": "Rotate clockwise (R)",
+    "flipHTitle": "Flip horizontal (H)",
+    "flipVTitle": "Flip vertical (V)",
+    "info": "Info",
+    "infoTitle": "EXIF info (I)",
+    "settings": "Settings",
+    "settingsTitle": "Settings",
+    "minimize": "Minimize",
+    "maximize": "Maximize / Restore",
+    "close": "Close"
+  },
+  "settings": {
+    "title": "Settings",
+    "desc": "Change viewer settings and file associations.",
+    "tabs": {
+      "general": "General",
+      "extensions": "Extensions"
+    },
+    "reset": "Reset",
+    "confirm": "Done",
+    "general": {
+      "title": "General settings"
+    },
+    "language": {
+      "title": "Language",
+      "desc": "Display language",
+      "ko": "한국어",
+      "en": "English"
+    },
+    "nav": {
+      "title": "Navigation",
+      "desc": "How to move at the first/last image",
+      "stop": "Stop at first/last",
+      "loop": "Loop to first/last"
+    },
+    "view": {
+      "title": "View mode",
+      "desc": "Single / dual / vertical scroll layout",
+      "single": "Single",
+      "ltr": "Two pages left-to-right",
+      "rtl": "Two pages right-to-left",
+      "webtoon": "Webtoon scroll"
+    },
+    "sort": {
+      "title": "Sort",
+      "desc": "Image order in folder (press S to toggle shuffle)",
+      "name": "Name",
+      "date": "Date modified",
+      "size": "File size",
+      "shuffle": "Shuffle",
+      "asc": "Ascending",
+      "descOrder": "Descending",
+      "subfolders": "Include subfolders"
+    },
+    "slideshow": {
+      "title": "Slideshow interval",
+      "desc": "Auto-advance interval ({{sec}}s)",
+      "aria": "Slideshow interval"
+    },
+    "bg": {
+      "title": "Background",
+      "desc": "Image area background (press B to cycle)",
+      "theme": "Theme default",
+      "black": "Black",
+      "white": "White",
+      "checker": "Checkerboard (for transparent images)"
+    },
+    "present": {
+      "title": "Presentation",
+      "desc": "Auto-hide top/bottom bars after 3s idle (move to show)",
+      "autohide": "Auto-hide UI"
+    },
+    "cache": {
+      "title": "Cache",
+      "desc": "Image preload range",
+      "off": "Off (current image only)",
+      "nearby": "Nearby (preload prev/next)",
+      "extended": "Extended (preload up to ±3)",
+      "gb1": "Memory limit (1 GB)",
+      "gb2": "Memory limit (2 GB)"
+    },
+    "startup": {
+      "title": "Startup",
+      "desc": "Auto-open the last viewed image on launch",
+      "home": "Show home screen",
+      "last": "Auto-open last file"
+    },
+    "ext": {
+      "title": "File associations",
+      "desc": "Changing an association opens the default app picker for that extension. Windows does not allow apps to set defaults directly.",
+      "connectAll": "Associate all",
+      "disconnectAll": "Disassociate all",
+      "loading": "Checking association status",
+      "needsConfirm": "· Needs confirmation in Windows default apps",
+      "blockedTitle": "Confirm the default app in Windows",
+      "blockedDesc": "Windows 10/11 only allows default app changes in the system picker. Select Image Viewer in the opened window.",
+      "openSettings": "Open Windows default apps settings"
+    }
+  },
+  "home": {
+    "drop": "Drop here to open",
+    "emptyTag": "01, Empty",
+    "emptyTitle": "No image to display",
+    "emptyDesc": "Drag files here or choose them with the Open File button.",
+    "openFile": "Open File",
+    "favorites": "Favorites, {{count}}",
+    "recent": "Recent files, {{count}}",
+    "clearAll": "Clear all",
+    "card": {
+      "favAdd": "Add to favorites",
+      "favRemove": "Remove from favorites",
+      "remove": "Remove from list"
+    }
+  },
+  "viewer": {
+    "loading": "Loading image",
+    "slideshow": {
+      "label": "Slideshow {{index}}/{{total}} · {{sec}}s",
+      "fullscreen": "Fullscreen",
+      "fullscreenTitle": "Fullscreen (F11)",
+      "stop": "Stop",
+      "stopTitle": "Stop slideshow (Space)"
+    },
+    "error": {
+      "home": "Go home",
+      "dismiss": "Close"
+    },
+    "nav": {
+      "prev": "Previous image",
+      "next": "Next image",
+      "slider": "Image position",
+      "thumb": "Image {{index}}: {{name}}"
+    }
+  },
+  "exif": {
+    "title": "EXIF Information",
+    "desc": "Image metadata and camera settings",
+    "empty": "No EXIF data available for this image.",
+    "other": "Other"
+  },
+  "dialog": {
+    "cancel": "Cancel",
+    "rename": {
+      "title": "Rename",
+      "desc": "Enter the full file name including extension, within the same folder.",
+      "label": "File name",
+      "submit": "Rename"
+    },
+    "save": {
+      "title": "Save edits",
+      "format": "Format",
+      "keep": "Keep original",
+      "saveAs": "Save method",
+      "overwrite": "Overwrite original",
+      "newFile": "Save as new file",
+      "newNamePlaceholder": "Leave empty to auto-generate a name (extension follows format)",
+      "newNameAria": "New file name",
+      "note": "Format changes, HEIC, and GIF are always saved as new files. Only the first frame of GIF is saved.",
+      "submit": "Save",
+      "transform": {
+        "rotated": "Rotated {{deg}}°",
+        "flipH": "Flip horizontal",
+        "flipV": "Flip vertical",
+        "none": "No changes"
+      }
+    }
+  },
+  "status": {
+    "empty": "Empty",
+    "unknown": "Unknown"
+  },
+  "menu": {
+    "open": "Open File",
+    "prev": "Previous Image",
+    "next": "Next Image",
+    "zoomIn": "Zoom In",
+    "zoomOut": "Zoom Out",
+    "actualSize": "Actual Size",
+    "fitWidth": "Fit Width",
+    "fitHeight": "Fit Height",
+    "fitScreen": "Fit to Screen",
+    "rotateCw": "Rotate Clockwise",
+    "rotateCcw": "Rotate Counterclockwise",
+    "flipH": "Flip Horizontal",
+    "flipV": "Flip Vertical",
+    "toggleExif": "Toggle EXIF Panel",
+    "toggleSlideshow": "Toggle Slideshow",
+    "toggleFullscreen": "Toggle Fullscreen",
+    "copyImage": "Copy Image",
+    "cycleBg": "Cycle Background",
+    "toggleShuffle": "Toggle Shuffle",
+    "trash": "Move to Trash",
+    "reveal": "Reveal in Explorer",
+    "openExternal": "Open with Default App",
+    "rename": "Rename",
+    "copyPath": "Copy Path",
+    "saveEdits": "Save with Edits",
+    "toggleFavorite": "Toggle Favorite"
+  },
+  "error": {
+    "notFound": {
+      "title": "File not found",
+      "hint": "The file may have been moved, deleted, or the archive entry is missing. Try another file."
+    },
+    "permission": {
+      "title": "Cannot access the file",
+      "hint": "You may lack permission or another program is using it. Check permissions and try again."
+    },
+    "unsupported": {
+      "title": "Unsupported format",
+      "hint": "Check if it is a supported format (png/jpg/webp/svg/avif/heic/cbz, etc.) or try another viewer."
+    },
+    "corrupt": {
+      "title": "Problem reading the file",
+      "hint": "The file may be corrupted. You can go back to the last image or home."
+    },
+    "unknown": {
+      "title": "Failed to load the image",
+      "hint": "Try again or go home and open another file."
+    }
+  },
+  "toast": {
+    "settings": {
+      "saveFail": "Failed to save settings",
+      "resetDone": "Settings reset"
+    },
+    "dir": {
+      "refreshFail": "Failed to refresh list"
+    },
+    "fullscreen": {
+      "fail": "Failed to toggle fullscreen"
+    },
+    "reveal": {
+      "empty": "No file to show",
+      "fail": "Failed to reveal in Explorer"
+    },
+    "external": {
+      "empty": "No file to open",
+      "fail": "Failed to open with external app"
+    },
+    "trash": {
+      "empty": "No image to delete",
+      "noArchive": "Cannot delete in archive mode",
+      "fail": "Failed to move to Trash",
+      "done": "Moved to Trash"
+    },
+    "path": {
+      "empty": "No path to copy",
+      "done": "Path copied",
+      "fail": "Failed to copy path"
+    },
+    "rename": {
+      "empty": "No image to rename",
+      "noArchive": "Cannot rename in archive mode",
+      "blank": "Enter a file name",
+      "fail": "Failed to rename",
+      "done": "Rename complete"
+    },
+    "save": {
+      "empty": "No image to save",
+      "noArchive": "Cannot save in archive mode",
+      "noChange": "No changes to apply",
+      "fail": "Failed to save",
+      "done": "Save complete"
+    },
+    "fav": {
+      "empty": "No file to favorite",
+      "added": "Added to favorites",
+      "removed": "Removed from favorites"
+    },
+    "copy": {
+      "empty": "No image to copy",
+      "done": "Image copied",
+      "fail": "Failed to copy image",
+      "canvasFail": "Failed to create Canvas 2D context",
+      "pngFail": "Failed to convert to PNG"
+    },
+    "assoc": {
+      "loadFail": "Failed to load associations",
+      "openFail": "Failed to open default app picker",
+      "pickInfo": "Select the default app in Windows Settings",
+      "settingsFail": "Failed to open Windows Settings"
+    },
+    "slideshow": {
+      "start": "Slideshow started",
+      "stop": "Slideshow stopped"
+    },
+    "load": {
+      "archiveFail": "Failed to load archive",
+      "imageFail": "Failed to load image"
+    },
+    "drop": {
+      "fail": "Cannot open dropped item",
+      "firstOf": "Showing the first of {{count}} images"
+    }
+  },
+  "confirm": {
+    "trash": {
+      "title": "Delete file",
+      "message": "Move {{name}} to Trash?"
+    },
+    "overwrite": {
+      "title": "Overwrite save",
+      "message": "Overwrite {{name}} with your changes? Continue?"
+    }
+  },
+  "picker": {
+    "images": "Images"
+  },
+  "ext": {
+    "png": "PNG image",
+    "jpg": "JPEG image",
+    "jpeg": "JPEG image",
+    "gif": "GIF image",
+    "bmp": "BMP image",
+    "webp": "WebP image",
+    "svg": "SVG image",
+    "ico": "Icon",
+    "tiff": "TIFF image",
+    "tif": "TIFF image",
+    "avif": "AVIF image",
+    "heic": "HEIC image",
+    "heif": "HEIF image",
+    "cbz": "Comic archive"
+  }
+}
