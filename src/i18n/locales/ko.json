@@ -32,12 +32,24 @@
     "desc": "이미지 뷰어 설정과 파일 확장자 연결을 변경합니다.",
     "tabs": {
       "general": "일반",
+      "view": "보기",
+      "list": "목록",
+      "performance": "성능",
       "extensions": "확장자"
     },
     "reset": "초기화",
     "confirm": "확인",
     "general": {
       "title": "일반 설정"
+    },
+    "viewTab": {
+      "title": "보기 설정"
+    },
+    "listTab": {
+      "title": "목록 설정"
+    },
+    "performanceTab": {
+      "title": "성능 설정"
     },
     "language": {
       "title": "언어",

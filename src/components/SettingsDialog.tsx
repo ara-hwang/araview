@@ -8,14 +8,17 @@ import {
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
-import { GeneralSettingsPanel } from "@/components/settings/GeneralSettingsPanel"
+import { GeneralTabPanel } from "@/components/settings/GeneralTabPanel"
+import { ViewTabPanel } from "@/components/settings/ViewTabPanel"
+import { ListTabPanel } from "@/components/settings/ListTabPanel"
+import { PerformanceTabPanel } from "@/components/settings/PerformanceTabPanel"
 import { ExtensionSettingsPanel } from "@/components/settings/ExtensionSettingsPanel"
 import { resetSettings } from "@/store/settingsStore"
 import { cn } from "cn"
-import { FileText, Gear } from "@phosphor-icons/react"
+import { ArrowsDownUp, Eye, FileText, Gauge, Gear } from "@phosphor-icons/react"
 import { useTranslation } from "react-i18next"
 
-type SettingsTab = "general" | "extensions"
+type SettingsTab = "general" | "view" | "list" | "performance" | "extensions"
 
 type SettingsDialogProps = {
   open: boolean
@@ -32,12 +35,26 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
     icon: typeof Gear
   }[] = [
     { id: "general", label: t("settings.tabs.general"), icon: Gear },
+    { id: "view", label: t("settings.tabs.view"), icon: Eye },
+    { id: "list", label: t("settings.tabs.list"), icon: ArrowsDownUp },
+    {
+      id: "performance",
+      label: t("settings.tabs.performance"),
+      icon: Gauge
+    },
     {
       id: "extensions",
       label: t("settings.tabs.extensions"),
       icon: FileText
     }
   ]
+
+  const TAB_TITLES: Record<Exclude<SettingsTab, "extensions">, string> = {
+    general: t("settings.general.title"),
+    view: t("settings.viewTab.title"),
+    list: t("settings.listTab.title"),
+    performance: t("settings.performanceTab.title")
+  }
 
   const close = () => {
     setTab("general")
@@ -95,19 +112,27 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
             </aside>
 
             <div className="flex min-w-0 flex-1 flex-col">
-              <ScrollArea className="h-full min-h-0 flex-1">
+              <ScrollArea key={tab} className="h-full min-h-0 flex-1">
                 <div className="p-4">
-                  {tab === "general" ? (
-                    <>
-                      <h3 className="mb-4 text-base font-medium">
-                        {t("settings.general.title")}
-                      </h3>
-                      <GeneralSettingsPanel />
-                    </>
-                  ) : (
+                  {tab === "extensions" ? (
                     <ExtensionSettingsPanel
                       active={open && tab === "extensions"}
                     />
+                  ) : (
+                    <>
+                      <h3 className="mb-4 text-base font-medium">
+                        {TAB_TITLES[tab]}
+                      </h3>
+                      {tab === "general" ? (
+                        <GeneralTabPanel />
+                      ) : tab === "view" ? (
+                        <ViewTabPanel />
+                      ) : tab === "list" ? (
+                        <ListTabPanel />
+                      ) : (
+                        <PerformanceTabPanel />
+                      )}
+                    </>
                   )}
                 </div>
               </ScrollArea>
