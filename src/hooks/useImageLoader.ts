@@ -8,6 +8,7 @@ import { useImageCache } from "@/hooks/useImageCache"
 import { useSettingsStore } from "@/store/settingsStore"
 import { useAppStore } from "@/store/appStore"
 import { useRecentFilesStore } from "@/store/recentFilesStore"
+import { buildDirListOptions } from "@/utils/directoryOptions"
 
 const ARCHIVE_EXTENSIONS = ["cbz"]
 
@@ -115,7 +116,10 @@ export function useImageLoader() {
         ) {
           resolvedDirInfo = await invoke<DirectoryImages>(
             "get_directory_images",
-            { filePath }
+            {
+              filePath,
+              options: buildDirListOptions(useSettingsStore.getState())
+            }
           )
           useAppStore.setState({ dirImages: resolvedDirInfo })
         }

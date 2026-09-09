@@ -11,6 +11,8 @@ import {
   zoomIn,
   zoomOut
 } from "@/store/appStore"
+import { cycleViewerBackground } from "@/store/settingsStore"
+import { toggleShuffleAndRefresh } from "@/utils/directoryOptions"
 
 export type ImageViewerContextMenuActions = {
   onOpenFile: () => void
@@ -20,6 +22,13 @@ export type ImageViewerContextMenuActions = {
   onToggleSlideshow: () => void
   onToggleFullscreen: () => void
   onCopyImage: () => void
+  onTrashFile: () => void
+  onRevealInExplorer: () => void
+  onOpenExternal: () => void
+  onRenameFile: () => void
+  onCopyPath: () => void
+  onSaveEdits: () => void
+  onToggleFavorite: () => void
 }
 
 export async function showImageViewerContextMenu(
@@ -123,6 +132,56 @@ export async function showImageViewerContextMenu(
       text: "Copy Image",
       accelerator: "Ctrl+C",
       action: () => actions.onCopyImage()
+    }),
+    PredefinedMenuItem.new({ item: "Separator" }),
+    MenuItem.new({
+      text: "Cycle Background",
+      accelerator: "B",
+      action: () => cycleViewerBackground()
+    }),
+    MenuItem.new({
+      text: "Toggle Shuffle",
+      accelerator: "S",
+      action: () => toggleShuffleAndRefresh()
+    }),
+    PredefinedMenuItem.new({ item: "Separator" }),
+    MenuItem.new({
+      text: "Move to Trash",
+      accelerator: "Del",
+      action: () => actions.onTrashFile()
+    }),
+    MenuItem.new({
+      text: "Reveal in Explorer",
+      accelerator: "Ctrl+Shift+E",
+      action: () => actions.onRevealInExplorer()
+    }),
+    MenuItem.new({
+      text: "Open with Default App",
+      accelerator: "Ctrl+Shift+O",
+      action: () => actions.onOpenExternal()
+    }),
+    PredefinedMenuItem.new({ item: "Separator" }),
+    MenuItem.new({
+      text: "Rename",
+      accelerator: "F2",
+      action: () => actions.onRenameFile()
+    }),
+    MenuItem.new({
+      text: "Copy Path",
+      accelerator: "Ctrl+Shift+C",
+      action: () => actions.onCopyPath()
+    }),
+    PredefinedMenuItem.new({ item: "Separator" }),
+    MenuItem.new({
+      text: "Save with Edits",
+      accelerator: "Ctrl+S",
+      action: () => actions.onSaveEdits()
+    }),
+    PredefinedMenuItem.new({ item: "Separator" }),
+    MenuItem.new({
+      text: "Toggle Favorite",
+      accelerator: "F",
+      action: () => actions.onToggleFavorite()
     })
   ])
 

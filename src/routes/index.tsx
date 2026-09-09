@@ -9,12 +9,14 @@ import {
 import { Button } from "@/components/ui/button"
 import { useEffect, useRef } from "react"
 import { getCurrentWindow } from "@tauri-apps/api/window"
-import { X } from "lucide-react"
 import { useAppStore } from "@/store/appStore"
 import { useSettingsStore } from "@/store/settingsStore"
 import { useImageLoader } from "@/hooks/useImageLoader"
 import { usePaintSrcs } from "@/hooks/usePaintSrcs"
 import { useRecentFilesStore } from "@/store/recentFilesStore"
+import { useFavoritesStore } from "@/store/favoritesStore"
+import { HomeFileCard } from "@/components/HomeFileCard"
+import { Star } from "lucide-react"
 
 export const Route = createFileRoute("/")({
   component: HomePage
@@ -31,6 +33,10 @@ function HomePage() {
   const recentFiles = useRecentFilesStore((s) => s.files)
   const removeRecent = useRecentFilesStore((s) => s.remove)
   const clearRecent = useRecentFilesStore((s) => s.clear)
+  const favorites = useFavoritesStore((s) => s.files)
+  const toggleFavorite = useFavoritesStore((s) => s.toggle)
+  const removeFavorite = useFavoritesStore((s) => s.remove)
+  const clearFavorites = useFavoritesStore((s) => s.clear)
   const autoOpenLastFile = useSettingsStore((s) => s.autoOpenLastFile)
   const autoOpenedRef = useRef(false)
 
@@ -69,7 +75,8 @@ function HomePage() {
     autoOpenedRef.current = true
     void loadImage(recentFiles[0])
   }, [autoOpenLastFile, recentFiles, app.imageInfo, loadImage])
-  const urls = usePaintSrcs(recentFiles, getOrLoadImage)
+  const urls = usePaintSrcs([...favorites, ...recentFiles], getOrLoadImage)
+  const isFavorite = (path: string) => favorites.includes(path)
 
   return (
     <div
@@ -106,6 +113,37 @@ function HomePage() {
         </EmptyContent>
       </Empty>
 
+      {favorites.length > 0 && (
+        <div className="w-full border-t pt-6">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-muted-foreground flex items-center gap-1.5 text-xs tabular-nums">
+              <Star className="size-3.5 fill-yellow-400 text-yellow-400" />
+              즐겨찾기, {favorites.length}
+            </h2>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => void clearFavorites()}
+            >
+              전체 지우기
+            </Button>
+          </div>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+            {favorites.map((path) => (
+              <HomeFileCard
+                key={path}
+                path={path}
+                src={urls.get(path)}
+                isFavorite
+                onOpen={(p) => void loadImage(p)}
+                onRemove={(p) => void removeFavorite(p)}
+                onToggleFavorite={(p) => void toggleFavorite(p)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
       {recentFiles.length > 0 && (
         <div className="w-full border-t pt-6">
           <div className="mb-3 flex items-center justify-between">
@@ -121,52 +159,17 @@ function HomePage() {
             </Button>
           </div>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-            {recentFiles.map((path) => {
-              const name = path.split(/[\\/]/).pop() ?? path
-              const src = urls.get(path)
-              return (
-                <div
-                  key={path}
-                  className="group border-border bg-card hover:border-primary relative overflow-hidden rounded-md border"
-                >
-                  <button
-                    type="button"
-                    onClick={() => void loadImage(path)}
-                    className="flex w-full flex-col items-start gap-2 p-2 text-left"
-                    title={path}
-                  >
-                    <div className="bg-muted aspect-square w-full overflow-hidden rounded">
-                      {src ? (
-                        <img
-                          src={src}
-                          alt={name}
-                          loading="lazy"
-                          className="h-full w-full object-cover"
-                          draggable={false}
-                          onError={(e) => {
-                            ;(
-                              e.currentTarget as HTMLImageElement
-                            ).style.visibility = "hidden"
-                          }}
-                        />
-                      ) : null}
-                    </div>
-                    <span className="w-full truncate text-xs">{name}</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      void removeRecent(path)
-                    }}
-                    className="bg-background/80 absolute top-1 right-1 rounded p-1 opacity-0 transition-opacity group-hover:opacity-100"
-                    title="목록에서 제거"
-                  >
-                    <X className="size-3" />
-                  </button>
-                </div>
-              )
-            })}
+            {recentFiles.map((path) => (
+              <HomeFileCard
+                key={path}
+                path={path}
+                src={urls.get(path)}
+                isFavorite={isFavorite(path)}
+                onOpen={(p) => void loadImage(p)}
+                onRemove={(p) => void removeRecent(p)}
+                onToggleFavorite={(p) => void toggleFavorite(p)}
+              />
+            ))}
           </div>
         </div>
       )}

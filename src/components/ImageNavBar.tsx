@@ -15,12 +15,15 @@ type ImageNavBarProps = {
   onNavigate: (direction: "prev" | "next") => void
   onNavigateToIndex: (index: number) => void
   getOrLoadImage: GetOrLoadImage
+  /** UI 자동 숨김 시 투명화 (마우스 이동 시 복귀) */
+  hidden?: boolean
 }
 
 export function ImageNavBar({
   onNavigate,
   onNavigateToIndex,
-  getOrLoadImage
+  getOrLoadImage,
+  hidden = false
 }: ImageNavBarProps) {
   const dirImages = useAppStore((state) => state.dirImages)
   const loopNavigation = useSettingsStore((state) => state.loopNavigation)
@@ -51,7 +54,10 @@ export function ImageNavBar({
   return (
     // 하단 중앙에 고정된 내비게이션 바 (이전/다음 버튼 + 진행률 표시)
     <div
-      className="bg-background border-border absolute bottom-12 flex w-xl max-w-[calc(100%-2rem)] flex-col gap-2 rounded-md border p-2 shadow-lg"
+      className={cn(
+        "bg-background border-border absolute bottom-12 flex w-xl max-w-[calc(100%-2rem)] flex-col gap-2 rounded-md border p-2 shadow-lg transition-opacity duration-300",
+        hidden && "pointer-events-none opacity-0"
+      )}
       onMouseDown={(e) => e.stopPropagation()}
     >
       {/* 썸네일 스트립 */}

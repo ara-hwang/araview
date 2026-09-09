@@ -18,6 +18,15 @@ type ImageViewerHotkeysParams = {
   onToggleSlideshow: () => void
   onToggleFullscreen: () => void
   onCopyImage: () => void
+  onTrashFile: () => void
+  onRevealInExplorer: () => void
+  onOpenExternal: () => void
+  onCycleBackground: () => void
+  onRenameFile: () => void
+  onCopyPath: () => void
+  onToggleShuffle: () => void
+  onSaveEdits: () => void
+  onToggleFavorite: () => void
 }
 
 export function useImageViewerHotkeys(props: ImageViewerHotkeysParams) {
@@ -41,4 +50,13 @@ export function useImageViewerHotkeys(props: ImageViewerHotkeysParams) {
   useHotkey("F5", props.onToggleSlideshow)
   useHotkey("F11", props.onToggleFullscreen)
   useHotkey("Control+C", props.onCopyImage)
+  useHotkey("Delete", props.onTrashFile)
+  useHotkey("Control+Shift+E", props.onRevealInExplorer)
+  useHotkey("Control+Shift+O", props.onOpenExternal)
+  useHotkey("B", props.onCycleBackground)
+  useHotkey("F2", props.onRenameFile)
+  useHotkey("Control+Shift+C", props.onCopyPath)
+  useHotkey("S", props.onToggleShuffle)
+  useHotkey("Control+S", props.onSaveEdits)
+  useHotkey("F", props.onToggleFavorite)
 }

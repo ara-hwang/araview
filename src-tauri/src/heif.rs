@@ -14,10 +14,10 @@ use crate::process_temp::process_temp_dir;
 static SIDECAR_LOCKS: Lazy<Mutex<HashMap<String, Arc<Mutex<()>>>>> =
     Lazy::new(|| Mutex::new(HashMap::new()));
 
-struct Rgb8 {
-    width: u32,
-    height: u32,
-    bytes: Vec<u8>,
+pub(crate) struct Rgb8 {
+    pub width: u32,
+    pub height: u32,
+    pub bytes: Vec<u8>,
 }
 
 pub fn ensure_jpeg_sidecar(source: &Path) -> Result<PathBuf, String> {
@@ -61,7 +61,7 @@ fn sidecar_path(source: &Path) -> Result<PathBuf, String> {
     Ok(dir.join(name))
 }
 
-fn decode_primary_rgb8(source: &Path) -> Result<Rgb8, String> {
+pub(crate) fn decode_primary_rgb8(source: &Path) -> Result<Rgb8, String> {
     let path = source
         .to_str()
         .ok_or_else(|| "HEIF path is not valid Unicode".to_string())?;
