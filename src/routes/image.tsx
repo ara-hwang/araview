@@ -17,6 +17,7 @@ import { SaveEditsDialog } from "@/components/SaveEditsDialog"
 import { toggleShuffleAndRefresh } from "@/utils/directoryOptions"
 import type { SaveEditsPayload } from "@/utils/imageEdits"
 import { useImageViewerContextMenu } from "@/hooks/useContextMenu"
+import { useCloseImage } from "@/hooks/useCloseImage"
 import { useImageViewerHotkeys } from "@/hooks/useImageViewerHotkeys"
 import { useOpenFileListener } from "@/hooks/useOpenFileListener"
 import { useViewerElements } from "@/hooks/useViewerElements"
@@ -93,6 +94,22 @@ function ImagePage() {
   const [saveOpen, setSaveOpen] = useState(false)
   const renameInitialName =
     useAppStore((state) => state.imageInfo?.file_name) ?? ""
+  const closeAndGoHome = useCloseImage()
+
+  /** Esc 닫기: 다이얼로그가 열려 있거나 입력 중일 때는 뷰어를 닫지 않는다 */
+  const handleCloseImage = useCallback(() => {
+    if (renameOpen || saveOpen) return
+    const active = document.activeElement
+    if (
+      active &&
+      (active.tagName === "INPUT" ||
+        active.tagName === "TEXTAREA" ||
+        active.hasAttribute("contenteditable"))
+    ) {
+      return
+    }
+    closeAndGoHome()
+  }, [renameOpen, saveOpen, closeAndGoHome])
 
   const handleRenameSubmit = useCallback(
     async (newName: string) => {
@@ -112,6 +129,7 @@ function ImagePage() {
 
   const handleContextMenu = useImageViewerContextMenu(dirImages, {
     onOpenFile: handleOpenFile,
+    onCloseImage: handleCloseImage,
     onNavigatePrev: () => void navigateImage("prev"),
     onNavigateNext: () => void navigateImage("next"),
     onToggleExif: () => void toggleExifPanel(),
@@ -131,6 +149,7 @@ function ImagePage() {
     onNavigatePrev: () => void navigateImage("prev"),
     onNavigateNext: () => void navigateImage("next"),
     onOpenFile: handleOpenFile,
+    onCloseImage: handleCloseImage,
     onToggleExif: () => void toggleExifPanel(),
     onToggleSlideshow: slideshow.toggle,
     onToggleFullscreen: () => void fullscreen.toggle(),

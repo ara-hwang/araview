@@ -5,7 +5,11 @@ import { cn } from "@/lib/utils"
 import { Spinner } from "@/components/ui/spinner"
 import { Button } from "@/components/ui/button"
 import { ImageNavBar } from "./ImageNavBar"
-import { applyImageNaturalSize, useAppStore } from "@/store/appStore"
+import {
+  applyImageNaturalSize,
+  closeImage,
+  useAppStore
+} from "@/store/appStore"
 import { useSettingsStore } from "@/store/settingsStore"
 import { classifyError } from "@/utils/appError"
 import { useShallow } from "zustand/react/shallow"
@@ -89,7 +93,7 @@ export function ImageContainer({
   const classifiedHint = classified ? tx(classified.hintKey) : null
 
   const handleGoHome = () => {
-    useAppStore.setState({ error: null })
+    closeImage()
     void navigate({ to: "/" })
   }
 

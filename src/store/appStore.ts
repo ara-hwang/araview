@@ -226,6 +226,19 @@ export const updateDirImagesIndex = (nextIndex: number) => {
   })
 }
 
+/** 열린 이미지를 닫고 뷰어 상태를 초기값으로 되돌린다 (홈 귀환용) */
+export const closeImage = () => {
+  useAppStore.setState({
+    ...initialApp,
+    dirImages: { images: [], current_index: 0 },
+    position: { x: 0, y: 0 },
+    viewportSize: { width: 0, height: 0 },
+    containerSize: { width: 0, height: 0 },
+    imageSize: { width: 0, height: 0 },
+    dragStart: { x: 0, y: 0 }
+  })
+}
+
 export const startDrag = (clientX: number, clientY: number) => {
   const { position } = useAppStore.getState()
   useAppStore.setState({ isDragging: true })

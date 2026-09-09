@@ -3,6 +3,8 @@
     "title": "Image Viewer"
   },
   "header": {
+    "home": "Home",
+    "homeTitle": "Close image (Esc)",
     "open": "Open",
     "openTitle": "Open file (Ctrl+O)",
     "fitWidth": "Width",
@@ -201,6 +203,7 @@
   },
   "menu": {
     "open": "Open File",
+    "closeImage": "Close Image",
     "prev": "Previous Image",
     "next": "Next Image",
     "zoomIn": "Zoom In",

@@ -11,6 +11,7 @@ import {
   FlipVertical,
   FolderOpen,
   Gear,
+  House,
   Info,
   MagnifyingGlassMinus,
   MagnifyingGlassPlus,
@@ -22,6 +23,7 @@ import { Button } from "@/components/ui/button"
 import { ButtonGroup } from "./ui/button-group"
 import { ButtonGroupText } from "./ui/button-group"
 import { Separator } from "./ui/separator"
+import { cn } from "@/lib/utils"
 import {
   flipHorizontal,
   flipVertical,
@@ -34,6 +36,7 @@ import {
   useAppStore
 } from "@/store/appStore"
 import { useImageLoader } from "@/hooks/useImageLoader"
+import { useCloseImage } from "@/hooks/useCloseImage"
 import { useExifLoader } from "@/hooks/useExifLoader"
 import { SettingsDialog } from "@/components/SettingsDialog"
 import { useTranslation } from "react-i18next"
@@ -43,10 +46,12 @@ export default function Header() {
   const { t } = useTranslation()
   const [appWindow] = useState(() => getCurrentWindow())
   const zoom = useAppStore((state) => state.zoom)
+  const hasImage = useAppStore((state) => state.imageInfo !== null)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [isMaximized, setIsMaximized] = useState(false)
 
   const { handleOpenFile } = useImageLoader()
+  const handleGoHome = useCloseImage()
   const { toggleExifPanel } = useExifLoader()
 
   useEffect(() => {
@@ -101,6 +106,16 @@ export default function Header() {
         <ButtonGroup>
           <Button
             variant="outline"
+            onClick={handleGoHome}
+            disabled={!hasImage}
+            title={t("header.homeTitle")}
+            aria-label={t("header.homeTitle")}
+          >
+            <House />
+            <span className="hidden md:inline">{t("header.home")}</span>
+          </Button>
+          <Button
+            variant="outline"
             onClick={handleOpenFile}
             title={t("header.openTitle")}
             aria-label={t("header.openTitle")}
@@ -116,6 +131,7 @@ export default function Header() {
               <Button
                 variant="ghost"
                 onClick={() => setZoomToFit("width")}
+                disabled={!hasImage}
                 title={t("header.fitWidthTitle")}
                 aria-label={t("header.fitWidthTitle")}
               >
@@ -125,6 +141,7 @@ export default function Header() {
               <Button
                 variant="ghost"
                 onClick={() => setZoomToFit("height")}
+                disabled={!hasImage}
                 title={t("header.fitHeightTitle")}
                 aria-label={t("header.fitHeightTitle")}
               >
@@ -136,6 +153,7 @@ export default function Header() {
               <Button
                 variant="ghost"
                 onClick={() => setZoomToFit("screen")}
+                disabled={!hasImage}
                 title={t("header.fitScreenTitle")}
                 aria-label={t("header.fitScreenTitle")}
               >
@@ -152,18 +170,24 @@ export default function Header() {
               <Button
                 variant="ghost"
                 onClick={zoomOut}
+                disabled={!hasImage}
                 title={t("header.zoomOutTitle")}
                 aria-label={t("header.zoomOutTitle")}
               >
                 <MagnifyingGlassMinus />
                 <span className="hidden md:inline">{t("header.zoomOut")}</span>
               </Button>
-              <ButtonGroupText className="tabular-nums" onClick={resetZoomPan}>
+              <ButtonGroupText
+                className={cn("tabular-nums", !hasImage && "opacity-50")}
+                aria-disabled={!hasImage}
+                onClick={hasImage ? resetZoomPan : undefined}
+              >
                 {Math.round(zoom * 100)}%
               </ButtonGroupText>
               <Button
                 variant="ghost"
                 onClick={zoomIn}
+                disabled={!hasImage}
                 title={t("header.zoomInTitle")}
                 aria-label={t("header.zoomInTitle")}
               >
@@ -179,6 +203,7 @@ export default function Header() {
                 variant="ghost"
                 size="icon"
                 onClick={rotateCCW}
+                disabled={!hasImage}
                 title={t("header.rotateCcwTitle")}
                 aria-label={t("header.rotateCcwTitle")}
               >
@@ -188,6 +213,7 @@ export default function Header() {
                 variant="ghost"
                 size="icon"
                 onClick={rotateCW}
+                disabled={!hasImage}
                 title={t("header.rotateCwTitle")}
                 aria-label={t("header.rotateCwTitle")}
               >
@@ -197,6 +223,7 @@ export default function Header() {
                 variant="ghost"
                 size="icon"
                 onClick={flipHorizontal}
+                disabled={!hasImage}
                 title={t("header.flipHTitle")}
                 aria-label={t("header.flipHTitle")}
               >
@@ -206,6 +233,7 @@ export default function Header() {
                 variant="ghost"
                 size="icon"
                 onClick={flipVertical}
+                disabled={!hasImage}
                 title={t("header.flipVTitle")}
                 aria-label={t("header.flipVTitle")}
               >
@@ -218,6 +246,7 @@ export default function Header() {
             <Button
               variant="outline"
               onClick={() => void toggleExifPanel()}
+              disabled={!hasImage}
               title={t("header.infoTitle")}
               aria-label={t("header.infoTitle")}
             >
