@@ -6,6 +6,7 @@ import { Spinner } from "@/components/ui/spinner"
 import { Button } from "@/components/ui/button"
 import { ImageNavBar } from "./ImageNavBar"
 import { applyImageNaturalSize, useAppStore } from "@/store/appStore"
+import { useSettingsStore } from "@/store/settingsStore"
 import { classifyError } from "@/utils/appError"
 import { useShallow } from "zustand/react/shallow"
 import type { ViewMode } from "@/store/settingsStore"
@@ -28,6 +29,8 @@ type ImageContainerProps = {
   slideshowIntervalMs?: number
   onToggleSlideshow?: () => void
   onToggleFullscreen?: () => void
+  /** UI 자동 숨김(프레젠테이션) 시 하단 내비게이션 바 숨김 */
+  chromeHidden?: boolean
 }
 
 const toSrc = (info: ImageInfo) => convertFileSrc(info.file_path)
@@ -47,7 +50,8 @@ export function ImageContainer({
   slideshowActive = false,
   slideshowIntervalMs = 3000,
   onToggleSlideshow,
-  onToggleFullscreen
+  onToggleFullscreen,
+  chromeHidden = false
 }: ImageContainerProps) {
   const app = useAppStore(
     useShallow((state) => ({
@@ -72,6 +76,9 @@ export function ImageContainer({
     getOrLoadImage
   )
 
+  const viewerBackground = useSettingsStore((state) => state.viewerBackground)
+  const isChecker = viewerBackground === "checker"
+
   const imageSrc = app.imageInfo ? toSrc(app.imageInfo) : null
   const navigate = useNavigate()
   const classified = app.error ? classifyError(app.error) : null
@@ -94,9 +101,22 @@ export function ImageContainer({
     <div
       ref={containerRef}
       className={cn(
-        "relative flex flex-1 items-center justify-center overflow-hidden bg-[hsl(var(--background))]",
+        "relative flex flex-1 items-center justify-center overflow-hidden transition-colors",
+        viewerBackground === "theme" && "bg-[hsl(var(--background))]",
+        viewerBackground === "black" && "bg-black",
+        viewerBackground === "white" && "bg-white",
+        isChecker && "bg-white",
         app.isDragging && viewMode === "single" && "[&]:cursor-grabbing"
       )}
+      style={
+        isChecker
+          ? {
+              backgroundImage:
+                "conic-gradient(#c7c7c7 25%, #ffffff 0 50%, #c7c7c7 0 75%, #ffffff 0)",
+              backgroundSize: "20px 20px"
+            }
+          : undefined
+      }
       onWheel={onWheel}
       onMouseDown={viewMode === "single" ? onMouseDown : undefined}
       onMouseMove={viewMode === "single" ? onMouseMove : undefined}
@@ -252,6 +272,7 @@ export function ImageContainer({
           onNavigate={onNavigate}
           onNavigateToIndex={onNavigateToIndex}
           getOrLoadImage={getOrLoadImage}
+          hidden={chromeHidden}
         />
       )}
     </div>

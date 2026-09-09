@@ -7,12 +7,22 @@ export type CacheMode =
 
 export type ViewMode = "single" | "left-to-right" | "right-to-left" | "webtoon"
 
+export type ViewerBackground = "theme" | "black" | "white" | "checker"
+
+export type DirSortKey = "name" | "date" | "size"
+
 export type SettingsState = {
   loopNavigation: boolean
   cacheMode: CacheMode
   viewMode: ViewMode
   slideshowIntervalMs: number
   autoOpenLastFile: boolean
+  viewerBackground: ViewerBackground
+  autoHideUI: boolean
+  sortKey: DirSortKey
+  sortDescending: boolean
+  shuffle: boolean
+  includeSubfolders: boolean
 }
 
 type SettingsStoreActions = {
@@ -33,7 +43,13 @@ const initialSettings: SettingsState = {
   cacheMode: "nearby",
   viewMode: "single",
   slideshowIntervalMs: 3000,
-  autoOpenLastFile: false
+  autoOpenLastFile: false,
+  viewerBackground: "theme",
+  autoHideUI: false,
+  sortKey: "name",
+  sortDescending: false,
+  shuffle: false,
+  includeSubfolders: false
 }
 
 export const useSettingsStore = create<SettingsStore>((set) => ({
@@ -66,6 +82,23 @@ const getTauriStore = (): Promise<TauriStore> => {
 }
 
 export const getSettings = () => useSettingsStore.getState()
+
+const BACKGROUND_ORDER: SettingsState["viewerBackground"][] = [
+  "theme",
+  "black",
+  "white",
+  "checker"
+]
+
+/** B 키: 배경 모드 순환 (theme → black → white → checker) */
+export const cycleViewerBackground = () => {
+  const current = getSettings().viewerBackground
+  const next =
+    BACKGROUND_ORDER[
+      (BACKGROUND_ORDER.indexOf(current) + 1) % BACKGROUND_ORDER.length
+    ]
+  void updateSettings({ viewerBackground: next })
+}
 
 export const updateSettings = async (partial: Partial<SettingsState>) => {
   const next = {

@@ -35,6 +35,8 @@ jpeg-encoder = "0.7"
 libheif-rs = { version = "3", default-features = false, features = ["v1_17"] }
 winreg = "0.56.0"
 tauri-plugin-mcp-bridge = "0.13"
+trash = "3"
+image = "0.25"
 
 [package.metadata.vcpkg]
 git = "https://github.com/microsoft/vcpkg"

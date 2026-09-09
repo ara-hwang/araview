@@ -4,10 +4,12 @@ import { createRouter, RouterProvider } from "@tanstack/react-router"
 import { routeTree } from "./routeTree.gen"
 import { initSettingsFromStore } from "@/store/settingsStore"
 import { useRecentFilesStore } from "@/store/recentFilesStore"
+import { useFavoritesStore } from "@/store/favoritesStore"
 import "./App.css"
 
 void initSettingsFromStore()
 void useRecentFilesStore.getState().init()
+void useFavoritesStore.getState().init()
 
 const router = createRouter({ routeTree })
 

@@ -55,6 +55,24 @@ pub fn paint_strategy(mime: &str) -> PaintStrategy {
     }
 }
 
+/// 같은 폴더 내 새 파일명에 대한 공통 검증. trim된 이름을 반환
+pub fn validate_new_file_name(name: &str) -> Result<String, String> {
+    let trimmed = name.trim();
+    if trimmed.is_empty() {
+        return Err("File name is empty".to_string());
+    }
+    if trimmed.contains(['/', '\\']) {
+        return Err("File name cannot contain path separators".to_string());
+    }
+    if trimmed.contains(['<', '>', ':', '"', '|', '?', '*']) {
+        return Err("File name contains invalid characters".to_string());
+    }
+    if trimmed.ends_with([' ', '.']) {
+        return Err("File name cannot end with a space or dot".to_string());
+    }
+    Ok(trimmed.to_string())
+}
+
 pub fn image_info(source: &Path, paint_path: PathBuf) -> Result<ImageInfo, String> {
     let mime_type = get_mime_type(source)
         .ok_or_else(|| "Unsupported image format".to_string())?

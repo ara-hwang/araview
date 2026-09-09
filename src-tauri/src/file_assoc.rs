@@ -553,10 +553,7 @@ mod tests {
         assert_eq!(guid.data1, 0x6A28_3FE2);
         assert_eq!(guid.data2, 0xECFA);
         assert_eq!(guid.data3, 0x4599);
-        assert_eq!(
-            guid.data4,
-            [0x91, 0xC4, 0xE8, 0x09, 0x57, 0x13, 0x7B, 0x26]
-        );
+        assert_eq!(guid.data4, [0x91, 0xC4, 0xE8, 0x09, 0x57, 0x13, 0x7B, 0x26]);
     }
 
     #[test]
