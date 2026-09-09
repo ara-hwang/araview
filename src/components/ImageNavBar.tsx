@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight } from "lucide-react"
+import { CaretLeft, CaretRight } from "@phosphor-icons/react"
 import { useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { useSettingsStore } from "../store/settingsStore"
@@ -107,7 +107,7 @@ export function ImageNavBar({
             aria-label={t("viewer.nav.prev")}
             disabled={isPrevDisabled}
           >
-            <ChevronLeft />
+            <CaretLeft />
           </Button>
           <Button
             variant="outline"
@@ -117,7 +117,7 @@ export function ImageNavBar({
             aria-label={t("viewer.nav.next")}
             disabled={isNextDisabled}
           >
-            <ChevronRight />
+            <CaretRight />
           </Button>
         </ButtonGroup>
 

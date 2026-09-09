@@ -12,7 +12,7 @@ import { GeneralSettingsPanel } from "@/components/settings/GeneralSettingsPanel
 import { ExtensionSettingsPanel } from "@/components/settings/ExtensionSettingsPanel"
 import { resetSettings } from "@/store/settingsStore"
 import { cn } from "cn"
-import { FileTypeIcon, SettingsIcon } from "lucide-react"
+import { FileText, Gear } from "@phosphor-icons/react"
 import { useTranslation } from "react-i18next"
 
 type SettingsTab = "general" | "extensions"
@@ -29,13 +29,13 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
   const SIDEBAR_ITEMS: {
     id: SettingsTab
     label: string
-    icon: typeof SettingsIcon
+    icon: typeof Gear
   }[] = [
-    { id: "general", label: t("settings.tabs.general"), icon: SettingsIcon },
+    { id: "general", label: t("settings.tabs.general"), icon: Gear },
     {
       id: "extensions",
       label: t("settings.tabs.extensions"),
-      icon: FileTypeIcon
+      icon: FileText
     }
   ]
 

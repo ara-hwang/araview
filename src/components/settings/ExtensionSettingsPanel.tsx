@@ -14,7 +14,7 @@ import {
   hasBlockedAssociation,
   useFileAssociations
 } from "@/hooks/useFileAssociations"
-import { CircleAlertIcon } from "lucide-react"
+import { WarningCircle } from "@phosphor-icons/react"
 import { useTranslation } from "react-i18next"
 
 type ExtensionSettingsPanelProps = {
@@ -108,7 +108,7 @@ export function ExtensionSettingsPanel({
 
       {blocked ? (
         <Alert>
-          <CircleAlertIcon />
+          <WarningCircle className="size-6" />
           <AlertTitle>{t("settings.ext.blockedTitle")}</AlertTitle>
           <AlertDescription>{t("settings.ext.blockedDesc")}</AlertDescription>
         </Alert>

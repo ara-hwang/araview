@@ -1,4 +1,4 @@
-import { Star, X } from "lucide-react"
+import { Star, X } from "@phosphor-icons/react"
 import { cn } from "@/lib/utils"
 import { useTranslation } from "react-i18next"
 
@@ -64,6 +64,7 @@ export function HomeFileCard({
         aria-pressed={isFavorite}
       >
         <Star
+          weight={isFavorite ? "fill" : "regular"}
           className={cn(
             "size-3",
             isFavorite && "fill-yellow-400 text-yellow-400"
