@@ -374,6 +374,8 @@
 | `wheel` | 휠 맵 | 아래 기본표 |
 | `mouse` | 마우스 맵 | 아래 기본표 |
 
+설정 항목에 연결된 단축키가 있으면 항목 옆에 현재 할당된 단축키를 배지로 표시한다: 배경 `cycleBackground`, 창 `toggleAlwaysOnTop`, 정렬의 셔플 `toggleShuffle`. 재할당하거나 해제하면 배지도 즉시 따라간다.
+
 ## 15. 단축키/휠/마우스/명령 팔레트
 
 진실: `src/constants/shortcuts.ts`, `src/constants/commands.ts`, `src/hooks/useImageViewerHotkeys.ts`.

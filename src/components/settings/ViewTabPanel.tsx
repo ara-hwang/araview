@@ -4,6 +4,7 @@ import { Slider } from "@/components/ui/slider"
 import { Switch } from "@/components/ui/switch"
 import { Field, FieldGroup, FieldSeparator } from "@/components/ui/field"
 import { SettingsFieldSet } from "@/components/settings/SettingsFieldSet"
+import { ShortcutBadge } from "@/components/settings/ShortcutBadge"
 import {
   updateSettings,
   useSettingsStore,
@@ -79,6 +80,7 @@ export function ViewTabPanel() {
         icon={<Palette className="size-6" />}
         title={t("settings.bg.title")}
         description={t("settings.bg.desc")}
+        shortcutId="cycleBackground"
       >
         <RadioGroup
           value={settings.viewerBackground}
@@ -147,6 +149,7 @@ export function ViewTabPanel() {
           />
           <Label htmlFor="settings-always-on-top">
             {t("settings.window.alwaysOnTop")}
+            <ShortcutBadge actionId="toggleAlwaysOnTop" />
           </Label>
         </Field>
       </SettingsFieldSet>

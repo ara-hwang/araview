@@ -3,6 +3,7 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Field, FieldGroup } from "@/components/ui/field"
 import { SettingsFieldSet } from "@/components/settings/SettingsFieldSet"
+import { ShortcutBadge } from "@/components/settings/ShortcutBadge"
 import {
   useSettingsStore,
   type DirSortKey,
@@ -78,6 +79,7 @@ export function ListTabPanel() {
             <Label htmlFor="settings-sort-shuffle">
               <span className="flex items-center gap-1">
                 <Shuffle className="size-3.5" /> {t("settings.sort.shuffle")}
+                <ShortcutBadge actionId="toggleShuffle" />
               </span>
             </Label>
           </Field>
