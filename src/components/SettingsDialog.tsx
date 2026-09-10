@@ -17,6 +17,7 @@ import { ExtensionSettingsPanel } from "@/components/settings/ExtensionSettingsP
 import { resetSettings } from "@/store/settingsStore"
 import { cn } from "cn"
 import {
+  ArrowCounterClockwise,
   ArrowsDownUp,
   Eye,
   FileText,
@@ -82,8 +83,8 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="no-drag w-[720px] max-w-[calc(100%-2rem)] gap-0 overflow-hidden p-0 sm:max-w-[720px]">
-        <div className="flex h-[min(560px,80vh)] flex-col">
+      <DialogContent className="no-drag w-[840px] max-w-[calc(100%-2rem)] gap-0 overflow-hidden p-0 sm:max-w-[840px]">
+        <div className="flex h-[min(640px,86vh)] flex-col">
           <div className="border-b px-4 py-3 pr-12">
             <DialogTitle>{t("settings.title")}</DialogTitle>
             <DialogDescription className="sr-only">
@@ -118,9 +119,10 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
               <div className="p-2">
                 <Button
                   variant="ghost"
-                  className="hover:bg-destructive/10 hover:text-destructive dark:hover:bg-destructive/20 w-full"
+                  className="hover:bg-destructive/10 hover:text-destructive dark:hover:bg-destructive/20 w-full justify-start"
                   onClick={() => void resetSettings()}
                 >
+                  <ArrowCounterClockwise data-icon="inline-start" />
                   {t("settings.reset")}
                 </Button>
               </div>
