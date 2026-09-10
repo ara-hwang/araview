@@ -27,6 +27,7 @@ export type ShortcutActionId =
   | "toggleShuffle"
   | "saveEdits"
   | "toggleFavorite"
+  | "togglePalette"
 
 export type ShortcutMap = Record<ShortcutActionId, string>
 
@@ -87,7 +88,8 @@ export const SHORTCUT_ACTION_IDS: ShortcutActionId[] = [
   "copyPath",
   "toggleShuffle",
   "saveEdits",
-  "toggleFavorite"
+  "toggleFavorite",
+  "togglePalette"
 ]
 
 export const WHEEL_SLOTS: WheelSlot[] = [
@@ -136,7 +138,8 @@ export const DEFAULT_SHORTCUTS: ShortcutMap = {
   copyPath: "Ctrl+Shift+C",
   toggleShuffle: "S",
   saveEdits: "Ctrl+S",
-  toggleFavorite: "F"
+  toggleFavorite: "F",
+  togglePalette: "Ctrl+K"
 }
 
 export const DEFAULT_WHEEL: WheelMap = {

@@ -5,6 +5,7 @@ import Header from "@/components/Header"
 import { Separator } from "@/components/ui/separator"
 import { StatusBar } from "@/components/StatusBar"
 import { ExifPanel } from "@/components/ExifPanel"
+import { CommandPalette } from "@/components/CommandPalette"
 import { useAppStore } from "@/store/appStore"
 import { useSettingsStore } from "@/store/settingsStore"
 import { useIdleHide } from "@/hooks/useIdleHide"
@@ -46,6 +47,7 @@ function RootLayout() {
         </div>
       </div>
       <ExifPanel />
+      <CommandPalette />
       <Toaster position="bottom-right" richColors closeButton />
     </ThemeProvider>
   )

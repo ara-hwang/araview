@@ -6,6 +6,7 @@ import {
   ArrowsVertical,
   ArrowClockwise,
   ArrowCounterClockwise,
+  Command,
   Copy,
   FlipHorizontal,
   FlipVertical,
@@ -41,6 +42,7 @@ import { useCloseImage } from "@/hooks/useCloseImage"
 import { useExifLoader } from "@/hooks/useExifLoader"
 import { useAlwaysOnTop } from "@/hooks/useAlwaysOnTop"
 import { SettingsDialog } from "@/components/SettingsDialog"
+import { OPEN_SETTINGS_EVENT, usePaletteStore } from "@/hooks/useCommandPalette"
 import { useSettingsStore } from "@/store/settingsStore"
 import { formatShortcutDisplay } from "@/constants/shortcuts"
 import { useTranslation } from "react-i18next"
@@ -56,6 +58,15 @@ export default function Header() {
     binding ? `${label} (${formatShortcutDisplay(binding)})` : label
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [isMaximized, setIsMaximized] = useState(false)
+
+  // 명령 팔레트의 "설정 열기" 실행에 반응
+  useEffect(() => {
+    const openSettings = () => setSettingsOpen(true)
+    window.addEventListener(OPEN_SETTINGS_EVENT, openSettings)
+    return () => {
+      window.removeEventListener(OPEN_SETTINGS_EVENT, openSettings)
+    }
+  }, [])
 
   const { handleOpenFile } = useImageLoader()
   const handleGoHome = useCloseImage()
@@ -278,6 +289,18 @@ export default function Header() {
             >
               <Info />
               <span className="hidden md:inline">{t("header.info")}</span>
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => usePaletteStore.getState().setOpen(true)}
+              title={withShortcut(t("palette.open"), shortcuts.togglePalette)}
+              aria-label={withShortcut(
+                t("palette.open"),
+                shortcuts.togglePalette
+              )}
+            >
+              <Command />
+              <span className="hidden md:inline">{t("palette.open")}</span>
             </Button>
             <Button
               variant="outline"
