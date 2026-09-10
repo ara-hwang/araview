@@ -23,9 +23,13 @@ import { useCloseImage } from "@/hooks/useCloseImage"
 import { useImageViewerHotkeys } from "@/hooks/useImageViewerHotkeys"
 import { useOpenFileListener } from "@/hooks/useOpenFileListener"
 import { useViewerElements } from "@/hooks/useViewerElements"
+import {
+  registerPaletteHandlers,
+  unregisterPaletteHandlers
+} from "@/hooks/useCommandPalette"
 import { useWheelNavigation } from "@/hooks/useWheelNavigation"
 import { useZoomPan } from "@/hooks/useZoomPan"
-import { useCallback, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 
 export const Route = createFileRoute("/image")({
@@ -98,6 +102,37 @@ function ImagePage() {
   const renameInitialName =
     useAppStore((state) => state.imageInfo?.file_name) ?? ""
   const closeAndGoHome = useCloseImage()
+
+  // 명령 팔레트에서 뷰어 동작을 실행할 수 있도록 핸들러 등록
+  useEffect(() => {
+    registerPaletteHandlers({
+      onNavigatePrev: () => void navigateImage("prev"),
+      onNavigateNext: () => void navigateImage("next"),
+      onToggleExif: () => void toggleExifPanel(),
+      onToggleSlideshow: slideshow.toggle,
+      onCopyImage: () => void copyImage(),
+      onTrashFile: () => void trashCurrent(),
+      onRevealInExplorer: () => void revealCurrent(),
+      onOpenExternal: () => void openExternal(),
+      onRenameFile: () => setRenameOpen(true),
+      onCopyPath: () => void copyPathCurrent(),
+      onSaveEdits: () => setSaveOpen(true),
+      onToggleFavorite: () => void toggleFavoriteCurrent()
+    })
+    return () => {
+      unregisterPaletteHandlers()
+    }
+  }, [
+    navigateImage,
+    toggleExifPanel,
+    slideshow.toggle,
+    copyImage,
+    trashCurrent,
+    revealCurrent,
+    openExternal,
+    copyPathCurrent,
+    toggleFavoriteCurrent
+  ])
 
   /** Esc 닫기: 다이얼로그가 열려 있거나 입력 중일 때는 뷰어를 닫지 않는다 */
   const handleCloseImage = useCallback(() => {

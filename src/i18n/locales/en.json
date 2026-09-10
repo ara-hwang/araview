@@ -306,6 +306,23 @@
     "saveEdits": "Save with Edits",
     "toggleFavorite": "Toggle Favorite"
   },
+  "palette": {
+    "title": "Command Palette",
+    "desc": "Search for a command. Move with arrow keys and press Enter to run it.",
+    "search": "Search commands",
+    "open": "Command Palette",
+    "settings": "Open Settings",
+    "clear": "Clear",
+    "noResult": "No matching commands",
+    "noResultHint": "Try a different search term.",
+    "group": {
+      "file": "File",
+      "navigate": "Navigate",
+      "view": "View",
+      "display": "Display",
+      "system": "System"
+    }
+  },
   "error": {
     "notFound": {
       "title": "File not found",

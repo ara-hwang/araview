@@ -306,6 +306,23 @@
     "saveEdits": "편집 내용 저장",
     "toggleFavorite": "즐겨찾기 토글"
   },
+  "palette": {
+    "title": "명령 팔레트",
+    "desc": "실행할 명령을 검색하세요. 방향키로 이동하고 Enter로 실행합니다.",
+    "search": "명령 검색",
+    "open": "명령 팔레트",
+    "settings": "설정 열기",
+    "clear": "지우기",
+    "noResult": "일치하는 명령이 없습니다",
+    "noResultHint": "다른 검색어로 다시 시도하세요.",
+    "group": {
+      "file": "파일",
+      "navigate": "이동",
+      "view": "보기",
+      "display": "표시",
+      "system": "시스템"
+    }
+  },
   "error": {
     "notFound": {
       "title": "파일을 찾을 수 없습니다",
