@@ -2,13 +2,13 @@
 
 Tauri 2 + React 18 + TypeScript 기반의 Windows 데스크톱 이미지 뷰어입니다.
 
-- 일반 이미지 포맷과 만화 아카이브(`.cbz`, `.cb7`)를 지원합니다.
+- 일반 이미지 포맷과 만화 아카이브(`.cbz`, `.cb7`, `.cbr`, `.cbt`) 및 일반 아카이브(`.zip`, `.7z`, `.rar`)를 지원합니다.
 - 폴더 내 이미지 탐색, EXIF 표시, 슬라이드쇼, 멀티 페이지 보기 모드를 제공합니다.
 - 로컬 파일 경로 기반 렌더링(Asset Protocol)으로 동작합니다.
 
 ## 주요 기능
 
-- **지원 포맷**: `png`, `jpg`, `jpeg`, `gif`, `bmp`, `webp`, `svg`, `ico`, `tiff`, `tif`, `avif`, `heic`, `heif`, `cbz`, `cb7`
+- **지원 포맷**: `png`, `jpg`, `jpeg`, `gif`, `bmp`, `webp`, `svg`, `ico`, `tiff`, `tif`, `avif`, `heic`, `heif`, `cbz`, `cb7`, `cbr`, `rar`, `zip`, `7z`, `cbt`
 - **파일 열기 방식**: 파일 선택, 드래그 앤 드롭(파일/폴더), OS 파일 연동으로 앱 실행
 - **탐색**: 이전/다음 이동, 썸네일/슬라이더 이동, 루프 내비게이션
 - **보기**: 확대/축소, 화면 맞춤(가로/세로/전체), 회전, 좌우/상하 반전
@@ -80,7 +80,8 @@ cd src-tauri && cargo clippy
 
 ## 단축키
 
-- **파일/탐색**: `Ctrl+O`(열기), `Left`/`Right`(이전/다음), `S`(셔플 토글)
+- **파일/탐색**: `Ctrl+O`(열기), `Ctrl+Left`/`Ctrl+Right`(이전/다음), `S`(셔플 토글)
+- **이동**: `Left`/`Right`/`Up`/`Down`(팬, 항상 동작)
 - **줌**: `+`, `=`, `-`, `0`(초기화), `1`(가로 맞춤), `2`(세로 맞춤), `3`(화면 맞춤)
 - **이미지 조작**: `R`(시계 회전), `Shift+R`(반시계 회전), `H`(좌우 반전), `V`(상하 반전), `Ctrl+S`(편집 저장)
 - **기타**: `I`(EXIF), `Space` 또는 `F5`(슬라이드쇼), `F11`(전체화면), `Ctrl+C`(이미지 복사), `D`(테마 전환), `B`(배경 순환), `F`(즐겨찾기 토글)
@@ -138,7 +139,7 @@ src-tauri/
   src/image.rs       # MIME/확장자 판별, load_viewable
   src/heif.rs        # HEIC/HEIF 디코드 및 JPEG sidecar
   src/process_temp.rs # 프로세스 수명 임시 디렉터리
-  src/archive.rs     # CBZ 목록/추출 처리
+  src/archive.rs     # 아카이브 목록/추출 처리 (cbz/zip, cb7/7z, cbr/rar, cbt)
   src/lib.rs         # Tauri 앱 설정 및 command 등록
 ```
 

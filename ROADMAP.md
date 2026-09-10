@@ -7,7 +7,7 @@
 >
 > - ✅ 완료: 뷰 모드 렌더(`useMultiPageImages` + `ImageContainer`), 회전/뒤집기(`appStore` + CSS transform + `R/Shift+R/H/V`), 클립보드 복사 PNG(`useCopyImage`), 슬라이드쇼 코어(`useSlideshow` + `Space/F5` + 간격 설정), 최근 파일 목록(최대 20개, `settings.json`), Asset Protocol 경로 기반 렌더링(base64 제거).
 > - ✅ Phase 1 폴리시 완료: 설정 UI 노출(viewMode/간격/자동열기), 헤더 회전/뒤집기 + 컨텍스트 메뉴 풀셋, 양면 2장 넘김 + 회전 bounds, 슬라이드쇼 진행바 오버레이, 다중 DnD + 오버레이, 에러 분류 + 홈으로 복구, EXIF 아카이브修正·썸네일 alt·테마 데드코드 제거.
-> - ✅ 포맷/성능 라운드: 디렉토리 스캔 캐시+워처(`dir_cache.rs` + `notify`), 썸네일 파이프라인(`thumbnail.rs` + `generate_thumbnail` + `useThumbnailSrcs`, 500MB cap), 렌더링 성능(rAF 팬 스로틀·`translate3d`+`will-change`·Webtoon 지연 로드·모드별 프리페치), CB7 아카이브 지원(`sevenz-rust2`, 15개 확장자). CBR은 네이티브 unrar 의존성 문제로 보류. QOI/JXL/RAW/PSD는 JPEG sidecar 전제가 필요해 제외 유지.
+> - ✅ 포맷/성능 라운드: 디렉토리 스캔 캐시+워처(`dir_cache.rs` + `notify`), 썸네일 파이프라인(`thumbnail.rs` + `generate_thumbnail` + `useThumbnailSrcs`, 500MB cap), 렌더링 성능(rAF 팬 스로틀·`translate3d`+`will-change`·Webtoon 지연 로드·모드별 프리페치), CB7 아카이브 지원(`sevenz-rust2`, 15개 확장자). CBR/RAR/ZIP/7Z/CBT는 Step 4에서 추가 지원(20개 확장자, `unrar-rs` 퓨어 Rust). QOI/JXL/RAW/PSD는 JPEG sidecar 전제가 필요해 제외 유지.
 
 ---
 
@@ -328,7 +328,7 @@
 
 ### 4.4 추가 이미지 포맷 지원 (P2)
 
-**현재 상태 (포맷/성능 라운드)**: 15개 포맷 지원 (PNG, JPG, JPEG, GIF, BMP, WebP, SVG, ICO, TIFF, TIF, AVIF, HEIC, HEIF, CBZ, CB7). CB7은 `sevenz-rust2`(순수 Rust) 목록/추출 지원.
+**현재 상태**: 20개 포맷 지원 (PNG, JPG, JPEG, GIF, BMP, WebP, SVG, ICO, TIFF, TIF, AVIF, HEIC, HEIF, CBZ, CB7, CBR, RAR, ZIP, 7Z, CBT). CB7/7Z는 `sevenz-rust2`(순수 Rust), CBR/RAR는 `unrar-rs`(`crypto-rust` 퓨어 Rust 백엔드, 네이티브 의존성 없음), CBT는 `tar` 크레이트로 목록/추출 지원. ZIP은 `zip` 크레이트 별칭.
 
 **HEIC/HEIF**: 구현됨. `libheif-rs`가 vcpkg `libheif[core]`를 동적 링크하고, 로드 시 JPEG sidecar를 만듭니다. HEVC 디코드는 `libde265`만 쓰고 `x265`는 넣지 않습니다. WebView2는 HEIC를 그리지 못합니다.
 
@@ -337,7 +337,7 @@
 - **PSD**: Photoshop 파일 미리보기 — `psd` 크레이트. JPEG sidecar 전제가 필요해 제외 유지.
 - **JXL (JPEG XL)**: 차세대 이미지 포맷 — `jxl-oxide` 크레이트. JPEG sidecar 전제가 필요해 제외 유지.
 - **QOI**: 빠른 무손실 포맷. 백엔드 디코드(`image` 크레이트)는 가능하나 WebView2 네이티브 렌더 불가로 sidecar 전제가 필요해 제외 유지.
-- **CBR**: RAR 디코딩에 네이티브 unrar 라이브러리 동봉(라이선스·배포 부담)이 필요해 보류. CB7 우선 지원 완료.
+- **CBR/RAR**: 지원됨. `unrar-rs` 퓨어 Rust 디코더(`crypto-rust` 기능, 네이티브 의존성 없음)로 RAR4/RAR5 목록/추출. 테스트 픽스처는 dev-의존성 `rars` Builder로 생성.
 
 **관련 파일**:
 - `src-tauri/Cargo.toml` — 포맷별 크레이트 추가
