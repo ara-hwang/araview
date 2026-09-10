@@ -7,9 +7,11 @@ import type { DirectoryImages, ImageInfo } from "@/types"
 import { SUPPORTED_IMAGE_EXTENSIONS } from "@/constants/imageExtensions"
 import { useImageCache } from "@/hooks/useImageCache"
 import { useSettingsStore } from "@/store/settingsStore"
-import { useAppStore } from "@/store/appStore"
+import { updateDirImagesIndex, useAppStore } from "@/store/appStore"
 import { useRecentFilesStore } from "@/store/recentFilesStore"
+import { useArchiveProgressStore } from "@/store/archiveProgressStore"
 import { buildDirListOptions } from "@/utils/directoryOptions"
+import { MAX_SKIP_ATTEMPTS, findSkipTarget } from "@/utils/skipBroken"
 
 const ARCHIVE_EXTENSIONS = ["cbz", "cb7"]
 
@@ -21,6 +23,8 @@ function isArchiveFile(filePath: string): boolean {
 type LoadImageOptions = {
   refreshDirectory?: boolean
   onAfterLoad?: () => void
+  /** 자동 스킵 연쇄 깊이 (내부용, 무한 재귀 방지) */
+  skipDepth?: number
 }
 
 export function useImageLoader() {
@@ -34,7 +38,7 @@ export function useImageLoader() {
   const [isDragOver, setIsDragOver] = useState(false)
   const dragDepthRef = useRef(0)
 
-  /** 아카이브 파일을 열어 내부 첫 이미지를 표시 */
+  /** 아카이브 파일을 열어 내부 첫 이미지(또는 이어보기 위치)를 표시 */
   const loadArchive = useCallback(async (archivePath: string) => {
     useAppStore.setState({ loading: true, archivePath })
     try {
@@ -43,7 +47,14 @@ export function useImageLoader() {
         { filePath: archivePath }
       )
 
-      const firstEntry = archiveImages.images[0]
+      // 저장된 이어보기 엔트리가 목록에 있으면 거기서 시작
+      const saved = useArchiveProgressStore.getState().get(archivePath)
+      const startIndex =
+        saved !== null ? archiveImages.images.indexOf(saved) : 0
+      const firstEntry =
+        startIndex > 0
+          ? archiveImages.images[startIndex]
+          : archiveImages.images[0]
       const imgInfo = await invoke<ImageInfo>("load_archive_image", {
         archivePath,
         entryName: firstEntry
@@ -51,9 +62,13 @@ export function useImageLoader() {
 
       useAppStore.setState({
         imageInfo: imgInfo,
-        dirImages: archiveImages,
+        dirImages: {
+          images: archiveImages.images,
+          current_index: startIndex > 0 ? startIndex : 0
+        },
         error: null
       })
+      void useArchiveProgressStore.getState().save(archivePath, firstEntry)
 
       if (useSettingsStore.getState().recordRecentFiles) {
         void useRecentFilesStore.getState().add(archivePath)
@@ -73,7 +88,7 @@ export function useImageLoader() {
 
   /** 아카이브 내부 특정 인덱스의 이미지를 로드 */
   const loadArchiveImageByIndex = useCallback(
-    async (archivePath: string, entryName: string) => {
+    async (archivePath: string, entryName: string, skipDepth = 0) => {
       useAppStore.setState({ loading: true })
       try {
         const imgInfo = await invoke<ImageInfo>("load_archive_image", {
@@ -81,9 +96,32 @@ export function useImageLoader() {
           entryName
         })
         useAppStore.setState({ imageInfo: imgInfo, error: null })
+        useAppStore.getState().removeFailedPath(entryName)
+        void useArchiveProgressStore.getState().save(archivePath, entryName)
       } catch (e) {
         const message = String(e)
         useAppStore.setState({ error: message })
+        useAppStore.getState().addFailedPath(entryName)
+        const settings = useSettingsStore.getState()
+        if (settings.skipBrokenFiles && skipDepth < MAX_SKIP_ATTEMPTS) {
+          const st = useAppStore.getState()
+          const failedIndex = st.dirImages.images.indexOf(entryName)
+          const target = findSkipTarget(
+            st.dirImages.images,
+            failedIndex >= 0 ? failedIndex : st.dirImages.current_index,
+            new Set(st.failedPaths),
+            settings.loopNavigation
+          )
+          if (target !== null) {
+            const nextEntry = st.dirImages.images[target]
+            toast.info(i18n.t("toast.load.skipped"), {
+              description: entryName
+            })
+            await loadArchiveImageByIndex(archivePath, nextEntry, skipDepth + 1)
+            updateDirImagesIndex(target)
+            return
+          }
+        }
         toast.error(i18n.t("toast.load.imageFail"), { description: message })
       } finally {
         useAppStore.setState({ loading: false })
@@ -108,6 +146,7 @@ export function useImageLoader() {
       try {
         const imgInfo = await getOrLoadImage(filePath)
         useAppStore.setState({ imageInfo: imgInfo })
+        useAppStore.getState().removeFailedPath(filePath)
         if (useSettingsStore.getState().recordRecentFiles) {
           void useRecentFilesStore.getState().add(filePath)
         }
@@ -153,6 +192,35 @@ export function useImageLoader() {
         const message = String(e)
         useAppStore.setState({ error: message })
         useAppStore.setState({ imageInfo: null })
+        useAppStore.getState().addFailedPath(filePath)
+        const settings = useSettingsStore.getState()
+        const skipDepth = options?.skipDepth ?? 0
+        if (settings.skipBrokenFiles && skipDepth < MAX_SKIP_ATTEMPTS) {
+          const st = useAppStore.getState()
+          const failedIndex = st.dirImages.images.indexOf(filePath)
+          const target =
+            failedIndex >= 0
+              ? findSkipTarget(
+                  st.dirImages.images,
+                  failedIndex,
+                  new Set(st.failedPaths),
+                  settings.loopNavigation
+                )
+              : null
+          if (target !== null) {
+            const nextPath = st.dirImages.images[target]
+            toast.info(i18n.t("toast.load.skipped"), {
+              description: filePath
+            })
+            await loadImage(nextPath, {
+              refreshDirectory: false,
+              skipDepth: skipDepth + 1,
+              onAfterLoad: options?.onAfterLoad
+            })
+            updateDirImagesIndex(target)
+            return
+          }
+        }
         toast.error(i18n.t("toast.load.imageFail"), {
           description: message
         })

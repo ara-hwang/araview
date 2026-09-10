@@ -1,6 +1,13 @@
-import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react"
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type RefObject
+} from "react"
 import { convertFileSrc } from "@tauri-apps/api/core"
 import { useNavigate } from "@tanstack/react-router"
+import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import { Spinner } from "@/components/ui/spinner"
 import { Button } from "@/components/ui/button"
@@ -12,6 +19,8 @@ import {
 } from "@/store/appStore"
 import { useSettingsStore } from "@/store/settingsStore"
 import { classifyError } from "@/utils/appError"
+import { MAX_SKIP_ATTEMPTS, findSkipTarget } from "@/utils/skipBroken"
+import i18n from "@/i18n"
 import { useShallow } from "zustand/react/shallow"
 import { useTranslation } from "react-i18next"
 import type { ViewMode } from "@/store/settingsStore"
@@ -139,6 +148,33 @@ export function ImageContainer({
   const tx = t as unknown as (key: string) => string
   const classifiedTitle = classified ? tx(classified.titleKey) : null
   const classifiedHint = classified ? tx(classified.hintKey) : null
+  /** 디코드 실패 연쇄 스킵이 폴더 전체를 훑지 않도록 상한 */
+  const skipChainRef = useRef(0)
+
+  const handleImageError = () => {
+    const st = useAppStore.getState()
+    const { dirImages, imageInfo } = st
+    if (!imageInfo) return
+    const failedKey =
+      dirImages.images[dirImages.current_index] ?? imageInfo.file_path
+    st.addFailedPath(failedKey)
+    if (!useSettingsStore.getState().skipBrokenFiles) return
+    if (!onNavigateToIndex || dirImages.images.length <= 1) return
+    if (skipChainRef.current >= MAX_SKIP_ATTEMPTS) return
+    const settings = useSettingsStore.getState()
+    const target = findSkipTarget(
+      dirImages.images,
+      dirImages.current_index,
+      new Set(useAppStore.getState().failedPaths),
+      settings.loopNavigation
+    )
+    if (target === null) return
+    skipChainRef.current += 1
+    toast.info(i18n.t("toast.load.skipped"), {
+      description: imageInfo.file_name
+    })
+    void onNavigateToIndex(target)
+  }
 
   const handleGoHome = () => {
     closeImage()
@@ -202,8 +238,10 @@ export function ImageContainer({
             }}
             onLoad={(event) => {
               const img = event.currentTarget
+              skipChainRef.current = 0
               applyImageNaturalSize(img.naturalWidth, img.naturalHeight)
             }}
+            onError={handleImageError}
             draggable={false}
           />
         </div>

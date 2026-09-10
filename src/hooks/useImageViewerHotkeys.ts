@@ -15,6 +15,10 @@ import { eventToBinding, type ShortcutActionId } from "@/constants/shortcuts"
 type ImageViewerHotkeysParams = {
   onNavigatePrev: () => void
   onNavigateNext: () => void
+  onJumpPrev10: () => void
+  onJumpNext10: () => void
+  onJumpFirst: () => void
+  onJumpLast: () => void
   onOpenFile: () => void
   onCloseImage: () => void
   onToggleExif: () => void
@@ -76,7 +80,13 @@ export function useImageViewerHotkeys(props: ImageViewerHotkeysParams) {
 
       const p = propsRef.current
       const run = (fn: () => void) => {
-        if (binding === "Space" || binding.startsWith("F")) {
+        if (
+          binding === "Space" ||
+          binding.startsWith("F") ||
+          binding.startsWith("Page") ||
+          binding === "Home" ||
+          binding === "End"
+        ) {
           e.preventDefault()
         }
         fn()
@@ -88,6 +98,18 @@ export function useImageViewerHotkeys(props: ImageViewerHotkeysParams) {
           break
         case "navigateNext":
           run(p.onNavigateNext)
+          break
+        case "jumpPrev10":
+          run(p.onJumpPrev10)
+          break
+        case "jumpNext10":
+          run(p.onJumpNext10)
+          break
+        case "jumpFirst":
+          run(p.onJumpFirst)
+          break
+        case "jumpLast":
+          run(p.onJumpLast)
           break
         case "zoomIn":
           run(zoomIn)

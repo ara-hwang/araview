@@ -7,6 +7,8 @@ import { initSettingsFromStore } from "@/store/settingsStore"
 import { applyAlwaysOnTopFromSettings } from "@/hooks/useAlwaysOnTop"
 import { useRecentFilesStore } from "@/store/recentFilesStore"
 import { useFavoritesStore } from "@/store/favoritesStore"
+import { usePaletteMruStore } from "@/store/paletteMruStore"
+import { useArchiveProgressStore } from "@/store/archiveProgressStore"
 import "./App.css"
 
 async function bootstrap() {
@@ -15,7 +17,9 @@ async function bootstrap() {
   await applyAlwaysOnTopFromSettings()
   await Promise.all([
     useRecentFilesStore.getState().init(),
-    useFavoritesStore.getState().init()
+    useFavoritesStore.getState().init(),
+    usePaletteMruStore.getState().init(),
+    useArchiveProgressStore.getState().init()
   ])
 }
 

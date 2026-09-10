@@ -29,6 +29,8 @@ type AppState = {
   flipV: boolean
   /** 아카이브 모드: 현재 열린 아카이브 파일 경로 (null이면 일반 모드) */
   archivePath: string | null
+  /** 이번 세션에 로드 실패한 경로/엔트리 (썸네일 오류 배지용, 영속화하지 않음) */
+  failedPaths: string[]
 }
 
 type AppStoreActions = {
@@ -49,6 +51,9 @@ type AppStoreActions = {
   setDragStart: (nextDragStart: AppState["dragStart"]) => void
   setExifData: (nextExifData: AppState["exifData"]) => void
   setShowExifPanel: (nextShowExifPanel: AppState["showExifPanel"]) => void
+  addFailedPath: (filePath: string) => void
+  removeFailedPath: (filePath: string) => void
+  clearFailedPaths: () => void
 }
 
 const initialApp: AppState = {
@@ -73,7 +78,8 @@ const initialApp: AppState = {
   rotation: 0,
   flipH: false,
   flipV: false,
-  archivePath: null
+  archivePath: null,
+  failedPaths: []
 }
 
 export const useAppStore = create<AppState & AppStoreActions>((set) => ({
@@ -97,7 +103,16 @@ export const useAppStore = create<AppState & AppStoreActions>((set) => ({
   setDragStart: (nextDragStart) => set({ dragStart: nextDragStart }),
   setExifData: (nextExifData) => set({ exifData: nextExifData }),
   setShowExifPanel: (nextShowExifPanel) =>
-    set({ showExifPanel: nextShowExifPanel })
+    set({ showExifPanel: nextShowExifPanel }),
+  addFailedPath: (filePath) =>
+    set((s) =>
+      s.failedPaths.includes(filePath)
+        ? s
+        : { failedPaths: [...s.failedPaths, filePath] }
+    ),
+  removeFailedPath: (filePath) =>
+    set((s) => ({ failedPaths: s.failedPaths.filter((p) => p !== filePath) })),
+  clearFailedPaths: () => set({ failedPaths: [] })
 }))
 
 export const getApp = () => useAppStore.getState()

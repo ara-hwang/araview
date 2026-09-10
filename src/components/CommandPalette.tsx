@@ -24,14 +24,63 @@ import {
   type ResolvedPaletteCommand
 } from "@/hooks/useCommandPalette"
 
+function scrollActiveIntoView(el: HTMLButtonElement | null) {
+  el?.scrollIntoView({ block: "nearest" })
+}
+
+function CommandRow({
+  item,
+  index,
+  active,
+  onActiveIndexChange,
+  onRun
+}: {
+  item: ResolvedPaletteCommand
+  index: number
+  active: boolean
+  onActiveIndexChange: (index: number) => void
+  onRun: (item: ResolvedPaletteCommand) => void
+}) {
+  return (
+    <li>
+      <button
+        ref={(el) => {
+          if (active) scrollActiveIntoView(el)
+        }}
+        type="button"
+        role="option"
+        aria-selected={active}
+        disabled={!item.enabled}
+        onMouseEnter={() => onActiveIndexChange(index)}
+        onClick={() => onRun(item)}
+        className={cn(
+          "flex w-full items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-left text-sm",
+          "focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none",
+          active && item.enabled && "bg-accent text-accent-foreground",
+          !item.enabled && "opacity-50"
+        )}
+      >
+        <span className="min-w-0 flex-1 truncate">{item.label}</span>
+        {item.shortcutLabel && (
+          <kbd className="text-muted-foreground shrink-0 font-mono text-xs tabular-nums">
+            {item.shortcutLabel}
+          </kbd>
+        )}
+      </button>
+    </li>
+  )
+}
+
 function GroupedList({
   items,
+  baseIndex = 0,
   activeIndex,
   onActiveIndexChange,
   onRun,
   listboxId
 }: {
   items: ResolvedPaletteCommand[]
+  baseIndex?: number
   activeIndex: number
   onActiveIndexChange: (index: number) => void
   onRun: (item: ResolvedPaletteCommand) => void
@@ -39,11 +88,6 @@ function GroupedList({
 }) {
   const { t } = useTranslation()
   const tx = t as unknown as (key: string) => string
-  const activeRef = useRef<HTMLButtonElement | null>(null)
-
-  useEffect(() => {
-    activeRef.current?.scrollIntoView({ block: "nearest" })
-  }, [activeIndex])
 
   const groups = useMemo(() => {
     const map = new Map<string, ResolvedPaletteCommand[]>()
@@ -72,7 +116,7 @@ function GroupedList({
     )
   }
 
-  let offset = 0
+  let offset = baseIndex
   return (
     <div role="listbox" id={listboxId} aria-label={tx("palette.title")}>
       {groups.map(({ group, list }) => {
@@ -89,36 +133,15 @@ function GroupedList({
             <ul>
               {list.map((item, i) => {
                 const index = start + i
-                const active = index === activeIndex
                 return (
-                  <li key={item.def.id}>
-                    <button
-                      ref={active ? activeRef : undefined}
-                      type="button"
-                      role="option"
-                      aria-selected={active}
-                      disabled={!item.enabled}
-                      onMouseEnter={() => onActiveIndexChange(index)}
-                      onClick={() => onRun(item)}
-                      className={cn(
-                        "flex w-full items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-left text-sm",
-                        "focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none",
-                        active &&
-                          item.enabled &&
-                          "bg-accent text-accent-foreground",
-                        !item.enabled && "opacity-50"
-                      )}
-                    >
-                      <span className="min-w-0 flex-1 truncate">
-                        {item.label}
-                      </span>
-                      {item.shortcutLabel && (
-                        <kbd className="text-muted-foreground shrink-0 font-mono text-xs tabular-nums">
-                          {item.shortcutLabel}
-                        </kbd>
-                      )}
-                    </button>
-                  </li>
+                  <CommandRow
+                    key={item.def.id}
+                    item={item}
+                    index={index}
+                    active={index === activeIndex}
+                    onActiveIndexChange={onActiveIndexChange}
+                    onRun={onRun}
+                  />
                 )
               })}
             </ul>
@@ -134,9 +157,17 @@ export function CommandPalette() {
   const tx = t as unknown as (key: string) => string
   const open = usePaletteStore((s) => s.open)
   const query = usePaletteStore((s) => s.query)
-  const { filtered, activeIndex, run } = useCommandPaletteHost()
+  const { filtered, recentCount, activeIndex, run } = useCommandPaletteHost()
   const listboxId = useId()
   const inputRef = useRef<HTMLInputElement | null>(null)
+
+  const recent = filtered.slice(0, recentCount)
+  const rest = filtered.slice(recentCount)
+  const setActiveIndex = (i: number) =>
+    usePaletteStore.getState().setActiveIndex(i)
+  const handleRun = (item: ResolvedPaletteCommand) => {
+    if (item.enabled) run(item.def.id)
+  }
 
   useEffect(() => {
     if (open) {
@@ -208,8 +239,31 @@ export function CommandPalette() {
           )}
         </div>
         <ScrollArea className="max-h-[50vh] p-2">
+          {recent.length > 0 && (
+            <div>
+              <p
+                aria-hidden
+                className="text-muted-foreground px-2 pt-2 pb-1 text-xs font-medium"
+              >
+                {tx("palette.recent")}
+              </p>
+              <ul>
+                {recent.map((item, i) => (
+                  <CommandRow
+                    key={item.def.id}
+                    item={item}
+                    index={i}
+                    active={i === activeIndex}
+                    onActiveIndexChange={setActiveIndex}
+                    onRun={handleRun}
+                  />
+                ))}
+              </ul>
+            </div>
+          )}
           <GroupedList
-            items={filtered}
+            items={rest}
+            baseIndex={recentCount}
             activeIndex={activeIndex}
             onActiveIndexChange={(i) =>
               usePaletteStore.getState().setActiveIndex(i)

@@ -1,4 +1,4 @@
-import { CaretLeft, CaretRight } from "@phosphor-icons/react"
+import { CaretLeft, CaretRight, WarningCircle } from "@phosphor-icons/react"
 import { useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { useSettingsStore } from "../store/settingsStore"
@@ -28,7 +28,9 @@ export function ImageNavBar({
 }: ImageNavBarProps) {
   const { t } = useTranslation()
   const dirImages = useAppStore((state) => state.dirImages)
+  const failedPaths = useAppStore((state) => state.failedPaths)
   const loopNavigation = useSettingsStore((state) => state.loopNavigation)
+  const failedSet = useMemo(() => new Set(failedPaths), [failedPaths])
 
   // 맨 앞·맨 뒤 이미지 여부와 설정에 따른 이전/다음 비활성화 상태 계산
   const isFirst = dirImages.current_index === 0
@@ -68,19 +70,24 @@ export function ImageNavBar({
           {thumbnails.map(({ index, path }) => {
             const src = urls.get(path)
             const name = path.split(/[\\/]/).pop() ?? path
+            const failed = failedSet.has(path)
             return (
               <button
                 key={path}
                 type="button"
                 onClick={() => onNavigateToIndex(index)}
                 className={cn(
-                  "h-12 w-12 shrink-0 overflow-hidden rounded border-2 transition-all",
+                  "relative h-12 w-12 shrink-0 overflow-hidden rounded border-2 transition-all",
                   index === dirImages.current_index
                     ? "border-primary scale-110"
                     : "border-transparent opacity-60 hover:opacity-100"
                 )}
                 title={name}
-                aria-label={t("viewer.nav.thumb", { index: index + 1, name })}
+                aria-label={
+                  failed
+                    ? t("viewer.nav.thumbError", { index: index + 1, name })
+                    : t("viewer.nav.thumb", { index: index + 1, name })
+                }
               >
                 {src ? (
                   <img
@@ -91,6 +98,14 @@ export function ImageNavBar({
                     draggable={false}
                   />
                 ) : null}
+                {failed && (
+                  <span
+                    aria-hidden="true"
+                    className="bg-background absolute top-0.5 right-0.5 rounded-full"
+                  >
+                    <WarningCircle className="text-destructive size-4" />
+                  </span>
+                )}
               </button>
             )
           })}

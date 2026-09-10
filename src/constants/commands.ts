@@ -134,6 +134,38 @@ export const COMMAND_DEFS: readonly CommandDef[] = [
     shortcutId: "toggleShuffle",
     keywords: ["shuffle", "random"]
   },
+  {
+    id: "jumpPrev10",
+    group: "navigate",
+    labelKey: "menu.jumpPrev10",
+    shortcutId: "jumpPrev10",
+    requiresNavigation: true,
+    keywords: ["jump", "prev", "10", "pageup"]
+  },
+  {
+    id: "jumpNext10",
+    group: "navigate",
+    labelKey: "menu.jumpNext10",
+    shortcutId: "jumpNext10",
+    requiresNavigation: true,
+    keywords: ["jump", "next", "10", "pagedown"]
+  },
+  {
+    id: "jumpFirst",
+    group: "navigate",
+    labelKey: "menu.jumpFirst",
+    shortcutId: "jumpFirst",
+    requiresNavigation: true,
+    keywords: ["jump", "first", "home"]
+  },
+  {
+    id: "jumpLast",
+    group: "navigate",
+    labelKey: "menu.jumpLast",
+    shortcutId: "jumpLast",
+    requiresNavigation: true,
+    keywords: ["jump", "last", "end"]
+  },
   // 보기
   {
     id: "zoomIn",
