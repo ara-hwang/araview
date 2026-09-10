@@ -1,6 +1,8 @@
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 
+use crate::app_error::{AppError, ErrorCode};
+
 #[derive(Serialize, Debug)]
 pub struct ImageInfo {
     /// Bytes the WebView can decode. May be a JPEG sidecar, not the listing path.
@@ -22,7 +24,7 @@ const TRANSCODE_MIMES: &[&str] = &["image/heic", "image/heif"];
 
 pub const SUPPORTED_EXTENSIONS: &[&str] = &[
     "png", "jpg", "jpeg", "gif", "bmp", "webp", "svg", "ico", "tiff", "tif", "avif", "heic",
-    "heif", "cbz", "cb7",
+    "heif", "cbz", "cb7", "cbr", "rar", "zip", "7z", "cbt",
 ];
 
 #[derive(Serialize)]
@@ -45,7 +47,11 @@ pub fn get_mime_type(path: &Path) -> Option<&'static str> {
         "heic" => Some("image/heic"),
         "heif" => Some("image/heif"),
         "cbz" => Some("application/vnd.comicbook+zip"),
-        "cb7" => Some("application/x-7z-compressed"),
+        "zip" => Some("application/zip"),
+        "cb7" | "7z" => Some("application/x-7z-compressed"),
+        "cbr" => Some("application/vnd.comicbook-rar"),
+        "rar" => Some("application/x-rar-compressed"),
+        "cbt" => Some("application/x-tar"),
         _ => None,
     }
 }
@@ -59,29 +65,35 @@ pub fn paint_strategy(mime: &str) -> PaintStrategy {
 }
 
 /// 같은 폴더 내 새 파일명에 대한 공통 검증. trim된 이름을 반환
-pub fn validate_new_file_name(name: &str) -> Result<String, String> {
+pub fn validate_new_file_name(name: &str) -> Result<String, AppError> {
     let trimmed = name.trim();
     if trimmed.is_empty() {
-        return Err("File name is empty".to_string());
+        return Err(AppError::invalid_input("File name is empty"));
     }
     if trimmed.contains(['/', '\\']) {
-        return Err("File name cannot contain path separators".to_string());
+        return Err(AppError::invalid_input(
+            "File name cannot contain path separators",
+        ));
     }
     if trimmed.contains(['<', '>', ':', '"', '|', '?', '*']) {
-        return Err("File name contains invalid characters".to_string());
+        return Err(AppError::invalid_input(
+            "File name contains invalid characters",
+        ));
     }
     if trimmed.ends_with([' ', '.']) {
-        return Err("File name cannot end with a space or dot".to_string());
+        return Err(AppError::invalid_input(
+            "File name cannot end with a space or dot",
+        ));
     }
     Ok(trimmed.to_string())
 }
 
-pub fn image_info(source: &Path, paint_path: PathBuf) -> Result<ImageInfo, String> {
+pub fn image_info(source: &Path, paint_path: PathBuf) -> Result<ImageInfo, AppError> {
     let mime_type = get_mime_type(source)
-        .ok_or_else(|| "Unsupported image format".to_string())?
+        .ok_or_else(|| AppError::unsupported("Unsupported image format"))?
         .to_string();
-    let metadata =
-        std::fs::metadata(source).map_err(|e| format!("Failed to read metadata: {}", e))?;
+    let metadata = std::fs::metadata(source)
+        .map_err(|e| AppError::io("Failed to read metadata", e, ErrorCode::Corrupt))?;
     let file_name = source
         .file_name()
         .and_then(|n| n.to_str())
@@ -99,11 +111,12 @@ pub fn image_info(source: &Path, paint_path: PathBuf) -> Result<ImageInfo, Strin
     })
 }
 
-pub fn load_viewable(source: &Path) -> Result<ImageInfo, String> {
+pub fn load_viewable(source: &Path) -> Result<ImageInfo, AppError> {
     if !source.exists() {
-        return Err("File not found".to_string());
+        return Err(AppError::not_found("File not found"));
     }
-    let mime = get_mime_type(source).ok_or_else(|| "Unsupported image format".to_string())?;
+    let mime =
+        get_mime_type(source).ok_or_else(|| AppError::unsupported("Unsupported image format"))?;
     let paint_path = match paint_strategy(mime) {
         PaintStrategy::Native => source.to_path_buf(),
         PaintStrategy::TranscodeJpeg => crate::heif::ensure_jpeg_sidecar(source)?,
@@ -121,7 +134,14 @@ pub fn is_image_file(path: &Path) -> bool {
 pub fn is_archive_file(path: &Path) -> bool {
     matches!(
         get_mime_type(path),
-        Some("application/vnd.comicbook+zip" | "application/x-7z-compressed")
+        Some(
+            "application/vnd.comicbook+zip"
+                | "application/zip"
+                | "application/x-7z-compressed"
+                | "application/vnd.comicbook-rar"
+                | "application/x-rar-compressed"
+                | "application/x-tar"
+        )
     )
 }
 
@@ -231,10 +251,34 @@ mod tests {
     }
 
     #[test]
+    fn test_get_mime_type_new_archives() {
+        assert_eq!(
+            get_mime_type(Path::new("comic.cbr")),
+            Some("application/vnd.comicbook-rar")
+        );
+        assert_eq!(
+            get_mime_type(Path::new("archive.rar")),
+            Some("application/x-rar-compressed")
+        );
+        assert_eq!(
+            get_mime_type(Path::new("archive.zip")),
+            Some("application/zip")
+        );
+        assert_eq!(
+            get_mime_type(Path::new("archive.7z")),
+            Some("application/x-7z-compressed")
+        );
+        assert_eq!(
+            get_mime_type(Path::new("comic.cbt")),
+            Some("application/x-tar")
+        );
+    }
+
+    #[test]
     fn test_get_mime_type_unknown_extension() {
         assert_eq!(get_mime_type(Path::new("doc.pdf")), None);
         assert_eq!(get_mime_type(Path::new("file.txt")), None);
-        assert_eq!(get_mime_type(Path::new("archive.zip")), None);
+        assert_eq!(get_mime_type(Path::new("archive.tar.gz")), None);
     }
 
     #[test]
@@ -282,8 +326,12 @@ mod tests {
         assert!(is_archive_file(Path::new("comic.CBZ")));
         assert!(is_archive_file(Path::new("comic.cb7")));
         assert!(is_archive_file(Path::new("comic.CB7")));
+        assert!(is_archive_file(Path::new("comic.cbr")));
+        assert!(is_archive_file(Path::new("archive.rar")));
+        assert!(is_archive_file(Path::new("archive.zip")));
+        assert!(is_archive_file(Path::new("archive.7z")));
+        assert!(is_archive_file(Path::new("comic.cbt")));
         assert!(!is_archive_file(Path::new("photo.png")));
-        assert!(!is_archive_file(Path::new("archive.zip")));
     }
 
     #[test]
@@ -291,6 +339,8 @@ mod tests {
         assert!(is_supported_file(Path::new("photo.png")));
         assert!(is_supported_file(Path::new("comic.cbz")));
         assert!(is_supported_file(Path::new("comic.cb7")));
+        assert!(is_supported_file(Path::new("comic.cbr")));
+        assert!(is_supported_file(Path::new("comic.cbt")));
         assert!(!is_supported_file(Path::new("doc.pdf")));
     }
 
@@ -302,7 +352,7 @@ mod tests {
                 "missing MIME mapping for .{ext}"
             );
         }
-        assert_eq!(SUPPORTED_EXTENSIONS.len(), 15);
+        assert_eq!(SUPPORTED_EXTENSIONS.len(), 20);
     }
 
     #[test]
@@ -357,7 +407,8 @@ mod tests {
     #[test]
     fn load_viewable_missing_file() {
         let err = load_viewable(Path::new("missing-file.png")).unwrap_err();
-        assert_eq!(err, "File not found");
+        assert_eq!(err.code, crate::app_error::ErrorCode::NotFound);
+        assert_eq!(err.message, "File not found");
     }
 
     #[test]
@@ -366,7 +417,8 @@ mod tests {
         let source = dir.path().join("notes.txt");
         std::fs::write(&source, b"hello").unwrap();
         let err = load_viewable(&source).unwrap_err();
-        assert_eq!(err, "Unsupported image format");
+        assert_eq!(err.code, crate::app_error::ErrorCode::Unsupported);
+        assert_eq!(err.message, "Unsupported image format");
     }
 
     #[test]

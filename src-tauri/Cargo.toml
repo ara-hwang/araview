@@ -27,6 +27,7 @@ tauri-plugin-dialog = "2.7.3"
 tauri-plugin-fs = "2.5.2"
 tauri-plugin-store = "2.4.4"
 tauri-plugin-window-state = "2"
+tauri-plugin-single-instance = "2"
 kamadak-exif = "0.6"
 zip = "2"
 tempfile = "3"
@@ -39,6 +40,11 @@ trash = "3"
 image = "0.25"
 notify = "8"
 sevenz-rust2 = "0.22.2"
+unrar-rs = { version = "0.10", default-features = false, features = ["crypto-rust"] }
+tar = "0.4"
+
+[dev-dependencies]
+rars = "0.9"
 
 [package.metadata.vcpkg]
 git = "https://github.com/microsoft/vcpkg"
