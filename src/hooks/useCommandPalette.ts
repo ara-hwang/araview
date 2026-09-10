@@ -5,6 +5,10 @@ import { useTranslation } from "react-i18next"
 import {
   flipHorizontal,
   flipVertical,
+  panDown,
+  panLeft,
+  panRight,
+  panUp,
   resetZoomPan,
   rotateCCW,
   rotateCW,
@@ -18,6 +22,10 @@ import {
   getSettings,
   useSettingsStore
 } from "@/store/settingsStore"
+import {
+  WEBTOON_KEY_SCROLL_PX,
+  scrollWebtoonBy
+} from "@/hooks/useImageViewerHotkeys"
 import { eventToBinding, formatShortcutDisplay } from "@/constants/shortcuts"
 import {
   COMMAND_DEFS,
@@ -149,6 +157,24 @@ function runCommand(
       break
     case "zoomOut":
       zoomOut()
+      break
+    case "panLeft":
+      if (getSettings().viewMode === "webtoon") viewerHandlers?.onNavigatePrev()
+      else panLeft()
+      break
+    case "panRight":
+      if (getSettings().viewMode === "webtoon") viewerHandlers?.onNavigateNext()
+      else panRight()
+      break
+    case "panUp":
+      if (getSettings().viewMode === "webtoon")
+        scrollWebtoonBy(-WEBTOON_KEY_SCROLL_PX)
+      else panUp()
+      break
+    case "panDown":
+      if (getSettings().viewMode === "webtoon")
+        scrollWebtoonBy(WEBTOON_KEY_SCROLL_PX)
+      else panDown()
       break
     case "resetView":
       resetZoomPan()

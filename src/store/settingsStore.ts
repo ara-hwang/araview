@@ -15,6 +15,7 @@ import {
   sanitizeShortcutMap,
   sanitizeWheelMap
 } from "@/constants/shortcuts"
+import { errorMessage } from "@/utils/appError"
 
 export type { AppLanguage }
 
@@ -86,6 +87,95 @@ const initialSettings: SettingsState = {
 
 export const DEFAULT_SETTINGS: SettingsState = { ...initialSettings }
 
+const CACHE_MODES: readonly CacheMode[] = [
+  "off",
+  "nearby",
+  "extended",
+  "memory-1gb",
+  "memory-2gb"
+]
+const VIEW_MODES: readonly ViewMode[] = [
+  "single",
+  "left-to-right",
+  "right-to-left",
+  "webtoon"
+]
+const VIEWER_BACKGROUNDS: readonly ViewerBackground[] = [
+  "theme",
+  "black",
+  "white",
+  "checker"
+]
+const SORT_KEYS: readonly DirSortKey[] = ["name", "date", "size"]
+
+function sanitizeEnum<T extends string>(
+  value: unknown,
+  allowed: readonly T[],
+  fallback: T
+): T {
+  return typeof value === "string" &&
+    (allowed as readonly string[]).includes(value)
+    ? (value as T)
+    : fallback
+}
+
+function sanitizeBoolean(value: unknown): boolean {
+  return value === true
+}
+
+/** 저장된 설정이 손상됐어도 유효한 SettingsState로 복원한다. */
+export function sanitizeSettings(value: unknown): SettingsState {
+  const record =
+    typeof value === "object" && value !== null
+      ? (value as Record<string, unknown>)
+      : {}
+  const language =
+    normalizeLanguage(record.language) ?? initialSettings.language
+  const intervalRaw = record.slideshowIntervalMs
+  const slideshowIntervalMs =
+    typeof intervalRaw === "number" &&
+    Number.isFinite(intervalRaw) &&
+    intervalRaw >= 1000 &&
+    intervalRaw <= 30000
+      ? Math.round(intervalRaw)
+      : initialSettings.slideshowIntervalMs
+  return {
+    language,
+    loopNavigation: sanitizeBoolean(record.loopNavigation),
+    cacheMode: sanitizeEnum(
+      record.cacheMode,
+      CACHE_MODES,
+      initialSettings.cacheMode
+    ),
+    viewMode: sanitizeEnum(
+      record.viewMode,
+      VIEW_MODES,
+      initialSettings.viewMode
+    ),
+    slideshowIntervalMs,
+    autoOpenLastFile: sanitizeBoolean(record.autoOpenLastFile),
+    recordRecentFiles:
+      record.recordRecentFiles === undefined
+        ? initialSettings.recordRecentFiles
+        : sanitizeBoolean(record.recordRecentFiles),
+    viewerBackground: sanitizeEnum(
+      record.viewerBackground,
+      VIEWER_BACKGROUNDS,
+      initialSettings.viewerBackground
+    ),
+    autoHideUI: sanitizeBoolean(record.autoHideUI),
+    alwaysOnTop: sanitizeBoolean(record.alwaysOnTop),
+    sortKey: sanitizeEnum(record.sortKey, SORT_KEYS, initialSettings.sortKey),
+    sortDescending: sanitizeBoolean(record.sortDescending),
+    shuffle: sanitizeBoolean(record.shuffle),
+    includeSubfolders: sanitizeBoolean(record.includeSubfolders),
+    skipBrokenFiles: sanitizeBoolean(record.skipBrokenFiles),
+    shortcuts: sanitizeShortcutMap(record.shortcuts),
+    wheel: sanitizeWheelMap(record.wheel),
+    mouse: sanitizeMouseMap(record.mouse)
+  }
+}
+
 export const useSettingsStore = create<SettingsStore>((set) => ({
   ...initialSettings,
   setLoopNavigation: (nextLoopNavigation) =>
@@ -153,7 +243,9 @@ export const updateSettings = async (partial: Partial<SettingsState>) => {
     return true
   } catch (e) {
     // 설정 저장 실패는 UI 동작을 막지 않지만 사용자에게 알림
-    toast.error(i18n.t("toast.settings.saveFail"), { description: String(e) })
+    toast.error(i18n.t("toast.settings.saveFail"), {
+      description: errorMessage(e)
+    })
     return false
   }
 }
@@ -189,20 +281,9 @@ export const initSettingsFromStore = async () => {
       null
     const language = storedLanguage ?? systemLanguage
     if (stored) {
-      const storedRecord = stored as Partial<SettingsState> & {
-        shortcuts?: unknown
-        wheel?: unknown
-        mouse?: unknown
-        skipBrokenFiles?: unknown
-      }
       useSettingsStore.setState({
-        ...initialSettings,
-        ...stored,
-        language,
-        skipBrokenFiles: storedRecord.skipBrokenFiles === true,
-        shortcuts: sanitizeShortcutMap(storedRecord.shortcuts),
-        wheel: sanitizeWheelMap(storedRecord.wheel),
-        mouse: sanitizeMouseMap(storedRecord.mouse)
+        ...sanitizeSettings(stored),
+        language
       })
     } else {
       useSettingsStore.setState({

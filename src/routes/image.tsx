@@ -1,7 +1,15 @@
 import { createFileRoute, redirect } from "@tanstack/react-router"
 import { ImageContainer } from "@/components/ImageContainer"
-import { getApp, useAppStore, zoomIn, zoomOut } from "@/store/appStore"
+import type { WebtoonScrollTarget } from "@/components/WebtoonContinuousView"
+import {
+  getApp,
+  updateDirImagesIndex,
+  useAppStore,
+  zoomIn,
+  zoomOut
+} from "@/store/appStore"
 import { getSettings, useSettingsStore } from "@/store/settingsStore"
+import { useArchiveProgressStore } from "@/store/archiveProgressStore"
 import type { MouseAction } from "@/constants/shortcuts"
 import { useDirectoryNavigation } from "@/hooks/useDirectoryNavigation"
 import { useExifLoader } from "@/hooks/useExifLoader"
@@ -74,11 +82,106 @@ function ImagePage() {
   const { navigateImage, navigateToIndex, navigateByOffset } =
     useDirectoryNavigation(loadImageAndReset, loadArchiveImageByIndex)
 
+  const [webtoonScrollTarget, setWebtoonScrollTarget] =
+    useState<WebtoonScrollTarget>(null)
+
+  // Webtoon 연속 스크롤: 중앙 이미지 변경을 가벼운 인덱스 동기화로 처리.
+  // 전체 reload 없이 imageInfo만 맞춘다.
+  const handleWebtoonIndexChange = useCallback(
+    (index: number) => {
+      const st = useAppStore.getState()
+      if (st.dirImages.current_index === index) return
+      const path = st.dirImages.images[index]
+      if (!path) return
+      updateDirImagesIndex(index)
+      if (st.archivePath) {
+        void useArchiveProgressStore.getState().save(st.archivePath, path)
+      }
+      void getOrLoadImage(path)
+        .then((info) => {
+          const cur = useAppStore.getState()
+          if (cur.dirImages.images[cur.dirImages.current_index] === path) {
+            useAppStore.setState({ imageInfo: info, error: null })
+            cur.removeFailedPath(path)
+          }
+        })
+        .catch(() => {})
+      // 스크롤 방향 예열: 앞 5장 메타 확보
+      const imgs = st.dirImages.images
+      for (let k = 1; k <= 5; k += 1) {
+        const p = imgs[index + k]
+        if (p) void getOrLoadImage(p).catch(() => {})
+      }
+    },
+    [getOrLoadImage]
+  )
+
+  const scrollWebtoonTo = useCallback(
+    (index: number) => {
+      const st = useAppStore.getState()
+      const clamped = Math.max(
+        0,
+        Math.min(index, st.dirImages.images.length - 1)
+      )
+      setWebtoonScrollTarget({ index: clamped, nonce: Date.now() })
+      handleWebtoonIndexChange(clamped)
+    },
+    [handleWebtoonIndexChange]
+  )
+
+  const isWebtoon = viewMode === "webtoon"
+
+  const handleNavigateImage = useCallback(
+    (direction: "prev" | "next") => {
+      if (isWebtoon) {
+        const cur = useAppStore.getState().dirImages.current_index
+        scrollWebtoonTo(direction === "prev" ? cur - 1 : cur + 1)
+        return
+      }
+      void navigateImage(direction)
+    },
+    [isWebtoon, navigateImage, scrollWebtoonTo]
+  )
+
+  const handleNavigateToIndex = useCallback(
+    (index: number) => {
+      if (isWebtoon) {
+        scrollWebtoonTo(index)
+        return
+      }
+      void navigateToIndex(index)
+    },
+    [isWebtoon, navigateToIndex, scrollWebtoonTo]
+  )
+
+  const handleNavigateByOffset = useCallback(
+    (offset: number) => {
+      if (isWebtoon) {
+        const cur = useAppStore.getState().dirImages.current_index
+        scrollWebtoonTo(cur + offset)
+        return
+      }
+      void navigateByOffset(offset)
+    },
+    [isWebtoon, navigateByOffset, scrollWebtoonTo]
+  )
+
+  const handleRetry = useCallback(() => {
+    const st = useAppStore.getState()
+    const current = st.dirImages.images[st.dirImages.current_index]
+    if (!current) return
+    if (st.archivePath) {
+      void loadArchiveImageByIndex(st.archivePath, current)
+      return
+    }
+    void loadImageAndReset(current, { refreshDirectory: false })
+  }, [loadArchiveImageByIndex, loadImageAndReset])
+
   const handleWheel = useWheelNavigation(zoomPan, navigateImage)
 
   useOpenFileListener(loadImageAndReset)
 
-  const slideshow = useSlideshow(() => void navigateImage("next"))
+  const slideshow = useSlideshow(() => handleNavigateImage("next"))
   const fullscreen = useFullscreen()
   const { toggle: toggleAlwaysOnTop } = useAlwaysOnTop()
   const { copy: copyImage } = useCopyImage()
@@ -104,12 +207,12 @@ function ImagePage() {
   // 명령 팔레트에서 뷰어 동작을 실행할 수 있도록 핸들러 등록
   useEffect(() => {
     registerPaletteHandlers({
-      onNavigatePrev: () => void navigateImage("prev"),
-      onNavigateNext: () => void navigateImage("next"),
-      onJumpPrev10: () => void navigateByOffset(-10),
-      onJumpNext10: () => void navigateByOffset(10),
-      onJumpFirst: () => void navigateToIndex(0),
-      onJumpLast: () => void navigateToIndex(dirImages.images.length - 1),
+      onNavigatePrev: () => handleNavigateImage("prev"),
+      onNavigateNext: () => handleNavigateImage("next"),
+      onJumpPrev10: () => handleNavigateByOffset(-10),
+      onJumpNext10: () => handleNavigateByOffset(10),
+      onJumpFirst: () => handleNavigateToIndex(0),
+      onJumpLast: () => handleNavigateToIndex(dirImages.images.length - 1),
       onToggleExif: () => void toggleExifPanel(),
       onToggleSlideshow: slideshow.toggle,
       onCopyImage: () => void copyImage(),
@@ -125,9 +228,9 @@ function ImagePage() {
       unregisterPaletteHandlers()
     }
   }, [
-    navigateImage,
-    navigateByOffset,
-    navigateToIndex,
+    handleNavigateImage,
+    handleNavigateByOffset,
+    handleNavigateToIndex,
     dirImages.images.length,
     toggleExifPanel,
     slideshow.toggle,
@@ -173,8 +276,8 @@ function ImagePage() {
   const baseContextMenu = useImageViewerContextMenu(dirImages, {
     onOpenFile: handleOpenFile,
     onCloseImage: handleCloseImage,
-    onNavigatePrev: () => void navigateImage("prev"),
-    onNavigateNext: () => void navigateImage("next"),
+    onNavigatePrev: () => handleNavigateImage("prev"),
+    onNavigateNext: () => handleNavigateImage("next"),
     onToggleExif: () => void toggleExifPanel(),
     onToggleSlideshow: slideshow.toggle,
     onToggleFullscreen: () => void fullscreen.toggle(),
@@ -193,10 +296,10 @@ function ImagePage() {
     (action: MouseAction, e?: React.MouseEvent) => {
       switch (action) {
         case "prev":
-          void navigateImage("prev")
+          handleNavigateImage("prev")
           break
         case "next":
-          void navigateImage("next")
+          handleNavigateImage("next")
           break
         case "zoomIn":
           zoomIn()
@@ -216,7 +319,7 @@ function ImagePage() {
           break
       }
     },
-    [baseContextMenu, fullscreen, navigateImage]
+    [baseContextMenu, fullscreen, handleNavigateImage]
   )
 
   const handleDoubleClick = useCallback(
@@ -260,12 +363,12 @@ function ImagePage() {
   )
 
   useImageViewerHotkeys({
-    onNavigatePrev: () => void navigateImage("prev"),
-    onNavigateNext: () => void navigateImage("next"),
-    onJumpPrev10: () => void navigateByOffset(-10),
-    onJumpNext10: () => void navigateByOffset(10),
-    onJumpFirst: () => void navigateToIndex(0),
-    onJumpLast: () => void navigateToIndex(dirImages.images.length - 1),
+    onNavigatePrev: () => handleNavigateImage("prev"),
+    onNavigateNext: () => handleNavigateImage("next"),
+    onJumpPrev10: () => handleNavigateByOffset(-10),
+    onJumpNext10: () => handleNavigateByOffset(10),
+    onJumpFirst: () => handleNavigateToIndex(0),
+    onJumpLast: () => handleNavigateToIndex(dirImages.images.length - 1),
     onOpenFile: handleOpenFile,
     onCloseImage: handleCloseImage,
     onToggleExif: () => void toggleExifPanel(),
@@ -302,8 +405,8 @@ function ImagePage() {
         onMouseUp={zoomPan.handleMouseUp}
         onDoubleClick={handleDoubleClick}
         onMiddleClick={handleMiddleClick}
-        onNavigate={navigateImage}
-        onNavigateToIndex={navigateToIndex}
+        onNavigate={handleNavigateImage}
+        onNavigateToIndex={handleNavigateToIndex}
         getOrLoadImage={getOrLoadImage}
         viewMode={viewMode}
         pages={pages}
@@ -312,6 +415,9 @@ function ImagePage() {
         onToggleSlideshow={slideshow.toggle}
         onToggleFullscreen={() => void fullscreen.toggle()}
         chromeHidden={chromeHidden}
+        onRetry={handleRetry}
+        onWebtoonIndexChange={handleWebtoonIndexChange}
+        webtoonScrollTarget={webtoonScrollTarget}
       />
       {isDragOver && (
         <div className="border-primary bg-background/80 pointer-events-none absolute inset-0 z-30 flex items-center justify-center border-2 border-dashed">

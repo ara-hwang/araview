@@ -3,6 +3,7 @@ import { convertFileSrc } from "@tauri-apps/api/core"
 import { toast } from "sonner"
 import { useAppStore } from "@/store/appStore"
 import i18n from "@/i18n"
+import { errorMessage } from "@/utils/appError"
 
 // 현재 이미지를 PNG로 변환해 시스템 클립보드에 복사한다.
 // Asset Protocol을 통해 파일을 fetch → Blob → Canvas → PNG Blob → ClipboardItem.
@@ -46,7 +47,7 @@ export function useCopyImage() {
         duration: 1500
       })
     } catch (e) {
-      toast.error(i18n.t("toast.copy.fail"), { description: String(e) })
+      toast.error(i18n.t("toast.copy.fail"), { description: errorMessage(e) })
     }
   }, [])
 

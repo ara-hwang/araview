@@ -1,5 +1,10 @@
-import { CaretLeft, CaretRight, WarningCircle } from "@phosphor-icons/react"
-import { useMemo } from "react"
+import {
+  CaretLeft,
+  CaretRight,
+  WarningCircle,
+  ArrowClockwise
+} from "@phosphor-icons/react"
+import { useEffect, useMemo, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { useSettingsStore } from "../store/settingsStore"
 import { Slider } from "./ui/slider"
@@ -53,7 +58,18 @@ export function ImageNavBar({
   }, [dirImages.images, dirImages.current_index])
 
   const thumbPaths = useMemo(() => thumbnails.map((t) => t.path), [thumbnails])
-  const urls = useThumbnailSrcs(thumbPaths, getOrLoadImage)
+  const {
+    urls,
+    failed: thumbFailed,
+    retry
+  } = useThumbnailSrcs(thumbPaths, getOrLoadImage)
+  const stripRef = useRef<HTMLDivElement>(null)
+
+  // 선택된 썸네일이 윈도우 이동으로 벗어나지 않게 추적
+  useEffect(() => {
+    const el = stripRef.current?.querySelector('[data-current="true"]')
+    el?.scrollIntoView({ block: "nearest", inline: "nearest" })
+  }, [dirImages.current_index])
 
   return (
     // 하단 중앙에 고정된 내비게이션 바 (이전/다음 버튼 + 진행률 표시)
@@ -66,19 +82,28 @@ export function ImageNavBar({
     >
       {/* 썸네일 스트립 */}
       {thumbnails.length > 1 && (
-        <div className="flex items-center justify-center gap-1">
+        <div
+          ref={stripRef}
+          className="flex items-center justify-center gap-1 overflow-x-auto"
+        >
           {thumbnails.map(({ index, path }) => {
             const src = urls.get(path)
             const name = path.split(/[\\/]/).pop() ?? path
-            const failed = failedSet.has(path)
+            const failed = failedSet.has(path) || thumbFailed.has(path)
+            const isCurrent = index === dirImages.current_index
             return (
               <button
                 key={path}
                 type="button"
-                onClick={() => onNavigateToIndex(index)}
+                data-current={isCurrent ? "true" : undefined}
+                aria-current={isCurrent ? "true" : undefined}
+                onClick={() => {
+                  if (failed && !src) retry(path)
+                  onNavigateToIndex(index)
+                }}
                 className={cn(
-                  "relative h-12 w-12 shrink-0 overflow-hidden rounded border-2 transition-all",
-                  index === dirImages.current_index
+                  "relative h-12 w-12 shrink-0 overflow-hidden rounded border-2 transition-all focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] focus-visible:outline-none",
+                  isCurrent
                     ? "border-primary scale-110"
                     : "border-transparent opacity-60 hover:opacity-100"
                 )}
@@ -97,13 +122,40 @@ export function ImageNavBar({
                     className="h-full w-full object-cover"
                     draggable={false}
                   />
-                ) : null}
-                {failed && (
+                ) : failed ? (
+                  <span className="bg-muted/40 flex h-full w-full items-center justify-center">
+                    <WarningCircle
+                      aria-hidden="true"
+                      className="text-destructive size-5"
+                    />
+                    <span className="sr-only">
+                      {t("viewer.nav.thumbError", {
+                        index: index + 1,
+                        name
+                      })}
+                    </span>
+                  </span>
+                ) : (
+                  <span
+                    aria-hidden="true"
+                    className="bg-muted/40 h-full w-full animate-pulse"
+                  />
+                )}
+                {failed && src && (
                   <span
                     aria-hidden="true"
                     className="bg-background absolute top-0.5 right-0.5 rounded-full"
                   >
                     <WarningCircle className="text-destructive size-4" />
+                  </span>
+                )}
+                {failed && !src && (
+                  <span
+                    aria-hidden="true"
+                    title={t("viewer.nav.thumbRetry", { index: index + 1 })}
+                    className="bg-background/90 absolute right-0.5 bottom-0.5 rounded-full p-0.5"
+                  >
+                    <ArrowClockwise aria-hidden="true" className="size-3.5" />
                   </span>
                 )}
               </button>

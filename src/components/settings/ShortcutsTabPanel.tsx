@@ -34,6 +34,10 @@ import { toast } from "sonner"
 const ACTION_LABEL_KEY: Record<ShortcutActionId, string> = {
   navigatePrev: "menu.prev",
   navigateNext: "menu.next",
+  panLeft: "menu.panLeft",
+  panRight: "menu.panRight",
+  panUp: "menu.panUp",
+  panDown: "menu.panDown",
   zoomIn: "menu.zoomIn",
   zoomOut: "menu.zoomOut",
   resetView: "menu.actualSize",

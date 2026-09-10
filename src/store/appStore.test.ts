@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest"
-import { closeImage, useAppStore } from "@/store/appStore"
+import { closeImage, panBy, useAppStore } from "@/store/appStore"
 
 beforeEach(() => {
   closeImage()
@@ -44,5 +44,33 @@ describe("closeImage", () => {
     expect(state.exifData).toBeNull()
     expect(state.showExifPanel).toBe(false)
     expect(state.archivePath).toBeNull()
+  })
+})
+
+describe("panBy", () => {
+  it("이미지가 없으면 이동하지 않는다", () => {
+    panBy(48, 0)
+    expect(useAppStore.getState().position).toEqual({ x: 0, y: 0 })
+  })
+
+  it("경계 안에서는 상대 이동한다", () => {
+    useAppStore.setState({
+      imageInfo: {
+        file_path: "/pics/a.jpg",
+        file_name: "a.jpg",
+        file_size: 123,
+        mime_type: "image/jpeg",
+        width: 800,
+        height: 600
+      },
+      containerSize: { width: 400, height: 300 },
+      imageSize: { width: 800, height: 600 },
+      zoom: 1,
+      position: { x: 0, y: 0 }
+    })
+    panBy(48, 0)
+    expect(useAppStore.getState().position.x).toBe(48)
+    panBy(-48, 0)
+    expect(useAppStore.getState().position.x).toBe(0)
   })
 })

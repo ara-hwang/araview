@@ -15,7 +15,12 @@ export const SUPPORTED_IMAGE_EXTENSIONS = [
   "heic",
   "heif",
   "cbz",
-  "cb7"
+  "cb7",
+  "cbr",
+  "rar",
+  "zip",
+  "7z",
+  "cbt"
 ] as const
 
 export type SupportedImageExtension =

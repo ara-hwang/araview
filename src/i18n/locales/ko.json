@@ -236,20 +236,24 @@
     },
     "error": {
       "home": "홈으로 돌아가기",
-      "dismiss": "닫기"
+      "dismiss": "닫기",
+      "retry": "다시 시도"
     },
     "nav": {
       "prev": "이전 이미지",
       "next": "다음 이미지",
       "slider": "이미지 위치",
       "thumb": "이미지 {{index}}: {{name}}",
-      "thumbError": "읽기 실패한 이미지 {{index}}: {{name}}"
+      "thumbError": "읽기 실패한 이미지 {{index}}: {{name}}",
+      "thumbRetry": "{{index}}번 썸네일 다시 시도"
     }
   },
   "exif": {
     "title": "EXIF 정보",
     "desc": "이미지 메타데이터 및 카메라 설정",
     "empty": "이 이미지에는 EXIF 데이터가 없습니다.",
+    "loadFail": "EXIF를 불러오지 못했습니다.",
+    "retry": "다시 시도",
     "other": "기타"
   },
   "dialog": {
@@ -284,11 +288,20 @@
     "unknown": "알 수 없음",
     "barLabel": "이미지 상태 표시줄"
   },
+  "notFound": {
+    "title": "페이지를 찾을 수 없습니다",
+    "desc": "주소가 바뀌었거나 존재하지 않습니다. 홈으로 돌아가세요.",
+    "home": "홈으로 돌아가기"
+  },
   "menu": {
     "open": "파일 열기",
     "closeImage": "이미지 닫기",
     "prev": "이전 이미지",
     "next": "다음 이미지",
+    "panLeft": "왼쪽으로 이동",
+    "panRight": "오른쪽으로 이동",
+    "panUp": "위로 이동",
+    "panDown": "아래로 이동",
     "zoomIn": "확대",
     "zoomOut": "축소",
     "actualSize": "실제 크기",
@@ -347,7 +360,7 @@
     },
     "unsupported": {
       "title": "지원하지 않는 형식입니다",
-      "hint": "지원 포맷(png/jpg/webp/svg/avif/heic/cbz 등)인지 확인하거나 다른 뷰어로 열어보세요."
+      "hint": "지원 포맷(png/jpg/webp/svg/avif/heic/cbz/cbr 등)인지 확인하거나 다른 뷰어로 열어보세요."
     },
     "corrupt": {
       "title": "파일을 읽는 중 문제가 발생했습니다",
@@ -465,6 +478,11 @@
     "heic": "HEIC 이미지",
     "heif": "HEIF 이미지",
     "cbz": "만화 아카이브",
-    "cb7": "만화 아카이브"
+    "cb7": "만화 아카이브",
+    "cbr": "만화 아카이브",
+    "rar": "RAR 아카이브",
+    "zip": "ZIP 아카이브",
+    "7z": "7z 아카이브",
+    "cbt": "만화 아카이브"
   }
 }

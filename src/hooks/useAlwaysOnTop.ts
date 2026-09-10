@@ -2,6 +2,7 @@ import { useCallback, useEffect } from "react"
 import { getCurrentWindow } from "@tauri-apps/api/window"
 import { toast } from "sonner"
 import i18n from "@/i18n"
+import { errorMessage } from "@/utils/appError"
 import {
   getSettings,
   updateSettings,
@@ -25,7 +26,7 @@ export function useAlwaysOnTop() {
       await getCurrentWindow().setAlwaysOnTop(next)
     } catch (e) {
       toast.error(i18n.t("toast.alwaysOnTop.fail"), {
-        description: String(e)
+        description: errorMessage(e)
       })
       return
     }

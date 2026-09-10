@@ -12,8 +12,9 @@ import { useRecentFilesStore } from "@/store/recentFilesStore"
 import { useArchiveProgressStore } from "@/store/archiveProgressStore"
 import { buildDirListOptions } from "@/utils/directoryOptions"
 import { MAX_SKIP_ATTEMPTS, findSkipTarget } from "@/utils/skipBroken"
+import { errorMessage } from "@/utils/appError"
 
-const ARCHIVE_EXTENSIONS = ["cbz", "cb7"]
+const ARCHIVE_EXTENSIONS = ["cbz", "cb7", "cbr", "rar", "zip", "7z", "cbt"]
 
 function isArchiveFile(filePath: string): boolean {
   const ext = filePath.split(".").pop()?.toLowerCase() ?? ""
@@ -42,7 +43,7 @@ export function useImageLoader() {
   // 만화 Next 체감을 올린다. CB7 역압축 경합을 피하려고 거리를 최대 2로 묶는다.
   // current imageInfo/progress를 덮지 않는 fire-and-forget 경로만 쓴다.
   const prefetchArchiveNeighbors = useCallback(
-    (images: string[], currentIndex: number) => {
+    (archivePath: string, images: string[], currentIndex: number) => {
       const settings = useSettingsStore.getState()
       if (settings.cacheMode === "off") return
       const baseDistance = getPrefetchDistance()
@@ -54,6 +55,26 @@ export function useImageLoader() {
             ? 0
             : 1
       const distance = Math.min(Math.max(baseDistance + bonus, 1), 2)
+      // 디스크 선추출은 오픈 1회 배치로, 픽셀 예열은 기존 경로로.
+      const total = images.length
+      const targets: string[] = []
+      for (let k = 1; k <= distance; k += 1) {
+        for (const idx of [currentIndex + k, currentIndex - k]) {
+          let t = idx
+          if (t < 0 || t >= total) {
+            if (!settings.loopNavigation || total <= 1) continue
+            t = ((t % total) + total) % total
+          }
+          const name = images[t]
+          if (name) targets.push(name)
+        }
+      }
+      if (targets.length > 0) {
+        void invoke("archive_prefetch", {
+          archivePath,
+          entryNames: targets
+        }).catch(() => {})
+      }
       prefetchNearbyImages(
         images,
         currentIndex,
@@ -102,9 +123,13 @@ export function useImageLoader() {
           void useRecentFilesStore.getState().add(archivePath)
         }
 
-        prefetchArchiveNeighbors(archiveImages.images, resolvedStart)
+        prefetchArchiveNeighbors(
+          archivePath,
+          archiveImages.images,
+          resolvedStart
+        )
       } catch (e) {
-        const message = String(e)
+        const message = errorMessage(e)
         useAppStore.setState({
           error: message,
           imageInfo: null,
@@ -134,10 +159,14 @@ export function useImageLoader() {
         const st = useAppStore.getState()
         const currentIndex = st.dirImages.images.indexOf(entryName)
         if (currentIndex >= 0) {
-          prefetchArchiveNeighbors(st.dirImages.images, currentIndex)
+          prefetchArchiveNeighbors(
+            archivePath,
+            st.dirImages.images,
+            currentIndex
+          )
         }
       } catch (e) {
-        const message = String(e)
+        const message = errorMessage(e)
         useAppStore.setState({ error: message })
         useAppStore.getState().addFailedPath(entryName)
         const settings = useSettingsStore.getState()
@@ -227,7 +256,7 @@ export function useImageLoader() {
           )
         }
       } catch (e) {
-        const message = String(e)
+        const message = errorMessage(e)
         useAppStore.setState({ error: message })
         useAppStore.setState({ imageInfo: null })
         useAppStore.getState().addFailedPath(filePath)
