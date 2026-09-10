@@ -115,9 +115,10 @@
 ### 4.3 OS 파일 연결 실행
 
 - Windows가 CLI 인자(`args[1]`)로 파일 경로를 넘긴다.
-- 백엔드 `.setup()`은 500ms 대기 후 `open-file`을 emit한다.
-- 두 번째 실행은 `single-instance`가 기존 창에 `open-file`을 emit하고(300ms 후) 창에 포커스를 준다.
-- 프론트 `useOpenFileListener(loadImageAndReset)`가 받아 현재 뷰어 리셋과 함께 로드한다.
+- 백엔드는 경로를 `PendingOpenFile` 상태에 보관하고, 프론트 루트가 리스너 등록을 마친 뒤 호출하는 `frontend_ready`에서 emit한다. 고정 지연 emit은 프론트 로드 전에 유실될 수 있어 쓰지 않는다.
+- 두 번째 실행은 `single-instance`가 기존 창에 전달한다. 프론트가 준비 전이면 같은 상태에 보관됐다가 flush되고, 준비 후면 즉시 emit한다.
+- 프론트 루트(`__root.tsx`)의 `useOpenFileBridge`가 이벤트를 받아 현재 라우트가 등록한 로더로 전달한다. 라우트 전환 중이라 로더가 없으면 보류했다가 다음 등록 시 전달한다.
+- 홈은 `useOpenFileListener(loadImage)`, 이미지 뷰어는 `useOpenFileListener(loadImageAndReset)`로 받는다.
 
 ## 5. 디렉토리 목록과 탐색
 
@@ -447,6 +448,7 @@
 | `trash_file` | `file_path` | 없음 |
 | `rename_file` | `old_path`, `new_name` | `ImageInfo` |
 | `save_image_edits` | `file_path`, `options` | `ImageInfo` |
+| `frontend_ready` | 없음 | 없음 (`PendingOpenFile` flush) |
 
 파일 연결 주의: 설정에서 연결 변경은 해당 확장자의 Windows 기본 앱 선택 창을 연다. 조용한 UserChoice 레지스트리 쓰기는 할 수 없다.
 
@@ -501,9 +503,10 @@ Rust와 TypeScript는 같은 모양을 유지한다.
 
 - 백엔드는 디코드용 파일 경로를 돌려주고, 프론트는 `convertFileSrc(...)`로 변환해 `<img>`에 넣는다.
 - HEIC/HEIF만 JPEG sidecar를 만든다. sidecar는 프로세스 임시 디렉터리 아래에 있다.
-- 아카이브 추출물도 같은 임시 디렉터리 아래 `<아카이브stem>/`에 둔다.
+- 아카이브 추출물도 같은 임시 디렉터리 아래 `archive-<hash>/`에 둔다. hash는 아카이브 canonical 경로+mtime+크기라 동명 아카이브가 캐시를 공유하지 않는다.
 - 썸네일은 `process_temp/thumbs/` 아래 JPEG 캐시를 쓴다.
-- `assetProtocol.enable=true`, `scope=["**"]`이다.
+- `assetProtocol.enable=true`이고 정적 `scope`는 비어 있다. 프로세스 임시 디렉터리만 setup에서 재귀 허용하고, 사용자가 여는 파일/폴더는 `load_image`, `load_archive_image`, `rename_file`, `save_image_edits`가 런타임에 `asset_protocol_scope().allow_file/allow_directory`로 허용한다.
+- CSP는 `default-src 'self'` 기반이며 `img-src`에 `asset:`/`http://asset.localhost`, `connect-src`에 `ipc: http://ipc.localhost`와 `http://asset.localhost`를 허용한다. 프로덕션은 `withGlobalTauri=false`이고, MCP 검증용 dev 실행만 `src-tauri/tauri.dev.conf.json`으로 `withGlobalTauri=true`를 덮어쓴다.
 
 ## 20. 다국어
 

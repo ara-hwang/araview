@@ -1,16 +1,30 @@
 use std::collections::HashMap;
 use std::fs;
+use std::hash::{Hash, Hasher};
 use std::io::BufReader;
 use std::path::Path;
+use std::time::UNIX_EPOCH;
 
 use crate::app_error::{AppError, ErrorCode};
 use crate::archive;
 use crate::image::{is_archive_file, is_supported_file, DirectoryImages, ImageInfo};
 use crate::process_temp::process_temp_dir;
+use tauri::Manager;
+
+/// asset 프로토콜 scope 매칭은 canonicalize된 요청 경로 기준이므로
+/// 허용할 때도 canonicalize한 경로를 등록한다.
+pub(crate) fn allow_asset_path(app: &tauri::AppHandle, path: &Path) -> Result<(), AppError> {
+    let canonical = fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    app.asset_protocol_scope()
+        .allow_file(&canonical)
+        .map_err(|e| AppError::unknown(format!("Failed to allow asset path: {e}")))
+}
 
 #[tauri::command]
-pub fn load_image(file_path: String) -> Result<ImageInfo, AppError> {
-    crate::image::load_viewable(Path::new(&file_path))
+pub fn load_image(app: tauri::AppHandle, file_path: String) -> Result<ImageInfo, AppError> {
+    let info = crate::image::load_viewable(Path::new(&file_path))?;
+    allow_asset_path(&app, Path::new(&info.file_path))?;
+    Ok(info)
 }
 
 #[tauri::command]
@@ -152,7 +166,11 @@ pub fn get_archive_images(file_path: String) -> Result<DirectoryImages, AppError
 /// 아카이브에서 특정 엔트리를 추출하여 ImageInfo를 반환
 /// entry_name은 get_archive_images에서 반환된 엔트리 이름
 #[tauri::command]
-pub fn load_archive_image(archive_path: String, entry_name: String) -> Result<ImageInfo, AppError> {
+pub fn load_archive_image(
+    app: tauri::AppHandle,
+    archive_path: String,
+    entry_name: String,
+) -> Result<ImageInfo, AppError> {
     let arch_path = Path::new(&archive_path);
 
     if !arch_path.exists() {
@@ -163,16 +181,29 @@ pub fn load_archive_image(archive_path: String, entry_name: String) -> Result<Im
 
     let extracted_path = archive::extract_archive_image(arch_path, &entry_name, &sub_dir)?;
 
-    crate::image::load_viewable(&extracted_path)
+    let info = crate::image::load_viewable(&extracted_path)?;
+    allow_asset_path(&app, Path::new(&info.file_path))?;
+    Ok(info)
 }
 
 fn archive_sub_dir(archive_path: &Path) -> Result<std::path::PathBuf, AppError> {
     let temp_dir = process_temp_dir()?;
-    let archive_stem = archive_path
-        .file_stem()
-        .and_then(|n| n.to_str())
-        .unwrap_or("archive");
-    let sub_dir = temp_dir.join(archive_stem);
+    // 같은 stem을 가진 다른 아카이브가 임시 캐시를 공유하지 않도록
+    // canonical 경로 + mtime + 크기로 하위 디렉터리를 구분한다.
+    let canonical = fs::canonicalize(archive_path).unwrap_or_else(|_| archive_path.to_path_buf());
+    let meta = fs::metadata(archive_path)
+        .map_err(|e| AppError::io("Failed to read archive metadata", e, ErrorCode::Corrupt))?;
+    let mtime = meta
+        .modified()
+        .ok()
+        .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    canonical.hash(&mut hasher);
+    mtime.hash(&mut hasher);
+    meta.len().hash(&mut hasher);
+    let sub_dir = temp_dir.join(format!("archive-{:016x}", hasher.finish()));
     fs::create_dir_all(&sub_dir)
         .map_err(|e| AppError::io("Failed to create sub dir", e, ErrorCode::Unknown))?;
     Ok(sub_dir)
@@ -268,16 +299,26 @@ pub fn trash_file(file_path: String) -> Result<(), AppError> {
 
 /// 같은 폴더 안에서 파일 이름 변경. 새 ImageInfo를 반환해 이름/MIME/크기를 일괄 갱신
 #[tauri::command]
-pub fn rename_file(old_path: String, new_name: String) -> Result<ImageInfo, AppError> {
+pub fn rename_file(
+    app: tauri::AppHandle,
+    old_path: String,
+    new_name: String,
+) -> Result<ImageInfo, AppError> {
+    let info = rename_file_impl(&old_path, &new_name)?;
+    allow_asset_path(&app, Path::new(&info.file_path))?;
+    Ok(info)
+}
+
+fn rename_file_impl(old_path: &str, new_name: &str) -> Result<ImageInfo, AppError> {
     use crate::image::is_supported_file;
 
-    let old = Path::new(&old_path);
+    let old = Path::new(old_path);
 
     if !old.is_file() {
         return Err(AppError::not_found("File not found"));
     }
 
-    let name = crate::image::validate_new_file_name(&new_name)?;
+    let name = crate::image::validate_new_file_name(new_name)?;
 
     let parent = old
         .parent()
@@ -319,11 +360,7 @@ mod tests {
 
     #[test]
     fn rename_rejects_missing_file() {
-        let err = rename_file(
-            "D:\\no-such-dir\\nope.png".to_string(),
-            "new.png".to_string(),
-        )
-        .unwrap_err();
+        let err = rename_file_impl("D:\\no-such-dir\\nope.png", "new.png").unwrap_err();
         assert_eq!(err.code, ErrorCode::NotFound);
         assert_eq!(err.message, "File not found");
     }
@@ -336,7 +373,7 @@ mod tests {
         let old_str = old.to_str().unwrap().to_string();
 
         for bad in ["", "   ", "sub/dir.png", "a<b.png", "trail."] {
-            let err = rename_file(old_str.clone(), bad.to_string()).unwrap_err();
+            let err = rename_file_impl(&old_str, bad).unwrap_err();
             assert_eq!(
                 err.code,
                 ErrorCode::InvalidInput,
@@ -355,7 +392,7 @@ mod tests {
         let old = dir.join("a.png");
         fs::write(&old, []).expect("write dummy");
 
-        let err = rename_file(old.to_str().unwrap().to_string(), "b.txt".to_string()).unwrap_err();
+        let err = rename_file_impl(old.to_str().unwrap(), "b.txt").unwrap_err();
         assert_eq!(err.code, ErrorCode::Unsupported);
         assert_eq!(err.message, "Unsupported image format");
         // rename 전에 차단되므로 원본 유지
@@ -371,7 +408,7 @@ mod tests {
         fs::write(&old, []).expect("write dummy");
         fs::write(dir.join("b.png"), []).expect("write dummy");
 
-        let err = rename_file(old.to_str().unwrap().to_string(), "b.png".to_string()).unwrap_err();
+        let err = rename_file_impl(old.to_str().unwrap(), "b.png").unwrap_err();
         assert_eq!(err.code, ErrorCode::AlreadyExists);
         assert_eq!(err.message, "A file with that name already exists");
         fs::remove_dir_all(&dir).ok();
@@ -383,8 +420,7 @@ mod tests {
         let old = dir.join("a.png");
         fs::write(&old, [0u8; 16]).expect("write dummy");
 
-        let info =
-            rename_file(old.to_str().unwrap().to_string(), "b.png".to_string()).expect("rename ok");
+        let info = rename_file_impl(old.to_str().unwrap(), "b.png").expect("rename ok");
         assert_eq!(info.file_name, "b.png");
         assert_eq!(info.file_size, 16);
         // 더미 바이트는 디코드 불가라 치수 생략
