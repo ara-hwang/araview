@@ -159,6 +159,10 @@ fn sidecar_path(source: &Path) -> Result<PathBuf, AppError> {
     Ok(dir.join(name))
 }
 
+/// 디코드 허용 픽셀 상한 (약 150MP). 비정상적으로 큰 HEIF로 인한
+/// 메모리 고갈과 연산 폭주를 막는다.
+const MAX_DECODE_PIXELS: u64 = 150_000_000;
+
 pub(crate) fn decode_primary_rgb8(source: &Path) -> Result<Rgb8, AppError> {
     let path = source
         .to_str()
@@ -169,6 +173,9 @@ pub(crate) fn decode_primary_rgb8(source: &Path) -> Result<Rgb8, AppError> {
     let handle = ctx
         .primary_image_handle()
         .map_err(|e| AppError::corrupt(format!("Failed to decode image: {e}")))?;
+    if u64::from(handle.width()).saturating_mul(u64::from(handle.height())) > MAX_DECODE_PIXELS {
+        return Err(AppError::too_large("HEIF image dimensions are too large"));
+    }
     let image = lib_heif
         .decode(&handle, ColorSpace::Rgb(RgbChroma::Rgb), None)
         .map_err(|e| AppError::corrupt(format!("Failed to decode image: {e}")))?;
@@ -180,11 +187,22 @@ pub(crate) fn decode_primary_rgb8(source: &Path) -> Result<Rgb8, AppError> {
         .ok_or_else(|| AppError::corrupt("HEIF decode produced no interleaved RGB plane"))?;
     let stride = plane.stride;
     let row_bytes = width as usize * 3;
-    let mut bytes = Vec::with_capacity(row_bytes * height as usize);
+    let capacity = row_bytes
+        .checked_mul(height as usize)
+        .ok_or_else(|| AppError::corrupt("HEIF image dimensions overflow"))?;
+    let mut bytes = Vec::with_capacity(capacity);
     for y in 0..height as usize {
-        let start = y * stride;
-        let end = start + row_bytes;
-        bytes.extend_from_slice(&plane.data[start..end]);
+        let start = y
+            .checked_mul(stride)
+            .ok_or_else(|| AppError::corrupt("HEIF plane stride overflow"))?;
+        let end = start
+            .checked_add(row_bytes)
+            .ok_or_else(|| AppError::corrupt("HEIF plane stride overflow"))?;
+        let row = plane
+            .data
+            .get(start..end)
+            .ok_or_else(|| AppError::corrupt("HEIF plane data is shorter than expected"))?;
+        bytes.extend_from_slice(row);
     }
     Ok(Rgb8 {
         width,

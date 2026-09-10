@@ -46,7 +46,7 @@ if ((Test-Port 1420) -and (Test-Port 9223)) {
 }
 
 Write-Output "Starting 'npm run tauri dev' (log: $logFile) ..."
-Start-Process -FilePath "cmd.exe" -ArgumentList "/c", "npm run tauri dev > logs\tauri-dev.log 2>&1" -WorkingDirectory $root
+Start-Process -FilePath "cmd.exe" -ArgumentList "/c", "npm run tauri dev -- --config src-tauri/tauri.dev.conf.json > logs\tauri-dev.log 2>&1" -WorkingDirectory $root
 
 $deadline = (Get-Date).AddSeconds($TimeoutSec)
 while ((Get-Date) -lt $deadline) {

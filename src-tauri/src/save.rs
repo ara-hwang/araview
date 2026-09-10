@@ -74,18 +74,28 @@ fn source_ext(source: &Path) -> String {
 
 #[tauri::command]
 pub fn save_image_edits(
+    app: tauri::AppHandle,
     file_path: String,
     options: SaveImageOptions,
 ) -> Result<ImageInfo, AppError> {
-    let source = Path::new(&file_path);
+    let info = save_image_edits_impl(&file_path, &options)?;
+    crate::commands::allow_asset_path(&app, Path::new(&info.file_path))?;
+    Ok(info)
+}
+
+fn save_image_edits_impl(
+    file_path: &str,
+    options: &SaveImageOptions,
+) -> Result<ImageInfo, AppError> {
+    let source = Path::new(file_path);
     if !source.is_file() {
         return Err(AppError::not_found("File not found"));
     }
 
-    let (dest, out_format) = resolve_save_target(source, &options)?;
+    let (dest, out_format) = resolve_save_target(source, options)?;
     let decoded = decode_source(source)?;
     let rgb = flatten_to_rgb8(&decoded);
-    let transformed = apply_transform(&rgb, &options)?;
+    let transformed = apply_transform(&rgb, options)?;
     encode_image(&transformed, out_format, &dest)?;
 
     crate::image::load_viewable(&dest)
@@ -303,9 +313,9 @@ mod tests {
         let path = dir.join("a.png");
         write_rgb(&path, 2, 1, &[(255, 0, 0), (0, 0, 255)]);
 
-        let info = save_image_edits(
-            path.to_str().unwrap().to_string(),
-            SaveImageOptions {
+        let info = save_image_edits_impl(
+            path.to_str().unwrap(),
+            &SaveImageOptions {
                 flip_h: true,
                 overwrite: true,
                 ..Default::default()
@@ -324,9 +334,9 @@ mod tests {
         let path = dir.join("a.png");
         write_rgb(&path, 1, 1, &[(1, 2, 3)]);
 
-        let first = save_image_edits(
-            path.to_str().unwrap().to_string(),
-            SaveImageOptions {
+        let first = save_image_edits_impl(
+            path.to_str().unwrap(),
+            &SaveImageOptions {
                 format: Some("jpg".to_string()),
                 ..Default::default()
             },
@@ -334,9 +344,9 @@ mod tests {
         .expect("save ok");
         assert!(first.file_path.ends_with("a-edited.jpg"));
 
-        let second = save_image_edits(
-            path.to_str().unwrap().to_string(),
-            SaveImageOptions {
+        let second = save_image_edits_impl(
+            path.to_str().unwrap(),
+            &SaveImageOptions {
                 format: Some("jpg".to_string()),
                 ..Default::default()
             },
@@ -355,9 +365,9 @@ mod tests {
         fs::write(&path, "<svg></svg>").unwrap();
         let before = fs::read(&path).unwrap();
 
-        let err = save_image_edits(
-            path.to_str().unwrap().to_string(),
-            SaveImageOptions {
+        let err = save_image_edits_impl(
+            path.to_str().unwrap(),
+            &SaveImageOptions {
                 overwrite: true,
                 ..Default::default()
             },
@@ -374,9 +384,9 @@ mod tests {
         let path = dir.join("a.png");
         write_rgb(&path, 1, 1, &[(1, 2, 3)]);
 
-        let err = save_image_edits(
-            path.to_str().unwrap().to_string(),
-            SaveImageOptions {
+        let err = save_image_edits_impl(
+            path.to_str().unwrap(),
+            &SaveImageOptions {
                 format: Some("tiff".to_string()),
                 overwrite: true,
                 ..Default::default()

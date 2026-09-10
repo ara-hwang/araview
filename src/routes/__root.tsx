@@ -9,6 +9,7 @@ import { CommandPalette } from "@/components/CommandPalette"
 import { useAppStore } from "@/store/appStore"
 import { useSettingsStore } from "@/store/settingsStore"
 import { useIdleHide } from "@/hooks/useIdleHide"
+import { useOpenFileBridge } from "@/hooks/useOpenFileListener"
 import { cn } from "@/lib/utils"
 import { useTranslation } from "react-i18next"
 
@@ -38,6 +39,9 @@ function RootLayout() {
   const hasImage = useAppStore((state) => state.imageInfo !== null)
   const autoHideUI = useSettingsStore((state) => state.autoHideUI)
   const chromeHidden = useIdleHide(autoHideUI && hasImage)
+
+  // OS 파일 연결/두 번째 실행으로 열린 파일을 현재 라우트 로더로 전달한다.
+  useOpenFileBridge()
 
   return (
     <ThemeProvider>

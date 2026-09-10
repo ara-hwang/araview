@@ -12,6 +12,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window"
 import { useAppStore } from "@/store/appStore"
 import { useSettingsStore } from "@/store/settingsStore"
 import { useImageLoader } from "@/hooks/useImageLoader"
+import { useOpenFileListener } from "@/hooks/useOpenFileListener"
 import { usePaintSrcs } from "@/hooks/usePaintSrcs"
 import { useRecentFilesStore } from "@/store/recentFilesStore"
 import { useFavoritesStore } from "@/store/favoritesStore"
@@ -68,6 +69,9 @@ function HomePage() {
     handleDragLeave,
     isDragOver
   } = useImageLoader()
+
+  // 파일 연결/두 번째 실행으로 열린 파일은 홈에서도 받아 연다.
+  useOpenFileListener(loadImage)
 
   // 시작 옵션: 마지막 파일 자동 열기 (스토어 로드 후 1회)
   useEffect(() => {

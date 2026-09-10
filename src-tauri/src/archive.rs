@@ -74,6 +74,49 @@ fn check_entry_size(len: u64) -> Result<(), AppError> {
     Ok(())
 }
 
+/// `limit` 바이트를 넘기면 중단하는 bounded read (압축 폭탄 대비).
+/// 선언 크기와 실제 출력이 다를 수 있으므로 실제 읽기 경로에서 강제한다.
+fn read_bounded(reader: &mut dyn Read, limit: u64, context: &str) -> Result<Vec<u8>, AppError> {
+    let mut buf = Vec::new();
+    let mut limited = reader.take(limit.saturating_add(1));
+    limited
+        .read_to_end(&mut buf)
+        .map_err(|e| AppError::io(context, e, ErrorCode::Corrupt))?;
+    if buf.len() as u64 > limit {
+        return Err(AppError::too_large("Archive entry too large"));
+    }
+    Ok(buf)
+}
+
+/// RAR `copy_to`처럼 writer로 밀어 넣는 API용 상한 writer.
+struct LimitedVecWriter {
+    buf: Vec<u8>,
+    limit: u64,
+}
+
+impl LimitedVecWriter {
+    fn new(limit: u64) -> Self {
+        Self {
+            buf: Vec::new(),
+            limit,
+        }
+    }
+}
+
+impl std::io::Write for LimitedVecWriter {
+    fn write(&mut self, data: &[u8]) -> std::io::Result<usize> {
+        if self.buf.len() as u64 + data.len() as u64 > self.limit {
+            return Err(std::io::Error::other("archive entry too large"));
+        }
+        self.buf.extend_from_slice(data);
+        Ok(data.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
 fn list_zip_images(archive_path: &Path) -> Result<Vec<String>, AppError> {
     let file = open_archive_file(archive_path)?;
     let mut archive = zip::ZipArchive::new(file)
@@ -125,11 +168,7 @@ fn extract_zip_image(
 
     check_entry_size(entry.size())?;
 
-    let mut buf = Vec::new();
-    entry
-        .read_to_end(&mut buf)
-        .map_err(|e| AppError::corrupt(format!("Failed to read entry data: {e}")))?;
-    check_entry_size(buf.len() as u64)?;
+    let buf = read_bounded(&mut entry, MAX_ENTRY_BYTES, "Failed to read entry data")?;
 
     write_extracted(&out_path, &buf)?;
 
@@ -170,6 +209,20 @@ fn extract_7z_image(
     let mut reader =
         sevenz_rust2::ArchiveReader::open(archive_path, sevenz_rust2::Password::empty())
             .map_err(|e| AppError::corrupt(format!("Failed to read 7z: {e}")))?;
+
+    // 디코드 전에 선언 크기를 검사한다. solid 아카이브는 같은 블록의
+    // 엔트리가 함께 메모리에 올라가므로 블록 단위로 상한을 확인한다.
+    {
+        let archive = reader.archive();
+        if let Some(target_idx) = archive.files.iter().position(|f| f.name() == entry_name) {
+            let target_block = archive.stream_map.file_block_index[target_idx];
+            for (i, file) in archive.files.iter().enumerate() {
+                if archive.stream_map.file_block_index[i] == target_block {
+                    check_entry_size(file.size())?;
+                }
+            }
+        }
+    }
 
     let buf = reader
         .read_file(entry_name)
@@ -231,10 +284,11 @@ fn extract_rar_image(
     if let Some(size) = entry.size() {
         check_entry_size(size)?;
     }
-    let mut buf = Vec::new();
+    let mut writer = LimitedVecWriter::new(MAX_ENTRY_BYTES);
     entry
-        .copy_to(&mut buf)
+        .copy_to(&mut writer)
         .map_err(|e| AppError::corrupt(format!("Failed to read entry data: {e}")))?;
+    let buf = writer.buf;
     check_entry_size(buf.len() as u64)?;
 
     write_extracted(&out_path, &buf)?;
@@ -297,11 +351,7 @@ fn extract_tar_image(
             continue;
         }
         check_entry_size(entry.header().size().unwrap_or(0))?;
-        let mut buf = Vec::new();
-        entry
-            .read_to_end(&mut buf)
-            .map_err(|e| AppError::corrupt(format!("Failed to read entry data: {e}")))?;
-        check_entry_size(buf.len() as u64)?;
+        let buf = read_bounded(&mut entry, MAX_ENTRY_BYTES, "Failed to read entry data")?;
         write_extracted(&out_path, &buf)?;
         return Ok(out_path);
     }
@@ -377,13 +427,10 @@ fn prefetch_zip_images(archive_path: &Path, entry_names: &[&String], temp_dir: &
         if entry.size() > MAX_ENTRY_BYTES {
             continue;
         }
-        let mut buf = Vec::new();
-        if entry.read_to_end(&mut buf).is_err() {
-            continue;
-        }
-        if buf.len() as u64 > MAX_ENTRY_BYTES {
-            continue;
-        }
+        let buf = match read_bounded(&mut entry, MAX_ENTRY_BYTES, "Failed to read entry data") {
+            Ok(buf) => buf,
+            Err(_) => continue,
+        };
         if fs::write(&out_path, &buf).is_ok() {
             done += 1;
         }
@@ -394,6 +441,16 @@ fn prefetch_zip_images(archive_path: &Path, entry_names: &[&String], temp_dir: &
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn read_bounded_enforces_limit() {
+        let mut ok: &[u8] = &[0u8; 8];
+        assert_eq!(read_bounded(&mut ok, 8, "test").unwrap().len(), 8);
+
+        let mut over: &[u8] = &[0u8; 9];
+        let err = read_bounded(&mut over, 8, "test").unwrap_err();
+        assert_eq!(err.code, crate::app_error::ErrorCode::TooLarge);
+    }
 
     #[test]
     fn test_unsupported_archive_ext() {

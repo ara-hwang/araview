@@ -191,7 +191,9 @@ fn collect_images(dir: &Path, recursive: bool, out: &mut Vec<ImageEntry>) -> Res
                 entry.map_err(|e| AppError::corrupt(format!("Failed to read entry: {e}")))?;
             let entry_path = entry.path();
             if entry_path.is_dir() {
-                if recursive {
+                // junction/symlink 같은 reparse point는 따라가지 않는다.
+                // 순환 링크로 인한 무한 순회와 범위 밖 스캔을 막는다.
+                if recursive && !is_reparse_point(&entry) {
                     stack.push(entry_path);
                 }
                 continue;
@@ -214,6 +216,24 @@ fn collect_images(dir: &Path, recursive: bool, out: &mut Vec<ImageEntry>) -> Res
         }
     }
     Ok(())
+}
+
+/// 디렉터리 엔트리가 reparse point(junction/symlink)인지 판별한다.
+fn is_reparse_point(entry: &fs::DirEntry) -> bool {
+    if entry.file_type().map(|t| t.is_symlink()).unwrap_or(false) {
+        return true;
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::MetadataExt;
+        const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x400;
+        entry
+            .metadata()
+            .map(|m| m.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0)
+            .unwrap_or(false)
+    }
+    #[cfg(not(windows))]
+    false
 }
 
 fn sort_images(images: &mut [ImageEntry], opts: &DirListOptions, dir: &Path) {
