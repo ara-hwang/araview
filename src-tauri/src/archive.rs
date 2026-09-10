@@ -1,8 +1,22 @@
 use std::fs;
+use std::hash::{Hash, Hasher};
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
 use crate::image::is_image_file;
+
+/// 엔트리 전체 경로를 해시한 prefix로 임시 추출 경로를 고유화한다.
+/// 하위 폴더가 다른 동명 엔트리(a/001.jpg, b/001.jpg)가 같은 basename으로
+/// 겹쳐 서로를 덮어쓰는 문제를 막는다. 이웃 선추출이 병렬로 돌 때 필수.
+fn extraction_out_path(temp_dir: &Path, entry_name: &str) -> PathBuf {
+    let file_name = Path::new(entry_name)
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("image");
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    entry_name.hash(&mut hasher);
+    temp_dir.join(format!("{:016x}_{}", hasher.finish(), file_name))
+}
 
 /// 아카이브 내부의 이미지 엔트리 이름을 정렬된 순서로 반환
 pub fn list_archive_images(archive_path: &Path) -> Result<Vec<String>, String> {
@@ -71,7 +85,8 @@ fn extract_zip_image(
     archive_path: &Path,
     entry_name: &str,
     temp_dir: &Path,
-) -> Result<PathBuf, String> {    let file =
+) -> Result<PathBuf, String> {
+    let file =
         fs::File::open(archive_path).map_err(|e| format!("Failed to open archive: {}", e))?;
     let mut archive =
         zip::ZipArchive::new(file).map_err(|e| format!("Failed to read ZIP: {}", e))?;
@@ -80,13 +95,7 @@ fn extract_zip_image(
         .by_name(entry_name)
         .map_err(|e| format!("Entry not found: {}", e))?;
 
-    // 엔트리 이름에서 파일명만 추출 (하위 디렉토리 구조 무시)
-    let file_name = Path::new(entry_name)
-        .file_name()
-        .and_then(|n| n.to_str())
-        .unwrap_or("image");
-
-    let out_path = temp_dir.join(file_name);
+    let out_path = extraction_out_path(temp_dir, entry_name);
 
     let mut buf = Vec::new();
     entry
@@ -134,12 +143,7 @@ fn extract_7z_image(
         .read_file(entry_name)
         .map_err(|e| format!("Entry not found: {e}"))?;
 
-    let file_name = Path::new(entry_name)
-        .file_name()
-        .and_then(|n| n.to_str())
-        .unwrap_or("image");
-
-    let out_path = temp_dir.join(file_name);
+    let out_path = extraction_out_path(temp_dir, entry_name);
     fs::write(&out_path, &buf).map_err(|e| format!("Failed to write temp file: {e}"))?;
 
     Ok(out_path)
@@ -199,11 +203,63 @@ mod tests {
         fs::create_dir_all(&out_dir).unwrap();
         let extracted =
             extract_archive_image(&archive_path, "sub/sub-002.jpg", &out_dir).expect("extract");
-        assert_eq!(extracted.file_name().unwrap(), "sub-002.jpg");
+        let file_name = extracted
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap();
+        // 고유 prefix + 원본 basename 유지
+        assert!(file_name.ends_with("_sub-002.jpg"), "got {file_name}");
         assert_eq!(fs::read(&extracted).unwrap(), b"fake-jpg-bytes");
 
         let missing = extract_archive_image(&archive_path, "nope.png", &out_dir);
         assert!(missing.is_err());
+    }
+
+    #[test]
+    fn test_same_basename_in_different_dirs_does_not_collide() {
+        let dir = tempfile::tempdir().unwrap();
+        let a = dir.path().join("a.png");
+        let b = dir.path().join("b.png");
+        fs::write(&a, b"first-bytes").unwrap();
+        fs::write(&b, b"second-bytes").unwrap();
+
+        let archive_path = dir.path().join("comic.cb7");
+        let mut writer =
+            sevenz_rust2::ArchiveWriter::create(&archive_path).expect("create cb7");
+        writer.set_encrypt_header(false);
+        for (src, name) in [(&a, "ch1/001.png"), (&b, "ch2/001.png")] {
+            let file = fs::File::open(src).expect("open fixture");
+            let entry = sevenz_rust2::ArchiveEntry::from_path(src, name.to_string());
+            writer
+                .push_archive_entry(entry, Some(file))
+                .expect("push entry");
+        }
+        writer.finish().expect("finish cb7");
+
+        let out_dir = dir.path().join("out");
+        fs::create_dir_all(&out_dir).unwrap();
+        let first =
+            extract_archive_image(&archive_path, "ch1/001.png", &out_dir).expect("extract 1");
+        let second =
+            extract_archive_image(&archive_path, "ch2/001.png", &out_dir).expect("extract 2");
+        assert_ne!(first, second);
+        assert_eq!(fs::read(&first).unwrap(), b"first-bytes");
+        assert_eq!(fs::read(&second).unwrap(), b"second-bytes");
+    }
+
+    #[test]
+    fn extraction_out_path_is_unique_per_entry() {
+        let dir = tempfile::tempdir().unwrap();
+        let a = extraction_out_path(dir.path(), "ch1/001.png");
+        let b = extraction_out_path(dir.path(), "ch2/001.png");
+        let same = extraction_out_path(dir.path(), "ch1/001.png");
+        assert_ne!(a, b);
+        assert_eq!(a, same);
+        assert!(a
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap()
+            .ends_with("_001.png"));
     }
 
     #[test]
