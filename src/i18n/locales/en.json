@@ -145,7 +145,7 @@
     },
     "sort": {
       "title": "Sort",
-      "desc": "Image order in folder (press S to toggle shuffle)",
+      "desc": "Image order in folder",
       "name": "Name",
       "date": "Date modified",
       "size": "File size",
@@ -161,7 +161,7 @@
     },
     "bg": {
       "title": "Background",
-      "desc": "Image area background (press B to cycle)",
+      "desc": "Image area background",
       "theme": "Theme default",
       "black": "Black",
       "white": "White",
