@@ -60,7 +60,11 @@ const ACTION_LABEL_KEY: Record<ShortcutActionId, string> = {
   toggleShuffle: "menu.toggleShuffle",
   saveEdits: "menu.saveEdits",
   toggleFavorite: "menu.toggleFavorite",
-  togglePalette: "palette.open"
+  togglePalette: "palette.open",
+  jumpPrev10: "menu.jumpPrev10",
+  jumpNext10: "menu.jumpNext10",
+  jumpFirst: "menu.jumpFirst",
+  jumpLast: "menu.jumpLast"
 }
 
 type ConflictState = {

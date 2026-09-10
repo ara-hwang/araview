@@ -71,10 +71,8 @@ function ImagePage() {
     [loadImage, zoomPan.resetView]
   )
 
-  const { navigateImage, navigateToIndex } = useDirectoryNavigation(
-    loadImageAndReset,
-    loadArchiveImageByIndex
-  )
+  const { navigateImage, navigateToIndex, navigateByOffset } =
+    useDirectoryNavigation(loadImageAndReset, loadArchiveImageByIndex)
 
   const handleWheel = useWheelNavigation(zoomPan, navigateImage)
 
@@ -108,6 +106,10 @@ function ImagePage() {
     registerPaletteHandlers({
       onNavigatePrev: () => void navigateImage("prev"),
       onNavigateNext: () => void navigateImage("next"),
+      onJumpPrev10: () => void navigateByOffset(-10),
+      onJumpNext10: () => void navigateByOffset(10),
+      onJumpFirst: () => void navigateToIndex(0),
+      onJumpLast: () => void navigateToIndex(dirImages.images.length - 1),
       onToggleExif: () => void toggleExifPanel(),
       onToggleSlideshow: slideshow.toggle,
       onCopyImage: () => void copyImage(),
@@ -124,6 +126,9 @@ function ImagePage() {
     }
   }, [
     navigateImage,
+    navigateByOffset,
+    navigateToIndex,
+    dirImages.images.length,
     toggleExifPanel,
     slideshow.toggle,
     copyImage,
@@ -257,6 +262,10 @@ function ImagePage() {
   useImageViewerHotkeys({
     onNavigatePrev: () => void navigateImage("prev"),
     onNavigateNext: () => void navigateImage("next"),
+    onJumpPrev10: () => void navigateByOffset(-10),
+    onJumpNext10: () => void navigateByOffset(10),
+    onJumpFirst: () => void navigateToIndex(0),
+    onJumpLast: () => void navigateToIndex(dirImages.images.length - 1),
     onOpenFile: handleOpenFile,
     onCloseImage: handleCloseImage,
     onToggleExif: () => void toggleExifPanel(),

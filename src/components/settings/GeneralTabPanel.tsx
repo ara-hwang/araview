@@ -13,6 +13,7 @@ import {
   ClockCounterClockwise,
   House,
   NavigationArrow,
+  SkipForward,
   Translate
 } from "@phosphor-icons/react"
 import { useTranslation } from "react-i18next"
@@ -25,7 +26,8 @@ export function GeneralTabPanel() {
       language: state.language,
       loopNavigation: state.loopNavigation,
       autoOpenLastFile: state.autoOpenLastFile,
-      recordRecentFiles: state.recordRecentFiles
+      recordRecentFiles: state.recordRecentFiles,
+      skipBrokenFiles: state.skipBrokenFiles
     }))
   )
 
@@ -146,6 +148,34 @@ export function GeneralTabPanel() {
           <Field orientation="horizontal">
             <RadioGroupItem value="loop" id="settings-nav-loop" />
             <Label htmlFor="settings-nav-loop">{t("settings.nav.loop")}</Label>
+          </Field>
+        </RadioGroup>
+      </SettingsFieldSet>
+
+      <FieldSeparator />
+
+      <SettingsFieldSet
+        icon={<SkipForward className="size-6" />}
+        title={t("settings.skipBroken.title")}
+        description={t("settings.skipBroken.desc")}
+      >
+        <RadioGroup
+          value={settings.skipBrokenFiles ? "on" : "off"}
+          onValueChange={(value) =>
+            handleSettingsChange({ skipBrokenFiles: value === "on" })
+          }
+        >
+          <Field orientation="horizontal">
+            <RadioGroupItem value="off" id="settings-skip-off" />
+            <Label htmlFor="settings-skip-off">
+              {t("settings.skipBroken.off")}
+            </Label>
+          </Field>
+          <Field orientation="horizontal">
+            <RadioGroupItem value="on" id="settings-skip-on" />
+            <Label htmlFor="settings-skip-on">
+              {t("settings.skipBroken.on")}
+            </Label>
           </Field>
         </RadioGroup>
       </SettingsFieldSet>

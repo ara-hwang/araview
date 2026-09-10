@@ -89,5 +89,19 @@ export function useDirectoryNavigation(
     [dirImages, loadImage, archivePath, loadArchiveImageByIndex]
   )
 
-  return { navigateImage, navigateToIndex }
+  /** 점프 이동: 오프셋만큼 이동하되 루프 설정에 따라 wrap/clamp */
+  const navigateByOffset = useCallback(
+    async (offset: number) => {
+      if (!dirImages || dirImages.images.length === 0) return
+      const total = dirImages.images.length
+      const raw = dirImages.current_index + offset
+      const target = loopNavigation
+        ? ((raw % total) + total) % total
+        : Math.max(0, Math.min(raw, total - 1))
+      await navigateToIndex(target)
+    },
+    [dirImages, loopNavigation, navigateToIndex]
+  )
+
+  return { navigateImage, navigateToIndex, navigateByOffset }
 }

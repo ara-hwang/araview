@@ -32,6 +32,7 @@ import { useImageLoader } from "@/hooks/useImageLoader"
 import { useCloseImage } from "@/hooks/useCloseImage"
 import { useFullscreen } from "@/hooks/useFullscreen"
 import { useAlwaysOnTop } from "@/hooks/useAlwaysOnTop"
+import { usePaletteMruStore } from "@/store/paletteMruStore"
 import { toggleShuffleAndRefresh } from "@/utils/directoryOptions"
 
 export const OPEN_SETTINGS_EVENT = "tiv:open-settings"
@@ -44,6 +45,10 @@ export function requestOpenSettings() {
 export type PaletteViewerHandlers = {
   onNavigatePrev: () => void
   onNavigateNext: () => void
+  onJumpPrev10: () => void
+  onJumpNext10: () => void
+  onJumpFirst: () => void
+  onJumpLast: () => void
   onToggleExif: () => void
   onToggleSlideshow: () => void
   onCopyImage: () => void
@@ -126,6 +131,18 @@ function runCommand(
       break
     case "navigateNext":
       viewerHandlers?.onNavigateNext()
+      break
+    case "jumpPrev10":
+      viewerHandlers?.onJumpPrev10()
+      break
+    case "jumpNext10":
+      viewerHandlers?.onJumpNext10()
+      break
+    case "jumpFirst":
+      viewerHandlers?.onJumpFirst()
+      break
+    case "jumpLast":
+      viewerHandlers?.onJumpLast()
       break
     case "zoomIn":
       zoomIn()
@@ -223,6 +240,7 @@ export function useCommandPaletteHost() {
   const shortcuts = useSettingsStore((s) => s.shortcuts)
   const hasImage = useAppStore((s) => s.imageInfo !== null)
   const imageCount = useAppStore((s) => s.dirImages.images.length)
+  const mruIds = usePaletteMruStore((s) => s.ids)
 
   const { handleOpenFile } = useImageLoader()
   const closeAndGoHome = useCloseImage()
@@ -263,17 +281,31 @@ export function useCommandPaletteHost() {
     }))
   }, [t, shortcuts, ctx])
 
-  const filtered = useMemo(
-    () =>
-      filterCommands(
-        commands.map((c) => ({
-          ...c,
-          keywords: c.def.keywords ?? []
-        })),
-        query
-      ),
-    [commands, query]
-  )
+  const { filtered, recentCount } = useMemo(() => {
+    const searched = filterCommands(
+      commands.map((c) => ({
+        ...c,
+        keywords: c.def.keywords ?? []
+      })),
+      query
+    )
+    // 검색어가 비었을 때만 최근 사용을 상단에 올린다. 검색 중에는 관련도 순 유지.
+    if (query.trim() !== "") return { filtered: searched, recentCount: 0 }
+    const byId = new Map(searched.map((c) => [c.def.id, c]))
+    const recent: typeof searched = []
+    for (const id of mruIds) {
+      const hit = byId.get(id)
+      if (hit) {
+        recent.push(hit)
+        byId.delete(id)
+      }
+    }
+    if (recent.length === 0) return { filtered: searched, recentCount: 0 }
+    return {
+      filtered: [...recent, ...byId.values()],
+      recentCount: recent.length
+    }
+  }, [commands, query, mruIds])
 
   const safeActiveIndex = Math.min(
     activeIndex,
@@ -287,10 +319,18 @@ export function useCommandPaletteHost() {
       toggleFullscreen: () => void fullscreen.toggle(),
       toggleAlwaysOnTop: () => void toggleAlwaysOnTop()
     })
+    if (id !== "togglePalette") void usePaletteMruStore.getState().push(id)
     usePaletteStore.getState().setOpen(false)
   }
 
-  return { open, query, filtered, activeIndex: safeActiveIndex, run }
+  return {
+    open,
+    query,
+    filtered,
+    recentCount,
+    activeIndex: safeActiveIndex,
+    run
+  }
 }
 
 export { COMMAND_GROUP_ORDER }

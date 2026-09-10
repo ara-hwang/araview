@@ -12,7 +12,9 @@ describe("closeImage", () => {
         file_path: "/pics/a.jpg",
         file_name: "a.jpg",
         file_size: 123,
-        mime_type: "image/jpeg"
+        mime_type: "image/jpeg",
+        width: 800,
+        height: 600
       },
       dirImages: { images: ["/pics/a.jpg", "/pics/b.jpg"], current_index: 1 },
       error: "boom",

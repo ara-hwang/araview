@@ -44,6 +44,7 @@ export type SettingsState = {
   sortDescending: boolean
   shuffle: boolean
   includeSubfolders: boolean
+  skipBrokenFiles: boolean
   shortcuts: import("@/constants/shortcuts").ShortcutMap
   wheel: import("@/constants/shortcuts").WheelMap
   mouse: import("@/constants/shortcuts").MouseMap
@@ -77,6 +78,7 @@ const initialSettings: SettingsState = {
   sortDescending: false,
   shuffle: false,
   includeSubfolders: false,
+  skipBrokenFiles: false,
   shortcuts: { ...DEFAULT_SHORTCUTS },
   wheel: { ...DEFAULT_WHEEL },
   mouse: { ...DEFAULT_MOUSE }
@@ -191,11 +193,13 @@ export const initSettingsFromStore = async () => {
         shortcuts?: unknown
         wheel?: unknown
         mouse?: unknown
+        skipBrokenFiles?: unknown
       }
       useSettingsStore.setState({
         ...initialSettings,
         ...stored,
         language,
+        skipBrokenFiles: storedRecord.skipBrokenFiles === true,
         shortcuts: sanitizeShortcutMap(storedRecord.shortcuts),
         wheel: sanitizeWheelMap(storedRecord.wheel),
         mouse: sanitizeMouseMap(storedRecord.mouse)

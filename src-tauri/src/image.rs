@@ -8,6 +8,8 @@ pub struct ImageInfo {
     pub mime_type: String,
     pub file_name: String,
     pub file_size: u64,
+    pub width: Option<u32>,
+    pub height: Option<u32>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -85,11 +87,15 @@ pub fn image_info(source: &Path, paint_path: PathBuf) -> Result<ImageInfo, Strin
         .and_then(|n| n.to_str())
         .unwrap_or("unknown")
         .to_string();
+    // Rendered bytes 기준 치수. SVG 등 image 크레이트 미지원분은 None으로 생략.
+    let (width, height) = image::image_dimensions(&paint_path).ok().unzip();
     Ok(ImageInfo {
         file_path: paint_path.to_string_lossy().to_string(),
         mime_type,
         file_name,
         file_size: metadata.len(),
+        width,
+        height,
     })
 }
 
@@ -329,6 +335,9 @@ mod tests {
         assert_eq!(info.file_name, "IMG_0001.heic");
         assert_eq!(info.file_size, 15);
         assert_eq!(info.file_path, paint.to_string_lossy());
+        // 디코드 불가 paint 경로는 치수 생략
+        assert_eq!(info.width, None);
+        assert_eq!(info.height, None);
     }
 
     #[test]
@@ -341,6 +350,8 @@ mod tests {
         assert_eq!(info.file_name, "photo.png");
         assert_eq!(info.file_size, MIN_PNG.len() as u64);
         assert_eq!(info.file_path, source.to_string_lossy());
+        assert_eq!(info.width, Some(1));
+        assert_eq!(info.height, Some(1));
     }
 
     #[test]

@@ -337,6 +337,9 @@ mod tests {
             rename_file(old.to_str().unwrap().to_string(), "b.png".to_string()).expect("rename ok");
         assert_eq!(info.file_name, "b.png");
         assert_eq!(info.file_size, 16);
+        // 더미 바이트는 디코드 불가라 치수 생략
+        assert_eq!(info.width, None);
+        assert_eq!(info.height, None);
         assert!(!old.exists());
         assert!(dir.join("b.png").exists());
         fs::remove_dir_all(&dir).ok();

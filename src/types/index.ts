@@ -3,6 +3,8 @@ export type ImageInfo = {
   mime_type: string
   file_name: string
   file_size: number
+  width: number | null
+  height: number | null
 }
 
 export type DirectoryImages = {

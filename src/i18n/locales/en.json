@@ -129,6 +129,12 @@
       "stop": "Stop at first/last",
       "loop": "Loop to first/last"
     },
+    "skipBroken": {
+      "title": "Skip unreadable files",
+      "desc": "Automatically move to the next image when one cannot be read. Failed images are marked on thumbnails.",
+      "on": "Skip automatically",
+      "off": "Stop and show error"
+    },
     "view": {
       "title": "View mode",
       "desc": "Single / dual / vertical scroll layout",
@@ -236,7 +242,8 @@
       "prev": "Previous image",
       "next": "Next image",
       "slider": "Image position",
-      "thumb": "Image {{index}}: {{name}}"
+      "thumb": "Image {{index}}: {{name}}",
+      "thumbError": "Failed image {{index}}: {{name}}"
     }
   },
   "exif": {
@@ -274,7 +281,8 @@
   },
   "status": {
     "empty": "Empty",
-    "unknown": "Unknown"
+    "unknown": "Unknown",
+    "barLabel": "Image status bar"
   },
   "menu": {
     "open": "Open File",
@@ -298,6 +306,10 @@
     "copyImage": "Copy Image",
     "cycleBg": "Cycle Background",
     "toggleShuffle": "Toggle Shuffle",
+    "jumpPrev10": "Jump Back 10",
+    "jumpNext10": "Jump Forward 10",
+    "jumpFirst": "Jump to First",
+    "jumpLast": "Jump to Last",
     "trash": "Move to Trash",
     "reveal": "Reveal in Explorer",
     "openExternal": "Open with Default App",
@@ -313,6 +325,7 @@
     "open": "Command Palette",
     "settings": "Open Settings",
     "clear": "Clear",
+    "recent": "Recent",
     "noResult": "No matching commands",
     "noResultHint": "Try a different search term.",
     "group": {
@@ -416,7 +429,8 @@
     },
     "load": {
       "archiveFail": "Failed to load archive",
-      "imageFail": "Failed to load image"
+      "imageFail": "Failed to load image",
+      "skipped": "Skipped an unreadable file"
     },
     "drop": {
       "fail": "Cannot open dropped item",
