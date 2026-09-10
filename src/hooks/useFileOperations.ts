@@ -11,6 +11,7 @@ import { useFavoritesStore } from "@/store/favoritesStore"
 import i18n from "@/i18n"
 import type { ImageInfo } from "@/types"
 import type { SaveEditsPayload } from "@/utils/imageEdits"
+import { errorMessage } from "@/utils/appError"
 
 type LoadImageFn = (
   filePath: string,
@@ -60,7 +61,7 @@ export function useFileOperations({ loadImage }: { loadImage: LoadImageFn }) {
     try {
       await revealItemInDir(target)
     } catch (e) {
-      toast.error(i18n.t("toast.reveal.fail"), { description: String(e) })
+      toast.error(i18n.t("toast.reveal.fail"), { description: errorMessage(e) })
     }
   }, [])
 
@@ -74,7 +75,9 @@ export function useFileOperations({ loadImage }: { loadImage: LoadImageFn }) {
     try {
       await openPath(target)
     } catch (e) {
-      toast.error(i18n.t("toast.external.fail"), { description: String(e) })
+      toast.error(i18n.t("toast.external.fail"), {
+        description: errorMessage(e)
+      })
     }
   }, [])
 
@@ -98,7 +101,7 @@ export function useFileOperations({ loadImage }: { loadImage: LoadImageFn }) {
     try {
       await invoke("trash_file", { filePath: imageInfo.file_path })
     } catch (e) {
-      toast.error(i18n.t("toast.trash.fail"), { description: String(e) })
+      toast.error(i18n.t("toast.trash.fail"), { description: errorMessage(e) })
       return
     }
 
@@ -139,7 +142,7 @@ export function useFileOperations({ loadImage }: { loadImage: LoadImageFn }) {
         duration: 1500
       })
     } catch (e) {
-      toast.error(i18n.t("toast.path.fail"), { description: String(e) })
+      toast.error(i18n.t("toast.path.fail"), { description: errorMessage(e) })
     }
   }, [])
 
@@ -166,7 +169,7 @@ export function useFileOperations({ loadImage }: { loadImage: LoadImageFn }) {
         newName: newName.trim()
       })
     } catch (e) {
-      toast.error(i18n.t("toast.rename.fail"), { description: String(e) })
+      toast.error(i18n.t("toast.rename.fail"), { description: errorMessage(e) })
       return false
     }
 
@@ -238,7 +241,7 @@ export function useFileOperations({ loadImage }: { loadImage: LoadImageFn }) {
           options: payload
         })
       } catch (e) {
-        toast.error(i18n.t("toast.save.fail"), { description: String(e) })
+        toast.error(i18n.t("toast.save.fail"), { description: errorMessage(e) })
         return false
       }
 

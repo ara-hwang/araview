@@ -23,6 +23,7 @@ type AppState = {
   imageSize: { width: number; height: number }
   dragStart: { x: number; y: number }
   exifData: ExifData | null
+  exifError: string | null
   showExifPanel: boolean
   rotation: 0 | 90 | 180 | 270
   flipH: boolean
@@ -50,6 +51,7 @@ type AppStoreActions = {
   setImageSize: (nextImageSize: AppState["imageSize"]) => void
   setDragStart: (nextDragStart: AppState["dragStart"]) => void
   setExifData: (nextExifData: AppState["exifData"]) => void
+  setExifError: (nextExifError: AppState["exifError"]) => void
   setShowExifPanel: (nextShowExifPanel: AppState["showExifPanel"]) => void
   addFailedPath: (filePath: string) => void
   removeFailedPath: (filePath: string) => void
@@ -74,6 +76,7 @@ const initialApp: AppState = {
   imageSize: { width: 0, height: 0 },
   dragStart: { x: 0, y: 0 },
   exifData: null,
+  exifError: null,
   showExifPanel: false,
   rotation: 0,
   flipH: false,
@@ -102,6 +105,7 @@ export const useAppStore = create<AppState & AppStoreActions>((set) => ({
   setImageSize: (nextImageSize) => set({ imageSize: nextImageSize }),
   setDragStart: (nextDragStart) => set({ dragStart: nextDragStart }),
   setExifData: (nextExifData) => set({ exifData: nextExifData }),
+  setExifError: (nextExifError) => set({ exifError: nextExifError }),
   setShowExifPanel: (nextShowExifPanel) =>
     set({ showExifPanel: nextShowExifPanel }),
   addFailedPath: (filePath) =>
@@ -284,3 +288,34 @@ export const moveDrag = (clientX: number, clientY: number) => {
     useAppStore.setState((s) => ({ ...s, position: { x: newX, y: newY } }))
   }
 }
+
+export const PAN_STEP_PX = 48
+
+/** 키보드 팬: 항상 동작, 컨테이너 경계로 clamp */
+export const panBy = (dx: number, dy: number) => {
+  const state = useAppStore.getState()
+  if (!state.imageInfo) return
+  const newX = state.position.x + dx
+  const newY = state.position.y + dy
+  const { width: cw, height: ch } = state.containerSize
+  const oriented = getOrientedImageSize(
+    state.imageSize.width,
+    state.imageSize.height,
+    state.rotation
+  )
+  const { width: iw, height: ih } = oriented
+  if (cw > 0 && ch > 0 && iw > 0 && ih > 0) {
+    const { maxX, maxY } = getPositionBounds(cw, ch, iw, ih, state.zoom)
+    useAppStore.setState((s) => ({
+      ...s,
+      position: clampPosition(newX, newY, maxX, maxY)
+    }))
+  } else {
+    useAppStore.setState((s) => ({ ...s, position: { x: newX, y: newY } }))
+  }
+}
+
+export const panLeft = () => panBy(PAN_STEP_PX, 0)
+export const panRight = () => panBy(-PAN_STEP_PX, 0)
+export const panUp = () => panBy(0, PAN_STEP_PX)
+export const panDown = () => panBy(0, -PAN_STEP_PX)

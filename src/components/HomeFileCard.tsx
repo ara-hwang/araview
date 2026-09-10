@@ -27,7 +27,7 @@ export function HomeFileCard({
       <button
         type="button"
         onClick={() => onOpen(path)}
-        className="flex w-full flex-col items-start gap-2 p-2 text-left"
+        className="flex w-full flex-col items-start gap-2 rounded p-2 text-left focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] focus-visible:outline-none"
         title={path}
       >
         <div className="bg-muted aspect-square w-full overflow-hidden rounded">
@@ -54,8 +54,10 @@ export function HomeFileCard({
           onToggleFavorite(path)
         }}
         className={cn(
-          "bg-background/80 absolute top-1 left-1 rounded p-1 transition-opacity",
-          isFavorite ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+          "bg-background/80 absolute top-1 left-1 rounded p-1 transition-opacity focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] focus-visible:outline-none",
+          isFavorite
+            ? "opacity-100"
+            : "opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 focus-visible:opacity-100"
         )}
         title={isFavorite ? t("home.card.favRemove") : t("home.card.favAdd")}
         aria-label={
@@ -77,7 +79,7 @@ export function HomeFileCard({
           e.stopPropagation()
           onRemove(path)
         }}
-        className="bg-background/80 hover:bg-destructive/10 hover:text-destructive dark:hover:bg-destructive/20 absolute top-1 right-1 rounded p-1 opacity-0 transition-opacity group-hover:opacity-100"
+        className="bg-background/80 hover:bg-destructive/10 hover:text-destructive dark:hover:bg-destructive/20 absolute top-1 right-1 rounded p-1 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] focus-visible:outline-none"
         title={t("home.card.remove")}
         aria-label={t("home.card.remove")}
       >

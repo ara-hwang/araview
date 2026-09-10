@@ -2,6 +2,10 @@ import { useEffect, useRef } from "react"
 import {
   flipHorizontal,
   flipVertical,
+  panDown,
+  panLeft,
+  panRight,
+  panUp,
   resetZoomPan,
   rotateCCW,
   rotateCW,
@@ -47,6 +51,17 @@ function isEditableTarget(target: EventTarget | null): boolean {
   if (target.isContentEditable) return true
   return false
 }
+
+/** 웹툰 연속 스크롤 컨테이너를 키보드로 스크롤한다. 포커스 위치와 무관하게 동작. */
+export function scrollWebtoonBy(dy: number): boolean {
+  if (typeof document === "undefined") return false
+  const el = document.querySelector('[aria-label="webtoon-scroll"]')
+  if (!(el instanceof HTMLElement)) return false
+  el.scrollBy({ top: dy, behavior: "auto" })
+  return true
+}
+
+export const WEBTOON_KEY_SCROLL_PX = 240
 
 export function useImageViewerHotkeys(props: ImageViewerHotkeysParams) {
   const propsRef = useRef(props)
@@ -99,6 +114,33 @@ export function useImageViewerHotkeys(props: ImageViewerHotkeysParams) {
         case "navigateNext":
           run(p.onNavigateNext)
           break
+        case "panLeft":
+          // Webtoon은 transform 팬이 없어 좌우는 이전/다음 이미지로 스크롤
+          if (getSettings().viewMode === "webtoon") run(p.onNavigatePrev)
+          else run(panLeft)
+          break
+        case "panRight":
+          if (getSettings().viewMode === "webtoon") run(p.onNavigateNext)
+          else run(panRight)
+          break
+        case "panUp":
+        case "panDown": {
+          // Webtoon 상하는 연속 스크롤 컨테이너를 직접 스크롤한다.
+          // 네이티브 중복 스크롤을 막고 일정량 이동.
+          if (getSettings().viewMode === "webtoon") {
+            const dy =
+              action === "panUp"
+                ? -WEBTOON_KEY_SCROLL_PX
+                : WEBTOON_KEY_SCROLL_PX
+            e.preventDefault()
+            run(() => {
+              scrollWebtoonBy(dy)
+            })
+            break
+          }
+          run(action === "panUp" ? panUp : panDown)
+          break
+        }
         case "jumpPrev10":
           run(p.onJumpPrev10)
           break

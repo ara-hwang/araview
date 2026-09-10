@@ -1,4 +1,4 @@
-import { createRootRoute, Outlet } from "@tanstack/react-router"
+import { createRootRoute, Link, Outlet } from "@tanstack/react-router"
 import { Toaster } from "@/components/ui/sonner"
 import { ThemeProvider } from "@/components/theme-provider"
 import Header from "@/components/Header"
@@ -10,11 +10,28 @@ import { useAppStore } from "@/store/appStore"
 import { useSettingsStore } from "@/store/settingsStore"
 import { useIdleHide } from "@/hooks/useIdleHide"
 import { cn } from "@/lib/utils"
+import { useTranslation } from "react-i18next"
 
 export const Route = createRootRoute({
   component: RootLayout,
-  notFoundComponent: () => <div>Not Found</div>
+  notFoundComponent: NotFound
 })
+
+function NotFound() {
+  const { t } = useTranslation()
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-center">
+      <p className="text-sm font-medium">{t("notFound.title")}</p>
+      <p className="text-muted-foreground text-sm">{t("notFound.desc")}</p>
+      <Link
+        to="/"
+        className="bg-primary text-primary-foreground mt-2 rounded-md px-3 py-1.5 text-sm focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] focus-visible:outline-none"
+      >
+        {t("notFound.home")}
+      </Link>
+    </div>
+  )
+}
 
 function RootLayout() {
   // UI 자동 숨김은 이미지를 보고 있을 때만 적용 (홈에서는 항상 표시)

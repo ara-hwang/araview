@@ -7,7 +7,7 @@ import { useShallow } from "zustand/react/shallow"
 // viewMode에 따라 현재 이미지 외에 주변 이미지를 로드해 반환한다.
 //   - single               : 빈 배열 (ImageContainer가 기본 단일 렌더를 사용)
 //   - left-to-right / right-to-left : [current, next]
-//   - webtoon              : [prev, current, next]
+//   - webtoon              : 빈 배열 (WebtoonContinuousView가 전 구간 지연 로드)
 //
 // 실제 캐시는 useImageLoader에서 관리하는 동일한 인스턴스를 재사용하기 위해
 // getOrLoadImage를 인자로 받는다.
@@ -30,7 +30,7 @@ export function useMultiPageImages(getOrLoadImage: GetOrLoadImage) {
   const [pages, setPages] = useState<MultiPage[]>([])
 
   useEffect(() => {
-    if (viewMode === "single") {
+    if (viewMode === "single" || viewMode === "webtoon") {
       setPages([])
       return
     }
@@ -46,13 +46,8 @@ export function useMultiPageImages(getOrLoadImage: GetOrLoadImage) {
     const normalize = (v: number) => ((v % count) + count) % count
 
     // 어떤 오프셋들을 로드할지 결정
-    let offsets: number[]
-    if (viewMode === "webtoon") {
-      offsets = [-1, 0, 1]
-    } else {
-      // LTR / RTL: 현재 + 다음
-      offsets = [0, 1]
-    }
+    // LTR / RTL: 현재 + 다음
+    const offsets = [0, 1]
 
     const targetIndices: number[] = []
     for (const off of offsets) {

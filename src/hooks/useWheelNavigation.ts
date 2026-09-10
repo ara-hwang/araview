@@ -22,9 +22,11 @@ export function useWheelNavigation(
   return useCallback(
     (e: React.WheelEvent) => {
       const settings = getSettings()
-      if (settings.viewMode === "webtoon") return
       if (e.deltaY === 0) return
       const slot = toWheelSlot(e)
+      // Webtoon은 세로 스크롤이 본문이므로 일반 휠은 네이티브 스크롤에 맡긴다.
+      // Ctrl+휠 같은 수식키 조합은 줌 설정대로 동작시킨다.
+      if (settings.viewMode === "webtoon" && !slot.startsWith("ctrl+")) return
       const action = settings.wheel[slot] ?? "none"
       if (action === "none") return
       e.preventDefault()

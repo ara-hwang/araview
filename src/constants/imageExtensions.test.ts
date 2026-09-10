@@ -18,13 +18,18 @@ describe("SUPPORTED_IMAGE_EXTENSIONS", () => {
       "heic",
       "heif",
       "cbz",
-      "cb7"
+      "cb7",
+      "cbr",
+      "rar",
+      "zip",
+      "7z",
+      "cbt"
     ]
     expect([...SUPPORTED_IMAGE_EXTENSIONS]).toEqual(expected)
   })
 
-  it("has 15 supported extensions", () => {
-    expect(SUPPORTED_IMAGE_EXTENSIONS).toHaveLength(15)
+  it("has 20 supported extensions", () => {
+    expect(SUPPORTED_IMAGE_EXTENSIONS).toHaveLength(20)
   })
 
   it("includes common web image formats", () => {

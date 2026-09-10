@@ -22,6 +22,10 @@ describe("formatFileSize", () => {
     expect(formatFileSize(1024 * 1024 * 100)).toBe("100.0 MB")
     expect(formatFileSize(1024 * 1024 * 1024)).toBe("1024.0 MB")
   })
+
+  it("uses locale decimal separator when given", () => {
+    expect(formatFileSize(1536, "de-DE")).toBe("1,5 KB")
+  })
 })
 
 describe("formatDimensions", () => {

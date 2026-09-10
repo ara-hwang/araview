@@ -184,6 +184,38 @@ export const COMMAND_DEFS: readonly CommandDef[] = [
     keywords: ["zoom out"]
   },
   {
+    id: "panLeft",
+    group: "view",
+    labelKey: "menu.panLeft",
+    shortcutId: "panLeft",
+    requiresImage: true,
+    keywords: ["pan", "left", "move"]
+  },
+  {
+    id: "panRight",
+    group: "view",
+    labelKey: "menu.panRight",
+    shortcutId: "panRight",
+    requiresImage: true,
+    keywords: ["pan", "right", "move"]
+  },
+  {
+    id: "panUp",
+    group: "view",
+    labelKey: "menu.panUp",
+    shortcutId: "panUp",
+    requiresImage: true,
+    keywords: ["pan", "up", "move"]
+  },
+  {
+    id: "panDown",
+    group: "view",
+    labelKey: "menu.panDown",
+    shortcutId: "panDown",
+    requiresImage: true,
+    keywords: ["pan", "down", "move"]
+  },
+  {
     id: "resetView",
     group: "view",
     labelKey: "menu.actualSize",

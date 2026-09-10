@@ -1,7 +1,23 @@
-export function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+function numberLocale(): string | undefined {
+  if (typeof navigator !== "undefined" && navigator.language) {
+    return navigator.language
+  }
+  return undefined
+}
+
+export function formatFileSize(bytes: number, locale?: string): string {
+  const loc = locale ?? numberLocale()
+  if (bytes < 1024) {
+    const n = new Intl.NumberFormat(loc, { useGrouping: false }).format(bytes)
+    return `${n} B`
+  }
+  const oneDecimal = new Intl.NumberFormat(loc, {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+    useGrouping: false
+  })
+  if (bytes < 1024 * 1024) return `${oneDecimal.format(bytes / 1024)} KB`
+  return `${oneDecimal.format(bytes / (1024 * 1024))} MB`
 }
 
 export function formatDimensions(

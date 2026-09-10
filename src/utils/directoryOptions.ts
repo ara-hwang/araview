@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core"
 import { toast } from "sonner"
 import { useAppStore } from "@/store/appStore"
 import i18n from "@/i18n"
+import { errorMessage } from "@/utils/appError"
 import {
   getSettings,
   updateSettings,
@@ -33,18 +34,45 @@ export function buildDirListOptions(
   }
 }
 
+/** 새로고침된 목록에서 이전에 보던 파일을 찾아 인덱스를 복원한다.
+ *  파일이 사라졌으면 범위 안으로 clamp한다. */
+export function resolveRefreshedIndex(
+  prevImages: string[],
+  prevIndex: number,
+  nextImages: string[]
+): number {
+  if (nextImages.length === 0) return 0
+  const current = prevImages[prevIndex]
+  if (current) {
+    const found = nextImages.indexOf(current)
+    if (found >= 0) return found
+  }
+  return Math.max(0, Math.min(prevIndex, nextImages.length - 1))
+}
+
 /** 현재 폴더 목록을 최신 정렬 옵션으로 다시 읽음 (현재 이미지 위치 유지) */
 export async function refreshDirectoryListing(): Promise<void> {
-  const { imageInfo, archivePath } = useAppStore.getState()
+  const { imageInfo, dirImages: prevDir, archivePath } = useAppStore.getState()
   if (!imageInfo || archivePath) return
+  // HEIC sidecar처럼 imageInfo.file_path가 원본 폴더가 아닐 수 있어
+  // dirImages의 원본 경로를 우선 사용한다.
+  const currentSource =
+    prevDir.images[prevDir.current_index] ?? imageInfo.file_path
   try {
     const dirImages = await invoke<DirectoryImages>("get_directory_images", {
-      filePath: imageInfo.file_path,
+      filePath: currentSource,
       options: buildDirListOptions(getSettings())
     })
-    useAppStore.setState({ dirImages })
+    const current_index = resolveRefreshedIndex(
+      prevDir.images,
+      prevDir.current_index,
+      dirImages.images
+    )
+    useAppStore.setState({ dirImages: { ...dirImages, current_index } })
   } catch (e) {
-    toast.error(i18n.t("toast.dir.refreshFail"), { description: String(e) })
+    toast.error(i18n.t("toast.dir.refreshFail"), {
+      description: errorMessage(e)
+    })
   }
 }
 

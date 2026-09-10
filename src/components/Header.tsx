@@ -209,9 +209,25 @@ export default function Header() {
                 <span className="hidden md:inline">{t("header.zoomOut")}</span>
               </Button>
               <ButtonGroupText
-                className={cn("tabular-nums", !hasImage && "opacity-50")}
-                aria-disabled={!hasImage}
-                onClick={hasImage ? resetZoomPan : undefined}
+                className={cn(
+                  "tabular-nums focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] focus-visible:outline-none",
+                  !hasImage && "opacity-50"
+                )}
+                render={
+                  <button
+                    type="button"
+                    disabled={!hasImage}
+                    onClick={hasImage ? resetZoomPan : undefined}
+                    title={withShortcut(
+                      t("menu.actualSize"),
+                      shortcuts.resetView
+                    )}
+                    aria-label={withShortcut(
+                      t("menu.actualSize"),
+                      shortcuts.resetView
+                    )}
+                  />
+                }
               >
                 {Math.round(zoom * 100)}%
               </ButtonGroupText>

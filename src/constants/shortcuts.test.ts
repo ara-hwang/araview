@@ -79,6 +79,27 @@ describe("defaults", () => {
     expect(new Set(values).size).toBe(values.length)
   })
 
+  it("Arrow는 항상 팬, 탐색은 Ctrl+Arrow", () => {
+    expect(DEFAULT_SHORTCUTS.panLeft).toBe("ArrowLeft")
+    expect(DEFAULT_SHORTCUTS.panRight).toBe("ArrowRight")
+    expect(DEFAULT_SHORTCUTS.panUp).toBe("ArrowUp")
+    expect(DEFAULT_SHORTCUTS.panDown).toBe("ArrowDown")
+    expect(DEFAULT_SHORTCUTS.navigatePrev).toBe("Ctrl+ArrowLeft")
+    expect(DEFAULT_SHORTCUTS.navigateNext).toBe("Ctrl+ArrowRight")
+  })
+
+  it("구버전 저장값은 새 탐색/팬 기본값으로 이전된다", () => {
+    const sanitized = sanitizeShortcutMap({
+      navigatePrev: "ArrowLeft",
+      navigateNext: "ArrowRight",
+      zoomIn: "="
+    })
+    expect(sanitized.navigatePrev).toBe("Ctrl+ArrowLeft")
+    expect(sanitized.navigateNext).toBe("Ctrl+ArrowRight")
+    expect(sanitized.panLeft).toBe("ArrowLeft")
+    expect(sanitized.panRight).toBe("ArrowRight")
+  })
+
   it("유효하지 않은 저장값은 기본값으로 되돌린다", () => {
     const sanitized = sanitizeShortcutMap({
       openFile: "Tab",

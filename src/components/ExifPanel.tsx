@@ -6,9 +6,11 @@ import {
   SheetDescription
 } from "@/components/ui/sheet"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Button } from "@/components/ui/button"
 import { useAppStore } from "@/store/appStore"
 import { useShallow } from "zustand/react/shallow"
 import { useTranslation } from "react-i18next"
+import { useExifLoader } from "@/hooks/useExifLoader"
 
 const EXIF_CATEGORIES: Record<string, string[]> = {
   Camera: ["Make", "Model", "LensModel", "LensMake", "BodySerialNumber"],
@@ -59,12 +61,14 @@ function formatTagName(tag: string): string {
 
 export function ExifPanel() {
   const { t } = useTranslation()
-  const { exifData, showExifPanel } = useAppStore(
+  const { exifData, exifError, showExifPanel } = useAppStore(
     useShallow((state) => ({
       exifData: state.exifData,
+      exifError: state.exifError,
       showExifPanel: state.showExifPanel
     }))
   )
+  const { reloadExif } = useExifLoader()
 
   const handleOpenChange = (open: boolean) => {
     if (!open) {
@@ -107,7 +111,25 @@ export function ExifPanel() {
 
         <ScrollArea className="flex-1 overflow-auto">
           <div className="p-4">
-            {!exifData || sections.length === 0 ? (
+            {exifError ? (
+              <div className="flex flex-col gap-2">
+                <p className="text-muted-foreground text-sm">
+                  {t("exif.loadFail")}
+                </p>
+                <p className="text-muted-foreground text-xs break-words">
+                  {exifError}
+                </p>
+                <div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => void reloadExif()}
+                  >
+                    {t("exif.retry")}
+                  </Button>
+                </div>
+              </div>
+            ) : !exifData || sections.length === 0 ? (
               <p className="text-muted-foreground text-sm">{t("exif.empty")}</p>
             ) : (
               <div className="space-y-4">

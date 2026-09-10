@@ -236,20 +236,24 @@
     },
     "error": {
       "home": "Go home",
-      "dismiss": "Close"
+      "dismiss": "Close",
+      "retry": "Retry"
     },
     "nav": {
       "prev": "Previous image",
       "next": "Next image",
       "slider": "Image position",
       "thumb": "Image {{index}}: {{name}}",
-      "thumbError": "Failed image {{index}}: {{name}}"
+      "thumbError": "Failed image {{index}}: {{name}}",
+      "thumbRetry": "Retry thumbnail {{index}}"
     }
   },
   "exif": {
     "title": "EXIF Information",
     "desc": "Image metadata and camera settings",
     "empty": "No EXIF data available for this image.",
+    "loadFail": "Failed to load EXIF.",
+    "retry": "Retry",
     "other": "Other"
   },
   "dialog": {
@@ -284,11 +288,20 @@
     "unknown": "Unknown",
     "barLabel": "Image status bar"
   },
+  "notFound": {
+    "title": "Page not found",
+    "desc": "The address changed or does not exist. Go back home.",
+    "home": "Go home"
+  },
   "menu": {
     "open": "Open File",
     "closeImage": "Close Image",
     "prev": "Previous Image",
     "next": "Next Image",
+    "panLeft": "Pan Left",
+    "panRight": "Pan Right",
+    "panUp": "Pan Up",
+    "panDown": "Pan Down",
     "zoomIn": "Zoom In",
     "zoomOut": "Zoom Out",
     "actualSize": "Actual Size",
@@ -347,7 +360,7 @@
     },
     "unsupported": {
       "title": "Unsupported format",
-      "hint": "Check if it is a supported format (png/jpg/webp/svg/avif/heic/cbz, etc.) or try another viewer."
+      "hint": "Check if it is a supported format (png/jpg/webp/svg/avif/heic/cbz/cbr, etc.) or try another viewer."
     },
     "corrupt": {
       "title": "Problem reading the file",
@@ -465,6 +478,11 @@
     "heic": "HEIC image",
     "heif": "HEIF image",
     "cbz": "Comic archive",
-    "cb7": "Comic archive"
+    "cb7": "Comic archive",
+    "cbr": "Comic archive",
+    "rar": "RAR archive",
+    "zip": "ZIP archive",
+    "7z": "7z archive",
+    "cbt": "Comic archive"
   }
 }

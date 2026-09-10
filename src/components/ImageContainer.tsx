@@ -1,10 +1,4 @@
-import {
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type RefObject
-} from "react"
+import { useLayoutEffect, useRef, type RefObject } from "react"
 import { convertFileSrc } from "@tauri-apps/api/core"
 import { useNavigate } from "@tanstack/react-router"
 import { toast } from "sonner"
@@ -27,6 +21,11 @@ import type { ViewMode } from "@/store/settingsStore"
 import type { MultiPage } from "@/hooks/useMultiPageImages"
 import type { ImageInfo } from "@/types"
 
+import {
+  WebtoonContinuousView,
+  type WebtoonScrollTarget
+} from "./WebtoonContinuousView"
+
 type ImageContainerProps = {
   containerRef: RefObject<HTMLDivElement>
   imageRef: RefObject<HTMLImageElement>
@@ -47,53 +46,12 @@ type ImageContainerProps = {
   onToggleFullscreen?: () => void
   /** UI 자동 숨김(프레젠테이션) 시 하단 내비게이션 바 숨김 */
   chromeHidden?: boolean
+  onRetry?: () => void
+  onWebtoonIndexChange?: (index: number) => void
+  webtoonScrollTarget?: WebtoonScrollTarget
 }
 
 const toSrc = (info: ImageInfo) => convertFileSrc(info.file_path)
-
-// Webtoon용 지연 로드 이미지. 뷰포트 근처(상하 1화면 여유)에 들어올 때만
-// src를 부여해 오프스크린 디코드 비용을 피한다.
-function WebtoonPageImage({ src, alt }: { src: string; alt: string }) {
-  const ref = useRef<HTMLDivElement>(null)
-  const [nearby, setNearby] = useState(false)
-
-  useEffect(() => {
-    const el = ref.current
-    if (!el) return
-    if (typeof IntersectionObserver === "undefined") {
-      setNearby(true)
-      return
-    }
-    const io = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) {
-          setNearby(true)
-          io.disconnect()
-        }
-      },
-      { rootMargin: "100% 0px" }
-    )
-    io.observe(el)
-    return () => io.disconnect()
-  }, [])
-
-  return (
-    <div ref={ref} className="flex w-full justify-center">
-      {nearby ? (
-        <img
-          src={src}
-          alt={alt}
-          className="max-w-full object-contain"
-          draggable={false}
-          loading="lazy"
-          decoding="async"
-        />
-      ) : (
-        <div className="bg-muted/40 min-h-64 w-full" aria-hidden="true" />
-      )}
-    </div>
-  )
-}
 
 export function ImageContainer({
   containerRef,
@@ -113,7 +71,10 @@ export function ImageContainer({
   slideshowIntervalMs = 3000,
   onToggleSlideshow,
   onToggleFullscreen,
-  chromeHidden = false
+  chromeHidden = false,
+  onRetry,
+  onWebtoonIndexChange,
+  webtoonScrollTarget
 }: ImageContainerProps) {
   const { t } = useTranslation()
   const app = useAppStore(
@@ -188,7 +149,14 @@ export function ImageContainer({
     }
   }, [imageSrc, imageRef])
 
-  const isMulti = viewMode !== "single" && pages.length > 0
+  const isDual =
+    (viewMode === "left-to-right" || viewMode === "right-to-left") &&
+    pages.length > 0
+  const isWebtoon =
+    viewMode === "webtoon" &&
+    app.dirImages.images.length > 0 &&
+    !!getOrLoadImage
+  const isMulti = isDual || isWebtoon
 
   return (
     <div
@@ -247,40 +215,39 @@ export function ImageContainer({
         </div>
       )}
 
-      {/* Dual page: LTR / RTL */}
-      {isMulti &&
-        (viewMode === "left-to-right" || viewMode === "right-to-left") && (
-          <div
-            className={cn(
-              "absolute inset-0 flex items-center justify-center gap-1 p-2",
-              viewMode === "right-to-left" && "flex-row-reverse"
-            )}
-          >
-            {pages.map((page) => (
-              <img
-                key={page.path}
-                src={toSrc(page.info)}
-                alt={page.info.file_name}
-                className="max-h-full max-w-[50%] object-contain"
-                draggable={false}
-              />
-            ))}
-          </div>
-        )}
-
-      {/* Webtoon: 세로 스크롤 */}
-      {isMulti && viewMode === "webtoon" && (
-        <div className="absolute inset-0 overflow-x-hidden overflow-y-auto">
-          <div className="flex flex-col items-center">
-            {pages.map((page) => (
-              <WebtoonPageImage
-                key={page.path}
-                src={toSrc(page.info)}
-                alt={page.info.file_name}
-              />
-            ))}
-          </div>
+      {/* Dual page: LTR / RTL. 마지막 홀수 장은 단일 중앙 표시 */}
+      {isDual && (
+        <div
+          className={cn(
+            "absolute inset-0 flex items-center justify-center gap-1 p-2",
+            viewMode === "right-to-left" && "flex-row-reverse"
+          )}
+        >
+          {pages.map((page) => (
+            <img
+              key={page.path}
+              src={toSrc(page.info)}
+              alt={page.info.file_name}
+              className={
+                pages.length === 1
+                  ? "max-h-full max-w-full object-contain"
+                  : "max-h-full max-w-[50%] object-contain"
+              }
+              draggable={false}
+            />
+          ))}
         </div>
+      )}
+
+      {/* Webtoon: 전 구간 연속 스크롤 */}
+      {isWebtoon && getOrLoadImage && (
+        <WebtoonContinuousView
+          images={app.dirImages.images}
+          currentIndex={app.dirImages.current_index}
+          getOrLoadImage={getOrLoadImage}
+          onCenterChange={(i) => onWebtoonIndexChange?.(i)}
+          scrollTarget={webtoonScrollTarget ?? null}
+        />
       )}
 
       {app.loading && (
@@ -310,7 +277,7 @@ export function ImageContainer({
                 <button
                   type="button"
                   onClick={onToggleFullscreen}
-                  className="rounded px-1.5 py-0.5 hover:bg-[hsl(var(--accent))]"
+                  className="rounded px-1.5 py-0.5 hover:bg-[hsl(var(--accent))] focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] focus-visible:outline-none"
                   title={t("viewer.slideshow.fullscreenTitle")}
                   aria-label={t("viewer.slideshow.fullscreenTitle")}
                 >
@@ -321,7 +288,7 @@ export function ImageContainer({
                 <button
                   type="button"
                   onClick={onToggleSlideshow}
-                  className="rounded px-1.5 py-0.5 hover:bg-[hsl(var(--accent))]"
+                  className="rounded px-1.5 py-0.5 hover:bg-[hsl(var(--accent))] focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] focus-visible:outline-none"
                   title={t("viewer.slideshow.stopTitle")}
                   aria-label={t("viewer.slideshow.stopTitle")}
                 >
@@ -353,7 +320,12 @@ export function ImageContainer({
           <p className="text-muted-foreground mt-1 break-words">{app.error}</p>
           <p className="text-muted-foreground mt-1">{classifiedHint}</p>
           <div className="mt-3 flex gap-2">
-            <Button size="sm" onClick={handleGoHome}>
+            {onRetry && (
+              <Button size="sm" onClick={onRetry}>
+                {t("viewer.error.retry")}
+              </Button>
+            )}
+            <Button size="sm" variant="outline" onClick={handleGoHome}>
               {t("viewer.error.home")}
             </Button>
             <Button
