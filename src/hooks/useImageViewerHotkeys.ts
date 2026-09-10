@@ -64,7 +64,15 @@ export function useImageViewerHotkeys(props: ImageViewerHotkeysParams) {
       }
       if (!action) return
 
-      if (isEditableTarget(e.target)) return
+      // 다이얼로그 내부 포커스에서는 뷰어 단축키를 막는다. 단, EXIF 패널이
+      // 열린 상태에서 패널 내부 포커스라면 I 토글 닫기는 허용한다.
+      if (isEditableTarget(e.target)) {
+        const inExifPanel =
+          action === "toggleExif" &&
+          e.target instanceof HTMLElement &&
+          e.target.closest("[data-exif-panel]") !== null
+        if (!inExifPanel) return
+      }
 
       const p = propsRef.current
       const run = (fn: () => void) => {

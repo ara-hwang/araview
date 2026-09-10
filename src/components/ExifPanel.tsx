@@ -99,7 +99,7 @@ export function ExifPanel() {
 
   return (
     <Sheet open={showExifPanel} onOpenChange={handleOpenChange}>
-      <SheetContent side="right" className="flex flex-col p-0">
+      <SheetContent side="right" data-exif-panel className="flex flex-col p-0">
         <SheetHeader className="border-b px-4 py-3">
           <SheetTitle>{t("exif.title")}</SheetTitle>
           <SheetDescription>{t("exif.desc")}</SheetDescription>
