@@ -67,7 +67,18 @@
         "description": "Comic Book Archive File",
         "ext": [
           "cbz",
-          "cb7"
+          "cb7",
+          "cbr",
+          "cbt"
+        ]
+      },
+      {
+        "name": "Archive",
+        "description": "Archive File",
+        "ext": [
+          "rar",
+          "zip",
+          "7z"
         ]
       }
     ]

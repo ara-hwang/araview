@@ -8,6 +8,7 @@ use serde::Serialize;
 use winreg::enums::{HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE};
 use winreg::{RegKey, HKEY};
 
+use crate::app_error::AppError;
 use crate::image::SUPPORTED_EXTENSIONS;
 
 const BUNDLE_ID: &str = "com.tauri-image-viewer.app";
@@ -23,7 +24,7 @@ pub struct FileAssociation {
     pub needs_os_confirmation: bool,
 }
 
-pub fn list_associations() -> Result<Vec<FileAssociation>, String> {
+pub fn list_associations() -> Result<Vec<FileAssociation>, AppError> {
     let exe = current_exe()?;
     ensure_application_registration(&exe)?;
     SUPPORTED_EXTENSIONS
@@ -36,7 +37,7 @@ pub fn set_association(
     extension: &str,
     _associate: bool,
     parent_hwnd: *mut c_void,
-) -> Result<FileAssociation, String> {
+) -> Result<FileAssociation, AppError> {
     let ext = parse_extension(extension)?;
     let exe = current_exe()?;
     ensure_application_registration(&exe)?;
@@ -46,7 +47,7 @@ pub fn set_association(
     status_after_picker(&ext, &exe)
 }
 
-pub fn set_all_associations(_associate: bool) -> Result<Vec<FileAssociation>, String> {
+pub fn set_all_associations(_associate: bool) -> Result<Vec<FileAssociation>, AppError> {
     let exe = current_exe()?;
     ensure_application_registration(&exe)?;
     open_settings_uri(&default_apps_settings_uri())?;
@@ -56,7 +57,7 @@ pub fn set_all_associations(_associate: bool) -> Result<Vec<FileAssociation>, St
         .collect()
 }
 
-pub fn open_default_apps_settings() -> Result<(), String> {
+pub fn open_default_apps_settings() -> Result<(), AppError> {
     let exe = current_exe()?;
     ensure_application_registration(&exe)?;
     open_settings_uri(&default_apps_settings_uri())
@@ -77,13 +78,15 @@ pub fn prog_id_for(ext: &str) -> String {
     format!("{BUNDLE_ID}.{ext}")
 }
 
-pub fn parse_extension(raw: &str) -> Result<String, String> {
+pub fn parse_extension(raw: &str) -> Result<String, AppError> {
     let ext = raw.trim().trim_start_matches('.').to_lowercase();
     if ext.is_empty() {
-        return Err("Extension is empty".to_string());
+        return Err(AppError::invalid_input("Extension is empty"));
     }
     if !SUPPORTED_EXTENSIONS.contains(&ext.as_str()) {
-        return Err(format!("Unsupported extension: {raw}"));
+        return Err(AppError::unsupported(format!(
+            "Unsupported extension: {raw}"
+        )));
     }
     Ok(ext)
 }
@@ -111,11 +114,12 @@ pub fn extract_exe_from_command(command: &str) -> Option<String> {
     command.split_whitespace().next().map(ToOwned::to_owned)
 }
 
-fn current_exe() -> Result<PathBuf, String> {
-    std::env::current_exe().map_err(|e| format!("Failed to get executable path: {e}"))
+fn current_exe() -> Result<PathBuf, AppError> {
+    std::env::current_exe()
+        .map_err(|e| AppError::unknown(format!("Failed to get executable path: {e}")))
 }
 
-fn status_for(ext: &str, exe: &Path) -> Result<FileAssociation, String> {
+fn status_for(ext: &str, exe: &Path) -> Result<FileAssociation, AppError> {
     let user_choice = read_user_choice_latest(ext).or_else(|| read_user_choice(ext));
     let classes_default = read_classes_default(HKEY_CURRENT_USER, ext)
         .or_else(|| read_classes_default(HKEY_LOCAL_MACHINE, ext));
@@ -144,7 +148,7 @@ fn is_handled_by_us(prog_id: &str, exe: &Path) -> bool {
         .is_some_and(|command_exe| paths_equal(&command_exe, exe))
 }
 
-fn ensure_application_registration(exe: &Path) -> Result<(), String> {
+fn ensure_application_registration(exe: &Path) -> Result<(), AppError> {
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
     let (capabilities, _) = hkcu.create_subkey(CAPABILITIES_PATH).map_err(reg_err)?;
     capabilities
@@ -177,7 +181,7 @@ fn ensure_application_registration(exe: &Path) -> Result<(), String> {
     Ok(())
 }
 
-fn register_open_with(ext: &str) -> Result<(), String> {
+fn register_open_with(ext: &str) -> Result<(), AppError> {
     let prog_id = prog_id_for(ext);
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
     let (ext_key, _) = hkcu.create_subkey(classes_ext_path(ext)).map_err(reg_err)?;
@@ -191,7 +195,7 @@ fn register_open_with(ext: &str) -> Result<(), String> {
     Ok(())
 }
 
-fn write_prog_id(prog_id: &str, ext: &str, exe: &Path) -> Result<(), String> {
+fn write_prog_id(prog_id: &str, ext: &str, exe: &Path) -> Result<(), AppError> {
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
     let (prog_key, _) = hkcu
         .create_subkey(format!(r"Software\Classes\{prog_id}"))
@@ -290,11 +294,11 @@ fn starts_with_ignore_ascii_case(value: &str, prefix: &str) -> bool {
         && value.as_bytes()[..prefix.len()].eq_ignore_ascii_case(prefix.as_bytes())
 }
 
-fn reg_err(error: impl std::fmt::Display) -> String {
-    format!("Registry error: {error}")
+fn reg_err(error: impl std::fmt::Display) -> AppError {
+    AppError::unknown(format!("Registry error: {error}"))
 }
 
-fn open_settings_uri(uri: &str) -> Result<(), String> {
+fn open_settings_uri(uri: &str) -> Result<(), AppError> {
     let file: Vec<u16> = std::ffi::OsStr::new(uri)
         .encode_wide()
         .chain(std::iter::once(0))
@@ -313,17 +317,20 @@ fn open_settings_uri(uri: &str) -> Result<(), String> {
         )
     };
     if result <= 32 {
-        return Err(format!(
+        return Err(AppError::unknown(format!(
             "Failed to open Windows default apps settings (code {result})"
-        ));
+        )));
     }
     Ok(())
 }
 
-fn status_after_picker(ext: &str, exe: &Path) -> Result<FileAssociation, String> {
+fn status_after_picker(ext: &str, exe: &Path) -> Result<FileAssociation, AppError> {
+    // 사용자가 피커에서 선택하면 레지스트리가 바뀌므로 변경 시 즉시 반환.
+    // 피커를 그냥 닫으면 변경이 없어 최대 대기 후 현재 상태를 돌려준다.
+    // FE도 창 포커스 복귀 시 목록을 새로고침하므로 이 폴링은 보조 수단이다.
     let first = status_for(ext, exe)?;
-    for _ in 0..8 {
-        std::thread::sleep(Duration::from_millis(125));
+    for _ in 0..12 {
+        std::thread::sleep(Duration::from_millis(250));
         let next = status_for(ext, exe)?;
         if next != first {
             return Ok(next);
@@ -332,7 +339,7 @@ fn status_after_picker(ext: &str, exe: &Path) -> Result<FileAssociation, String>
     status_for(ext, exe)
 }
 
-fn open_extension_picker(ext: &str, parent_hwnd: *mut c_void) -> Result<(), String> {
+fn open_extension_picker(ext: &str, parent_hwnd: *mut c_void) -> Result<(), AppError> {
     let dotted = format!(".{ext}");
     let wide: Vec<u16> = std::ffi::OsStr::new(&dotted)
         .encode_wide()
@@ -345,7 +352,9 @@ fn open_extension_picker(ext: &str, parent_hwnd: *mut c_void) -> Result<(), Stri
     unsafe {
         let init_hr = CoInitializeEx(ptr::null_mut(), COINIT_APARTMENTTHREADED);
         if init_hr < 0 && init_hr != RPC_E_CHANGED_MODE {
-            return Err(format!("COM initialize failed ({init_hr:#x})"));
+            return Err(AppError::unknown(format!(
+                "COM initialize failed ({init_hr:#x})"
+            )));
         }
         let should_uninit = init_hr == 0;
 
@@ -361,7 +370,9 @@ fn open_extension_picker(ext: &str, parent_hwnd: *mut c_void) -> Result<(), Stri
             if should_uninit {
                 CoUninitialize();
             }
-            return Err(format!("OpenWithLauncher create failed ({create_hr:#x})"));
+            return Err(AppError::unknown(format!(
+                "OpenWithLauncher create failed ({create_hr:#x})"
+            )));
         }
 
         CoAllowSetForegroundWindow(punk, ptr::null_mut());
@@ -377,16 +388,18 @@ fn open_extension_picker(ext: &str, parent_hwnd: *mut c_void) -> Result<(), Stri
         if launch_hr >= 0 || launch_hr == HRESULT_CANCELLED {
             Ok(())
         } else {
-            Err(format!("OpenWithLauncher launch failed ({launch_hr:#x})"))
+            Err(AppError::unknown(format!(
+                "OpenWithLauncher launch failed ({launch_hr:#x})"
+            )))
         }
     }
 }
 
-fn read_open_with_launcher_clsid() -> Result<Guid, String> {
+fn read_open_with_launcher_clsid() -> Result<Guid, AppError> {
     guid_from_string(&read_open_with_launcher_clsid_string()?)
 }
 
-fn read_open_with_launcher_clsid_string() -> Result<String, String> {
+fn read_open_with_launcher_clsid_string() -> Result<String, AppError> {
     let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
     let key = hklm
         .open_subkey(r"SOFTWARE\Microsoft\Windows\CurrentVersion\OpenWith")
@@ -394,7 +407,7 @@ fn read_open_with_launcher_clsid_string() -> Result<String, String> {
     key.get_value("OpenWithLauncher").map_err(reg_err)
 }
 
-fn guid_from_string(value: &str) -> Result<Guid, String> {
+fn guid_from_string(value: &str) -> Result<Guid, AppError> {
     let wide: Vec<u16> = std::ffi::OsStr::new(value)
         .encode_wide()
         .chain(std::iter::once(0))
@@ -407,7 +420,9 @@ fn guid_from_string(value: &str) -> Result<Guid, String> {
     };
     let hr = unsafe { CLSIDFromString(wide.as_ptr(), &mut guid) };
     if hr < 0 {
-        return Err(format!("Invalid OpenWithLauncher CLSID: {value}"));
+        return Err(AppError::unknown(format!(
+            "Invalid OpenWithLauncher CLSID: {value}"
+        )));
     }
     Ok(guid)
 }

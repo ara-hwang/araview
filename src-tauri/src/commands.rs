@@ -3,12 +3,13 @@ use std::fs;
 use std::io::BufReader;
 use std::path::Path;
 
+use crate::app_error::{AppError, ErrorCode};
 use crate::archive;
 use crate::image::{is_archive_file, is_supported_file, DirectoryImages, ImageInfo};
 use crate::process_temp::process_temp_dir;
 
 #[tauri::command]
-pub fn load_image(file_path: String) -> Result<ImageInfo, String> {
+pub fn load_image(file_path: String) -> Result<ImageInfo, AppError> {
     crate::image::load_viewable(Path::new(&file_path))
 }
 
@@ -16,10 +17,12 @@ pub fn load_image(file_path: String) -> Result<ImageInfo, String> {
 pub fn get_directory_images(
     file_path: String,
     options: Option<DirListOptions>,
-) -> Result<DirectoryImages, String> {
+) -> Result<DirectoryImages, AppError> {
     let opts = options.unwrap_or_default();
     let path = Path::new(&file_path);
-    let parent = path.parent().ok_or("Cannot get parent directory")?;
+    let parent = path
+        .parent()
+        .ok_or_else(|| AppError::not_found("Cannot get parent directory"))?;
 
     let images = crate::dir_cache::get_sorted_images(parent, &opts)?;
     let paths: Vec<String> = images.into_iter().map(|e| e.path).collect();
@@ -57,11 +60,11 @@ pub enum DirSortKey {
 
 // 드롭된 경로를 해석한다. 파일이면 그대로, 디렉토리면 내부의 첫 이미지 경로를 반환.
 #[tauri::command]
-pub fn resolve_dropped_path(path: String) -> Result<String, String> {
+pub fn resolve_dropped_path(path: String) -> Result<String, AppError> {
     let p = Path::new(&path);
 
     if !p.exists() {
-        return Err("Path not found".to_string());
+        return Err(AppError::not_found("Path not found"));
     }
 
     if p.is_file() {
@@ -69,7 +72,8 @@ pub fn resolve_dropped_path(path: String) -> Result<String, String> {
     }
 
     if p.is_dir() {
-        let entries = fs::read_dir(p).map_err(|e| format!("Failed to read directory: {}", e))?;
+        let entries = fs::read_dir(p)
+            .map_err(|e| AppError::io("Failed to read directory", e, ErrorCode::Corrupt))?;
 
         let mut images: Vec<String> = Vec::new();
         for entry in entries.flatten() {
@@ -82,31 +86,32 @@ pub fn resolve_dropped_path(path: String) -> Result<String, String> {
         }
 
         if images.is_empty() {
-            return Err("No images found in directory".to_string());
+            return Err(AppError::not_found("No images found in directory"));
         }
 
         images.sort_by_key(|s| s.to_lowercase());
         return Ok(images.remove(0));
     }
 
-    Err("Unsupported path type".to_string())
+    Err(AppError::unsupported("Unsupported path type"))
 }
 
 #[tauri::command]
-pub fn get_exif_data(file_path: String) -> Result<HashMap<String, String>, String> {
+pub fn get_exif_data(file_path: String) -> Result<HashMap<String, String>, AppError> {
     let path = Path::new(&file_path);
 
     if !path.exists() {
-        return Err("File not found".to_string());
+        return Err(AppError::not_found("File not found"));
     }
 
-    let file = fs::File::open(path).map_err(|e| format!("Failed to open file: {}", e))?;
+    let file = fs::File::open(path)
+        .map_err(|e| AppError::io("Failed to open file", e, ErrorCode::Corrupt))?;
     let mut reader = BufReader::new(file);
 
     let exif_reader = exif::Reader::new();
     let exif = exif_reader
         .read_from_container(&mut reader)
-        .map_err(|e| format!("No EXIF data found: {}", e))?;
+        .map_err(|e| AppError::unsupported(format!("No EXIF data found: {e}")))?;
 
     let mut data = HashMap::new();
 
@@ -121,21 +126,21 @@ pub fn get_exif_data(file_path: String) -> Result<HashMap<String, String>, Strin
 
 /// 아카이브(CBZ/CB7) 파일 내부의 이미지 엔트리 목록을 반환
 #[tauri::command]
-pub fn get_archive_images(file_path: String) -> Result<DirectoryImages, String> {
+pub fn get_archive_images(file_path: String) -> Result<DirectoryImages, AppError> {
     let path = Path::new(&file_path);
 
     if !path.exists() {
-        return Err("File not found".to_string());
+        return Err(AppError::not_found("File not found"));
     }
 
     if !is_archive_file(path) {
-        return Err("Not an archive file".to_string());
+        return Err(AppError::unsupported("Not an archive file"));
     }
 
     let images = archive::list_archive_images(path)?;
 
     if images.is_empty() {
-        return Err("No images found in archive".to_string());
+        return Err(AppError::not_found("No images found in archive"));
     }
 
     Ok(DirectoryImages {
@@ -147,30 +152,49 @@ pub fn get_archive_images(file_path: String) -> Result<DirectoryImages, String> 
 /// 아카이브에서 특정 엔트리를 추출하여 ImageInfo를 반환
 /// entry_name은 get_archive_images에서 반환된 엔트리 이름
 #[tauri::command]
-pub fn load_archive_image(archive_path: String, entry_name: String) -> Result<ImageInfo, String> {
+pub fn load_archive_image(archive_path: String, entry_name: String) -> Result<ImageInfo, AppError> {
     let arch_path = Path::new(&archive_path);
 
     if !arch_path.exists() {
-        return Err("Archive not found".to_string());
+        return Err(AppError::not_found("Archive not found"));
     }
 
-    let temp_dir = process_temp_dir()?;
-
-    // 아카이브 이름 기반 서브 디렉토리를 만들어 충돌 방지
-    let archive_stem = arch_path
-        .file_stem()
-        .and_then(|n| n.to_str())
-        .unwrap_or("archive");
-    let sub_dir = temp_dir.join(archive_stem);
-    fs::create_dir_all(&sub_dir).map_err(|e| format!("Failed to create sub dir: {}", e))?;
+    let sub_dir = archive_sub_dir(arch_path)?;
 
     let extracted_path = archive::extract_archive_image(arch_path, &entry_name, &sub_dir)?;
 
     crate::image::load_viewable(&extracted_path)
 }
 
+fn archive_sub_dir(archive_path: &Path) -> Result<std::path::PathBuf, AppError> {
+    let temp_dir = process_temp_dir()?;
+    let archive_stem = archive_path
+        .file_stem()
+        .and_then(|n| n.to_str())
+        .unwrap_or("archive");
+    let sub_dir = temp_dir.join(archive_stem);
+    fs::create_dir_all(&sub_dir)
+        .map_err(|e| AppError::io("Failed to create sub dir", e, ErrorCode::Unknown))?;
+    Ok(sub_dir)
+}
+
+/// 이웃 페이지 선추출 (zip은 오픈 1회). FE fire-and-forget용으로 항상 Ok다.
 #[tauri::command]
-pub fn get_file_associations() -> Result<Vec<crate::file_assoc::FileAssociation>, String> {
+pub fn archive_prefetch(archive_path: String, entry_names: Vec<String>) -> Result<usize, AppError> {
+    let arch_path = Path::new(&archive_path);
+    if !arch_path.exists() {
+        return Err(AppError::not_found("Archive not found"));
+    }
+    let sub_dir = archive_sub_dir(arch_path)?;
+    Ok(archive::prefetch_archive_images(
+        arch_path,
+        &entry_names,
+        &sub_dir,
+    ))
+}
+
+#[tauri::command]
+pub fn get_file_associations() -> Result<Vec<crate::file_assoc::FileAssociation>, AppError> {
     crate::file_assoc::list_associations()
 }
 
@@ -179,7 +203,7 @@ pub fn set_file_association(
     window: tauri::WebviewWindow,
     extension: String,
     associate: bool,
-) -> Result<crate::file_assoc::FileAssociation, String> {
+) -> Result<crate::file_assoc::FileAssociation, AppError> {
     crate::file_assoc::set_association(&extension, associate, window_hwnd(&window))
 }
 
@@ -193,12 +217,12 @@ fn window_hwnd(window: &tauri::WebviewWindow) -> *mut std::ffi::c_void {
 #[tauri::command]
 pub fn set_all_file_associations(
     associate: bool,
-) -> Result<Vec<crate::file_assoc::FileAssociation>, String> {
+) -> Result<Vec<crate::file_assoc::FileAssociation>, AppError> {
     crate::file_assoc::set_all_associations(associate)
 }
 
 #[tauri::command]
-pub fn open_default_apps_settings() -> Result<(), String> {
+pub fn open_default_apps_settings() -> Result<(), AppError> {
     crate::file_assoc::open_default_apps_settings()
 }
 
@@ -207,54 +231,71 @@ pub fn open_default_apps_settings() -> Result<(), String> {
 pub fn generate_thumbnail(
     file_path: String,
     max_side: Option<u32>,
-) -> Result<crate::thumbnail::ThumbnailInfo, String> {
+) -> Result<crate::thumbnail::ThumbnailInfo, AppError> {
     crate::thumbnail::generate_thumbnail(
         Path::new(&file_path),
         max_side.unwrap_or_else(crate::thumbnail::default_max_side),
     )
 }
 
+/// 썸네일 윈도우 배치 처리. 항목별 성공/실패를 함께 반환한다.
+#[tauri::command]
+pub fn generate_thumbnails_batch(
+    file_paths: Vec<String>,
+    max_side: Option<u32>,
+) -> Result<Vec<crate::thumbnail::BatchThumb>, AppError> {
+    Ok(crate::thumbnail::generate_thumbnails_batch(
+        &file_paths,
+        max_side.unwrap_or_else(crate::thumbnail::default_max_side),
+    ))
+}
+
 /// 현재 이미지를 OS 휴지통으로 이동 (영구 삭제 아님)
 #[tauri::command]
-pub fn trash_file(file_path: String) -> Result<(), String> {
+pub fn trash_file(file_path: String) -> Result<(), AppError> {
     let path = Path::new(&file_path);
 
     if !path.exists() {
-        return Err("File not found".to_string());
+        return Err(AppError::not_found("File not found"));
     }
 
     if !path.is_file() {
-        return Err("Only files can be moved to trash".to_string());
+        return Err(AppError::invalid_input("Only files can be moved to trash"));
     }
 
-    trash::delete(path).map_err(|e| format!("Failed to move to trash: {}", e))
+    trash::delete(path).map_err(|e| AppError::unknown(format!("Failed to move to trash: {e}")))
 }
 
 /// 같은 폴더 안에서 파일 이름 변경. 새 ImageInfo를 반환해 이름/MIME/크기를 일괄 갱신
 #[tauri::command]
-pub fn rename_file(old_path: String, new_name: String) -> Result<ImageInfo, String> {
+pub fn rename_file(old_path: String, new_name: String) -> Result<ImageInfo, AppError> {
     use crate::image::is_supported_file;
 
     let old = Path::new(&old_path);
 
     if !old.is_file() {
-        return Err("File not found".to_string());
+        return Err(AppError::not_found("File not found"));
     }
 
     let name = crate::image::validate_new_file_name(&new_name)?;
 
-    let parent = old.parent().ok_or("Cannot get parent directory")?;
+    let parent = old
+        .parent()
+        .ok_or_else(|| AppError::not_found("Cannot get parent directory"))?;
     let new_path = parent.join(name);
 
     // 대소문자만 바꾸는 경우 등 동일 파일이면 이동 생략
     if new_path != old {
         if !is_supported_file(&new_path) {
-            return Err("Unsupported image format".to_string());
+            return Err(AppError::unsupported("Unsupported image format"));
         }
         if new_path.exists() {
-            return Err("A file with that name already exists".to_string());
+            return Err(AppError::already_exists(
+                "A file with that name already exists",
+            ));
         }
-        fs::rename(old, &new_path).map_err(|e| format!("Failed to rename: {}", e))?;
+        fs::rename(old, &new_path)
+            .map_err(|e| AppError::io("Failed to rename", e, ErrorCode::Unknown))?;
     }
 
     crate::image::load_viewable(&new_path)
@@ -263,6 +304,7 @@ pub fn rename_file(old_path: String, new_name: String) -> Result<ImageInfo, Stri
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::app_error::ErrorCode;
     use std::time::{SystemTime, UNIX_EPOCH};
 
     fn unique_dir(suffix: &str) -> std::path::PathBuf {
@@ -282,7 +324,8 @@ mod tests {
             "new.png".to_string(),
         )
         .unwrap_err();
-        assert_eq!(err, "File not found");
+        assert_eq!(err.code, ErrorCode::NotFound);
+        assert_eq!(err.message, "File not found");
     }
 
     #[test]
@@ -294,7 +337,12 @@ mod tests {
 
         for bad in ["", "   ", "sub/dir.png", "a<b.png", "trail."] {
             let err = rename_file(old_str.clone(), bad.to_string()).unwrap_err();
-            assert!(!err.is_empty(), "name {bad:?} should fail");
+            assert_eq!(
+                err.code,
+                ErrorCode::InvalidInput,
+                "name {bad:?} should fail"
+            );
+            assert!(!err.message.is_empty());
         }
         // 실패한 검증 뒤 원본은 그대로
         assert!(old.exists());
@@ -308,7 +356,8 @@ mod tests {
         fs::write(&old, []).expect("write dummy");
 
         let err = rename_file(old.to_str().unwrap().to_string(), "b.txt".to_string()).unwrap_err();
-        assert_eq!(err, "Unsupported image format");
+        assert_eq!(err.code, ErrorCode::Unsupported);
+        assert_eq!(err.message, "Unsupported image format");
         // rename 전에 차단되므로 원본 유지
         assert!(old.exists());
         assert!(!dir.join("b.txt").exists());
@@ -323,7 +372,8 @@ mod tests {
         fs::write(dir.join("b.png"), []).expect("write dummy");
 
         let err = rename_file(old.to_str().unwrap().to_string(), "b.png".to_string()).unwrap_err();
-        assert_eq!(err, "A file with that name already exists");
+        assert_eq!(err.code, ErrorCode::AlreadyExists);
+        assert_eq!(err.message, "A file with that name already exists");
         fs::remove_dir_all(&dir).ok();
     }
 

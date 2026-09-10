@@ -14,6 +14,7 @@ use std::time::UNIX_EPOCH;
 
 use serde::Serialize;
 
+use crate::app_error::{AppError, ErrorCode};
 use crate::process_temp::process_temp_dir;
 
 #[derive(Serialize, Debug)]
@@ -30,23 +31,32 @@ const MAX_CACHE_BYTES: u64 = 500 * 1024 * 1024;
 pub fn default_max_side() -> u32 {
     DEFAULT_MAX_SIDE
 }
-
-pub fn generate_thumbnail(source: &Path, max_side: u32) -> Result<ThumbnailInfo, String> {
+pub fn generate_thumbnail(source: &Path, max_side: u32) -> Result<ThumbnailInfo, AppError> {
     if !source.is_file() {
-        return Err("File not found".to_string());
+        return Err(AppError::not_found("File not found"));
     }
     let max_side = max_side.clamp(32, 1024);
+    if is_heif_source(source) {
+        let sidecar = crate::heif::ensure_jpeg_sidecar_thumb(source, max_side)?;
+        let (width, height) = image::image_dimensions(&sidecar)
+            .map_err(|e| AppError::corrupt(format!("Failed to read thumbnail: {e}")))?;
+        return Ok(ThumbnailInfo {
+            file_path: sidecar.to_string_lossy().to_string(),
+            width,
+            height,
+        });
+    }
     let dest = thumb_path(source, max_side)?;
     if !dest.exists() {
-        let img =
-            image::open(source).map_err(|e| format!("Failed to decode image: {e}"))?;
+        let img = image::open(source)
+            .map_err(|e| AppError::corrupt(format!("Failed to decode image: {e}")))?;
         let thumb = img.thumbnail(max_side, max_side);
         write_jpeg_atomic(&dest, &thumb)?;
         // Best effort: eviction failures must not fail thumbnail delivery.
         enforce_cap(THUMBS_SUBDIR, MAX_CACHE_BYTES).ok();
     }
-    let (width, height) =
-        image::image_dimensions(&dest).map_err(|e| format!("Failed to read thumbnail: {e}"))?;
+    let (width, height) = image::image_dimensions(&dest)
+        .map_err(|e| AppError::corrupt(format!("Failed to read thumbnail: {e}")))?;
     Ok(ThumbnailInfo {
         file_path: dest.to_string_lossy().to_string(),
         width,
@@ -54,17 +64,56 @@ pub fn generate_thumbnail(source: &Path, max_side: u32) -> Result<ThumbnailInfo,
     })
 }
 
+fn is_heif_source(source: &Path) -> bool {
+    matches!(
+        source
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(|e| e.to_lowercase())
+            .as_deref(),
+        Some("heic" | "heif")
+    )
+}
+
+#[derive(Serialize, Debug)]
+pub struct BatchThumb {
+    pub source: String,
+    pub thumb: Option<ThumbnailInfo>,
+    pub error: Option<String>,
+}
+
+/// 썸네일 스트립 윈도우를 1회 invoke으로 처리. 실패 항목은 FE가 원본 폴백한다.
+pub fn generate_thumbnails_batch(sources: &[String], max_side: u32) -> Vec<BatchThumb> {
+    sources
+        .iter()
+        .map(|s| match generate_thumbnail(Path::new(s), max_side) {
+            Ok(thumb) => BatchThumb {
+                source: s.clone(),
+                thumb: Some(thumb),
+                error: None,
+            },
+            Err(e) => BatchThumb {
+                source: s.clone(),
+                thumb: None,
+                error: Some(e.message),
+            },
+        })
+        .collect()
+}
+
 const THUMBS_SUBDIR: &str = "thumbs";
 
-fn thumbs_dir() -> Result<PathBuf, String> {
+fn thumbs_dir() -> Result<PathBuf, AppError> {
     let dir = process_temp_dir()?.join(THUMBS_SUBDIR);
-    fs::create_dir_all(&dir).map_err(|e| format!("Failed to create thumbs dir: {e}"))?;
+    fs::create_dir_all(&dir)
+        .map_err(|e| AppError::io("Failed to create thumbs dir", e, ErrorCode::Unknown))?;
     Ok(dir)
 }
 
-fn thumb_path(source: &Path, max_side: u32) -> Result<PathBuf, String> {
+fn thumb_path(source: &Path, max_side: u32) -> Result<PathBuf, AppError> {
     let canonical = fs::canonicalize(source).unwrap_or_else(|_| source.to_path_buf());
-    let meta = fs::metadata(source).map_err(|e| format!("Failed to read metadata: {e}"))?;
+    let meta = fs::metadata(source)
+        .map_err(|e| AppError::io("Failed to read metadata", e, ErrorCode::Corrupt))?;
     let mtime = meta
         .modified()
         .ok()
@@ -79,9 +128,10 @@ fn thumb_path(source: &Path, max_side: u32) -> Result<PathBuf, String> {
     Ok(thumbs_dir()?.join(format!("{:016x}.jpg", hasher.finish())))
 }
 
-fn write_jpeg_atomic(dest: &Path, img: &image::DynamicImage) -> Result<(), String> {
+fn write_jpeg_atomic(dest: &Path, img: &image::DynamicImage) -> Result<(), AppError> {
     if let Some(parent) = dest.parent() {
-        fs::create_dir_all(parent).map_err(|e| format!("Failed to create thumbs dir: {e}"))?;
+        fs::create_dir_all(parent)
+            .map_err(|e| AppError::io("Failed to create thumbs dir", e, ErrorCode::Unknown))?;
     }
     let file_name = dest
         .file_name()
@@ -90,7 +140,7 @@ fn write_jpeg_atomic(dest: &Path, img: &image::DynamicImage) -> Result<(), Strin
     // `.jpg` 접미사를 유지해야 `save`가 포맷을 추론할 수 있다.
     let tmp = dest.with_file_name(format!("{}.tmp-{}.jpg", file_name, std::process::id()));
     img.save(&tmp)
-        .map_err(|e| format!("Failed to encode thumbnail: {e}"))?;
+        .map_err(|e| AppError::unknown(format!("Failed to encode thumbnail: {e}")))?;
     match fs::rename(&tmp, dest) {
         Ok(()) => Ok(()),
         Err(_) if dest.exists() => {
@@ -99,20 +149,23 @@ fn write_jpeg_atomic(dest: &Path, img: &image::DynamicImage) -> Result<(), Strin
         }
         Err(e) => {
             let _ = fs::remove_file(&tmp);
-            Err(format!("Failed to publish thumbnail: {e}"))
+            Err(AppError::unknown(format!(
+                "Failed to publish thumbnail: {e}"
+            )))
         }
     }
 }
 
 /// Delete oldest files in `sub_dir` until total size is under `max_bytes`.
-fn enforce_cap(sub_dir: &str, max_bytes: u64) -> Result<(), String> {
+fn enforce_cap(sub_dir: &str, max_bytes: u64) -> Result<(), AppError> {
     let dir = process_temp_dir()?.join(sub_dir);
     enforce_cap_in(&dir, max_bytes)
 }
 
 /// Core of [`enforce_cap`] over an explicit directory (unit testable).
-fn enforce_cap_in(dir: &Path, max_bytes: u64) -> Result<(), String> {
-    let entries = fs::read_dir(dir).map_err(|e| format!("Failed to list thumbs: {e}"))?;
+fn enforce_cap_in(dir: &Path, max_bytes: u64) -> Result<(), AppError> {
+    let entries = fs::read_dir(dir)
+        .map_err(|e| AppError::io("Failed to list thumbs", e, ErrorCode::Unknown))?;
     let mut files: Vec<(u128, u64, PathBuf)> = Vec::new();
     let mut total: u64 = 0;
     for entry in entries.flatten() {
@@ -164,17 +217,10 @@ mod tests {
     use super::*;
 
     fn write_png(path: &Path, width: u32, height: u32) {
-        let img = image::DynamicImage::ImageRgb8(image::RgbImage::from_fn(
-            width,
-            height,
-            |x, y| {
-                image::Rgb([
-                    (x % 256) as u8,
-                    (y % 256) as u8,
-                    ((x + y) % 256) as u8,
-                ])
-            },
-        ));
+        let img =
+            image::DynamicImage::ImageRgb8(image::RgbImage::from_fn(width, height, |x, y| {
+                image::Rgb([(x % 256) as u8, (y % 256) as u8, ((x + y) % 256) as u8])
+            }));
         img.save(path).expect("write png fixture");
     }
 
@@ -210,13 +256,14 @@ mod tests {
         let source = dir.path().join("notes.txt");
         fs::write(&source, b"hello").unwrap();
         let err = generate_thumbnail(&source, 64).unwrap_err();
-        assert!(!err.is_empty());
+        assert!(!err.message.is_empty());
     }
 
     #[test]
     fn missing_file_returns_not_found() {
         let err = generate_thumbnail(Path::new("no-such-thumb.png"), 64).unwrap_err();
-        assert_eq!(err, "File not found");
+        assert_eq!(err.code, crate::app_error::ErrorCode::NotFound);
+        assert_eq!(err.message, "File not found");
     }
 
     #[test]

@@ -1,3 +1,4 @@
+pub mod app_error;
 pub mod archive;
 pub mod commands;
 pub mod dir_cache;
@@ -9,12 +10,13 @@ pub mod save;
 pub mod thumbnail;
 
 use commands::{
-    generate_thumbnail, get_archive_images, get_directory_images, get_exif_data,
-    get_file_associations, load_archive_image, load_image, open_default_apps_settings, rename_file,
-    resolve_dropped_path, set_all_file_associations, set_file_association, trash_file,
+    archive_prefetch, generate_thumbnail, generate_thumbnails_batch, get_archive_images,
+    get_directory_images, get_exif_data, get_file_associations, load_archive_image, load_image,
+    open_default_apps_settings, rename_file, resolve_dropped_path, set_all_file_associations,
+    set_file_association, trash_file,
 };
 use save::save_image_edits;
-use tauri::Emitter;
+use tauri::{Emitter, Manager};
 
 pub fn run() {
     let mut builder = tauri::Builder::default();
@@ -28,14 +30,29 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        // 두 번째 실행(파일 더블클릭 등)은 새 창 대신 기존 창에 파일을 연다.
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            if let Some(file_path) = args.get(1).cloned() {
+                let handle = app.clone();
+                std::thread::spawn(move || {
+                    std::thread::sleep(std::time::Duration::from_millis(300));
+                    handle.emit("open-file", file_path).ok();
+                });
+                if let Some(window) = app.get_webview_window("main") {
+                    window.set_focus().ok();
+                }
+            }
+        }))
         .invoke_handler(tauri::generate_handler![
             load_image,
             get_directory_images,
             get_exif_data,
             generate_thumbnail,
+            generate_thumbnails_batch,
             resolve_dropped_path,
             get_archive_images,
             load_archive_image,
+            archive_prefetch,
             get_file_associations,
             set_file_association,
             set_all_file_associations,

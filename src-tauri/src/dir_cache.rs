@@ -19,6 +19,7 @@ use std::time::SystemTime;
 
 use once_cell::sync::Lazy;
 
+use crate::app_error::{AppError, ErrorCode};
 use crate::commands::{DirListOptions, DirSortKey};
 use crate::image::is_supported_file;
 
@@ -40,10 +41,8 @@ struct CachedListing {
 
 static DIR_CACHE: Lazy<Mutex<HashMap<String, CachedListing>>> =
     Lazy::new(|| Mutex::new(HashMap::new()));
-static WATCHED_DIRS: Lazy<Mutex<HashSet<PathBuf>>> =
-    Lazy::new(|| Mutex::new(HashSet::new()));
-static WATCHER: Lazy<Mutex<Option<notify::RecommendedWatcher>>> =
-    Lazy::new(|| Mutex::new(None));
+static WATCHED_DIRS: Lazy<Mutex<HashSet<PathBuf>>> = Lazy::new(|| Mutex::new(HashSet::new()));
+static WATCHER: Lazy<Mutex<Option<notify::RecommendedWatcher>>> = Lazy::new(|| Mutex::new(None));
 
 pub(crate) fn cache_key(parent: &Path, opts: &DirListOptions) -> String {
     let sort = match opts.sort_key {
@@ -69,7 +68,7 @@ fn dir_mtime(dir: &Path) -> Option<SystemTime> {
 pub(crate) fn get_sorted_images(
     parent: &Path,
     opts: &DirListOptions,
-) -> Result<Vec<ImageEntry>, String> {
+) -> Result<Vec<ImageEntry>, AppError> {
     if !opts.recursive {
         let current = dir_mtime(parent);
         if let Ok(cache) = DIR_CACHE.lock() {
@@ -87,10 +86,7 @@ pub(crate) fn get_sorted_images(
         Ok(images)
     } else {
         let key = cache_key(parent, opts);
-        let watching = WATCHER
-            .lock()
-            .map(|guard| guard.is_some())
-            .unwrap_or(false);
+        let watching = WATCHER.lock().map(|guard| guard.is_some()).unwrap_or(false);
         if watching {
             if let Ok(cache) = DIR_CACHE.lock() {
                 if let Some(entry) = cache.get(&key) {
@@ -185,13 +181,14 @@ fn invalidate_for_path(path: &Path) {
     cache.retain(|_, entry| !path.starts_with(&entry.parent));
 }
 
-fn collect_images(dir: &Path, recursive: bool, out: &mut Vec<ImageEntry>) -> Result<(), String> {
+fn collect_images(dir: &Path, recursive: bool, out: &mut Vec<ImageEntry>) -> Result<(), AppError> {
     let mut stack = vec![dir.to_path_buf()];
     while let Some(current) = stack.pop() {
-        let entries =
-            fs::read_dir(&current).map_err(|e| format!("Failed to read directory: {}", e))?;
+        let entries = fs::read_dir(&current)
+            .map_err(|e| AppError::io("Failed to read directory", e, ErrorCode::Corrupt))?;
         for entry in entries {
-            let entry = entry.map_err(|e| format!("Failed to read entry: {}", e))?;
+            let entry =
+                entry.map_err(|e| AppError::corrupt(format!("Failed to read entry: {e}")))?;
             let entry_path = entry.path();
             if entry_path.is_dir() {
                 if recursive {

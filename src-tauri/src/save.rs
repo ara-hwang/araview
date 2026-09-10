@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 
 use image::{DynamicImage, ImageFormat, Rgb, RgbImage};
 
+use crate::app_error::{AppError, ErrorCode};
 use crate::image::{validate_new_file_name, ImageInfo};
 
 /// C8+C9: 회전/반전 적용 + 포맷 변환 저장 옵션 (프론트 SaveEditsDialog와 대응)
@@ -72,10 +73,13 @@ fn source_ext(source: &Path) -> String {
 }
 
 #[tauri::command]
-pub fn save_image_edits(file_path: String, options: SaveImageOptions) -> Result<ImageInfo, String> {
+pub fn save_image_edits(
+    file_path: String,
+    options: SaveImageOptions,
+) -> Result<ImageInfo, AppError> {
     let source = Path::new(&file_path);
     if !source.is_file() {
-        return Err("File not found".to_string());
+        return Err(AppError::not_found("File not found"));
     }
 
     let (dest, out_format) = resolve_save_target(source, &options)?;
@@ -90,14 +94,15 @@ pub fn save_image_edits(file_path: String, options: SaveImageOptions) -> Result<
 fn resolve_save_target(
     source: &Path,
     options: &SaveImageOptions,
-) -> Result<(PathBuf, OutFormat), String> {
+) -> Result<(PathBuf, OutFormat), AppError> {
     let ext = source_ext(source);
 
     let requested: Option<OutFormat> = match &options.format {
         None => None,
-        Some(f) => {
-            Some(OutFormat::from_name(f).ok_or_else(|| "Unsupported output format".to_string())?)
-        }
+        Some(f) => Some(
+            OutFormat::from_name(f)
+                .ok_or_else(|| AppError::invalid_input("Unsupported output format"))?,
+        ),
     };
     let source_format = OutFormat::from_source_ext(&ext);
     let out_format = requested.or(source_format).unwrap_or_else(|| {
@@ -115,7 +120,9 @@ fn resolve_save_target(
     }
 
     // 새 파일: 지정명 or "{stem}-edited.{ext}", 중복 시 -2, -3...
-    let parent = source.parent().ok_or("Cannot get parent directory")?;
+    let parent = source
+        .parent()
+        .ok_or_else(|| AppError::not_found("Cannot get parent directory"))?;
     let stem = source
         .file_stem()
         .and_then(|s| s.to_str())
@@ -145,15 +152,15 @@ fn resolve_save_target(
     unreachable!("dedup loop always terminates")
 }
 
-fn decode_source(source: &Path) -> Result<DynamicImage, String> {
+fn decode_source(source: &Path) -> Result<DynamicImage, AppError> {
     let ext = source_ext(source);
     if ext == "heic" || ext == "heif" {
         let rgb = crate::heif::decode_primary_rgb8(source)?;
         return image::RgbImage::from_raw(rgb.width, rgb.height, rgb.bytes)
             .map(DynamicImage::ImageRgb8)
-            .ok_or_else(|| "HEIF decode produced invalid buffer".to_string());
+            .ok_or_else(|| AppError::corrupt("HEIF decode produced invalid buffer"));
     }
-    image::open(source).map_err(|e| format!("Cannot decode image: {}", e))
+    image::open(source).map_err(|e| AppError::corrupt(format!("Cannot decode image: {e}")))
 }
 
 /// RGBA 등은 흰 배경에 합성해 RGB로 (투명 PNG가 검게 되는 것 방지)
@@ -170,13 +177,17 @@ fn flatten_to_rgb8(img: &DynamicImage) -> RgbImage {
 }
 
 /// 화면 CSS 합성(translate * scale * rotate)과 일치하게 rotate 먼저, flip 나중
-fn apply_transform(img: &RgbImage, options: &SaveImageOptions) -> Result<RgbImage, String> {
+fn apply_transform(img: &RgbImage, options: &SaveImageOptions) -> Result<RgbImage, AppError> {
     let mut img = match options.rotation_cw % 360 {
         0 => img.clone(),
         90 => image::imageops::rotate90(img),
         180 => image::imageops::rotate180(img),
         270 => image::imageops::rotate270(img),
-        _ => return Err("rotation must be 0, 90, 180 or 270".to_string()),
+        _ => {
+            return Err(AppError::invalid_input(
+                "rotation must be 0, 90, 180 or 270",
+            ))
+        }
     };
     if options.flip_h {
         img = image::imageops::flip_horizontal(&img);
@@ -187,10 +198,11 @@ fn apply_transform(img: &RgbImage, options: &SaveImageOptions) -> Result<RgbImag
     Ok(img)
 }
 
-fn encode_image(img: &RgbImage, format: OutFormat, dest: &Path) -> Result<(), String> {
+fn encode_image(img: &RgbImage, format: OutFormat, dest: &Path) -> Result<(), AppError> {
     if let Some(parent) = dest.parent() {
         if !parent.as_os_str().is_empty() {
-            fs::create_dir_all(parent).map_err(|e| format!("Failed to create dir: {}", e))?;
+            fs::create_dir_all(parent)
+                .map_err(|e| AppError::io("Failed to create dir", e, ErrorCode::Unknown))?;
         }
     }
     match format {
@@ -200,15 +212,15 @@ fn encode_image(img: &RgbImage, format: OutFormat, dest: &Path) -> Result<(), St
                 _ => ImageFormat::WebP,
             };
             img.save_with_format(dest, tauri_format)
-                .map_err(|e| format!("Failed to save image: {}", e))
+                .map_err(|e| AppError::unknown(format!("Failed to save image: {e}")))
         }
         OutFormat::Jpeg => {
-            let file =
-                fs::File::create(dest).map_err(|e| format!("Failed to save image: {}", e))?;
+            let file = fs::File::create(dest)
+                .map_err(|e| AppError::io("Failed to save image", e, ErrorCode::Unknown))?;
             let mut encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(file, 90);
             encoder
                 .encode_image(&DynamicImage::ImageRgb8(img.clone()))
-                .map_err(|e| format!("Failed to save image: {}", e))
+                .map_err(|e| AppError::unknown(format!("Failed to save image: {e}")))
         }
     }
 }
@@ -351,7 +363,7 @@ mod tests {
             },
         )
         .unwrap_err();
-        assert!(!err.is_empty());
+        assert!(!err.message.is_empty());
         assert_eq!(fs::read(&path).unwrap(), before);
         fs::remove_dir_all(&dir).ok();
     }
@@ -371,7 +383,8 @@ mod tests {
             },
         )
         .unwrap_err();
-        assert_eq!(err, "Unsupported output format");
+        assert_eq!(err.code, crate::app_error::ErrorCode::InvalidInput);
+        assert_eq!(err.message, "Unsupported output format");
         fs::remove_dir_all(&dir).ok();
     }
 }
