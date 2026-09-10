@@ -1,3 +1,4 @@
+import * as React from "react"
 import { Button as ButtonPrimitive } from "@base-ui/react/button"
 import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "cn"
@@ -39,19 +40,25 @@ const buttonVariants = cva(
   }
 )
 
-function Button({
-  className,
-  variant = "default",
-  size = "default",
-  ...props
-}: ButtonPrimitive.Props & VariantProps<typeof buttonVariants>) {
+// React 18에서는 base-ui의 render 합성(예: DialogClose render={<Button />})이
+// ref를 전달하므로 forwardRef가 필요하다. React 19에서는 ref가 일반 prop이 된다.
+const Button = React.forwardRef<
+  React.ElementRef<typeof ButtonPrimitive>,
+  Omit<ButtonPrimitive.Props, "ref"> & VariantProps<typeof buttonVariants>
+>(function Button(
+  { className, variant = "default", size = "default", ...props },
+  ref
+) {
   return (
     <ButtonPrimitive
+      ref={ref}
       data-slot="button"
       className={cn(buttonVariants({ variant, size, className }))}
       {...props}
     />
   )
-}
+})
+
+Button.displayName = "Button"
 
 export { Button, buttonVariants }
