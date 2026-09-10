@@ -2,6 +2,8 @@
 
 This document provides repository-specific guidance for AI coding assistants.
 
+Product truth lives in `PRODUCT.md`, visual system in `DESIGN.md`, full functional/technical spec in `SPEC.md`, plans in `ROADMAP.md`.
+
 ## Project Overview
 
 `tauri-image-viewer` is a Windows desktop image viewer built with Tauri 2 + React 18 + TypeScript. Windows 10/11 x64 is the only supported OS.
@@ -47,6 +49,10 @@ cd src-tauri && cargo clippy
 
 ## Important Paths
 
+- Functional/technical spec: `SPEC.md`
+- Product definition: `PRODUCT.md`
+- Visual system: `DESIGN.md`
+- Plans: `ROADMAP.md`
 - Frontend routes: `src/routes/`
 - Business logic hooks: `src/hooks/`
 - Stores: `src/store/`
@@ -76,6 +82,8 @@ Frontend uses `invoke()` for these commands:
 - `set_all_file_associations(associate)`
 - `open_default_apps_settings()`
 
+Full IPC contract (16 commands including thumbnails, archive prefetch, trash/rename/save): see `SPEC.md` §16.
+
 When app is opened from file association, Windows passes the file path as a CLI argument. Backend reads it in `.setup()` and emits `open-file`.
 
 Frontend listener: `src/hooks/useOpenFileListener.ts`.
@@ -90,8 +98,11 @@ Keep Rust `serde` output aligned with TypeScript types.
 - `mime_type`
 - `file_name`
 - `file_size`
+- `width`, `height` (`number | null`)
 
 Do not reintroduce base64 payload fields unless explicitly required.
+
+Full data model: see `SPEC.md` §17.
 
 ### Rendering path
 
@@ -144,7 +155,7 @@ Tauri Store (`settings.json`) is used for:
    Python `pillow-heif` (repo must not depend on it), CBZ via
    `Compress-Archive`, CB7 via 7-Zip. If no encoder exists on the PC, install
    the tool on the PC instead of vendoring it into the repo.
-6. Update docs (`README.md` and this file when relevant)
+6. Update docs (`README.md`, `SPEC.md`, and this file when relevant)
 
 ### Add a new backend command
 
