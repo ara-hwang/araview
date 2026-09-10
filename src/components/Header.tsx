@@ -47,6 +47,18 @@ import { useSettingsStore } from "@/store/settingsStore"
 import { formatShortcutDisplay } from "@/constants/shortcuts"
 import { useTranslation } from "react-i18next"
 
+// 윈도우 캡션 버튼: 네이티브처럼 타이틀바 높이를 꽉 채우고 모서리에 붙인다
+const captionButtonClassName = cn(
+  "flex w-12 shrink-0 items-center justify-center text-foreground transition-colors [&_svg]:size-4",
+  "hover:bg-muted active:bg-foreground/10",
+  "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
+)
+
+const captionCloseButtonClassName = cn(
+  captionButtonClassName,
+  "hover:bg-red-600 hover:text-white active:bg-red-700"
+)
+
 // 위쪽 툴바
 export default function Header() {
   const { t } = useTranslation()
@@ -121,268 +133,287 @@ export default function Header() {
 
   return (
     <>
-      <div className="drag bg-background flex justify-between gap-2 border-b p-2">
-        <ButtonGroup>
-          <Button
-            variant="outline"
-            onClick={handleGoHome}
-            disabled={!hasImage}
-            title={withShortcut(t("header.home"), shortcuts.closeImage)}
-            aria-label={withShortcut(t("header.home"), shortcuts.closeImage)}
-          >
-            <House />
-            <span className="hidden md:inline">{t("header.home")}</span>
-          </Button>
-          <Button
-            variant="outline"
-            onClick={handleOpenFile}
-            title={withShortcut(t("header.open"), shortcuts.openFile)}
-            aria-label={withShortcut(t("header.open"), shortcuts.openFile)}
-          >
-            <FolderOpen />
-            <span className="hidden md:inline">{t("header.open")}</span>
-          </Button>
-        </ButtonGroup>
-
-        <ButtonGroup>
-          <ButtonGroup>
-            <ButtonGroup>
-              <Button
-                variant="ghost"
-                onClick={() => setZoomToFit("width")}
-                disabled={!hasImage}
-                title={withShortcut(t("header.fitWidth"), shortcuts.fitWidth)}
-                aria-label={withShortcut(
-                  t("header.fitWidth"),
-                  shortcuts.fitWidth
-                )}
-              >
-                <ArrowsHorizontal />
-                <span className="hidden md:inline">{t("header.fitWidth")}</span>
-              </Button>
-              <Button
-                variant="ghost"
-                onClick={() => setZoomToFit("height")}
-                disabled={!hasImage}
-                title={withShortcut(t("header.fitHeight"), shortcuts.fitHeight)}
-                aria-label={withShortcut(
-                  t("header.fitHeight"),
-                  shortcuts.fitHeight
-                )}
-              >
-                <ArrowsVertical />
-                <span className="hidden md:inline">
-                  {t("header.fitHeight")}
-                </span>
-              </Button>
-              <Button
-                variant="ghost"
-                onClick={() => setZoomToFit("screen")}
-                disabled={!hasImage}
-                title={withShortcut(t("header.fitScreen"), shortcuts.fitScreen)}
-                aria-label={withShortcut(
-                  t("header.fitScreen"),
-                  shortcuts.fitScreen
-                )}
-              >
-                <ArrowsOut />
-                <span className="hidden md:inline">
-                  {t("header.fitScreen")}
-                </span>
-              </Button>
-            </ButtonGroup>
-
-            <Separator orientation="vertical" />
-
-            <ButtonGroup>
-              <Button
-                variant="ghost"
-                onClick={zoomOut}
-                disabled={!hasImage}
-                title={withShortcut(t("header.zoomOut"), shortcuts.zoomOut)}
-                aria-label={withShortcut(
-                  t("header.zoomOut"),
-                  shortcuts.zoomOut
-                )}
-              >
-                <MagnifyingGlassMinus />
-                <span className="hidden md:inline">{t("header.zoomOut")}</span>
-              </Button>
-              <ButtonGroupText
-                className={cn(
-                  "tabular-nums focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] focus-visible:outline-none",
-                  !hasImage && "opacity-50"
-                )}
-                render={
-                  <button
-                    type="button"
-                    disabled={!hasImage}
-                    onClick={hasImage ? resetZoomPan : undefined}
-                    title={withShortcut(
-                      t("menu.actualSize"),
-                      shortcuts.resetView
-                    )}
-                    aria-label={withShortcut(
-                      t("menu.actualSize"),
-                      shortcuts.resetView
-                    )}
-                  />
-                }
-              >
-                {Math.round(zoom * 100)}%
-              </ButtonGroupText>
-              <Button
-                variant="ghost"
-                onClick={zoomIn}
-                disabled={!hasImage}
-                title={withShortcut(t("header.zoomIn"), shortcuts.zoomIn)}
-                aria-label={withShortcut(t("header.zoomIn"), shortcuts.zoomIn)}
-              >
-                <MagnifyingGlassPlus />
-                <span className="hidden md:inline">{t("header.zoomIn")}</span>
-              </Button>
-            </ButtonGroup>
-
-            <Separator orientation="vertical" />
-
-            <ButtonGroup>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={rotateCCW}
-                disabled={!hasImage}
-                title={withShortcut(t("menu.rotateCcw"), shortcuts.rotateCCW)}
-                aria-label={withShortcut(
-                  t("menu.rotateCcw"),
-                  shortcuts.rotateCCW
-                )}
-              >
-                <ArrowCounterClockwise />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={rotateCW}
-                disabled={!hasImage}
-                title={withShortcut(t("menu.rotateCw"), shortcuts.rotateCW)}
-                aria-label={withShortcut(
-                  t("menu.rotateCw"),
-                  shortcuts.rotateCW
-                )}
-              >
-                <ArrowClockwise />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={flipHorizontal}
-                disabled={!hasImage}
-                title={withShortcut(t("menu.flipH"), shortcuts.flipH)}
-                aria-label={withShortcut(t("menu.flipH"), shortcuts.flipH)}
-              >
-                <FlipHorizontal />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={flipVertical}
-                disabled={!hasImage}
-                title={withShortcut(t("menu.flipV"), shortcuts.flipV)}
-                aria-label={withShortcut(t("menu.flipV"), shortcuts.flipV)}
-              >
-                <FlipVertical />
-              </Button>
-            </ButtonGroup>
-          </ButtonGroup>
-
+      <div className="drag bg-background flex items-stretch border-b">
+        <div className="flex min-w-0 flex-1 items-center justify-between gap-2 p-2">
           <ButtonGroup>
             <Button
               variant="outline"
-              onClick={() => void toggleExifPanel()}
+              onClick={handleGoHome}
               disabled={!hasImage}
-              title={withShortcut(t("header.info"), shortcuts.toggleExif)}
-              aria-label={withShortcut(t("header.info"), shortcuts.toggleExif)}
+              title={withShortcut(t("header.home"), shortcuts.closeImage)}
+              aria-label={withShortcut(t("header.home"), shortcuts.closeImage)}
             >
-              <Info />
-              <span className="hidden md:inline">{t("header.info")}</span>
+              <House />
+              <span className="hidden md:inline">{t("header.home")}</span>
             </Button>
             <Button
               variant="outline"
-              onClick={() => usePaletteStore.getState().setOpen(true)}
-              title={withShortcut(t("palette.open"), shortcuts.togglePalette)}
-              aria-label={withShortcut(
-                t("palette.open"),
-                shortcuts.togglePalette
-              )}
+              onClick={handleOpenFile}
+              title={withShortcut(t("header.open"), shortcuts.openFile)}
+              aria-label={withShortcut(t("header.open"), shortcuts.openFile)}
             >
-              <Command />
-              <span className="hidden md:inline">{t("palette.open")}</span>
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => setSettingsOpen(true)}
-              title={t("header.settingsTitle")}
-              aria-label={t("header.settingsTitle")}
-            >
-              <Gear />
-              <span className="hidden md:inline">{t("header.settings")}</span>
+              <FolderOpen />
+              <span className="hidden md:inline">{t("header.open")}</span>
             </Button>
           </ButtonGroup>
 
           <ButtonGroup>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => void toggleAlwaysOnTop()}
-              title={withShortcut(
-                t("header.alwaysOnTop"),
-                shortcuts.toggleAlwaysOnTop
-              )}
-              aria-label={withShortcut(
-                t("header.alwaysOnTop"),
-                shortcuts.toggleAlwaysOnTop
-              )}
-              aria-pressed={alwaysOnTop}
-              className={cn(
-                alwaysOnTop &&
-                  "border-primary/40 bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary"
-              )}
-            >
-              <PushPin weight={alwaysOnTop ? "fill" : "regular"} />
-            </Button>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={handleMinimize}
-              title={t("header.minimize")}
-              aria-label={t("header.minimize")}
-            >
-              <Minus />
-            </Button>
+            <ButtonGroup>
+              <ButtonGroup>
+                <Button
+                  variant="ghost"
+                  onClick={() => setZoomToFit("width")}
+                  disabled={!hasImage}
+                  title={withShortcut(t("header.fitWidth"), shortcuts.fitWidth)}
+                  aria-label={withShortcut(
+                    t("header.fitWidth"),
+                    shortcuts.fitWidth
+                  )}
+                >
+                  <ArrowsHorizontal />
+                  <span className="hidden md:inline">
+                    {t("header.fitWidth")}
+                  </span>
+                </Button>
+                <Button
+                  variant="ghost"
+                  onClick={() => setZoomToFit("height")}
+                  disabled={!hasImage}
+                  title={withShortcut(
+                    t("header.fitHeight"),
+                    shortcuts.fitHeight
+                  )}
+                  aria-label={withShortcut(
+                    t("header.fitHeight"),
+                    shortcuts.fitHeight
+                  )}
+                >
+                  <ArrowsVertical />
+                  <span className="hidden md:inline">
+                    {t("header.fitHeight")}
+                  </span>
+                </Button>
+                <Button
+                  variant="ghost"
+                  onClick={() => setZoomToFit("screen")}
+                  disabled={!hasImage}
+                  title={withShortcut(
+                    t("header.fitScreen"),
+                    shortcuts.fitScreen
+                  )}
+                  aria-label={withShortcut(
+                    t("header.fitScreen"),
+                    shortcuts.fitScreen
+                  )}
+                >
+                  <ArrowsOut />
+                  <span className="hidden md:inline">
+                    {t("header.fitScreen")}
+                  </span>
+                </Button>
+              </ButtonGroup>
 
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={handleMaximize}
-              title={t("header.maximize")}
-              aria-label={t("header.maximize")}
-              aria-pressed={isMaximized}
-            >
-              {isMaximized ? <Copy /> : <Square />}
-            </Button>
+              <Separator orientation="vertical" />
 
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={handleClose}
-              title={t("header.close")}
-              aria-label={t("header.close")}
-              className="hover:border-red-600 hover:bg-red-600 hover:text-white dark:hover:border-red-600 dark:hover:bg-red-600"
-            >
-              <X />
-            </Button>
+              <ButtonGroup>
+                <Button
+                  variant="ghost"
+                  onClick={zoomOut}
+                  disabled={!hasImage}
+                  title={withShortcut(t("header.zoomOut"), shortcuts.zoomOut)}
+                  aria-label={withShortcut(
+                    t("header.zoomOut"),
+                    shortcuts.zoomOut
+                  )}
+                >
+                  <MagnifyingGlassMinus />
+                  <span className="hidden md:inline">
+                    {t("header.zoomOut")}
+                  </span>
+                </Button>
+                <ButtonGroupText
+                  className={cn(
+                    "tabular-nums focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] focus-visible:outline-none",
+                    !hasImage && "opacity-50"
+                  )}
+                  render={
+                    <button
+                      type="button"
+                      disabled={!hasImage}
+                      onClick={hasImage ? resetZoomPan : undefined}
+                      title={withShortcut(
+                        t("menu.actualSize"),
+                        shortcuts.resetView
+                      )}
+                      aria-label={withShortcut(
+                        t("menu.actualSize"),
+                        shortcuts.resetView
+                      )}
+                    />
+                  }
+                >
+                  {Math.round(zoom * 100)}%
+                </ButtonGroupText>
+                <Button
+                  variant="ghost"
+                  onClick={zoomIn}
+                  disabled={!hasImage}
+                  title={withShortcut(t("header.zoomIn"), shortcuts.zoomIn)}
+                  aria-label={withShortcut(
+                    t("header.zoomIn"),
+                    shortcuts.zoomIn
+                  )}
+                >
+                  <MagnifyingGlassPlus />
+                  <span className="hidden md:inline">{t("header.zoomIn")}</span>
+                </Button>
+              </ButtonGroup>
+
+              <Separator orientation="vertical" />
+
+              <ButtonGroup>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={rotateCCW}
+                  disabled={!hasImage}
+                  title={withShortcut(t("menu.rotateCcw"), shortcuts.rotateCCW)}
+                  aria-label={withShortcut(
+                    t("menu.rotateCcw"),
+                    shortcuts.rotateCCW
+                  )}
+                >
+                  <ArrowCounterClockwise />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={rotateCW}
+                  disabled={!hasImage}
+                  title={withShortcut(t("menu.rotateCw"), shortcuts.rotateCW)}
+                  aria-label={withShortcut(
+                    t("menu.rotateCw"),
+                    shortcuts.rotateCW
+                  )}
+                >
+                  <ArrowClockwise />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={flipHorizontal}
+                  disabled={!hasImage}
+                  title={withShortcut(t("menu.flipH"), shortcuts.flipH)}
+                  aria-label={withShortcut(t("menu.flipH"), shortcuts.flipH)}
+                >
+                  <FlipHorizontal />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={flipVertical}
+                  disabled={!hasImage}
+                  title={withShortcut(t("menu.flipV"), shortcuts.flipV)}
+                  aria-label={withShortcut(t("menu.flipV"), shortcuts.flipV)}
+                >
+                  <FlipVertical />
+                </Button>
+              </ButtonGroup>
+            </ButtonGroup>
+
+            <ButtonGroup>
+              <Button
+                variant="outline"
+                onClick={() => void toggleExifPanel()}
+                disabled={!hasImage}
+                title={withShortcut(t("header.info"), shortcuts.toggleExif)}
+                aria-label={withShortcut(
+                  t("header.info"),
+                  shortcuts.toggleExif
+                )}
+              >
+                <Info />
+                <span className="hidden md:inline">{t("header.info")}</span>
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => usePaletteStore.getState().setOpen(true)}
+                title={withShortcut(t("palette.open"), shortcuts.togglePalette)}
+                aria-label={withShortcut(
+                  t("palette.open"),
+                  shortcuts.togglePalette
+                )}
+              >
+                <Command />
+                <span className="hidden md:inline">{t("palette.open")}</span>
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setSettingsOpen(true)}
+                title={t("header.settingsTitle")}
+                aria-label={t("header.settingsTitle")}
+              >
+                <Gear />
+                <span className="hidden md:inline">{t("header.settings")}</span>
+              </Button>
+            </ButtonGroup>
+
+            <ButtonGroup>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => void toggleAlwaysOnTop()}
+                title={withShortcut(
+                  t("header.alwaysOnTop"),
+                  shortcuts.toggleAlwaysOnTop
+                )}
+                aria-label={withShortcut(
+                  t("header.alwaysOnTop"),
+                  shortcuts.toggleAlwaysOnTop
+                )}
+                aria-pressed={alwaysOnTop}
+                className={cn(
+                  alwaysOnTop &&
+                    "border-primary/40 bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary"
+                )}
+              >
+                <PushPin weight={alwaysOnTop ? "fill" : "regular"} />
+              </Button>
+            </ButtonGroup>
           </ButtonGroup>
-        </ButtonGroup>
+        </div>
+
+        {/* 윈도우 캡션 버튼: 타이틀바 우측 끝을 꽉 채운다 */}
+        <div className="flex shrink-0 items-stretch">
+          <button
+            type="button"
+            onClick={handleMinimize}
+            title={t("header.minimize")}
+            aria-label={t("header.minimize")}
+            className={captionButtonClassName}
+          >
+            <Minus />
+          </button>
+          <button
+            type="button"
+            onClick={handleMaximize}
+            title={t("header.maximize")}
+            aria-label={t("header.maximize")}
+            aria-pressed={isMaximized}
+            className={captionButtonClassName}
+          >
+            {isMaximized ? <Copy /> : <Square />}
+          </button>
+          <button
+            type="button"
+            onClick={handleClose}
+            title={t("header.close")}
+            aria-label={t("header.close")}
+            className={captionCloseButtonClassName}
+          >
+            <X />
+          </button>
+        </div>
       </div>
       <SettingsDialog
         open={settingsOpen}

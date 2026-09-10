@@ -101,7 +101,7 @@ One ink, one paper, warm-gray washes between. No accent hue exists; emphasis com
 ### Named Rules
 
 - **The One Ink Rule.** A second hue appears only for alarm states. If a screen needs more color than ink plus wash, the layout is wrong, not the palette.
-- **The Alarm Rule.** Alarm red (oklch(0.577 0.245 27.325)) is reserved for destructive actions and load failures, always at low fill (10-20%) with ink-weight text.
+- **The Alarm Rule.** Alarm red (oklch(0.577 0.245 27.325)) is reserved for destructive actions and load failures, always at low fill (10-20%) with ink-weight text. One exception: the close caption button fills with alarm red on hover, following the Windows titlebar convention.
 
 ## Typography
 
@@ -152,9 +152,10 @@ Toolbar buttons with a quiet, tactile press (1px downward shift on active, excep
 
 - **Shape:** gently squared (10px radius).
 - **Primary:** Room Ink fill with paper text, 32px height, 10px horizontal padding.
-- **Outline:** paper fill, hairline rule border, used for window-level actions (open, info, settings, window controls).
+- **Outline:** paper fill, hairline rule border, used for window-level actions (open, info, settings).
 - **Ghost:** borderless, used for in-canvas adjustments (fit, zoom, rotate, flip); hover shows muted wash.
-- **Icon:** 32px square ghost/outline for window controls and canvas transforms; every icon button carries an accessible label.
+- **Icon:** 32px square ghost/outline for canvas transforms; every icon button carries an accessible label.
+- **Window controls:** minimize, maximize/restore, and close are native-style caption buttons pinned to the top-right corner: 48px wide, full titlebar height (edge to edge, no gaps, square corners, no border), glyphs Minus/Square/Copy/X. Hover shows the muted wash; close hovers to alarm fill with paper glyph; focus uses a 2px inset ring so it is never clipped at the window edge.
 - **Hover / Focus:** muted wash hover; visible focus ring on all variants; disabled at 50% opacity.
 
 ### Inputs / Fields
