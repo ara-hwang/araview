@@ -137,7 +137,14 @@ Tauri Store (`settings.json`) is used for:
 2. Add/update tests in `src-tauri/src/image.rs`
 3. Update `src/constants/imageExtensions.ts`
 4. Update `src-tauri/tauri.conf.json` file associations if needed
-5. Update docs (`README.md` and this file when relevant)
+5. Add a sample file to `samples/` and verify it opens in the dev app
+   (`load_image` must succeed; EXIF-bearing formats also need a `get_exif_data`
+   check). Generation notes per format: raster/vector via `sharp` in a temp
+   dir (never add generator deps to the repo), HEIC/HEIF via PC-installed
+   Python `pillow-heif` (repo must not depend on it), CBZ via
+   `Compress-Archive`, CB7 via 7-Zip. If no encoder exists on the PC, install
+   the tool on the PC instead of vendoring it into the repo.
+6. Update docs (`README.md` and this file when relevant)
 
 ### Add a new backend command
 
@@ -150,13 +157,17 @@ Tauri Store (`settings.json`) is used for:
 
 - Frontend test files: `src/**/*.test.{ts,tsx}`
 - Rust tests are colocated with source modules
-- Minimum validation after non-trivial changes:
+- After every code change, run verification automatically without being asked:
   1. `npm test`
-  2. `cd src-tauri && cargo test`
+  2. `cd src-tauri && cargo test` (only when Rust sources changed)
   3. `npx tsc --noEmit`
-- Runtime verification via Tauri MCP (dev app + MCP bridge on `:9223`):
-  1. `npm run dev:up` (idempotent launcher, waits for `:1420` + `:9223`)
-  2. Run `/verify-ui` (screenshot + click-through + console check)
+  4. `npx prettier --check` on changed files (fix with `--write`)
+  5. Runtime verification via Tauri MCP (dev app + MCP bridge on `:9223`):
+     1. `npm run dev:up` (idempotent launcher, waits for `:1420` + `:9223`)
+     2. Run `/verify-ui` (screenshot + click-through + console check)
+- Do not finish a change with "run the tests yourself" or similar. If the
+  dev app or bridge cannot start, report the exact failure instead of
+  skipping verification silently.
 
 ## Window / UX Notes
 
