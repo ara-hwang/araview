@@ -38,53 +38,85 @@ export function useImageLoader() {
   const [isDragOver, setIsDragOver] = useState(false)
   const dragDepthRef = useRef(0)
 
-  /** 아카이브 파일을 열어 내부 첫 이미지(또는 이어보기 위치)를 표시 */
-  const loadArchive = useCallback(async (archivePath: string) => {
-    useAppStore.setState({ loading: true, archivePath })
-    try {
-      const archiveImages = await invoke<DirectoryImages>(
-        "get_archive_images",
-        { filePath: archivePath }
+  // 아카이브 이웃 선추출. 현재 페인트 후 다음 페이지를 백그라운드로 추출+디코딩해
+  // 만화 Next 체감을 올린다. CB7 역압축 경합을 피하려고 거리를 최대 2로 묶는다.
+  // current imageInfo/progress를 덮지 않는 fire-and-forget 경로만 쓴다.
+  const prefetchArchiveNeighbors = useCallback(
+    (images: string[], currentIndex: number) => {
+      const settings = useSettingsStore.getState()
+      if (settings.cacheMode === "off") return
+      const baseDistance = getPrefetchDistance()
+      if (baseDistance <= 0) return
+      const bonus =
+        settings.viewMode === "webtoon"
+          ? baseDistance
+          : settings.viewMode === "single"
+            ? 0
+            : 1
+      const distance = Math.min(Math.max(baseDistance + bonus, 1), 2)
+      prefetchNearbyImages(
+        images,
+        currentIndex,
+        settings.loopNavigation,
+        distance
       )
+    },
+    [getPrefetchDistance, prefetchNearbyImages]
+  )
 
-      // 저장된 이어보기 엔트리가 목록에 있으면 거기서 시작
-      const saved = useArchiveProgressStore.getState().get(archivePath)
-      const startIndex =
-        saved !== null ? archiveImages.images.indexOf(saved) : 0
-      const firstEntry =
-        startIndex > 0
-          ? archiveImages.images[startIndex]
-          : archiveImages.images[0]
-      const imgInfo = await invoke<ImageInfo>("load_archive_image", {
-        archivePath,
-        entryName: firstEntry
-      })
+  /** 아카이브 파일을 열어 내부 첫 이미지(또는 이어보기 위치)를 표시 */
+  const loadArchive = useCallback(
+    async (archivePath: string) => {
+      useAppStore.setState({ loading: true, archivePath })
+      try {
+        const archiveImages = await invoke<DirectoryImages>(
+          "get_archive_images",
+          { filePath: archivePath }
+        )
 
-      useAppStore.setState({
-        imageInfo: imgInfo,
-        dirImages: {
-          images: archiveImages.images,
-          current_index: startIndex > 0 ? startIndex : 0
-        },
-        error: null
-      })
-      void useArchiveProgressStore.getState().save(archivePath, firstEntry)
+        // 저장된 이어보기 엔트리가 목록에 있으면 거기서 시작
+        const saved = useArchiveProgressStore.getState().get(archivePath)
+        const startIndex =
+          saved !== null ? archiveImages.images.indexOf(saved) : 0
+        const resolvedStart = startIndex > 0 ? startIndex : 0
+        const firstEntry =
+          startIndex > 0
+            ? archiveImages.images[startIndex]
+            : archiveImages.images[0]
+        const imgInfo = await invoke<ImageInfo>("load_archive_image", {
+          archivePath,
+          entryName: firstEntry
+        })
 
-      if (useSettingsStore.getState().recordRecentFiles) {
-        void useRecentFilesStore.getState().add(archivePath)
+        useAppStore.setState({
+          imageInfo: imgInfo,
+          dirImages: {
+            images: archiveImages.images,
+            current_index: resolvedStart
+          },
+          error: null
+        })
+        void useArchiveProgressStore.getState().save(archivePath, firstEntry)
+
+        if (useSettingsStore.getState().recordRecentFiles) {
+          void useRecentFilesStore.getState().add(archivePath)
+        }
+
+        prefetchArchiveNeighbors(archiveImages.images, resolvedStart)
+      } catch (e) {
+        const message = String(e)
+        useAppStore.setState({
+          error: message,
+          imageInfo: null,
+          archivePath: null
+        })
+        toast.error(i18n.t("toast.load.archiveFail"), { description: message })
+      } finally {
+        useAppStore.setState({ loading: false })
       }
-    } catch (e) {
-      const message = String(e)
-      useAppStore.setState({
-        error: message,
-        imageInfo: null,
-        archivePath: null
-      })
-      toast.error(i18n.t("toast.load.archiveFail"), { description: message })
-    } finally {
-      useAppStore.setState({ loading: false })
-    }
-  }, [])
+    },
+    [prefetchArchiveNeighbors]
+  )
 
   /** 아카이브 내부 특정 인덱스의 이미지를 로드 */
   const loadArchiveImageByIndex = useCallback(
@@ -98,6 +130,12 @@ export function useImageLoader() {
         useAppStore.setState({ imageInfo: imgInfo, error: null })
         useAppStore.getState().removeFailedPath(entryName)
         void useArchiveProgressStore.getState().save(archivePath, entryName)
+
+        const st = useAppStore.getState()
+        const currentIndex = st.dirImages.images.indexOf(entryName)
+        if (currentIndex >= 0) {
+          prefetchArchiveNeighbors(st.dirImages.images, currentIndex)
+        }
       } catch (e) {
         const message = String(e)
         useAppStore.setState({ error: message })
@@ -127,7 +165,7 @@ export function useImageLoader() {
         useAppStore.setState({ loading: false })
       }
     },
-    []
+    [prefetchArchiveNeighbors]
   )
 
   const loadImage = useCallback(
