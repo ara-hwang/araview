@@ -1,4 +1,4 @@
-# SPEC.md - Tauri Image Viewer 기능/기술 명세
+# SPEC.md - AraView 기능/기술 명세
 
 > 한국어 스펙 문서. 구현 진실(source of truth)은 코드이며, 본 문서는 현재 코드베이스의 동작을 요약한다.
 > 관련 문서: `PRODUCT.md`(제품 정의), `DESIGN.md`(비주얼 시스템), `ROADMAP.md`(단계 계획), `README.md`(사용/설치 안내), `AGENTS.md`(AI 작업 지침).
@@ -530,7 +530,7 @@ Rust와 TypeScript는 같은 모양을 유지한다.
 
 진실: `src-tauri/tauri.conf.json`, `src-tauri/src/lib.rs`, `README.md`.
 
-- 창: 제목 `Image Viewer`, 1024x768, 최소 600x400, 프레임리스, 시작 시 숨김(`visible: false`).
+- 창: 제목 `araview`, 1024x768, 최소 600x400, 프레임리스, 시작 시 숨김(`visible: false`).
 - `window-state` 플러그인으로 창 상태를 유지한다.
 - 번들: `nsis`, `msi`. 결과물은 `src-tauri/target/release/bundle/`.
 - 파일 연결 3그룹:

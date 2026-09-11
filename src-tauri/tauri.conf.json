@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Image Viewer",
+  "productName": "AraView",
   "version": "0.1.0",
-  "identifier": "com.tauri-image-viewer.app",
+  "identifier": "com.araview.app",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -13,7 +13,7 @@
     "withGlobalTauri": false,
     "windows": [
       {
-        "title": "Image Viewer",
+        "title": "AraView",
         "width": 1024,
         "height": 768,
         "minWidth": 600,

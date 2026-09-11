@@ -1,5 +1,5 @@
 {
-  "name": "tauri-image-viewer",
+  "name": "araview",
   "install": "npm ci",
   "user": "ubuntu"
 }

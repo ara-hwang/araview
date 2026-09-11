@@ -26,11 +26,11 @@ Local-filesystem workflows only: file picker, drag-and-drop of files or folders,
 
 Confirmed capabilities: zoom, fit-to-width/height/screen, pan, rotate, flip; previous/next navigation, slider jump, thumbnail strip, optional loop navigation; multi-page view modes (single, left-to-right, right-to-left, webtoon); EXIF panel; slideshow; fullscreen; copy image to clipboard as PNG; recent files and favorites; Korean/English UI.
 
-Constraints: Windows 10/11 x64 only. Offline by design. File associations can only open the Windows per-extension default-app picker; silent UserChoice registry writes are not possible. HEIC/HEIF renders through a JPEG sidecar under the process temp dir. Backend responses carry file metadata only (`file_path`, `mime_type`, `file_name`, `file_size`); no base64 payloads. Undecided: brand name lock-in and any cloud or sharing features (out of scope unless explicitly requested).
+Constraints: Windows 10/11 x64 only. Offline by design. File associations can only open the Windows per-extension default-app picker; silent UserChoice registry writes are not possible. HEIC/HEIF renders through a JPEG sidecar under the process temp dir. Backend responses carry file metadata only (`file_path`, `mime_type`, `file_name`, `file_size`); no base64 payloads. Undecided: any cloud or sharing features (out of scope unless explicitly requested).
 
 ## Brand Commitments
 
-None confirmed. No locked name, voice, logo, or visual assets. Future work must not invent brand claims, testimonials, statistics, or compliance statements.
+Name: AraView (Korean: 아라뷰). The technical identifiers stay lowercase (`araview`): npm package, Rust crate, and bundle identifier `com.araview.app`. No logo, color, voice, or other visual assets confirmed; future work must not invent brand claims, testimonials, statistics, or compliance statements.
 
 ## Evidence on Hand
 

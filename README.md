@@ -1,4 +1,4 @@
-# Tauri Image Viewer
+# AraView
 
 Tauri 2 + React 18 + TypeScript 기반의 Windows 데스크톱 이미지 뷰어입니다.
 
@@ -43,8 +43,8 @@ $env:Path += ";$env:VCPKG_ROOT\installed\x64-windows\bin"
 ## 시작하기
 
 ```bash
-git clone https://github.com/ara-hwang/tauri-image-viewer.git
-cd tauri-image-viewer
+git clone https://github.com/ara-hwang/araview.git
+cd araview
 npm install
 npm run tauri dev
 ```
