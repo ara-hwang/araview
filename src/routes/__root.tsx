@@ -45,7 +45,8 @@ function RootLayout() {
 
   return (
     <ThemeProvider>
-      <div className="flex h-screen w-screen flex-col">
+      {/* 앱 셸은 절대 문서 스크롤되지 않는다. 스크롤은 각 라우트 안에서 처리. */}
+      <div className="flex h-screen w-full flex-col overflow-hidden">
         <div
           className={cn(
             "transition-opacity duration-300",
@@ -55,7 +56,8 @@ function RootLayout() {
           <Header />
           <Separator />
         </div>
-        <div className="relative flex-1">
+        {/* min-h-0: flex 자식이 콘텐츠 높이만큼 커져 셸을 밀어내지 않게 한다 */}
+        <div className="relative min-h-0 flex-1 overflow-hidden">
           <Outlet />
           <div
             className={cn(
