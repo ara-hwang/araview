@@ -11,10 +11,10 @@ use winreg::{RegKey, HKEY};
 use crate::app_error::AppError;
 use crate::image::SUPPORTED_EXTENSIONS;
 
-const BUNDLE_ID: &str = "com.tauri-image-viewer.app";
-const APP_NAME: &str = "Image Viewer";
-const APP_DESCRIPTION: &str = "Image Viewer";
-const CAPABILITIES_PATH: &str = r"Software\Image Viewer\Capabilities";
+const BUNDLE_ID: &str = "com.araview.app";
+const APP_NAME: &str = "AraView";
+const APP_DESCRIPTION: &str = "AraView";
+const CAPABILITIES_PATH: &str = r"Software\AraView\Capabilities";
 
 #[derive(Serialize, Debug, Clone, PartialEq, Eq)]
 pub struct FileAssociation {
@@ -493,8 +493,8 @@ mod tests {
 
     #[test]
     fn prog_id_uses_bundle_id_and_extension() {
-        assert_eq!(prog_id_for("png"), "com.tauri-image-viewer.app.png");
-        assert_eq!(prog_id_for("cbz"), "com.tauri-image-viewer.app.cbz");
+        assert_eq!(prog_id_for("png"), "com.araview.app.png");
+        assert_eq!(prog_id_for("cbz"), "com.araview.app.cbz");
     }
 
     #[test]
@@ -507,10 +507,10 @@ mod tests {
 
     #[test]
     fn is_our_prog_id_matches_bundle_prefix() {
-        assert!(is_our_prog_id("com.tauri-image-viewer.app.png"));
-        assert!(is_our_prog_id("COM.TAURI-IMAGE-VIEWER.APP.JPG"));
-        assert!(is_our_prog_id("Image Viewer.png"));
-        assert!(is_our_prog_id("image viewer.jpg"));
+        assert!(is_our_prog_id("com.araview.app.png"));
+        assert!(is_our_prog_id("COM.ARAVIEW.APP.JPG"));
+        assert!(is_our_prog_id("AraView.png"));
+        assert!(is_our_prog_id("araview.jpg"));
         assert!(!is_our_prog_id("Image"));
         assert!(!is_our_prog_id("jpegfile"));
         assert!(!is_our_prog_id("AppX123"));
@@ -519,8 +519,8 @@ mod tests {
     #[test]
     fn extract_exe_from_command_handles_quoted_and_plain_paths() {
         assert_eq!(
-            extract_exe_from_command(r#""C:\Program Files\Image Viewer\app.exe" "%1""#).as_deref(),
-            Some(r"C:\Program Files\Image Viewer\app.exe")
+            extract_exe_from_command(r#""C:\Program Files\araview\app.exe" "%1""#).as_deref(),
+            Some(r"C:\Program Files\araview\app.exe")
         );
         assert_eq!(
             extract_exe_from_command(r"C:\Apps\viewer.exe %1").as_deref(),
@@ -531,14 +531,14 @@ mod tests {
 
     #[test]
     fn open_command_quotes_executable_path() {
-        let exe = Path::new(r"C:\Program Files\Image Viewer\app.exe");
+        let exe = Path::new(r"C:\Program Files\araview\app.exe");
         assert_eq!(
             open_command(exe),
-            r#""C:\Program Files\Image Viewer\app.exe" "%1""#
+            r#""C:\Program Files\araview\app.exe" "%1""#
         );
         assert_eq!(
             default_icon(exe),
-            r#""C:\Program Files\Image Viewer\app.exe",0"#
+            r#""C:\Program Files\araview\app.exe",0"#
         );
     }
 
@@ -546,7 +546,7 @@ mod tests {
     fn default_apps_settings_uri_uses_registered_app_user() {
         assert_eq!(
             default_apps_settings_uri(),
-            "ms-settings:defaultapps?registeredAppUser=Image%20Viewer"
+            "ms-settings:defaultapps?registeredAppUser=AraView"
         );
     }
 

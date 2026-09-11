@@ -1,5 +1,5 @@
 ---
-name: tauri-image-viewer
+name: araview
 description: Quiet offline image and comic viewer for Windows; the picture is the interface.
 colors:
   ink: "oklch(0.205 0 0)"
@@ -66,7 +66,7 @@ components:
     height: "36px"
 ---
 
-# Design System: tauri-image-viewer
+# Design System: AraView
 
 ## Overview
 

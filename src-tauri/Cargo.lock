@@ -89,6 +89,36 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
 
 [[package]]
+name = "araview"
+version = "0.1.0"
+dependencies = [
+ "image",
+ "jpeg-encoder",
+ "kamadak-exif",
+ "libheif-rs",
+ "notify",
+ "once_cell",
+ "rars",
+ "serde",
+ "serde_json",
+ "sevenz-rust2",
+ "tar",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-dialog",
+ "tauri-plugin-mcp-bridge",
+ "tauri-plugin-opener",
+ "tauri-plugin-single-instance",
+ "tauri-plugin-store",
+ "tauri-plugin-window-state",
+ "tempfile",
+ "trash",
+ "unrar-rs",
+ "winreg 0.56.0",
+ "zip",
+]
+
+[[package]]
 name = "arbitrary"
 version = "1.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5022,36 +5052,6 @@ dependencies = [
  "url",
  "uuid",
  "walkdir",
-]
-
-[[package]]
-name = "tauri-image-viewer"
-version = "0.1.0"
-dependencies = [
- "image",
- "jpeg-encoder",
- "kamadak-exif",
- "libheif-rs",
- "notify",
- "once_cell",
- "rars",
- "serde",
- "serde_json",
- "sevenz-rust2",
- "tar",
- "tauri",
- "tauri-build",
- "tauri-plugin-dialog",
- "tauri-plugin-mcp-bridge",
- "tauri-plugin-opener",
- "tauri-plugin-single-instance",
- "tauri-plugin-store",
- "tauri-plugin-window-state",
- "tempfile",
- "trash",
- "unrar-rs",
- "winreg 0.56.0",
- "zip",
 ]
 
 [[package]]
