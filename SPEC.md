@@ -79,7 +79,9 @@
 ### 3.2 뷰어 `/image`
 
 - `beforeLoad`에서 `imageInfo`가 없으면 `/`로 리다이렉트한다.
-- 구성: `ImageContainer`(읽기 영역) + 드래그 오버레이 + `RenameDialog` + `SaveEditsDialog`.
+- 구성: `ImageContainer`(읽기 영역) + 드래그 오버레이 + `ThumbnailGrid`(선택) + `RenameDialog` + `SaveEditsDialog`.
+- `G`(기본, 재할당 가능)로 썸네일 그리드 오버레이를 연다. 열 때 현재 이미지를 중앙에 두고, 슬라이드쇼가 돌고 있으면 멈춘다.
+- 그리드: 뷰포트 기반 가상화(고정 셀, overscan 2행), 클릭/`Enter`로 점프 후 닫기, `Esc`/`G`로 닫기, 파일명 필터, 실패 셀 배지와 재시도. 그리드가 열려 있는 동안 뷰어 단축키는 비활성이다.
 - 우클릭은 설정(`mouse.rightClick`)에 따라 컨텍스트 메뉴 또는 다른 동작이다. 홈에서는 우클릭을 막는다.
 - `Esc` 닫기: 이름 변경/저장 다이얼로그가 열려 있거나 입력 포커스 중이면 닫지 않는다.
 - `autoHideUI`가 true일 때만 `useIdleHide`로 크롬을 숨긴다.
@@ -255,6 +257,8 @@
 - HEIC/HEIF는 썸네일용 JPEG sidecar 경로를 쓴다.
 - `image` 크레이트가 디코드 불가한 입력(SVG 등)이나 아카이브 엔트리명은 에러를 내고, 프론트는 원본으로 폴백한다.
 - `generate_thumbnails_batch(file_paths, max_side?)`: 항목별 성공/실패를 함께 반환하는 배치 API이다.
+- `generate_archive_thumbnail(archive_path, entry_name, max_side?)`: 아카이브 엔트리를 추출해 축소 JPEG를 만든다. 추출물(존재 시 재사용)과 썸네일 캐시를 함께 재사용하므로 그리드에서 풀사이즈 로드를 피한다.
+- 그리드 썸네일은 256px로 요청하고, 보이는 창의 경로만 요청한다. 아카이브는 동시 4개로 추출을 제한한다.
 
 ## 10. EXIF
 
@@ -402,7 +406,9 @@
 | 편집 저장 | `Ctrl+S` | 즐겨찾기 토글 | `F` |
 | 명령 팔레트 | `Ctrl+K` | 10장 이전 | `PageUp` |
 | 10장 다음 | `PageDown` | 처음 | `Home` |
-| 마지막 | `End` | | |
+| 마지막 | `End` | 썸네일 그리드 | `G` |
+
+그리드 내부: 화살표(선택 이동), `Home`/`End`, `PageUp`/`PageDown`, `Enter`(점프), `Esc`/`G`(닫기). 그리드가 열려 있는 동안 다른 뷰어 단축키는 동작하지 않는다.
 
 ### 15.2 휠/마우스 기본값
 
@@ -443,6 +449,7 @@
 | `archive_prefetch` | `archive_path`, `entry_names` | 추출 개수 `number` |
 | `generate_thumbnail` | `file_path`, `max_side?` | `ThumbnailInfo` |
 | `generate_thumbnails_batch` | `file_paths`, `max_side?` | `BatchThumb[]` |
+| `generate_archive_thumbnail` | `archive_path`, `entry_name`, `max_side?` | `ThumbnailInfo` |
 | `get_file_associations` | 없음 | `FileAssociation[]` |
 | `set_file_association` | `extension`, `associate` | `FileAssociation` |
 | `set_all_file_associations` | `associate` | `FileAssociation[]` |

@@ -8,6 +8,7 @@
 > - ✅ 완료: 뷰 모드 렌더(`useMultiPageImages` + `ImageContainer`), 회전/뒤집기(`appStore` + CSS transform + `R/Shift+R/H/V`), 클립보드 복사 PNG(`useCopyImage`), 슬라이드쇼 코어(`useSlideshow` + `Space/F5` + 간격 설정), 최근 파일 목록(최대 20개, `settings.json`), Asset Protocol 경로 기반 렌더링(base64 제거).
 > - ✅ Phase 1 폴리시 완료: 설정 UI 노출(viewMode/간격/자동열기), 헤더 회전/뒤집기 + 컨텍스트 메뉴 풀셋, 양면 2장 넘김 + 회전 bounds, 슬라이드쇼 진행바 오버레이, 다중 DnD + 오버레이, 에러 분류 + 홈으로 복구, EXIF 아카이브修正·썸네일 alt·테마 데드코드 제거.
 > - ✅ 포맷/성능 라운드: 디렉토리 스캔 캐시+워처(`dir_cache.rs` + `notify`), 썸네일 파이프라인(`thumbnail.rs` + `generate_thumbnail` + `useThumbnailSrcs`, 500MB cap), 렌더링 성능(rAF 팬 스로틀·`translate3d`+`will-change`·Webtoon 지연 로드·모드별 프리페치), CB7 아카이브 지원(`sevenz-rust2`, 15개 확장자). CBR/RAR/ZIP/7Z/CBT는 Step 4에서 추가 지원(20개 확장자, `unrar-rs` 퓨어 Rust). QOI/JXL/RAW/PSD는 JPEG sidecar 전제가 필요해 제외 유지.
+> - ✅ 썸네일 그리드 뷰(2.1): `G` 토글, 뷰포트 가상화(`ThumbnailGrid.tsx` + `gridWindow.ts`), 파일명 필터, 아카이브 전용 `generate_archive_thumbnail` 백엔드, 팔레트/컨텍스트 메뉴/하단 바 진입점.
 
 ---
 
@@ -99,11 +100,11 @@
 
 > 기존 기능의 완성도를 높이고 편의 기능을 추가하는 단계.
 
-### 2.1 썸네일 그리드 뷰 (P1)
+### 2.1 썸네일 그리드 뷰 (P1) — ✅ 완료
 
-**현재 상태 (포맷/성능 라운드)**: 썸네일 파이프라인 완료. `generate_thumbnail` 백엔드(`thumbnail.rs`, `image` 크레이트 리사이즈 → `process_temp/thumbs/` JPEG 캐시, 500MB cap·원자적 발행) + `useThumbnailSrcs` 훅(실패 시 원본 폴백) + `ImageNavBar` 스트립 적용. 전체 그리드 뷰 UI는 미구현.
+**현재 상태 (2026-09-11)**: 완료. 썸네일 파이프라인(`generate_thumbnail`/`generate_thumbnails_batch`, `thumbnail.rs` + `process_temp/thumbs/` 500MB cap) 위에 `ThumbnailGrid.tsx`(뷰포트 가상화, overscan 2행, `gridWindow.ts`)를 올렸다. `G` 토글, 클릭/`Enter` 점프 후 닫기, `Esc`/`G` 닫기, 파일명 필터, 실패 셀 재시도, 뷰어 단축키 비활성화(disabled), 명령 팔레트/컨텍스트 메뉴/하단 바 버튼 진입점을 포함한다. 아카이브는 `generate_archive_thumbnail`(추출물·썸네일 캐시 재사용, 동시 4개)으로 풀사이즈 로드를 피한다.
 
-**구현 계획**:
+**당시 구현 계획 (보존)**:
 - `ImageNavBar.tsx`를 확장하여 썸네일 그리드 모드 추가
 - 디렉토리 내 이미지를 격자로 표시 (클릭하여 이동)
 - Rust 백엔드에 `generate_thumbnail` 커맨드 추가 (리사이즈된 이미지 반환)

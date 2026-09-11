@@ -245,7 +245,19 @@
       "slider": "Image position",
       "thumb": "Image {{index}}: {{name}}",
       "thumbError": "Failed image {{index}}: {{name}}",
-      "thumbRetry": "Retry thumbnail {{index}}"
+      "thumbRetry": "Retry thumbnail {{index}}",
+      "grid": "Thumbnail grid",
+      "gridTitle": "Thumbnail grid (G)"
+    },
+    "grid": {
+      "title": "Thumbnail grid",
+      "aria": "Image thumbnail grid",
+      "count": "{{current}}/{{total}}",
+      "filter": "Filter by name",
+      "close": "Close grid (Esc)",
+      "empty": "No images to show",
+      "noResults": "No matching files",
+      "failed": "Failed"
     }
   },
   "exif": {
@@ -313,6 +325,7 @@
     "flipH": "Flip Horizontal",
     "flipV": "Flip Vertical",
     "toggleExif": "Toggle EXIF Panel",
+    "toggleGrid": "Toggle Thumbnail Grid",
     "toggleSlideshow": "Toggle Slideshow",
     "toggleFullscreen": "Toggle Fullscreen",
     "toggleAlwaysOnTop": "Toggle Always on Top",

@@ -1,6 +1,7 @@
 import {
   CaretLeft,
   CaretRight,
+  SquaresFour,
   WarningCircle,
   ArrowClockwise
 } from "@phosphor-icons/react"
@@ -21,6 +22,9 @@ type ImageNavBarProps = {
   onNavigate: (direction: "prev" | "next") => void
   onNavigateToIndex: (index: number) => void
   getOrLoadImage: GetOrLoadImage
+  /** 썸네일 그리드 토글 */
+  onToggleGrid?: () => void
+  gridActive?: boolean
   /** UI 자동 숨김 시 투명화 (마우스 이동 시 복귀) */
   hidden?: boolean
 }
@@ -29,6 +33,8 @@ export function ImageNavBar({
   onNavigate,
   onNavigateToIndex,
   getOrLoadImage,
+  onToggleGrid,
+  gridActive = false,
   hidden = false
 }: ImageNavBarProps) {
   const { t } = useTranslation()
@@ -187,6 +193,19 @@ export function ImageNavBar({
             <CaretRight />
           </Button>
         </ButtonGroup>
+
+        {onToggleGrid && (
+          <Button
+            variant={gridActive ? "secondary" : "outline"}
+            size="icon"
+            onClick={onToggleGrid}
+            title={t("viewer.nav.gridTitle")}
+            aria-label={t("viewer.nav.grid")}
+            aria-pressed={gridActive}
+          >
+            <SquaresFour />
+          </Button>
+        )}
 
         {/* 슬라이더를 클릭/드래그해서 원하는 위치로 점프 이동 */}
         <Slider

@@ -39,6 +39,9 @@ type ImageViewerHotkeysParams = {
   onToggleShuffle: () => void
   onSaveEdits: () => void
   onToggleFavorite: () => void
+  onToggleGrid: () => void
+  /** 그리드 등 오버레이가 열려 있을 때 뷰어 단축키 전체를 막는다 */
+  disabled?: boolean
 }
 
 function isEditableTarget(target: EventTarget | null): boolean {
@@ -70,6 +73,7 @@ export function useImageViewerHotkeys(props: ImageViewerHotkeysParams) {
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.defaultPrevented) return
+      if (propsRef.current.disabled) return
       const binding = eventToBinding(e)
       if (!binding) return
 
@@ -230,6 +234,9 @@ export function useImageViewerHotkeys(props: ImageViewerHotkeysParams) {
           break
         case "toggleFavorite":
           run(p.onToggleFavorite)
+          break
+        case "toggleGrid":
+          run(p.onToggleGrid)
           break
         default:
           break

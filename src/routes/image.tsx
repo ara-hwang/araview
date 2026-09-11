@@ -1,5 +1,6 @@
 import { createFileRoute, redirect } from "@tanstack/react-router"
 import { ImageContainer } from "@/components/ImageContainer"
+import { ThumbnailGrid } from "@/components/ThumbnailGrid"
 import type { WebtoonScrollTarget } from "@/components/WebtoonContinuousView"
 import {
   getApp,
@@ -52,6 +53,8 @@ export const Route = createFileRoute("/image")({
 function ImagePage() {
   const { t } = useTranslation()
   const dirImages = useAppStore((state) => state.dirImages)
+  const archivePath = useAppStore((state) => state.archivePath)
+  const failedPaths = useAppStore((state) => state.failedPaths)
 
   const { containerRef, imageRef } = useViewerElements()
 
@@ -84,6 +87,7 @@ function ImagePage() {
 
   const [webtoonScrollTarget, setWebtoonScrollTarget] =
     useState<WebtoonScrollTarget>(null)
+  const [gridOpen, setGridOpen] = useState(false)
 
   // Webtoon 연속 스크롤: 중앙 이미지 변경을 가벼운 인덱스 동기화로 처리.
   // 전체 reload 없이 imageInfo만 맞춘다.
@@ -183,6 +187,16 @@ function ImagePage() {
 
   const slideshow = useSlideshow(() => handleNavigateImage("next"))
   const fullscreen = useFullscreen()
+
+  // 그리드를 열면 슬라이드쇼를 멈춘다. 자동 이동이 그리드 선택과 어긋나지 않게.
+  const toggleGrid = useCallback(() => {
+    if (gridOpen) {
+      setGridOpen(false)
+      return
+    }
+    if (slideshow.active) slideshow.toggle()
+    setGridOpen(true)
+  }, [gridOpen, slideshow])
   const { toggle: toggleAlwaysOnTop } = useAlwaysOnTop()
   const { copy: copyImage } = useCopyImage()
   const {
@@ -222,7 +236,8 @@ function ImagePage() {
       onRenameFile: () => setRenameOpen(true),
       onCopyPath: () => void copyPathCurrent(),
       onSaveEdits: () => setSaveOpen(true),
-      onToggleFavorite: () => void toggleFavoriteCurrent()
+      onToggleFavorite: () => void toggleFavoriteCurrent(),
+      onToggleGrid: toggleGrid
     })
     return () => {
       unregisterPaletteHandlers()
@@ -239,11 +254,16 @@ function ImagePage() {
     revealCurrent,
     openExternal,
     copyPathCurrent,
-    toggleFavoriteCurrent
+    toggleFavoriteCurrent,
+    toggleGrid
   ])
 
-  /** Esc 닫기: 다이얼로그가 열려 있거나 입력 중일 때는 뷰어를 닫지 않는다 */
+  /** Esc 닫기: 그리드/다이얼로그가 열려 있거나 입력 중일 때는 뷰어를 닫지 않는다 */
   const handleCloseImage = useCallback(() => {
+    if (gridOpen) {
+      setGridOpen(false)
+      return
+    }
     if (renameOpen || saveOpen) return
     const active = document.activeElement
     if (
@@ -255,7 +275,7 @@ function ImagePage() {
       return
     }
     closeAndGoHome()
-  }, [renameOpen, saveOpen, closeAndGoHome])
+  }, [gridOpen, renameOpen, saveOpen, closeAndGoHome])
 
   const handleRenameSubmit = useCallback(
     async (newName: string) => {
@@ -289,7 +309,8 @@ function ImagePage() {
     onRenameFile: () => setRenameOpen(true),
     onCopyPath: () => void copyPathCurrent(),
     onSaveEdits: () => setSaveOpen(true),
-    onToggleFavorite: () => void toggleFavoriteCurrent()
+    onToggleFavorite: () => void toggleFavoriteCurrent(),
+    onToggleGrid: toggleGrid
   })
 
   const runMouseAction = useCallback(
@@ -384,7 +405,9 @@ function ImagePage() {
     onCopyPath: () => void copyPathCurrent(),
     onToggleShuffle: () => toggleShuffleAndRefresh(),
     onSaveEdits: () => setSaveOpen(true),
-    onToggleFavorite: () => void toggleFavoriteCurrent()
+    onToggleFavorite: () => void toggleFavoriteCurrent(),
+    onToggleGrid: toggleGrid,
+    disabled: gridOpen
   })
 
   return (
@@ -407,6 +430,8 @@ function ImagePage() {
         onMiddleClick={handleMiddleClick}
         onNavigate={handleNavigateImage}
         onNavigateToIndex={handleNavigateToIndex}
+        onToggleGrid={toggleGrid}
+        gridActive={gridOpen}
         getOrLoadImage={getOrLoadImage}
         viewMode={viewMode}
         pages={pages}
@@ -425,6 +450,16 @@ function ImagePage() {
             {t("home.drop")}
           </p>
         </div>
+      )}
+      {gridOpen && (
+        <ThumbnailGrid
+          dirImages={dirImages}
+          archivePath={archivePath}
+          getOrLoadImage={getOrLoadImage}
+          failedPaths={failedPaths}
+          onNavigateToIndex={handleNavigateToIndex}
+          onClose={() => setGridOpen(false)}
+        />
       )}
       <RenameDialog
         open={renameOpen}

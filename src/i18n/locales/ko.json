@@ -245,7 +245,19 @@
       "slider": "이미지 위치",
       "thumb": "이미지 {{index}}: {{name}}",
       "thumbError": "읽기 실패한 이미지 {{index}}: {{name}}",
-      "thumbRetry": "{{index}}번 썸네일 다시 시도"
+      "thumbRetry": "{{index}}번 썸네일 다시 시도",
+      "grid": "썸네일 그리드",
+      "gridTitle": "썸네일 그리드 (G)"
+    },
+    "grid": {
+      "title": "썸네일 그리드",
+      "aria": "이미지 썸네일 그리드",
+      "count": "{{current}}/{{total}}",
+      "filter": "파일명 검색",
+      "close": "그리드 닫기 (Esc)",
+      "empty": "표시할 이미지가 없습니다",
+      "noResults": "일치하는 파일이 없습니다",
+      "failed": "읽기 실패"
     }
   },
   "exif": {
@@ -313,6 +325,7 @@
     "flipH": "좌우 반전",
     "flipV": "상하 반전",
     "toggleExif": "EXIF 패널 토글",
+    "toggleGrid": "썸네일 그리드 토글",
     "toggleSlideshow": "슬라이드쇼 토글",
     "toggleFullscreen": "전체화면 토글",
     "toggleAlwaysOnTop": "맨 위에 두기 토글",

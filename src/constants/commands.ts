@@ -248,6 +248,14 @@ export const COMMAND_DEFS: readonly CommandDef[] = [
     keywords: ["fit", "screen"]
   },
   {
+    id: "toggleGrid",
+    group: "view",
+    labelKey: "menu.toggleGrid",
+    shortcutId: "toggleGrid",
+    requiresImage: true,
+    keywords: ["grid", "thumbnails", "overview", "contact sheet"]
+  },
+  {
     id: "rotateCW",
     group: "view",
     labelKey: "menu.rotateCw",
