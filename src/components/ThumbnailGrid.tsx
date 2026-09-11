@@ -317,6 +317,10 @@ export function ThumbnailGrid({
     ? `grid-item-${filtered[selectedPos].index}`
     : undefined
 
+  // scroll-fade는 스크롤 여지가 없을 때 위쪽 페이드가 남는 WebView2 동작이
+  // 있어, 오버플로가 없으면 문서가 제공하는 scroll-fade-none으로 끈다.
+  const canScroll = gridWindow.totalHeight > viewport.height + 1
+
   return (
     <div
       className="bg-background absolute inset-0 z-40 flex flex-col"
@@ -373,7 +377,11 @@ export function ThumbnailGrid({
         aria-activedescendant={activeId}
         tabIndex={0}
         onScroll={handleScroll}
-        className="relative flex-1 overflow-y-auto outline-none"
+        // shadcn scroll-fade: 스크롤 위치를 따라가는 가장자리 마스크 (JS 불필요)
+        className={cn(
+          "scroll-fade relative flex-1 overflow-y-auto outline-none",
+          !canScroll && "scroll-fade-none"
+        )}
       >
         {filtered.length === 0 ? (
           <div className="text-muted-foreground flex h-full items-center justify-center px-6 text-center text-sm">
