@@ -125,7 +125,7 @@ One ink, one paper, warm-gray washes between. No accent hue exists; emphasis com
 
 ## Layout
 
-Single-window app shell: a thin top toolbar (8px padding, grouped controls separated by vertical rules), a content well that owns all remaining space, and optional side/bottom layers (EXIF panel, thumbnail strip, nav bar). Toolbar text labels collapse below the 768px breakpoint, leaving icon-only groups; the reading well never scrolls the page itself except in webtoon mode, where vertical scroll is the content. Spacing rhythm is 8px in chrome, 16px in dialogs and panels.
+Single-window app shell: a thin top toolbar (8px padding, grouped controls separated by vertical rules), a content well that owns all remaining space, and optional side/bottom layers (EXIF panel, thumbnail strip, nav bar). The toolbar sheds controls in priority order instead of overlapping the caption buttons: text labels below 1440px, the rotate/flip cluster below 840px, the always-on-top pin below 768px, and the zoom readout below 640px. Even at the 600px minimum window width the remaining controls fit. The reading well never scrolls the page itself except in webtoon mode, where vertical scroll is the content. Spacing rhythm is 8px in chrome, 16px in dialogs and panels.
 
 ## Elevation & Depth
 
@@ -176,7 +176,7 @@ Toolbar buttons with a quiet, tactile press (1px downward shift on active, excep
 
 ### Navigation
 
-- **Toolbar:** grouped button clusters with 6-8px gaps and vertical rule separators; group labels hidden below 768px.
+- **Toolbar:** grouped button clusters with 6-8px gaps and vertical rule separators; the layout responds to window width by collapsing labels first, then lower-priority groups, so it never collides with the caption buttons.
 - **Thumbnail strip / slider:** bottom-dwelling, floating, dismissible; page position as tabular readout.
 - **Settings dialog:** tabbed (general, extensions), field-group rhythm, 16px panel padding.
 
