@@ -144,6 +144,16 @@ Flat by default. Depth is conveyed by tonal layering (paper over muted wash) and
 
 Softly squared geometry: 10px radius on buttons and toolbar groups, 8px on inputs and small cards, 6px on the smallest controls. Borders are 1px rules, never pill shapes; icon buttons are squares, never circles. The reading well itself is square-cornered so images meet a clean edge.
 
+## App Icon
+
+The app icon is the Hangul syllable 아 as a monogram, the first sound of 아라뷰. A ring (ㅇ) and the vertical stroke with its right tick (ㅏ), drawn in Room Ink on a paper tile with a hairline rule and a ~20% corner radius (205/1024).
+
+- **Construction:** ring radius 172, ㅏ height 636, stroke 88 (8.6% of the 1024 canvas), butt caps; the whole mark is optically centered, not merely measured.
+- **Why this and not a generic glyph:** the name is Korean-first, so the icon names the product without borrowing a camera, folder, or file metaphor, and it stays monochromatic like the product itself.
+- **The One Ring Exception:** the ring is the only circle allowed anywhere in the brand. UI controls stay square (see Shapes). The ban on circular icon buttons applies to controls, not to the mark.
+- **Small sizes:** verified at 16, 24, 32, 48, and 256. Do not square the ring to gain legibility: a squared ㅇ is read as ㅁ, which turns 아 into 마.
+- **Source of truth:** `src-tauri/icons/icon.svg`. Export a 1024px PNG from it, then regenerate the full set with `npm run tauri icon <1024.png>`.
+
 ## Components
 
 ### Buttons
