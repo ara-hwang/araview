@@ -52,14 +52,13 @@ fn frontend_ready(app: tauri::AppHandle) -> Result<(), AppError> {
 }
 
 pub fn run() {
-    let mut builder = tauri::Builder::default();
+    let builder = tauri::Builder::default();
+    // 개발용 MCP 브리지는 LAN에 노출되지 않도록 loopback에만 바인딩한다.
+    // release에서는 아래 cfg 블록이 통째로 빠지므로 mut 없이 섀도잉한다.
     #[cfg(debug_assertions)]
-    {
-        // 개발용 MCP 브리지는 LAN에 노출되지 않도록 loopback에만 바인딩한다.
-        builder = builder.plugin(tauri_plugin_mcp_bridge::init_with_config(
-            tauri_plugin_mcp_bridge::Config::localhost_only(),
-        ));
-    }
+    let builder = builder.plugin(tauri_plugin_mcp_bridge::init_with_config(
+        tauri_plugin_mcp_bridge::Config::localhost_only(),
+    ));
     builder
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_window_state::Builder::default().build())
