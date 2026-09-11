@@ -134,7 +134,8 @@ export default function Header() {
   return (
     <>
       <div className="drag bg-background flex items-stretch border-b">
-        <div className="flex min-w-0 flex-1 items-center justify-between gap-2 p-2">
+        {/* 좁은 창에서도 캡션 버튼 위로 내용이 겹치지 않도록 클립한다 */}
+        <div className="flex min-w-0 flex-1 items-center justify-between gap-2 overflow-hidden p-2">
           <ButtonGroup>
             <Button
               variant="outline"
@@ -144,7 +145,9 @@ export default function Header() {
               aria-label={withShortcut(t("header.home"), shortcuts.closeImage)}
             >
               <House />
-              <span className="hidden md:inline">{t("header.home")}</span>
+              <span className="hidden min-[1440px]:inline">
+                {t("header.home")}
+              </span>
             </Button>
             <Button
               variant="outline"
@@ -153,7 +156,9 @@ export default function Header() {
               aria-label={withShortcut(t("header.open"), shortcuts.openFile)}
             >
               <FolderOpen />
-              <span className="hidden md:inline">{t("header.open")}</span>
+              <span className="hidden min-[1440px]:inline">
+                {t("header.open")}
+              </span>
             </Button>
           </ButtonGroup>
 
@@ -171,7 +176,7 @@ export default function Header() {
                   )}
                 >
                   <ArrowsHorizontal />
-                  <span className="hidden md:inline">
+                  <span className="hidden min-[1440px]:inline">
                     {t("header.fitWidth")}
                   </span>
                 </Button>
@@ -189,7 +194,7 @@ export default function Header() {
                   )}
                 >
                   <ArrowsVertical />
-                  <span className="hidden md:inline">
+                  <span className="hidden min-[1440px]:inline">
                     {t("header.fitHeight")}
                   </span>
                 </Button>
@@ -207,7 +212,7 @@ export default function Header() {
                   )}
                 >
                   <ArrowsOut />
-                  <span className="hidden md:inline">
+                  <span className="hidden min-[1440px]:inline">
                     {t("header.fitScreen")}
                   </span>
                 </Button>
@@ -227,13 +232,13 @@ export default function Header() {
                   )}
                 >
                   <MagnifyingGlassMinus />
-                  <span className="hidden md:inline">
+                  <span className="hidden min-[1440px]:inline">
                     {t("header.zoomOut")}
                   </span>
                 </Button>
                 <ButtonGroupText
                   className={cn(
-                    "tabular-nums focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] focus-visible:outline-none",
+                    "hidden tabular-nums focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] focus-visible:outline-none sm:flex",
                     !hasImage && "opacity-50"
                   )}
                   render={
@@ -265,13 +270,18 @@ export default function Header() {
                   )}
                 >
                   <MagnifyingGlassPlus />
-                  <span className="hidden md:inline">{t("header.zoomIn")}</span>
+                  <span className="hidden min-[1440px]:inline">
+                    {t("header.zoomIn")}
+                  </span>
                 </Button>
               </ButtonGroup>
 
-              <Separator orientation="vertical" />
+              <Separator
+                orientation="vertical"
+                className="hidden min-[840px]:block"
+              />
 
-              <ButtonGroup>
+              <ButtonGroup className="hidden min-[840px]:flex">
                 <Button
                   variant="ghost"
                   size="icon"
@@ -333,7 +343,9 @@ export default function Header() {
                 )}
               >
                 <Info />
-                <span className="hidden md:inline">{t("header.info")}</span>
+                <span className="hidden min-[1440px]:inline">
+                  {t("header.info")}
+                </span>
               </Button>
               <Button
                 variant="outline"
@@ -345,7 +357,9 @@ export default function Header() {
                 )}
               >
                 <Command />
-                <span className="hidden md:inline">{t("palette.open")}</span>
+                <span className="hidden min-[1440px]:inline">
+                  {t("palette.open")}
+                </span>
               </Button>
               <Button
                 variant="outline"
@@ -354,11 +368,13 @@ export default function Header() {
                 aria-label={t("header.settingsTitle")}
               >
                 <Gear />
-                <span className="hidden md:inline">{t("header.settings")}</span>
+                <span className="hidden min-[1440px]:inline">
+                  {t("header.settings")}
+                </span>
               </Button>
             </ButtonGroup>
 
-            <ButtonGroup>
+            <ButtonGroup className="hidden md:flex">
               <Button
                 variant="outline"
                 size="icon"
