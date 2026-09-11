@@ -11,15 +11,25 @@ type BatchThumb = {
 }
 
 const THUMB_MAX_SIDE = 128
+/** 아카이브 엔트리 썸네일 동시 추출 수. 압축 해제 경합을 제한한다. */
+const ARCHIVE_THUMB_CONCURRENCY = 4
 
-// 썸네일 스트립용 축소 이미지 URL을 로드하는 훅.
-// 백엔드 `generate_thumbnail`이 실패하면(아카이브 엔트리, SVG/HEIC 등)
+export type ThumbnailSrcsOptions = {
+  /** 백엔드 썸네일 최대 변 길이 (기본 128) */
+  maxSide?: number
+  /** 아카이브 모드일 때 엔트리 이름. 설정하면 추출+리사이즈 전용 커맨드를 쓴다. */
+  archivePath?: string | null
+}
+
+// 썸네일 스트립/그리드용 축소 이미지 URL을 로드하는 훅.
+// 백엔드 썸네일이 실패하면(아카이브 엔트리, SVG/HEIC 등)
 // 원본 로드로 조용히 폴백한다.
 // 인덱스 이동 시 깜빡임을 막기 위해 이전 목록에 남아 있는 항목은 유지하고
 // 새로 들어온 경로만 추가로 로드한다.
 export function useThumbnailSrcs(
   paths: string[],
-  getOrLoadImage: GetOrLoadImage
+  getOrLoadImage: GetOrLoadImage,
+  options: ThumbnailSrcsOptions = {}
 ): {
   urls: Map<string, string>
   failed: Set<string>
@@ -29,6 +39,8 @@ export function useThumbnailSrcs(
   const [failed, setFailed] = useState<Set<string>>(() => new Set())
   const [retryNonce, setRetryNonce] = useState(0)
   const pathsKey = paths.join("\0")
+  const maxSide = options.maxSide ?? THUMB_MAX_SIDE
+  const archivePath = options.archivePath ?? null
   const getOrLoadRef = useRef(getOrLoadImage)
   getOrLoadRef.current = getOrLoadImage
   const urlsRef = useRef(urls)
@@ -90,17 +102,64 @@ export function useThumbnailSrcs(
       })
     }
 
+    // 썸네일 생성 자체가 불가한 입력(SVG 등)만 원본 로드로 폴백한다.
+    const loadFallbacks = async (fallback: Iterable<string>) => {
+      await Promise.all(
+        [...fallback].map(async (path) => {
+          try {
+            const info = await getOrLoadRef.current(path)
+            put(path, info.file_path)
+          } catch {
+            markFailed(path)
+          }
+        })
+      )
+    }
+
     void (async () => {
       const missing = list.filter(
         (p) => !urlsRef.current.has(p) && !failedRef.current.has(p)
       )
       if (missing.length === 0) return
-      // 윈도우 1회 배치 호출. 실패 항목만 개별 폴백한다.
+
+      if (archivePath) {
+        // 아카이브: 엔트리별 추출+리사이즈. 동시성을 제한하고 실패분만 폴백한다.
+        const fallback: string[] = []
+        let cursor = 0
+        const worker = async () => {
+          while (!cancelled) {
+            const index = cursor
+            cursor += 1
+            if (index >= missing.length) return
+            const path = missing[index]
+            try {
+              const thumb = await invoke<ThumbnailInfo>(
+                "generate_archive_thumbnail",
+                { archivePath, entryName: path, maxSide }
+              )
+              put(path, thumb.file_path)
+            } catch {
+              fallback.push(path)
+            }
+          }
+        }
+        await Promise.all(
+          Array.from(
+            { length: Math.min(ARCHIVE_THUMB_CONCURRENCY, missing.length) },
+            worker
+          )
+        )
+        if (cancelled || fallback.length === 0) return
+        await loadFallbacks(fallback)
+        return
+      }
+
+      // 일반: 윈도우 1회 배치 호출. 실패 항목만 개별 폴백한다.
       let batchFailed: Set<string> | null = null
       try {
         const results = await invoke<BatchThumb[]>(
           "generate_thumbnails_batch",
-          { filePaths: missing, maxSide: THUMB_MAX_SIDE }
+          { filePaths: missing, maxSide }
         )
         if (cancelled) return
         batchFailed = new Set<string>()
@@ -113,23 +172,14 @@ export function useThumbnailSrcs(
         batchFailed = new Set(missing)
       }
       if (cancelled || !batchFailed || batchFailed.size === 0) return
-      await Promise.all(
-        [...batchFailed].map(async (path) => {
-          try {
-            const info = await getOrLoadRef.current(path)
-            put(path, info.file_path)
-          } catch {
-            markFailed(path)
-          }
-        })
-      )
+      await loadFallbacks(batchFailed)
     })()
 
     return () => {
       cancelled = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathsKey, retryNonce])
+  }, [pathsKey, retryNonce, maxSide, archivePath])
 
   const retry = useCallback((path: string) => {
     setFailed((prev) => {

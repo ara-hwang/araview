@@ -68,7 +68,8 @@ const ACTION_LABEL_KEY: Record<ShortcutActionId, string> = {
   jumpPrev10: "menu.jumpPrev10",
   jumpNext10: "menu.jumpNext10",
   jumpFirst: "menu.jumpFirst",
-  jumpLast: "menu.jumpLast"
+  jumpLast: "menu.jumpLast",
+  toggleGrid: "menu.toggleGrid"
 }
 
 type ConflictState = {

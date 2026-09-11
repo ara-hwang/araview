@@ -37,6 +37,8 @@ type ImageContainerProps = {
   onMiddleClick?: (e: React.MouseEvent) => void
   onNavigate?: (direction: "prev" | "next") => void
   onNavigateToIndex?: (index: number) => void
+  onToggleGrid?: () => void
+  gridActive?: boolean
   getOrLoadImage?: (filePath: string) => Promise<ImageInfo>
   viewMode?: ViewMode
   pages?: MultiPage[]
@@ -64,6 +66,8 @@ export function ImageContainer({
   onMiddleClick,
   onNavigate,
   onNavigateToIndex,
+  onToggleGrid,
+  gridActive = false,
   getOrLoadImage,
   viewMode = "single",
   pages = [],
@@ -344,6 +348,8 @@ export function ImageContainer({
           onNavigate={onNavigate}
           onNavigateToIndex={onNavigateToIndex}
           getOrLoadImage={getOrLoadImage}
+          onToggleGrid={onToggleGrid}
+          gridActive={gridActive}
           hidden={chromeHidden}
         />
       )}

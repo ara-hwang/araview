@@ -33,6 +33,7 @@ export type ImageViewerContextMenuActions = {
   onCopyPath: () => void
   onSaveEdits: () => void
   onToggleFavorite: () => void
+  onToggleGrid: () => void
 }
 
 export async function showImageViewerContextMenu(
@@ -129,6 +130,11 @@ export async function showImageViewerContextMenu(
       text: t("menu.toggleExif"),
       accelerator: acc(s.toggleExif),
       action: () => actions.onToggleExif()
+    }),
+    MenuItem.new({
+      text: t("menu.toggleGrid"),
+      accelerator: acc(s.toggleGrid),
+      action: () => actions.onToggleGrid()
     }),
     MenuItem.new({
       text: t("menu.toggleSlideshow"),

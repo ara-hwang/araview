@@ -67,6 +67,7 @@ export type PaletteViewerHandlers = {
   onCopyPath: () => void
   onSaveEdits: () => void
   onToggleFavorite: () => void
+  onToggleGrid: () => void
 }
 
 let viewerHandlers: PaletteViewerHandlers | null = null
@@ -241,6 +242,9 @@ function runCommand(
       break
     case "toggleFavorite":
       viewerHandlers?.onToggleFavorite()
+      break
+    case "toggleGrid":
+      viewerHandlers?.onToggleGrid()
       break
     case "openSettings":
       requestOpenSettings()

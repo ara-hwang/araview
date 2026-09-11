@@ -281,6 +281,38 @@ pub fn generate_thumbnails_batch(
     ))
 }
 
+/// 아카이브 엔트리 썸네일 생성 코어. AppHandle 없이 테스트 가능하다.
+pub(crate) fn generate_archive_thumbnail_impl(
+    archive_path: &Path,
+    entry_name: &str,
+    max_side: u32,
+) -> Result<crate::thumbnail::ThumbnailInfo, AppError> {
+    if !archive_path.exists() {
+        return Err(AppError::not_found("Archive not found"));
+    }
+    let sub_dir = archive_sub_dir(archive_path)?;
+    let extracted = archive::extract_archive_image(archive_path, entry_name, &sub_dir)?;
+    crate::thumbnail::generate_thumbnail(&extracted, max_side)
+}
+
+/// 아카이브 엔트리용 축소 JPEG 경로 반환. 추출물과 썸네일 캐시를 재사용하므로
+/// 썸네일 그리드처럼 여러 엔트리를 동시에 볼 때 원본 풀사이즈 로드를 피한다.
+#[tauri::command]
+pub fn generate_archive_thumbnail(
+    app: tauri::AppHandle,
+    archive_path: String,
+    entry_name: String,
+    max_side: Option<u32>,
+) -> Result<crate::thumbnail::ThumbnailInfo, AppError> {
+    let thumb = generate_archive_thumbnail_impl(
+        Path::new(&archive_path),
+        &entry_name,
+        max_side.unwrap_or_else(crate::thumbnail::default_max_side),
+    )?;
+    allow_asset_path(&app, Path::new(&thumb.file_path))?;
+    Ok(thumb)
+}
+
 /// 현재 이미지를 OS 휴지통으로 이동 (영구 삭제 아님)
 #[tauri::command]
 pub fn trash_file(file_path: String) -> Result<(), AppError> {
@@ -572,5 +604,50 @@ mod tests {
         assert_eq!(all.len(), 2);
         assert!(all.iter().any(|p| p.ends_with("nested.png")));
         fs::remove_dir_all(&dir).ok();
+    }
+
+    /// 실제 PNG 1장을 담은 CBZ 픽스처로 아카이브 썸네일 왕복을 검증한다.
+    fn write_cbz_fixture(dir: &Path, file_name: &str) -> std::path::PathBuf {
+        use std::io::Write as _;
+
+        let png_path = dir.join("page.png");
+        let img =
+            image::DynamicImage::ImageRgb8(image::RgbImage::from_fn(200, 100, |x, y| {
+                image::Rgb([(x % 256) as u8, (y % 256) as u8, ((x + y) % 256) as u8])
+            }));
+        img.save(&png_path).expect("write png fixture");
+
+        let archive_path = dir.join(file_name);
+        let file = fs::File::create(&archive_path).expect("create cbz");
+        let mut writer = zip::ZipWriter::new(file);
+        let options = zip::write::SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Stored);
+        writer.start_file("page.png", options).expect("start entry");
+        writer
+            .write_all(&fs::read(&png_path).expect("read png"))
+            .expect("write entry");
+        writer.finish().expect("finish cbz");
+        archive_path
+    }
+
+    #[test]
+    fn archive_thumbnail_downscales_and_reuses_cache() {
+        let dir = unique_dir("archive-thumb");
+        let archive = write_cbz_fixture(&dir, "comic.cbz");
+
+        let first = generate_archive_thumbnail_impl(&archive, "page.png", 64).expect("first");
+        assert!(first.file_path.ends_with(".jpg"));
+        assert_eq!((first.width, first.height), (64, 32));
+
+        let second = generate_archive_thumbnail_impl(&archive, "page.png", 64).expect("second");
+        assert_eq!(first.file_path, second.file_path);
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn archive_thumbnail_missing_archive_is_not_found() {
+        let err = generate_archive_thumbnail_impl(Path::new("no-such.cbz"), "page.png", 64)
+            .unwrap_err();
+        assert_eq!(err.code, ErrorCode::NotFound);
     }
 }
