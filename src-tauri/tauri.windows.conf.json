@@ -1,0 +1,7 @@
+{
+  "bundle": {
+    "resources": {
+      "generated/libheif-dlls/*.dll": "../"
+    }
+  }
+}
