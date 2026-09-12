@@ -536,10 +536,7 @@ mod tests {
             open_command(exe),
             r#""C:\Program Files\araview\app.exe" "%1""#
         );
-        assert_eq!(
-            default_icon(exe),
-            r#""C:\Program Files\araview\app.exe",0"#
-        );
+        assert_eq!(default_icon(exe), r#""C:\Program Files\araview\app.exe",0"#);
     }
 
     #[test]

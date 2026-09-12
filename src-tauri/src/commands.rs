@@ -611,10 +611,9 @@ mod tests {
         use std::io::Write as _;
 
         let png_path = dir.join("page.png");
-        let img =
-            image::DynamicImage::ImageRgb8(image::RgbImage::from_fn(200, 100, |x, y| {
-                image::Rgb([(x % 256) as u8, (y % 256) as u8, ((x + y) % 256) as u8])
-            }));
+        let img = image::DynamicImage::ImageRgb8(image::RgbImage::from_fn(200, 100, |x, y| {
+            image::Rgb([(x % 256) as u8, (y % 256) as u8, ((x + y) % 256) as u8])
+        }));
         img.save(&png_path).expect("write png fixture");
 
         let archive_path = dir.join(file_name);
@@ -646,8 +645,8 @@ mod tests {
 
     #[test]
     fn archive_thumbnail_missing_archive_is_not_found() {
-        let err = generate_archive_thumbnail_impl(Path::new("no-such.cbz"), "page.png", 64)
-            .unwrap_err();
+        let err =
+            generate_archive_thumbnail_impl(Path::new("no-such.cbz"), "page.png", 64).unwrap_err();
         assert_eq!(err.code, ErrorCode::NotFound);
     }
 }
