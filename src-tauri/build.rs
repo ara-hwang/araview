@@ -3,8 +3,29 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 fn main() {
+    sync_dev_mcp_capability();
     copy_libheif_dlls();
     tauri_build::build();
+}
+
+fn sync_dev_mcp_capability() {
+    let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
+    let cap_path = manifest_dir.join("capabilities").join("dev-mcp.json");
+    let enabled = env::var_os("CARGO_FEATURE_DEV_MCP").is_some();
+
+    if enabled {
+        let content = r#"{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "dev-mcp",
+  "description": "MCP bridge for local development",
+  "windows": ["main"],
+  "permissions": ["mcp-bridge:default"]
+}
+"#;
+        fs::write(&cap_path, content).expect("write dev-mcp capability");
+    } else if cap_path.exists() {
+        fs::remove_file(&cap_path).ok();
+    }
 }
 
 fn copy_libheif_dlls() {
