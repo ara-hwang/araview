@@ -27,6 +27,8 @@
     "settingsTitle": "Settings",
     "alwaysOnTop": "Always on top",
     "alwaysOnTopTitle": "Keep window always on top (T)",
+    "hideMenuBar": "Hide menu bar",
+    "showMenuBar": "Show menu bar",
     "minimize": "Minimize",
     "maximize": "Maximize / Restore",
     "close": "Close"
@@ -170,7 +172,8 @@
     "present": {
       "title": "Presentation",
       "desc": "Auto-hide top/bottom bars after 3s idle (move to show)",
-      "autohide": "Auto-hide UI"
+      "autohide": "Auto-hide UI",
+      "hideMenuBar": "Hide menu bar (hover top to show)"
     },
     "window": {
       "title": "Window",

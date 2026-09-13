@@ -6,6 +6,7 @@ import {
   ArrowsVertical,
   ArrowClockwise,
   ArrowCounterClockwise,
+  CaretUp,
   Command,
   Copy,
   FlipHorizontal,
@@ -43,7 +44,7 @@ import { useExifLoader } from "@/hooks/useExifLoader"
 import { useAlwaysOnTop } from "@/hooks/useAlwaysOnTop"
 import { SettingsDialog } from "@/components/SettingsDialog"
 import { OPEN_SETTINGS_EVENT, usePaletteStore } from "@/hooks/useCommandPalette"
-import { useSettingsStore } from "@/store/settingsStore"
+import { updateSettings, useSettingsStore } from "@/store/settingsStore"
 import { formatShortcutDisplay } from "@/constants/shortcuts"
 import { useTranslation } from "react-i18next"
 
@@ -60,7 +61,11 @@ const captionCloseButtonClassName = cn(
 )
 
 // 위쪽 툴바
-export default function Header() {
+export default function Header({
+  onHideMenuBar
+}: {
+  onHideMenuBar?: () => void
+} = {}) {
   const { t } = useTranslation()
   const [appWindow] = useState(() => getCurrentWindow())
   const zoom = useAppStore((state) => state.zoom)
@@ -129,6 +134,11 @@ export default function Header() {
 
   const handleClose = () => {
     void appWindow.close()
+  }
+
+  const handleHideMenuBar = () => {
+    void updateSettings({ menuBarHidden: true })
+    onHideMenuBar?.()
   }
 
   return (
@@ -400,6 +410,17 @@ export default function Header() {
                 )}
               >
                 <PushPin weight={alwaysOnTop ? "fill" : "regular"} />
+              </Button>
+            </ButtonGroup>
+            <ButtonGroup>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={handleHideMenuBar}
+                title={t("header.hideMenuBar")}
+                aria-label={t("header.hideMenuBar")}
+              >
+                <CaretUp />
               </Button>
             </ButtonGroup>
           </ButtonGroup>
