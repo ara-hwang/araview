@@ -27,6 +27,8 @@
     "settingsTitle": "설정",
     "alwaysOnTop": "맨 위에 두기",
     "alwaysOnTopTitle": "창을 항상 위에 두기 (T)",
+    "hideMenuBar": "상단바 숨기기",
+    "showMenuBar": "상단바 보이기",
     "minimize": "최소화",
     "maximize": "최대화 / 복원",
     "close": "닫기"
@@ -170,7 +172,8 @@
     "present": {
       "title": "프레젠테이션",
       "desc": "3초 무입력 시 상단바/하단바 자동 숨김 (움직이면 복귀)",
-      "autohide": "UI 자동 숨김"
+      "autohide": "UI 자동 숨김",
+      "hideMenuBar": "상단바 숨기기 (위에 마우스를 올리면 표시)"
     },
     "window": {
       "title": "창",

@@ -29,6 +29,7 @@ export function ViewTabPanel() {
       viewMode: state.viewMode,
       viewerBackground: state.viewerBackground,
       autoHideUI: state.autoHideUI,
+      menuBarHidden: state.menuBarHidden,
       alwaysOnTop: state.alwaysOnTop,
       slideshowIntervalMs: state.slideshowIntervalMs
     }))
@@ -128,6 +129,18 @@ export function ViewTabPanel() {
           />
           <Label htmlFor="settings-autohide">
             {t("settings.present.autohide")}
+          </Label>
+        </Field>
+        <Field orientation="horizontal">
+          <Switch
+            id="settings-hide-menubar"
+            checked={settings.menuBarHidden}
+            onCheckedChange={(checked) =>
+              handleSettingsChange({ menuBarHidden: checked === true })
+            }
+          />
+          <Label htmlFor="settings-hide-menubar">
+            {t("settings.present.hideMenuBar")}
           </Label>
         </Field>
       </SettingsFieldSet>

@@ -40,6 +40,7 @@ export type SettingsState = {
   recordRecentFiles: boolean
   viewerBackground: ViewerBackground
   autoHideUI: boolean
+  menuBarHidden: boolean
   alwaysOnTop: boolean
   sortKey: DirSortKey
   sortDescending: boolean
@@ -74,6 +75,7 @@ const initialSettings: SettingsState = {
   recordRecentFiles: true,
   viewerBackground: "theme",
   autoHideUI: false,
+  menuBarHidden: false,
   alwaysOnTop: false,
   sortKey: "name",
   sortDescending: false,
@@ -164,6 +166,7 @@ export function sanitizeSettings(value: unknown): SettingsState {
       initialSettings.viewerBackground
     ),
     autoHideUI: sanitizeBoolean(record.autoHideUI),
+    menuBarHidden: sanitizeBoolean(record.menuBarHidden),
     alwaysOnTop: sanitizeBoolean(record.alwaysOnTop),
     sortKey: sanitizeEnum(record.sortKey, SORT_KEYS, initialSettings.sortKey),
     sortDescending: sanitizeBoolean(record.sortDescending),
