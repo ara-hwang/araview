@@ -146,13 +146,15 @@ Softly squared geometry: 10px radius on buttons and toolbar groups, 8px on input
 
 ## App Icon
 
-The app icon is the Hangul syllable 아 as a monogram, the first sound of 아라뷰. A ring (ㅇ) and the vertical stroke with its right tick (ㅏ), drawn in Room Ink on a paper tile with a hairline rule and a ~20% corner radius (205/1024).
+The app icon is an obangsaek 2x2 grid: four sticky-note tiles in red, ochre, teal, and ink, with a folded corner on the bottom-right tile (the page-turn). The name stays Korean-first after the 아 monogram: 청・적・황・흑 carry the identity, and 백 (white) is the transparent gap itself.
 
-- **Construction:** ring radius 172, ㅏ height 636, stroke 88 (8.6% of the 1024 canvas), butt caps; the whole mark is optically centered, not merely measured.
-- **Why this and not a generic glyph:** the name is Korean-first, so the icon names the product without borrowing a camera, folder, or file metaphor, and it stays monochromatic like the product itself.
-- **The One Ring Exception:** the ring is the only circle allowed anywhere in the brand. UI controls stay square (see Shapes). The ban on circular icon buttons applies to controls, not to the mark.
-- **Small sizes:** verified at 16, 24, 32, 48, and 256. Do not square the ring to gain legibility: a squared ㅇ is read as ㅁ, which turns 아 into 마.
-- **Source of truth:** `src-tauri/icons/icon.svg`. Export a 1024px PNG from it, then regenerate the full set with `npm run tauri icon <1024.png>`.
+- **Construction:** 1024 canvas, tile 408, gap 64, tile radius 48, fold 150. Tiles at (72,72), (544,72), (72,544); bottom-right tile is a cut-corner path with a solid fold triangle.
+- **Light (default):** `#D9382B` / `#E5A81C` / `#2E8B7A` / ink `#171717`, fold `#525252`.
+- **Dark:** same first three tiles; bottom-right tile is paper `#F5F5F5` with an ink `#171717` fold, so it survives dark taskbars where the ink tile would merge.
+- **Why two variants:** Win32 `.ico` cannot switch with the Windows theme, so each variant is tuned for its own background. The light variant is the bundled default (matches the paper-first chrome and the default light taskbar).
+- **Small sizes:** verified at 16, 32, 64, 128, and 1024 on light and dark backgrounds; the grid stays readable to 16px. The fold disappears at 16px, which is acceptable.
+- **Sources of truth:** `src-tauri/icons/icon.svg` (bundled set, light variant), `src-tauri/icons/candidates/icon-obang-light.svg`, `src-tauri/icons/candidates/icon-obang-dark.svg`. Export a 1024px PNG from the SVG, then regenerate the full set with `npm run tauri icon <1024.png>`. Full reference sets live in `design/icon-output/obang-light/` and `design/icon-output/obang-dark/`.
+- **Switching to dark:** `npx tauri icon src-tauri/icons/candidates/icon-obang-dark.svg` (writes directly to `src-tauri/icons/`). Switch back the same way with the light SVG. Windows caches icons aggressively; log out/in or rebuild the icon cache if the old mark persists.
 
 ## Components
 
