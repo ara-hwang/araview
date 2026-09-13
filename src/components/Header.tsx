@@ -133,9 +133,15 @@ export default function Header() {
 
   return (
     <>
-      <div className="drag bg-background flex items-stretch border-b">
+      <div
+        data-tauri-drag-region
+        className="bg-background flex items-stretch border-b"
+      >
         {/* 좁은 창에서도 캡션 버튼 위로 내용이 겹치지 않도록 클립한다 */}
-        <div className="flex min-w-0 flex-1 items-center justify-between gap-2 overflow-hidden p-2">
+        <div
+          data-tauri-drag-region
+          className="flex min-w-0 flex-1 items-center justify-between gap-2 overflow-hidden p-2"
+        >
           <ButtonGroup>
             <Button
               variant="outline"

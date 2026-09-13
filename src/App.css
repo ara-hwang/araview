@@ -133,17 +133,16 @@
   }
 }
 
-/* 드래그 가능 (타이틀바) */
-@utility drag {
-  -webkit-app-region: drag;
-  * {
-    @apply no-drag;
-  }
+/* Tauri frameless 창 드래그 영역. 마우스 드래그는 data-tauri-drag-region
+   속성으로 동작하며, 아래 규칙은 Windows 터치/펜 입력용이다 (공식 문서). */
+*[data-tauri-drag-region] {
+  app-region: drag;
 }
 
-/* 드래그 불가 */
+/* 드래그 제외 (인터랙티브 요소 보호용) */
 @utility no-drag {
   -webkit-app-region: no-drag;
+  app-region: no-drag;
 }
 
 @keyframes slideshow-progress {
