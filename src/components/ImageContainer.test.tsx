@@ -65,6 +65,9 @@ describe("ImageContainer single mode", () => {
     expect(img.className).toContain("max-h-none")
     expect(img.className).toContain("shrink-0")
     expect(img.className).not.toContain("object-contain")
+    // 파일 전환 시 이전 줌에서 새 줌으로 보간되는 전환 애니메이션을 막기 위해
+    // transform 트랜지션을 두지 않는다.
+    expect(img.className).not.toContain("transition-transform")
     expect(img.style.maxWidth).toBe("none")
     expect(img.style.maxHeight).toBe("none")
     // 렌더 박스 x 줌 = 맞춤 치수 계약

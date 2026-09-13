@@ -196,10 +196,11 @@ export function ImageContainer({
       {!isMulti && imageSrc && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
           <img
+            key={imageSrc}
             ref={imageRef}
             src={imageSrc}
             alt={app.imageInfo?.file_name}
-            className="pointer-events-auto block max-h-none max-w-none shrink-0 transition-transform duration-50 ease-out"
+            className="pointer-events-auto block max-h-none max-w-none shrink-0"
             style={{
               width: app.imageSize.width || undefined,
               height: app.imageSize.height || undefined,
