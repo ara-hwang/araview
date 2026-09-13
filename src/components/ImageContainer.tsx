@@ -199,10 +199,12 @@ export function ImageContainer({
             ref={imageRef}
             src={imageSrc}
             alt={app.imageInfo?.file_name}
-            className="pointer-events-auto object-contain transition-transform duration-50 ease-out"
+            className="pointer-events-auto block max-h-none max-w-none shrink-0 transition-transform duration-50 ease-out"
             style={{
               width: app.imageSize.width || undefined,
               height: app.imageSize.height || undefined,
+              maxWidth: "none",
+              maxHeight: "none",
               transform: `translate3d(${app.position.x}px, ${app.position.y}px, 0) scale(${app.zoom * (app.flipH ? -1 : 1)}, ${app.zoom * (app.flipV ? -1 : 1)}) rotate(${app.rotation}deg)`,
               transformOrigin: "center center",
               willChange: "transform",

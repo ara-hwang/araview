@@ -147,6 +147,7 @@ export const setZoomToFit = (mode: "width" | "height" | "screen") => {
   const { width: iw, height: ih } = oriented
 
   if (iw <= 0 || ih <= 0) return
+  if (cw <= 0 || ch <= 0) return
 
   const zoom =
     mode === "width"
