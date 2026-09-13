@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest"
-import { closeImage, panBy, useAppStore } from "@/store/appStore"
+import { closeImage, panBy, setZoomToFit, useAppStore } from "@/store/appStore"
 
 beforeEach(() => {
   closeImage()
@@ -72,5 +72,78 @@ describe("panBy", () => {
     expect(useAppStore.getState().position.x).toBe(48)
     panBy(-48, 0)
     expect(useAppStore.getState().position.x).toBe(0)
+  })
+})
+
+describe("setZoomToFit", () => {
+  it("너비 맞춤은 컨테이너 너비와 일치한다", () => {
+    useAppStore.setState({
+      containerSize: { width: 1000, height: 700 },
+      imageSize: { width: 2000, height: 1000 },
+      rotation: 0,
+      zoom: 1,
+      position: { x: 10, y: 20 }
+    })
+    setZoomToFit("width")
+    const state = useAppStore.getState()
+    expect(state.zoom).toBeCloseTo(0.5)
+    expect(state.position).toEqual({ x: 0, y: 0 })
+    expect(state.imageSize.width * state.zoom).toBeCloseTo(1000)
+  })
+
+  it("높이 맞춤은 컨테이너 높이와 일치한다", () => {
+    useAppStore.setState({
+      containerSize: { width: 1000, height: 700 },
+      imageSize: { width: 2000, height: 1400 },
+      rotation: 0,
+      zoom: 1,
+      position: { x: 0, y: 0 }
+    })
+    setZoomToFit("height")
+    const state = useAppStore.getState()
+    expect(state.zoom).toBeCloseTo(0.5)
+    expect(state.imageSize.height * state.zoom).toBeCloseTo(700)
+  })
+
+  it("화면 맞춤은 양쪽 축을 모두 containment한다", () => {
+    useAppStore.setState({
+      containerSize: { width: 1000, height: 700 },
+      imageSize: { width: 2000, height: 1000 },
+      rotation: 0,
+      zoom: 1,
+      position: { x: 0, y: 0 }
+    })
+    setZoomToFit("screen")
+    const state = useAppStore.getState()
+    expect(state.zoom).toBeCloseTo(0.5)
+    expect(state.imageSize.width * state.zoom).toBeLessThanOrEqual(1000.001)
+    expect(state.imageSize.height * state.zoom).toBeLessThanOrEqual(700.001)
+  })
+
+  it("90도 회전 시 바뀐 치수 기준으로 맞춘다", () => {
+    useAppStore.setState({
+      containerSize: { width: 1000, height: 700 },
+      imageSize: { width: 1000, height: 2000 },
+      rotation: 90,
+      zoom: 1,
+      position: { x: 0, y: 0 }
+    })
+    setZoomToFit("width")
+    // 회전하면 보이는 너비는 원본 높이(2000)이므로 1000/2000 = 0.5
+    expect(useAppStore.getState().zoom).toBeCloseTo(0.5)
+  })
+
+  it("컨테이너 크기를 모르면 줌을 바꾸지 않는다", () => {
+    useAppStore.setState({
+      containerSize: { width: 0, height: 0 },
+      imageSize: { width: 2000, height: 1000 },
+      rotation: 0,
+      zoom: 1,
+      position: { x: 0, y: 0 }
+    })
+    setZoomToFit("width")
+    expect(useAppStore.getState().zoom).toBe(1)
+    setZoomToFit("screen")
+    expect(useAppStore.getState().zoom).toBe(1)
   })
 })
