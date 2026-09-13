@@ -201,6 +201,49 @@ export const resetZoomPan = () => {
   }))
 }
 
+/**
+ * 새 파일로 전환할 때 이미지 메타와 뷰(줌/팬/회전/반전)를 원자적으로 교체한다.
+ * 백엔드 치수로 맞춤 줌을 즉시 계산하므로, 이전 파일의 줌에서 새 줌으로
+ * 보간되는 전환 애니메이션 없이 첫 페인트부터 올바른 배율로 표시된다.
+ * 치수를 모르면 1로 두고 onLoad의 applyImageNaturalSize가 보정한다.
+ */
+export const setImageInfoAndResetView = (imgInfo: ImageInfo) => {
+  const { containerSize } = useAppStore.getState()
+  const w = imgInfo.width ?? 0
+  const h = imgInfo.height ?? 0
+  if (w > 0 && h > 0) {
+    const fit = getFitZoomFromSizes(
+      containerSize.width,
+      containerSize.height,
+      w,
+      h
+    )
+    const zoom = Number.isFinite(fit) && fit > 0 ? Math.min(1, fit) : 1
+    useAppStore.setState({
+      imageInfo: imgInfo,
+      imageSize: { width: w, height: h },
+      zoom,
+      position: { x: 0, y: 0 },
+      rotation: 0,
+      flipH: false,
+      flipV: false,
+      error: null
+    })
+    return
+  }
+  useAppStore.setState({
+    imageInfo: imgInfo,
+    // 치수 미상: 이전 파일 크기가 남지 않게 비우고 onLoad 보정에 맡긴다.
+    imageSize: { width: 0, height: 0 },
+    zoom: 1,
+    position: { x: 0, y: 0 },
+    rotation: 0,
+    flipH: false,
+    flipV: false,
+    error: null
+  })
+}
+
 export const applyImageNaturalSize = (width: number, height: number) => {
   if (width <= 0 || height <= 0) return
   const prev = useAppStore.getState().imageSize

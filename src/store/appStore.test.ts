@@ -1,5 +1,11 @@
 import { beforeEach, describe, expect, it } from "vitest"
-import { closeImage, panBy, setZoomToFit, useAppStore } from "@/store/appStore"
+import {
+  closeImage,
+  panBy,
+  setImageInfoAndResetView,
+  setZoomToFit,
+  useAppStore
+} from "@/store/appStore"
 
 beforeEach(() => {
   closeImage()
@@ -72,6 +78,76 @@ describe("panBy", () => {
     expect(useAppStore.getState().position.x).toBe(48)
     panBy(-48, 0)
     expect(useAppStore.getState().position.x).toBe(0)
+  })
+})
+
+describe("setImageInfoAndResetView", () => {
+  it("이전 파일의 줌/팬/회전 상태에서 새 파일의 맞춤 줌으로 원자 교체한다", () => {
+    useAppStore.setState({
+      containerSize: { width: 1000, height: 700 },
+      imageSize: { width: 500, height: 500 },
+      zoom: 2.5,
+      position: { x: 120, y: -80 },
+      rotation: 90,
+      flipH: true,
+      flipV: true,
+      error: "boom"
+    })
+    setImageInfoAndResetView({
+      file_path: "/pics/b.jpg",
+      file_name: "b.jpg",
+      file_size: 456,
+      mime_type: "image/jpeg",
+      width: 2000,
+      height: 1000
+    })
+    const state = useAppStore.getState()
+    expect(state.imageInfo?.file_path).toBe("/pics/b.jpg")
+    // 2000x1000을 1000x700에 맞춤: min(0.5, 0.7) = 0.5
+    expect(state.zoom).toBeCloseTo(0.5)
+    expect(state.imageSize).toEqual({ width: 2000, height: 1000 })
+    expect(state.position).toEqual({ x: 0, y: 0 })
+    expect(state.rotation).toBe(0)
+    expect(state.flipH).toBe(false)
+    expect(state.flipV).toBe(false)
+    expect(state.error).toBeNull()
+  })
+
+  it("작은 이미지는 100%를 넘지 않는다", () => {
+    useAppStore.setState({
+      containerSize: { width: 1000, height: 700 },
+      zoom: 3,
+      position: { x: 50, y: 50 }
+    })
+    setImageInfoAndResetView({
+      file_path: "/pics/small.png",
+      file_name: "small.png",
+      file_size: 10,
+      mime_type: "image/png",
+      width: 100,
+      height: 100
+    })
+    expect(useAppStore.getState().zoom).toBe(1)
+  })
+
+  it("치수를 모르면 이전 크기를 비우고 onLoad 보정에 맡긴다", () => {
+    useAppStore.setState({
+      imageSize: { width: 2000, height: 1000 },
+      zoom: 0.5,
+      position: { x: 30, y: 30 }
+    })
+    setImageInfoAndResetView({
+      file_path: "/pics/vector.svg",
+      file_name: "vector.svg",
+      file_size: 10,
+      mime_type: "image/svg+xml",
+      width: null,
+      height: null
+    })
+    const state = useAppStore.getState()
+    expect(state.imageSize).toEqual({ width: 0, height: 0 })
+    expect(state.zoom).toBe(1)
+    expect(state.position).toEqual({ x: 0, y: 0 })
   })
 })
 

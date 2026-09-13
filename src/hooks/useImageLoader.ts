@@ -7,7 +7,11 @@ import type { DirectoryImages, ImageInfo } from "@/types"
 import { SUPPORTED_IMAGE_EXTENSIONS } from "@/constants/imageExtensions"
 import { useImageCache } from "@/hooks/useImageCache"
 import { useSettingsStore } from "@/store/settingsStore"
-import { updateDirImagesIndex, useAppStore } from "@/store/appStore"
+import {
+  setImageInfoAndResetView,
+  updateDirImagesIndex,
+  useAppStore
+} from "@/store/appStore"
 import { useRecentFilesStore } from "@/store/recentFilesStore"
 import { useArchiveProgressStore } from "@/store/archiveProgressStore"
 import { buildDirListOptions } from "@/utils/directoryOptions"
@@ -110,13 +114,12 @@ export function useImageLoader() {
         })
 
         useAppStore.setState({
-          imageInfo: imgInfo,
           dirImages: {
             images: archiveImages.images,
             current_index: resolvedStart
-          },
-          error: null
+          }
         })
+        setImageInfoAndResetView(imgInfo)
         void useArchiveProgressStore.getState().save(archivePath, firstEntry)
 
         if (useSettingsStore.getState().recordRecentFiles) {
@@ -152,7 +155,7 @@ export function useImageLoader() {
           archivePath,
           entryName
         })
-        useAppStore.setState({ imageInfo: imgInfo, error: null })
+        setImageInfoAndResetView(imgInfo)
         useAppStore.getState().removeFailedPath(entryName)
         void useArchiveProgressStore.getState().save(archivePath, entryName)
 
@@ -212,7 +215,7 @@ export function useImageLoader() {
       useAppStore.setState({ loading: true })
       try {
         const imgInfo = await getOrLoadImage(filePath)
-        useAppStore.setState({ imageInfo: imgInfo })
+        setImageInfoAndResetView(imgInfo)
         useAppStore.getState().removeFailedPath(filePath)
         if (useSettingsStore.getState().recordRecentFiles) {
           void useRecentFilesStore.getState().add(filePath)
