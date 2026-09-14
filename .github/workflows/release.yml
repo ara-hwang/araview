@@ -87,4 +87,6 @@ jobs:
           releaseBody: "See the assets to download this version and install."
           releaseDraft: true
           prerelease: false
-          args: --no-default-features
+          # `tauri build`는 --no-default-features를 자체 옵션으로 받지 않는다.
+          # -- 뒤에 두면 cargo로 그대로 전달되어 dev-mcp가 릴리스에서 빠진다.
+          args: -- --no-default-features
