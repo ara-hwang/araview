@@ -1,5 +1,5 @@
 import { createRootRoute, Link, Outlet } from "@tanstack/react-router"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { CaretDown } from "@phosphor-icons/react"
 import { Toaster } from "@/components/ui/sonner"
 import { ThemeProvider } from "@/components/theme-provider"
@@ -53,6 +53,30 @@ function RootLayout() {
   const menuBarCollapsed = menuBarHidden && !menuBarPeek
   const menuBarOverlay = menuBarHidden && menuBarPeek
 
+  // 다이얼로그/Sheet 오버레이가 헤더를 가리지 않도록 헤더 높이를 CSS
+  // 변수로 노출한다. Portal이 body에 렌더되므로 셸이 아닌 documentElement에
+  // 설정한다. 접힘 상태에서는 헤더가 없으므로 0px.
+  const headerRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    if (menuBarCollapsed) {
+      document.documentElement.style.setProperty("--header-height", "0px")
+      return
+    }
+    const el = headerRef.current
+    if (!el) return
+    const update = () => {
+      const h = el.getBoundingClientRect().height
+      document.documentElement.style.setProperty(
+        "--header-height",
+        `${Math.round(h)}px`
+      )
+    }
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [menuBarCollapsed, menuBarOverlay, chromeHidden])
+
   // OS 파일 연결/두 번째 실행으로 열린 파일을 현재 라우트 로더로 전달한다.
   useOpenFileBridge()
   // 명령 팔레트의 업데이트 확인 요청을 실제 확인으로 연결한다.
@@ -64,6 +88,8 @@ function RootLayout() {
       <div className="relative flex h-screen w-full flex-col overflow-hidden">
         {menuBarCollapsed ? (
           <div
+            ref={headerRef}
+            data-header-root
             data-tauri-drag-region
             onMouseEnter={() => setMenuBarPeek(true)}
             className="group absolute inset-x-0 top-0 z-40 flex h-5 items-start justify-center"
@@ -80,6 +106,8 @@ function RootLayout() {
           </div>
         ) : menuBarOverlay ? (
           <div
+            ref={headerRef}
+            data-header-root
             onMouseLeave={() => setMenuBarPeek(false)}
             onBlur={(e) => {
               if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
@@ -96,6 +124,8 @@ function RootLayout() {
           </div>
         ) : (
           <div
+            ref={headerRef}
+            data-header-root
             className={cn(
               "transition-opacity duration-300",
               chromeHidden && "pointer-events-none opacity-0"
