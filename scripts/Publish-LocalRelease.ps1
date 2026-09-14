@@ -7,18 +7,25 @@
   Steps:
     1. Read the version from src-tauri/tauri.conf.json and derive the tag (vX.Y.Z).
     2. Refuse to run on a dirty tree or when the tag points at another commit.
-    3. Resolve the signing key: -KeyPath, then TAURI_SIGNING_PRIVATE_KEY, then
-       <repo>/araview.key, then ~/.tauri/araview.key. The key password still comes
-       from TAURI_SIGNING_PRIVATE_KEY_PASSWORD so the build never prompts.
-    4. Run a signed release build (skip with -SkipBuild to reuse artifacts).
-    5. Check that the signature belongs to plugins.updater.pubkey.
-    6. Collect the installer, its signature, and latest.json in <repo>/release/<tag>.
-    7. Push the tag and create or update the GitHub release.
+    3. Load <repo>/.env.local when present, the way Vite does, so a gitignored local
+       file can hold the key and its password instead of exported variables. Values
+       already present in the real environment win.
+    4. Resolve the signing key: -KeyPath, then TAURI_SIGNING_PRIVATE_KEY, then
+       <repo>/araview.key, then ~/.tauri/araview.key. The password comes from
+       TAURI_SIGNING_PRIVATE_KEY_PASSWORD, otherwise the build prompts for it.
+    5. Run a signed release build (skip with -SkipBuild to reuse artifacts).
+    6. Check that the signature belongs to plugins.updater.pubkey.
+    7. Collect the installer, its signature, and latest.json in <repo>/release/<tag>.
+    8. Push the tag and create or update the GitHub release.
 
   The signing key stays on this machine; only the installer, its signature, and
   latest.json are uploaded.
 .EXAMPLE
-  # The key is discovered at <repo>/araview.key, then ~/.tauri/araview.key.
+  # Copy .env.example to .env.local (gitignored) and fill in the key and password.
+  # No environment variables needed.
+  npm run release:local
+.EXAMPLE
+  # Or keep the key at <repo>/araview.key and only export the password.
   $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = "<password>"
   npm run release:local
 .EXAMPLE
@@ -71,6 +78,32 @@ function Get-KeyId {
   (($bytes[2..9])[7..0] | ForEach-Object { $_.ToString('X2') }) -join ''
 }
 
+# Load <repo>/.env.local when present, the same convention Vite uses, so a local
+# copy of the key and password works without exporting anything. Variables already
+# set in the real environment always win. Keep this file out of git.
+$envLocalPath = Join-Path $root ".env.local"
+if (Test-Path -LiteralPath $envLocalPath) {
+  $loaded = @()
+  foreach ($line in Get-Content -LiteralPath $envLocalPath) {
+    $trimmed = $line.Trim()
+    if ($trimmed -eq "" -or $trimmed.StartsWith("#")) { continue }
+    $parts = $trimmed -split "=", 2
+    if ($parts.Count -ne 2) { continue }
+    $name = $parts[0].Trim()
+    $value = $parts[1].Trim()
+    if ($name -notin @("TAURI_SIGNING_PRIVATE_KEY", "TAURI_SIGNING_PRIVATE_KEY_PASSWORD")) { continue }
+    if ($value.Length -ge 2 -and $value.StartsWith('"') -and $value.EndsWith('"')) {
+      $value = $value.Substring(1, $value.Length - 2)
+    }
+    if (Test-Path "env:$name") { continue }
+    Set-Item -Path "env:$name" -Value $value
+    $loaded += $name
+  }
+  if ($loaded.Count -gt 0) {
+    Write-Output "Loaded from .env.local: $($loaded -join ', ')"
+  }
+}
+
 # 1. version and tag
 $config = Get-Content -Raw -LiteralPath $configPath | ConvertFrom-Json
 $version = $config.version
@@ -105,20 +138,26 @@ if ($KeyPath) {
   Write-Output "Signing key: $env:TAURI_SIGNING_PRIVATE_KEY (-KeyPath)"
 }
 elseif (Test-Path env:TAURI_SIGNING_PRIVATE_KEY) {
-  Write-Output "Signing key: from TAURI_SIGNING_PRIVATE_KEY"
+  $keyValue = $env:TAURI_SIGNING_PRIVATE_KEY
+  if (Test-Path -LiteralPath $keyValue) {
+    Write-Output "Signing key: $keyValue (from TAURI_SIGNING_PRIVATE_KEY)"
+  }
+  else {
+    Write-Output "Signing key: from TAURI_SIGNING_PRIVATE_KEY (key content)"
+  }
 }
 else {
   $candidates = @(Join-Path $root "araview.key")
   if ($env:USERPROFILE) { $candidates += Join-Path $env:USERPROFILE ".tauri/araview.key" }
   $found = $candidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
   if (-not $found) {
-    Fail "Signing key not found. Looked at:`n  $($candidates -join "`n  ")`nPass -KeyPath, set TAURI_SIGNING_PRIVATE_KEY, or place the key at one of those paths."
+    Fail "Signing key not found. Looked at:`n  $($candidates -join "`n  ")`nPass -KeyPath, set TAURI_SIGNING_PRIVATE_KEY (or put it in .env.local), or place the key at one of those paths."
   }
   $env:TAURI_SIGNING_PRIVATE_KEY = (Resolve-Path -LiteralPath $found).Path
   Write-Output "Signing key: $env:TAURI_SIGNING_PRIVATE_KEY"
 }
 if (-not (Test-Path env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD)) {
-  Fail "TAURI_SIGNING_PRIVATE_KEY_PASSWORD is not set. Set it to the key password (an empty value is allowed) so the build never prompts."
+  Fail "TAURI_SIGNING_PRIVATE_KEY_PASSWORD is not set. Put it in <repo>/.env.local or export it (an empty value is allowed) so the build never prompts."
 }
 
 # 4. build
