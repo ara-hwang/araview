@@ -165,6 +165,7 @@ npm run release:local -- -Publish     # 바로 공개
 ```
 
 - `scripts/Publish-LocalRelease.ps1`이 `tauri.conf.json`의 버전으로 태그(`vX.Y.Z`)를 확인하고, 서명 빌드, `latest.json` 생성, `gh release create`(기존 릴리스에는 업로드)까지 수행합니다.
+- 산출물(설치본, `.sig`, `latest.json`)은 저장소 안 `release/vX.Y.Z/`에 모입니다. `.gitignore`에 포함되어 커밋되지 않고, `-OutputDir`로 위치를 바꿀 수 있습니다.
 - 작업 트리가 지저분하거나 태그가 HEAD와 다른 커밋을 가리키면 중단합니다.
 - `.sig`의 키 ID가 `plugins.updater.pubkey`와 다르면 중단합니다.
 - 빌드를 건너뛰고 이미 만든 산출물을 올리려면 `-SkipBuild`, GitHub를 건드리지 않고 결과만 확인하려면 `-DryRun`을 씁니다.

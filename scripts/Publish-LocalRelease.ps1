@@ -10,7 +10,7 @@
     3. Require the signing key environment variables so the build never prompts.
     4. Run a signed release build (skip with -SkipBuild to reuse artifacts).
     5. Check that the signature belongs to plugins.updater.pubkey.
-    6. Write latest.json for the updater endpoint next to the artifacts.
+    6. Collect the installer, its signature, and latest.json in <repo>/release/<tag>.
     7. Push the tag and create or update the GitHub release.
 
   The signing key stays on this machine; only the installer, its signature, and
@@ -35,9 +35,12 @@ param(
   [switch]$Publish,
   # Release notes. Defaults to the same sentence the release workflow uses.
   [string]$Notes = "See the assets to download this version and install.",
-  # Directory holding the NSIS installer and its .sig. Defaults to the release bundle.
+  # Directory holding the NSIS installer and its .sig produced by the build.
   [string]$BundleDir,
-  # Resolve everything and write latest.json, but do not create a tag or a release.
+  # Where the release assets (installer, .sig, latest.json) are collected.
+  # Defaults to <repo>/release/<tag>.
+  [string]$OutputDir,
+  # Resolve everything and collect the assets, but do not create a tag or a release.
   [switch]$DryRun
 )
 
@@ -69,6 +72,9 @@ $config = Get-Content -Raw -LiteralPath $configPath | ConvertFrom-Json
 $version = $config.version
 $productName = $config.productName
 $tag = "v$version"
+if (-not $OutputDir) {
+  $OutputDir = Join-Path $root "release/$tag"
+}
 Write-Output "Release: $productName $tag"
 
 # 2. the artifact has to match the tagged commit
@@ -119,7 +125,7 @@ $sigPath = "$($installer.FullName).sig"
 if (-not (Test-Path -LiteralPath $sigPath)) {
   Fail "Missing $sigPath. Rebuild without --no-sign so the updater signature is produced."
 }
-Write-Output "Installer: $($installer.Name) ($($installer.Length) bytes)"
+Write-Output "Build output: $($installer.Name) ($($installer.Length) bytes)"
 
 # 6. the signature must belong to the configured public key
 $sigBox = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String((Get-Content -Raw -LiteralPath $sigPath).Trim()))
@@ -133,21 +139,30 @@ if ($sigKeyId -ne $pubKeyId) {
 }
 Write-Output "Signature key id matches the configured pubkey ($sigKeyId)"
 
-# 7. latest.json, served as https://github.com/<repo>/releases/latest/download/latest.json
-$latestPath = Join-Path $BundleDir "latest.json"
+# 7. collect the release assets inside the repo, then write latest.json, which is
+#    served as https://github.com/<repo>/releases/latest/download/latest.json
+New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
+$assetInstaller = Join-Path $OutputDir $installer.Name
+$assetSig = "$assetInstaller.sig"
+$latestPath = Join-Path $OutputDir "latest.json"
+Copy-Item -LiteralPath $installer.FullName -Destination $assetInstaller -Force
+Copy-Item -LiteralPath $sigPath -Destination $assetSig -Force
 $latest = [ordered]@{
   version   = $version
   notes     = $Notes
   pub_date  = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
   platforms = [ordered]@{
     "windows-x86_64" = [ordered]@{
-      signature = (Get-Content -Raw -LiteralPath $sigPath).Trim()
+      signature = (Get-Content -Raw -LiteralPath $assetSig).Trim()
       url       = "https://github.com/$Repo/releases/download/$tag/$($installer.Name)"
     }
   }
 }
 $latest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $latestPath
-Write-Output "Wrote $latestPath"
+Write-Output "Release assets in $OutputDir"
+Get-ChildItem -LiteralPath $OutputDir -File | Sort-Object Name | ForEach-Object {
+  Write-Output "  $($_.Name) ($($_.Length) bytes)"
+}
 Write-Output "Updater url: $($latest.platforms.'windows-x86_64'.url)"
 
 if ($DryRun) {
@@ -172,7 +187,7 @@ if ($releaseExists) {
 
 if ($releaseExists) {
   Write-Output "Release $tag exists, uploading assets with --clobber"
-  gh release upload $tag $installer.FullName $sigPath $latestPath --repo $Repo --clobber
+  gh release upload $tag $assetInstaller $assetSig $latestPath --repo $Repo --clobber
 }
 else {
   $releaseArgs = @(
@@ -181,7 +196,7 @@ else {
     "--title", "$productName $tag",
     "--notes", $Notes,
     "--verify-tag",
-    $installer.FullName, $sigPath, $latestPath
+    $assetInstaller, $assetSig, $latestPath
   )
   if (-not $Publish) { $releaseArgs += "--draft" }
   gh @releaseArgs
