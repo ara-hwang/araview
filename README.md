@@ -117,6 +117,19 @@ cd src-tauri && cargo clippy
 
 릴리스 생성 권한은 `GITHUB_TOKEN`(`contents: write`)을 씁니다. 저장소 Settings → Actions → General의 워크플로 권한이 `Read and write`여야 하며, `read`로 유지하려면 `contents: write` 권한의 fine-grained PAT를 `RELEASE_TOKEN` 시크릿으로 등록하세요(워크플로가 자동으로 그것을 사용).
 
+### 업데이트 피드 (소스 저장소가 비공개인 동안)
+
+앱의 updater는 인증 없이 엔드포인트를 받아야 하므로, 소스가 비공개인 동안에는 공개 위치에 자산을 둡니다.
+
+- 피드 메타데이터: 공개 gist의 `latest.json` (`plugins.updater.endpoints`가 이 raw URL을 가리킴)
+- 설치본: 공개 저장소 `ara-hwang/araview-updates`의 릴리스 자산
+
+```powershell
+npm run release:local -- -Publish -UpdatesRepo ara-hwang/araview-updates -FeedGistId <gist-id>
+```
+
+소스 저장소를 공개로 전환하면 `-UpdatesRepo`, `-FeedGistId` 없이 실행하고 `plugins.updater.endpoints`를 원래 릴리스 URL로 되돌립니다. 엔드포인트는 앱에 포함되므로 변경 사항은 그다음 릴리스부터 적용됩니다.
+
 ### 서명키 발급과 등록 (maintainer 1회)
 
 ```powershell
