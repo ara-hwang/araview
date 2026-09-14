@@ -112,9 +112,6 @@ function HomePage() {
         <div className="mx-auto flex min-h-full w-full max-w-4xl flex-col justify-center gap-10 p-8 sm:p-12">
           <Empty className="items-start border-none p-0 text-left">
             <EmptyContent className="max-w-md items-start gap-3 text-left">
-              <p className="text-muted-foreground text-xs tabular-nums">
-                {t("home.emptyTag")}
-              </p>
               <EmptyTitle className="text-2xl font-semibold">
                 {t("home.emptyTitle")}
               </EmptyTitle>

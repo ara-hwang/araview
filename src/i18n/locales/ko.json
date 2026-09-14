@@ -223,7 +223,6 @@
   },
   "home": {
     "drop": "여기에 놓아 열기",
-    "emptyTag": "01, Empty",
     "emptyTitle": "표시할 이미지가 없습니다",
     "emptyDesc": "파일을 여기로 끌어다 놓거나 파일 열기 버튼으로 선택하세요.",
     "openFile": "파일 열기",
