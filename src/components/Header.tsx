@@ -6,6 +6,7 @@ import {
   ArrowsVertical,
   ArrowClockwise,
   ArrowCounterClockwise,
+  CaretDown,
   CaretUp,
   Command,
   Copy,
@@ -71,6 +72,7 @@ export default function Header({
   const zoom = useAppStore((state) => state.zoom)
   const hasImage = useAppStore((state) => state.imageInfo !== null)
   const shortcuts = useSettingsStore((state) => state.shortcuts)
+  const menuBarHidden = useSettingsStore((state) => state.menuBarHidden)
   const withShortcut = (label: string, binding: string) =>
     binding ? `${label} (${formatShortcutDisplay(binding)})` : label
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -137,6 +139,11 @@ export default function Header({
   }
 
   const handleHideMenuBar = () => {
+    if (menuBarHidden) {
+      // 오버레이로 peek 중인 상태에서는 다시 누르면 영구 복구한다
+      void updateSettings({ menuBarHidden: false })
+      return
+    }
     void updateSettings({ menuBarHidden: true })
     onHideMenuBar?.()
   }
@@ -417,10 +424,14 @@ export default function Header({
                 variant="outline"
                 size="icon"
                 onClick={handleHideMenuBar}
-                title={t("header.hideMenuBar")}
-                aria-label={t("header.hideMenuBar")}
+                title={t(
+                  menuBarHidden ? "header.showMenuBar" : "header.hideMenuBar"
+                )}
+                aria-label={t(
+                  menuBarHidden ? "header.showMenuBar" : "header.hideMenuBar"
+                )}
               >
-                <CaretUp />
+                {menuBarHidden ? <CaretDown /> : <CaretUp />}
               </Button>
             </ButtonGroup>
           </ButtonGroup>
