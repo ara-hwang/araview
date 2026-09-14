@@ -158,11 +158,13 @@ updater 서명을 건너뜁니다. `.sig`가 없으므로 릴리스 배포에는
 CI 빌드가 오래 걸리거나 워크플로를 쓸 수 없을 때, 이 PC에서 빌드해 바로 릴리스할 수 있습니다.
 
 ```powershell
-$env:TAURI_SIGNING_PRIVATE_KEY = "$env:USERPROFILE\.tauri\araview.key"
 $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = "<키 비밀번호>"
 npm run release:local                 # 초안 릴리스 생성
 npm run release:local -- -Publish     # 바로 공개
 ```
+
+- 서명 키는 `-KeyPath` → `TAURI_SIGNING_PRIVATE_KEY` → `araview.key`(저장소 루트) → `~/.tauri/araview.key` 순서로 찾습니다. 저장소에 두려면 `araview.key`를 루트에 놓으면 되고, `*.key`가 `.gitignore`에 있어 커밋되지 않습니다.
+- 비밀번호는 저장소에 두지 말고 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` 환경변수로 넘깁니다. 비워 두면 빌드가 프롬프트로 멈춥니다.
 
 - `scripts/Publish-LocalRelease.ps1`이 `tauri.conf.json`의 버전으로 태그(`vX.Y.Z`)를 확인하고, 서명 빌드, `latest.json` 생성, `gh release create`(기존 릴리스에는 업로드)까지 수행합니다.
 - 산출물(설치본, `.sig`, `latest.json`)은 저장소 안 `release/vX.Y.Z/`에 모입니다. `.gitignore`에 포함되어 커밋되지 않고, `-OutputDir`로 위치를 바꿀 수 있습니다.

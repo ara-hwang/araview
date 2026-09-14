@@ -553,7 +553,7 @@ Rust와 TypeScript는 같은 모양을 유지한다.
 - 서명키 발급(maintainer 1회): `npm run tauri signer generate -- -w "$env:USERPROFILE\.tauri\araview.key"`. 공개키는 `tauri.conf.json`의 `plugins.updater.pubkey`에, 비밀키 내용과 비밀번호는 repo Secrets `TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`에 등록한다. 릴리스 워크플로가 서명하고 `latest.json` + `.sig`를 태그 릴리스에 첨부한다.
 - 로컬 서명 빌드: `TAURI_SIGNING_PRIVATE_KEY`에 키 경로 또는 키 내용을, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`에 비밀번호를 넣는다. 번들러(`crates/tauri-cli/src/bundle.rs`의 `sign_updaters`)는 `TAURI_SIGNING_PRIVATE_KEY_PATH`를 읽지 않고, 값이 존재하는 경로면 파일 내용을 읽는다. 비밀번호가 없으면 대화형 프롬프트가 뜨고, `--ci` 또는 `CI` 환경이면 빈 문자열로 처리한다.
 - 서명 생략: `npm run tauri build -- --no-sign`은 updater 서명을 건너뛴다. 로컬 확인용이며 `.sig`가 없으므로 배포에 쓰지 않는다.
-- 로컬 릴리스(CI 대체): `scripts/Publish-LocalRelease.ps1`(`npm run release:local`). `tauri.conf.json` 버전으로 태그를 확인하고, 서명 빌드, `.sig`와 `plugins.updater.pubkey`의 키 ID 대조, `latest.json` 생성, 태그 푸시, `gh release create`/`upload`를 수행한다. 기본은 draft이고 `-Publish`로 공개, `-SkipBuild`로 기존 산출물 재사용, `-DryRun`으로 GitHub 접촉 없이 점검한다. 산출물(설치본, `.sig`, `latest.json`)은 저장소 안 `release/vX.Y.Z/`에 모으고 `.gitignore`로 제외하며 `-OutputDir`로 바꿀 수 있다.
+- 로컬 릴리스(CI 대체): `scripts/Publish-LocalRelease.ps1`(`npm run release:local`). `tauri.conf.json` 버전으로 태그를 확인하고, 서명 빌드, `.sig`와 `plugins.updater.pubkey`의 키 ID 대조, `latest.json` 생성, 태그 푸시, `gh release create`/`upload`를 수행한다. 기본은 draft이고 `-Publish`로 공개, `-SkipBuild`로 기존 산출물 재사용, `-DryRun`으로 GitHub 접촉 없이 점검한다. 산출물(설치본, `.sig`, `latest.json`)은 저장소 안 `release/vX.Y.Z/`에 모으고 `.gitignore`로 제외하며 `-OutputDir`로 바꿀 수 있다. 서명 키는 `-KeyPath`, `TAURI_SIGNING_PRIVATE_KEY`, 저장소 루트 `araview.key`, `~/.tauri/araview.key` 순서로 찾고, 비밀번호는 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`만 쓴다.
 
 ## 22. 비목표와 제약
 
