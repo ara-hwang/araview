@@ -354,6 +354,7 @@ export default function Header({
               </ButtonGroup>
             </ButtonGroup>
 
+            {/* 이미지 종속(Info)은 캔버스 조작 쪽에, 전역(Command/Settings)은 우측 유틸군에 둔다 */}
             <ButtonGroup>
               <Button
                 variant="outline"
@@ -370,6 +371,9 @@ export default function Header({
                   {t("header.info")}
                 </span>
               </Button>
+            </ButtonGroup>
+
+            <ButtonGroup>
               <Button
                 variant="outline"
                 onClick={() => usePaletteStore.getState().setOpen(true)}
