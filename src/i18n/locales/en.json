@@ -224,7 +224,7 @@
       "loading": "Checking association status",
       "needsConfirm": "· Needs confirmation in Windows default apps",
       "blockedTitle": "Confirm the default app in Windows",
-      "blockedDesc": "Windows 10/11 only allows default app changes in the system picker. Select AraView in the opened window.",
+      "blockedDesc": "Windows 10/11 only allows default app changes in the system picker. Select {{appName}} in the opened window.",
       "openSettings": "Open Windows default apps settings"
     }
   },

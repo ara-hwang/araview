@@ -12,9 +12,21 @@ use crate::app_error::AppError;
 use crate::image::SUPPORTED_EXTENSIONS;
 
 const BUNDLE_ID: &str = "com.araview.viewer";
-const APP_NAME: &str = "AraView";
-const APP_DESCRIPTION: &str = "AraView";
-const CAPABILITIES_PATH: &str = r"Software\AraView\Capabilities";
+/// 개발(디버그) 빌드는 설치 버전과 확장자 연결이 서로 덮어쓰지 않도록
+/// 별도 이름/레지스트리 키/ProgID를 사용한다.
+const IS_DEV_BUILD: bool = cfg!(debug_assertions);
+const APP_NAME: &str = if IS_DEV_BUILD {
+    "AraView (Dev)"
+} else {
+    "AraView"
+};
+const APP_DESCRIPTION: &str = APP_NAME;
+const CAPABILITIES_PATH: &str = if IS_DEV_BUILD {
+    r"Software\AraView (Dev)\Capabilities"
+} else {
+    r"Software\AraView\Capabilities"
+};
+const PROG_ID_SUFFIX: &str = if IS_DEV_BUILD { ".dev" } else { "" };
 
 #[derive(Serialize, Debug, Clone, PartialEq, Eq)]
 pub struct FileAssociation {
@@ -75,7 +87,7 @@ pub fn file_extension_settings_uri(ext: &str) -> String {
 }
 
 pub fn prog_id_for(ext: &str) -> String {
-    format!("{BUNDLE_ID}.{ext}")
+    format!("{BUNDLE_ID}{PROG_ID_SUFFIX}.{ext}")
 }
 
 pub fn parse_extension(raw: &str) -> Result<String, AppError> {
@@ -92,11 +104,17 @@ pub fn parse_extension(raw: &str) -> Result<String, AppError> {
 }
 
 pub fn is_our_prog_id(prog_id: &str) -> bool {
-    let bundle_prefix = format!("{BUNDLE_ID}.");
-    if prog_id.eq_ignore_ascii_case(BUNDLE_ID)
-        || starts_with_ignore_ascii_case(prog_id, &bundle_prefix)
+    // 현재 빌드 채널(개발/릴리스)의 ProgID만 우리 것으로 본다.
+    // 다른 채널의 ProgID는 연결 명령의 실행 파일 경로 비교로만 판정한다.
+    if SUPPORTED_EXTENSIONS
+        .iter()
+        .any(|ext| prog_id.eq_ignore_ascii_case(&prog_id_for(ext)))
     {
         return true;
+    }
+    // 설치 관리자가 등록한 "AraView.png" 형태의 ProgID 호환(릴리스 빌드 한정).
+    if IS_DEV_BUILD {
+        return false;
     }
     let installer_prefix = format!("{APP_NAME}.");
     prog_id.eq_ignore_ascii_case(APP_NAME)
@@ -493,8 +511,22 @@ mod tests {
 
     #[test]
     fn prog_id_uses_bundle_id_and_extension() {
-        assert_eq!(prog_id_for("png"), "com.araview.viewer.png");
-        assert_eq!(prog_id_for("cbz"), "com.araview.viewer.cbz");
+        let (png, cbz) = if IS_DEV_BUILD {
+            ("com.araview.viewer.dev.png", "com.araview.viewer.dev.cbz")
+        } else {
+            ("com.araview.viewer.png", "com.araview.viewer.cbz")
+        };
+        assert_eq!(prog_id_for("png"), png);
+        assert_eq!(prog_id_for("cbz"), cbz);
+    }
+
+    #[test]
+    fn capabilities_path_separates_dev_and_release_channels() {
+        if IS_DEV_BUILD {
+            assert_eq!(CAPABILITIES_PATH, r"Software\AraView (Dev)\Capabilities");
+        } else {
+            assert_eq!(CAPABILITIES_PATH, r"Software\AraView\Capabilities");
+        }
     }
 
     #[test]
@@ -506,14 +538,29 @@ mod tests {
     }
 
     #[test]
-    fn is_our_prog_id_matches_bundle_prefix() {
-        assert!(is_our_prog_id("com.araview.viewer.png"));
-        assert!(is_our_prog_id("COM.ARAVIEW.VIEWER.JPG"));
-        assert!(is_our_prog_id("AraView.png"));
-        assert!(is_our_prog_id("araview.jpg"));
+    fn is_our_prog_id_matches_only_the_current_channel() {
+        assert!(is_our_prog_id(&prog_id_for("png")));
+        assert!(is_our_prog_id(&prog_id_for("jpg").to_uppercase()));
+        let other_channel = if IS_DEV_BUILD {
+            "com.araview.viewer.png"
+        } else {
+            "com.araview.viewer.dev.png"
+        };
+        assert!(!is_our_prog_id(other_channel));
         assert!(!is_our_prog_id("Image"));
         assert!(!is_our_prog_id("jpegfile"));
         assert!(!is_our_prog_id("AppX123"));
+    }
+
+    #[test]
+    fn is_our_prog_id_matches_legacy_installer_ids_only_in_release() {
+        if IS_DEV_BUILD {
+            assert!(!is_our_prog_id("AraView.png"));
+            assert!(!is_our_prog_id("araview.jpg"));
+        } else {
+            assert!(is_our_prog_id("AraView.png"));
+            assert!(is_our_prog_id("araview.jpg"));
+        }
     }
 
     #[test]
@@ -541,10 +588,17 @@ mod tests {
 
     #[test]
     fn default_apps_settings_uri_uses_registered_app_user() {
-        assert_eq!(
-            default_apps_settings_uri(),
-            "ms-settings:defaultapps?registeredAppUser=AraView"
-        );
+        if IS_DEV_BUILD {
+            assert_eq!(
+                default_apps_settings_uri(),
+                "ms-settings:defaultapps?registeredAppUser=AraView%20(Dev)"
+            );
+        } else {
+            assert_eq!(
+                default_apps_settings_uri(),
+                "ms-settings:defaultapps?registeredAppUser=AraView"
+            );
+        }
     }
 
     #[test]

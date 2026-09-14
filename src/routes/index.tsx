@@ -20,6 +20,7 @@ import { useRecentFilesStore } from "@/store/recentFilesStore"
 import { RecentFileAttachment } from "@/components/RecentFileAttachment"
 import { AttachmentGroup } from "@/components/ui/attachment"
 import { useTranslation } from "react-i18next"
+import { DEV_BUILD_SUFFIX } from "@/constants/app"
 
 export const Route = createFileRoute("/")({
   component: HomePage
@@ -43,7 +44,9 @@ function HomePage() {
 
   // 이미지 변경 시 창 제목 변경
   useEffect(() => {
-    const title = app.imageInfo ? app.imageInfo.file_name : t("app.title")
+    const title = app.imageInfo
+      ? app.imageInfo.file_name
+      : `${t("app.title")}${DEV_BUILD_SUFFIX}`
     getCurrentWindow()
       .setTitle(title)
       .catch(() => {})

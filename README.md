@@ -53,6 +53,8 @@ npm run tauri dev
 
 Tauri MCP로 UI를 검증할 때는 `npm run dev:up`을 씁니다. 이 스크립트는 `src-tauri/tauri.dev.conf.json`을 함께 적용해 개발 빌드에서만 `withGlobalTauri`를 켭니다(프로덕션은 꺼져 있고 CSP가 적용됩니다). MCP 브리지도 이때 loopback(`127.0.0.1:9223`)에만 바인딩됩니다.
 
+개발(디버그) 빌드는 확장자 연결이 설치 버전과 섞이지 않도록 `AraView (Dev)` 이름으로 등록됩니다. 기본 앱 목록에서 `AraView`(설치 버전)와 구분해 선택하세요.
+
 ## 스크립트
 
 ```bash

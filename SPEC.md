@@ -473,6 +473,8 @@
 
 파일 연결 주의: 설정에서 연결 변경은 해당 확장자의 Windows 기본 앱 선택 창을 연다. 조용한 UserChoice 레지스트리 쓰기는 할 수 없다.
 
+개발 빌드(디버그)는 설치 버전과 확장자 연결이 서로 덮어쓰지 않도록 `AraView (Dev)` 이름과 별도 레지스트리 키(`Software\AraView (Dev)\Capabilities`), 별도 ProgID(`com.araview.viewer.dev.<ext>`)를 사용한다. 창 제목도 `(Dev)`가 붙는다.
+
 ## 17. 데이터 모델
 
 진실: `src/types/index.ts`, `src-tauri/src/image.rs`, `src-tauri/src/thumbnail.rs`, `src-tauri/src/file_assoc.rs`.
