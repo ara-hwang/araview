@@ -43,6 +43,10 @@ dist-ssr
 .vcpkg/
 .vcpkg-manifest/
 
+# Local signing key for scripts/Publish-LocalRelease.ps1
+*.key
+*.key.pub
+
 # Local release output from scripts/Publish-LocalRelease.ps1
 /release/
 
