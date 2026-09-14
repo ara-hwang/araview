@@ -526,6 +526,10 @@
     "overwrite": {
       "title": "Overwrite save",
       "message": "Overwrite {{name}} with your changes? Continue?"
+    },
+    "resetSettings": {
+      "title": "Reset settings",
+      "message": "Reset all settings to their defaults? Your language setting will be kept."
     }
   },
   "picker": {
