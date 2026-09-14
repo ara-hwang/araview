@@ -50,7 +50,8 @@ if (-not $BundleDir) {
 
 function Fail {
   param([string]$Message)
-  throw $Message
+  [Console]::Error.WriteLine("ERROR: $Message")
+  exit 1
 }
 
 # Key id of a minisign box: 2 bytes of algorithm followed by 8 bytes of key id.
