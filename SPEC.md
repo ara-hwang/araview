@@ -533,9 +533,9 @@ Rust와 TypeScript는 같은 모양을 유지한다.
 
 진실: `src-tauri/tauri.conf.json`, `src-tauri/src/lib.rs`, `README.md`.
 
-- 창: 제목 `araview`, 1024x768, 최소 600x400, 프레임리스, 시작 시 숨김(`visible: false`).
+- 창: 제목 기본값 `AraView`(런타임에는 이미지가 열리면 파일명, 아니면 현재 로케일의 앱 이름), 1024x768, 최소 600x400, 프레임리스, 시작 시 숨김(`visible: false`).
 - `window-state` 플러그인으로 창 상태를 유지한다.
-- 번들: `nsis`, `msi`. 결과물은 `src-tauri/target/release/bundle/`.
+- 번들: `nsis`만 빌드한다(릴리즈 빌드 시간 단축을 위해 MSI 제외). 결과물은 `src-tauri/target/release/bundle/` 아래에 생성된다.
 - 파일 연결 3그룹:
   - Image 13종: png, jpg, jpeg, gif, bmp, webp, svg, ico, tiff, tif, avif, heic, heif.
   - Comic 4종: cbz, cb7, cbr, cbt.
@@ -549,8 +549,10 @@ Rust와 TypeScript는 같은 모양을 유지한다.
 - 진실: `src/hooks/useUpdater.ts`(확인/설치 흐름), `src/components/settings/GeneralTabPanel.tsx`(업데이트 섹션), `src/constants/commands.ts`(`checkForUpdates`), `src-tauri/tauri.conf.json`(`plugins.updater`), `src-tauri/capabilities/default.json`(`updater:default`, `process:default`), `.github/workflows/release.yml`(서명).
 - 진입점: 설정 일반 탭의 `지금 확인` 버튼, 명령 팔레트(`Ctrl+K`)의 `업데이트 확인`. 팔레트 실행은 `tiv:check-updates` 이벤트를 보내고, 루트(`__root.tsx`)의 `useUpdateCheckRequestListener`가 받아 `checkForUpdatesNow()`를 실행한다.
 - 흐름: `check()` → 없으면 `toast.update.latest`, 있으면 `toast.update.availableTitle` + `다운로드 및 설치` 액션 → `downloadAndInstall` 진행률 토스트 → 완료 시 `toast.update.installed` + `다시 시작` 액션(`relaunch`). 중복 확인은 `busy`로 무시한다.
-- 설정: `bundle.createUpdaterArtifacts: true`, `plugins.updater.endpoints: ["https://github.com/ara-hwang/araview/releases/latest/download/latest.json"]`. `pubkey`는 서명 공개키이며, 교체 전까지 `REPLACE_WITH_UPDATER_PUBLIC_KEY` 플레이스홀더이다.
-- 서명키 발급(maintainer 1회): `npm run tauri signer generate -- -w ~/.tauri/araview.key`. 공개키는 `tauri.conf.json`에, 비밀키/비밀번호는 repo Secrets `TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`에 등록한다. 릴리스 워크플로가 서명하고 `latest.json` + `.sig`를 태그 릴리스에 첨부한다.
+- 설정: `bundle.createUpdaterArtifacts: true`, `plugins.updater.endpoints: ["https://github.com/ara-hwang/araview/releases/latest/download/latest.json"]`. `pubkey`는 서명 공개키이며 maintainer 로컬 키 `araview.key.pub` 내용과 같다.
+- 서명키 발급(maintainer 1회): `npm run tauri signer generate -- -w "$env:USERPROFILE\.tauri\araview.key"`. 공개키는 `tauri.conf.json`의 `plugins.updater.pubkey`에, 비밀키 내용과 비밀번호는 repo Secrets `TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`에 등록한다. 릴리스 워크플로가 서명하고 `latest.json` + `.sig`를 태그 릴리스에 첨부한다.
+- 로컬 서명 빌드: `TAURI_SIGNING_PRIVATE_KEY`에 키 경로 또는 키 내용을, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`에 비밀번호를 넣는다. 번들러(`crates/tauri-cli/src/bundle.rs`의 `sign_updaters`)는 `TAURI_SIGNING_PRIVATE_KEY_PATH`를 읽지 않고, 값이 존재하는 경로면 파일 내용을 읽는다. 비밀번호가 없으면 대화형 프롬프트가 뜨고, `--ci` 또는 `CI` 환경이면 빈 문자열로 처리한다.
+- 서명 생략: `npm run tauri build -- --no-sign`은 updater 서명을 건너뛴다. 로컬 확인용이며 `.sig`가 없으므로 배포에 쓰지 않는다.
 
 ## 22. 비목표와 제약
 
