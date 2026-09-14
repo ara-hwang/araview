@@ -138,6 +138,18 @@ pub fn get_exif_data(file_path: String) -> Result<HashMap<String, String>, AppEr
     Ok(data)
 }
 
+/// RGB 히스토그램(채널별 256빈). 디코드 불가 포맷은 에러 → 프론트가 섹션을 숨긴다.
+#[tauri::command]
+pub fn get_image_histogram(file_path: String) -> Result<crate::image_info::Histogram, AppError> {
+    crate::image_info::histogram_for_path(Path::new(&file_path))
+}
+
+/// 파일 상세(크기/치수/색상/날짜/DPI/ICC). EXIF가 없어도 성공한다.
+#[tauri::command]
+pub fn get_image_details(file_path: String) -> Result<crate::image_info::ImageDetails, AppError> {
+    crate::image_info::details_for_path(Path::new(&file_path))
+}
+
 /// 아카이브(CBZ/CB7) 파일 내부의 이미지 엔트리 목록을 반환
 #[tauri::command]
 pub fn get_archive_images(file_path: String) -> Result<DirectoryImages, AppError> {

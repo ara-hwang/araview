@@ -261,15 +261,30 @@
 - `generate_archive_thumbnail(archive_path, entry_name, max_side?)`: 아카이브 엔트리를 추출해 축소 JPEG를 만든다. 추출물(존재 시 재사용)과 썸네일 캐시를 함께 재사용하므로 그리드에서 풀사이즈 로드를 피한다.
 - 그리드 썸네일은 256px로 요청하고, 보이는 창의 경로만 요청한다. 아카이브는 동시 4개로 추출을 제한한다.
 
-## 10. EXIF
+## 10. EXIF/파일 정보
 
-진실: `src-tauri/src/commands.rs`, `src/hooks/useExifLoader.ts`, `src/components/ExifPanel.tsx`.
+진실: `src-tauri/src/commands.rs`, `src-tauri/src/image_info.rs`, `src/hooks/useExifLoader.ts`, `src/components/ExifPanel.tsx`, `src/components/HistogramChart.tsx`.
 
 - `get_exif_data(file_path)`는 `HashMap<String, String>`을 반환한다.
 - 파일 없음이면 `not_found`, EXIF 없으면 `unsupported("No EXIF data found: ...")`.
 - `I`로 패널 토글. EXIF 패널 내부 포커스에서는 `I` 닫기를 허용한다.
 - 표시 범주는 Camera, Exposure, Image, Lens, DateTime, GPS, Software 계열이다.
 - HEIC는 원본 경로 기준 EXIF를 읽으므로 비어 있는 경우가 많다.
+
+### 10.1 히스토그램 `get_image_histogram`
+
+- 입력 `file_path`, 반환 `Histogram`(`r/g/b` 256빈 + `sampled_pixels`).
+- HEIC/HEIF는 전용 디코더, 그 외는 `image` 크레이트로 디코드 후 최대 변 256px로 다운샘플해 집계한다.
+- 디코드 불가 포맷(SVG, AVIF 등)은 `unsupported`/`corrupt` 에러를 내고, 프론트는 차트 대신 안내 문구를 표시한다(`histogram.unavailable`).
+- 렌더는 신규 의존성 없이 SVG 영역 차트(`HistogramChart`, 채널별 3경로 + 범례, `role="img"` + 제목)이다.
+
+### 10.2 파일 상세 `get_image_details`
+
+- 입력 `file_path`, 반환 `ImageDetails`(camelCase): `filePath`, `fileSize`, `width`/`height`(렌더 바이트 기준, 미지원분 null), `colorMode`(`rgb|rgba|grayscale|grayscale-alpha|unknown`, 디코드 표현 기준), `bitsPerChannel`, `createdUnix`/`modifiedUnix`(유닉스 초, FS 미지원 시 null), `dpiX`/`dpiY`(EXIF X/YResolution + ResolutionUnit 환산, 없으면 null), `iccStatus`(`present|absent|unchecked`) + `iccName`/`iccBytes`.
+- ICC는 JPEG APP2(`ICC_PROFILE`)와 PNG iCCP 청크만 스캔한다. 그 외 포맷은 `unchecked`이다.
+- EXIF가 없어도 명령은 성공한다. 디코드 실패 파일도 상세를 반환한다(색상 `unknown`, 치수 null).
+- 패널 표시: 경로(아카이브 모드면 `아카이브경로 › 엔트리명`), 크기, 치수 + 픽셀 수, 생성/수정 시각(아카이브 모드 숨김), 색상 + 비트/채널, DPI, 색상 프로파일.
+- 로딩: `useExifLoader.loadExif`가 EXIF와 병렬로 조회한다. 셋 다 실패해도 패널은 열리고 섹션별 안내 문구를 표시한다.
 
 ## 11. 슬라이드쇼
 
@@ -447,6 +462,8 @@
 | `get_directory_images` | `file_path`, `options?` | `DirectoryImages` |
 | `resolve_dropped_path` | `path` | 해석된 파일 경로 `string` |
 | `get_exif_data` | `file_path` | `Record<string, string>` |
+| `get_image_histogram` | `file_path` | `Histogram` |
+| `get_image_details` | `file_path` | `ImageDetails` |
 | `get_archive_images` | `file_path` | `DirectoryImages`(엔트리 목록) |
 | `load_archive_image` | `archive_path`, `entry_name` | `ImageInfo` |
 | `archive_prefetch` | `archive_path`, `entry_names` | 추출 개수 `number` |
@@ -483,6 +500,8 @@ Rust와 TypeScript는 같은 모양을 유지한다.
 - `DirectoryImages`: `{ images: string[], current_index: number }`.
 - `ThumbnailInfo`: `{ file_path: string, width: number, height: number }`.
 - `ExifData`: `Record<string, string>`.
+- `Histogram`: `{ r: number[256], g: number[256], b: number[256], sampled_pixels: number }`.
+- `ImageDetails`: `{ file_path, file_size, width, height, color_mode, bits_per_channel?, created_unix?, modified_unix?, dpi_x?, dpi_y?, icc_status: "present"|"absent"|"unchecked", icc_name?, icc_bytes? }`. 백엔드 출력은 snake_case를 유지한다(`ImageInfo`·`DirectoryImages` 선례).
 - `ArchiveState`: `{ archivePath: string | null }`.
 - `FileAssociation`: `{ extension, associated, current_prog_id, needs_os_confirmation }`.
 - `SaveImageOptions`: camelCase `{ rotationCw, flipH, flipV, format?, overwrite, newFileName? }`.

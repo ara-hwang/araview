@@ -279,6 +279,37 @@
     "retry": "다시 시도",
     "other": "기타"
   },
+  "details": {
+    "title": "파일",
+    "unavailable": "파일 정보를 불러오지 못했습니다.",
+    "path": "경로",
+    "size": "크기",
+    "dimensions": "치수",
+    "pixels": "{{count}} 픽셀",
+    "created": "만든 날짜",
+    "modified": "수정한 날짜",
+    "color": "색상",
+    "colorRgb": "RGB",
+    "colorRgba": "RGBA",
+    "colorGrayscale": "그레이스케일",
+    "colorGrayscaleAlpha": "그레이스케일(알파)",
+    "colorUnknown": "알 수 없음",
+    "bitsPerChannel": "{{bits}}비트/채널",
+    "dpi": "해상도",
+    "icc": "색상 프로파일",
+    "iccPresent": "{{name}} ({{size}})",
+    "iccPresentNoName": "포함됨 ({{size}})",
+    "iccAbsent": "없음",
+    "iccUnchecked": "확인 불가"
+  },
+  "histogram": {
+    "title": "히스토그램",
+    "unavailable": "이 형식은 히스토그램을 계산할 수 없습니다.",
+    "chartLabel": "RGB 밝기 분포 차트",
+    "red": "빨강",
+    "green": "초록",
+    "blue": "파랑"
+  },
   "dialog": {
     "cancel": "취소",
     "rename": {
