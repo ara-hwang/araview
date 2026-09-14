@@ -137,6 +137,14 @@
       "on": "자동으로 건너뛰기",
       "off": "멈추고 오류 표시"
     },
+    "update": {
+      "title": "업데이트",
+      "desc": "버튼을 누를 때만 새 버전을 확인합니다. 확인과 다운로드에만 네트워크를 쓰고, 평소에는 오프라인으로 동작합니다.",
+      "current": "현재 버전 {{version}}",
+      "unknown": "알 수 없음",
+      "check": "지금 확인",
+      "checking": "확인 중"
+    },
     "view": {
       "title": "보기 모드",
       "desc": "단일 / 양면 / 세로 스크롤 표시 방식",
@@ -353,6 +361,7 @@
     "search": "명령 검색",
     "open": "명령 팔레트",
     "settings": "설정 열기",
+    "checkUpdates": "업데이트 확인",
     "clear": "지우기",
     "recent": "최근 사용",
     "noResult": "일치하는 명령이 없습니다",
@@ -455,6 +464,19 @@
     "slideshow": {
       "start": "슬라이드쇼 시작",
       "stop": "슬라이드쇼 정지"
+    },
+    "update": {
+      "latest": "최신 버전을 사용 중입니다",
+      "checkFail": "업데이트 확인 실패",
+      "availableTitle": "새 버전 {{version}}을(를) 사용할 수 있습니다",
+      "availableDesc": "지금 다운로드하고 설치할 수 있습니다.",
+      "install": "다운로드 및 설치",
+      "downloading": "업데이트 다운로드 중",
+      "downloadingPct": "업데이트 다운로드 중 {{pct}}%",
+      "installed": "업데이트를 설치했습니다",
+      "restart": "다시 시작",
+      "restartFail": "다시 시작 실패",
+      "installFail": "업데이트 설치 실패"
     },
     "load": {
       "archiveFail": "아카이브를 불러오지 못했습니다",

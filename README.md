@@ -20,7 +20,7 @@ Tauri 2 + React 18 + TypeScript 기반의 Windows 데스크톱 이미지 뷰어�
 
 - **Frontend**: React 18, TypeScript, Vite 6, Tailwind CSS 4, TanStack Router v1, Zustand 5
 - **Backend**: Rust, Tauri 2
-- **Tauri Plugins**: `dialog`, `fs`, `opener`, `store`, `window-state`
+- **Tauri Plugins**: `dialog`, `fs`, `opener`, `store`, `window-state`, `updater`, `process`
 
 ## 요구 사항
 
@@ -108,6 +108,18 @@ cd src-tauri && cargo clippy
 - **시작**: 홈 화면 표시 또는 마지막 파일 자동 열기
 
 설정과 최근 파일 목록은 Tauri Store(`settings.json`)에 저장됩니다.
+
+## 업데이트
+
+앱은 시작 시 업데이트를 확인하지 않습니다. 설정 일반 탭의 `지금 확인` 버튼이나 명령 팔레트(`Ctrl+K`)의 `업데이트 확인`으로 직접 확인할 때만 네트워크를 씁니다. 새 버전이 있으면 토스트에서 다운로드 및 설치 후 다시 시작할 수 있습니다.
+
+릴리스는 태그(`v*`) 푸시로 GitHub Releases에 발행되며, updater 아티팩트(`latest.json`, `.sig`)가 함께 첨부됩니다. 서명키 발급과 등록(maintainer 1회):
+
+```powershell
+npm run tauri signer generate -- -w ~/.tauri/araview.key
+```
+
+공개키는 `src-tauri/tauri.conf.json`의 `plugins.updater.pubkey`에 넣고, 비밀키와 비밀번호는 repo Secrets `TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`에 등록합니다.
 
 ## 동작 구조 요약
 

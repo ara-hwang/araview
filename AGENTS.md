@@ -19,7 +19,7 @@ Product truth lives in `PRODUCT.md`, visual system in `DESIGN.md`, full function
 - Input flows: file picker, drag-and-drop (file/folder), OS file association open
 - Viewer controls: zoom, fit-to-width/height/screen, pan, rotate, flip
 - Navigation: previous/next, slider jump, thumbnail strip, optional loop navigation
-- Extra features: EXIF panel, slideshow, fullscreen, copy image to clipboard (PNG), recent files
+- Extra features: EXIF panel, slideshow, fullscreen, copy image to clipboard (PNG), recent files, manual update check (tauri-plugin-updater, no background polling)
 - Command palette (`Ctrl+K`): searchable global commands, see `src/constants/commands.ts`
 - File associations: settings open the Windows per-extension default-app picker; silent UserChoice writes are not possible
 - Multi-page view modes: `single`, `left-to-right`, `right-to-left`, `webtoon`

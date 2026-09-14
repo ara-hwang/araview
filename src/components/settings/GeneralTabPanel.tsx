@@ -1,4 +1,6 @@
+import { useState } from "react"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Field, FieldGroup, FieldSeparator } from "@/components/ui/field"
 import { SettingsFieldSet } from "@/components/settings/SettingsFieldSet"
@@ -9,7 +11,9 @@ import {
   type SettingsState
 } from "@/store/settingsStore"
 import { useRecentFilesStore } from "@/store/recentFilesStore"
+import { checkForUpdatesNow, useAppVersion } from "@/hooks/useUpdater"
 import {
+  ArrowClockwise,
   ClockCounterClockwise,
   House,
   NavigationArrow,
@@ -43,6 +47,13 @@ export function GeneralTabPanel() {
     }
     handleSettingsChange({ recordRecentFiles: false, autoOpenLastFile: false })
     void useRecentFilesStore.getState().clear()
+  }
+
+  const appVersion = useAppVersion()
+  const [checkingUpdate, setCheckingUpdate] = useState(false)
+  const handleCheckUpdate = () => {
+    setCheckingUpdate(true)
+    void checkForUpdatesNow().finally(() => setCheckingUpdate(false))
   }
 
   return (
@@ -178,6 +189,27 @@ export function GeneralTabPanel() {
             </Label>
           </Field>
         </RadioGroup>
+      </SettingsFieldSet>
+
+      <FieldSeparator />
+
+      <SettingsFieldSet
+        icon={<ArrowClockwise className="size-6" />}
+        title={t("settings.update.title")}
+        description={t("settings.update.desc")}
+      >
+        <div className="flex flex-wrap items-center gap-2">
+          <Button onClick={handleCheckUpdate} disabled={checkingUpdate}>
+            {checkingUpdate
+              ? t("settings.update.checking")
+              : t("settings.update.check")}
+          </Button>
+          <span className="text-muted-foreground text-sm">
+            {t("settings.update.current", {
+              version: appVersion ?? t("settings.update.unknown")
+            })}
+          </span>
+        </div>
       </SettingsFieldSet>
     </FieldGroup>
   )
