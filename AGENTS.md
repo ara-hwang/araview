@@ -176,9 +176,15 @@ Tauri Store (`settings.json`) is used for:
   2. `cd src-tauri && cargo test` (only when Rust sources changed)
   3. `npx tsc --noEmit`
   4. `npx prettier --check` on changed files (fix with `--write`)
-  5. Runtime verification via Tauri MCP (dev app + MCP bridge on `:9223`):
-     1. `npm run dev:up` (idempotent launcher, waits for `:1420` + `:9223`)
-     2. Run `/verify-ui` (screenshot + click-through + console check)
+  5. Runtime verification with agent-browser over WebView2 CDP
+     (skill: `.opencode/skills/agent-browser/SKILL.md`):
+     1. `$env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-port=9222"`
+        in the same shell that starts the app, then `npm run dev:up`
+        (idempotent launcher, waits for `:1420` + `:9223`)
+     2. Drive the app with per-command `--cdp 9222` (do not use stateful
+        `connect`, it hangs). Open files via the `open-file` event, never
+        the native `Open` dialog. See `/verify-ui`.
+     3. Run `/verify-ui` (screenshot + click-through + console check)
 - Do not finish a change with "run the tests yourself" or similar. If the
   dev app or bridge cannot start, report the exact failure instead of
   skipping verification silently.
