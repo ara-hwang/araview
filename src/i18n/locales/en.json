@@ -223,7 +223,6 @@
   },
   "home": {
     "drop": "Drop here to open",
-    "emptyTag": "01, Empty",
     "emptyTitle": "No image to display",
     "emptyDesc": "Drag files here or choose them with the Open File button.",
     "openFile": "Open File",
