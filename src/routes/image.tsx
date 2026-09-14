@@ -205,8 +205,7 @@ function ImagePage() {
     openExternal,
     copyPathCurrent,
     renameCurrent,
-    saveEdits,
-    toggleFavoriteCurrent
+    saveEdits
   } = useFileOperations({
     loadImage: loadImageAndReset
   })
@@ -236,7 +235,6 @@ function ImagePage() {
       onRenameFile: () => setRenameOpen(true),
       onCopyPath: () => void copyPathCurrent(),
       onSaveEdits: () => setSaveOpen(true),
-      onToggleFavorite: () => void toggleFavoriteCurrent(),
       onToggleGrid: toggleGrid
     })
     return () => {
@@ -254,7 +252,6 @@ function ImagePage() {
     revealCurrent,
     openExternal,
     copyPathCurrent,
-    toggleFavoriteCurrent,
     toggleGrid
   ])
 
@@ -309,7 +306,6 @@ function ImagePage() {
     onRenameFile: () => setRenameOpen(true),
     onCopyPath: () => void copyPathCurrent(),
     onSaveEdits: () => setSaveOpen(true),
-    onToggleFavorite: () => void toggleFavoriteCurrent(),
     onToggleGrid: toggleGrid
   })
 
@@ -405,7 +401,6 @@ function ImagePage() {
     onCopyPath: () => void copyPathCurrent(),
     onToggleShuffle: () => toggleShuffleAndRefresh(),
     onSaveEdits: () => setSaveOpen(true),
-    onToggleFavorite: () => void toggleFavoriteCurrent(),
     onToggleGrid: toggleGrid,
     disabled: gridOpen
   })

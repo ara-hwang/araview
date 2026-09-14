@@ -102,14 +102,6 @@ export const COMMAND_DEFS: readonly CommandDef[] = [
     requiresImage: true,
     keywords: ["external", "default app"]
   },
-  {
-    id: "toggleFavorite",
-    group: "file",
-    labelKey: "menu.toggleFavorite",
-    shortcutId: "toggleFavorite",
-    requiresImage: true,
-    keywords: ["favorite", "star"]
-  },
   // 이동
   {
     id: "navigatePrev",

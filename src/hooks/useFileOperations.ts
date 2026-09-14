@@ -7,7 +7,6 @@ import { toast } from "sonner"
 import { closeImage, useAppStore } from "@/store/appStore"
 import { useRecentFilesStore } from "@/store/recentFilesStore"
 import { useSettingsStore } from "@/store/settingsStore"
-import { useFavoritesStore } from "@/store/favoritesStore"
 import i18n from "@/i18n"
 import type { ImageInfo } from "@/types"
 import type { SaveEditsPayload } from "@/utils/imageEdits"
@@ -106,7 +105,6 @@ export function useFileOperations({ loadImage }: { loadImage: LoadImageFn }) {
     }
 
     void useRecentFilesStore.getState().remove(imageInfo.file_path)
-    void useFavoritesStore.getState().remove(imageInfo.file_path)
 
     const next = getNextPathAfterTrash(
       dirImages.images,
@@ -191,9 +189,6 @@ export function useFileOperations({ loadImage }: { loadImage: LoadImageFn }) {
         return recent.add(nextInfo.file_path)
       }
     })
-    void useFavoritesStore
-      .getState()
-      .replace(imageInfo.file_path, nextInfo.file_path)
 
     toast.success(i18n.t("toast.rename.done"), {
       description: nextInfo.file_name,
@@ -259,30 +254,12 @@ export function useFileOperations({ loadImage }: { loadImage: LoadImageFn }) {
     [loadImage]
   )
 
-  /** 현재 파일(아카이브면 원본) 즐겨찾기 토글 */
-  const toggleFavoriteCurrent = useCallback(async () => {
-    const { imageInfo, archivePath } = useAppStore.getState()
-    const target = getEffectivePath(imageInfo?.file_path ?? null, archivePath)
-    if (!target) {
-      toast.error(i18n.t("toast.fav.empty"))
-      return
-    }
-    const added = await useFavoritesStore.getState().toggle(target)
-    toast.success(
-      added ? i18n.t("toast.fav.added") : i18n.t("toast.fav.removed"),
-      {
-        duration: 1500
-      }
-    )
-  }, [])
-
   return {
     revealCurrent,
     openExternal,
     trashCurrent,
     copyPathCurrent,
     renameCurrent,
-    saveEdits,
-    toggleFavoriteCurrent
+    saveEdits
   }
 }

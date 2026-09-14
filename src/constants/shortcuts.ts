@@ -30,7 +30,6 @@ export type ShortcutActionId =
   | "copyPath"
   | "toggleShuffle"
   | "saveEdits"
-  | "toggleFavorite"
   | "togglePalette"
   | "jumpPrev10"
   | "jumpNext10"
@@ -101,7 +100,6 @@ export const SHORTCUT_ACTION_IDS: ShortcutActionId[] = [
   "copyPath",
   "toggleShuffle",
   "saveEdits",
-  "toggleFavorite",
   "togglePalette",
   "jumpPrev10",
   "jumpNext10",
@@ -160,7 +158,6 @@ export const DEFAULT_SHORTCUTS: ShortcutMap = {
   copyPath: "Ctrl+Shift+C",
   toggleShuffle: "S",
   saveEdits: "Ctrl+S",
-  toggleFavorite: "F",
   togglePalette: "Ctrl+K",
   jumpPrev10: "PageUp",
   jumpNext10: "PageDown",

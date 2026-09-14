@@ -67,7 +67,6 @@ export type PaletteViewerHandlers = {
   onRenameFile: () => void
   onCopyPath: () => void
   onSaveEdits: () => void
-  onToggleFavorite: () => void
   onToggleGrid: () => void
 }
 
@@ -240,9 +239,6 @@ function runCommand(
       break
     case "saveEdits":
       viewerHandlers?.onSaveEdits()
-      break
-    case "toggleFavorite":
-      viewerHandlers?.onToggleFavorite()
       break
     case "toggleGrid":
       viewerHandlers?.onToggleGrid()

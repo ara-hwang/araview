@@ -226,13 +226,15 @@
     "emptyTitle": "표시할 이미지가 없습니다",
     "emptyDesc": "파일을 여기로 끌어다 놓거나 파일 열기 버튼으로 선택하세요.",
     "openFile": "파일 열기",
-    "favorites": "즐겨찾기, {{count}}",
     "recent": "최근 파일, {{count}}",
     "clearAll": "전체 지우기",
     "card": {
-      "favAdd": "즐겨찾기 추가",
-      "favRemove": "즐겨찾기 해제",
       "remove": "목록에서 제거"
+    },
+    "list": {
+      "open": "{{name}} 열기",
+      "loading": "불러오는 중",
+      "unavailable": "파일 정보를 불러오지 못했습니다"
     }
   },
   "viewer": {
@@ -382,8 +384,7 @@
     "openExternal": "기본 앱으로 열기",
     "rename": "이름 변경",
     "copyPath": "경로 복사",
-    "saveEdits": "편집 내용 저장",
-    "toggleFavorite": "즐겨찾기 토글"
+    "saveEdits": "편집 내용 저장"
   },
   "palette": {
     "title": "명령 팔레트",
@@ -472,11 +473,6 @@
       "noChange": "적용할 변경 사항이 없습니다",
       "fail": "저장 실패",
       "done": "저장 완료"
-    },
-    "fav": {
-      "empty": "즐겨찾기할 파일이 없습니다",
-      "added": "즐겨찾기에 추가했습니다",
-      "removed": "즐겨찾기에서 제거했습니다"
     },
     "copy": {
       "empty": "복사할 이미지가 없습니다",

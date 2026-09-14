@@ -226,13 +226,15 @@
     "emptyTitle": "No image to display",
     "emptyDesc": "Drag files here or choose them with the Open File button.",
     "openFile": "Open File",
-    "favorites": "Favorites, {{count}}",
     "recent": "Recent files, {{count}}",
     "clearAll": "Clear all",
     "card": {
-      "favAdd": "Add to favorites",
-      "favRemove": "Remove from favorites",
       "remove": "Remove from list"
+    },
+    "list": {
+      "open": "Open {{name}}",
+      "loading": "Loading",
+      "unavailable": "Could not load file info"
     }
   },
   "viewer": {
@@ -382,8 +384,7 @@
     "openExternal": "Open with Default App",
     "rename": "Rename",
     "copyPath": "Copy Path",
-    "saveEdits": "Save with Edits",
-    "toggleFavorite": "Toggle Favorite"
+    "saveEdits": "Save with Edits"
   },
   "palette": {
     "title": "Command Palette",
@@ -472,11 +473,6 @@
       "noChange": "No changes to apply",
       "fail": "Failed to save",
       "done": "Save complete"
-    },
-    "fav": {
-      "empty": "No file to favorite",
-      "added": "Added to favorites",
-      "removed": "Removed from favorites"
     },
     "copy": {
       "empty": "No image to copy",
