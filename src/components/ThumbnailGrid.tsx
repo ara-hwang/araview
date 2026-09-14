@@ -13,6 +13,13 @@ import {
   X
 } from "@phosphor-icons/react"
 import { Button } from "@/components/ui/button"
+import {
+  Empty,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle
+} from "@/components/ui/empty"
+import { AppIcon } from "@/components/AppIcon"
 import { cn } from "@/lib/utils"
 import { useThumbnailSrcs } from "@/hooks/useThumbnailSrcs"
 import {
@@ -384,11 +391,24 @@ export function ThumbnailGrid({
         )}
       >
         {filtered.length === 0 ? (
-          <div className="text-muted-foreground flex h-full items-center justify-center px-6 text-center text-sm">
-            {query.trim() !== ""
-              ? t("viewer.grid.noResults")
-              : t("viewer.grid.empty")}
-          </div>
+          <Empty className="border-none">
+            <EmptyHeader>
+              {query.trim() !== "" ? (
+                <EmptyMedia variant="icon">
+                  <MagnifyingGlass />
+                </EmptyMedia>
+              ) : (
+                <EmptyMedia>
+                  <AppIcon className="size-12" />
+                </EmptyMedia>
+              )}
+              <EmptyTitle>
+                {query.trim() !== ""
+                  ? t("viewer.grid.noResults")
+                  : t("viewer.grid.empty")}
+              </EmptyTitle>
+            </EmptyHeader>
+          </Empty>
         ) : (
           <div className="relative" style={{ height: gridWindow.totalHeight }}>
             {filtered
