@@ -176,15 +176,18 @@ Tauri Store (`settings.json`) is used for:
   2. `cd src-tauri && cargo test` (only when Rust sources changed)
   3. `npx tsc --noEmit`
   4. `npx prettier --check` on changed files (fix with `--write`)
-  5. Runtime verification with agent-browser over WebView2 CDP
-     (skill: `.opencode/skills/agent-browser/SKILL.md`):
-     1. `$env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-port=9222"`
-        in the same shell that starts the app, then `npm run dev:up`
-        (idempotent launcher, waits for `:1420` + `:9223`)
-     2. Drive the app with per-command `--cdp 9222` (do not use stateful
-        `connect`, it hangs). Open files via the `open-file` event, never
-        the native `Open` dialog. See `/verify-ui`.
-     3. Run `/verify-ui` (screenshot + click-through + console check)
+  5. Runtime verification with Tauri MCP (primary) or agent-browser
+     over WebView2 CDP (fallback, skill:
+     `.opencode/skills/agent-browser/SKILL.md`):
+     1. `npm run dev:up` (idempotent launcher, waits for `:1420` + `:9223`)
+     2. Tauri MCP: `tauri-mcp driver-session start --port 9223`, then
+        `webview-screenshot`, `webview-execute-js` (`open-file` event),
+        `webview-keyboard`, `read-logs --source console`. See `/verify-ui`.
+        (MCP client tools: `driver_session`, `webview_*`, `read_logs`.)
+     3. Fallback when the MCP server is unreachable: per-command
+        `agent-browser --cdp 9222` with
+        `$env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-port=9222"`
+        set in the launching shell. Never use stateful `connect`, it hangs.
 - Do not finish a change with "run the tests yourself" or similar. If the
   dev app or bridge cannot start, report the exact failure instead of
   skipping verification silently.
