@@ -30,7 +30,7 @@ jobs:
           components: rustfmt
 
       - name: Setup sccache
-        uses: mozilla-actions/sccache-action@6769f8668afc701a231782e744a3e6acdc9dd8f0 # v0.0.9
+        uses: Mozilla-Actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
 
       - name: Rust cache
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
