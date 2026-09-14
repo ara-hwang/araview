@@ -4,8 +4,10 @@ import {
   Empty,
   EmptyContent,
   EmptyDescription,
-  EmptyTitle
+  EmptyHeader,
+  EmptyMedia
 } from "@/components/ui/empty"
+import { AppIcon } from "@/components/AppIcon"
 import { Button } from "@/components/ui/button"
 import { useEffect, useRef } from "react"
 import { getCurrentWindow } from "@tauri-apps/api/window"
@@ -101,15 +103,15 @@ function HomePage() {
       {/* 셸은 고정하고 홈 콘텐츠만 내부에서 스크롤한다 (헤더가 밀려나지 않게) */}
       <div className="h-full w-full overflow-y-auto">
         <div className="mx-auto flex min-h-full w-full max-w-4xl flex-col justify-center gap-10 p-8 sm:p-12">
-          <Empty className="items-start border-none p-0 text-left">
-            <EmptyContent className="max-w-md items-start gap-3 text-left">
-              <EmptyTitle className="text-2xl font-semibold">
-                {t("home.emptyTitle")}
-              </EmptyTitle>
+          <Empty className="border-none">
+            <EmptyHeader>
+              <EmptyMedia>
+                <AppIcon className="size-16" />
+              </EmptyMedia>
               <EmptyDescription>{t("home.emptyDesc")}</EmptyDescription>
-              <Button onClick={handleOpenFile} className="mt-1">
-                {t("home.openFile")}
-              </Button>
+            </EmptyHeader>
+            <EmptyContent>
+              <Button onClick={handleOpenFile}>{t("home.openFile")}</Button>
             </EmptyContent>
           </Empty>
 
