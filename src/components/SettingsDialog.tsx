@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { confirm } from "@tauri-apps/plugin-dialog"
 import {
   Dialog,
   DialogContent,
@@ -81,6 +82,15 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
     if (!isOpen) close()
   }
 
+  const handleReset = async () => {
+    const ok = await confirm(t("confirm.resetSettings.message"), {
+      title: t("confirm.resetSettings.title"),
+      kind: "warning"
+    }).catch(() => false)
+    if (!ok) return
+    await resetSettings()
+  }
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="no-drag w-[840px] max-w-[calc(100%-2rem)] gap-0 overflow-hidden p-0 sm:max-w-[840px]">
@@ -120,7 +130,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
                 <Button
                   variant="ghost"
                   className="hover:bg-destructive/10 hover:text-destructive dark:hover:bg-destructive/20 w-full justify-start"
-                  onClick={() => void resetSettings()}
+                  onClick={() => void handleReset()}
                 >
                   <ArrowCounterClockwise data-icon="inline-start" />
                   {t("settings.reset")}

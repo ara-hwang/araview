@@ -526,6 +526,10 @@
     "overwrite": {
       "title": "덮어쓰기 저장",
       "message": "{{name}}에 변경 사항을 덮어씁니다. 계속할까요?"
+    },
+    "resetSettings": {
+      "title": "설정 초기화",
+      "message": "모든 설정을 기본값으로 되돌릴까요? 언어 설정은 유지됩니다."
     }
   },
   "picker": {
