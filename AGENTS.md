@@ -35,6 +35,9 @@ npm run tauri dev
 npm run build
 npm run tauri build
 
+# Local release (CI alternative, needs the signing key)
+npm run release:local
+
 # Frontend tests / checks
 npm test
 npm run test:watch

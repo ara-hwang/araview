@@ -153,6 +153,23 @@ npm run tauri build -- --no-sign
 
 updater 서명을 건너뜁니다. `.sig`가 없으므로 릴리스 배포에는 쓸 수 없습니다.
 
+### CI 없이 로컬에서 릴리스
+
+CI 빌드가 오래 걸리거나 워크플로를 쓸 수 없을 때, 이 PC에서 빌드해 바로 릴리스할 수 있습니다.
+
+```powershell
+$env:TAURI_SIGNING_PRIVATE_KEY = "$env:USERPROFILE\.tauri\araview.key"
+$env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = "<키 비밀번호>"
+npm run release:local                 # 초안 릴리스 생성
+npm run release:local -- -Publish     # 바로 공개
+```
+
+- `scripts/Publish-LocalRelease.ps1`이 `tauri.conf.json`의 버전으로 태그(`vX.Y.Z`)를 확인하고, 서명 빌드, `latest.json` 생성, `gh release create`(기존 릴리스에는 업로드)까지 수행합니다.
+- 작업 트리가 지저분하거나 태그가 HEAD와 다른 커밋을 가리키면 중단합니다.
+- `.sig`의 키 ID가 `plugins.updater.pubkey`와 다르면 중단합니다.
+- 빌드를 건너뛰고 이미 만든 산출물을 올리려면 `-SkipBuild`, GitHub를 건드리지 않고 결과만 확인하려면 `-DryRun`을 씁니다.
+- 같은 태그에 CI가 만든 릴리스가 이미 있으면 그 릴리스의 자산을 덮어씁니다(`--clobber`). CI와 로컬 중 한쪽만 쓰세요.
+
 ## 동작 구조 요약
 
 - 프론트엔드는 Tauri IPC로 백엔드 명령을 호출합니다.
@@ -191,8 +208,3 @@ src-tauri/
   src/archive.rs     # 아카이브 목록/추출 처리 (cbz/zip, cb7/7z, cbr/rar, cbt)
   src/lib.rs         # Tauri 앱 설정 및 command 등록
 ```
-
-## 참고
-
-- 앱 창은 프레임리스(`decorations: false`)로 동작합니다.
-- 파일 연결은 설정 다이얼로그의 확장자 탭에서 변경할 수 있습니다. 설치본 기본 연결은 `src-tauri/tauri.conf.json`의 `bundle.fileAssociations`에도 선언됩니다.

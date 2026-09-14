@@ -1,0 +1,198 @@
+#Requires -Version 7
+<#
+.SYNOPSIS
+  Build, sign, and publish a release from this machine instead of CI.
+.DESCRIPTION
+  Use when the release workflow is unavailable or a full CI build takes too long.
+  Steps:
+    1. Read the version from src-tauri/tauri.conf.json and derive the tag (vX.Y.Z).
+    2. Refuse to run on a dirty tree or when the tag points at another commit.
+    3. Require the signing key environment variables so the build never prompts.
+    4. Run a signed release build (skip with -SkipBuild to reuse artifacts).
+    5. Check that the signature belongs to plugins.updater.pubkey.
+    6. Write latest.json for the updater endpoint next to the artifacts.
+    7. Push the tag and create or update the GitHub release.
+
+  The signing key stays on this machine; only the installer, its signature, and
+  latest.json are uploaded.
+.EXAMPLE
+  $env:TAURI_SIGNING_PRIVATE_KEY = "$env:USERPROFILE\.tauri\araview.key"
+  $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = "<password>"
+  pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/Publish-LocalRelease.ps1
+.EXAMPLE
+  # Inspect artifact resolution and latest.json without touching GitHub.
+  pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/Publish-LocalRelease.ps1 -DryRun -SkipBuild
+.EXAMPLE
+  # Reuse the last build and publish immediately instead of leaving a draft.
+  npm run release:local -- -SkipBuild -Publish
+#>
+param(
+  # GitHub repository that hosts the release and the updater endpoint.
+  [string]$Repo = "ara-hwang/araview",
+  # Skip `npm run tauri build` and reuse the existing bundle artifacts.
+  [switch]$SkipBuild,
+  # Publish the release immediately instead of leaving it as a draft.
+  [switch]$Publish,
+  # Release notes. Defaults to the same sentence the release workflow uses.
+  [string]$Notes = "See the assets to download this version and install.",
+  # Directory holding the NSIS installer and its .sig. Defaults to the release bundle.
+  [string]$BundleDir,
+  # Resolve everything and write latest.json, but do not create a tag or a release.
+  [switch]$DryRun
+)
+
+$ErrorActionPreference = "Stop"
+$root = Split-Path -Parent $PSScriptRoot
+$configPath = Join-Path $root "src-tauri/tauri.conf.json"
+if (-not $BundleDir) {
+  $BundleDir = Join-Path $root "src-tauri/target/release/bundle/nsis"
+}
+
+function Fail {
+  param([string]$Message)
+  throw $Message
+}
+
+# Key id of a minisign box: 2 bytes of algorithm followed by 8 bytes of key id.
+function Get-KeyId {
+  param([string]$BoxText)
+  $lines = @($BoxText -split "`r?`n" | Where-Object { $_ -ne "" })
+  if ($lines.Count -lt 2) { Fail "Unexpected key format: no key line" }
+  $bytes = [Convert]::FromBase64String($lines[1])
+  if ($bytes.Length -lt 10) { Fail "Unexpected key format: key line too short" }
+  (($bytes[2..9])[7..0] | ForEach-Object { $_.ToString('X2') }) -join ''
+}
+
+# 1. version and tag
+$config = Get-Content -Raw -LiteralPath $configPath | ConvertFrom-Json
+$version = $config.version
+$productName = $config.productName
+$tag = "v$version"
+Write-Output "Release: $productName $tag"
+
+# 2. the artifact has to match the tagged commit
+$dirty = @(git -C $root status --porcelain)
+if ($dirty.Count -gt 0) {
+  Fail "Working tree is dirty, commit or stash first:`n$($dirty -join "`n")"
+}
+$head = (git -C $root rev-parse HEAD).Trim()
+$tagCommit = (git -C $root rev-list -n 1 $tag 2>&1 | Out-String).Trim()
+if ($LASTEXITCODE -ne 0) { $tagCommit = "" }
+if ($tagCommit) {
+  if ($tagCommit -ne $head) {
+    Fail "Tag $tag points at $tagCommit but HEAD is $head. Bump the version or move the tag on purpose."
+  }
+}
+else {
+  Write-Output "Tag $tag does not exist yet, it will be created at $head"
+}
+
+# 3. the signing key has to be present, otherwise the bundler prompts for a password
+if (-not (Test-Path env:TAURI_SIGNING_PRIVATE_KEY)) {
+  Fail "TAURI_SIGNING_PRIVATE_KEY is not set. Point it at the key file (for example `$env:USERPROFILE\.tauri\araview.key) or paste the key content."
+}
+if (-not (Test-Path env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD)) {
+  Fail "TAURI_SIGNING_PRIVATE_KEY_PASSWORD is not set. Set it to the key password (an empty value is allowed) so the build never prompts."
+}
+
+# 4. build
+if (-not $SkipBuild) {
+  Write-Output "Running signed release build, this takes a few minutes..."
+  Push-Location $root
+  try {
+    npm run tauri build
+    if ($LASTEXITCODE -ne 0) { Fail "npm run tauri build failed with exit code $LASTEXITCODE" }
+  }
+  finally {
+    Pop-Location
+  }
+}
+
+# 5. artifacts
+$installer = @(Get-ChildItem -LiteralPath $BundleDir -File -Filter "*$version*setup.exe" -ErrorAction SilentlyContinue)
+if ($installer.Count -eq 0) {
+  Fail "No installer for version $version in $BundleDir. Build first or pass -BundleDir."
+}
+$installer = $installer | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+$sigPath = "$($installer.FullName).sig"
+if (-not (Test-Path -LiteralPath $sigPath)) {
+  Fail "Missing $sigPath. Rebuild without --no-sign so the updater signature is produced."
+}
+Write-Output "Installer: $($installer.Name) ($($installer.Length) bytes)"
+
+# 6. the signature must belong to the configured public key
+$sigBox = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String((Get-Content -Raw -LiteralPath $sigPath).Trim()))
+$sigKeyId = Get-KeyId $sigBox
+$pubKeyRaw = $config.plugins.updater.pubkey
+if (Test-Path -LiteralPath $pubKeyRaw) { $pubKeyRaw = (Get-Content -Raw -LiteralPath $pubKeyRaw).Trim() }
+$pubKeyBox = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($pubKeyRaw))
+$pubKeyId = Get-KeyId $pubKeyBox
+if ($sigKeyId -ne $pubKeyId) {
+  Fail "Signature key id $sigKeyId does not match plugins.updater.pubkey key id $pubKeyId. The updater would reject this release."
+}
+Write-Output "Signature key id matches the configured pubkey ($sigKeyId)"
+
+# 7. latest.json, served as https://github.com/<repo>/releases/latest/download/latest.json
+$latestPath = Join-Path $BundleDir "latest.json"
+$latest = [ordered]@{
+  version   = $version
+  notes     = $Notes
+  pub_date  = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+  platforms = [ordered]@{
+    "windows-x86_64" = [ordered]@{
+      signature = (Get-Content -Raw -LiteralPath $sigPath).Trim()
+      url       = "https://github.com/$Repo/releases/download/$tag/$($installer.Name)"
+    }
+  }
+}
+$latest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $latestPath
+Write-Output "Wrote $latestPath"
+Write-Output "Updater url: $($latest.platforms.'windows-x86_64'.url)"
+
+if ($DryRun) {
+  Write-Output "DryRun: skipped tag push and release creation"
+  exit 0
+}
+
+# 8. tag and release
+if (-not $tagCommit) {
+  git -C $root tag -a $tag -m "$productName $tag"
+  if ($LASTEXITCODE -ne 0) { Fail "git tag $tag failed" }
+}
+git -C $root push origin $tag
+if ($LASTEXITCODE -ne 0) { Fail "git push origin $tag failed" }
+
+$viewRaw = (gh release view $tag --repo $Repo --json tagName,isDraft 2>&1 | Out-String).Trim()
+$releaseExists = $LASTEXITCODE -eq 0
+$isDraft = $false
+if ($releaseExists) {
+  $isDraft = ($viewRaw | ConvertFrom-Json).isDraft
+}
+
+if ($releaseExists) {
+  Write-Output "Release $tag exists, uploading assets with --clobber"
+  gh release upload $tag $installer.FullName $sigPath $latestPath --repo $Repo --clobber
+}
+else {
+  $releaseArgs = @(
+    "release", "create", $tag,
+    "--repo", $Repo,
+    "--title", "$productName $tag",
+    "--notes", $Notes,
+    "--verify-tag",
+    $installer.FullName, $sigPath, $latestPath
+  )
+  if (-not $Publish) { $releaseArgs += "--draft" }
+  gh @releaseArgs
+}
+if ($LASTEXITCODE -ne 0) { Fail "gh release failed with exit code $LASTEXITCODE" }
+
+if ($Publish -and $isDraft) {
+  gh release edit $tag --repo $Repo --draft=false
+  if ($LASTEXITCODE -ne 0) { Fail "gh release edit failed with exit code $LASTEXITCODE" }
+}
+
+if (-not $Publish) {
+  Write-Output "Draft release ready. Publish with: gh release edit $tag --repo $Repo --draft=false"
+}
+Write-Output "Done. Check with: gh release view $tag --repo $Repo"
