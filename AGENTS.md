@@ -189,6 +189,36 @@ Tauri Store (`settings.json`) is used for:
 - Window state persistence uses `tauri-plugin-window-state`
 - App starts hidden (`visible: false`) and appears after webview startup
 
+## Browser Support
+
+WebView2 (Chromium-based, Windows 10/11 x64) is the only frontend runtime.
+
+- Baseline Widely available features: use without fallbacks.
+- Baseline Newly Available features: feature-detect and degrade gracefully.
+- Do not add polyfills or external compatibility libraries.
+- Custom fallbacks are allowed only when they add roughly 20 lines or fewer and need no new dependencies.
+- Core Web Vitals (LCP, INP, CLS) are secondary to desktop viewer responsiveness; image loading and scroll performance still matter.
+
+## Agent Skills
+
+Skill precedence for overlapping frontend work:
+
+1. **shadcn** (`.agents/skills/shadcn/`): component selection, styling rules, forms, and `components.json` workflows.
+2. **impeccable** (`.agents/skills/impeccable/`): design polish, UX review, accessibility hardening, and visual craft.
+3. **modern-web-guidance** (`.agents/skills/modern-web-guidance/`): web platform APIs, performance patterns, and browser compatibility when introducing or changing HTML/CSS/clientside JS behavior.
+
+Use modern-web-guidance when adding or changing image loading, scroll/motion, forms, accessibility patterns, or CSS layout features. Skip it for Rust/Tauri IPC, Zustand state, and routine shadcn component edits. Adapt framework-agnostic guides to React + `@base-ui/react` + shadcn; do not replace the existing component stack with native `<dialog>`/Popover API unless explicitly requested.
+
+```bash
+# Search for a relevant guide
+npx -y modern-web-guidance@latest search "<query>" --skill-version 2026_09_04-7de96777
+
+# Retrieve full guide(s) by ID
+npx -y modern-web-guidance@latest retrieve "<id>"
+```
+
+Update with `npx -y modern-web-guidance@latest update`.
+
 <!-- impeccable:start -->
 ## Design workflow (impeccable)
 
