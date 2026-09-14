@@ -69,9 +69,8 @@
 
 - 빈 상태: 실제 다음 행동을 안내한다(파일 열기). 가짜 샘플을 만들지 않는다.
 - `파일 열기` 버튼은 파일 피커를 연다.
-- 즐겨찾기 섹션: 존재할 때만 표시. 별 아이콘 + 개수 + 전체 삭제. 2~5열 그리드(`HomeFileCard`).
-- 최근 파일 섹션: `recordRecentFiles`가 true이고 목록이 있을 때만 표시. 개수 + 전체 삭제.
-- 썸네일은 `usePaintSrcs([...favorites, ...visibleRecent])`로 로드한다.
+- 최근 파일 섹션: `recordRecentFiles`가 true이고 목록이 있을 때만 표시. 개수 + 전체 삭제. shadcn `Attachment` 가로형 목록(`RecentFileAttachment`)으로 파일명, 형식/크기/치수, 상위 폴더를 표시한다.
+- 상세 정보는 `useRecentFileDetails(visibleRecent)`로 `load_image` 메타와 썸네일 src를 확보한다. 아카이브는 아이콘으로, 실패 항목은 error 상태로 표시한다.
 - 드래그 오버레이: 드래그 중 점선 테두리 + `home.drop` 문구.
 - 시작 옵션: `autoOpenLastFile && recordRecentFiles`이고 최근 파일이 있으면 첫 항목을 1회 자동 로드한다.
 - 이미지가 로드되면 `/image`로 이동한다. 창 제목은 이미지 파일명, 없으면 `app.title`이다.
@@ -305,7 +304,7 @@
 
 - `trash_file(file_path)`: OS 휴지통으로 이동(영구 삭제 아님). 디렉토리 불가.
 - 확인 다이얼로그(warning) 후 실행한다.
-- 성공 시 최근/즐겨찾기에서 제거하고, 남은 목록에서 `min(currentIndex, remaining-1)`을 연다. 남은 게 없으면 홈으로 돌아간다.
+- 성공 시 최근 파일에서 제거하고, 남은 목록에서 `min(currentIndex, remaining-1)`을 연다. 남은 게 없으면 홈으로 돌아간다.
 
 ### 12.2 이름 변경 `F2`
 
@@ -317,7 +316,7 @@
   - 끝이 공백/마침표면 거부.
 - 이동 전 지원 확장자 검사, 중복 이름이면 `already_exists`.
 - 대소문자만 바꾸는 동일 파일은 이동을 생략한다.
-- 성공 시 디렉토리 목록, 최근 파일, 즐겨찾기 경로를 교체한다.
+- 성공 시 디렉토리 목록과 최근 파일 경로를 교체한다.
 
 ### 12.3 편집 저장 `Ctrl+S`
 
@@ -346,15 +345,9 @@
 - `Ctrl+Shift+E`: `revealItemInDir`로 탐색기에 표시한다.
 - `Ctrl+Shift+O`: `openPath`로 기본 앱으로 연다.
 
-### 12.6 즐겨찾기 `F`
-
-- 최대 50개, 키 `favoriteFiles`.
-- 현재 파일(아카이브면 원본)을 토글하고 결과 토스트를 표시한다.
-- 이름 변경 시 순서를 유지하며 경로를 교체한다.
-
 ## 13. 최근 파일/영속화
 
-진실: `src/store/recentFilesStore.ts`, `src/store/favoritesStore.ts`, `src/store/archiveProgressStore.ts`, `src/store/settingsStore.ts`.
+진실: `src/store/recentFilesStore.ts`, `src/store/archiveProgressStore.ts`, `src/store/settingsStore.ts`.
 
 `settings.json`(Tauri Store) 키:
 
@@ -362,7 +355,6 @@
 |---|---|---|
 | `settings` | `SettingsState` 전체 | 1개 객체 |
 | `recentFiles` | 최근 경로 배열(최신 먼저) | 20 |
-| `favoriteFiles` | 즐겨찾기 경로 배열(최신 먼저) | 50 |
 | `archiveProgress` | 아카이브 경로 → 이어보기 엔트리 | 100 |
 
 - 최근 파일은 중복 제거 후 맨 앞에 넣고 자른다. `recordRecentFiles=false`면 목록을 숨기고 자동 열기도 막는다.
@@ -420,10 +412,10 @@
 | 탐색기에 표시 | `Ctrl+Shift+E` | 기본 앱으로 열기 | `Ctrl+Shift+O` |
 | 배경 순환 | `B` | 이름 변경 | `F2` |
 | 경로 복사 | `Ctrl+Shift+C` | 셔플 토글 | `S` |
-| 편집 저장 | `Ctrl+S` | 즐겨찾기 토글 | `F` |
-| 명령 팔레트 | `Ctrl+K` | 10장 이전 | `PageUp` |
-| 10장 다음 | `PageDown` | 처음 | `Home` |
-| 마지막 | `End` | 썸네일 그리드 | `G` |
+| 편집 저장 | `Ctrl+S` | 명령 팔레트 | `Ctrl+K` |
+| 10장 이전 | `PageUp` | 10장 다음 | `PageDown` |
+| 처음 | `Home` | 마지막 | `End` |
+| 썸네일 그리드 | `G` | | |
 
 그리드 내부: 화살표(선택 이동), `Home`/`End`, `PageUp`/`PageDown`, `Enter`(점프), `Esc`/`G`(닫기). 그리드가 열려 있는 동안 다른 뷰어 단축키는 동작하지 않는다.
 

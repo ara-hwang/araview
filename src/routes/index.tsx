@@ -13,11 +13,10 @@ import { useAppStore } from "@/store/appStore"
 import { useSettingsStore } from "@/store/settingsStore"
 import { useImageLoader } from "@/hooks/useImageLoader"
 import { useOpenFileListener } from "@/hooks/useOpenFileListener"
-import { usePaintSrcs } from "@/hooks/usePaintSrcs"
+import { useRecentFileDetails } from "@/hooks/useRecentFileDetails"
 import { useRecentFilesStore } from "@/store/recentFilesStore"
-import { useFavoritesStore } from "@/store/favoritesStore"
-import { HomeFileCard } from "@/components/HomeFileCard"
-import { Star } from "@phosphor-icons/react"
+import { RecentFileAttachment } from "@/components/RecentFileAttachment"
+import { AttachmentGroup } from "@/components/ui/attachment"
 import { useTranslation } from "react-i18next"
 
 export const Route = createFileRoute("/")({
@@ -36,10 +35,6 @@ function HomePage() {
   const recentFiles = useRecentFilesStore((s) => s.files)
   const removeRecent = useRecentFilesStore((s) => s.remove)
   const clearRecent = useRecentFilesStore((s) => s.clear)
-  const favorites = useFavoritesStore((s) => s.files)
-  const toggleFavorite = useFavoritesStore((s) => s.toggle)
-  const removeFavorite = useFavoritesStore((s) => s.remove)
-  const clearFavorites = useFavoritesStore((s) => s.clear)
   const autoOpenLastFile = useSettingsStore((s) => s.autoOpenLastFile)
   const recordRecentFiles = useSettingsStore((s) => s.recordRecentFiles)
   const autoOpenedRef = useRef(false)
@@ -90,11 +85,7 @@ function HomePage() {
     loadImage
   ])
   const visibleRecentFiles = recordRecentFiles ? recentFiles : []
-  const urls = usePaintSrcs(
-    [...favorites, ...visibleRecentFiles],
-    getOrLoadImage
-  )
-  const isFavorite = (path: string) => favorites.includes(path)
+  const details = useRecentFileDetails(visibleRecentFiles, getOrLoadImage)
 
   return (
     <div
@@ -122,41 +113,6 @@ function HomePage() {
             </EmptyContent>
           </Empty>
 
-          {favorites.length > 0 && (
-            <div className="w-full border-t pt-6">
-              <div className="mb-3 flex items-center justify-between">
-                <h2 className="text-muted-foreground flex items-center gap-1.5 text-xs tabular-nums">
-                  <Star
-                    weight="fill"
-                    className="size-3.5 fill-yellow-400 text-yellow-400"
-                  />
-                  {t("home.favorites", { count: favorites.length })}
-                </h2>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="hover:bg-destructive/10 hover:text-destructive dark:hover:bg-destructive/20"
-                  onClick={() => void clearFavorites()}
-                >
-                  {t("home.clearAll")}
-                </Button>
-              </div>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-                {favorites.map((path) => (
-                  <HomeFileCard
-                    key={path}
-                    path={path}
-                    src={urls.get(path)}
-                    isFavorite
-                    onOpen={(p) => void loadImage(p)}
-                    onRemove={(p) => void removeFavorite(p)}
-                    onToggleFavorite={(p) => void toggleFavorite(p)}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-
           {visibleRecentFiles.length > 0 && (
             <div className="w-full border-t pt-6">
               <div className="mb-3 flex items-center justify-between">
@@ -172,19 +128,22 @@ function HomePage() {
                   {t("home.clearAll")}
                 </Button>
               </div>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-                {visibleRecentFiles.map((path) => (
-                  <HomeFileCard
-                    key={path}
-                    path={path}
-                    src={urls.get(path)}
-                    isFavorite={isFavorite(path)}
-                    onOpen={(p) => void loadImage(p)}
-                    onRemove={(p) => void removeRecent(p)}
-                    onToggleFavorite={(p) => void toggleFavorite(p)}
-                  />
-                ))}
-              </div>
+              <AttachmentGroup>
+                {visibleRecentFiles.map((path) => {
+                  const detail = details.get(path)
+                  return (
+                    <RecentFileAttachment
+                      key={path}
+                      path={path}
+                      info={detail?.info}
+                      src={detail?.src}
+                      status={detail?.status ?? "loading"}
+                      onOpen={(p) => void loadImage(p)}
+                      onRemove={(p) => void removeRecent(p)}
+                    />
+                  )
+                })}
+              </AttachmentGroup>
             </div>
           )}
         </div>

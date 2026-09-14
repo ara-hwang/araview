@@ -343,7 +343,7 @@
 
 ### 5.3 테스트 커버리지 확대 (P2) — 부분 완료 (2026-09-14 코드 대조 확정)
 
-**현재 상태**: 27개 테스트 파일. 훅(`useFileOperations`, `useFileAssociations`, `useUpdater`), 컴포넌트(`ImageContainer`, `button`, `ShortcutBadge`), 스토어(app/settings/favorites/archiveProgress/paletteMru), 유틸 10여종이 있다. Rust는 `commands.rs`(rename·정렬·셔플·재귀·아카이브 썸네일)·`save.rs`(회전/뒤집기/덮어쓰기/포맷 변환) 단위 테스트가 있다. 남은 것은 아래 계획이다.
+**현재 상태**: 27개 테스트 파일. 훅(`useFileOperations`, `useFileAssociations`, `useUpdater`), 컴포넌트(`ImageContainer`, `button`, `ShortcutBadge`), 스토어(app/settings/archiveProgress/paletteMru), 유틸 10여종이 있다. Rust는 `commands.rs`(rename·정렬·셔플·재귀·아카이브 썸네일)·`save.rs`(회전/뒤집기/덮어쓰기/포맷 변환) 단위 테스트가 있다. 남은 것은 아래 계획이다.
 
 **개선 계획**:
 - **훅 테스트**: `useDirectoryNavigation`, `useZoomPan` 등 핵심 훅 테스트

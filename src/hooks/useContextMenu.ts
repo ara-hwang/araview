@@ -32,7 +32,6 @@ export type ImageViewerContextMenuActions = {
   onRenameFile: () => void
   onCopyPath: () => void
   onSaveEdits: () => void
-  onToggleFavorite: () => void
   onToggleGrid: () => void
 }
 
@@ -199,12 +198,6 @@ export async function showImageViewerContextMenu(
       text: t("menu.saveEdits"),
       accelerator: acc(s.saveEdits),
       action: () => actions.onSaveEdits()
-    }),
-    PredefinedMenuItem.new({ item: "Separator" }),
-    MenuItem.new({
-      text: t("menu.toggleFavorite"),
-      accelerator: acc(s.toggleFavorite),
-      action: () => actions.onToggleFavorite()
     })
   ])
 
