@@ -1,5 +1,11 @@
 import { create } from "zustand"
-import { DirectoryImages, ExifData, ImageInfo } from "@/types"
+import {
+  DirectoryImages,
+  ExifData,
+  ImageDetails,
+  ImageHistogram,
+  ImageInfo
+} from "@/types"
 import {
   clampPosition,
   getFitZoomFromSizes,
@@ -24,6 +30,8 @@ type AppState = {
   dragStart: { x: number; y: number }
   exifData: ExifData | null
   exifError: string | null
+  histogramData: ImageHistogram | null
+  imageDetails: ImageDetails | null
   showExifPanel: boolean
   rotation: 0 | 90 | 180 | 270
   flipH: boolean
@@ -52,6 +60,8 @@ type AppStoreActions = {
   setDragStart: (nextDragStart: AppState["dragStart"]) => void
   setExifData: (nextExifData: AppState["exifData"]) => void
   setExifError: (nextExifError: AppState["exifError"]) => void
+  setHistogramData: (nextHistogramData: AppState["histogramData"]) => void
+  setImageDetails: (nextImageDetails: AppState["imageDetails"]) => void
   setShowExifPanel: (nextShowExifPanel: AppState["showExifPanel"]) => void
   addFailedPath: (filePath: string) => void
   removeFailedPath: (filePath: string) => void
@@ -77,6 +87,8 @@ const initialApp: AppState = {
   dragStart: { x: 0, y: 0 },
   exifData: null,
   exifError: null,
+  histogramData: null,
+  imageDetails: null,
   showExifPanel: false,
   rotation: 0,
   flipH: false,
@@ -106,6 +118,10 @@ export const useAppStore = create<AppState & AppStoreActions>((set) => ({
   setDragStart: (nextDragStart) => set({ dragStart: nextDragStart }),
   setExifData: (nextExifData) => set({ exifData: nextExifData }),
   setExifError: (nextExifError) => set({ exifError: nextExifError }),
+  setHistogramData: (nextHistogramData) =>
+    set({ histogramData: nextHistogramData }),
+  setImageDetails: (nextImageDetails) =>
+    set({ imageDetails: nextImageDetails }),
   setShowExifPanel: (nextShowExifPanel) =>
     set({ showExifPanel: nextShowExifPanel }),
   addFailedPath: (filePath) =>

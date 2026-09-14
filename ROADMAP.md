@@ -3,12 +3,14 @@
 > **AraView** 의 향후 기능 추가, 최적화 및 개선 아이디어를 정리한 로드맵입니다.
 > 우선순위(P0 ~ P3)와 단계(Phase)를 기준으로 정리되어 있습니다.
 >
-> ## 구현 현황 (2026-09-09 기준 + 포맷/성능 라운드)
+> ## 구현 현황 (2026-09-14 기준 + 문서 동기화)
 >
 > - ✅ 완료: 뷰 모드 렌더(`useMultiPageImages` + `ImageContainer`), 회전/뒤집기(`appStore` + CSS transform + `R/Shift+R/H/V`), 클립보드 복사 PNG(`useCopyImage`), 슬라이드쇼 코어(`useSlideshow` + `Space/F5` + 간격 설정), 최근 파일 목록(최대 20개, `settings.json`), Asset Protocol 경로 기반 렌더링(base64 제거).
 > - ✅ Phase 1 폴리시 완료: 설정 UI 노출(viewMode/간격/자동열기), 헤더 회전/뒤집기 + 컨텍스트 메뉴 풀셋, 양면 2장 넘김 + 회전 bounds, 슬라이드쇼 진행바 오버레이, 다중 DnD + 오버레이, 에러 분류 + 홈으로 복구, EXIF 아카이브修正·썸네일 alt·테마 데드코드 제거.
 > - ✅ 포맷/성능 라운드: 디렉토리 스캔 캐시+워처(`dir_cache.rs` + `notify`), 썸네일 파이프라인(`thumbnail.rs` + `generate_thumbnail` + `useThumbnailSrcs`, 500MB cap), 렌더링 성능(rAF 팬 스로틀·`translate3d`+`will-change`·Webtoon 지연 로드·모드별 프리페치), CB7 아카이브 지원(`sevenz-rust2`, 15개 확장자). CBR/RAR/ZIP/7Z/CBT는 Step 4에서 추가 지원(20개 확장자, `unrar-rs` 퓨어 Rust). QOI/JXL/RAW/PSD는 JPEG sidecar 전제가 필요해 제외 유지.
 > - ✅ 썸네일 그리드 뷰(2.1): `G` 토글, 뷰포트 가상화(`ThumbnailGrid.tsx` + `gridWindow.ts`), 파일명 필터, 아카이브 전용 `generate_archive_thumbnail` 백엔드, 팔레트/컨텍스트 메뉴/하단 바 진입점.
+> - ✅ 문서 동기화(2026-09-14, 코드 대조): 2.4 i18n·2.5 DnD·3.4 메모리 최적화(핵심)·5.2 에러 처리를 완료로 확정. 3.5 렌더링(타일 미도입)·5.1 접근성(고대비 미지원)·5.3 테스트(훅/컴포넌트/통합 일부)·5.4 CI(PR용 워크플로 미분리)는 부분 완료로 재정의. 4.1 비교 모드·4.2 잔여분(크롭/리사이즈/밝기대비)·4.3 배치 작업·4.5 인쇄는 범위 제외.
+> - ✅ 2.2 이미지 정보 패널 강화(2026-09-14): `get_image_histogram` + `get_image_details` 백엔드(`image_info.rs`), SVG 히스토그램 차트 + 파일 상세 섹션(`ExifPanel`).
 
 ---
 
@@ -120,9 +122,9 @@
 
 ---
 
-### 2.2 이미지 정보 패널 강화 (P1)
+### 2.2 이미지 정보 패널 강화 (P1) — ✅ 완료 (2026-09-14 구현)
 
-**현재 상태**: `ExifPanel.tsx`와 `useExifLoader.ts`를 통해 EXIF 메타데이터를 추출·표시하고 있으나 (Camera, Exposure, Image, Lens, DateTime, GPS, Software 카테고리), 히스토그램이나 색상 정보는 없음.
+**현재 상태**: 구현됨. `get_image_histogram`(RGB 256빈, 256px 다운샘플 집계) + `get_image_details`(크기/치수/색상 모드/비트뎁스/생성·수정 시각/EXIF DPI/JPEG APP2·PNG iCCP ICC 검사) 백엔드(`image_info.rs`)와 SVG 영역 차트(`HistogramChart.tsx`) + 파일 섹션(`ExifPanel.tsx`)을 추가했다. `useExifLoader`가 EXIF와 병렬 로드하며, 디코드 불가 포맷은 섹션별 안내 문구로 처리한다. SPEC §10.1·§10.2.
 
 **구현 계획**:
 - **히스토그램**: RGB 채널별 히스토그램 표시 (Rust에서 계산, `recharts`로 시각화)
@@ -154,9 +156,9 @@
 
 ---
 
-### 2.4 다국어 지원 (i18n) (P2)
+### 2.4 다국어 지원 (i18n) (P2) — ✅ 완료 (2026-09-14 코드 대조 확정)
 
-**현재 상태**: UI 텍스트가 영어/한국어 혼재. 체계적 다국어 지원 없음.
+**현재 상태**: 구현됨. `src/i18n/index.ts` + `locales/ko.json`·`en.json`(`i18next` + `react-i18next`), 시스템 언어 자동 감지(`detectSystemLanguage`), 설정→즉시 적용(`settingsStore.language` + `GeneralTabPanel` 선택 UI), 폴백 `ko`. 컴포넌트는 `useTranslation` 사용.
 
 **구현 계획**:
 - 경량 i18n 솔루션 도입 (예: `i18next` 또는 자체 key-value 방식)
@@ -171,9 +173,9 @@
 
 ---
 
-### 2.5 드래그 앤 드롭 개선 (P2)
+### 2.5 드래그 앤 드롭 개선 (P2) — ✅ 완료 (2026-09-14 코드 대조 확정)
 
-**현재 상태**: 단일 파일 드래그 앤 드롭만 지원.
+**현재 상태**: 구현됨. `useImageLoader.handleDrop`이 여러 파일/폴더 동시 드롭을 처리한다. 아카이브 경로는 그대로 유지하고, 그 외는 `resolve_dropped_path`(파일 그대로·폴더 내 첫 이미지)로 해석, 실패 항목 건너뜀 + 전부 실패 시 `toast.drop.fail`, 2개 이상이면 `toast.drop.firstOf`. 드래그 깊이 카운터 기반 오버레이(`index.tsx`·`image.tsx` + `home.drop` 문구). SPEC §4.2와 일치.
 
 **구현 계획**:
 - 여러 파일 동시 드롭 시 첫 파일을 열고 나머지는 디렉토리 목록에 포함
@@ -243,9 +245,9 @@
 
 ---
 
-### 3.4 메모리 사용량 최적화 (P2)
+### 3.4 메모리 사용량 최적화 (P2) — ✅ 핵심 완료 (2026-09-14 코드 대조 확정)
 
-**현재 상태**: base64 인코딩으로 원본 대비 약 33% 메모리 오버헤드 (base64는 3바이트를 4문자로 표현). `useImageCache.ts`에서 `string.length × 2`로 추정.
+**현재 상태**: base64 오버헤드는 해소됨. Asset Protocol 전환 이후 프론트는 메타데이터만 캐시하고 캐시 키는 파일 경로 기준이다(`useImageCache.estimateImageBytes`는 `file_size` 기준, 구 `string.length × 2` 추정 제거). 픽셀 프리웜 상한 12개 + 미사용 시 해제, `cacheMode: off`에서 예열 중단으로 브라우저 이미지 캐시에 위임한다. 남은 선택 사항은 대용량 이미지 해상도 제한 옵션(4K 이상 리사이즈 표시) 1건이다.
 
 **최적화 계획**:
 - Phase 3.1의 asset protocol 도입으로 base64 오버헤드 제거
@@ -259,9 +261,9 @@
 
 ---
 
-### 3.5 렌더링 성능 최적화 (P3)
+### 3.5 렌더링 성능 최적화 (P3) — 부분 완료 (2026-09-14 코드 대조 재확인)
 
-**현재 상태 (포맷/성능 라운드)**: 부분 완료. Single 모드 `translate3d` + `will-change: transform`, `useZoomPan` rAF 기반 팬 스로틀, Webtoon `IntersectionObserver` 지연 로드(`rootMargin 100%`), viewMode별 프리페치(single=d·양면=d+1·webtoon=d×2). 타일 기반 렌더링은 미도입.
+**현재 상태 (포맷/성능 라운드)**: 부분 완료. Single 모드 `translate3d` + `will-change: transform`, `useZoomPan` rAF 기반 팬 스로틀, Webtoon `IntersectionObserver` 지연 로드(`rootMargin 100%`), viewMode별 프리페치(single=d·양면=d+1·webtoon=d×2). 미도입: 타일 기반 렌더링, 휠 이벤트 throttling(`useWheelNavigation`은 직접 실행).
 
 **최적화 계획**:
 - `will-change: transform` CSS 속성으로 GPU 레이어 분리
@@ -279,55 +281,10 @@
 ## Phase 4 — 고급 기능
 
 > 이미지 뷰어의 경쟁력을 높이는 고급 기능.
+>
+> 범위 제외(2026-09-14): 4.1 비교 모드·4.2 잔여분(크롭/리사이즈/밝기대비)·4.3 배치 작업·4.5 인쇄는 로드맵에서 제외한다. 4.2의 회전/반전 저장 파이프라인은 구현되어 있으며 SPEC §12.3에 문서화되어 유지된다.
 
-### 4.1 이미지 비교 모드 (P2)
-
-**구현 계획**:
-- 두 이미지를 나란히(side-by-side) 또는 오버레이(overlay)로 비교
-- 슬라이더로 비교 영역 조절 (split view)
-- 동기화된 zoom/pan (한 쪽 조작 시 다른 쪽도 동일하게)
-- 단축키 `C`로 비교 모드 진입
-
-**관련 파일**:
-- `src/components/CompareView.tsx` — 새 컴포넌트
-- `src/hooks/useCompareMode.ts` — 비교 모드 로직
-- `src/routes/compare.tsx` — 비교 전용 라우트 (선택)
-
----
-
-### 4.2 이미지 기본 편집 (P3)
-
-**구현 계획**:
-- **크롭**: 마우스로 영역 선택 후 잘라내기
-- **리사이즈**: 지정 크기로 변경
-- **밝기/대비 조절**: CSS filter 기반 미리보기 → Rust에서 실제 적용
-- 편집된 이미지를 "다른 이름으로 저장"
-- 비파괴 편집 (원본 보존)
-
-**관련 파일**:
-- `src-tauri/src/commands.rs` — crop_image, resize_image, adjust_image 커맨드
-- `src/components/EditToolbar.tsx` — 편집 도구 UI
-- `src/hooks/useImageEditor.ts` — 편집 상태 관리
-
----
-
-### 4.3 배치 작업 (P3)
-
-**구현 계획**:
-- 여러 이미지 선택 (썸네일 그리드에서 Ctrl+클릭)
-- **배치 포맷 변환**: PNG→JPEG, WebP→PNG 등
-- **배치 리사이즈**: 일괄 크기 변경
-- **배치 이름 변경**: 패턴 기반 (예: `photo_{n:04}.jpg`)
-- 진행률 표시 및 취소 기능
-
-**관련 파일**:
-- `src-tauri/src/commands.rs` — batch_convert, batch_resize, batch_rename 커맨드
-- `src/components/BatchDialog.tsx` — 배치 작업 UI
-- `src/hooks/useBatchOperations.ts` — 배치 로직
-
----
-
-### 4.4 추가 이미지 포맷 지원 (P2)
+### 4.4 추가 이미지 포맷 지원 (P2) — 의도적 제외 유지 (2026-09-14 재확인)
 
 **현재 상태**: 20개 포맷 지원 (PNG, JPG, JPEG, GIF, BMP, WebP, SVG, ICO, TIFF, TIF, AVIF, HEIC, HEIF, CBZ, CB7, CBR, RAR, ZIP, 7Z, CBT). CB7/7Z는 `sevenz-rust2`(순수 Rust), CBR/RAR는 `unrar-rs`(`crypto-rust` 퓨어 Rust 백엔드, 네이티브 의존성 없음), CBT는 `tar` 크레이트로 목록/추출 지원. ZIP은 `zip` 크레이트 별칭.
 
@@ -348,34 +305,16 @@
 
 ---
 
-### 4.5 인쇄 기능 (P3)
-
-**구현 계획**:
-- `Ctrl+P`로 현재 이미지 인쇄
-- 인쇄 미리보기 다이얼로그
-- 용지 크기, 방향, 여백 설정
-- "페이지에 맞춤" 또는 "원본 크기" 옵션
-
-**관련 파일**:
-- `src/hooks/usePrint.ts` — 인쇄 훅
-- `src/components/PrintDialog.tsx` — 인쇄 미리보기 UI
-
----
-
 ## Phase 5 — 접근성 및 품질
 
 > 앱의 전반적 품질과 접근성을 높이는 개선.
 
-### 5.1 접근성 (A11y) 개선 (P1)
+### 5.1 접근성 (A11y) 개선 (P1) — 부분 완료: 고대비 모드만 남음 (2026-09-14 코드 대조 확정)
 
-**현재 상태**: 기본적인 키보드 단축키만 있음. 스크린 리더 지원 부족.
+**현재 상태**: 상당 부분 구현됨. 파일명 기반 `alt`(Single/양면/Webtoon/썸네일/홈 카드), `Header` 전 버튼 `aria-label` + 단축키 병기, `ImageNavBar` 슬라이더·그리드 버튼 레이블, 썸네일 그리드 `listbox`/`option`, 슬라이드쇼 `aria-live` 진행 표시, 에러 카드 `role="alert"` + `StatusBar` `role="status"`, 전역 `focus-visible` 링, 키보드 조작(단축키·그리드 화살표/`Enter`/`Esc`·팔레트). 남은 것은 고대비 모드 지원이다.
 
-**개선 계획**:
-- 모든 이미지에 `alt` 텍스트 제공 (파일명 기반)
-- ARIA 레이블 추가 (툴바 버튼, 슬라이더, 패널)
-- 포커스 관리 개선 (탭 순서, 포커스 표시)
+**개선 계획** (남은 1건):
 - 고대비 모드 지원
-- 키보드만으로 모든 기능 접근 가능
 
 **관련 파일**:
 - `src/components/Header.tsx` — ARIA 레이블 추가
@@ -385,9 +324,9 @@
 
 ---
 
-### 5.2 에러 처리 개선 (P1)
+### 5.2 에러 처리 개선 (P1) — ✅ 완료 (2026-09-14 코드 대조 확정)
 
-**현재 상태**: 에러 메시지가 기본적. 사용자 친화적 안내 부족.
+**현재 상태**: 구현됨. 백엔드 구조화 에러 8종(`app_error.rs`) + 프론트 5종 분류(`appError.ts`, `titleKey`/`hintKey` 번역 표시), 에러 카드에 재시도/홈으로 복구/닫기(`ImageContainer.tsx`, `role="alert"`), 경미한 실패는 `sonner` 토스트, 손상 파일 자동 건너뛰기(`skipBrokenFiles` + `failedPaths`), 대안 동작으로 기본 앱 열기(`Ctrl+Shift+O`)·포맷 변환 저장(`save_image_edits`)이 있다. SPEC §18과 일치.
 
 **개선 계획**:
 - 에러 유형별 구체적 메시지 (파일 없음, 권한 없음, 손상된 파일, 미지원 포맷)
@@ -402,9 +341,9 @@
 
 ---
 
-### 5.3 테스트 커버리지 확대 (P2)
+### 5.3 테스트 커버리지 확대 (P2) — 부분 완료 (2026-09-14 코드 대조 확정)
 
-**현재 상태**: 유틸리티 함수 위주의 단위 테스트만 존재 (5개 테스트 파일). 컴포넌트 및 훅 테스트 부재.
+**현재 상태**: 27개 테스트 파일. 훅(`useFileOperations`, `useFileAssociations`, `useUpdater`), 컴포넌트(`ImageContainer`, `button`, `ShortcutBadge`), 스토어(app/settings/favorites/archiveProgress/paletteMru), 유틸 10여종이 있다. Rust는 `commands.rs`(rename·정렬·셔플·재귀·아카이브 썸네일)·`save.rs`(회전/뒤집기/덮어쓰기/포맷 변환) 단위 테스트가 있다. 남은 것은 아래 계획이다.
 
 **개선 계획**:
 - **훅 테스트**: `useDirectoryNavigation`, `useZoomPan` 등 핵심 훅 테스트
@@ -421,9 +360,9 @@
 
 ---
 
-### 5.4 CI/CD 파이프라인 강화 (P2)
+### 5.4 CI/CD 파이프라인 강화 (P2) — 부분 완료: 릴리스 게이트 존재 / PR용 분리 미구현 (2026-09-14 재확인)
 
-**현재 상태**: 릴리즈 빌드만 있는 단일 워크플로우 (`release.yml`).
+**현재 상태**: 워크플로는 `release.yml` 1개(`.github/workflows/`). 단, 태그 푸시 시 프론트 검사(`npm test`, `tsc --noEmit`, `prettier --check`)와 Rust 검사(`cargo fmt --check`, `cargo test`, `cargo clippy -D warnings`)를 먼저 수행하고 실패 시 빌드·릴리스로 진행하지 않는다(SPEC §21). 남은 것은 아래 계획이다.
 
 **개선 계획**:
 - PR별 자동 테스트 실행 (프론트엔드 + Rust)
@@ -457,14 +396,10 @@
 | **P2** | 썸네일 생성 최적화 | 3 |
 | **P2** | 디렉토리 스캐닝 최적화 | 3 |
 | **P2** | 메모리 사용량 최적화 | 3 |
-| **P2** | 이미지 비교 모드 | 4 |
 | **P2** | 추가 이미지 포맷 지원 | 4 |
 | **P2** | 테스트 커버리지 확대 | 5 |
 | **P2** | CI/CD 파이프라인 강화 | 5 |
 | **P3** | 렌더링 성능 최적화 | 3 |
-| **P3** | 이미지 기본 편집 | 4 |
-| **P3** | 배치 작업 | 4 |
-| **P3** | 인쇄 기능 | 4 |
 
 ---
 

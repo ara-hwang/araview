@@ -279,6 +279,37 @@
     "retry": "Retry",
     "other": "Other"
   },
+  "details": {
+    "title": "File",
+    "unavailable": "Could not load file details.",
+    "path": "Path",
+    "size": "Size",
+    "dimensions": "Dimensions",
+    "pixels": "{{count}} pixels",
+    "created": "Created",
+    "modified": "Modified",
+    "color": "Color",
+    "colorRgb": "RGB",
+    "colorRgba": "RGBA",
+    "colorGrayscale": "Grayscale",
+    "colorGrayscaleAlpha": "Grayscale (alpha)",
+    "colorUnknown": "Unknown",
+    "bitsPerChannel": "{{bits}} bits/channel",
+    "dpi": "Resolution",
+    "icc": "Color profile",
+    "iccPresent": "{{name}} ({{size}})",
+    "iccPresentNoName": "Embedded ({{size}})",
+    "iccAbsent": "None",
+    "iccUnchecked": "Not checked"
+  },
+  "histogram": {
+    "title": "Histogram",
+    "unavailable": "Histogram is not available for this format.",
+    "chartLabel": "RGB brightness distribution chart",
+    "red": "Red",
+    "green": "Green",
+    "blue": "Blue"
+  },
   "dialog": {
     "cancel": "Cancel",
     "rename": {
