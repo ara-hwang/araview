@@ -86,11 +86,11 @@ export function ImageNavBar({
       )}
       onMouseDown={(e) => e.stopPropagation()}
     >
-      {/* 썸네일 스트립 */}
+      {/* 썸네일 스트립: scale-110이 잘리지 않게 여유를 두고, 스크롤바 없이 스크롤만 유지 */}
       {thumbnails.length > 1 && (
         <div
           ref={stripRef}
-          className="flex items-center justify-center gap-1 overflow-x-auto"
+          className="flex [scrollbar-width:none] items-center [justify-content:safe_center] gap-1 overflow-x-auto overflow-y-hidden p-1 [&::-webkit-scrollbar]:hidden"
         >
           {thumbnails.map(({ index, path }) => {
             const src = urls.get(path)
