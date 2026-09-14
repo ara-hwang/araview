@@ -53,7 +53,7 @@ import { useTranslation } from "react-i18next"
 // 드래그 영역 안에 있으므로 no-drag로 제외한다 (더블클릭 최대화 방지).
 const captionButtonClassName = cn(
   "no-drag flex w-12 shrink-0 items-center justify-center text-foreground transition-colors [&_svg]:pointer-events-none [&_svg]:size-4",
-  "hover:bg-muted active:bg-foreground/10",
+  "hover:bg-foreground/10 active:bg-foreground/20 dark:hover:bg-white/15 dark:active:bg-white/25",
   "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
 )
 
