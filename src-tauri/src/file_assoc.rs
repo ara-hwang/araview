@@ -11,7 +11,7 @@ use winreg::{RegKey, HKEY};
 use crate::app_error::AppError;
 use crate::image::SUPPORTED_EXTENSIONS;
 
-const BUNDLE_ID: &str = "com.araview.app";
+const BUNDLE_ID: &str = "com.araview.viewer";
 const APP_NAME: &str = "AraView";
 const APP_DESCRIPTION: &str = "AraView";
 const CAPABILITIES_PATH: &str = r"Software\AraView\Capabilities";
@@ -493,8 +493,8 @@ mod tests {
 
     #[test]
     fn prog_id_uses_bundle_id_and_extension() {
-        assert_eq!(prog_id_for("png"), "com.araview.app.png");
-        assert_eq!(prog_id_for("cbz"), "com.araview.app.cbz");
+        assert_eq!(prog_id_for("png"), "com.araview.viewer.png");
+        assert_eq!(prog_id_for("cbz"), "com.araview.viewer.cbz");
     }
 
     #[test]
@@ -507,8 +507,8 @@ mod tests {
 
     #[test]
     fn is_our_prog_id_matches_bundle_prefix() {
-        assert!(is_our_prog_id("com.araview.app.png"));
-        assert!(is_our_prog_id("COM.ARAVIEW.APP.JPG"));
+        assert!(is_our_prog_id("com.araview.viewer.png"));
+        assert!(is_our_prog_id("COM.ARAVIEW.VIEWER.JPG"));
         assert!(is_our_prog_id("AraView.png"));
         assert!(is_our_prog_id("araview.jpg"));
         assert!(!is_our_prog_id("Image"));

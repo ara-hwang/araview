@@ -113,13 +113,45 @@ cd src-tauri && cargo clippy
 
 앱은 시작 시 업데이트를 확인하지 않습니다. 설정 일반 탭의 `지금 확인` 버튼이나 명령 팔레트(`Ctrl+K`)의 `업데이트 확인`으로 직접 확인할 때만 네트워크를 씁니다. 새 버전이 있으면 토스트에서 다운로드 및 설치 후 다시 시작할 수 있습니다.
 
-릴리스는 태그(`v*`) 푸시로 GitHub Releases에 발행되며, updater 아티팩트(`latest.json`, `.sig`)가 함께 첨부됩니다. 서명키 발급과 등록(maintainer 1회):
+릴리스는 태그(`v*`) 푸시로 GitHub Releases에 발행되며, updater 아티팩트(`latest.json`, `.sig`)가 함께 첨부됩니다.
+
+### 서명키 발급과 등록 (maintainer 1회)
 
 ```powershell
-npm run tauri signer generate -- -w ~/.tauri/araview.key
+npm run tauri signer generate -- -w "$env:USERPROFILE\.tauri\araview.key"
 ```
 
-공개키는 `src-tauri/tauri.conf.json`의 `plugins.updater.pubkey`에 넣고, 비밀키와 비밀번호는 repo Secrets `TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`에 등록합니다.
+- 키는 repo 밖(`$env:USERPROFILE\.tauri`)에 둡니다. 다른 폴더를 쓰려면 `$env:USERPROFILE` 대신 원하는 경로를 넣습니다.
+- 공개키(`araview.key.pub` 내용)는 `src-tauri/tauri.conf.json`의 `plugins.updater.pubkey`에 넣습니다.
+- 비밀키와 비밀번호는 repo Secrets에 등록합니다. CI에는 키 파일이 없으므로 비밀키는 파일 내용을 넣습니다.
+
+```powershell
+gh secret set TAURI_SIGNING_PRIVATE_KEY --repo ara-hwang/araview --body ((Get-Content -Raw "$env:USERPROFILE\.tauri\araview.key").Trim())
+gh secret set TAURI_SIGNING_PRIVATE_KEY_PASSWORD --repo ara-hwang/araview
+```
+
+값 끝에 개행이 붙으면 base64 디코드가 실패하므로 `.Trim()`으로 공백을 제거합니다.
+
+### 로컬 서명 빌드
+
+```powershell
+$env:TAURI_SIGNING_PRIVATE_KEY = "$env:USERPROFILE\.tauri\araview.key"
+$env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = "<키 비밀번호>"
+npm run tauri build
+```
+
+- `tauri build`에서 `TAURI_SIGNING_PRIVATE_KEY` 값이 존재하는 파일 경로면 그 파일을 읽고, 아니면 값을 키 내용으로 봅니다. 경로와 내용 둘 다 됩니다.
+- `TAURI_SIGNING_PRIVATE_KEY_PATH`는 `tauri signer sign` 전용이라 `tauri build`에서는 무시됩니다.
+- 비밀번호를 설정하지 않으면 대화형 프롬프트가 뜨므로 비대화형 환경에서는 반드시 설정합니다. (`--ci` 또는 `CI` 환경이면 빈 문자열로 처리)
+- 성공하면 `src-tauri/target/release/bundle/nsis/` 아래에 설치본과 `.sig`가 함께 생성됩니다.
+
+### 서명 없이 설치본만 만들기
+
+```powershell
+npm run tauri build -- --no-sign
+```
+
+updater 서명을 건너뜁니다. `.sig`가 없으므로 릴리스 배포에는 쓸 수 없습니다.
 
 ## 동작 구조 요약
 

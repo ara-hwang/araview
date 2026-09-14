@@ -30,7 +30,7 @@ Constraints: Windows 10/11 x64 only. Offline by design. File associations can on
 
 ## Brand Commitments
 
-Name: AraView (Korean: 아라뷰). The technical identifiers stay lowercase (`araview`): npm package, Rust crate, and bundle identifier `com.araview.app`. App icon confirmed: obangsaek 2x2 grid with light/dark variants (see `DESIGN.md` App Icon). No other logo, color, voice, or visual assets confirmed; future work must not invent brand claims, testimonials, statistics, or compliance statements.
+Name: AraView (Korean: 아라뷰). The technical identifiers stay lowercase (`araview`): npm package, Rust crate, and bundle identifier `com.araview.viewer`. App icon confirmed: obangsaek 2x2 grid with light/dark variants (see `DESIGN.md` App Icon). No other logo, color, voice, or visual assets confirmed; future work must not invent brand claims, testimonials, statistics, or compliance statements.
 
 ## Evidence on Hand
 
