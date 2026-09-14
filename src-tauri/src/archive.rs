@@ -154,7 +154,7 @@ fn extract_zip_image(
     temp_dir: &Path,
 ) -> Result<PathBuf, AppError> {
     let out_path = extraction_out_path(temp_dir, entry_name);
-    // 이미 추출됐으면 아카이브를 다시 열지 않는다 (페이지 넘김高速).
+    // 이미 추출됐으면 아카이브를 다시 열지 않는다 (페이지 넘김 가속).
     if out_path.is_file() {
         return Ok(out_path);
     }
