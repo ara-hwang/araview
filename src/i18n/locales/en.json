@@ -137,6 +137,14 @@
       "on": "Skip automatically",
       "off": "Stop and show error"
     },
+    "update": {
+      "title": "Updates",
+      "desc": "Checks for a new version only when you press the button. The network is used for the check and download only, the app stays offline otherwise.",
+      "current": "Current version {{version}}",
+      "unknown": "unknown",
+      "check": "Check now",
+      "checking": "Checking"
+    },
     "view": {
       "title": "View mode",
       "desc": "Single / dual / vertical scroll layout",
@@ -353,6 +361,7 @@
     "search": "Search commands",
     "open": "Command Palette",
     "settings": "Open Settings",
+    "checkUpdates": "Check for updates",
     "clear": "Clear",
     "recent": "Recent",
     "noResult": "No matching commands",
@@ -455,6 +464,19 @@
     "slideshow": {
       "start": "Slideshow started",
       "stop": "Slideshow stopped"
+    },
+    "update": {
+      "latest": "You are on the latest version",
+      "checkFail": "Failed to check for updates",
+      "availableTitle": "Version {{version}} is available",
+      "availableDesc": "You can download and install it now.",
+      "install": "Download and install",
+      "downloading": "Downloading update",
+      "downloadingPct": "Downloading update {{pct}}%",
+      "installed": "Update installed",
+      "restart": "Restart now",
+      "restartFail": "Failed to restart",
+      "installFail": "Failed to install update"
     },
     "load": {
       "archiveFail": "Failed to load archive",

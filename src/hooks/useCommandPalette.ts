@@ -42,6 +42,7 @@ import { useFullscreen } from "@/hooks/useFullscreen"
 import { useAlwaysOnTop } from "@/hooks/useAlwaysOnTop"
 import { usePaletteMruStore } from "@/store/paletteMruStore"
 import { toggleShuffleAndRefresh } from "@/utils/directoryOptions"
+import { requestUpdateCheck } from "@/hooks/useUpdater"
 
 export const OPEN_SETTINGS_EVENT = "tiv:open-settings"
 
@@ -248,6 +249,9 @@ function runCommand(
       break
     case "openSettings":
       requestOpenSettings()
+      break
+    case "checkForUpdates":
+      requestUpdateCheck()
       break
     case "togglePalette":
       break

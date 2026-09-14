@@ -69,11 +69,18 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
+      # Updater 서명: maintainer는 한 번만 키를 만들고 Secrets에 등록한다.
+      #   npm run tauri signer generate -- -w ~/.tauri/araview.key
+      # 공개키는 src-tauri/tauri.conf.json plugins.updater.pubkey에,
+      # 비밀키와 비밀번호는 repo Secrets TAURI_SIGNING_PRIVATE_KEY(_PASSWORD)에 넣는다.
+      # 키가 없으면 빌드는 되지만 updater 아티팩트 서명이 생략된다.
       - name: Build and release
         uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RUSTC_WRAPPER: sccache
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "AraView v__VERSION__"

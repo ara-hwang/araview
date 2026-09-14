@@ -20,7 +20,7 @@ A neighboring viewer cannot truthfully copy this combination: genuinely offline 
 
 ## Operating Context
 
-Local-filesystem workflows only: file picker, drag-and-drop of files or folders, and OS file-association launch (Windows passes the path as a CLI argument; backend emits `open-file`). Frameless app window with a custom titlebar/toolbar; window state persists across launches. Viewer chrome auto-hides during reading. Slideshow and fullscreen are presentation contexts. Settings (viewer preferences, recent files, favorites) persist locally via Tauri Store. Supported inputs: png, jpg, jpeg, gif, bmp, webp, svg, ico, tiff, tif, avif, heic, heif, cbz, cb7, cbr, rar, zip, 7z, cbt.
+Local-filesystem workflows only: file picker, drag-and-drop of files or folders, and OS file-association launch (Windows passes the path as a CLI argument; backend emits `open-file`). Frameless app window with a custom titlebar/toolbar; window state persists across launches. Viewer chrome auto-hides during reading. Slideshow and fullscreen are presentation contexts. Settings (viewer preferences, recent files, favorites) persist locally via Tauri Store. Supported inputs: png, jpg, jpeg, gif, bmp, webp, svg, ico, tiff, tif, avif, heic, heif, cbz, cb7, cbr, rar, zip, 7z, cbt. The only network use is an explicit manual update check (Settings or command palette); there is no background polling.
 
 ## Capabilities and Constraints
 

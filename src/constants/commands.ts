@@ -2,7 +2,7 @@ import type { ShortcutActionId } from "@/constants/shortcuts"
 
 export type CommandGroup = "file" | "navigate" | "view" | "display" | "system"
 
-export type CommandId = ShortcutActionId | "openSettings"
+export type CommandId = ShortcutActionId | "openSettings" | "checkForUpdates"
 
 export type CommandContext = {
   hasImage: boolean
@@ -332,6 +332,12 @@ export const COMMAND_DEFS: readonly CommandDef[] = [
     group: "system",
     labelKey: "palette.settings",
     keywords: ["settings", "preferences", "설정"]
+  },
+  {
+    id: "checkForUpdates",
+    group: "system",
+    labelKey: "palette.checkUpdates",
+    keywords: ["update", "upgrade", "check", "version", "업데이트"]
   }
 ]
 

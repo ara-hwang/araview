@@ -15,7 +15,7 @@
 
 - Windows 10/11 x64 전용 오프라인 데스크톱 이미지/코믹 뷰어.
 - 프론트: React 18, TypeScript, Vite 6, Tailwind CSS 4, TanStack Router v1, Zustand 5, i18next.
-- 백엔드: Rust + Tauri 2. 플러그인: `store`, `window-state`, `opener`, `dialog`, `fs`, `single-instance` (디버그 한정 `mcp-bridge`).
+- 백엔드: Rust + Tauri 2. 플러그인: `store`, `window-state`, `opener`, `dialog`, `fs`, `single-instance`, `updater`, `process` (디버그 한정 `mcp-bridge`).
 - 라이브러리 가져오기, 계정, 네트워크 없이 로컬 파일만 다룬다.
 - 창은 프레임리스(`decorations: false`)이며 커스텀 타이틀바/툴바(`src/components/Header.tsx`)를 쓴다.
 
@@ -433,6 +433,7 @@
 
 - 그룹 순서: `file → navigate → view → display → system`.
 - `requiresImage`는 이미지 있을 때만, `requiresNavigation`은 이동 가능할 때만 활성화된다.
+- `system` 그룹은 항상 활성이다: 설정 열기(`openSettings`), 업데이트 확인(`checkForUpdates`).
 - 공백 분리 토큰 AND 매칭이며 점수는 라벨 시작 3점, 라벨 포함 2점, ID/영문 별칭 1점이다.
 - 한국어 UI에서도 영문 별칭(`open`, `copy`, `rotate`, `slideshow` 등)으로 검색된다.
 
@@ -540,6 +541,16 @@ Rust와 TypeScript는 같은 모양을 유지한다.
   - Comic 4종: cbz, cb7, cbr, cbt.
   - Archive 3종: rar, zip, 7z.
 - HEIC/HEIF는 vcpkg `libheif[core]` 동적 링크 + `libde265`만 사용한다. `embedded-libheif`를 켜지 않고 `x265`를 넣지 않는다. `VCPKG_ROOT`가 있으면 빌드 시 `heif.dll`, `libde265.dll`을 복사한다.
+
+### 21.1 자동 업데이트 (tauri-plugin-updater)
+
+수동 확인만 제공한다. 시작 시 자동 확인이나 백그라운드 폴링은 없다(오프라인 우선).
+
+- 진실: `src/hooks/useUpdater.ts`(확인/설치 흐름), `src/components/settings/GeneralTabPanel.tsx`(업데이트 섹션), `src/constants/commands.ts`(`checkForUpdates`), `src-tauri/tauri.conf.json`(`plugins.updater`), `src-tauri/capabilities/default.json`(`updater:default`, `process:default`), `.github/workflows/release.yml`(서명).
+- 진입점: 설정 일반 탭의 `지금 확인` 버튼, 명령 팔레트(`Ctrl+K`)의 `업데이트 확인`. 팔레트 실행은 `tiv:check-updates` 이벤트를 보내고, 루트(`__root.tsx`)의 `useUpdateCheckRequestListener`가 받아 `checkForUpdatesNow()`를 실행한다.
+- 흐름: `check()` → 없으면 `toast.update.latest`, 있으면 `toast.update.availableTitle` + `다운로드 및 설치` 액션 → `downloadAndInstall` 진행률 토스트 → 완료 시 `toast.update.installed` + `다시 시작` 액션(`relaunch`). 중복 확인은 `busy`로 무시한다.
+- 설정: `bundle.createUpdaterArtifacts: true`, `plugins.updater.endpoints: ["https://github.com/ara-hwang/araview/releases/latest/download/latest.json"]`. `pubkey`는 서명 공개키이며, 교체 전까지 `REPLACE_WITH_UPDATER_PUBLIC_KEY` 플레이스홀더이다.
+- 서명키 발급(maintainer 1회): `npm run tauri signer generate -- -w ~/.tauri/araview.key`. 공개키는 `tauri.conf.json`에, 비밀키/비밀번호는 repo Secrets `TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`에 등록한다. 릴리스 워크플로가 서명하고 `latest.json` + `.sig`를 태그 릴리스에 첨부한다.
 
 ## 22. 비목표와 제약
 

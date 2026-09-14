@@ -12,6 +12,7 @@ import { useAppStore } from "@/store/appStore"
 import { useSettingsStore } from "@/store/settingsStore"
 import { useIdleHide } from "@/hooks/useIdleHide"
 import { useOpenFileBridge } from "@/hooks/useOpenFileListener"
+import { useUpdateCheckRequestListener } from "@/hooks/useUpdater"
 import { cn } from "@/lib/utils"
 import { useTranslation } from "react-i18next"
 
@@ -54,6 +55,8 @@ function RootLayout() {
 
   // OS 파일 연결/두 번째 실행으로 열린 파일을 현재 라우트 로더로 전달한다.
   useOpenFileBridge()
+  // 명령 팔레트의 업데이트 확인 요청을 실제 확인으로 연결한다.
+  useUpdateCheckRequestListener()
 
   return (
     <ThemeProvider>
