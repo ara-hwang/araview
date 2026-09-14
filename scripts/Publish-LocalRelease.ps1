@@ -16,7 +16,9 @@
     5. Run a signed release build (skip with -SkipBuild to reuse artifacts).
     6. Check that the signature belongs to plugins.updater.pubkey.
     7. Collect the installer, its signature, and latest.json in <repo>/release/<tag>.
-    8. Push the tag and create or update the GitHub release.
+    8. Push the tag and create or update the release in -UpdatesRepo (defaults to
+       -Repo). With -FeedGistId the same latest.json is written to that gist, which
+       is what the app's updater endpoint can point at while the source stays private.
 
   The signing key stays on this machine; only the installer, its signature, and
   latest.json are uploaded.
@@ -32,12 +34,21 @@
   # Explicit key path, or inspect the flow without touching GitHub.
   pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/Publish-LocalRelease.ps1 -KeyPath D:\keys\araview.key -DryRun -SkipBuild
 .EXAMPLE
+  # Interim public feed: assets go to a public repo, latest.json to a public gist
+  # that plugins.updater.endpoints points at, while the source repo stays private.
+  npm run release:local -- -Publish -UpdatesRepo ara-hwang/araview-updates -FeedGistId <gist-id>
+.EXAMPLE
   # Reuse the last build and publish immediately instead of leaving a draft.
   npm run release:local -- -SkipBuild -Publish
 #>
 param(
-  # GitHub repository that hosts the release and the updater endpoint.
+  # GitHub repository that owns the source and, by default, the release.
   [string]$Repo = "ara-hwang/araview",
+  # Repository that hosts the release assets the updater downloads. Defaults to -Repo.
+  # Point this at a public repo while the source repository stays private.
+  [string]$UpdatesRepo,
+  # Gist id whose latest.json is kept in sync. The app's updater endpoint can point there.
+  [string]$FeedGistId,
   # Skip `npm run tauri build` and reuse the existing bundle artifacts.
   [switch]$SkipBuild,
   # Publish the release immediately instead of leaving it as a draft.
@@ -112,6 +123,7 @@ $tag = "v$version"
 if (-not $OutputDir) {
   $OutputDir = Join-Path $root "release/$tag"
 }
+$releaseRepo = if ($UpdatesRepo) { $UpdatesRepo } else { $Repo }
 Write-Output "Release: $productName $tag"
 
 # 2. the artifact has to match the tagged commit
@@ -212,7 +224,7 @@ $latest = [ordered]@{
   platforms = [ordered]@{
     "windows-x86_64" = [ordered]@{
       signature = (Get-Content -Raw -LiteralPath $assetSig).Trim()
-      url       = "https://github.com/$Repo/releases/download/$tag/$($installer.Name)"
+      url       = "https://github.com/$releaseRepo/releases/download/$tag/$($installer.Name)"
     }
   }
 }
@@ -236,7 +248,20 @@ if (-not $tagCommit) {
 git -C $root push origin $tag
 if ($LASTEXITCODE -ne 0) { Fail "git push origin $tag failed" }
 
-$viewRaw = (gh release view $tag --repo $Repo --json tagName,isDraft 2>&1 | Out-String).Trim()
+# When the release repo differs from the source repo (interim public feed), the tag
+# has to exist there as well. It points at that repo's default branch, since the feed
+# repo carries no source history.
+$null = gh api "repos/$releaseRepo/git/ref/tags/$tag" 2>&1
+if ($LASTEXITCODE -ne 0) {
+  $branch = (gh api "repos/$releaseRepo" --jq ".default_branch" | Out-String).Trim()
+  $branchSha = (gh api "repos/$releaseRepo/git/ref/heads/$branch" --jq ".object.sha" 2>&1 | Out-String).Trim()
+  if ($LASTEXITCODE -ne 0 -or -not $branchSha) { Fail "Release repo $releaseRepo has no branch $branch to tag." }
+  gh api -X POST "repos/$releaseRepo/git/refs" -f "ref=refs/tags/$tag" -f "sha=$branchSha" | Out-Null
+  if ($LASTEXITCODE -ne 0) { Fail "Failed to create tag $tag in $releaseRepo." }
+  Write-Output "Created tag $tag in $releaseRepo at $branchSha"
+}
+
+$viewRaw = (gh release view $tag --repo $releaseRepo --json tagName,isDraft 2>&1 | Out-String).Trim()
 $releaseExists = $LASTEXITCODE -eq 0
 $isDraft = $false
 if ($releaseExists) {
@@ -245,12 +270,12 @@ if ($releaseExists) {
 
 if ($releaseExists) {
   Write-Output "Release $tag exists, uploading assets with --clobber"
-  gh release upload $tag $assetInstaller $assetSig $latestPath --repo $Repo --clobber
+  gh release upload $tag $assetInstaller $assetSig $latestPath --repo $releaseRepo --clobber
 }
 else {
   $releaseArgs = @(
     "release", "create", $tag,
-    "--repo", $Repo,
+    "--repo", $releaseRepo,
     "--title", "$productName $tag",
     "--notes", $Notes,
     "--verify-tag",
@@ -262,11 +287,21 @@ else {
 if ($LASTEXITCODE -ne 0) { Fail "gh release failed with exit code $LASTEXITCODE" }
 
 if ($Publish -and $isDraft) {
-  gh release edit $tag --repo $Repo --draft=false
+  gh release edit $tag --repo $releaseRepo --draft=false
   if ($LASTEXITCODE -ne 0) { Fail "gh release edit failed with exit code $LASTEXITCODE" }
 }
 
 if (-not $Publish) {
-  Write-Output "Draft release ready. Publish with: gh release edit $tag --repo $Repo --draft=false"
+  Write-Output "Draft release ready. Publish with: gh release edit $tag --repo $releaseRepo --draft=false"
 }
-Write-Output "Done. Check with: gh release view $tag --repo $Repo"
+
+# Keep the public feed gist in sync when the app's updater endpoint points there.
+if ($FeedGistId) {
+  $gistBody = @{
+    files = @{ "latest.json" = @{ content = (Get-Content -Raw -LiteralPath $latestPath) } }
+  } | ConvertTo-Json -Depth 6 -Compress
+  $gistBody | gh api -X PATCH "gists/$FeedGistId" --input - | Out-Null
+  if ($LASTEXITCODE -ne 0) { Fail "Failed to update feed gist $FeedGistId." }
+  Write-Output "Updated feed gist: https://gist.github.com/$FeedGistId"
+}
+Write-Output "Done. Check with: gh release view $tag --repo $releaseRepo"
