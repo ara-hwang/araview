@@ -10,6 +10,7 @@ import {
 import { Spinner } from "@/components/ui/spinner"
 import { Switch } from "@/components/ui/switch"
 import { extensionLabel } from "@/constants/extensionLabels"
+import { APP_DISPLAY_NAME } from "@/constants/app"
 import {
   hasBlockedAssociation,
   useFileAssociations
@@ -110,7 +111,9 @@ export function ExtensionSettingsPanel({
         <Alert>
           <WarningCircle className="size-6" />
           <AlertTitle>{t("settings.ext.blockedTitle")}</AlertTitle>
-          <AlertDescription>{t("settings.ext.blockedDesc")}</AlertDescription>
+          <AlertDescription>
+            {t("settings.ext.blockedDesc", { appName: APP_DISPLAY_NAME })}
+          </AlertDescription>
         </Alert>
       ) : null}
 

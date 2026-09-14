@@ -21,7 +21,7 @@ Product truth lives in `PRODUCT.md`, visual system in `DESIGN.md`, full function
 - Navigation: previous/next, slider jump, thumbnail strip, optional loop navigation
 - Extra features: EXIF panel, slideshow, fullscreen, copy image to clipboard (PNG), recent files, manual update check (tauri-plugin-updater, no background polling)
 - Command palette (`Ctrl+K`): searchable global commands, see `src/constants/commands.ts`
-- File associations: settings open the Windows per-extension default-app picker; silent UserChoice writes are not possible
+- File associations: settings open the Windows per-extension default-app picker; silent UserChoice writes are not possible. Dev builds register as `AraView (Dev)` with separate registry keys/ProgIDs so they cannot collide with the installed build (`src-tauri/src/file_assoc.rs`)
 - Multi-page view modes: `single`, `left-to-right`, `right-to-left`, `webtoon`
 
 ## Commands
