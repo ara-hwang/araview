@@ -17,8 +17,8 @@
     6. Check that the signature belongs to plugins.updater.pubkey.
     7. Collect the installer, its signature, and latest.json in <repo>/release/<tag>.
     8. Push the tag and create or update the release in -UpdatesRepo (defaults to
-       -Repo). With -FeedGistId the same latest.json is written to that gist, which
-       is what the app's updater endpoint can point at while the source stays private.
+       -Repo). That release holds the installer, its signature, and latest.json,
+       which is what the updater endpoint points at while the source stays private.
 
   The signing key stays on this machine; only the installer, its signature, and
   latest.json are uploaded.
@@ -34,9 +34,9 @@
   # Explicit key path, or inspect the flow without touching GitHub.
   pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/Publish-LocalRelease.ps1 -KeyPath D:\keys\araview.key -DryRun -SkipBuild
 .EXAMPLE
-  # Interim public feed: assets go to a public repo, latest.json to a public gist
+  # Interim public feed: the release (assets plus latest.json) goes to a public repo
   # that plugins.updater.endpoints points at, while the source repo stays private.
-  npm run release:local -- -Publish -UpdatesRepo ara-hwang/araview-updates -FeedGistId <gist-id>
+  npm run release:local -- -Publish -UpdatesRepo ara-hwang/araview-updates
 .EXAMPLE
   # Reuse the last build and publish immediately instead of leaving a draft.
   npm run release:local -- -SkipBuild -Publish
@@ -47,8 +47,6 @@ param(
   # Repository that hosts the release assets the updater downloads. Defaults to -Repo.
   # Point this at a public repo while the source repository stays private.
   [string]$UpdatesRepo,
-  # Gist id whose latest.json is kept in sync. The app's updater endpoint can point there.
-  [string]$FeedGistId,
   # Skip `npm run tauri build` and reuse the existing bundle artifacts.
   [switch]$SkipBuild,
   # Publish the release immediately instead of leaving it as a draft.
@@ -293,15 +291,5 @@ if ($Publish -and $isDraft) {
 
 if (-not $Publish) {
   Write-Output "Draft release ready. Publish with: gh release edit $tag --repo $releaseRepo --draft=false"
-}
-
-# Keep the public feed gist in sync when the app's updater endpoint points there.
-if ($FeedGistId) {
-  $gistBody = @{
-    files = @{ "latest.json" = @{ content = (Get-Content -Raw -LiteralPath $latestPath) } }
-  } | ConvertTo-Json -Depth 6 -Compress
-  $gistBody | gh api -X PATCH "gists/$FeedGistId" --input - | Out-Null
-  if ($LASTEXITCODE -ne 0) { Fail "Failed to update feed gist $FeedGistId." }
-  Write-Output "Updated feed gist: https://gist.github.com/$FeedGistId"
 }
 Write-Output "Done. Check with: gh release view $tag --repo $releaseRepo"
