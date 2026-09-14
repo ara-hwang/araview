@@ -49,9 +49,10 @@ import { updateSettings, useSettingsStore } from "@/store/settingsStore"
 import { formatShortcutDisplay } from "@/constants/shortcuts"
 import { useTranslation } from "react-i18next"
 
-// 윈도우 캡션 버튼: 네이티브처럼 타이틀바 높이를 꽉 채우고 모서리에 붙인다
+// 윈도우 캡션 버튼: 네이티브처럼 타이틀바 높이를 꽉 채우고 모서리에 붙인다.
+// 드래그 영역 안에 있으므로 no-drag로 제외한다 (더블클릭 최대화 방지).
 const captionButtonClassName = cn(
-  "flex w-12 shrink-0 items-center justify-center text-foreground transition-colors [&_svg]:size-4",
+  "no-drag flex w-12 shrink-0 items-center justify-center text-foreground transition-colors [&_svg]:pointer-events-none [&_svg]:size-4",
   "hover:bg-muted active:bg-foreground/10",
   "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
 )
@@ -159,7 +160,7 @@ export default function Header({
           data-tauri-drag-region
           className="flex min-w-0 flex-1 items-center justify-between gap-2 overflow-hidden p-2"
         >
-          <ButtonGroup>
+          <ButtonGroup className="no-drag">
             <Button
               variant="outline"
               onClick={handleGoHome}
@@ -185,9 +186,9 @@ export default function Header({
             </Button>
           </ButtonGroup>
 
-          <ButtonGroup>
-            <ButtonGroup>
-              <ButtonGroup>
+          <ButtonGroup className="no-drag">
+            <ButtonGroup className="no-drag">
+              <ButtonGroup className="no-drag">
                 <Button
                   variant="ghost"
                   onClick={() => setZoomToFit("width")}
@@ -243,7 +244,7 @@ export default function Header({
 
               <Separator orientation="vertical" />
 
-              <ButtonGroup>
+              <ButtonGroup className="no-drag">
                 <Button
                   variant="ghost"
                   onClick={zoomOut}
@@ -261,7 +262,7 @@ export default function Header({
                 </Button>
                 <ButtonGroupText
                   className={cn(
-                    "hidden tabular-nums focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] focus-visible:outline-none sm:flex",
+                    "no-drag hidden tabular-nums focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] focus-visible:outline-none sm:flex",
                     !hasImage && "opacity-50"
                   )}
                   render={
@@ -304,7 +305,7 @@ export default function Header({
                 className="hidden min-[840px]:block"
               />
 
-              <ButtonGroup className="hidden min-[840px]:flex">
+              <ButtonGroup className="no-drag hidden min-[840px]:flex">
                 <Button
                   variant="ghost"
                   size="icon"
@@ -355,7 +356,7 @@ export default function Header({
             </ButtonGroup>
 
             {/* 이미지 종속(Info)은 캔버스 조작 쪽에, 전역(Command/Settings)은 우측 유틸군에 둔다 */}
-            <ButtonGroup>
+            <ButtonGroup className="no-drag">
               <Button
                 variant="outline"
                 onClick={() => void toggleExifPanel()}
@@ -373,7 +374,7 @@ export default function Header({
               </Button>
             </ButtonGroup>
 
-            <ButtonGroup>
+            <ButtonGroup className="no-drag">
               <Button
                 variant="outline"
                 onClick={() => usePaletteStore.getState().setOpen(true)}
@@ -401,7 +402,7 @@ export default function Header({
               </Button>
             </ButtonGroup>
 
-            <ButtonGroup className="hidden md:flex">
+            <ButtonGroup className="no-drag hidden md:flex">
               <Button
                 variant="outline"
                 size="icon"
@@ -423,7 +424,7 @@ export default function Header({
                 <PushPin weight={alwaysOnTop ? "fill" : "regular"} />
               </Button>
             </ButtonGroup>
-            <ButtonGroup>
+            <ButtonGroup className="no-drag">
               <Button
                 variant="outline"
                 size="icon"
@@ -441,8 +442,8 @@ export default function Header({
           </ButtonGroup>
         </div>
 
-        {/* 윈도우 캡션 버튼: 타이틀바 우측 끝을 꽉 채운다 */}
-        <div className="flex shrink-0 items-stretch">
+        {/* 윈도우 캡션 버튼: 타이틀바 우측 끝을 꽉 채운다. 드래그/더블클릭 최대화 제외. */}
+        <div className="no-drag flex shrink-0 items-stretch">
           <button
             type="button"
             onClick={handleMinimize}

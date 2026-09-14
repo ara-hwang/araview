@@ -73,7 +73,7 @@ function RootLayout() {
               onClick={() => void updateSettings({ menuBarHidden: false })}
               title={t("header.showMenuBar")}
               aria-label={t("header.showMenuBar")}
-              className="bg-background text-muted-foreground hover:text-foreground rounded-b-md border border-t-0 px-2 py-0.5 opacity-0 shadow-md transition-opacity group-hover:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] focus-visible:outline-none"
+              className="no-drag bg-background text-muted-foreground hover:text-foreground rounded-b-md border border-t-0 px-2 py-0.5 opacity-0 shadow-md transition-opacity group-hover:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] focus-visible:outline-none [&_svg]:pointer-events-none"
             >
               <CaretDown aria-hidden="true" />
             </button>
