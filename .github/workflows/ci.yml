@@ -8,6 +8,12 @@ on:
     branches:
       - main
 
+# 같은 ref에서 실행 중인 이전 작업은 취소하고 최신 푸시만 검증한다.
+# 푸시가 연달아 들어와도 동시에 여러 CI가 돌지 않는다.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   VCPKG_BINARY_SOURCES: clear;x-gha,readwrite
 
