@@ -16,6 +16,7 @@ import { PerformanceTabPanel } from "@/components/settings/PerformanceTabPanel"
 import { ShortcutsTabPanel } from "@/components/settings/ShortcutsTabPanel"
 import { ExtensionSettingsPanel } from "@/components/settings/ExtensionSettingsPanel"
 import { resetSettings } from "@/store/settingsStore"
+import { useTheme } from "@/components/theme-provider"
 import { cn } from "cn"
 import {
   ArrowCounterClockwise,
@@ -39,6 +40,7 @@ type SettingsDialogProps = {
 export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
   const { t } = useTranslation()
   const [tab, setTab] = useState<SettingsTab>("general")
+  const { setTheme } = useTheme()
 
   const SIDEBAR_ITEMS: {
     id: SettingsTab
@@ -89,6 +91,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
     }).catch(() => false)
     if (!ok) return
     await resetSettings()
+    setTheme("system")
   }
 
   return (

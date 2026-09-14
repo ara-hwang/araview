@@ -11,11 +11,13 @@ import {
   type SettingsState
 } from "@/store/settingsStore"
 import { useRecentFilesStore } from "@/store/recentFilesStore"
+import { useTheme, type Theme } from "@/components/theme-provider"
 import { checkForUpdatesNow, useAppVersion } from "@/hooks/useUpdater"
 import {
   ArrowClockwise,
   ClockCounterClockwise,
   House,
+  Moon,
   NavigationArrow,
   SkipForward,
   Translate
@@ -38,6 +40,8 @@ export function GeneralTabPanel() {
   const handleSettingsChange = (next: Partial<SettingsState>) => {
     void updateSettings(next)
   }
+
+  const { theme, setTheme } = useTheme()
 
   const handleRecentChange = (value: string) => {
     const enabled = value === "on"
@@ -79,6 +83,38 @@ export function GeneralTabPanel() {
             <RadioGroupItem value="en" id="settings-lang-en" />
             <Label htmlFor="settings-lang-en">
               {t("settings.language.en")}
+            </Label>
+          </Field>
+        </RadioGroup>
+      </SettingsFieldSet>
+
+      <FieldSeparator />
+
+      <SettingsFieldSet
+        icon={<Moon className="size-6" />}
+        title={t("settings.theme.title")}
+        description={t("settings.theme.desc")}
+      >
+        <RadioGroup
+          value={theme}
+          onValueChange={(value) => setTheme(value as Theme)}
+        >
+          <Field orientation="horizontal">
+            <RadioGroupItem value="system" id="settings-theme-system" />
+            <Label htmlFor="settings-theme-system">
+              {t("settings.theme.system")}
+            </Label>
+          </Field>
+          <Field orientation="horizontal">
+            <RadioGroupItem value="light" id="settings-theme-light" />
+            <Label htmlFor="settings-theme-light">
+              {t("settings.theme.light")}
+            </Label>
+          </Field>
+          <Field orientation="horizontal">
+            <RadioGroupItem value="dark" id="settings-theme-dark" />
+            <Label htmlFor="settings-theme-dark">
+              {t("settings.theme.dark")}
             </Label>
           </Field>
         </RadioGroup>

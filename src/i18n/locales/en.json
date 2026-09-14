@@ -125,6 +125,13 @@
       "ko": "한국어",
       "en": "English"
     },
+    "theme": {
+      "title": "Theme",
+      "desc": "Overall app brightness",
+      "system": "Follow system",
+      "light": "Light",
+      "dark": "Dark"
+    },
     "nav": {
       "title": "Navigation",
       "desc": "How to move at the first/last image",
