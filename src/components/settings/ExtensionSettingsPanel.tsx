@@ -88,9 +88,6 @@ export function ExtensionSettingsPanel({
                   <FieldLabel htmlFor={fieldId}>.{item.extension}</FieldLabel>
                   <FieldDescription>
                     {extensionLabel(item.extension)}
-                    {item.needs_os_confirmation && !item.associated
-                      ? t("settings.ext.needsConfirm")
-                      : null}
                   </FieldDescription>
                 </FieldContent>
                 <Switch
