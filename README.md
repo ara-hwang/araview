@@ -119,16 +119,14 @@ cd src-tauri && cargo clippy
 
 ### 업데이트 피드 (소스 저장소가 비공개인 동안)
 
-앱의 updater는 인증 없이 엔드포인트를 받아야 하므로, 소스가 비공개인 동안에는 공개 위치에 자산을 둡니다.
-
-- 피드 메타데이터: 공개 gist의 `latest.json` (`plugins.updater.endpoints`가 이 raw URL을 가리킴)
-- 설치본: 공개 저장소 `ara-hwang/araview-updates`의 릴리스 자산
+앱의 updater는 인증 없이 엔드포인트를 받아야 하므로, 소스가 비공개인 동안에는 공개 저장소의 릴리스에 자산을 게시합니다.
 
 ```powershell
-npm run release:local -- -Publish -UpdatesRepo ara-hwang/araview-updates -FeedGistId <gist-id>
+npm run release:local -- -Publish -UpdatesRepo ara-hwang/araview-updates
 ```
 
-소스 저장소를 공개로 전환하면 `-UpdatesRepo`, `-FeedGistId` 없이 실행하고 `plugins.updater.endpoints`를 원래 릴리스 URL로 되돌립니다. 엔드포인트는 앱에 포함되므로 변경 사항은 그다음 릴리스부터 적용됩니다.
+- 피드(`latest.json`)와 설치본이 모두 `ara-hwang/araview-updates` 릴리스에 있고, `plugins.updater.endpoints`는 `https://github.com/ara-hwang/araview-updates/releases/latest/download/latest.json`을 가리킵니다.
+- 소스 저장소를 공개로 전환하면 `-UpdatesRepo` 없이 실행하고 endpoint를 원래 릴리스 URL로 되돌립니다. 엔드포인트는 앱에 포함되므로 그다음 릴리스부터 적용됩니다.
 
 ### 서명키 발급과 등록 (maintainer 1회)
 
