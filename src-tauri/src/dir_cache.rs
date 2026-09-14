@@ -14,10 +14,8 @@
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{LazyLock, Mutex};
 use std::time::SystemTime;
-
-use once_cell::sync::Lazy;
 
 use crate::app_error::{AppError, ErrorCode};
 use crate::commands::{DirListOptions, DirSortKey};
@@ -39,10 +37,12 @@ struct CachedListing {
     images: Vec<ImageEntry>,
 }
 
-static DIR_CACHE: Lazy<Mutex<HashMap<String, CachedListing>>> =
-    Lazy::new(|| Mutex::new(HashMap::new()));
-static WATCHED_DIRS: Lazy<Mutex<HashSet<PathBuf>>> = Lazy::new(|| Mutex::new(HashSet::new()));
-static WATCHER: Lazy<Mutex<Option<notify::RecommendedWatcher>>> = Lazy::new(|| Mutex::new(None));
+static DIR_CACHE: LazyLock<Mutex<HashMap<String, CachedListing>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
+static WATCHED_DIRS: LazyLock<Mutex<HashSet<PathBuf>>> =
+    LazyLock::new(|| Mutex::new(HashSet::new()));
+static WATCHER: LazyLock<Mutex<Option<notify::RecommendedWatcher>>> =
+    LazyLock::new(|| Mutex::new(None));
 
 pub(crate) fn cache_key(parent: &Path, opts: &DirListOptions) -> String {
     let sort = match opts.sort_key {

@@ -2,18 +2,17 @@ use std::collections::HashMap;
 use std::fs;
 use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, LazyLock, Mutex};
 use std::time::UNIX_EPOCH;
 
 use jpeg_encoder::{ColorType, Encoder};
 use libheif_rs::{ColorSpace, HeifContext, LibHeif, RgbChroma};
-use once_cell::sync::Lazy;
 
 use crate::app_error::{AppError, ErrorCode};
 use crate::process_temp::process_temp_dir;
 
-static SIDECAR_LOCKS: Lazy<Mutex<HashMap<String, Arc<Mutex<()>>>>> =
-    Lazy::new(|| Mutex::new(HashMap::new()));
+static SIDECAR_LOCKS: LazyLock<Mutex<HashMap<String, Arc<Mutex<()>>>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
 
 pub(crate) struct Rgb8 {
     pub width: u32,

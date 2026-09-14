@@ -1,11 +1,10 @@
 use std::path::PathBuf;
-use std::sync::Mutex;
-
-use once_cell::sync::Lazy;
+use std::sync::{LazyLock, Mutex};
 
 use crate::app_error::AppError;
 
-static PROCESS_TEMP_DIR: Lazy<Mutex<Option<tempfile::TempDir>>> = Lazy::new(|| Mutex::new(None));
+static PROCESS_TEMP_DIR: LazyLock<Mutex<Option<tempfile::TempDir>>> =
+    LazyLock::new(|| Mutex::new(None));
 
 pub fn process_temp_dir() -> Result<PathBuf, AppError> {
     let mut guard = PROCESS_TEMP_DIR

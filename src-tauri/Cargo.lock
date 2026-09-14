@@ -97,7 +97,6 @@ dependencies = [
  "kamadak-exif",
  "libheif-rs",
  "notify",
- "once_cell",
  "rars",
  "serde",
  "serde_json",
