@@ -25,7 +25,7 @@ fn sync_dev_mcp_capability() {
         // 내용이 같으면 쓰지 않는다. 매 빌드마다 mtime이 갱신되면
         // `tauri dev` 워처가 무한 재빌드에 빠진다.
         let unchanged = fs::read_to_string(&cap_path).ok().as_deref() == Some(content);
-        if (!unchanged) {
+        if !unchanged {
             fs::write(&cap_path, content).expect("write dev-mcp capability");
         }
     } else if cap_path.exists() {
