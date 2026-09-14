@@ -1,16 +1,18 @@
 import { useAppStore } from "@/store/appStore"
-import { formatDimensions, formatFileSize } from "../utils/format"
+import { formatDimensions, formatFileSize } from "@/utils/format"
+import { buildStatusModel } from "@/utils/statusBar"
 import { useShallow } from "zustand/react/shallow"
 import { useTranslation } from "react-i18next"
 
 export function StatusBar() {
   const { t } = useTranslation()
-  const { imageInfo, zoom, imageSize, dirImages } = useAppStore(
+  const { imageInfo, zoom, imageSize, dirImages, archivePath } = useAppStore(
     useShallow((state) => ({
       imageInfo: state.imageInfo,
       zoom: state.zoom,
       imageSize: state.imageSize,
-      dirImages: state.dirImages
+      dirImages: state.dirImages,
+      archivePath: state.archivePath
     }))
   )
 
@@ -29,15 +31,78 @@ export function StatusBar() {
   }
   if (imageInfo) tokens.push(formatFileSize(imageInfo.file_size))
 
+  // temp 경로(sidecar/추출물) 노출 방지: 폴더/파일명은 dirImages와
+  // archivePath에서만 도출하고 imageInfo.file_path는 쓰지 않는다.
+  const model = buildStatusModel({
+    archivePath,
+    currentEntry: dirImages.images[dirImages.current_index],
+    fallbackFileName: imageInfo?.file_name ?? null
+  })
+
   return (
     <div
       className="bg-background absolute bottom-0 flex h-6 w-full items-center justify-between gap-2 border-t px-2 text-xs"
       role="status"
       aria-label={t("status.barLabel")}
     >
-      <span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap">
-        {imageInfo?.file_name ?? t("status.empty")}
-      </span>
+      {model.kind === "empty" ? (
+        <span className="min-w-0 flex-1 truncate">{t("status.empty")}</span>
+      ) : model.kind === "archive" ? (
+        <span
+          className="flex min-w-0 flex-1 items-baseline gap-1 overflow-hidden whitespace-nowrap"
+          title={model.tooltip}
+        >
+          {model.folderName && (
+            <>
+              <span className="text-muted-foreground hidden max-w-32 min-w-0 shrink truncate sm:inline">
+                {model.folderName}
+              </span>
+              <span
+                aria-hidden="true"
+                className="text-muted-foreground hidden shrink-0 sm:inline"
+              >
+                /
+              </span>
+            </>
+          )}
+          <span className="max-w-48 min-w-0 shrink-0 truncate font-medium">
+            {model.archiveName}
+          </span>
+          {model.entryName && (
+            <>
+              <span
+                aria-hidden="true"
+                className="text-muted-foreground shrink-0"
+              >
+                ›
+              </span>
+              <span className="min-w-0 flex-1 truncate">{model.entryName}</span>
+            </>
+          )}
+        </span>
+      ) : (
+        <span
+          className="flex min-w-0 flex-1 items-baseline gap-1 overflow-hidden whitespace-nowrap"
+          title={model.tooltip}
+        >
+          {model.folderName && (
+            <>
+              <span className="text-muted-foreground hidden max-w-40 min-w-0 shrink truncate sm:inline">
+                {model.folderName}
+              </span>
+              <span
+                aria-hidden="true"
+                className="text-muted-foreground hidden shrink-0 sm:inline"
+              >
+                /
+              </span>
+            </>
+          )}
+          <span className="min-w-0 flex-1 truncate font-medium">
+            {model.fileName}
+          </span>
+        </span>
+      )}
       <span className="shrink-0 font-mono tabular-nums">
         {tokens.length > 0 ? tokens.join(" | ") : t("status.unknown")}
       </span>
