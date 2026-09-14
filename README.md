@@ -115,6 +115,8 @@ cd src-tauri && cargo clippy
 
 릴리스는 태그(`v*`) 푸시로 GitHub Releases에 발행되며, updater 아티팩트(`latest.json`, `.sig`)가 함께 첨부됩니다. 태그 푸시 시 릴리스 워크플로가 프런트/Rust 검사를 먼저 돌리고, 통과해야 빌드와 릴리스로 진행합니다. main 푸시와 PR에는 워크플로가 돌지 않으므로 검사는 로컬에서 먼저 실행하세요.
 
+릴리스 생성 권한은 `GITHUB_TOKEN`(`contents: write`)을 씁니다. 저장소 Settings → Actions → General의 워크플로 권한이 `Read and write`여야 하며, `read`로 유지하려면 `contents: write` 권한의 fine-grained PAT를 `RELEASE_TOKEN` 시크릿으로 등록하세요(워크플로가 자동으로 그것을 사용).
+
 ### 서명키 발급과 등록 (maintainer 1회)
 
 ```powershell
