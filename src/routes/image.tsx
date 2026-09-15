@@ -40,6 +40,8 @@ import { useWheelNavigation } from "@/hooks/useWheelNavigation"
 import { useZoomPan } from "@/hooks/useZoomPan"
 import { useCallback, useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
+import { toast } from "sonner"
+import { saveBlockedReason } from "@/hooks/useFileOperations"
 
 export const Route = createFileRoute("/image")({
   beforeLoad: () => {
@@ -217,6 +219,16 @@ function ImagePage() {
     useAppStore((state) => state.imageInfo?.file_name) ?? ""
   const closeAndGoHome = useCloseImage()
 
+  /** PSD/SVG/AVIF는 저장 불가라 다이얼로그를 열지 않고 즉시 안내한다. */
+  const handleOpenSaveDialog = useCallback(() => {
+    const blocked = saveBlockedReason(useAppStore.getState().imageInfo)
+    if (blocked) {
+      toast.info(t(`toast.save.${blocked}`))
+      return
+    }
+    setSaveOpen(true)
+  }, [t])
+
   // 명령 팔레트에서 뷰어 동작을 실행할 수 있도록 핸들러 등록
   useEffect(() => {
     registerPaletteHandlers({
@@ -234,7 +246,7 @@ function ImagePage() {
       onOpenExternal: () => void openExternal(),
       onRenameFile: () => setRenameOpen(true),
       onCopyPath: () => void copyPathCurrent(),
-      onSaveEdits: () => setSaveOpen(true),
+      onSaveEdits: handleOpenSaveDialog,
       onToggleGrid: toggleGrid
     })
     return () => {
@@ -252,7 +264,8 @@ function ImagePage() {
     revealCurrent,
     openExternal,
     copyPathCurrent,
-    toggleGrid
+    toggleGrid,
+    handleOpenSaveDialog
   ])
 
   /** Esc 닫기: 그리드/다이얼로그가 열려 있거나 입력 중일 때는 뷰어를 닫지 않는다 */
@@ -305,7 +318,7 @@ function ImagePage() {
     onOpenExternal: () => void openExternal(),
     onRenameFile: () => setRenameOpen(true),
     onCopyPath: () => void copyPathCurrent(),
-    onSaveEdits: () => setSaveOpen(true),
+    onSaveEdits: handleOpenSaveDialog,
     onToggleGrid: toggleGrid
   })
 
@@ -400,7 +413,7 @@ function ImagePage() {
     onRenameFile: () => setRenameOpen(true),
     onCopyPath: () => void copyPathCurrent(),
     onToggleShuffle: () => toggleShuffleAndRefresh(),
-    onSaveEdits: () => setSaveOpen(true),
+    onSaveEdits: handleOpenSaveDialog,
     onToggleGrid: toggleGrid,
     disabled: gridOpen
   })

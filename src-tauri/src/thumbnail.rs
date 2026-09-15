@@ -4,7 +4,7 @@
 //! This module decodes via the `image` crate, resizes to a bounded side
 //! length and stores a JPEG under `process_temp/thumbs/`, reusing the
 //! existing sidecar on repeat calls. Formats the `image` crate cannot decode
-//! (e.g. SVG, HEIC, archive entry names) return an error so the frontend can
+//! (e.g. SVG, archive entry names) return an error so the frontend can
 //! fall back to the original render path.
 
 use std::fs;
@@ -36,8 +36,12 @@ pub fn generate_thumbnail(source: &Path, max_side: u32) -> Result<ThumbnailInfo,
         return Err(AppError::not_found("File not found"));
     }
     let max_side = max_side.clamp(32, 1024);
-    if is_heif_source(source) {
-        let sidecar = crate::heif::ensure_jpeg_sidecar_thumb(source, max_side)?;
+    if is_sidecar_source(source) {
+        let sidecar = if is_psd_source(source) {
+            crate::psd_sidecar::ensure_jpeg_sidecar_thumb(source, max_side)?
+        } else {
+            crate::heif::ensure_jpeg_sidecar_thumb(source, max_side)?
+        };
         let (width, height) = image::image_dimensions(&sidecar)
             .map_err(|e| AppError::corrupt(format!("Failed to read thumbnail: {e}")))?;
         return Ok(ThumbnailInfo {
@@ -64,6 +68,10 @@ pub fn generate_thumbnail(source: &Path, max_side: u32) -> Result<ThumbnailInfo,
     })
 }
 
+fn is_sidecar_source(source: &Path) -> bool {
+    is_heif_source(source) || is_psd_source(source)
+}
+
 fn is_heif_source(source: &Path) -> bool {
     matches!(
         source
@@ -72,6 +80,17 @@ fn is_heif_source(source: &Path) -> bool {
             .map(|e| e.to_lowercase())
             .as_deref(),
         Some("heic" | "heif")
+    )
+}
+
+fn is_psd_source(source: &Path) -> bool {
+    matches!(
+        source
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(|e| e.to_lowercase())
+            .as_deref(),
+        Some("psd")
     )
 }
 
@@ -257,6 +276,25 @@ mod tests {
         fs::write(&source, b"hello").unwrap();
         let err = generate_thumbnail(&source, 64).unwrap_err();
         assert!(!err.message.is_empty());
+    }
+
+    #[test]
+    fn psd_uses_jpeg_sidecar_thumb() {
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("design.psd");
+        fs::write(
+            &source,
+            crate::psd_sidecar::minimal_psd_bytes(200, 100, [9, 9, 9]),
+        )
+        .unwrap();
+
+        let thumb = generate_thumbnail(&source, 64).expect("psd thumb");
+        assert!(thumb.file_path.ends_with(".jpg"));
+        assert!(thumb.width <= 64 && thumb.height <= 64);
+        assert_eq!((thumb.width, thumb.height), (64, 32));
+
+        let bytes = fs::read(&thumb.file_path).unwrap();
+        assert_eq!(&bytes[..2], &[0xFF, 0xD8]);
     }
 
     #[test]

@@ -26,6 +26,54 @@ export function getEffectivePath(
   return imagePath
 }
 
+/** PSD 미리보기 MIME. `file_path`는 JPEG sidecar일 수 있어 판정은 MIME/파일명 기준. */
+export const PSD_MIME_TYPE = "image/vnd.adobe.photoshop"
+
+/** SVG MIME. 래스터 편집 파이프라인으로 저장할 수 없어 진입 차단된다. */
+export const SVG_MIME_TYPE = "image/svg+xml"
+
+/** AVIF MIME. 백엔드 디코더가 없어(보기만 WebView2 네이티브) 진입 차단된다. */
+export const AVIF_MIME_TYPE = "image/avif"
+
+/** 읽기 전용 PSD 미리보기인지. 저장은 진입 차단된다. */
+export function isPsdImage(
+  imageInfo: Pick<ImageInfo, "mime_type" | "file_name"> | null
+): boolean {
+  if (!imageInfo) return false
+  if (imageInfo.mime_type === PSD_MIME_TYPE) return true
+  return imageInfo.file_name.toLowerCase().endsWith(".psd")
+}
+
+/** 저장 불가 SVG인지. 저장은 진입 차단된다. */
+export function isSvgImage(
+  imageInfo: Pick<ImageInfo, "mime_type" | "file_name"> | null
+): boolean {
+  if (!imageInfo) return false
+  if (imageInfo.mime_type === SVG_MIME_TYPE) return true
+  return imageInfo.file_name.toLowerCase().endsWith(".svg")
+}
+
+/** 저장 불가 AVIF인지. 저장은 진입 차단된다. */
+export function isAvifImage(
+  imageInfo: Pick<ImageInfo, "mime_type" | "file_name"> | null
+): boolean {
+  if (!imageInfo) return false
+  if (imageInfo.mime_type === AVIF_MIME_TYPE) return true
+  return imageInfo.file_name.toLowerCase().endsWith(".avif")
+}
+
+export type SaveBlockedReason = "noPsd" | "noSvg" | "noAvif"
+
+/** 저장 진입 차단 사유. null이면 저장 가능. */
+export function saveBlockedReason(
+  imageInfo: Pick<ImageInfo, "mime_type" | "file_name"> | null
+): SaveBlockedReason | null {
+  if (isPsdImage(imageInfo)) return "noPsd"
+  if (isSvgImage(imageInfo)) return "noSvg"
+  if (isAvifImage(imageInfo)) return "noAvif"
+  return null
+}
+
 /** 휴지통 이동 후 보여줄 다음 경로. 비어있으면 null (홈으로 귀환) */
 export function getNextPathAfterTrash(
   images: string[],
@@ -207,6 +255,11 @@ export function useFileOperations({ loadImage }: { loadImage: LoadImageFn }) {
       }
       if (archivePath) {
         toast.info(i18n.t("toast.save.noArchive"))
+        return false
+      }
+      const blocked = saveBlockedReason(imageInfo)
+      if (blocked) {
+        toast.info(i18n.t(`toast.save.${blocked}`))
         return false
       }
       const noChange =

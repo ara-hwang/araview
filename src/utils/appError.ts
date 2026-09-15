@@ -21,7 +21,7 @@ const KO_TEXT: Record<AppErrorKind, { title: string; hint: string }> = {
   },
   unsupported: {
     title: "지원하지 않는 형식입니다",
-    hint: "지원 포맷(png/jpg/webp/svg/avif/heic/cbz/cbr 등)인지 확인하거나 다른 뷰어로 열어보세요."
+    hint: "지원 포맷(png/jpg/webp/svg/avif/heic/psd/cbz/cbr 등)인지 확인하거나 다른 뷰어로 열어보세요."
   },
   corrupt: {
     title: "파일을 읽는 중 문제가 발생했습니다",
@@ -67,6 +67,10 @@ const EXACT_KIND: ReadonlyMap<string, AppErrorKind> = new Map([
   ["No images found in archive", "not-found"],
   ["Unsupported image format", "unsupported"],
   ["Unsupported archive format", "unsupported"],
+  ["PSD files are read-only", "unsupported"],
+  ["SVG save is not supported", "unsupported"],
+  ["AVIF save is not supported", "unsupported"],
+  ["PSB is not supported", "unsupported"],
   ["Not an archive file", "unsupported"],
   ["Unsupported path type", "unsupported"],
   ["Archive entry too large", "unsupported"]

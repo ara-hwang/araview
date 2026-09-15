@@ -333,7 +333,7 @@
       "newFile": "새 파일로 저장",
       "newNamePlaceholder": "비우면 자동으로 이름 생성 (확장자는 포맷 기준)",
       "newNameAria": "새 파일 이름",
-      "note": "포맷 변경·HEIC·GIF 등은 항상 새 파일로 저장됩니다. GIF는 첫 프레임만 저장됩니다.",
+      "note": "포맷 변경·HEIC·GIF 등은 항상 새 파일로 저장됩니다. GIF는 첫 프레임만 저장됩니다. PSD는 읽기 전용입니다.",
       "submit": "저장",
       "transform": {
         "rotated": "회전 {{deg}}°",
@@ -421,7 +421,7 @@
     },
     "unsupported": {
       "title": "지원하지 않는 형식입니다",
-      "hint": "지원 포맷(png/jpg/webp/svg/avif/heic/cbz/cbr 등)인지 확인하거나 다른 뷰어로 열어보세요."
+      "hint": "지원 포맷(png/jpg/webp/svg/avif/heic/psd/cbz/cbr 등)인지 확인하거나 다른 뷰어로 열어보세요."
     },
     "corrupt": {
       "title": "파일을 읽는 중 문제가 발생했습니다",
@@ -475,6 +475,9 @@
     "save": {
       "empty": "저장할 이미지가 없습니다",
       "noArchive": "아카이브 모드에서는 저장할 수 없습니다",
+      "noPsd": "PSD 파일은 읽기 전용이라 저장할 수 없습니다",
+      "noSvg": "SVG 파일은 저장할 수 없습니다",
+      "noAvif": "AVIF 파일은 저장할 수 없습니다",
       "noChange": "적용할 변경 사항이 없습니다",
       "fail": "저장 실패",
       "done": "저장 완료"
@@ -550,6 +553,7 @@
     "avif": "AVIF 이미지",
     "heic": "HEIC 이미지",
     "heif": "HEIF 이미지",
+    "psd": "PSD 이미지",
     "cbz": "만화 아카이브",
     "cb7": "만화 아카이브",
     "cbr": "만화 아카이브",
