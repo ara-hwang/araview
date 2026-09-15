@@ -4,6 +4,8 @@ import { CaretDown } from "@phosphor-icons/react"
 import { Toaster } from "@/components/ui/sonner"
 import { ThemeProvider } from "@/components/theme-provider"
 import Header from "@/components/Header"
+import { SettingsDialog } from "@/components/SettingsDialog"
+import { OPEN_SETTINGS_EVENT } from "@/hooks/useCommandPalette"
 import { Separator } from "@/components/ui/separator"
 import { StatusBar } from "@/components/StatusBar"
 import { ExifPanel } from "@/components/ExifPanel"
@@ -47,6 +49,16 @@ function RootLayout() {
 
   // 상단바 수동 숨김: 접힌 상태에서는 상단 호버 영역에서만 peek으로 표시
   const [menuBarPeek, setMenuBarPeek] = useState(false)
+  // 설정 다이얼로그는 헤더 안에 두면 상단바 숨김과 함께 언마운트되어
+  // 닫힘 + 재오픈 불가 버그가 생기므로 루트에서 마운트한다.
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  useEffect(() => {
+    const openSettings = () => setSettingsOpen(true)
+    window.addEventListener(OPEN_SETTINGS_EVENT, openSettings)
+    return () => {
+      window.removeEventListener(OPEN_SETTINGS_EVENT, openSettings)
+    }
+  }, [])
   useEffect(() => {
     if (!menuBarHidden) setMenuBarPeek(false)
   }, [menuBarHidden])
@@ -150,6 +162,10 @@ function RootLayout() {
       </div>
       <ExifPanel />
       <CommandPalette />
+      <SettingsDialog
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+      />
       <Toaster position="bottom-right" richColors closeButton />
     </ThemeProvider>
   )
