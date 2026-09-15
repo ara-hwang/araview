@@ -167,21 +167,12 @@ export function ImageContainer({
       ref={containerRef}
       className={cn(
         "relative flex flex-1 items-center justify-center overflow-hidden transition-colors",
-        viewerBackground === "theme" && "bg-[hsl(var(--background))]",
+        viewerBackground === "theme" && "bg-background",
         viewerBackground === "black" && "bg-black",
         viewerBackground === "white" && "bg-white",
-        isChecker && "bg-white",
+        isChecker && "checkerboard",
         app.isDragging && viewMode === "single" && "[&]:cursor-grabbing"
       )}
-      style={
-        isChecker
-          ? {
-              backgroundImage:
-                "conic-gradient(#c7c7c7 25%, #ffffff 0 50%, #c7c7c7 0 75%, #ffffff 0)",
-              backgroundSize: "20px 20px"
-            }
-          : undefined
-      }
       onWheel={onWheel}
       onMouseDown={viewMode === "single" ? onMouseDown : undefined}
       onMouseMove={viewMode === "single" ? onMouseMove : undefined}
@@ -200,15 +191,13 @@ export function ImageContainer({
             ref={imageRef}
             src={imageSrc}
             alt={app.imageInfo?.file_name}
-            className="pointer-events-auto block max-h-none max-w-none shrink-0"
+            className="pointer-events-auto block max-h-none max-w-none shrink-0 origin-center will-change-transform"
             style={{
               width: app.imageSize.width || undefined,
               height: app.imageSize.height || undefined,
               maxWidth: "none",
               maxHeight: "none",
               transform: `translate3d(${app.position.x}px, ${app.position.y}px, 0) scale(${app.zoom * (app.flipH ? -1 : 1)}, ${app.zoom * (app.flipV ? -1 : 1)}) rotate(${app.rotation}deg)`,
-              transformOrigin: "center center",
-              willChange: "transform",
               cursor: app.isDragging ? "grabbing" : "grab"
             }}
             onLoad={(event) => {
@@ -260,7 +249,7 @@ export function ImageContainer({
       {app.loading && (
         <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
           <Spinner
-            className="size-8 text-[hsl(var(--muted-foreground))]"
+            className="text-muted-foreground size-8"
             aria-label={t("viewer.loading")}
           />
         </div>
@@ -284,7 +273,7 @@ export function ImageContainer({
                 <button
                   type="button"
                   onClick={onToggleFullscreen}
-                  className="rounded px-1.5 py-0.5 hover:bg-[hsl(var(--accent))] focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] focus-visible:outline-none"
+                  className="hover:bg-accent focus-visible:ring-ring rounded px-1.5 py-0.5 focus-visible:ring-2 focus-visible:outline-none"
                   title={t("viewer.slideshow.fullscreenTitle")}
                   aria-label={t("viewer.slideshow.fullscreenTitle")}
                 >
@@ -295,7 +284,7 @@ export function ImageContainer({
                 <button
                   type="button"
                   onClick={onToggleSlideshow}
-                  className="rounded px-1.5 py-0.5 hover:bg-[hsl(var(--accent))] focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] focus-visible:outline-none"
+                  className="hover:bg-accent focus-visible:ring-ring rounded px-1.5 py-0.5 focus-visible:ring-2 focus-visible:outline-none"
                   title={t("viewer.slideshow.stopTitle")}
                   aria-label={t("viewer.slideshow.stopTitle")}
                 >
@@ -319,11 +308,9 @@ export function ImageContainer({
       {app.error && classified && (
         <div
           role="alert"
-          className="bg-background max-w-md rounded-lg border border-[hsl(var(--destructive))]/20 px-6 py-4 text-sm shadow-lg"
+          className="bg-background border-destructive/20 max-w-md rounded-lg border px-6 py-4 text-sm shadow-lg"
         >
-          <p className="font-medium text-[hsl(var(--destructive))]">
-            {classifiedTitle}
-          </p>
+          <p className="text-destructive font-medium">{classifiedTitle}</p>
           <p className="text-muted-foreground mt-1 break-words">{app.error}</p>
           <p className="text-muted-foreground mt-1">{classifiedHint}</p>
           <div className="mt-3 flex gap-2">

@@ -45,11 +45,11 @@ export function HistogramChart({ data }: { data: ImageHistogram }) {
             key={key}
             className="text-muted-foreground inline-flex items-center gap-1"
           >
-            <span
-              aria-hidden="true"
-              className="inline-block size-2 rounded-full"
-              style={{ backgroundColor: color }}
-            />
+            <span aria-hidden="true" className="inline-block size-2">
+              <svg viewBox="0 0 8 8" className="block size-2">
+                <circle cx="4" cy="4" r="4" fill={color} />
+              </svg>
+            </span>
             {t(labelKey)}
           </span>
         ))}
