@@ -4,7 +4,7 @@ import { useSettingsStore } from "@/store/settingsStore"
 import i18n from "@/i18n"
 
 // 슬라이드쇼: 설정된 간격마다 onNavigateNext를 호출한다.
-// Space / F5 단축키로 토글되며, 종료 시 토스트로 알린다.
+// Space 단축키로 토글되며, 종료 시 토스트로 알린다.
 
 export function useSlideshow(onNavigateNext: () => void) {
   const intervalMs = useSettingsStore((s) => s.slideshowIntervalMs)

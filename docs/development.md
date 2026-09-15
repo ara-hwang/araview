@@ -6,13 +6,13 @@
 
 - **Frontend**: React 18, TypeScript, Vite 6, Tailwind CSS 4, TanStack Router v1, Zustand 5
 - **Backend**: Rust, Tauri 2
-- **Tauri Plugins**: `dialog`, `fs`, `opener`, `store`, `window-state`, `updater`, `process`
+- **Tauri Plugins**: `dialog`, `fs`, `opener`, `store`, `window-state`, `single-instance`, `updater`, `process`
 
 ## 요구 사항
 
 - **OS**: Windows 10/11 (x64)
 - **Node.js**: `>= 22`
-- **Rust**: stable (`1.94` 이상 권장)
+- **Rust**: stable (`1.97` 이상 권장, 릴리스 워크플로 기준)
 
 HEIC/HEIF를 쓰려면 [vcpkg](https://vcpkg.io/)로 `libheif`를 설치합니다.
 

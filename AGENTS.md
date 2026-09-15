@@ -86,7 +86,7 @@ Frontend uses `invoke()` for these commands:
 - `set_all_file_associations(associate)`
 - `open_default_apps_settings()`
 
-Full IPC contract (18 commands including thumbnails, archive prefetch, trash/rename/save): see `SPEC.md` §16.
+Full IPC contract (20 commands including thumbnails, archive prefetch, trash/rename/save): see `SPEC.md` §16.
 
 When app is opened from file association, Windows passes the file path as a CLI argument. Backend buffers it in `PendingOpenFile` until the webview signals readiness (`frontend_ready`), then emits `open-file`; the root layout (`useOpenFileBridge`) bridges the event to the active route's loader.
 
@@ -113,7 +113,7 @@ Full data model: see `SPEC.md` §17.
 Image rendering is path-based:
 
 - Backend returns a filesystem path the WebView can decode (`ImageInfo.file_path`)
-- HEIC/HEIF is transcoded to a JPEG sidecar under the process temp dir at load
+- HEIC/HEIF/PSD are transcoded to JPEG sidecars under the process temp dir at load
 - Frontend converts that path via `convertFileSrc(...)`
 
 ### Persistence
@@ -231,6 +231,7 @@ npx -y modern-web-guidance@latest retrieve "<id>"
 Update with `npx -y modern-web-guidance@latest update`.
 
 <!-- impeccable:start -->
+
 ## Design workflow (impeccable)
 
 Product truth lives in `PRODUCT.md`; incumbent visual system in `DESIGN.md`.
@@ -254,4 +255,5 @@ Non-negotiables carried over from the previous design filter:
   instructions; use honest placeholders instead.
 - Verify by running the app and clicking through every interactive element
   (`/verify-ui`); report the click-through element by element.
+
 <!-- impeccable:end -->
