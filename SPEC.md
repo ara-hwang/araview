@@ -7,7 +7,7 @@
 
 - 경로 별칭 `@/...`는 `src/` 기준이다.
 - 백엔드 경로는 `src-tauri/src/` 기준이다.
-- `invoke()` 인자는 백엔드 `serde(rename_all = "camelCase")`를 따른다. Rust 구조체 필드는 camelCase로 보낸다.
+- `invoke()` 최상위 인자는 Tauri 기본 변환을 따른다. 프론트는 camelCase(`filePath`, `archivePath`, `entryName`)로 보내고 Rust 파라미터는 snake_case(`file_path`, `archive_path`, `entry_name`)로 받는다. 중첩 옵션 구조체(`DirListOptions`, `SaveImageOptions`)만 `serde(rename_all = "camelCase")`이다. 응답 구조체(`ImageInfo`, `DirectoryImages`, `ThumbnailInfo`, `ImageDetails`, `Histogram`, `FileAssociation`)는 rename 없이 snake_case로 직렬화되며 TypeScript 타입과 1:1 대응한다.
 - 에러는 항상 구조화 에러 `{ code, message }`를 우선하고, 문자열 에러는 레거시 매칭으로 분류한다.
 - base64 이미지 페이로드는 사용하지 않는다. 렌더링은 항상 파일 경로 기반이다.
 
@@ -25,32 +25,32 @@
 
 ### 2.1 순수 이미지 14종
 
-| 확장자 | MIME | 비고 |
-|---|---|---|
-| `png` | `image/png` | 네이티브 렌더 |
-| `jpg`, `jpeg` | `image/jpeg` | 네이티브 렌더 |
-| `gif` | `image/gif` | 네이티브 렌더 |
-| `bmp` | `image/bmp` | 네이티브 렌더 |
-| `webp` | `image/webp` | 네이티브 렌더 |
-| `svg` | `image/svg+xml` | 네이티브 렌더. `image` 크레이트 치수 미지원 시 `width/height` 생략 가능 |
-| `ico` | `image/x-icon` | 네이티브 렌더 |
-| `tiff`, `tif` | `image/tiff` | 네이티브 렌더 |
-| `avif` | `image/avif` | 네이티브 렌더 |
-| `heic` | `image/heic` | JPEG sidecar 트랜스코드 후 렌더 |
-| `heif` | `image/heif` | JPEG sidecar 트랜스코드 후 렌더 |
-| `psd` | `image/vnd.adobe.photoshop` | JPEG sidecar 트랜스코드 후 렌더(읽기 전용, 편집 저장 미지원) |
+| 확장자        | MIME                        | 비고                                                                    |
+| ------------- | --------------------------- | ----------------------------------------------------------------------- |
+| `png`         | `image/png`                 | 네이티브 렌더                                                           |
+| `jpg`, `jpeg` | `image/jpeg`                | 네이티브 렌더                                                           |
+| `gif`         | `image/gif`                 | 네이티브 렌더                                                           |
+| `bmp`         | `image/bmp`                 | 네이티브 렌더                                                           |
+| `webp`        | `image/webp`                | 네이티브 렌더                                                           |
+| `svg`         | `image/svg+xml`             | 네이티브 렌더. `image` 크레이트 치수 미지원 시 `width/height` 생략 가능 |
+| `ico`         | `image/x-icon`              | 네이티브 렌더                                                           |
+| `tiff`, `tif` | `image/tiff`                | 네이티브 렌더                                                           |
+| `avif`        | `image/avif`                | 네이티브 렌더                                                           |
+| `heic`        | `image/heic`                | JPEG sidecar 트랜스코드 후 렌더                                         |
+| `heif`        | `image/heif`                | JPEG sidecar 트랜스코드 후 렌더                                         |
+| `psd`         | `image/vnd.adobe.photoshop` | JPEG sidecar 트랜스코드 후 렌더(읽기 전용, 편집 저장 미지원)            |
 
 ### 2.2 아카이브 7종
 
-| 확장자 | MIME | 비고 |
-|---|---|---|
-| `cbz` | `application/vnd.comicbook+zip` | ZIP 기반 코믹 |
-| `zip` | `application/zip` | 일반 ZIP도 이미지 목록으로 열 수 있음 |
-| `cb7` | `application/x-7z-compressed` | 7z 기반 코믹 |
-| `7z` | `application/x-7z-compressed` | 일반 7z도 지원 |
-| `cbr` | `application/vnd.comicbook-rar` | RAR 기반 코믹 |
-| `rar` | `application/x-rar-compressed` | 일반 RAR도 지원 |
-| `cbt` | `application/x-tar` | TAR 기반 코믹 |
+| 확장자 | MIME                            | 비고                                  |
+| ------ | ------------------------------- | ------------------------------------- |
+| `cbz`  | `application/vnd.comicbook+zip` | ZIP 기반 코믹                         |
+| `zip`  | `application/zip`               | 일반 ZIP도 이미지 목록으로 열 수 있음 |
+| `cb7`  | `application/x-7z-compressed`   | 7z 기반 코믹                          |
+| `7z`   | `application/x-7z-compressed`   | 일반 7z도 지원                        |
+| `cbr`  | `application/vnd.comicbook-rar` | RAR 기반 코믹                         |
+| `rar`  | `application/x-rar-compressed`  | 일반 RAR도 지원                       |
+| `cbt`  | `application/x-tar`             | TAR 기반 코믹                         |
 
 백엔드 판별:
 
@@ -70,7 +70,7 @@
 
 - 빈 상태: 실제 다음 행동을 안내한다(파일 열기). 가짜 샘플을 만들지 않는다.
 - `파일 열기` 버튼은 파일 피커를 연다.
-- 최근 파일 섹션: `recordRecentFiles`가 true이고 목록이 있을 때만 표시. 개수 + 전체 삭제. shadcn `Attachment` 가로형 목록(`RecentFileAttachment`)으로 파일명, 형식/크기/치수, 상위 폴더를 표시한다.
+- 최근 파일 섹션: `recordRecentFiles`가 true이고 목록이 있을 때만 표시. 개수 + 전체 삭제. 커스텀 `RecentFileAttachment` 가로형 목록으로 파일명, 형식/크기/치수, 상위 폴더를 표시한다.
 - 상세 정보는 `useRecentFileDetails(visibleRecent)`로 `load_image` 메타와 썸네일 src를 확보한다. 아카이브는 아이콘으로, 실패 항목은 error 상태로 표시한다.
 - 드래그 오버레이: 드래그 중 점선 테두리 + `home.drop` 문구.
 - 시작 옵션: `autoOpenLastFile && recordRecentFiles`이고 최근 파일이 있으면 첫 항목을 1회 자동 로드한다.
@@ -173,12 +173,12 @@
 
 값: `single | left-to-right | right-to-left | webtoon`. 기본 `single`.
 
-| 모드 | 렌더 | 넘김 단위 | 프리페치 성향 |
-|---|---|---|---|
-| `single` | 현재 1장 | 1장 | 기본 거리 |
-| `left-to-right` | 현재 + 다음, 좌에서 우 | 2장 | 기본 + 1 |
-| `right-to-left` | 현재 + 다음, 우에서 좌 | 2장 | 기본 + 1 |
-| `webtoon` | 전 구간 연속 수직 스크롤, 지연 로드 | 스크롤 이동 | 기본 x 2 |
+| 모드            | 렌더                                | 넘김 단위   | 프리페치 성향 |
+| --------------- | ----------------------------------- | ----------- | ------------- |
+| `single`        | 현재 1장                            | 1장         | 기본 거리     |
+| `left-to-right` | 현재 + 다음, 좌에서 우              | 2장         | 기본 + 1      |
+| `right-to-left` | 현재 + 다음, 우에서 좌              | 2장         | 기본 + 1      |
+| `webtoon`       | 전 구간 연속 수직 스크롤, 지연 로드 | 스크롤 이동 | 기본 x 2      |
 
 - 양면 모드 페이지는 `[current, next]`이며 루프가 켜지면 wrap한다. 로드 실패 페이지는 제외한다.
 - 웹툰 모드에서 `ArrowLeft/ArrowRight`는 이전/다음 이미지 스크롤 이동이다.
@@ -223,9 +223,9 @@
 
 진실: `src-tauri/src/archive.rs`, `src-tauri/src/commands.rs`, `src/hooks/useImageLoader.ts`, `src/store/archiveProgressStore.ts`.
 
-- `get_archive_images(file_path)`: 내부 이미지 엔트리 목록 + `current_index: 0`. 비어 있으면 `not_found`.
-- `load_archive_image(archive_path, entry_name)`: `process_temp/<아카이브stem>/`에 추출 후 `load_viewable`로 반환한다.
-- `archive_prefetch(archive_path, entry_names)`: 이웃 선추출. 항상 `Ok`를 돌려주는 fire-and-forget용이다.
+- `get_archive_images(filePath → file_path)`: 내부 이미지 엔트리 목록 + `current_index: 0`. 비어 있으면 `not_found`.
+- `load_archive_image(archivePath → archive_path, entryName → entry_name)`: `process_temp/archive-<hash>/`(canonical 경로+mtime+크기 해시)에 추출 후 `load_viewable`로 반환한다.
+- `archive_prefetch(archivePath → archive_path, entryNames → entry_names)`: 이웃 선추출. 항상 `Ok`를 돌려주는 fire-and-forget용이다.
 - 아카이브 선추출 거리는 `min(max(base + bonus, 1), 2)`이며, `bonus`는 웹툰=base, 양면=1, single=0이다.
 - 이어보기: `archiveProgressStore`가 `archivePath → entryName`을 최대 100개 LRU로 저장한다. 목록에 저장된 항목이 있으면 거기서 시작한다.
 - `appStore.archivePath`가 null이 아니면 아카이브 모드이다.
@@ -240,13 +240,13 @@
 
 기본 `nearby`.
 
-| 모드 | 항목 상한 | 바이트 상한 | 프리페치 거리 |
-|---|---|---|---|
-| `off` | 1 | 무제한 | 0 |
-| `nearby` | 24 | 무제한 | 1 |
-| `extended` | 64 | 무제한 | 3 |
-| `memory-1gb` | 매우 큼 | 1GB | 2 |
-| `memory-2gb` | 매우 큼 | 2GB | 3 |
+| 모드         | 항목 상한 | 바이트 상한 | 프리페치 거리 |
+| ------------ | --------- | ----------- | ------------- |
+| `off`        | 1         | 무제한      | 0             |
+| `nearby`     | 24        | 무제한      | 1             |
+| `extended`   | 64        | 무제한      | 3             |
+| `memory-1gb` | 매우 큼   | 1GB         | 2             |
+| `memory-2gb` | 매우 큼   | 2GB         | 3             |
 
 - 일반 파일 프리페치 거리 보정: 웹툰은 기본 x 2, 양면은 기본 + 1, single은 기본.
 - 캐시 키는 파일 경로 기준이며, 픽셀 데이터를 메모리에 오래 두지 않고 브라우저 이미지 캐시에 위임한다.
@@ -321,8 +321,8 @@
 
 ### 12.3 편집 저장 `Ctrl+S`
 
-- PSD/SVG/AVIF는 저장 불가라 저장 진입(단축키/팔레트/컨텍스트 메뉴)에서 다이얼로그를 열지 않고 `toast.save.noPsd`/`noSvg`/`noAvif`로 안내한다. 백엔드도 `unsupported`로 2중 차단한다. 그 외 지원 포맷(png/jpg/webp/gif/bmp/tiff/ico/heic/heif)은 저장 가능하다.
-- `save_image_edits(file_path, options)`:
+- PSD/SVG/AVIF는 저장 불가라 저장 진입(단축키/팔레트/컨텍스트 메뉴)에서 다이얼로그를 열지 않고 `toast.save.noPsd`/`noSvg`/`noAvif`로 안내한다. 백엔드도 `unsupported`로 2중 차단한다. 그 외 지원 포맷(png/jpg/jpeg/webp/gif/bmp/tiff/tif/ico/heic/heif)은 저장 가능하다.
+- `save_image_edits(filePath → file_path, options)`:
   - `rotationCw: 0 | 90 | 180 | 270`
   - `flipH`, `flipV`
   - `format: "png" | "jpg" | "jpeg" | "webp"` 또는 null(원본 유지)
@@ -353,11 +353,11 @@
 
 `settings.json`(Tauri Store) 키:
 
-| 키 | 내용 | 상한 |
-|---|---|---|
-| `settings` | `SettingsState` 전체 | 1개 객체 |
-| `recentFiles` | 최근 경로 배열(최신 먼저) | 20 |
-| `archiveProgress` | 아카이브 경로 → 이어보기 엔트리 | 100 |
+| 키                | 내용                            | 상한     |
+| ----------------- | ------------------------------- | -------- |
+| `settings`        | `SettingsState` 전체            | 1개 객체 |
+| `recentFiles`     | 최근 경로 배열(최신 먼저)       | 20       |
+| `archiveProgress` | 아카이브 경로 → 이어보기 엔트리 | 100      |
 
 - 최근 파일은 중복 제거 후 맨 앞에 넣고 자른다. `recordRecentFiles=false`면 목록을 숨기고 자동 열기도 막는다.
 - 설정 저장은 손상값도 `sanitizeSettings`로 복원한다. 언어는 저장값이 없으면 시스템 언어를 쓴다.
@@ -367,27 +367,27 @@
 
 진실: `src/store/settingsStore.ts`.
 
-| 설정 | 값 | 기본값 |
-|---|---|---|
-| `language` | `ko \| en` | `ko`(초기 로드는 시스템 감지 우선) |
-| `loopNavigation` | 끝에서 루프 여부 | `false` |
-| `cacheMode` | `off \| nearby \| extended \| memory-1gb \| memory-2gb` | `nearby` |
-| `viewMode` | `single \| left-to-right \| right-to-left \| webtoon` | `single` |
-| `slideshowIntervalMs` | 1000~30000 | `3000` |
-| `autoOpenLastFile` | 시작 시 마지막 파일 자동 열기 | `false` |
-| `recordRecentFiles` | 최근 기록 유지 | `true` |
-| `viewerBackground` | `theme \| black \| white \| checker` | `theme` |
-| `autoHideUI` | 읽기 중 크롬 자동 숨김 | `false` |
-| `menuBarHidden` | 상단바 수동 숨김 (상단 호버 시 peek 오버레이로 표시) | `false` |
-| `alwaysOnTop` | 항상 위 | `false` |
-| `sortKey` | `name \| date \| size` | `name` |
-| `sortDescending` | 내림차순 | `false` |
-| `shuffle` | 셔플 | `false` |
-| `includeSubfolders` | 하위 폴더 포함(재귀) | `false` |
-| `skipBrokenFiles` | 손상 파일 자동 건너뛰기 | `false` |
-| `shortcuts` | 단축키 맵 | 아래 기본표 |
-| `wheel` | 휠 맵 | 아래 기본표 |
-| `mouse` | 마우스 맵 | 아래 기본표 |
+| 설정                  | 값                                                      | 기본값                             |
+| --------------------- | ------------------------------------------------------- | ---------------------------------- |
+| `language`            | `ko \| en`                                              | `ko`(초기 로드는 시스템 감지 우선) |
+| `loopNavigation`      | 끝에서 루프 여부                                        | `false`                            |
+| `cacheMode`           | `off \| nearby \| extended \| memory-1gb \| memory-2gb` | `nearby`                           |
+| `viewMode`            | `single \| left-to-right \| right-to-left \| webtoon`   | `single`                           |
+| `slideshowIntervalMs` | 1000~30000                                              | `3000`                             |
+| `autoOpenLastFile`    | 시작 시 마지막 파일 자동 열기                           | `false`                            |
+| `recordRecentFiles`   | 최근 기록 유지                                          | `true`                             |
+| `viewerBackground`    | `theme \| black \| white \| checker`                    | `theme`                            |
+| `autoHideUI`          | 읽기 중 크롬 자동 숨김                                  | `false`                            |
+| `menuBarHidden`       | 상단바 수동 숨김 (상단 호버 시 peek 오버레이로 표시)    | `false`                            |
+| `alwaysOnTop`         | 항상 위                                                 | `false`                            |
+| `sortKey`             | `name \| date \| size`                                  | `name`                             |
+| `sortDescending`      | 내림차순                                                | `false`                            |
+| `shuffle`             | 셔플                                                    | `false`                            |
+| `includeSubfolders`   | 하위 폴더 포함(재귀)                                    | `false`                            |
+| `skipBrokenFiles`     | 손상 파일 자동 건너뛰기                                 | `false`                            |
+| `shortcuts`           | 단축키 맵                                               | 아래 기본표                        |
+| `wheel`               | 휠 맵                                                   | 아래 기본표                        |
+| `mouse`               | 마우스 맵                                               | 아래 기본표                        |
 
 설정 항목에 연결된 단축키가 있으면 항목 옆에 현재 할당된 단축키를 배지로 표시한다: 배경 `cycleBackground`, 창 `toggleAlwaysOnTop`, 정렬의 셔플 `toggleShuffle`. 재할당하거나 해제하면 배지도 즉시 따라간다.
 
@@ -397,27 +397,27 @@
 
 ### 15.1 기본 단축키
 
-| 동작 | 기본값 | 동작 | 기본값 |
-|---|---|---|---|
-| 이전 | `Ctrl+ArrowLeft` | 다음 | `Ctrl+ArrowRight` |
-| 왼쪽 팬 | `ArrowLeft` | 오른쪽 팬 | `ArrowRight` |
-| 위 팬 | `ArrowUp` | 아래 팬 | `ArrowDown` |
-| 확대 | `=` | 축소 | `-` |
-| 보기 초기화 | `0` | 가로 맞춤 | `1` |
-| 세로 맞춤 | `2` | 화면 맞춤 | `3` |
-| 파일 열기 | `Ctrl+O` | 이미지 닫기 | `Escape` |
-| EXIF | `I` | 시계 회전 | `R` |
-| 반시계 회전 | `Shift+R` | 좌우 반전 | `H` |
-| 상하 반전 | `V` | 슬라이드쇼 | `Space` |
-| 전체화면 | `F11` | 항상 위 | `T` |
-| 이미지 복사 | `Ctrl+C` | 휴지통 | `Delete` |
-| 탐색기에 표시 | `Ctrl+Shift+E` | 기본 앱으로 열기 | `Ctrl+Shift+O` |
-| 배경 순환 | `B` | 이름 변경 | `F2` |
-| 경로 복사 | `Ctrl+Shift+C` | 셔플 토글 | `S` |
-| 편집 저장 | `Ctrl+S` | 명령 팔레트 | `Ctrl+K` |
-| 10장 이전 | `PageUp` | 10장 다음 | `PageDown` |
-| 처음 | `Home` | 마지막 | `End` |
-| 썸네일 그리드 | `G` | | |
+| 동작          | 기본값           | 동작             | 기본값            |
+| ------------- | ---------------- | ---------------- | ----------------- |
+| 이전          | `Ctrl+ArrowLeft` | 다음             | `Ctrl+ArrowRight` |
+| 왼쪽 팬       | `ArrowLeft`      | 오른쪽 팬        | `ArrowRight`      |
+| 위 팬         | `ArrowUp`        | 아래 팬          | `ArrowDown`       |
+| 확대          | `=`              | 축소             | `-`               |
+| 보기 초기화   | `0`              | 가로 맞춤        | `1`               |
+| 세로 맞춤     | `2`              | 화면 맞춤        | `3`               |
+| 파일 열기     | `Ctrl+O`         | 이미지 닫기      | `Escape`          |
+| EXIF          | `I`              | 시계 회전        | `R`               |
+| 반시계 회전   | `Shift+R`        | 좌우 반전        | `H`               |
+| 상하 반전     | `V`              | 슬라이드쇼       | `Space`           |
+| 전체화면      | `F11`            | 항상 위          | `T`               |
+| 이미지 복사   | `Ctrl+C`         | 휴지통           | `Delete`          |
+| 탐색기에 표시 | `Ctrl+Shift+E`   | 기본 앱으로 열기 | `Ctrl+Shift+O`    |
+| 배경 순환     | `B`              | 이름 변경        | `F2`              |
+| 경로 복사     | `Ctrl+Shift+C`   | 셔플 토글        | `S`               |
+| 편집 저장     | `Ctrl+S`         | 명령 팔레트      | `Ctrl+K`          |
+| 10장 이전     | `PageUp`         | 10장 다음        | `PageDown`        |
+| 처음          | `Home`           | 마지막           | `End`             |
+| 썸네일 그리드 | `G`              |                  |                   |
 
 그리드 내부: 화살표(선택 이동), `Home`/`End`, `PageUp`/`PageDown`, `Enter`(점프), `Esc`/`G`(닫기). 그리드가 열려 있는 동안 다른 뷰어 단축키는 동작하지 않는다.
 
@@ -450,28 +450,30 @@
 
 진실: `src-tauri/src/lib.rs` `invoke_handler`, `src-tauri/src/commands.rs`, `src-tauri/src/save.rs`.
 
-| 명령 | 입력 | 반환 |
-|---|---|---|
-| `load_image` | `file_path` | `ImageInfo` |
-| `get_directory_images` | `file_path`, `options?` | `DirectoryImages` |
-| `resolve_dropped_path` | `path` | 해석된 파일 경로 `string` |
-| `get_exif_data` | `file_path` | `Record<string, string>` |
-| `get_image_histogram` | `file_path` | `Histogram` |
-| `get_image_details` | `file_path` | `ImageDetails` |
-| `get_archive_images` | `file_path` | `DirectoryImages`(엔트리 목록) |
-| `load_archive_image` | `archive_path`, `entry_name` | `ImageInfo` |
-| `archive_prefetch` | `archive_path`, `entry_names` | 추출 개수 `number` |
-| `generate_thumbnail` | `file_path`, `max_side?` | `ThumbnailInfo` |
-| `generate_thumbnails_batch` | `file_paths`, `max_side?` | `BatchThumb[]` |
-| `generate_archive_thumbnail` | `archive_path`, `entry_name`, `max_side?` | `ThumbnailInfo` |
-| `get_file_associations` | 없음 | `FileAssociation[]` |
-| `set_file_association` | `extension`, `associate` | `FileAssociation` |
-| `set_all_file_associations` | `associate` | `FileAssociation[]` |
-| `open_default_apps_settings` | 없음 | 없음 |
-| `trash_file` | `file_path` | 없음 |
-| `rename_file` | `old_path`, `new_name` | `ImageInfo` |
-| `save_image_edits` | `file_path`, `options` | `ImageInfo` |
-| `frontend_ready` | 없음 | 없음 (`PendingOpenFile` flush) |
+| 명령                         | 입력 (JS camelCase → Rust snake_case)                                                | 반환                           |
+| ---------------------------- | ------------------------------------------------------------------------------------ | ------------------------------ |
+| `load_image`                 | `filePath` → `file_path`                                                             | `ImageInfo`                    |
+| `get_directory_images`       | `filePath` → `file_path`, `options?`                                                 | `DirectoryImages`              |
+| `resolve_dropped_path`       | `path`                                                                               | 해석된 파일 경로 `string`      |
+| `get_exif_data`              | `filePath` → `file_path`                                                             | `Record<string, string>`       |
+| `get_image_histogram`        | `filePath` → `file_path`                                                             | `Histogram`                    |
+| `get_image_details`          | `filePath` → `file_path`                                                             | `ImageDetails`                 |
+| `get_archive_images`         | `filePath` → `file_path`                                                             | `DirectoryImages`(엔트리 목록) |
+| `load_archive_image`         | `archivePath` → `archive_path`, `entryName` → `entry_name`                           | `ImageInfo`                    |
+| `archive_prefetch`           | `archivePath` → `archive_path`, `entryNames` → `entry_names`                         | 추출 개수 `number`             |
+| `generate_thumbnail`         | `filePath` → `file_path`, `maxSide?` → `max_side?`                                   | `ThumbnailInfo`                |
+| `generate_thumbnails_batch`  | `filePaths` → `file_paths`, `maxSide?` → `max_side?`                                 | `BatchThumb[]`                 |
+| `generate_archive_thumbnail` | `archivePath` → `archive_path`, `entryName` → `entry_name`, `maxSide?` → `max_side?` | `ThumbnailInfo`                |
+| `get_file_associations`      | 없음                                                                                 | `FileAssociation[]`            |
+| `set_file_association`       | `extension`, `associate`                                                             | `FileAssociation`              |
+| `set_all_file_associations`  | `associate`                                                                          | `FileAssociation[]`            |
+| `open_default_apps_settings` | 없음                                                                                 | 없음                           |
+| `trash_file`                 | `filePath` → `file_path`                                                             | 없음                           |
+| `rename_file`                | `oldPath` → `old_path`, `newName` → `new_name`                                       | `ImageInfo`                    |
+| `save_image_edits`           | `filePath` → `file_path`, `options`                                                  | `ImageInfo`                    |
+| `frontend_ready`             | 없음                                                                                 | 없음 (`PendingOpenFile` flush) |
+
+최상위 인자 키는 Tauri 기본 camelCase 변환을 사용하므로 JS 호출 키와 Rust 파라미터명이 위와 같이 대응한다. 중첩 `options` 페이로드(`DirListOptions`, `SaveImageOptions`)는 `serde(rename_all = "camelCase")`라 JS와 Rust 필드명이 같다(`sortKey`, `rotationCw` 등). 응답은 모두 snake_case이다(17절).
 
 파일 연결 주의: 설정에서 연결 변경은 해당 확장자의 Windows 기본 앱 선택 창을 연다. 조용한 UserChoice 레지스트리 쓰기는 할 수 없다.
 
