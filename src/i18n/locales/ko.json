@@ -225,6 +225,17 @@
       "blockedTitle": "Windows에서 기본 앱을 확인해야 합니다",
       "blockedDesc": "Windows 10/11은 기본 앱 변경을 시스템 선택 창에서만 허용합니다. 열린 창에서 {{appName}}를 선택하세요.",
       "openSettings": "Windows 기본 앱 설정 열기"
+    },
+    "thumb": {
+      "title": "탐색기 썸네일 (PSD)",
+      "desc": "Windows 파일 탐색기에서 PSD 파일의 축소판을 표시합니다. 사용자별 등록이라 관리자 권한이 필요 없습니다.",
+      "enable": "썸네일 켜기",
+      "disable": "썸네일 끄기",
+      "checking": "썸네일 상태를 확인하는 중",
+      "enabled": "탐색기 썸네일이 켜져 있습니다",
+      "disabled": "탐색기 썸네일이 꺼져 있습니다",
+      "dllMissing": "썸네일 DLL이 없습니다. 설치본에서는 함께 제공되고, 개발 환경에서는 cargo build -p araview-thumb으로 만드세요.",
+      "note": "적용한 뒤에는 탐색기를 다시 시작하거나 썸네일 캐시를 지워야 반영될 수 있습니다."
     }
   },
   "home": {
@@ -494,6 +505,13 @@
       "openFail": "기본 앱 선택 창을 열지 못했습니다",
       "pickInfo": "Windows 설정에서 기본 앱을 선택하세요",
       "settingsFail": "Windows 설정을 열지 못했습니다"
+    },
+    "thumb": {
+      "loadFail": "썸네일 상태를 불러오지 못했습니다",
+      "registerFail": "탐색기 썸네일 등록 실패",
+      "unregisterFail": "탐색기 썸네일 해제 실패",
+      "doneEnabled": "탐색기 썸네일을 켰습니다",
+      "doneDisabled": "탐색기 썸네일을 껐습니다"
     },
     "slideshow": {
       "start": "슬라이드쇼 시작",

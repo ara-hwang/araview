@@ -225,6 +225,17 @@
       "blockedTitle": "Confirm the default app in Windows",
       "blockedDesc": "Windows 10/11 only allows default app changes in the system picker. Select {{appName}} in the opened window.",
       "openSettings": "Open Windows default apps settings"
+    },
+    "thumb": {
+      "title": "Explorer thumbnails (PSD)",
+      "desc": "Show PSD thumbnails in Windows File Explorer. Registration is per user, so no admin rights are needed.",
+      "enable": "Enable thumbnails",
+      "disable": "Disable thumbnails",
+      "checking": "Checking thumbnail status",
+      "enabled": "Explorer thumbnails are on",
+      "disabled": "Explorer thumbnails are off",
+      "dllMissing": "Thumbnail DLL not found. Bundled with the installer. For development, build it with cargo build -p araview-thumb.",
+      "note": "After applying, restart Explorer or clear the thumbnail cache to see the change."
     }
   },
   "home": {
@@ -494,6 +505,13 @@
       "openFail": "Failed to open default app picker",
       "pickInfo": "Select the default app in Windows Settings",
       "settingsFail": "Failed to open Windows Settings"
+    },
+    "thumb": {
+      "loadFail": "Failed to load thumbnail status",
+      "registerFail": "Failed to enable Explorer thumbnails",
+      "unregisterFail": "Failed to disable Explorer thumbnails",
+      "doneEnabled": "Explorer thumbnails enabled",
+      "doneDisabled": "Explorer thumbnails disabled"
     },
     "slideshow": {
       "start": "Slideshow started",

@@ -15,6 +15,7 @@ import {
   hasBlockedAssociation,
   useFileAssociations
 } from "@/hooks/useFileAssociations"
+import { usePsdThumbnail } from "@/hooks/usePsdThumbnail"
 import { WarningCircle } from "@phosphor-icons/react"
 import { useTranslation } from "react-i18next"
 
@@ -38,6 +39,13 @@ export function ExtensionSettingsPanel({
 
   const busy = loading || pendingAll || pendingExtension !== null
   const blocked = hasBlockedAssociation(items)
+  const {
+    status: thumbStatus,
+    loading: thumbLoading,
+    pending: thumbPending,
+    setThumbnail
+  } = usePsdThumbnail(active)
+  const thumbBusy = busy || thumbLoading || thumbPending
 
   return (
     <div className="flex flex-col gap-4">
@@ -122,6 +130,43 @@ export function ExtensionSettingsPanel({
       >
         {t("settings.ext.openSettings")}
       </Button>
+
+      <div className="flex flex-col gap-2 border-t pt-4">
+        <h3 className="text-base font-medium">{t("settings.thumb.title")}</h3>
+        <p className="text-muted-foreground text-sm">
+          {t("settings.thumb.desc")}
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={thumbBusy}
+            onClick={() =>
+              void setThumbnail(!(thumbStatus?.registered ?? false))
+            }
+          >
+            {thumbPending ? <Spinner data-icon="inline-start" /> : null}
+            {thumbStatus?.registered
+              ? t("settings.thumb.disable")
+              : t("settings.thumb.enable")}
+          </Button>
+          <span className="text-muted-foreground text-sm" role="status">
+            {thumbLoading || thumbStatus === null
+              ? t("settings.thumb.checking")
+              : thumbStatus.registered
+                ? t("settings.thumb.enabled")
+                : t("settings.thumb.disabled")}
+          </span>
+        </div>
+        {thumbStatus !== null && !thumbStatus.dll_exists ? (
+          <p className="text-muted-foreground text-sm">
+            {t("settings.thumb.dllMissing")}
+          </p>
+        ) : null}
+        <p className="text-muted-foreground text-sm">
+          {t("settings.thumb.note")}
+        </p>
+      </div>
     </div>
   )
 }
