@@ -14,6 +14,7 @@ export const SUPPORTED_IMAGE_EXTENSIONS = [
   "avif",
   "heic",
   "heif",
+  "psd",
   "cbz",
   "cb7",
   "cbr",

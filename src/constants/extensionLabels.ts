@@ -18,6 +18,7 @@ type ExtensionLabelKey =
   | "avif"
   | "heic"
   | "heif"
+  | "psd"
   | "cbz"
   | "cb7"
   | "cbr"
@@ -40,6 +41,7 @@ const EXTENSION_I18N_KEYS: Record<ExtensionLabelKey, string> = {
   avif: "ext.avif",
   heic: "ext.heic",
   heif: "ext.heif",
+  psd: "ext.psd",
   cbz: "ext.cbz",
   cb7: "ext.cb7",
   cbr: "ext.cbr",
@@ -64,6 +66,7 @@ export const EXTENSION_LABELS: Record<SupportedImageExtension, string> = {
   avif: "AVIF 이미지",
   heic: "HEIC 이미지",
   heif: "HEIF 이미지",
+  psd: "PSD 이미지",
   cbz: "만화 아카이브",
   cb7: "만화 아카이브",
   cbr: "만화 아카이브",

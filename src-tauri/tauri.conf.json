@@ -57,7 +57,8 @@
           "tif",
           "avif",
           "heic",
-          "heif"
+          "heif",
+          "psd"
         ]
       },
       {

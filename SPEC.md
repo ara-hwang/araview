@@ -21,9 +21,9 @@
 
 ## 2. 지원 포맷
 
-총 20개 확장자. 프론트 진실은 `src/constants/imageExtensions.ts`, 백엔드 진실은 `src-tauri/src/image.rs` (`SUPPORTED_EXTENSIONS`, `get_mime_type`).
+총 21개 확장자. 프론트 진실은 `src/constants/imageExtensions.ts`, 백엔드 진실은 `src-tauri/src/image.rs` (`SUPPORTED_EXTENSIONS`, `get_mime_type`).
 
-### 2.1 순수 이미지 13종
+### 2.1 순수 이미지 14종
 
 | 확장자 | MIME | 비고 |
 |---|---|---|
@@ -38,6 +38,7 @@
 | `avif` | `image/avif` | 네이티브 렌더 |
 | `heic` | `image/heic` | JPEG sidecar 트랜스코드 후 렌더 |
 | `heif` | `image/heif` | JPEG sidecar 트랜스코드 후 렌더 |
+| `psd` | `image/vnd.adobe.photoshop` | JPEG sidecar 트랜스코드 후 렌더(읽기 전용, 편집 저장 미지원) |
 
 ### 2.2 아카이브 7종
 
@@ -59,7 +60,7 @@
 
 ### 2.3 제외 포맷
 
-- QOI, JXL, RAW(CR2/NEF/ARW 등), PSD는 제외 유지. 이유는 WebView2 네이티브 렌더 불가로 JPEG sidecar 전제가 필요하기 때문이다(`ROADMAP.md` 4.4).
+- QOI, JXL, RAW(CR2/NEF/ARW 등), PSB는 제외 유지. 이유는 WebView2 네이티브 렌더 불가로 JPEG sidecar 전제가 필요하기 때문이다(`ROADMAP.md` 4.4). PSD는 `psd` 크레이트(순수 Rust) 합성 디코드 + JPEG sidecar로 읽기 전용 지원한다. PSB(`8BPB`)는 디코더가 없어 진입 차단한다.
 
 ## 3. 화면과 라우트
 
@@ -143,7 +144,7 @@
 
 - 설정 변경 후 `refreshDirectoryListing()`으로 다시 읽고 이전 위치를 복원한다.
 - 복원 규칙(`resolveRefreshedIndex`): 이전 경로가 있으면 그 위치, 없으면 범위 내 clamp.
-- HEIC sidecar처럼 `imageInfo.file_path`가 원본과 다를 수 있어 `dirImages` 원본 경로를 우선한다.
+- HEIC/PSD sidecar처럼 `imageInfo.file_path`가 원본과 다를 수 있어 `dirImages` 원본 경로를 우선한다.
 - 아카이브 모드에서는 폴더 새로고침을 하지 않는다.
 
 ### 5.3 이전/다음
@@ -254,7 +255,7 @@
 
 - `generate_thumbnail(file_path, max_side?)`: 기본 256, 허용 32~1024.
 - `process_temp/thumbs/`에 JPEG로 원자적 저장 후 재사용한다. 상한 500MB를 넘기면 오래된 것부터 제거한다.
-- HEIC/HEIF는 썸네일용 JPEG sidecar 경로를 쓴다.
+- HEIC/HEIF/PSD는 썸네일용 JPEG sidecar 경로를 쓴다.
 - `image` 크레이트가 디코드 불가한 입력(SVG 등)이나 아카이브 엔트리명은 에러를 내고, 프론트는 원본으로 폴백한다.
 - `generate_thumbnails_batch(file_paths, max_side?)`: 항목별 성공/실패를 함께 반환하는 배치 API이다.
 - `generate_archive_thumbnail(archive_path, entry_name, max_side?)`: 아카이브 엔트리를 추출해 축소 JPEG를 만든다. 추출물(존재 시 재사용)과 썸네일 캐시를 함께 재사용하므로 그리드에서 풀사이즈 로드를 피한다.
@@ -273,7 +274,7 @@
 ### 10.1 히스토그램 `get_image_histogram`
 
 - 입력 `file_path`, 반환 `Histogram`(`r/g/b` 256빈 + `sampled_pixels`).
-- HEIC/HEIF는 전용 디코더, 그 외는 `image` 크레이트로 디코드 후 최대 변 256px로 다운샘플해 집계한다.
+- HEIC/HEIF/PSD는 전용 디코더, 그 외는 `image` 크레이트로 디코드 후 최대 변 256px로 다운샘플해 집계한다.
 - 디코드 불가 포맷(SVG, AVIF 등)은 `unsupported`/`corrupt` 에러를 내고, 프론트는 차트 대신 안내 문구를 표시한다(`histogram.unavailable`).
 - 렌더는 신규 의존성 없이 SVG 영역 차트(`HistogramChart`, 채널별 3경로 + 범례, `role="img"` + 제목)이다.
 
@@ -320,6 +321,7 @@
 
 ### 12.3 편집 저장 `Ctrl+S`
 
+- PSD/SVG/AVIF는 저장 불가라 저장 진입(단축키/팔레트/컨텍스트 메뉴)에서 다이얼로그를 열지 않고 `toast.save.noPsd`/`noSvg`/`noAvif`로 안내한다. 백엔드도 `unsupported`로 2중 차단한다. 그 외 지원 포맷(png/jpg/webp/gif/bmp/tiff/ico/heic/heif)은 저장 가능하다.
 - `save_image_edits(file_path, options)`:
   - `rotationCw: 0 | 90 | 180 | 270`
   - `flipH`, `flipV`
@@ -483,7 +485,7 @@
 
 Rust와 TypeScript는 같은 모양을 유지한다.
 
-- `file_path: string`: WebView가 디코드할 경로. HEIC/HEIF는 JPEG sidecar 경로일 수 있다.
+- `file_path: string`: WebView가 디코드할 경로. HEIC/HEIF/PSD는 JPEG sidecar 경로일 수 있다.
 - `mime_type: string`
 - `file_name: string`
 - `file_size: number`
@@ -527,7 +529,7 @@ Rust와 TypeScript는 같은 모양을 유지한다.
 ## 19. 렌더링 경로
 
 - 백엔드는 디코드용 파일 경로를 돌려주고, 프론트는 `convertFileSrc(...)`로 변환해 `<img>`에 넣는다.
-- HEIC/HEIF만 JPEG sidecar를 만든다. sidecar는 프로세스 임시 디렉터리 아래에 있다.
+- HEIC/HEIF/PSD만 JPEG sidecar를 만든다. sidecar는 프로세스 임시 디렉터리 아래에 있다.
 - 아카이브 추출물도 같은 임시 디렉터리 아래 `archive-<hash>/`에 둔다. hash는 아카이브 canonical 경로+mtime+크기라 동명 아카이브가 캐시를 공유하지 않는다.
 - 썸네일은 `process_temp/thumbs/` 아래 JPEG 캐시를 쓴다.
 - `assetProtocol.enable=true`이고 정적 `scope`는 비어 있다. 프로세스 임시 디렉터리만 setup에서 재귀 허용하고, 사용자가 여는 파일/폴더는 `load_image`, `load_archive_image`, `rename_file`, `save_image_edits`가 런타임에 `asset_protocol_scope().allow_file/allow_directory`로 허용한다.
@@ -552,7 +554,7 @@ Rust와 TypeScript는 같은 모양을 유지한다.
 - 릴리스 파이프라인: `.github/workflows/release.yml`만 있으며 태그(`v*`) 푸시에서만 돈다. 릴리스 러너 한 대에서 프런트 검사(`npm test`, `tsc --noEmit`, `prettier --check`)와 Rust 검사(`cargo fmt --check`, `cargo test --no-default-features`, `cargo clippy --no-default-features -- -D warnings`)를 먼저 수행하고, 하나라도 실패하면 빌드와 릴리스로 진행하지 않는다.
 - 릴리스 생성 권한: `GITHUB_TOKEN`(`contents: write`)을 쓰며, 저장소 기본 워크플로 권한이 `read`면 릴리스 생성이 403(`Resource not accessible by integration`)으로 실패한다. 기본 권한을 `read`로 유지하려면 `contents: write` fine-grained PAT를 `RELEASE_TOKEN` 시크릿으로 등록한다(워크플로가 `secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN`으로 선택).
 - 파일 연결 3그룹:
-  - Image 13종: png, jpg, jpeg, gif, bmp, webp, svg, ico, tiff, tif, avif, heic, heif.
+  - Image 14종: png, jpg, jpeg, gif, bmp, webp, svg, ico, tiff, tif, avif, heic, heif, psd.
   - Comic 4종: cbz, cb7, cbr, cbt.
   - Archive 3종: rar, zip, 7z.
 - HEIC/HEIF는 vcpkg `libheif[core]` 동적 링크 + `libde265`만 사용한다. `embedded-libheif`를 켜지 않고 `x265`를 넣지 않는다. `VCPKG_ROOT`가 있으면 빌드 시 `heif.dll`, `libde265.dll`을 복사한다.

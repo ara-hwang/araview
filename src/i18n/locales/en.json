@@ -333,7 +333,7 @@
       "newFile": "Save as new file",
       "newNamePlaceholder": "Leave empty to auto-generate a name (extension follows format)",
       "newNameAria": "New file name",
-      "note": "Format changes, HEIC, and GIF are always saved as new files. Only the first frame of GIF is saved.",
+      "note": "Format changes, HEIC, and GIF are always saved as new files. Only the first frame of GIF is saved. PSD is read-only.",
       "submit": "Save",
       "transform": {
         "rotated": "Rotated {{deg}}°",
@@ -421,7 +421,7 @@
     },
     "unsupported": {
       "title": "Unsupported format",
-      "hint": "Check if it is a supported format (png/jpg/webp/svg/avif/heic/cbz/cbr, etc.) or try another viewer."
+      "hint": "Check if it is a supported format (png/jpg/webp/svg/avif/heic/psd/cbz/cbr, etc.) or try another viewer."
     },
     "corrupt": {
       "title": "Problem reading the file",
@@ -475,6 +475,9 @@
     "save": {
       "empty": "No image to save",
       "noArchive": "Cannot save in archive mode",
+      "noPsd": "PSD files are read-only and cannot be saved",
+      "noSvg": "SVG files cannot be saved",
+      "noAvif": "AVIF files cannot be saved",
       "noChange": "No changes to apply",
       "fail": "Failed to save",
       "done": "Save complete"
@@ -550,6 +553,7 @@
     "avif": "AVIF image",
     "heic": "HEIC image",
     "heif": "HEIF image",
+    "psd": "PSD image",
     "cbz": "Comic archive",
     "cb7": "Comic archive",
     "cbr": "Comic archive",

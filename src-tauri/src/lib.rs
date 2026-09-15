@@ -7,6 +7,7 @@ pub mod heif;
 pub mod image;
 pub mod image_info;
 pub mod process_temp;
+pub mod psd_sidecar;
 pub mod save;
 pub mod thumbnail;
 

@@ -92,6 +92,21 @@ fn save_image_edits_impl(
         return Err(AppError::not_found("File not found"));
     }
 
+    // PSD는 읽기 전용 미리보기만 지원한다. sidecar 재인코딩 저장은 하지 않는다.
+    if source_ext(source) == "psd" {
+        return Err(AppError::unsupported("PSD files are read-only"));
+    }
+
+    // SVG는 벡터라 래스터 편집 파이프라인으로 저장할 수 없다.
+    if source_ext(source) == "svg" {
+        return Err(AppError::unsupported("SVG save is not supported"));
+    }
+
+    // AVIF는 백엔드 디코더가 없어(보기만 WebView2 네이티브) 저장할 수 없다.
+    if source_ext(source) == "avif" {
+        return Err(AppError::unsupported("AVIF save is not supported"));
+    }
+
     let (dest, out_format) = resolve_save_target(source, options)?;
     let decoded = decode_source(source)?;
     let rgb = flatten_to_rgb8(&decoded);
@@ -374,6 +389,73 @@ mod tests {
         )
         .unwrap_err();
         assert!(!err.message.is_empty());
+        assert_eq!(fs::read(&path).unwrap(), before);
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn psd_source_is_read_only() {
+        let dir = test_dir("psd-readonly");
+        let path = dir.join("a.psd");
+        fs::write(
+            &path,
+            crate::psd_sidecar::minimal_psd_bytes(2, 2, [9, 9, 9]),
+        )
+        .unwrap();
+        let before = fs::read(&path).unwrap();
+
+        let err = save_image_edits_impl(
+            path.to_str().unwrap(),
+            &SaveImageOptions {
+                overwrite: true,
+                ..Default::default()
+            },
+        )
+        .unwrap_err();
+        assert_eq!(err.code, crate::app_error::ErrorCode::Unsupported);
+        assert_eq!(err.message, "PSD files are read-only");
+        assert_eq!(fs::read(&path).unwrap(), before);
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn svg_source_is_blocked_before_decode() {
+        let dir = test_dir("svg-blocked");
+        let path = dir.join("a.svg");
+        fs::write(&path, "<svg></svg>").unwrap();
+        let before = fs::read(&path).unwrap();
+
+        let err = save_image_edits_impl(
+            path.to_str().unwrap(),
+            &SaveImageOptions {
+                overwrite: true,
+                ..Default::default()
+            },
+        )
+        .unwrap_err();
+        assert_eq!(err.code, crate::app_error::ErrorCode::Unsupported);
+        assert_eq!(err.message, "SVG save is not supported");
+        assert_eq!(fs::read(&path).unwrap(), before);
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn avif_source_is_blocked_before_decode() {
+        let dir = test_dir("avif-blocked");
+        let path = dir.join("a.avif");
+        fs::write(&path, b"not-an-avif").unwrap();
+        let before = fs::read(&path).unwrap();
+
+        let err = save_image_edits_impl(
+            path.to_str().unwrap(),
+            &SaveImageOptions {
+                overwrite: true,
+                ..Default::default()
+            },
+        )
+        .unwrap_err();
+        assert_eq!(err.code, crate::app_error::ErrorCode::Unsupported);
+        assert_eq!(err.message, "AVIF save is not supported");
         assert_eq!(fs::read(&path).unwrap(), before);
         fs::remove_dir_all(&dir).ok();
     }

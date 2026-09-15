@@ -1,6 +1,6 @@
 //! EXIF 패널용 부가 정보: RGB 히스토그램 + 파일 상세.
 //!
-//! - 히스토그램: `image` 크레이트로 디코드 가능한 포맷 + HEIC/HEIF(전용 디코더).
+//! - 히스토그램: `image` 크레이트로 디코드 가능한 포맷 + HEIC/HEIF/PSD(전용 디코더).
 //!   최대 변 256px로 다운샘플 후 집계하므로 대용량 파일도 빠르게 처리한다.
 //!   `image` 크레이트가 디코드 불가한 입력(SVG, AVIF 등)은 에러를 내고,
 //!   프론트는 해당 섹션을 숨긴다.
@@ -29,22 +29,32 @@ pub struct Histogram {
 /// 히스토그램 집계 전 다운샘플 상한 (정사각형 기준 한 변).
 const HISTOGRAM_MAX_SIDE: u32 = 256;
 
-fn is_heif_source(path: &Path) -> bool {
+fn is_transcoded_source(path: &Path) -> bool {
     matches!(
         path.extension()
             .and_then(|e| e.to_str())
             .map(|e| e.to_lowercase())
             .as_deref(),
-        Some("heic" | "heif")
+        Some("heic" | "heif" | "psd")
     )
 }
 
-/// 히스토그램/색상 판정용 RGB 디코드. HEIC/HEIF는 전용 디코더를 쓴다.
+/// 히스토그램/색상 판정용 RGB 디코드. HEIC/HEIF/PSD는 전용 디코더를 쓴다.
 fn decode_rgb8(path: &Path) -> Result<image::RgbImage, AppError> {
     if !path.is_file() {
         return Err(AppError::not_found("File not found"));
     }
-    if is_heif_source(path) {
+    if is_transcoded_source(path) {
+        let ext = path
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(|e| e.to_lowercase())
+            .unwrap_or_default();
+        if ext == "psd" {
+            let rgb = crate::psd_sidecar::decode_psd_rgb8(path)?;
+            return image::RgbImage::from_raw(rgb.width, rgb.height, rgb.bytes)
+                .ok_or_else(|| AppError::corrupt("PSD decode produced invalid buffer"));
+        }
         let rgb = crate::heif::decode_primary_rgb8(path)?;
         return image::RgbImage::from_raw(rgb.width, rgb.height, rgb.bytes)
             .ok_or_else(|| AppError::corrupt("HEIF decode produced invalid buffer"));
@@ -133,9 +143,12 @@ pub fn details_for_path(path: &Path) -> Result<ImageDetails, AppError> {
         .ok_or_else(|| AppError::unsupported("Unsupported image format"))?;
     let meta = fs::metadata(path)
         .map_err(|e| AppError::io("Failed to read metadata", e, ErrorCode::Corrupt))?;
-    // 치수는 렌더 경로 기준 (HEIC는 JPEG sidecar).
+    // 치수는 렌더 경로 기준 (HEIC/PSD는 JPEG sidecar).
     let paint_path = match crate::image::paint_strategy(mime) {
         PaintStrategy::Native => path.to_path_buf(),
+        PaintStrategy::TranscodeJpeg if mime == crate::psd_sidecar::PSD_MIME => {
+            crate::psd_sidecar::ensure_jpeg_sidecar(path)?
+        }
         PaintStrategy::TranscodeJpeg => crate::heif::ensure_jpeg_sidecar(path)?,
     };
     let (width, height) = image::image_dimensions(&paint_path).ok().unzip();
@@ -169,6 +182,9 @@ fn unix_time(time: Option<std::time::SystemTime>) -> Option<i64> {
 fn color_info(path: &Path, mime: &str) -> (String, Option<u8>) {
     if mime == "image/heic" || mime == "image/heif" {
         return ("rgb".to_string(), Some(8));
+    }
+    if mime == crate::psd_sidecar::PSD_MIME {
+        return ("rgba".to_string(), Some(8));
     }
     let dyn_img = match image::open(path) {
         Ok(img) => img,
@@ -404,6 +420,29 @@ mod tests {
         fs::write(&source, b"hello").unwrap();
         let err = histogram_for_path(&source).unwrap_err();
         assert_eq!(err.code, crate::app_error::ErrorCode::Unsupported);
+    }
+
+    #[test]
+    fn histogram_and_details_support_psd() {
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("design.psd");
+        fs::write(
+            &source,
+            crate::psd_sidecar::minimal_psd_bytes(4, 4, [255, 0, 0]),
+        )
+        .unwrap();
+
+        let hist = histogram_for_path(&source).expect("psd histogram");
+        assert_eq!(hist.sampled_pixels, 16);
+        assert_eq!(hist.r[255], 16);
+        assert_eq!(hist.g[0], 16);
+        assert_eq!(hist.b[0], 16);
+
+        let details = details_for_path(&source).expect("psd details");
+        assert_eq!((details.width, details.height), (Some(4), Some(4)));
+        assert_eq!(details.color_mode, "rgba");
+        assert_eq!(details.bits_per_channel, Some(8));
+        assert_eq!(details.icc_status, IccStatus::Unchecked);
     }
 
     #[test]

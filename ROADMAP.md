@@ -7,7 +7,7 @@
 >
 > - ✅ 완료: 뷰 모드 렌더(`useMultiPageImages` + `ImageContainer`), 회전/뒤집기(`appStore` + CSS transform + `R/Shift+R/H/V`), 클립보드 복사 PNG(`useCopyImage`), 슬라이드쇼 코어(`useSlideshow` + `Space/F5` + 간격 설정), 최근 파일 목록(최대 20개, `settings.json`), Asset Protocol 경로 기반 렌더링(base64 제거).
 > - ✅ Phase 1 폴리시 완료: 설정 UI 노출(viewMode/간격/자동열기), 헤더 회전/뒤집기 + 컨텍스트 메뉴 풀셋, 양면 2장 넘김 + 회전 bounds, 슬라이드쇼 진행바 오버레이, 다중 DnD + 오버레이, 에러 분류 + 홈으로 복구, EXIF 아카이브修正·썸네일 alt·테마 데드코드 제거.
-> - ✅ 포맷/성능 라운드: 디렉토리 스캔 캐시+워처(`dir_cache.rs` + `notify`), 썸네일 파이프라인(`thumbnail.rs` + `generate_thumbnail` + `useThumbnailSrcs`, 500MB cap), 렌더링 성능(rAF 팬 스로틀·`translate3d`+`will-change`·Webtoon 지연 로드·모드별 프리페치), CB7 아카이브 지원(`sevenz-rust2`, 15개 확장자). CBR/RAR/ZIP/7Z/CBT는 Step 4에서 추가 지원(20개 확장자, `unrar-rs` 퓨어 Rust). QOI/JXL/RAW/PSD는 JPEG sidecar 전제가 필요해 제외 유지.
+> - ✅ 포맷/성능 라운드: 디렉토리 스캔 캐시+워처(`dir_cache.rs` + `notify`), 썸네일 파이프라인(`thumbnail.rs` + `generate_thumbnail` + `useThumbnailSrcs`, 500MB cap), 렌더링 성능(rAF 팬 스로틀·`translate3d`+`will-change`·Webtoon 지연 로드·모드별 프리페치), CB7 아카이브 지원(`sevenz-rust2`, 15개 확장자). CBR/RAR/ZIP/7Z/CBT는 Step 4에서 추가 지원(20개 확장자, `unrar-rs` 퓨어 Rust). QOI/JXL/RAW는 JPEG sidecar 전제가 필요해 제외 유지. PSD는 읽기 전용 미리보기로 추가 지원(21개 확장자, `psd` 크레이트 + JPEG sidecar, PSB 제외).
 > - ✅ 썸네일 그리드 뷰(2.1): `G` 토글, 뷰포트 가상화(`ThumbnailGrid.tsx` + `gridWindow.ts`), 파일명 필터, 아카이브 전용 `generate_archive_thumbnail` 백엔드, 팔레트/컨텍스트 메뉴/하단 바 진입점.
 > - ✅ 문서 동기화(2026-09-14, 코드 대조): 2.4 i18n·2.5 DnD·3.4 메모리 최적화(핵심)·5.2 에러 처리를 완료로 확정. 3.5 렌더링(타일 미도입)·5.1 접근성(고대비 미지원)·5.3 테스트(훅/컴포넌트/통합 일부)·5.4 CI(PR용 워크플로 미분리)는 부분 완료로 재정의. 4.1 비교 모드·4.2 잔여분(크롭/리사이즈/밝기대비)·4.3 배치 작업·4.5 인쇄는 범위 제외.
 > - ✅ 2.2 이미지 정보 패널 강화(2026-09-14): `get_image_histogram` + `get_image_details` 백엔드(`image_info.rs`), SVG 히스토그램 차트 + 파일 상세 섹션(`ExifPanel`).
@@ -286,13 +286,13 @@
 
 ### 4.4 추가 이미지 포맷 지원 (P2) — 의도적 제외 유지 (2026-09-14 재확인)
 
-**현재 상태**: 20개 포맷 지원 (PNG, JPG, JPEG, GIF, BMP, WebP, SVG, ICO, TIFF, TIF, AVIF, HEIC, HEIF, CBZ, CB7, CBR, RAR, ZIP, 7Z, CBT). CB7/7Z는 `sevenz-rust2`(순수 Rust), CBR/RAR는 `unrar-rs`(`crypto-rust` 퓨어 Rust 백엔드, 네이티브 의존성 없음), CBT는 `tar` 크레이트로 목록/추출 지원. ZIP은 `zip` 크레이트 별칭.
+**현재 상태**: 21개 포맷 지원 (PNG, JPG, JPEG, GIF, BMP, WebP, SVG, ICO, TIFF, TIF, AVIF, HEIC, HEIF, PSD, CBZ, CB7, CBR, RAR, ZIP, 7Z, CBT). CB7/7Z는 `sevenz-rust2`(순수 Rust), CBR/RAR는 `unrar-rs`(`crypto-rust` 퓨어 Rust 백엔드, 네이티브 의존성 없음), CBT는 `tar` 크레이트로 목록/추출 지원. ZIP은 `zip` 크레이트 별칭.
 
 **HEIC/HEIF**: 구현됨. `libheif-rs`가 vcpkg `libheif[core]`를 동적 링크하고, 로드 시 JPEG sidecar를 만듭니다. HEVC 디코드는 `libde265`만 쓰고 `x265`는 넣지 않습니다. WebView2는 HEIC를 그리지 못합니다.
 
 **추가 후보**:
+- **PSD**: Photoshop 파일 미리보기 — 구현됨. `psd` 크레이트(순수 Rust)로 합성 디코드 후 JPEG sidecar 렌더, 읽기 전용(편집 저장 미지원). PSB는 디코더가 없어 제외 유지.
 - **RAW**: 카메라 RAW 포맷 (CR2, NEF, ARW 등) — `rawloader` 크레이트. JPEG sidecar 전제가 필요해 제외 유지.
-- **PSD**: Photoshop 파일 미리보기 — `psd` 크레이트. JPEG sidecar 전제가 필요해 제외 유지.
 - **JXL (JPEG XL)**: 차세대 이미지 포맷 — `jxl-oxide` 크레이트. JPEG sidecar 전제가 필요해 제외 유지.
 - **QOI**: 빠른 무손실 포맷. 백엔드 디코드(`image` 크레이트)는 가능하나 WebView2 네이티브 렌더 불가로 sidecar 전제가 필요해 제외 유지.
 - **CBR/RAR**: 지원됨. `unrar-rs` 퓨어 Rust 디코더(`crypto-rust` 기능, 네이티브 의존성 없음)로 RAR4/RAR5 목록/추출. 테스트 픽스처는 dev-의존성 `rars` Builder로 생성.

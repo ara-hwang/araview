@@ -20,11 +20,11 @@ pub enum PaintStrategy {
     TranscodeJpeg,
 }
 
-const TRANSCODE_MIMES: &[&str] = &["image/heic", "image/heif"];
+const TRANSCODE_MIMES: &[&str] = &["image/heic", "image/heif", crate::psd_sidecar::PSD_MIME];
 
 pub const SUPPORTED_EXTENSIONS: &[&str] = &[
     "png", "jpg", "jpeg", "gif", "bmp", "webp", "svg", "ico", "tiff", "tif", "avif", "heic",
-    "heif", "cbz", "cb7", "cbr", "rar", "zip", "7z", "cbt",
+    "heif", "psd", "cbz", "cb7", "cbr", "rar", "zip", "7z", "cbt",
 ];
 
 #[derive(Serialize)]
@@ -46,6 +46,7 @@ pub fn get_mime_type(path: &Path) -> Option<&'static str> {
         "avif" => Some("image/avif"),
         "heic" => Some("image/heic"),
         "heif" => Some("image/heif"),
+        "psd" => Some(crate::psd_sidecar::PSD_MIME),
         "cbz" => Some("application/vnd.comicbook+zip"),
         "zip" => Some("application/zip"),
         "cb7" | "7z" => Some("application/x-7z-compressed"),
@@ -119,6 +120,9 @@ pub fn load_viewable(source: &Path) -> Result<ImageInfo, AppError> {
         get_mime_type(source).ok_or_else(|| AppError::unsupported("Unsupported image format"))?;
     let paint_path = match paint_strategy(mime) {
         PaintStrategy::Native => source.to_path_buf(),
+        PaintStrategy::TranscodeJpeg if mime == crate::psd_sidecar::PSD_MIME => {
+            crate::psd_sidecar::ensure_jpeg_sidecar(source)?
+        }
         PaintStrategy::TranscodeJpeg => crate::heif::ensure_jpeg_sidecar(source)?,
     };
     image_info(source, paint_path)
@@ -231,6 +235,18 @@ mod tests {
     }
 
     #[test]
+    fn test_get_mime_type_psd() {
+        assert_eq!(
+            get_mime_type(Path::new("design.psd")),
+            Some("image/vnd.adobe.photoshop")
+        );
+        assert_eq!(
+            get_mime_type(Path::new("design.PSD")),
+            Some("image/vnd.adobe.photoshop")
+        );
+    }
+
+    #[test]
     fn test_get_mime_type_cbz() {
         assert_eq!(
             get_mime_type(Path::new("comic.cbz")),
@@ -309,6 +325,7 @@ mod tests {
         assert!(is_image_file(Path::new("photo.avif")));
         assert!(is_image_file(Path::new("IMG_0001.heic")));
         assert!(is_image_file(Path::new("photo.heif")));
+        assert!(is_image_file(Path::new("design.psd")));
     }
 
     #[test]
@@ -352,7 +369,7 @@ mod tests {
                 "missing MIME mapping for .{ext}"
             );
         }
-        assert_eq!(SUPPORTED_EXTENSIONS.len(), 20);
+        assert_eq!(SUPPORTED_EXTENSIONS.len(), 21);
     }
 
     #[test]
@@ -362,9 +379,13 @@ mod tests {
     }
 
     #[test]
-    fn paint_strategy_transcodes_heic_heif_only() {
+    fn paint_strategy_transcodes_heic_heif_psd_only() {
         assert_eq!(paint_strategy("image/heic"), PaintStrategy::TranscodeJpeg);
         assert_eq!(paint_strategy("image/heif"), PaintStrategy::TranscodeJpeg);
+        assert_eq!(
+            paint_strategy("image/vnd.adobe.photoshop"),
+            PaintStrategy::TranscodeJpeg
+        );
         assert_eq!(paint_strategy("image/png"), PaintStrategy::Native);
         assert_eq!(paint_strategy("image/jpeg"), PaintStrategy::Native);
         assert_eq!(paint_strategy("image/avif"), PaintStrategy::Native);
@@ -445,6 +466,68 @@ mod tests {
         assert_eq!(&jpeg[..2], &[0xFF, 0xD8]);
         let again = load_viewable(&source).expect("reuse sidecar");
         assert_eq!(again.file_path, first.file_path);
+    }
+
+    #[test]
+    fn load_viewable_psd_transcodes_to_jpeg_sidecar() {
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("design.psd");
+        std::fs::write(
+            &source,
+            crate::psd_sidecar::minimal_psd_bytes(4, 2, [10, 20, 30]),
+        )
+        .unwrap();
+        let first = load_viewable(&source).expect("decode PSD fixture");
+        assert_eq!(first.mime_type, "image/vnd.adobe.photoshop");
+        assert_eq!(first.file_name, "design.psd");
+        assert_ne!(first.file_path, source.to_string_lossy());
+        assert!(Path::new(&first.file_path).exists());
+        let jpeg = std::fs::read(&first.file_path).unwrap();
+        assert_eq!(&jpeg[..2], &[0xFF, 0xD8]);
+        assert_eq!((first.width, first.height), (Some(4), Some(2)));
+        let again = load_viewable(&source).expect("reuse PSD sidecar");
+        assert_eq!(again.file_path, first.file_path);
+    }
+
+    #[test]
+    fn load_viewable_psb_is_unsupported() {
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("large.psb");
+        std::fs::write(&source, b"not-a-psb").unwrap();
+        // .psb는 지원 확장자가 아니라 진입 차단된다.
+        let err = load_viewable(&source).unwrap_err();
+        assert_eq!(err.code, crate::app_error::ErrorCode::Unsupported);
+    }
+
+    #[test]
+    fn load_viewable_psb_content_in_psd_is_unsupported() {
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("fake.psd");
+        let mut bytes = b"8BPB".to_vec();
+        bytes.extend_from_slice(&[0u8; 64]);
+        std::fs::write(&source, bytes).unwrap();
+        let err = load_viewable(&source).unwrap_err();
+        assert_eq!(err.code, crate::app_error::ErrorCode::Unsupported);
+        assert_eq!(err.message, "PSB is not supported");
+    }
+
+    #[test]
+    fn load_viewable_psd_sample_fixture_when_present() {
+        let source = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("samples")
+            .join("sample.psd");
+        if !source.exists() {
+            return;
+        }
+        let info = load_viewable(&source).expect("decode sample.psd");
+        assert_eq!(info.mime_type, "image/vnd.adobe.photoshop");
+        assert_eq!(info.file_name, "sample.psd");
+        assert_ne!(info.file_path, source.to_string_lossy());
+        assert!(Path::new(&info.file_path).exists());
+        let jpeg = std::fs::read(&info.file_path).unwrap();
+        assert_eq!(&jpeg[..2], &[0xFF, 0xD8]);
+        assert_eq!((info.width, info.height), (Some(64), Some(64)));
     }
 
     const MIN_PNG: &[u8] = &[

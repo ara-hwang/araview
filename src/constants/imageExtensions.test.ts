@@ -17,6 +17,7 @@ describe("SUPPORTED_IMAGE_EXTENSIONS", () => {
       "avif",
       "heic",
       "heif",
+      "psd",
       "cbz",
       "cb7",
       "cbr",
@@ -28,8 +29,8 @@ describe("SUPPORTED_IMAGE_EXTENSIONS", () => {
     expect([...SUPPORTED_IMAGE_EXTENSIONS]).toEqual(expected)
   })
 
-  it("has 20 supported extensions", () => {
-    expect(SUPPORTED_IMAGE_EXTENSIONS).toHaveLength(20)
+  it("has 21 supported extensions", () => {
+    expect(SUPPORTED_IMAGE_EXTENSIONS).toHaveLength(21)
   })
 
   it("includes common web image formats", () => {
@@ -44,10 +45,11 @@ describe("SUPPORTED_IMAGE_EXTENSIONS", () => {
     expect(SUPPORTED_IMAGE_EXTENSIONS).toContain("avif")
     expect(SUPPORTED_IMAGE_EXTENSIONS).toContain("heic")
     expect(SUPPORTED_IMAGE_EXTENSIONS).toContain("heif")
+    expect(SUPPORTED_IMAGE_EXTENSIONS).toContain("psd")
   })
 
   it("does not include unsupported formats", () => {
-    expect(SUPPORTED_IMAGE_EXTENSIONS).not.toContain("psd")
+    expect(SUPPORTED_IMAGE_EXTENSIONS).not.toContain("psb")
     expect(SUPPORTED_IMAGE_EXTENSIONS).not.toContain("raw")
   })
 })

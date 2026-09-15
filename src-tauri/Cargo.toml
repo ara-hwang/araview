@@ -46,6 +46,7 @@ winreg = "0.56.0"
 tauri-plugin-mcp-bridge = { version = "0.13", optional = true }
 trash = "3"
 image = "0.25"
+psd = "0.3"
 notify = "8"
 sevenz-rust2 = "0.22.2"
 unrar-rs = { version = "0.10", default-features = false, features = ["crypto-rust"] }
