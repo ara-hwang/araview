@@ -59,7 +59,7 @@ const captionButtonClassName = cn(
 
 const captionCloseButtonClassName = cn(
   captionButtonClassName,
-  "hover:bg-red-600 hover:text-white active:bg-red-700"
+  "hover:bg-destructive hover:text-white active:bg-destructive"
 )
 
 // 위쪽 툴바
@@ -262,7 +262,7 @@ export default function Header({
                 </Button>
                 <ButtonGroupText
                   className={cn(
-                    "no-drag hidden tabular-nums focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] focus-visible:outline-none sm:flex",
+                    "no-drag focus-visible:ring-ring hidden tabular-nums focus-visible:ring-2 focus-visible:outline-none sm:flex",
                     !hasImage && "opacity-50"
                   )}
                   render={

@@ -213,7 +213,7 @@ export function WebtoonContinuousView({
       role="region"
       tabIndex={0}
       className={cn(
-        "absolute inset-0 overflow-x-hidden overflow-y-auto focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] focus-visible:outline-none"
+        "focus-visible:ring-ring absolute inset-0 overflow-x-hidden overflow-y-auto focus-visible:ring-2 focus-visible:outline-none"
       )}
       aria-label="webtoon-scroll"
     >

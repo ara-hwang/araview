@@ -160,6 +160,17 @@
   app-region: no-drag;
 }
 
+/* 투명 배경 체커보드 (뷰어 배경 옵션용) */
+@utility checkerboard {
+  background-image: conic-gradient(
+    #c7c7c7 25%,
+    #ffffff 0 50%,
+    #c7c7c7 0 75%,
+    #ffffff 0
+  );
+  background-size: 20px 20px;
+}
+
 @keyframes slideshow-progress {
   from {
     width: 0%;

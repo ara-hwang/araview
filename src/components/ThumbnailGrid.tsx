@@ -363,7 +363,7 @@ export function ThumbnailGrid({
             onChange={(e) => handleQueryChange(e.target.value)}
             placeholder={t("viewer.grid.filter")}
             aria-label={t("viewer.grid.filter")}
-            className="border-border bg-background h-8 w-48 rounded-md border pr-2 pl-7 text-xs focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] focus-visible:outline-none"
+            className="border-border bg-background focus-visible:ring-ring h-8 w-48 rounded-md border pr-2 pl-7 text-xs focus-visible:ring-2 focus-visible:outline-none"
           />
         </div>
         <Button
@@ -453,10 +453,9 @@ export function ThumbnailGrid({
                     className={cn(
                       "bg-background absolute cursor-pointer overflow-hidden rounded-md border transition-colors",
                       isCurrent
-                        ? "border-[hsl(var(--foreground))]"
-                        : "border-[hsl(var(--border))] hover:border-[hsl(var(--muted-foreground))]",
-                      isSelected &&
-                        "ring-2 ring-[hsl(var(--ring))] ring-offset-0"
+                        ? "border-foreground"
+                        : "border-border hover:border-muted-foreground",
+                      isSelected && "ring-ring ring-2 ring-offset-0"
                     )}
                     style={{
                       left,

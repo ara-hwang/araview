@@ -108,7 +108,7 @@ export function ImageNavBar({
                   onNavigateToIndex(index)
                 }}
                 className={cn(
-                  "relative h-12 w-12 shrink-0 overflow-hidden rounded border-2 transition-all focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] focus-visible:outline-none",
+                  "focus-visible:ring-ring relative h-12 w-12 shrink-0 overflow-hidden rounded border-2 transition-all focus-visible:ring-2 focus-visible:outline-none",
                   isCurrent
                     ? "border-primary scale-110"
                     : "border-transparent opacity-60 hover:opacity-100"
