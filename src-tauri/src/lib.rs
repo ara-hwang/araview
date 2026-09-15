@@ -9,6 +9,7 @@ pub mod image_info;
 pub mod process_temp;
 pub mod psd_sidecar;
 pub mod save;
+pub mod thumb_shell;
 pub mod thumbnail;
 
 use app_error::AppError;
@@ -23,6 +24,7 @@ use save::save_image_edits;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use tauri::{Emitter, Manager};
+use thumb_shell::{get_psd_thumbnail_status, register_psd_thumbnail, unregister_psd_thumbnail};
 
 /// 시작 시/두 번째 실행에서 받은 파일 경로를 프론트 준비 전까지 보관한다.
 #[derive(Default)]
@@ -95,6 +97,9 @@ pub fn run() {
             set_file_association,
             set_all_file_associations,
             open_default_apps_settings,
+            get_psd_thumbnail_status,
+            register_psd_thumbnail,
+            unregister_psd_thumbnail,
             trash_file,
             rename_file,
             save_image_edits,

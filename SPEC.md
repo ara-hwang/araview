@@ -468,6 +468,9 @@
 | `set_file_association`       | `extension`, `associate`                                                             | `FileAssociation`              |
 | `set_all_file_associations`  | `associate`                                                                          | `FileAssociation[]`            |
 | `open_default_apps_settings` | 없음                                                                                 | 없음                           |
+| `get_psd_thumbnail_status`   | 없음                                                                                 | `PsdThumbStatus`               |
+| `register_psd_thumbnail`     | 없음                                                                                 | `PsdThumbStatus`               |
+| `unregister_psd_thumbnail`   | 없음                                                                                 | `PsdThumbStatus`               |
 | `trash_file`                 | `filePath` → `file_path`                                                             | 없음                           |
 | `rename_file`                | `oldPath` → `old_path`, `newName` → `new_name`                                       | `ImageInfo`                    |
 | `save_image_edits`           | `filePath` → `file_path`, `options`                                                  | `ImageInfo`                    |
@@ -502,6 +505,7 @@ Rust와 TypeScript는 같은 모양을 유지한다.
 - `ImageDetails`: `{ file_path, file_size, width, height, color_mode, bits_per_channel?, created_unix?, modified_unix?, dpi_x?, dpi_y?, icc_status: "present"|"absent"|"unchecked", icc_name?, icc_bytes? }`. 백엔드 출력은 snake_case를 유지한다(`ImageInfo`·`DirectoryImages` 선례).
 - `ArchiveState`: `{ archivePath: string | null }`.
 - `FileAssociation`: `{ extension, associated, current_prog_id, needs_os_confirmation }`.
+- `PsdThumbStatus`: `{ registered, clsid, dll_path, dll_exists }`. 탐색기 썸네일 등록 상태(21.2절). 백엔드 출력은 snake_case를 유지한다.
 - `SaveImageOptions`: camelCase `{ rotationCw, flipH, flipV, format?, overwrite, newFileName? }`.
 - `DirListOptions`: camelCase `{ sortKey, descending, shuffle, recursive }`.
 
@@ -574,6 +578,18 @@ Rust와 TypeScript는 같은 모양을 유지한다.
 - 로컬 서명 빌드: `TAURI_SIGNING_PRIVATE_KEY`에 키 경로 또는 키 내용을, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`에 비밀번호를 넣는다. 번들러(`crates/tauri-cli/src/bundle.rs`의 `sign_updaters`)는 `TAURI_SIGNING_PRIVATE_KEY_PATH`를 읽지 않고, 값이 존재하는 경로면 파일 내용을 읽는다. 비밀번호가 없으면 대화형 프롬프트가 뜨고, `--ci` 또는 `CI` 환경이면 빈 문자열로 처리한다.
 - 서명 생략: `npm run tauri build -- --no-sign`은 updater 서명을 건너뛴다. 로컬 확인용이며 `.sig`가 없으므로 배포에 쓰지 않는다.
 - 로컬 릴리스(CI 대체): `scripts/Publish-LocalRelease.ps1`(`npm run release:local`). `tauri.conf.json` 버전으로 태그를 확인하고, 서명 빌드, `.sig`와 `plugins.updater.pubkey`의 키 ID 대조, `latest.json` 생성, 태그 푸시, `gh release create`/`upload`를 수행한다. 기본은 draft이고 `-Publish`로 공개, `-SkipBuild`로 기존 산출물 재사용, `-DryRun`으로 GitHub 접촉 없이 점검한다. 산출물(설치본, `.sig`, `latest.json`)은 저장소 안 `release/vX.Y.Z/`에 모으고 `.gitignore`로 제외하며 `-OutputDir`로 바꿀 수 있다. 서명 키는 `-KeyPath`, `TAURI_SIGNING_PRIVATE_KEY`, 저장소 루트 `araview.key`, `~/.tauri/araview.key` 순서로 찾고, 비밀번호는 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`로 받는다. 둘 다 `.env.local`(gitignored, `.env.example` 참고)에서 읽을 수 있고 이미 설정된 환경변수가 우선한다. `.env.local`은 Vite도 읽지만 `VITE_` 접두사만 클라이언트로 노출되므로 키가 프런트엔드로 새지 않는다.
+
+### 21.2 PSD 탐색기 썸네일 (IThumbnailProvider)
+
+Windows 파일 탐색기에서 `.psd` 축소판을 표시한다. 미리보기 창(`Alt+P`)은 범위 밖이며 썸네일만 제공한다.
+
+- 진실: `src-tauri/crates/araview-thumb/`(COM DLL), `src-tauri/src/thumb_shell.rs`(HKCU 등록), `src/hooks/usePsdThumbnail.ts` + `src/components/settings/ExtensionSettingsPanel.tsx`(설정 UI).
+- 핸들러는 `araview_thumb.dll` 안의 In-Proc COM 서버이다. `IThumbnailProvider` + `IInitializeWithStream`(격리 surrogate 주 경로)/`IInitializeWithFile`을 구현하고, `psd` 크레이트 합성 디코드 + 흰 배경 합성(앱 JPEG sidecar와 동일 규칙)으로 32bpp DIB를 돌려준다. PSB(`8BPB`)는 거부하고 탐색기가 기본 아이콘으로 폴백한다. `DisableProcessIsolation`은 두지 않는다.
+- CLSID(발행 후 변경 금지): 릴리스 `{FD6BD976-2DF4-4656-94F2-1D166163EC59}`, 개발 `{BD277595-1702-4AC5-AA7C-A67965C3D570}`. 문자열은 DLL 크레이트(`registry.rs`)와 앱(`thumb_shell.rs`)에 중복 정의되어 있으며 함께 바꿔야 한다(앱은 `windows` 크레이트 의존을 피한다).
+- 등록은 전부 HKCU(`Software\Classes`)라 관리자 권한이 필요 없다: `CLSID\{CLSID}\InprocServer32`(DLL 경로 + `ThreadingModel=Apartment`), `.psd`와 채널 ProgID(`com.araview.viewer[.dev].psd`)의 `ShellEx\{E357FCCD-A995-4576-B01F-234630154E96}` 슬롯, `.psd`의 `PerceivedType=image`/`Content Type` 빈값 채우기. 등록/해제 후 `SHChangeNotify(SHCNE_ASSOCCHANGED)`를 보낸다.
+- DLL 전달: 워크스페이스 멤버(`src-tauri` `[workspace]`)로 함께 빌드한다. 개발 DLL은 공유 target dir라 dev exe 옆에 놓이고, 릴리스는 `scripts/Build-ThumbDll.ps1`(`npm run build:thumb`)로 빌드해 `src-tauri/resources/`에 스테이징하면 NSIS 번들(`bundle.resources`)이 `$INSTDIR\resources\`에 싣는다. 앱은 exe 옆, `resources/` 순으로 DLL을 찾는다.
+- 설정 UI(확장자 탭 하단): 상태 조회(`get_psd_thumbnail_status`), 켜기(`register_psd_thumbnail`)/끄기(`unregister_psd_thumbnail`). DLL이 없으면 등록을 거부하고 안내한다. 적용 뒤 탐색기 재시작/썸네일 캐시 정리가 필요할 수 있음을 안내한다.
+- 제한: 고무결성 Explorer(Windows Sandbox 등)는 HKCU COM을 무시하므로 dev 채널 썸네일이 동작하지 않는다. 삭제 시 HKCU 키는 남을 수 있으며 다시 설치 후 설정에서 다시 켜면 복구된다.
 
 ## 22. 비목표와 제약
 

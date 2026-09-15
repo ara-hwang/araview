@@ -9,6 +9,7 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
+    "build:thumb": "pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/Build-ThumbDll.ps1",
     "release:local": "pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/Publish-LocalRelease.ps1",
     "test": "vitest run",
     "test:watch": "vitest",

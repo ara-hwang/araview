@@ -7,3 +7,7 @@
 /gen/schemas
 /generated/
 /capabilities/dev-mcp.json
+
+# Staged PSD thumbnail DLL for bundling (built by scripts/Build-ThumbDll.ps1).
+# The DLL itself is a build artifact; the source lives in crates/araview-thumb.
+/resources/araview_thumb.dll

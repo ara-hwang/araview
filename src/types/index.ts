@@ -56,3 +56,10 @@ export type FileAssociation = {
   current_prog_id: string | null
   needs_os_confirmation: boolean
 }
+
+export type PsdThumbStatus = {
+  registered: boolean
+  clsid: string
+  dll_path: string
+  dll_exists: boolean
+}
