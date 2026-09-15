@@ -5,6 +5,7 @@ import { relaunch } from "@tauri-apps/plugin-process"
 import { toast } from "sonner"
 import i18n from "@/i18n"
 import { errorMessage } from "@/utils/appError"
+import { useUpdateStore } from "@/store/updateStore"
 
 /** 명령 팔레트 등 전역에서 수동 업데이트 확인을 요청하는 이벤트. */
 export const REQUEST_UPDATE_CHECK_EVENT = "tiv:check-updates"
@@ -14,15 +15,19 @@ export function requestUpdateCheck() {
 }
 
 let checkInFlight = false
+let downloadInFlight = false
+let pendingUpdate: Update | null = null
 
 export type UpdateCheckResult = "latest" | "available" | "busy" | "failed"
 
 /**
  * 수동 업데이트 확인. 오프라인 우선 원칙에 따라 시작 시 자동 확인은
  * 하지 않고, 사용자가 버튼/팔레트로 요청할 때만 네트워크를 쓴다.
+ * 새 버전이 있으면 Dialog로 다운로드 여부를 묻는다.
  */
 export async function checkForUpdatesNow(): Promise<UpdateCheckResult> {
   if (checkInFlight) return "busy"
+  if (useUpdateStore.getState().stage !== "idle") return "busy"
   checkInFlight = true
   try {
     const update = await check()
@@ -30,7 +35,8 @@ export async function checkForUpdatesNow(): Promise<UpdateCheckResult> {
       toast.success(i18n.t("toast.update.latest"))
       return "latest"
     }
-    notifyUpdateAvailable(update)
+    pendingUpdate = update
+    useUpdateStore.getState().showAvailable(update.version, update.body ?? null)
     return "available"
   } catch (e) {
     toast.error(i18n.t("toast.update.checkFail"), {
@@ -42,55 +48,66 @@ export async function checkForUpdatesNow(): Promise<UpdateCheckResult> {
   }
 }
 
-function notifyUpdateAvailable(update: Update) {
-  toast.message(
-    i18n.t("toast.update.availableTitle", { version: update.version }),
-    {
-      description: update.body ?? i18n.t("toast.update.availableDesc"),
-      duration: 15000,
-      action: {
-        label: i18n.t("toast.update.install"),
-        onClick: () => void installUpdate(update)
-      }
-    }
-  )
-}
-
-async function installUpdate(update: Update) {
-  const id = "araview-update-install"
+/** 사용 가능한 Dialog에서 [다운로드]를 눌렀을 때 호출된다. */
+export async function startUpdateDownload(): Promise<void> {
+  const update = pendingUpdate
+  if (!update || downloadInFlight) return
+  downloadInFlight = true
+  useUpdateStore.getState().startDownload()
   try {
     let total: number | undefined
     let downloaded = 0
-    toast.loading(i18n.t("toast.update.downloading"), { id })
     await update.downloadAndInstall((event) => {
       if (event.event === "Started") {
         total = event.data.contentLength
+        useUpdateStore.getState().setProgress(null)
       } else if (event.event === "Progress") {
         downloaded += event.data.chunkLength
         if (total) {
           const pct = Math.min(100, Math.round((downloaded / total) * 100))
-          toast.loading(i18n.t("toast.update.downloadingPct", { pct }), { id })
+          useUpdateStore.getState().setProgress(pct)
         }
       }
     })
-    toast.success(i18n.t("toast.update.installed"), {
-      id,
-      action: {
-        label: i18n.t("toast.update.restart"),
-        onClick: () =>
-          void relaunch().catch((e: unknown) =>
-            toast.error(i18n.t("toast.update.restartFail"), {
-              description: errorMessage(e)
-            })
-          )
-      }
-    })
+    useUpdateStore.getState().markReady()
   } catch (e) {
-    toast.error(i18n.t("toast.update.installFail"), {
-      id,
+    useUpdateStore.getState().setDownloadError(errorMessage(e))
+  } finally {
+    downloadInFlight = false
+  }
+}
+
+/**
+ * Dialog를 닫는다. 다운로드 진행 중(에러 없음)에는 닫기를 무시한다.
+ * ready 단계의 [닫은 후 적용]은 다음 실행 시 적용됨을 토스트로 알린다.
+ */
+export function dismissUpdate(deferred = false) {
+  const { stage, error } = useUpdateStore.getState()
+  if (stage === "downloading" && !error) return
+  pendingUpdate = null
+  useUpdateStore.getState().dismiss()
+  if (deferred) {
+    toast.success(i18n.t("toast.update.deferred"))
+  }
+}
+
+/** 설치 준비 완료 Dialog에서 [지금 다시 시작]을 눌렀을 때 호출된다. */
+export async function relaunchAfterUpdate(): Promise<void> {
+  try {
+    await relaunch()
+  } catch (e) {
+    toast.error(i18n.t("toast.update.restartFail"), {
       description: errorMessage(e)
     })
   }
+}
+
+/** 테스트에서 모듈 상태(진행 중 플래그, 보류 업데이트)를 초기화한다. */
+export function __resetUpdateModuleForTests() {
+  checkInFlight = false
+  downloadInFlight = false
+  pendingUpdate = null
+  useUpdateStore.getState().dismiss()
 }
 
 /** 설정 화면에 표시할 현재 앱 버전. 실패 시 null이다. */
