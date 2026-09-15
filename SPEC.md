@@ -1,7 +1,7 @@
 # SPEC.md - AraView 기능/기술 명세
 
 > 한국어 스펙 문서. 구현 진실(source of truth)은 코드이며, 본 문서는 현재 코드베이스의 동작을 요약한다.
-> 관련 문서: `PRODUCT.md`(제품 정의), `DESIGN.md`(비주얼 시스템), `ROADMAP.md`(단계 계획), `README.md`(사용/설치 안내), `AGENTS.md`(AI 작업 지침).
+> 관련 문서: `PRODUCT.md`(제품 정의), `DESIGN.md`(비주얼 시스템), `ROADMAP.md`(단계 계획), `README.md`(소개/문서 허브), `docs/usage.md`(사용법), `docs/development.md`(개발 안내), `docs/releasing.md`(릴리스/업데이트), `AGENTS.md`(AI 작업 지침).
 
 ## 0. 문서 규약
 
@@ -544,7 +544,7 @@ Rust와 TypeScript는 같은 모양을 유지한다.
 
 ## 21. 윈도우/배포
 
-진실: `src-tauri/tauri.conf.json`, `src-tauri/src/lib.rs`, `README.md`, `.github/workflows/release.yml`.
+진실: `src-tauri/tauri.conf.json`, `src-tauri/src/lib.rs`, `docs/releasing.md`, `.github/workflows/release.yml`.
 
 - 창: 제목 기본값 `AraView`(런타임에는 이미지가 열리면 파일명, 아니면 현재 로케일의 앱 이름), 1024x768, 최소 600x400, 프레임리스, 시작 시 숨김(`visible: false`).
 - `window-state` 플러그인으로 창 상태를 유지한다.
@@ -587,7 +587,7 @@ Rust와 TypeScript는 같은 모양을 유지한다.
 2. `src/constants/imageExtensions.ts`.
 3. `src-tauri/tauri.conf.json` 파일 연결(필요 시).
 4. `samples/` 파일로 `load_image` 확인, EXIF 포맷은 `get_exif_data`도 확인.
-5. `README.md`, 본 문서(`SPEC.md`), 필요 시 `AGENTS.md` 범위 갱신.
+5. `README.md`, `docs/`(해당 안내), 본 문서(`SPEC.md`), 필요 시 `AGENTS.md` 범위 갱신.
 
 ### 23.2 백엔드 명령 추가
 

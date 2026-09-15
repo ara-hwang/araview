@@ -158,7 +158,7 @@ Tauri Store (`settings.json`) is used for:
    Python `pillow-heif` (repo must not depend on it), CBZ via
    `Compress-Archive`, CB7 via 7-Zip. If no encoder exists on the PC, install
    the tool on the PC instead of vendoring it into the repo.
-6. Update docs (`README.md`, `SPEC.md`, and this file when relevant)
+6. Update docs (`README.md`, `docs/` usage/development/releasing as relevant, `SPEC.md`, and this file when relevant)
 
 ### Add a new backend command
 
