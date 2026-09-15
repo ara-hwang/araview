@@ -6,7 +6,7 @@ import type { ReactNode } from "react"
 export function SettingsFieldSet(props: {
   icon: ReactNode
   title: string
-  description: string
+  description?: string
   shortcutId?: ShortcutActionId
   children: ReactNode
 }) {
@@ -19,7 +19,9 @@ export function SettingsFieldSet(props: {
           <ShortcutBadge actionId={props.shortcutId} />
         ) : null}
       </FieldLegend>
-      <FieldDescription>{props.description}</FieldDescription>
+      {props.description ? (
+        <FieldDescription>{props.description}</FieldDescription>
+      ) : null}
       {props.children}
     </FieldSet>
   )

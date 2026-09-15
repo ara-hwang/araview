@@ -146,10 +146,10 @@
     },
     "update": {
       "title": "Updates",
-      "desc": "Checks for a new version only when you press the button. The network is used for the check and download only, the app stays offline otherwise.",
+      "desc": "Checks for updates only when you press the button.",
       "current": "Current version {{version}}",
       "unknown": "unknown",
-      "check": "Check now",
+      "check": "Check for new version",
       "checking": "Checking"
     },
     "view": {
@@ -352,6 +352,23 @@
         "flipV": "Flip vertical",
         "none": "No changes"
       }
+    },
+    "update": {
+      "availableTitle": "Version {{version}} is available",
+      "availableDesc": "Review the changes and choose whether to download.",
+      "noNotes": "No release notes.",
+      "download": "Download",
+      "later": "Later",
+      "downloadingTitle": "Downloading update",
+      "downloadingDesc": "Downloading version {{version}}. Keep the app open until it finishes.",
+      "downloading": "Downloading update",
+      "downloadingPct": "Downloading update {{pct}}%",
+      "downloadFail": "Download failed. Try again or check later.",
+      "retry": "Retry",
+      "readyTitle": "Ready to install",
+      "readyDesc": "Restart now to apply the new version. If you apply on exit, it takes effect on the next launch after you close the app.",
+      "restartNow": "Restart now",
+      "applyOnExit": "Apply on exit"
     }
   },
   "status": {
@@ -528,7 +545,8 @@
       "installed": "Update installed",
       "restart": "Restart now",
       "restartFail": "Failed to restart",
-      "installFail": "Failed to install update"
+      "installFail": "Failed to install update",
+      "deferred": "The update will apply on the next launch after you close the app"
     },
     "load": {
       "archiveFail": "Failed to load archive",

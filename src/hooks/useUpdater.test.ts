@@ -30,13 +30,19 @@ vi.mock("@/i18n", () => ({
 
 import {
   REQUEST_UPDATE_CHECK_EVENT,
+  __resetUpdateModuleForTests,
   checkForUpdatesNow,
+  dismissUpdate,
+  relaunchAfterUpdate,
   requestUpdateCheck,
+  startUpdateDownload,
   useAppVersion
 } from "@/hooks/useUpdater"
+import { useUpdateStore } from "@/store/updateStore"
 
 beforeEach(() => {
   vi.clearAllMocks()
+  __resetUpdateModuleForTests()
 })
 
 describe("checkForUpdatesNow", () => {
@@ -47,39 +53,19 @@ describe("checkForUpdatesNow", () => {
 
     expect(mockCheck).toHaveBeenCalledTimes(1)
     expect(mockToast.success).toHaveBeenCalledWith("toast.update.latest")
+    expect(useUpdateStore.getState().stage).toBe("idle")
   })
 
-  it("업데이트가 있으면 available을 반환하고 설치 액션을 제공한다", async () => {
-    const downloadAndInstall = vi.fn((onEvent: (e: unknown) => void) => {
-      onEvent({ event: "Started", data: { contentLength: 100 } })
-      onEvent({ event: "Progress", data: { chunkLength: 50 } })
-      onEvent({ event: "Finished" })
-      return Promise.resolve()
-    })
-    mockCheck.mockResolvedValueOnce({
-      version: "9.9.9",
-      body: "notes",
-      downloadAndInstall
-    })
+  it("업데이트가 있으면 available을 반환하고 Dialog 상태를 연다", async () => {
+    mockCheck.mockResolvedValueOnce({ version: "9.9.9", body: "notes" })
 
     await expect(checkForUpdatesNow()).resolves.toBe("available")
 
-    expect(mockToast.message).toHaveBeenCalledTimes(1)
-    const action = mockToast.message.mock.calls[0][1].action
-    expect(action.label).toBe("toast.update.install")
-
-    action.onClick()
-    await vi.waitFor(() => expect(downloadAndInstall).toHaveBeenCalled())
-    await vi.waitFor(() =>
-      expect(mockToast.success).toHaveBeenCalledWith(
-        "toast.update.installed",
-        expect.objectContaining({ id: "araview-update-install" })
-      )
-    )
-    expect(mockToast.loading).toHaveBeenCalledWith(
-      "toast.update.downloadingPct:50",
-      expect.objectContaining({ id: "araview-update-install" })
-    )
+    const state = useUpdateStore.getState()
+    expect(state.stage).toBe("available")
+    expect(state.version).toBe("9.9.9")
+    expect(state.body).toBe("notes")
+    expect(mockToast.message).not.toHaveBeenCalled()
   })
 
   it("확인 중에는 두 번째 요청을 busy로 돌려보낸다", async () => {
@@ -97,6 +83,15 @@ describe("checkForUpdatesNow", () => {
     await expect(first).resolves.toBe("latest")
   })
 
+  it("Dialog이 열려 있으면 새 확인을 busy로 돌려보낸다", async () => {
+    mockCheck.mockResolvedValueOnce({ version: "9.9.9", body: null })
+    await checkForUpdatesNow()
+    expect(useUpdateStore.getState().stage).toBe("available")
+
+    await expect(checkForUpdatesNow()).resolves.toBe("busy")
+    expect(mockCheck).toHaveBeenCalledTimes(1)
+  })
+
   it("확인에 실패하면 failed를 반환하고 에러 토스트를 표시한다", async () => {
     mockCheck.mockRejectedValueOnce(new Error("offline"))
 
@@ -107,51 +102,107 @@ describe("checkForUpdatesNow", () => {
       expect.objectContaining({ description: "offline" })
     )
   })
+})
 
-  it("설치에 실패하면 설치 에러 토스트를 표시한다", async () => {
+describe("startUpdateDownload", () => {
+  it("다운로드 진행률을 저장하고 완료 시 ready가 된다", async () => {
+    const downloadAndInstall = vi.fn((onEvent: (e: unknown) => void) => {
+      onEvent({ event: "Started", data: { contentLength: 100 } })
+      onEvent({ event: "Progress", data: { chunkLength: 50 } })
+      onEvent({ event: "Finished" })
+      return Promise.resolve()
+    })
+    mockCheck.mockResolvedValueOnce({
+      version: "9.9.9",
+      body: "notes",
+      downloadAndInstall
+    })
+    await checkForUpdatesNow()
+
+    await startUpdateDownload()
+
+    expect(downloadAndInstall).toHaveBeenCalledTimes(1)
+    const state = useUpdateStore.getState()
+    expect(state.stage).toBe("ready")
+    expect(state.pct).toBe(100)
+  })
+
+  it("다운로드에 실패하면 에러를 저장한다", async () => {
     const downloadAndInstall = vi
       .fn()
       .mockRejectedValueOnce(new Error("disk full"))
     mockCheck.mockResolvedValueOnce({
       version: "9.9.9",
+      body: null,
       downloadAndInstall
     })
-
     await checkForUpdatesNow()
 
-    const action = mockToast.message.mock.calls[0][1].action
-    action.onClick()
-    await vi.waitFor(() =>
-      expect(mockToast.error).toHaveBeenCalledWith(
-        "toast.update.installFail",
-        expect.objectContaining({ description: "disk full" })
-      )
-    )
-  })
+    await startUpdateDownload()
 
-  it("설치 완료 후 다시 시작 액션이 relaunch를 호출한다", async () => {
-    mockRelaunch.mockResolvedValueOnce(undefined)
-    const downloadAndInstall = vi.fn().mockResolvedValue(undefined)
+    const state = useUpdateStore.getState()
+    expect(state.stage).toBe("downloading")
+    expect(state.error).toBe("disk full")
+  })
+})
+
+describe("dismissUpdate", () => {
+  it("진행 중에는 닫기를 무시한다", async () => {
+    let resolveDownload!: () => void
+    const downloadAndInstall = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveDownload = resolve
+        })
+    )
     mockCheck.mockResolvedValueOnce({
       version: "9.9.9",
+      body: null,
       downloadAndInstall
     })
+    await checkForUpdatesNow()
+    const pending = startUpdateDownload()
+    await vi.waitFor(() =>
+      expect(useUpdateStore.getState().stage).toBe("downloading")
+    )
 
+    dismissUpdate(false)
+    expect(useUpdateStore.getState().stage).toBe("downloading")
+
+    resolveDownload()
+    await pending
+    expect(useUpdateStore.getState().stage).toBe("ready")
+  })
+
+  it("deferred로 닫으면 다음 실행 적용 토스트를 표시한다", async () => {
+    mockCheck.mockResolvedValueOnce({ version: "9.9.9", body: null })
     await checkForUpdatesNow()
 
-    const installAction = mockToast.message.mock.calls[0][1].action
-    installAction.onClick()
-    await vi.waitFor(() =>
-      expect(mockToast.success).toHaveBeenCalledWith(
-        "toast.update.installed",
-        expect.anything()
-      )
+    dismissUpdate(true)
+
+    expect(useUpdateStore.getState().stage).toBe("idle")
+    expect(mockToast.success).toHaveBeenCalledWith("toast.update.deferred")
+  })
+})
+
+describe("relaunchAfterUpdate", () => {
+  it("relaunch를 호출한다", async () => {
+    mockRelaunch.mockResolvedValueOnce(undefined)
+
+    await relaunchAfterUpdate()
+
+    expect(mockRelaunch).toHaveBeenCalledTimes(1)
+  })
+
+  it("relaunch 실패 시 에러 토스트를 표시한다", async () => {
+    mockRelaunch.mockRejectedValueOnce(new Error("denied"))
+
+    await relaunchAfterUpdate()
+
+    expect(mockToast.error).toHaveBeenCalledWith(
+      "toast.update.restartFail",
+      expect.objectContaining({ description: "denied" })
     )
-    const installedCall = mockToast.success.mock.calls.find(
-      (call) => call[0] === "toast.update.installed"
-    )
-    installedCall![1].action.onClick()
-    await vi.waitFor(() => expect(mockRelaunch).toHaveBeenCalledTimes(1))
   })
 })
 
