@@ -88,35 +88,6 @@ fn read_bounded(reader: &mut dyn Read, limit: u64, context: &str) -> Result<Vec<
     Ok(buf)
 }
 
-/// RAR `copy_to`처럼 writer로 밀어 넣는 API용 상한 writer.
-struct LimitedVecWriter {
-    buf: Vec<u8>,
-    limit: u64,
-}
-
-impl LimitedVecWriter {
-    fn new(limit: u64) -> Self {
-        Self {
-            buf: Vec::new(),
-            limit,
-        }
-    }
-}
-
-impl std::io::Write for LimitedVecWriter {
-    fn write(&mut self, data: &[u8]) -> std::io::Result<usize> {
-        if self.buf.len() as u64 + data.len() as u64 > self.limit {
-            return Err(std::io::Error::other("archive entry too large"));
-        }
-        self.buf.extend_from_slice(data);
-        Ok(data.len())
-    }
-
-    fn flush(&mut self) -> std::io::Result<()> {
-        Ok(())
-    }
-}
-
 fn list_zip_images(archive_path: &Path) -> Result<Vec<String>, AppError> {
     let file = open_archive_file(archive_path)?;
     let mut archive = zip::ZipArchive::new(file)
@@ -235,16 +206,14 @@ fn extract_7z_image(
 }
 
 fn list_rar_images(archive_path: &Path) -> Result<Vec<String>, AppError> {
-    let file = open_archive_file(archive_path)?;
-    let archive = unrar_rs::RarArchive::open(file)
-        .map_err(|e| AppError::corrupt(format!("Failed to read RAR: {e}")))?;
+    let archive = open_rar(archive_path)?;
 
     let mut images: Vec<String> = Vec::new();
-    for member in archive.entries() {
-        if member.is_directory {
+    for member in archive.members() {
+        if member.meta.is_directory {
             continue;
         }
-        let name = member.name.clone();
+        let name = rar_display_name(&member.meta);
         if name.starts_with("__") || name.starts_with('.') {
             continue;
         }
@@ -266,34 +235,45 @@ fn extract_rar_image(
     if out_path.is_file() {
         return Ok(out_path);
     }
-    let file = open_archive_file(archive_path)?;
-    let mut archive = unrar_rs::RarArchive::open(file)
-        .map_err(|e| AppError::corrupt(format!("Failed to read RAR: {e}")))?;
+    let archive = open_rar(archive_path)?;
 
-    // entries() 순서가 by_index 인덱스와 일치하므로 이름으로 인덱스를 찾는다.
-    // (sanitize된 이름과 raw 이름이 다를 수 있어 by_name 직접 사용을 피함)
-    let index = archive
-        .entries()
-        .enumerate()
-        .find_map(|(i, m)| (m.name == entry_name).then_some(i))
-        .ok_or_else(|| AppError::not_found(format!("Entry not found: {entry_name}")))?;
-
-    let entry = archive
-        .by_index(index)
-        .map_err(|e| AppError::not_found(format!("Entry not found: {e}")))?;
-    if let Some(size) = entry.size() {
-        check_entry_size(size)?;
+    // 표시 이름은 lossy/`/` 정규화 결과라 추출용 정확한 바이트로 되돌린다
+    // (첫 일치 우선, 이전 백엔드와 같은 규칙).
+    let mut target: Option<(Vec<u8>, u64)> = None;
+    for member in archive.members() {
+        if rar_display_name(&member.meta) == entry_name {
+            target = Some((member.meta.name_bytes().to_vec(), member.meta.unpacked_size));
+            break;
+        }
     }
-    let mut writer = LimitedVecWriter::new(MAX_ENTRY_BYTES);
-    entry
-        .copy_to(&mut writer)
-        .map_err(|e| AppError::corrupt(format!("Failed to read entry data: {e}")))?;
-    let buf = writer.buf;
+    let (raw_name, declared) =
+        target.ok_or_else(|| AppError::not_found(format!("Entry not found: {entry_name}")))?;
+    check_entry_size(declared)?;
+
+    // 필요 시점에 디코드한다. solid 아카이브는 호출마다 전체 패스를 돌지만
+    // 이전 백엔드도 추출마다 다시 열었으므로 비용 성격이 같다.
+    let buf = archive
+        .read_member(&raw_name, None)
+        .map_err(|e| AppError::corrupt(format!("Failed to read entry data: {e}")))?
+        .ok_or_else(|| AppError::not_found(format!("Entry not found: {entry_name}")))?;
     check_entry_size(buf.len() as u64)?;
 
     write_extracted(&out_path, &buf)?;
 
     Ok(out_path)
+}
+
+/// `rars` 파사드로 RAR 열기. RAR 1.3부터 RAR 7까지 시그니처로 분기한다.
+/// 암호 항목은 비밀번호 없이 디코드할 때 에러가 나 호출자가 Corrupt로 분류한다.
+fn open_rar(archive_path: &Path) -> Result<rars::Archive, AppError> {
+    rars::ArchiveReader::read_path(archive_path)
+        .map_err(|e| AppError::corrupt(format!("Failed to read RAR: {e}")))
+}
+
+/// RAR 멤버 표시 이름: lossy UTF-8에 `\`를 `/`로 정규화한다
+/// (아래 tar 경로 처리와 같은 규칙).
+fn rar_display_name(meta: &rars::ArchiveMemberMeta) -> String {
+    meta.name_lossy().replace('\\', "/")
 }
 
 fn list_tar_images(archive_path: &Path) -> Result<Vec<String>, AppError> {
@@ -643,11 +623,10 @@ mod tests {
         assert!(missing.is_err());
     }
 
-    #[test]
-    fn test_rar_list_and_extract_roundtrip() {
-        // rars Builder로 RAR5 픽스처를 만들어 unrar-rs 경로로 왕복 검증
-        let dir = tempfile::tempdir().unwrap();
-        let mut builder = rars::Builder::new(rars::ArchiveVersion::Rar50).store(true);
+    /// rars Builder로 RAR 픽스처를 만들어 목록/추출 왕복 검증.
+    /// `version`에 Rar50/Rar40을 넣어 양쪽 세대를 커버한다.
+    fn write_rar_fixture(dir: &Path, file_name: &str, version: rars::ArchiveVersion) -> PathBuf {
+        let mut builder = rars::Builder::new(version).store(true);
         builder
             .add_bytes(b"001.png".to_vec(), b"fake-png-bytes".to_vec(), None, None)
             .expect("add png");
@@ -660,20 +639,56 @@ mod tests {
             )
             .expect("add jpg");
         let bytes = builder.to_bytes().expect("build rar");
-        let archive_path = dir.path().join("comic.cbr");
+        let archive_path = dir.join(file_name);
         fs::write(&archive_path, bytes).unwrap();
+        archive_path
+    }
 
-        let images = list_archive_images(&archive_path).expect("list cbr");
+    fn assert_rar_roundtrip(archive_path: &Path) {
+        let images = list_archive_images(archive_path).expect("list rar");
         assert_eq!(images, vec!["001.png", "sub/002.jpg"]);
 
-        let out_dir = dir.path().join("out");
+        let out_dir = archive_path.parent().expect("parent").join("out");
         fs::create_dir_all(&out_dir).unwrap();
         let extracted =
-            extract_archive_image(&archive_path, "sub/002.jpg", &out_dir).expect("extract");
+            extract_archive_image(archive_path, "sub/002.jpg", &out_dir).expect("extract");
         assert_eq!(fs::read(&extracted).unwrap(), b"fake-jpg-bytes");
 
-        let missing = extract_archive_image(&archive_path, "nope.png", &out_dir);
+        let missing = extract_archive_image(archive_path, "nope.png", &out_dir);
         assert!(missing.is_err());
+    }
+
+    #[test]
+    fn test_rar5_list_and_extract_roundtrip() {
+        let dir = tempfile::tempdir().unwrap();
+        let archive_path = write_rar_fixture(dir.path(), "comic.cbr", rars::ArchiveVersion::Rar50);
+        assert_rar_roundtrip(&archive_path);
+    }
+
+    #[test]
+    fn test_rar4_list_and_extract_roundtrip() {
+        let dir = tempfile::tempdir().unwrap();
+        let archive_path = write_rar_fixture(dir.path(), "old.cbr", rars::ArchiveVersion::Rar40);
+        assert_rar_roundtrip(&archive_path);
+    }
+
+    #[test]
+    fn test_rar_sample_fixture_when_present() {
+        // 저장소 samples/sample.cbr(RAR5)로 실파일 회귀 검증.
+        let source = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("samples")
+            .join("sample.cbr");
+        if !source.is_file() {
+            return;
+        }
+        let images = list_archive_images(&source).expect("list sample.cbr");
+        assert!(!images.is_empty(), "sample.cbr has no images");
+        let dir = tempfile::tempdir().unwrap();
+        let extracted =
+            extract_archive_image(&source, &images[0], dir.path()).expect("extract sample");
+        assert!(extracted.is_file());
+        assert!(fs::metadata(&extracted).expect("stat").len() > 0);
     }
 
     #[test]

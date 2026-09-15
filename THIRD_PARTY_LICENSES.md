@@ -8,18 +8,21 @@ same inputs after dependency changes.
 
 This file is informational, not legal advice.
 
-## 0. License action required (GPL-3.0 linked into the shipped binary)
+## 0. Resolved: GPL RAR backend replaced (2026-09-15)
 
-The shipped araview.exe statically links GPL-3.0-or-later code through
-RAR support: unrar-rs (GPL-3.0-or-later, derived from RARLAB unRAR) and
-its non-optional dependency reedsolomon-rs (GPL-3.0-or-later). Verified
-with cargo tree (normal dependency edge via unrar-rs, not dev-only, not
-feature-gated). Distributing binaries with statically linked GPL-3.0 code
-requires the whole work corresponding source under GPL-3.0, which conflicts
-with closed distribution. Decide before the next release: replace the RAR
-backend, drop CBR/RAR support, or license the application accordingly.
-The PSD thumbnail handler (araview_thumb.dll) is unaffected, its closure
-is permissive only.
+Previous revisions of this file flagged GPL-3.0-or-later code statically
+linked via RAR support (unrar-rs plus reedsolomon-rs). The RAR backend is
+now rars (MIT OR Apache-2.0, pure Rust, RAR 1.3 through RAR 7). Verified:
+unrar-rs and reedsolomon-rs no longer appear in the dependency graph, and
+a license scan of the shipped normal-dependency closure (507 crates)
+reports no GPL/AGPL/LGPL-licensed crates. The PSD thumbnail handler
+(araview_thumb.dll) closure was permissive all along.
+
+Weak-copyleft note: MPL-2.0 crates (cssparser, cssparser-macros,
+dtoa-short, option-ext, selectors) ship via the Tauri stack
+(tauri-utils html parsing). MPL-2.0 is file-level: keep the exact
+versions listed below so recipients can obtain the unmodified
+crates.io sources. Pre-existing, unrelated to the RAR change.
 
 ## 1. Dynamically linked native libraries (shipped as separate DLLs)
 
@@ -78,7 +81,6 @@ r-efi is triple-licensed, permissive terms apply.
 | bitflags | 1.3.2 | MIT/Apache-2.0 |
 | bitflags | 2.13.1 | MIT OR Apache-2.0 |
 | bitstream-io | 4.10.0 | MIT/Apache-2.0 |
-| blake2s_simd | 1.0.5 | MIT |
 | block-buffer | 0.10.4 | MIT OR Apache-2.0 |
 | block-buffer | 0.12.1 | MIT OR Apache-2.0 |
 | block-padding | 0.4.2 | MIT OR Apache-2.0 |
@@ -119,7 +121,6 @@ r-efi is triple-licensed, permissive terms apply.
 | concurrent-queue | 2.5.0 | Apache-2.0 OR MIT |
 | const-oid | 0.10.2 | Apache-2.0 OR MIT |
 | constant_time_eq | 0.3.1 | CC0-1.0 OR MIT-0 OR Apache-2.0 |
-| constant_time_eq | 0.4.2 | CC0-1.0 OR MIT-0 OR Apache-2.0 |
 | cookie | 0.18.2 | MIT OR Apache-2.0 |
 | core-foundation | 0.10.1 | MIT OR Apache-2.0 |
 | core-foundation | 0.9.4 | not in local cargo cache, see crates.io |
@@ -131,7 +132,6 @@ r-efi is triple-licensed, permissive terms apply.
 | cpufeatures | 0.3.1 | MIT OR Apache-2.0 |
 | crc | 3.4.0 | MIT OR Apache-2.0 |
 | crc-catalog | 2.5.0 | MIT OR Apache-2.0 |
-| crc-fast | 1.10.0 | MIT OR Apache-2.0 |
 | crc32fast | 1.5.1 | MIT OR Apache-2.0 |
 | crossbeam-channel | 0.5.17 | MIT OR Apache-2.0 |
 | crossbeam-deque | 0.8.7 | MIT OR Apache-2.0 |
@@ -329,7 +329,6 @@ r-efi is triple-licensed, permissive terms apply.
 | markup5ever | 0.38.0 | MIT OR Apache-2.0 |
 | maybe-rayon | 0.1.1 | MIT |
 | memchr | 2.8.3 | Unlicense OR MIT |
-| memmap2 | 0.9.11 | MIT OR Apache-2.0 |
 | memoffset | 0.9.1 | MIT |
 | mime | 0.3.17 | MIT OR Apache-2.0 |
 | minisign-verify | 0.2.5 | MIT |
@@ -457,7 +456,6 @@ r-efi is triple-licensed, permissive terms apply.
 | reborrow | 0.5.5 | MIT |
 | redox_syscall | 0.5.18 | MIT |
 | redox_users | 0.5.2 | MIT |
-| reedsolomon-rs | 0.4.5 | GPL-3.0-or-later |
 | ref-cast | 1.0.27 | MIT OR Apache-2.0 |
 | ref-cast-impl | 1.0.27 | MIT OR Apache-2.0 |
 | regex | 1.13.1 | MIT OR Apache-2.0 |
@@ -467,8 +465,6 @@ r-efi is triple-licensed, permissive terms apply.
 | rfd | 0.16.0 | MIT |
 | rgb | 0.8.53 | MIT |
 | ring | 0.17.14 | Apache-2.0 AND ISC |
-| rmp | 0.8.15 | MIT |
-| rmp-serde | 1.3.1 | MIT |
 | rustc_version | 0.4.1 | MIT OR Apache-2.0 |
 | rustc-hash | 2.1.3 | Apache-2.0 OR MIT |
 | rustix | 1.1.4 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT |
@@ -522,7 +518,6 @@ r-efi is triple-licensed, permissive terms apply.
 | softbuffer | 0.4.8 | MIT OR Apache-2.0 |
 | soup3 | 0.5.0 | MIT |
 | soup3-sys | 0.5.0 | MIT |
-| spin | 0.10.1 | MIT |
 | stable_deref_trait | 1.2.1 | MIT OR Apache-2.0 |
 | string_cache | 0.9.0 | MIT OR Apache-2.0 |
 | string_cache_codegen | 0.6.1 | MIT OR Apache-2.0 |
@@ -610,9 +605,7 @@ r-efi is triple-licensed, permissive terms apply.
 | unic-ucd-ident | 0.9.0 | MIT/Apache-2.0 |
 | unic-ucd-version | 0.9.0 | MIT/Apache-2.0 |
 | unicode-ident | 1.0.24 | (MIT OR Apache-2.0) AND Unicode-3.0 |
-| unicode-normalization | 0.1.25 | MIT OR Apache-2.0 |
 | unicode-segmentation | 1.13.3 | MIT OR Apache-2.0 |
-| unrar-rs | 0.10.3 | GPL-3.0-or-later (verified in crate LICENSE) |
 | untrusted | 0.9.0 | ISC |
 | url | 2.5.8 | MIT OR Apache-2.0 |
 | urlpattern | 0.3.0 | MIT |
@@ -748,7 +741,7 @@ r-efi is triple-licensed, permissive terms apply.
 
 ## 3. npm production dependencies (bundled into dist/)
 
-Pretendard font (OFL-1.1): license text ships upstream at pretendard/dist/LICENSE.txt, keep it alongside redistributed font files.
+Pretendard font (OFL-1.1): no license text file found in pretendard npm package.
 
 | Package | Version (installed) | License |
 | ------- | ------------------- | ------- |

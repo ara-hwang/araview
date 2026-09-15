@@ -49,11 +49,8 @@ image = "0.25"
 psd = "0.3"
 notify = "8"
 sevenz-rust2 = "0.22.2"
-unrar-rs = { version = "0.10", default-features = false, features = ["crypto-rust"] }
-tar = "0.4"
-
-[dev-dependencies]
 rars = "0.9"
+tar = "0.4"
 
 [package.metadata.vcpkg]
 git = "https://github.com/microsoft/vcpkg"
