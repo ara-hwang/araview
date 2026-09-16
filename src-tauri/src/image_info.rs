@@ -184,7 +184,8 @@ fn color_info(path: &Path, mime: &str) -> (String, Option<u8>) {
         return ("rgb".to_string(), Some(8));
     }
     if mime == crate::psd_sidecar::PSD_MIME {
-        return ("rgba".to_string(), Some(8));
+        // 렌더 출력은 흰 배경에 합성된 JPEG sidecar이므로 rgb로 보고한다.
+        return ("rgb".to_string(), Some(8));
     }
     let dyn_img = match image::open(path) {
         Ok(img) => img,
@@ -250,10 +251,12 @@ fn unit_factor(exif: &exif::Exif) -> f32 {
 }
 
 fn dpi_from_values(x: Option<f32>, y: Option<f32>, unit_factor: f32) -> (Option<f32>, Option<f32>) {
+    // EXIF XResolution은 ResolutionUnit당 픽셀 수다. inch(2)가 기준이고
+    // cm(3)일 때는 inch당으로 환산해야 DPI가 되므로 곱한다.
     let factor = if unit_factor > 0.0 { unit_factor } else { 1.0 };
     let convert = |v: Option<f32>| {
         v.filter(|n| n.is_finite() && *n > 0.0)
-            .map(|n| (n / factor * 10.0).round() / 10.0)
+            .map(|n| (n * factor * 10.0).round() / 10.0)
     };
     (convert(x), convert(y))
 }
@@ -440,7 +443,7 @@ mod tests {
 
         let details = details_for_path(&source).expect("psd details");
         assert_eq!((details.width, details.height), (Some(4), Some(4)));
-        assert_eq!(details.color_mode, "rgba");
+        assert_eq!(details.color_mode, "rgb");
         assert_eq!(details.bits_per_channel, Some(8));
         assert_eq!(details.icc_status, IccStatus::Unchecked);
     }
@@ -601,10 +604,10 @@ mod tests {
             dpi_from_values(Some(300.0), Some(300.0), 1.0),
             (Some(300.0), Some(300.0))
         );
-        // cm 단위는 inch로 환산한다 (118.11/2.54 = 46.5).
+        // cm 단위는 inch로 환산한다 (118.11 * 2.54 = 300).
         assert_eq!(
             dpi_from_values(Some(118.11), None, 2.54),
-            (Some(46.5), None)
+            (Some(300.0), None)
         );
         // 0·음수·NaN은 버린다.
         assert_eq!(dpi_from_values(Some(0.0), Some(-5.0), 1.0), (None, None));
