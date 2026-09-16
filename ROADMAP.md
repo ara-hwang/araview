@@ -398,7 +398,7 @@
 
 ### 5.4 CI/CD 파이프라인 강화 (P2) — 부분 완료: 릴리스 게이트 존재 / PR용 분리 미구현 (2026-09-14 재확인)
 
-**현재 상태**: 워크플로는 `release.yml` 1개(`.github/workflows/`). 단, 태그 푸시 시 프론트 검사(`npm test`, `tsc --noEmit`, `prettier --check`)와 Rust 검사(`cargo fmt --check`, `cargo test`, `cargo clippy -D warnings`)를 먼저 수행하고 실패 시 빌드·릴리스로 진행하지 않는다(SPEC §21). 남은 것은 아래 계획이다.
+**현재 상태**: 워크플로는 `release.yml` 1개(`.github/workflows/`). 단, 태그 푸시 시 프론트 검사(`npm test`, `tsc --noEmit`, `oxfmt --check`)와 Rust 검사(`cargo fmt --check`, `cargo test`, `cargo clippy -D warnings`)를 먼저 수행하고 실패 시 빌드·릴리스로 진행하지 않는다(SPEC §21). 남은 것은 아래 계획이다.
 
 **개선 계획**:
 

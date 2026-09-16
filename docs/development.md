@@ -59,8 +59,8 @@ npm run test:watch
 
 # 타입 체크 / 포맷
 npx tsc --noEmit
-npx prettier --check "src/**/*.{ts,tsx}"
-npx prettier --write "src/**/*.{ts,tsx}"
+npm run format:check
+npm run format
 
 # 러스트 테스트 / 린트
 cd src-tauri && cargo test

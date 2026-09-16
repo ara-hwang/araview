@@ -1,5 +1,5 @@
 # Keep every text file LF in the repository and in working trees, so tools agree
-# across machines. Prettier enforces LF by default (no endOfLine override in this
-# repo) and the release pipeline runs the prettier check on Windows, where Git
+# across machines. Oxfmt enforces LF by default (no endOfLine override in this
+# repo) and the release pipeline runs the oxfmt check on Windows, where Git
 # would otherwise check text files out as CRLF and fail the check.
 * text=auto eol=lf
