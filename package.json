@@ -11,6 +11,7 @@
     "format": "oxfmt",
     "format:check": "oxfmt --check",
     "lint": "oxlint",
+    "lint:fix": "oxlint --fix",
     "preview": "vite preview",
     "release:local": "pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/Publish-LocalRelease.ps1",
     "tauri": "tauri",
