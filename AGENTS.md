@@ -42,6 +42,7 @@ npm run release:local
 npm test
 npm run test:watch
 npm run lint
+npm run lint:fix
 npx tsc --noEmit
 npm run format:check
 npm run format
@@ -49,6 +50,7 @@ npm run format
 # Rust tests / lint
 cd src-tauri && cargo test
 cd src-tauri && cargo clippy
+cd src-tauri && cargo fmt
 ```
 
 ## Important Paths
@@ -172,13 +174,15 @@ Tauri Store (`settings.json`) is used for:
 
 - Frontend test files: `src/**/*.test.{ts,tsx}`
 - Rust tests are colocated with source modules
-- After every code change, run verification automatically without being asked:
+- After every code change, run verification automatically without being asked
+- and auto-apply format/lint (check-only is not enough):
   1. `npm test`
   2. `cd src-tauri && cargo test` (only when Rust sources changed)
   3. `npx tsc --noEmit`
-  4. `npm run lint`
-  5. `npm run format:check` on changed files (fix with `npm run format`)
-  6. Runtime verification with Tauri MCP (primary) or agent-browser
+  4. `npm run lint:fix` (auto-fix; `npm run lint` is check-only)
+  5. `npm run format` (write mode; `npm run format:check` is check-only)
+  6. `cd src-tauri && cargo fmt` (only when Rust sources changed; `cargo fmt --check` is check-only)
+  7. Runtime verification with Tauri MCP (primary) or agent-browser
      over WebView2 CDP (fallback, skill:
      `.opencode/skills/agent-browser/SKILL.md`):
      1. `npm run dev:up` (idempotent launcher, waits for `:1420` + `:9223`)
