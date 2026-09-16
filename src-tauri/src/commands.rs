@@ -1,9 +1,8 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
-use std::hash::{Hash, Hasher};
 use std::io::BufReader;
-use std::path::Path;
-use std::time::UNIX_EPOCH;
+use std::path::{Path, PathBuf};
+use std::sync::{LazyLock, Mutex};
 
 use crate::app_error::{AppError, ErrorCode};
 use crate::archive;
@@ -11,9 +10,44 @@ use crate::image::{is_archive_file, is_supported_file, DirectoryImages, ImageInf
 use crate::process_temp::process_temp_dir;
 use tauri::Manager;
 
+/// 이미 허용한 asset 디렉터리. 파일마다 scope를 추가하면 세션 내내 팽창하므로
+/// 부모 디렉터리 단위로 1회만 허용한다. 프로세스 temp는 시작 시 통째로
+/// 허용되므로 여기서 건너뛴다.
+static ALLOWED_ASSET_DIRS: LazyLock<Mutex<HashSet<PathBuf>>> =
+    LazyLock::new(|| Mutex::new(HashSet::new()));
+
 /// asset 프로토콜 scope 매칭은 canonicalize된 요청 경로 기준이므로
 /// 허용할 때도 canonicalize한 경로를 등록한다.
 pub(crate) fn allow_asset_path(app: &tauri::AppHandle, path: &Path) -> Result<(), AppError> {
+    if let Ok(temp) = process_temp_dir() {
+        let temp_canon = fs::canonicalize(&temp).unwrap_or(temp.clone());
+        let path_canon = fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+        if path_canon.starts_with(&temp_canon) || path.starts_with(&temp) {
+            return Ok(());
+        }
+    }
+    let parent = path.parent().unwrap_or(path);
+    let canon_parent = fs::canonicalize(parent).unwrap_or_else(|_| parent.to_path_buf());
+    if ALLOWED_ASSET_DIRS
+        .lock()
+        .map(|set| set.contains(&canon_parent))
+        .unwrap_or(false)
+    {
+        return Ok(());
+    }
+    // 재귀 허용은 금지한다. `D:\a.jpg`의 부모는 `D:\`라서 recursive=true면
+    // 드라이브 전체가 webview에 열린다. 하위 폴더 이미지는 자기 파일을 열 때
+    // 그 폴더가 개별로 허용되므로 재귀 없이도 충분하다.
+    if app
+        .asset_protocol_scope()
+        .allow_directory(&canon_parent, false)
+        .is_ok()
+    {
+        if let Ok(mut set) = ALLOWED_ASSET_DIRS.lock() {
+            set.insert(canon_parent);
+        }
+        return Ok(());
+    }
     let canonical = fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
     app.asset_protocol_scope()
         .allow_file(&canonical)
@@ -41,12 +75,25 @@ pub fn get_directory_images(
     let images = crate::dir_cache::get_sorted_images(parent, &opts)?;
     let paths: Vec<String> = images.into_iter().map(|e| e.path).collect();
 
-    let current_index = paths.iter().position(|p| p == &file_path).unwrap_or(0);
+    // 보통은 문자열이 그대로 일치한다. 대소문자나 8.3 단축 경로처럼 철자가
+    // 다르게 들어온 경우에만 canonical 비교로 폴백한다.
+    let current_index = index_of_current(&paths, path).unwrap_or(0);
 
     Ok(DirectoryImages {
         images: paths,
         current_index,
     })
+}
+
+/// 대소문자만 다른 철자로 들어와도 현재 파일을 찾는다. 목록은 호출자가 준
+/// 부모 경로로 스캔되므로 보통 첫 비교에서 끝난다. 폴백에서 경로마다
+/// canonicalize를 돌리면 수천 장 폴더에서 syscall 폭주가 나므로 하지 않는다.
+fn index_of_current(paths: &[String], current: &Path) -> Option<usize> {
+    if let Some(pos) = paths.iter().position(|p| Path::new(p) == current) {
+        return Some(pos);
+    }
+    let lowered = current.to_string_lossy().to_lowercase();
+    paths.iter().position(|p| p.to_lowercase() == lowered)
 }
 
 /// 디렉토리 목록 정렬/수집 옵션 (프론트 settingsStore와 대응)
@@ -202,24 +249,27 @@ fn archive_sub_dir(archive_path: &Path) -> Result<std::path::PathBuf, AppError> 
     let temp_dir = process_temp_dir()?;
     // 같은 stem을 가진 다른 아카이브가 임시 캐시를 공유하지 않도록
     // canonical 경로 + mtime + 크기로 하위 디렉터리를 구분한다.
-    let canonical = fs::canonicalize(archive_path).unwrap_or_else(|_| archive_path.to_path_buf());
-    let meta = fs::metadata(archive_path)
-        .map_err(|e| AppError::io("Failed to read archive metadata", e, ErrorCode::Corrupt))?;
-    let mtime = meta
-        .modified()
-        .ok()
-        .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    canonical.hash(&mut hasher);
-    mtime.hash(&mut hasher);
-    meta.len().hash(&mut hasher);
-    let sub_dir = temp_dir.join(format!("archive-{:016x}", hasher.finish()));
+    // 영속 파일명에 쓰이므로 안정 해시를 사용한다.
+    let hash = crate::sidecar::file_identity_hash(archive_path, &[])?;
+    let sub_dir = temp_dir.join(format!("archive-{hash:016x}"));
+    // 새 아카이브를 처음 열 때만 전체 temp 상한을 강제한다. 재사용 시에는
+    // 매번 전체를 훑지 않아 페이지 넘김/썸네일 비용을 늘리지 않는다.
+    let is_new = !sub_dir.is_dir();
     fs::create_dir_all(&sub_dir)
         .map_err(|e| AppError::io("Failed to create sub dir", e, ErrorCode::Unknown))?;
+    if is_new {
+        // 전체 트리 순회라 파일 수가 많으면 수 초가 걸린다. best-effort이므로
+        // 첫 페이지 렌더를 막지 않도록 백그라운드로 돌린다.
+        std::thread::spawn(|| {
+            crate::process_temp::enforce_total_cap(MAX_PROCESS_TEMP_BYTES).ok();
+        });
+    }
     Ok(sub_dir)
 }
+
+/// 프로세스 temp 전체 상한. 썸네일/paint/아카이브별 상한에 더해 여러 아카이브를
+/// 연달아 열 때의 총량 팽창을 막는다.
+const MAX_PROCESS_TEMP_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 
 /// 이웃 페이지 선추출 (zip은 오픈 1회). FE fire-and-forget용으로 항상 Ok다.
 #[tauri::command]
@@ -397,7 +447,10 @@ mod tests {
             .duration_since(UNIX_EPOCH)
             .expect("clock")
             .as_nanos();
-        let dir = std::env::temp_dir().join(format!("tiv-rename-{suffix}-{nanos}"));
+        let dir = std::env::temp_dir().join(format!(
+            "tiv-rename-{suffix}-{}-{nanos}",
+            std::process::id()
+        ));
         fs::create_dir_all(&dir).expect("create temp dir");
         dir
     }

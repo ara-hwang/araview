@@ -6,11 +6,13 @@
 //! existing sidecar on repeat calls. Formats the `image` crate cannot decode
 //! (e.g. SVG, archive entry names) return an error so the frontend can
 //! fall back to the original render path.
+//!
+//! Cache naming uses the stable hash in [`crate::sidecar`], and publishing
+//! goes through a temp file + atomic rename so concurrent strip requests
+//! never observe a partial JPEG.
 
 use std::fs;
-use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
-use std::time::UNIX_EPOCH;
 
 use serde::Serialize;
 
@@ -51,13 +53,22 @@ pub fn generate_thumbnail(source: &Path, max_side: u32) -> Result<ThumbnailInfo,
         });
     }
     let dest = thumb_path(source, max_side)?;
+    // 스트립이 이 경로로 asset URL을 유지하므로 캐시 축출에서 보호한다.
+    crate::process_temp::mark_in_use(&dest);
     if !dest.exists() {
-        let img = image::open(source)
-            .map_err(|e| AppError::corrupt(format!("Failed to decode image: {e}")))?;
-        let thumb = img.thumbnail(max_side, max_side);
-        write_jpeg_atomic(&dest, &thumb)?;
-        // Best effort: eviction failures must not fail thumbnail delivery.
-        enforce_cap(THUMBS_SUBDIR, MAX_CACHE_BYTES).ok();
+        let key = dest.to_string_lossy().into_owned();
+        crate::sidecar::with_file_lock(&key, "thumbnail lock", || {
+            if dest.exists() {
+                return Ok(());
+            }
+            let img = image::open(source)
+                .map_err(|e| AppError::corrupt(format!("Failed to decode image: {e}")))?;
+            let thumb = img.thumbnail(max_side, max_side);
+            write_jpeg_atomic(&dest, &thumb)?;
+            // Best effort: eviction failures must not fail thumbnail delivery.
+            crate::process_temp::enforce_cap(THUMBS_SUBDIR, MAX_CACHE_BYTES).ok();
+            Ok(())
+        })?;
     }
     let (width, height) = image::image_dimensions(&dest)
         .map_err(|e| AppError::corrupt(format!("Failed to read thumbnail: {e}")))?;
@@ -130,21 +141,8 @@ fn thumbs_dir() -> Result<PathBuf, AppError> {
 }
 
 fn thumb_path(source: &Path, max_side: u32) -> Result<PathBuf, AppError> {
-    let canonical = fs::canonicalize(source).unwrap_or_else(|_| source.to_path_buf());
-    let meta = fs::metadata(source)
-        .map_err(|e| AppError::io("Failed to read metadata", e, ErrorCode::Corrupt))?;
-    let mtime = meta
-        .modified()
-        .ok()
-        .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    canonical.hash(&mut hasher);
-    mtime.hash(&mut hasher);
-    meta.len().hash(&mut hasher);
-    max_side.hash(&mut hasher);
-    Ok(thumbs_dir()?.join(format!("{:016x}.jpg", hasher.finish())))
+    let hash = crate::sidecar::file_identity_hash(source, &max_side.to_le_bytes())?;
+    Ok(thumbs_dir()?.join(format!("{hash:016x}.jpg")))
 }
 
 fn write_jpeg_atomic(dest: &Path, img: &image::DynamicImage) -> Result<(), AppError> {
@@ -152,83 +150,11 @@ fn write_jpeg_atomic(dest: &Path, img: &image::DynamicImage) -> Result<(), AppEr
         fs::create_dir_all(parent)
             .map_err(|e| AppError::io("Failed to create thumbs dir", e, ErrorCode::Unknown))?;
     }
-    let file_name = dest
-        .file_name()
-        .and_then(|n| n.to_str())
-        .unwrap_or("thumb.jpg");
     // `.jpg` 접미사를 유지해야 `save`가 포맷을 추론할 수 있다.
-    let tmp = dest.with_file_name(format!("{}.tmp-{}.jpg", file_name, std::process::id()));
+    let tmp = crate::sidecar::tmp_path_for(dest);
     img.save(&tmp)
         .map_err(|e| AppError::unknown(format!("Failed to encode thumbnail: {e}")))?;
-    match fs::rename(&tmp, dest) {
-        Ok(()) => Ok(()),
-        Err(_) if dest.exists() => {
-            let _ = fs::remove_file(&tmp);
-            Ok(())
-        }
-        Err(e) => {
-            let _ = fs::remove_file(&tmp);
-            Err(AppError::unknown(format!(
-                "Failed to publish thumbnail: {e}"
-            )))
-        }
-    }
-}
-
-/// Delete oldest files in `sub_dir` until total size is under `max_bytes`.
-fn enforce_cap(sub_dir: &str, max_bytes: u64) -> Result<(), AppError> {
-    let dir = process_temp_dir()?.join(sub_dir);
-    enforce_cap_in(&dir, max_bytes)
-}
-
-/// Core of [`enforce_cap`] over an explicit directory (unit testable).
-fn enforce_cap_in(dir: &Path, max_bytes: u64) -> Result<(), AppError> {
-    let entries = fs::read_dir(dir)
-        .map_err(|e| AppError::io("Failed to list thumbs", e, ErrorCode::Unknown))?;
-    let mut files: Vec<(u128, u64, PathBuf)> = Vec::new();
-    let mut total: u64 = 0;
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if !path.is_file() {
-            continue;
-        }
-        let (mtime, size) = entry
-            .metadata()
-            .map(|m| {
-                (
-                    m.modified()
-                        .ok()
-                        .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
-                        .map(|d| d.as_nanos())
-                        .unwrap_or(0),
-                    m.len(),
-                )
-            })
-            .unwrap_or((0, 0));
-        // Skip in-flight temp files, never evict partial writes.
-        if path
-            .file_name()
-            .and_then(|n| n.to_str())
-            .is_some_and(|n| n.contains(".tmp-"))
-        {
-            continue;
-        }
-        total = total.saturating_add(size);
-        files.push((mtime, size, path));
-    }
-    if total <= max_bytes {
-        return Ok(());
-    }
-    files.sort_by_key(|(mtime, _, _)| *mtime);
-    for (_, size, path) in files {
-        if total <= max_bytes {
-            break;
-        }
-        if fs::remove_file(&path).is_ok() {
-            total = total.saturating_sub(size);
-        }
-    }
-    Ok(())
+    crate::sidecar::publish_atomic(&tmp, dest, "Failed to publish thumbnail")
 }
 
 #[cfg(test)]
@@ -302,18 +228,5 @@ mod tests {
         let err = generate_thumbnail(Path::new("no-such-thumb.png"), 64).unwrap_err();
         assert_eq!(err.code, crate::app_error::ErrorCode::NotFound);
         assert_eq!(err.message, "File not found");
-    }
-
-    #[test]
-    fn enforce_cap_evicts_oldest_first() {
-        let dir = tempfile::tempdir().unwrap();
-        for name in ["old.jpg", "mid.jpg", "new.jpg"] {
-            fs::write(dir.path().join(name), vec![0u8; 100]).unwrap();
-            std::thread::sleep(std::time::Duration::from_millis(5));
-        }
-        enforce_cap_in(dir.path(), 150).expect("evict");
-        assert!(!dir.path().join("old.jpg").exists());
-        assert!(!dir.path().join("mid.jpg").exists());
-        assert!(dir.path().join("new.jpg").exists());
     }
 }
