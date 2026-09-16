@@ -1,11 +1,9 @@
 import { describe, expect, it, beforeAll } from "vitest"
-import { SUPPORTED_IMAGE_EXTENSIONS } from "./imageExtensions"
-import {
-  EXTENSION_LABELS,
-  extensionLabel,
-  isSupportedExtension
-} from "./extensionLabels"
+
 import { initI18n } from "@/i18n"
+
+import { EXTENSION_LABELS, extensionLabel, isSupportedExtension } from "./extensionLabels"
+import { SUPPORTED_IMAGE_EXTENSIONS } from "./imageExtensions"
 
 beforeAll(async () => {
   await initI18n("ko")

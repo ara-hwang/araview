@@ -1,16 +1,11 @@
 import { useCallback } from "react"
-import { useSettingsStore } from "@/store/settingsStore"
+
 import { updateDirImagesIndex, useAppStore } from "@/store/appStore"
+import { useSettingsStore } from "@/store/settingsStore"
 
-type LoadImageFn = (
-  filePath: string,
-  options?: { refreshDirectory?: boolean }
-) => Promise<void>
+type LoadImageFn = (filePath: string, options?: { refreshDirectory?: boolean }) => Promise<void>
 
-type LoadArchiveImageFn = (
-  archivePath: string,
-  entryName: string
-) => Promise<void>
+type LoadArchiveImageFn = (archivePath: string, entryName: string) => Promise<void>
 
 export function useDirectoryNavigation(
   loadImage: LoadImageFn,
@@ -22,8 +17,7 @@ export function useDirectoryNavigation(
   const viewMode = useSettingsStore((state) => state.viewMode)
 
   // 양면 보기(ltr/rtl)는 2장씩 넘기고, 나머지는 1장씩 넘긴다.
-  const step =
-    viewMode === "left-to-right" || viewMode === "right-to-left" ? 2 : 1
+  const step = viewMode === "left-to-right" || viewMode === "right-to-left" ? 2 : 1
 
   const navigateImage = useCallback(
     async (direction: "prev" | "next") => {
@@ -61,14 +55,7 @@ export function useDirectoryNavigation(
       await loadImage(dirImages.images[newIndex], { refreshDirectory: false })
       updateDirImagesIndex(newIndex)
     },
-    [
-      dirImages,
-      loadImage,
-      loopNavigation,
-      archivePath,
-      loadArchiveImageByIndex,
-      step
-    ]
+    [dirImages, loadImage, loopNavigation, archivePath, loadArchiveImageByIndex, step]
   )
 
   const navigateToIndex = useCallback(

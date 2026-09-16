@@ -1,21 +1,19 @@
-import { useCallback } from "react"
 import { useNavigate } from "@tanstack/react-router"
 import { invoke } from "@tauri-apps/api/core"
 import { confirm } from "@tauri-apps/plugin-dialog"
 import { openPath, revealItemInDir } from "@tauri-apps/plugin-opener"
+import { useCallback } from "react"
 import { toast } from "sonner"
+
+import i18n from "@/i18n"
 import { closeImage, useAppStore } from "@/store/appStore"
 import { useRecentFilesStore } from "@/store/recentFilesStore"
 import { useSettingsStore } from "@/store/settingsStore"
-import i18n from "@/i18n"
 import type { ImageInfo } from "@/types"
-import type { SaveEditsPayload } from "@/utils/imageEdits"
 import { errorMessage } from "@/utils/appError"
+import type { SaveEditsPayload } from "@/utils/imageEdits"
 
-type LoadImageFn = (
-  filePath: string,
-  options?: { refreshDirectory?: boolean }
-) => Promise<void>
+type LoadImageFn = (filePath: string, options?: { refreshDirectory?: boolean }) => Promise<void>
 
 /** 아카이브 모드면 원본 아카이브 경로, 아니면 현재 이미지 경로 */
 export function getEffectivePath(
@@ -36,27 +34,21 @@ export const SVG_MIME_TYPE = "image/svg+xml"
 export const AVIF_MIME_TYPE = "image/avif"
 
 /** 읽기 전용 PSD 미리보기인지. 저장은 진입 차단된다. */
-export function isPsdImage(
-  imageInfo: Pick<ImageInfo, "mime_type" | "file_name"> | null
-): boolean {
+export function isPsdImage(imageInfo: Pick<ImageInfo, "mime_type" | "file_name"> | null): boolean {
   if (!imageInfo) return false
   if (imageInfo.mime_type === PSD_MIME_TYPE) return true
   return imageInfo.file_name.toLowerCase().endsWith(".psd")
 }
 
 /** 저장 불가 SVG인지. 저장은 진입 차단된다. */
-export function isSvgImage(
-  imageInfo: Pick<ImageInfo, "mime_type" | "file_name"> | null
-): boolean {
+export function isSvgImage(imageInfo: Pick<ImageInfo, "mime_type" | "file_name"> | null): boolean {
   if (!imageInfo) return false
   if (imageInfo.mime_type === SVG_MIME_TYPE) return true
   return imageInfo.file_name.toLowerCase().endsWith(".svg")
 }
 
 /** 저장 불가 AVIF인지. 저장은 진입 차단된다. */
-export function isAvifImage(
-  imageInfo: Pick<ImageInfo, "mime_type" | "file_name"> | null
-): boolean {
+export function isAvifImage(imageInfo: Pick<ImageInfo, "mime_type" | "file_name"> | null): boolean {
   if (!imageInfo) return false
   if (imageInfo.mime_type === AVIF_MIME_TYPE) return true
   return imageInfo.file_name.toLowerCase().endsWith(".avif")
@@ -87,11 +79,7 @@ export function getNextPathAfterTrash(
 }
 
 /** 이름 변경 후 디렉토리 목록에서 구 경로를 신 경로로 교체 */
-export function replacePathInList(
-  images: string[],
-  oldPath: string,
-  newPath: string
-): string[] {
+export function replacePathInList(images: string[], oldPath: string, newPath: string): string[] {
   return images.map((p) => (p === oldPath ? newPath : p))
 }
 
@@ -139,10 +127,10 @@ export function useFileOperations({ loadImage }: { loadImage: LoadImageFn }) {
       return
     }
 
-    const ok = await confirm(
-      i18n.t("confirm.trash.message", { name: imageInfo.file_name }),
-      { title: i18n.t("confirm.trash.title"), kind: "warning" }
-    ).catch(() => false)
+    const ok = await confirm(i18n.t("confirm.trash.message", { name: imageInfo.file_name }), {
+      title: i18n.t("confirm.trash.title"),
+      kind: "warning"
+    }).catch(() => false)
     if (!ok) return
 
     try {
@@ -223,11 +211,7 @@ export function useFileOperations({ loadImage }: { loadImage: LoadImageFn }) {
       imageInfo: nextInfo,
       dirImages: {
         ...dirImages,
-        images: replacePathInList(
-          dirImages.images,
-          imageInfo.file_path,
-          nextInfo.file_path
-        )
+        images: replacePathInList(dirImages.images, imageInfo.file_path, nextInfo.file_path)
       },
       error: null
     })

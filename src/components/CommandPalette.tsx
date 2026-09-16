@@ -1,28 +1,18 @@
+import { Command, MagnifyingGlass } from "@phosphor-icons/react"
 import { useEffect, useId, useMemo, useRef } from "react"
 import { useTranslation } from "react-i18next"
-import { Command, MagnifyingGlass } from "@phosphor-icons/react"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogTitle
-} from "@/components/ui/dialog"
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle
-} from "@/components/ui/empty"
+
 import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { cn } from "@/lib/utils"
 import { COMMAND_GROUP_ORDER } from "@/constants/commands"
 import {
   useCommandPaletteHost,
   usePaletteStore,
   type ResolvedPaletteCommand
 } from "@/hooks/useCommandPalette"
+import { cn } from "@/lib/utils"
 
 function scrollActiveIntoView(el: HTMLButtonElement | null) {
   el?.scrollIntoView({ block: "nearest" })
@@ -55,14 +45,14 @@ function CommandRow({
         onClick={() => onRun(item)}
         className={cn(
           "flex w-full items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-left text-sm",
-          "focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none",
+          "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
           active && item.enabled && "bg-accent text-accent-foreground",
           !item.enabled && "opacity-50"
         )}
       >
         <span className="min-w-0 flex-1 truncate">{item.label}</span>
         {item.shortcutLabel && (
-          <kbd className="text-muted-foreground shrink-0 font-mono text-xs tabular-nums">
+          <kbd className="shrink-0 font-mono text-xs text-muted-foreground tabular-nums">
             {item.shortcutLabel}
           </kbd>
         )}
@@ -124,10 +114,7 @@ function GroupedList({
         offset += list.length
         return (
           <div key={group}>
-            <p
-              aria-hidden
-              className="text-muted-foreground px-2 pt-2 pb-1 text-xs font-medium"
-            >
+            <p aria-hidden className="px-2 pt-2 pb-1 text-xs font-medium text-muted-foreground">
               {tx(`palette.group.${group}`)}
             </p>
             <ul>
@@ -163,8 +150,7 @@ export function CommandPalette() {
 
   const recent = filtered.slice(0, recentCount)
   const rest = filtered.slice(recentCount)
-  const setActiveIndex = (i: number) =>
-    usePaletteStore.getState().setActiveIndex(i)
+  const setActiveIndex = (i: number) => usePaletteStore.getState().setActiveIndex(i)
   const handleRun = (item: ResolvedPaletteCommand) => {
     if (item.enabled) run(item.def.id)
   }
@@ -180,9 +166,7 @@ export function CommandPalette() {
     if (e.key === "ArrowDown") {
       e.preventDefault()
       if (filtered.length > 0) {
-        usePaletteStore
-          .getState()
-          .setActiveIndex((activeIndex + 1) % filtered.length)
+        usePaletteStore.getState().setActiveIndex((activeIndex + 1) % filtered.length)
       }
     } else if (e.key === "ArrowUp") {
       e.preventDefault()
@@ -199,26 +183,19 @@ export function CommandPalette() {
   }
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(isOpen) => usePaletteStore.getState().setOpen(isOpen)}
-    >
+    <Dialog open={open} onOpenChange={(isOpen) => usePaletteStore.getState().setOpen(isOpen)}>
       <DialogContent
         showCloseButton={false}
-        className="no-drag gap-0 overflow-hidden p-0 sm:max-w-lg"
+        className="gap-0 overflow-hidden p-0 no-drag sm:max-w-lg"
       >
         <DialogTitle className="sr-only">{tx("palette.title")}</DialogTitle>
-        <DialogDescription className="sr-only">
-          {tx("palette.desc")}
-        </DialogDescription>
+        <DialogDescription className="sr-only">{tx("palette.desc")}</DialogDescription>
         <div className="flex items-center gap-2 border-b px-3">
-          <Command className="text-muted-foreground size-4 shrink-0" />
+          <Command className="size-4 shrink-0 text-muted-foreground" />
           <input
             ref={inputRef}
             value={query}
-            onChange={(e) =>
-              usePaletteStore.getState().setQuery(e.target.value)
-            }
+            onChange={(e) => usePaletteStore.getState().setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
             role="combobox"
             aria-expanded
@@ -226,7 +203,7 @@ export function CommandPalette() {
             aria-autocomplete="list"
             placeholder={tx("palette.search")}
             aria-label={tx("palette.search")}
-            className="placeholder:text-muted-foreground h-11 w-full bg-transparent text-sm outline-none"
+            className="h-11 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
           />
           {query && (
             <Button
@@ -241,10 +218,7 @@ export function CommandPalette() {
         <ScrollArea className="max-h-[50vh] p-2">
           {recent.length > 0 && (
             <div>
-              <p
-                aria-hidden
-                className="text-muted-foreground px-2 pt-2 pb-1 text-xs font-medium"
-              >
+              <p aria-hidden className="px-2 pt-2 pb-1 text-xs font-medium text-muted-foreground">
                 {tx("palette.recent")}
               </p>
               <ul>
@@ -265,9 +239,7 @@ export function CommandPalette() {
             items={rest}
             baseIndex={recentCount}
             activeIndex={activeIndex}
-            onActiveIndexChange={(i) =>
-              usePaletteStore.getState().setActiveIndex(i)
-            }
+            onActiveIndexChange={(i) => usePaletteStore.getState().setActiveIndex(i)}
             onRun={(item) => {
               if (item.enabled) run(item.def.id)
             }}

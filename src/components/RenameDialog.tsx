@@ -1,4 +1,7 @@
 import { useEffect, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
+
+import { Button } from "@/components/ui/button"
 import {
   Dialog,
   DialogContent,
@@ -7,9 +10,7 @@ import {
   DialogHeader,
   DialogTitle
 } from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
-import { useTranslation } from "react-i18next"
 
 type RenameDialogProps = {
   open: boolean
@@ -18,12 +19,7 @@ type RenameDialogProps = {
   onClose: () => void
 }
 
-export function RenameDialog({
-  open,
-  initialName,
-  onSubmit,
-  onClose
-}: RenameDialogProps) {
+export function RenameDialog({ open, initialName, onSubmit, onClose }: RenameDialogProps) {
   const { t } = useTranslation()
   const [name, setName] = useState(initialName)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -72,17 +68,14 @@ export function RenameDialog({
             }}
             spellCheck={false}
             autoComplete="off"
-            className="border-input focus-visible:ring-ring flex h-9 w-full rounded-md border bg-transparent px-3 py-1 text-sm shadow-xs transition-colors outline-none focus-visible:ring-1"
+            className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors outline-none focus-visible:ring-1 focus-visible:ring-ring"
           />
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
             {t("dialog.cancel")}
           </Button>
-          <Button
-            onClick={submit}
-            disabled={!name.trim() || name.trim() === initialName}
-          >
+          <Button onClick={submit} disabled={!name.trim() || name.trim() === initialName}>
             {t("dialog.rename.submit")}
           </Button>
         </DialogFooter>

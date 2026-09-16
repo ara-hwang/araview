@@ -1,6 +1,6 @@
+import { render, screen } from "@testing-library/react"
 import { createRef } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import { render, screen } from "@testing-library/react"
 
 vi.mock("@tauri-apps/api/core", () => ({
   convertFileSrc: (p: string) => p

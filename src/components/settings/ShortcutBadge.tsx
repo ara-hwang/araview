@@ -1,9 +1,7 @@
-import {
-  formatShortcutDisplay,
-  type ShortcutActionId
-} from "@/constants/shortcuts"
-import { useSettingsStore } from "@/store/settingsStore"
 import { cn } from "cn"
+
+import { formatShortcutDisplay, type ShortcutActionId } from "@/constants/shortcuts"
+import { useSettingsStore } from "@/store/settingsStore"
 
 type ShortcutBadgeProps = {
   actionId: ShortcutActionId
@@ -17,7 +15,7 @@ export function ShortcutBadge({ actionId, className }: ShortcutBadgeProps) {
   return (
     <kbd
       className={cn(
-        "border-border bg-muted text-muted-foreground inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-sm border px-1 font-mono text-xs leading-none tabular-nums",
+        "inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-sm border border-border bg-muted px-1 font-mono text-xs leading-none text-muted-foreground tabular-nums",
         className
       )}
     >

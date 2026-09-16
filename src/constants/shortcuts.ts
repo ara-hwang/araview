@@ -53,8 +53,7 @@ export type WheelAction = "prev" | "next" | "zoomIn" | "zoomOut" | "none"
 
 export type WheelMap = Record<WheelSlot, WheelAction>
 
-export type MouseTrigger =
-  "leftDrag" | "middleClick" | "doubleClick" | "rightClick"
+export type MouseTrigger = "leftDrag" | "middleClick" | "doubleClick" | "rightClick"
 
 export type MouseAction =
   | "pan"
@@ -239,8 +238,7 @@ export function normalizeBinding(value: unknown): string | null {
     if (mod === "ctrl" || mod === "control") modifiers.add("Ctrl")
     else if (mod === "shift") modifiers.add("Shift")
     else if (mod === "alt") modifiers.add("Alt")
-    else if (mod === "meta" || mod === "cmd" || mod === "win")
-      modifiers.add("Meta")
+    else if (mod === "meta" || mod === "cmd" || mod === "win") modifiers.add("Meta")
     else return null
   }
   const primary = normalizePrimaryKey(rawKey)
@@ -340,13 +338,7 @@ export function sanitizeShortcutMap(value: unknown): ShortcutMap {
   return result
 }
 
-const VALID_WHEEL_ACTIONS: WheelAction[] = [
-  "prev",
-  "next",
-  "zoomIn",
-  "zoomOut",
-  "none"
-]
+const VALID_WHEEL_ACTIONS: WheelAction[] = ["prev", "next", "zoomIn", "zoomOut", "none"]
 
 export function sanitizeWheelMap(value: unknown): WheelMap {
   const result: WheelMap = { ...DEFAULT_WHEEL }
@@ -354,10 +346,7 @@ export function sanitizeWheelMap(value: unknown): WheelMap {
   const record = value as Record<string, unknown>
   for (const slot of WHEEL_SLOTS) {
     const raw = record[slot]
-    if (
-      typeof raw === "string" &&
-      (VALID_WHEEL_ACTIONS as string[]).includes(raw)
-    ) {
+    if (typeof raw === "string" && (VALID_WHEEL_ACTIONS as string[]).includes(raw)) {
       result[slot] = raw as WheelAction
     }
   }
@@ -381,10 +370,7 @@ export function sanitizeMouseMap(value: unknown): MouseMap {
   const record = value as Record<string, unknown>
   for (const trigger of MOUSE_TRIGGERS) {
     const raw = record[trigger]
-    if (
-      typeof raw === "string" &&
-      (VALID_MOUSE_ACTIONS as string[]).includes(raw)
-    ) {
+    if (typeof raw === "string" && (VALID_MOUSE_ACTIONS as string[]).includes(raw)) {
       result[trigger] = raw as MouseAction
     }
   }

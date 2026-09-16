@@ -1,18 +1,3 @@
-import { useState } from "react"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Button } from "@/components/ui/button"
-import { Label } from "@/components/ui/label"
-import { Field, FieldGroup, FieldSeparator } from "@/components/ui/field"
-import { SettingsFieldSet } from "@/components/settings/SettingsFieldSet"
-import {
-  updateSettings,
-  useSettingsStore,
-  type AppLanguage,
-  type SettingsState
-} from "@/store/settingsStore"
-import { useRecentFilesStore } from "@/store/recentFilesStore"
-import { useTheme, type Theme } from "@/components/theme-provider"
-import { checkForUpdatesNow, useAppVersion } from "@/hooks/useUpdater"
 import {
   ArrowClockwise,
   ClockCounterClockwise,
@@ -22,8 +7,24 @@ import {
   SkipForward,
   Translate
 } from "@phosphor-icons/react"
+import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useShallow } from "zustand/react/shallow"
+
+import { SettingsFieldSet } from "@/components/settings/SettingsFieldSet"
+import { useTheme, type Theme } from "@/components/theme-provider"
+import { Button } from "@/components/ui/button"
+import { Field, FieldGroup, FieldSeparator } from "@/components/ui/field"
+import { Label } from "@/components/ui/label"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { checkForUpdatesNow, useAppVersion } from "@/hooks/useUpdater"
+import { useRecentFilesStore } from "@/store/recentFilesStore"
+import {
+  updateSettings,
+  useSettingsStore,
+  type AppLanguage,
+  type SettingsState
+} from "@/store/settingsStore"
 
 export function GeneralTabPanel() {
   const { t } = useTranslation()
@@ -69,21 +70,15 @@ export function GeneralTabPanel() {
       >
         <RadioGroup
           value={settings.language}
-          onValueChange={(value) =>
-            handleSettingsChange({ language: value as AppLanguage })
-          }
+          onValueChange={(value) => handleSettingsChange({ language: value as AppLanguage })}
         >
           <Field orientation="horizontal">
             <RadioGroupItem value="ko" id="settings-lang-ko" />
-            <Label htmlFor="settings-lang-ko">
-              {t("settings.language.ko")}
-            </Label>
+            <Label htmlFor="settings-lang-ko">{t("settings.language.ko")}</Label>
           </Field>
           <Field orientation="horizontal">
             <RadioGroupItem value="en" id="settings-lang-en" />
-            <Label htmlFor="settings-lang-en">
-              {t("settings.language.en")}
-            </Label>
+            <Label htmlFor="settings-lang-en">{t("settings.language.en")}</Label>
           </Field>
         </RadioGroup>
       </SettingsFieldSet>
@@ -95,27 +90,18 @@ export function GeneralTabPanel() {
         title={t("settings.theme.title")}
         description={t("settings.theme.desc")}
       >
-        <RadioGroup
-          value={theme}
-          onValueChange={(value) => setTheme(value as Theme)}
-        >
+        <RadioGroup value={theme} onValueChange={(value) => setTheme(value as Theme)}>
           <Field orientation="horizontal">
             <RadioGroupItem value="system" id="settings-theme-system" />
-            <Label htmlFor="settings-theme-system">
-              {t("settings.theme.system")}
-            </Label>
+            <Label htmlFor="settings-theme-system">{t("settings.theme.system")}</Label>
           </Field>
           <Field orientation="horizontal">
             <RadioGroupItem value="light" id="settings-theme-light" />
-            <Label htmlFor="settings-theme-light">
-              {t("settings.theme.light")}
-            </Label>
+            <Label htmlFor="settings-theme-light">{t("settings.theme.light")}</Label>
           </Field>
           <Field orientation="horizontal">
             <RadioGroupItem value="dark" id="settings-theme-dark" />
-            <Label htmlFor="settings-theme-dark">
-              {t("settings.theme.dark")}
-            </Label>
+            <Label htmlFor="settings-theme-dark">{t("settings.theme.dark")}</Label>
           </Field>
         </RadioGroup>
       </SettingsFieldSet>
@@ -130,21 +116,15 @@ export function GeneralTabPanel() {
         <RadioGroup
           value={settings.autoOpenLastFile ? "on" : "off"}
           disabled={!settings.recordRecentFiles}
-          onValueChange={(value) =>
-            handleSettingsChange({ autoOpenLastFile: value === "on" })
-          }
+          onValueChange={(value) => handleSettingsChange({ autoOpenLastFile: value === "on" })}
         >
           <Field orientation="horizontal">
             <RadioGroupItem value="off" id="settings-startup-off" />
-            <Label htmlFor="settings-startup-off">
-              {t("settings.startup.home")}
-            </Label>
+            <Label htmlFor="settings-startup-off">{t("settings.startup.home")}</Label>
           </Field>
           <Field orientation="horizontal">
             <RadioGroupItem value="on" id="settings-startup-on" />
-            <Label htmlFor="settings-startup-on">
-              {t("settings.startup.last")}
-            </Label>
+            <Label htmlFor="settings-startup-on">{t("settings.startup.last")}</Label>
           </Field>
         </RadioGroup>
       </SettingsFieldSet>
@@ -162,15 +142,11 @@ export function GeneralTabPanel() {
         >
           <Field orientation="horizontal">
             <RadioGroupItem value="on" id="settings-recent-on" />
-            <Label htmlFor="settings-recent-on">
-              {t("settings.recent.on")}
-            </Label>
+            <Label htmlFor="settings-recent-on">{t("settings.recent.on")}</Label>
           </Field>
           <Field orientation="horizontal">
             <RadioGroupItem value="off" id="settings-recent-off" />
-            <Label htmlFor="settings-recent-off">
-              {t("settings.recent.off")}
-            </Label>
+            <Label htmlFor="settings-recent-off">{t("settings.recent.off")}</Label>
           </Field>
         </RadioGroup>
       </SettingsFieldSet>
@@ -184,9 +160,7 @@ export function GeneralTabPanel() {
       >
         <RadioGroup
           value={settings.loopNavigation ? "loop" : "stop"}
-          onValueChange={(value) =>
-            handleSettingsChange({ loopNavigation: value === "loop" })
-          }
+          onValueChange={(value) => handleSettingsChange({ loopNavigation: value === "loop" })}
         >
           <Field orientation="horizontal">
             <RadioGroupItem value="stop" id="settings-nav-stop" />
@@ -208,21 +182,15 @@ export function GeneralTabPanel() {
       >
         <RadioGroup
           value={settings.skipBrokenFiles ? "on" : "off"}
-          onValueChange={(value) =>
-            handleSettingsChange({ skipBrokenFiles: value === "on" })
-          }
+          onValueChange={(value) => handleSettingsChange({ skipBrokenFiles: value === "on" })}
         >
           <Field orientation="horizontal">
             <RadioGroupItem value="off" id="settings-skip-off" />
-            <Label htmlFor="settings-skip-off">
-              {t("settings.skipBroken.off")}
-            </Label>
+            <Label htmlFor="settings-skip-off">{t("settings.skipBroken.off")}</Label>
           </Field>
           <Field orientation="horizontal">
             <RadioGroupItem value="on" id="settings-skip-on" />
-            <Label htmlFor="settings-skip-on">
-              {t("settings.skipBroken.on")}
-            </Label>
+            <Label htmlFor="settings-skip-on">{t("settings.skipBroken.on")}</Label>
           </Field>
         </RadioGroup>
       </SettingsFieldSet>
@@ -236,11 +204,9 @@ export function GeneralTabPanel() {
       >
         <div className="flex flex-wrap items-center gap-2">
           <Button onClick={handleCheckUpdate} disabled={checkingUpdate}>
-            {checkingUpdate
-              ? t("settings.update.checking")
-              : t("settings.update.check")}
+            {checkingUpdate ? t("settings.update.checking") : t("settings.update.check")}
           </Button>
-          <span className="text-muted-foreground text-sm">
+          <span className="text-sm text-muted-foreground">
             {t("settings.update.current", {
               version: appVersion ?? t("settings.update.unknown")
             })}

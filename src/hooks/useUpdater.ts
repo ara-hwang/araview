@@ -1,11 +1,12 @@
-import { useEffect, useState } from "react"
 import { getVersion } from "@tauri-apps/api/app"
-import { check, type Update } from "@tauri-apps/plugin-updater"
 import { relaunch } from "@tauri-apps/plugin-process"
+import { check, type Update } from "@tauri-apps/plugin-updater"
+import { useEffect, useState } from "react"
 import { toast } from "sonner"
+
 import i18n from "@/i18n"
-import { errorMessage } from "@/utils/appError"
 import { useUpdateStore } from "@/store/updateStore"
+import { errorMessage } from "@/utils/appError"
 
 /** 명령 팔레트 등 전역에서 수동 업데이트 확인을 요청하는 이벤트. */
 export const REQUEST_UPDATE_CHECK_EVENT = "tiv:check-updates"

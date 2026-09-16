@@ -1,7 +1,8 @@
-import { FieldDescription, FieldLegend, FieldSet } from "@/components/ui/field"
-import { ShortcutBadge } from "@/components/settings/ShortcutBadge"
-import type { ShortcutActionId } from "@/constants/shortcuts"
 import type { ReactNode } from "react"
+
+import { ShortcutBadge } from "@/components/settings/ShortcutBadge"
+import { FieldDescription, FieldLegend, FieldSet } from "@/components/ui/field"
+import type { ShortcutActionId } from "@/constants/shortcuts"
 
 export function SettingsFieldSet(props: {
   icon: ReactNode
@@ -15,13 +16,9 @@ export function SettingsFieldSet(props: {
       <FieldLegend className="flex items-center gap-2">
         {props.icon}
         {props.title}
-        {props.shortcutId ? (
-          <ShortcutBadge actionId={props.shortcutId} />
-        ) : null}
+        {props.shortcutId ? <ShortcutBadge actionId={props.shortcutId} /> : null}
       </FieldLegend>
-      {props.description ? (
-        <FieldDescription>{props.description}</FieldDescription>
-      ) : null}
+      {props.description ? <FieldDescription>{props.description}</FieldDescription> : null}
       {props.children}
     </FieldSet>
   )

@@ -24,5 +24,4 @@ export const SUPPORTED_IMAGE_EXTENSIONS = [
   "cbt"
 ] as const
 
-export type SupportedImageExtension =
-  (typeof SUPPORTED_IMAGE_EXTENSIONS)[number]
+export type SupportedImageExtension = (typeof SUPPORTED_IMAGE_EXTENSIONS)[number]

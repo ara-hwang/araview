@@ -19,16 +19,12 @@ export function describeTransform(
   flipV: boolean,
   t?: DescribeT
 ): string {
-  const translate: DescribeT =
-    t ?? ((key: string) => key.split(".").pop() ?? key)
+  const translate: DescribeT = t ?? ((key: string) => key.split(".").pop() ?? key)
   const parts: string[] = []
-  if (rotation !== 0)
-    parts.push(translate("dialog.save.transform.rotated", { deg: rotation }))
+  if (rotation !== 0) parts.push(translate("dialog.save.transform.rotated", { deg: rotation }))
   if (flipH) parts.push(translate("dialog.save.transform.flipH"))
   if (flipV) parts.push(translate("dialog.save.transform.flipV"))
-  return parts.length > 0
-    ? parts.join(" · ")
-    : translate("dialog.save.transform.none")
+  return parts.length > 0 ? parts.join(" · ") : translate("dialog.save.transform.none")
 }
 
 /** 저장 다이얼로그 선택 → 백엔드 SaveImageOptions 페이로드 */

@@ -1,7 +1,8 @@
 import { useCallback } from "react"
+
+import type { WheelSlot } from "@/constants/shortcuts"
 import { zoomInBy, zoomOutBy } from "@/store/appStore"
 import { getSettings } from "@/store/settingsStore"
-import type { WheelSlot } from "@/constants/shortcuts"
 
 type ZoomPanHandlers = {
   handleWheel: (e: React.WheelEvent) => void

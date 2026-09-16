@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest"
+
 import {
   DEFAULT_MOUSE,
   DEFAULT_SHORTCUTS,
@@ -112,22 +113,16 @@ describe("defaults", () => {
   })
 
   it("충돌 액션을 찾는다", () => {
-    expect(findBindingConflict(DEFAULT_SHORTCUTS, "zoomIn", "Ctrl+O")).toBe(
-      "openFile"
-    )
+    expect(findBindingConflict(DEFAULT_SHORTCUTS, "zoomIn", "Ctrl+O")).toBe("openFile")
     expect(findBindingConflict(DEFAULT_SHORTCUTS, "zoomIn", "")).toBeNull()
   })
 
   it("휠과 마우스 기본값을 보존한다", () => {
-    expect(
-      sanitizeWheelMap({ wheelUp: "zoomIn", wheelDown: "oops" }).wheelUp
-    ).toBe("zoomIn")
-    expect(
-      sanitizeWheelMap({ wheelUp: "zoomIn", wheelDown: "oops" }).wheelDown
-    ).toBe(DEFAULT_WHEEL.wheelDown)
-    expect(sanitizeMouseMap({ leftDrag: "prev" }).leftDrag).toBe(
-      DEFAULT_MOUSE.leftDrag
+    expect(sanitizeWheelMap({ wheelUp: "zoomIn", wheelDown: "oops" }).wheelUp).toBe("zoomIn")
+    expect(sanitizeWheelMap({ wheelUp: "zoomIn", wheelDown: "oops" }).wheelDown).toBe(
+      DEFAULT_WHEEL.wheelDown
     )
+    expect(sanitizeMouseMap({ leftDrag: "prev" }).leftDrag).toBe(DEFAULT_MOUSE.leftDrag)
   })
 })
 

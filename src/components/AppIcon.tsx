@@ -29,10 +29,7 @@ export function AppIcon({ className, title }: AppIconProps) {
         d="M592 544 H904 Q952 544 952 592 V802 L802 952 H592 Q544 952 544 904 V592 Q544 544 592 544 Z"
         className="fill-[#171717] dark:fill-[#F5F5F5]"
       />
-      <path
-        d="M802 952 L952 802 L952 952 Z"
-        className="fill-[#525252] dark:fill-[#171717]"
-      />
+      <path d="M802 952 L952 802 L952 952 Z" className="fill-[#525252] dark:fill-[#171717]" />
     </svg>
   )
 }

@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest"
-import { hasBlockedAssociation } from "./useFileAssociations"
+
 import type { FileAssociation } from "@/types"
+
+import { hasBlockedAssociation } from "./useFileAssociations"
 
 function association(
   partial: Partial<FileAssociation> & Pick<FileAssociation, "extension">

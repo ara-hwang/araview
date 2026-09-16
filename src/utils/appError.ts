@@ -1,5 +1,4 @@
-export type AppErrorKind =
-  "not-found" | "permission" | "unsupported" | "corrupt" | "unknown"
+export type AppErrorKind = "not-found" | "permission" | "unsupported" | "corrupt" | "unknown"
 export type ClassifiedError = {
   kind: AppErrorKind
   titleKey: string
@@ -33,29 +32,28 @@ const KO_TEXT: Record<AppErrorKind, { title: string; hint: string }> = {
   }
 }
 
-const KEY_BY_KIND: Record<AppErrorKind, { titleKey: string; hintKey: string }> =
-  {
-    "not-found": {
-      titleKey: "error.notFound.title",
-      hintKey: "error.notFound.hint"
-    },
-    permission: {
-      titleKey: "error.permission.title",
-      hintKey: "error.permission.hint"
-    },
-    unsupported: {
-      titleKey: "error.unsupported.title",
-      hintKey: "error.unsupported.hint"
-    },
-    corrupt: {
-      titleKey: "error.corrupt.title",
-      hintKey: "error.corrupt.hint"
-    },
-    unknown: {
-      titleKey: "error.unknown.title",
-      hintKey: "error.unknown.hint"
-    }
+const KEY_BY_KIND: Record<AppErrorKind, { titleKey: string; hintKey: string }> = {
+  "not-found": {
+    titleKey: "error.notFound.title",
+    hintKey: "error.notFound.hint"
+  },
+  permission: {
+    titleKey: "error.permission.title",
+    hintKey: "error.permission.hint"
+  },
+  unsupported: {
+    titleKey: "error.unsupported.title",
+    hintKey: "error.unsupported.hint"
+  },
+  corrupt: {
+    titleKey: "error.corrupt.title",
+    hintKey: "error.corrupt.hint"
+  },
+  unknown: {
+    titleKey: "error.unknown.title",
+    hintKey: "error.unknown.hint"
   }
+}
 
 /** 백엔드가 반환하는 고정 에러 문자열 → 종류. 전체 일치만 해당한다. */
 const EXACT_KIND: ReadonlyMap<string, AppErrorKind> = new Map([
@@ -201,9 +199,7 @@ export function classifyError(input: unknown): ClassifiedError {
   const code = codeOf(input)
   const message = errorMessage(input)
   const kind =
-    code !== null && CODE_KIND.has(code)
-      ? (CODE_KIND.get(code) as AppErrorKind)
-      : kindOf(message)
+    code !== null && CODE_KIND.has(code) ? (CODE_KIND.get(code) as AppErrorKind) : kindOf(message)
   return {
     kind,
     ...KEY_BY_KIND[kind],

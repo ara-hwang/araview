@@ -1,27 +1,13 @@
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState
-} from "react"
-import {
-  ArrowClockwise,
-  MagnifyingGlass,
-  WarningCircle,
-  X
-} from "@phosphor-icons/react"
-import { Button } from "@/components/ui/button"
-import {
-  Empty,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle
-} from "@/components/ui/empty"
+import { ArrowClockwise, MagnifyingGlass, WarningCircle, X } from "@phosphor-icons/react"
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
+
 import { AppIcon } from "@/components/AppIcon"
-import { cn } from "@/lib/utils"
+import { Button } from "@/components/ui/button"
+import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
 import { useThumbnailSrcs } from "@/hooks/useThumbnailSrcs"
+import { cn } from "@/lib/utils"
+import type { DirectoryImages, ImageInfo } from "@/types"
 import {
   computeGridLayout,
   computeGridWindow,
@@ -29,8 +15,6 @@ import {
   gridScrollTopToCenter,
   gridScrollTopToReveal
 } from "@/utils/gridWindow"
-import type { DirectoryImages, ImageInfo } from "@/types"
-import { useTranslation } from "react-i18next"
 
 type ThumbnailGridProps = {
   dirImages: DirectoryImages
@@ -74,9 +58,7 @@ export function ThumbnailGrid({
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase()
     if (needle === "") return items
-    return items.filter((item) =>
-      basename(item.path).toLowerCase().includes(needle)
-    )
+    return items.filter((item) => basename(item.path).toLowerCase().includes(needle))
   }, [items, query])
 
   const failedSet = useMemo(() => new Set(failedPaths), [failedPaths])
@@ -209,12 +191,8 @@ export function ThumbnailGrid({
       const nextList =
         needle === ""
           ? items
-          : items.filter((item) =>
-              basename(item.path).toLowerCase().includes(needle)
-            )
-      const pos = nextList.findIndex(
-        (item) => item.index === dirImages.current_index
-      )
+          : items.filter((item) => basename(item.path).toLowerCase().includes(needle))
+      const pos = nextList.findIndex((item) => item.index === dirImages.current_index)
       setSelectedPos(pos >= 0 ? pos : 0)
     },
     [items, dirImages.current_index]
@@ -223,15 +201,10 @@ export function ThumbnailGrid({
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       const target = e.target
-      const inField =
-        target instanceof HTMLInputElement ||
-        target instanceof HTMLTextAreaElement
+      const inField = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement
       if (inField && e.key !== "Escape") return
 
-      const pageRows = Math.max(
-        1,
-        Math.floor(viewport.height / layout.rowStride)
-      )
+      const pageRows = Math.max(1, Math.floor(viewport.height / layout.rowStride))
       const move = (delta: number) => {
         e.preventDefault()
         e.stopPropagation()
@@ -296,16 +269,10 @@ export function ThumbnailGrid({
   )
 
   const visiblePaths = useMemo(
-    () =>
-      filtered
-        .slice(gridWindow.startIndex, gridWindow.endIndex)
-        .map((item) => item.path),
+    () => filtered.slice(gridWindow.startIndex, gridWindow.endIndex).map((item) => item.path),
     [filtered, gridWindow.startIndex, gridWindow.endIndex]
   )
-  const thumbnailOptions = useMemo(
-    () => ({ maxSide: THUMB_MAX_SIDE, archivePath }),
-    [archivePath]
-  )
+  const thumbnailOptions = useMemo(() => ({ maxSide: THUMB_MAX_SIDE, archivePath }), [archivePath])
   const {
     urls,
     failed: thumbFailed,
@@ -320,9 +287,7 @@ export function ThumbnailGrid({
     return parts.length >= 2 ? parts[parts.length - 2] : first
   }, [archivePath, dirImages.images])
 
-  const activeId = filtered[selectedPos]
-    ? `grid-item-${filtered[selectedPos].index}`
-    : undefined
+  const activeId = filtered[selectedPos] ? `grid-item-${filtered[selectedPos].index}` : undefined
 
   // scroll-fade는 스크롤 여지가 없을 때 위쪽 페이드가 남는 WebView2 동작이
   // 있어, 오버플로가 없으면 문서가 제공하는 scroll-fade-none으로 끈다.
@@ -330,7 +295,7 @@ export function ThumbnailGrid({
 
   return (
     <div
-      className="bg-background absolute inset-0 z-40 flex flex-col"
+      className="absolute inset-0 z-40 flex flex-col bg-background"
       // 필터 입력에서도 Esc/G가 동작하도록 루트에서 키를 받는다.
       onKeyDown={handleKeyDown}
       // 그리드 위에서는 뷰어 우클릭 메뉴를 열지 않는다.
@@ -339,14 +304,12 @@ export function ThumbnailGrid({
         e.stopPropagation()
       }}
     >
-      <header className="border-border flex flex-wrap items-center gap-x-3 gap-y-2 border-b px-4 py-2">
+      <header className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border px-4 py-2">
         <div className="min-w-0 flex-1">
           <p className="text-xs font-semibold">{t("viewer.grid.title")}</p>
-          <p className="text-muted-foreground truncate text-xs">
-            {locationName}
-          </p>
+          <p className="truncate text-xs text-muted-foreground">{locationName}</p>
         </div>
-        <span className="text-muted-foreground text-xs tabular-nums">
+        <span className="text-xs text-muted-foreground tabular-nums">
           {t("viewer.grid.count", {
             current: dirImages.current_index + 1,
             total: dirImages.images.length
@@ -355,7 +318,7 @@ export function ThumbnailGrid({
         <div className="relative">
           <MagnifyingGlass
             aria-hidden="true"
-            className="text-muted-foreground absolute top-1/2 left-2 size-3.5 -translate-y-1/2"
+            className="absolute top-1/2 left-2 size-3.5 -translate-y-1/2 text-muted-foreground"
           />
           <input
             type="text"
@@ -363,7 +326,7 @@ export function ThumbnailGrid({
             onChange={(e) => handleQueryChange(e.target.value)}
             placeholder={t("viewer.grid.filter")}
             aria-label={t("viewer.grid.filter")}
-            className="border-border bg-background focus-visible:ring-ring h-8 w-48 rounded-md border pr-2 pl-7 text-xs focus-visible:ring-2 focus-visible:outline-none"
+            className="h-8 w-48 rounded-md border border-border bg-background pr-2 pl-7 text-xs focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
           />
         </div>
         <Button
@@ -386,7 +349,7 @@ export function ThumbnailGrid({
         onScroll={handleScroll}
         // shadcn scroll-fade: 스크롤 위치를 따라가는 가장자리 마스크 (JS 불필요)
         className={cn(
-          "scroll-fade relative flex-1 overflow-y-auto outline-none",
+          "relative flex-1 scroll-fade overflow-y-auto outline-none",
           !canScroll && "scroll-fade-none"
         )}
       >
@@ -403,120 +366,99 @@ export function ThumbnailGrid({
                 </EmptyMedia>
               )}
               <EmptyTitle>
-                {query.trim() !== ""
-                  ? t("viewer.grid.noResults")
-                  : t("viewer.grid.empty")}
+                {query.trim() !== "" ? t("viewer.grid.noResults") : t("viewer.grid.empty")}
               </EmptyTitle>
             </EmptyHeader>
           </Empty>
         ) : (
           <div className="relative" style={{ height: gridWindow.totalHeight }}>
-            {filtered
-              .slice(gridWindow.startIndex, gridWindow.endIndex)
-              .map((item, offset) => {
-                const position = gridWindow.startIndex + offset
-                const isCurrent = item.index === dirImages.current_index
-                const isSelected = position === selectedPos
-                const src = urls.get(item.path)
-                const isFailed =
-                  failedSet.has(item.path) || thumbFailed.has(item.path)
-                const name = basename(item.path)
-                const left =
-                  PADDING +
-                  (position % layout.columns) * (layout.cellWidth + GAP)
-                const top = gridOffsetForIndex(
-                  position,
-                  layout.columns,
-                  layout.cellHeight,
-                  GAP,
-                  PADDING
-                )
+            {filtered.slice(gridWindow.startIndex, gridWindow.endIndex).map((item, offset) => {
+              const position = gridWindow.startIndex + offset
+              const isCurrent = item.index === dirImages.current_index
+              const isSelected = position === selectedPos
+              const src = urls.get(item.path)
+              const isFailed = failedSet.has(item.path) || thumbFailed.has(item.path)
+              const name = basename(item.path)
+              const left = PADDING + (position % layout.columns) * (layout.cellWidth + GAP)
+              const top = gridOffsetForIndex(
+                position,
+                layout.columns,
+                layout.cellHeight,
+                GAP,
+                PADDING
+              )
 
-                return (
+              return (
+                <div
+                  key={item.path}
+                  role="option"
+                  id={`grid-item-${item.index}`}
+                  aria-selected={isSelected}
+                  aria-current={isCurrent ? "true" : undefined}
+                  aria-setsize={filtered.length}
+                  aria-posinset={position + 1}
+                  aria-label={t("viewer.nav.thumb", {
+                    index: item.index + 1,
+                    name
+                  })}
+                  title={name}
+                  onClick={() => {
+                    if (isFailed && !src) retry(item.path)
+                    jump(item.index)
+                  }}
+                  className={cn(
+                    "absolute cursor-pointer overflow-hidden rounded-md border bg-background transition-colors",
+                    isCurrent ? "border-foreground" : "border-border hover:border-muted-foreground",
+                    isSelected && "ring-2 ring-ring ring-offset-0"
+                  )}
+                  style={{
+                    left,
+                    top,
+                    width: layout.cellWidth,
+                    height: layout.cellHeight
+                  }}
+                >
                   <div
-                    key={item.path}
-                    role="option"
-                    id={`grid-item-${item.index}`}
-                    aria-selected={isSelected}
-                    aria-current={isCurrent ? "true" : undefined}
-                    aria-setsize={filtered.length}
-                    aria-posinset={position + 1}
-                    aria-label={t("viewer.nav.thumb", {
-                      index: item.index + 1,
-                      name
-                    })}
-                    title={name}
-                    onClick={() => {
-                      if (isFailed && !src) retry(item.path)
-                      jump(item.index)
-                    }}
-                    className={cn(
-                      "bg-background absolute cursor-pointer overflow-hidden rounded-md border transition-colors",
-                      isCurrent
-                        ? "border-foreground"
-                        : "border-border hover:border-muted-foreground",
-                      isSelected && "ring-ring ring-2 ring-offset-0"
-                    )}
-                    style={{
-                      left,
-                      top,
-                      width: layout.cellWidth,
-                      height: layout.cellHeight
-                    }}
+                    className="relative w-full overflow-hidden bg-muted/40"
+                    style={{ height: layout.thumbSide }}
                   >
-                    <div
-                      className="bg-muted/40 relative w-full overflow-hidden"
-                      style={{ height: layout.thumbSide }}
-                    >
-                      {src ? (
-                        <img
-                          src={src}
-                          alt=""
-                          loading="lazy"
-                          decoding="async"
-                          draggable={false}
-                          className="h-full w-full object-contain"
-                        />
-                      ) : isFailed ? (
-                        <span className="flex h-full w-full flex-col items-center justify-center gap-1">
-                          <WarningCircle
-                            aria-hidden="true"
-                            className="text-destructive size-5"
-                          />
-                          <span className="text-muted-foreground text-[10px]">
-                            {t("viewer.grid.failed")}
-                          </span>
+                    {src ? (
+                      <img
+                        src={src}
+                        alt=""
+                        loading="lazy"
+                        decoding="async"
+                        draggable={false}
+                        className="h-full w-full object-contain"
+                      />
+                    ) : isFailed ? (
+                      <span className="flex h-full w-full flex-col items-center justify-center gap-1">
+                        <WarningCircle aria-hidden="true" className="size-5 text-destructive" />
+                        <span className="text-[10px] text-muted-foreground">
+                          {t("viewer.grid.failed")}
                         </span>
-                      ) : (
-                        <span
-                          aria-hidden="true"
-                          className="block h-full w-full animate-pulse"
-                        />
-                      )}
-                      <span className="bg-background/85 absolute top-0.5 left-0.5 rounded px-1 text-[10px] tabular-nums">
-                        {item.index + 1}
                       </span>
-                      {isFailed && src && (
-                        <span className="bg-background absolute top-0.5 right-0.5 rounded-full p-0.5">
-                          <WarningCircle
-                            aria-hidden="true"
-                            className="text-destructive size-3.5"
-                          />
-                        </span>
-                      )}
-                      {isFailed && !src && (
-                        <span className="bg-background/90 absolute right-0.5 bottom-0.5 rounded-full p-0.5">
-                          <ArrowClockwise
-                            aria-hidden="true"
-                            className="size-3"
-                          />
-                        </span>
-                      )}
-                    </div>
-                    <p className="truncate px-1.5 py-0.5 text-[11px]">{name}</p>
+                    ) : (
+                      <span aria-hidden="true" className="block h-full w-full animate-pulse" />
+                    )}
+                    <span className="absolute top-0.5 left-0.5 rounded bg-background/85 px-1 text-[10px] tabular-nums">
+                      {item.index + 1}
+                    </span>
+                    {isFailed && src && (
+                      <span className="absolute top-0.5 right-0.5 rounded-full bg-background p-0.5">
+                        <WarningCircle aria-hidden="true" className="size-3.5 text-destructive" />
+                      </span>
+                    )}
+                    {isFailed && !src && (
+                      <span className="absolute right-0.5 bottom-0.5 rounded-full bg-background/90 p-0.5">
+                        <ArrowClockwise aria-hidden="true" className="size-3" />
+                      </span>
+                    )}
                   </div>
-                )
-              })}
+                  <p className="truncate px-1.5 py-0.5 text-[11px]">{name}</p>
+                </div>
+              )
+            })}
           </div>
         )}
       </div>

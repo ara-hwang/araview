@@ -17,10 +17,7 @@ type UpdateStoreState = {
   dismiss: () => void
 }
 
-const initialUpdate: Pick<
-  UpdateStoreState,
-  "stage" | "version" | "body" | "pct" | "error"
-> = {
+const initialUpdate: Pick<UpdateStoreState, "stage" | "version" | "body" | "pct" | "error"> = {
   stage: "idle",
   version: null,
   body: null,

@@ -1,8 +1,9 @@
+import { useTranslation } from "react-i18next"
+import { useShallow } from "zustand/react/shallow"
+
 import { useAppStore } from "@/store/appStore"
 import { formatDimensions, formatFileSize } from "@/utils/format"
 import { buildStatusModel } from "@/utils/statusBar"
-import { useShallow } from "zustand/react/shallow"
-import { useTranslation } from "react-i18next"
 
 export function StatusBar() {
   const { t } = useTranslation()
@@ -41,7 +42,7 @@ export function StatusBar() {
 
   return (
     <div
-      className="bg-background absolute bottom-0 flex h-6 w-full items-center justify-between gap-2 border-t px-2 text-xs"
+      className="absolute bottom-0 flex h-6 w-full items-center justify-between gap-2 border-t bg-background px-2 text-xs"
       role="status"
       aria-label={t("status.barLabel")}
     >
@@ -54,13 +55,10 @@ export function StatusBar() {
         >
           {model.folderName && (
             <>
-              <span className="text-muted-foreground hidden max-w-32 min-w-0 shrink truncate sm:inline">
+              <span className="hidden max-w-32 min-w-0 shrink truncate text-muted-foreground sm:inline">
                 {model.folderName}
               </span>
-              <span
-                aria-hidden="true"
-                className="text-muted-foreground hidden shrink-0 sm:inline"
-              >
+              <span aria-hidden="true" className="hidden shrink-0 text-muted-foreground sm:inline">
                 /
               </span>
             </>
@@ -70,10 +68,7 @@ export function StatusBar() {
           </span>
           {model.entryName && (
             <>
-              <span
-                aria-hidden="true"
-                className="text-muted-foreground shrink-0"
-              >
+              <span aria-hidden="true" className="shrink-0 text-muted-foreground">
                 ›
               </span>
               <span className="min-w-0 flex-1 truncate">{model.entryName}</span>
@@ -87,20 +82,15 @@ export function StatusBar() {
         >
           {model.folderName && (
             <>
-              <span className="text-muted-foreground hidden max-w-40 min-w-0 shrink truncate sm:inline">
+              <span className="hidden max-w-40 min-w-0 shrink truncate text-muted-foreground sm:inline">
                 {model.folderName}
               </span>
-              <span
-                aria-hidden="true"
-                className="text-muted-foreground hidden shrink-0 sm:inline"
-              >
+              <span aria-hidden="true" className="hidden shrink-0 text-muted-foreground sm:inline">
                 /
               </span>
             </>
           )}
-          <span className="min-w-0 flex-1 truncate font-medium">
-            {model.fileName}
-          </span>
+          <span className="min-w-0 flex-1 truncate font-medium">{model.fileName}</span>
         </span>
       )}
       <span className="shrink-0 font-mono tabular-nums">

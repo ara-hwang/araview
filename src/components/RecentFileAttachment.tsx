@@ -1,5 +1,6 @@
 import { FileArchive, FileImage, FileX, X } from "@phosphor-icons/react"
 import { useTranslation } from "react-i18next"
+
 import {
   Attachment,
   AttachmentAction,
@@ -11,9 +12,9 @@ import {
   AttachmentTrigger
 } from "@/components/ui/attachment"
 import { Spinner } from "@/components/ui/spinner"
-import { formatDimensions, formatFileSize } from "@/utils/format"
-import type { ImageInfo } from "@/types"
 import type { RecentFileStatus } from "@/hooks/useRecentFileDetails"
+import type { ImageInfo } from "@/types"
+import { formatDimensions, formatFileSize } from "@/utils/format"
 
 type RecentFileAttachmentProps = {
   path: string
@@ -26,10 +27,7 @@ type RecentFileAttachmentProps = {
 
 export function parentDir(path: string): string {
   const normalized = path.replace(/[\\/]+$/, "")
-  const idx = Math.max(
-    normalized.lastIndexOf("/"),
-    normalized.lastIndexOf("\\")
-  )
+  const idx = Math.max(normalized.lastIndexOf("/"), normalized.lastIndexOf("\\"))
   return idx > 0 ? normalized.slice(0, idx) : normalized
 }
 
@@ -67,15 +65,7 @@ export function RecentFileAttachment({
         : t("home.list.unavailable")
 
   return (
-    <Attachment
-      state={
-        status === "error"
-          ? "error"
-          : status === "loading"
-            ? "processing"
-            : "done"
-      }
-    >
+    <Attachment state={status === "error" ? "error" : status === "loading" ? "processing" : "done"}>
       <AttachmentMedia variant={showImage ? "image" : "icon"}>
         {showImage && src ? (
           <img

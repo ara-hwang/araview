@@ -1,47 +1,39 @@
 import { createFileRoute, redirect } from "@tanstack/react-router"
-import { ImageContainer } from "@/components/ImageContainer"
-import { ThumbnailGrid } from "@/components/ThumbnailGrid"
-import type { WebtoonScrollTarget } from "@/components/WebtoonContinuousView"
-import {
-  getApp,
-  updateDirImagesIndex,
-  useAppStore,
-  zoomIn,
-  zoomOut
-} from "@/store/appStore"
-import { getSettings, useSettingsStore } from "@/store/settingsStore"
-import { useArchiveProgressStore } from "@/store/archiveProgressStore"
-import type { MouseAction } from "@/constants/shortcuts"
-import { useDirectoryNavigation } from "@/hooks/useDirectoryNavigation"
-import { useExifLoader } from "@/hooks/useExifLoader"
-import { useImageLoader } from "@/hooks/useImageLoader"
-import { useMultiPageImages } from "@/hooks/useMultiPageImages"
-import { useSlideshow } from "@/hooks/useSlideshow"
-import { useFullscreen } from "@/hooks/useFullscreen"
-import { useAlwaysOnTop } from "@/hooks/useAlwaysOnTop"
-import { useCopyImage } from "@/hooks/useCopyImage"
-import { useFileOperations } from "@/hooks/useFileOperations"
-import { useIdleHide } from "@/hooks/useIdleHide"
-import { cycleViewerBackground } from "@/store/settingsStore"
-import { RenameDialog } from "@/components/RenameDialog"
-import { SaveEditsDialog } from "@/components/SaveEditsDialog"
-import { toggleShuffleAndRefresh } from "@/utils/directoryOptions"
-import type { SaveEditsPayload } from "@/utils/imageEdits"
-import { useImageViewerContextMenu } from "@/hooks/useContextMenu"
-import { useCloseImage } from "@/hooks/useCloseImage"
-import { useImageViewerHotkeys } from "@/hooks/useImageViewerHotkeys"
-import { useOpenFileListener } from "@/hooks/useOpenFileListener"
-import { useViewerElements } from "@/hooks/useViewerElements"
-import {
-  registerPaletteHandlers,
-  unregisterPaletteHandlers
-} from "@/hooks/useCommandPalette"
-import { useWheelNavigation } from "@/hooks/useWheelNavigation"
-import { useZoomPan } from "@/hooks/useZoomPan"
 import { useCallback, useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
+
+import { ImageContainer } from "@/components/ImageContainer"
+import { RenameDialog } from "@/components/RenameDialog"
+import { SaveEditsDialog } from "@/components/SaveEditsDialog"
+import { ThumbnailGrid } from "@/components/ThumbnailGrid"
+import type { WebtoonScrollTarget } from "@/components/WebtoonContinuousView"
+import type { MouseAction } from "@/constants/shortcuts"
+import { useAlwaysOnTop } from "@/hooks/useAlwaysOnTop"
+import { useCloseImage } from "@/hooks/useCloseImage"
+import { registerPaletteHandlers, unregisterPaletteHandlers } from "@/hooks/useCommandPalette"
+import { useImageViewerContextMenu } from "@/hooks/useContextMenu"
+import { useCopyImage } from "@/hooks/useCopyImage"
+import { useDirectoryNavigation } from "@/hooks/useDirectoryNavigation"
+import { useExifLoader } from "@/hooks/useExifLoader"
+import { useFileOperations } from "@/hooks/useFileOperations"
 import { saveBlockedReason } from "@/hooks/useFileOperations"
+import { useFullscreen } from "@/hooks/useFullscreen"
+import { useIdleHide } from "@/hooks/useIdleHide"
+import { useImageLoader } from "@/hooks/useImageLoader"
+import { useImageViewerHotkeys } from "@/hooks/useImageViewerHotkeys"
+import { useMultiPageImages } from "@/hooks/useMultiPageImages"
+import { useOpenFileListener } from "@/hooks/useOpenFileListener"
+import { useSlideshow } from "@/hooks/useSlideshow"
+import { useViewerElements } from "@/hooks/useViewerElements"
+import { useWheelNavigation } from "@/hooks/useWheelNavigation"
+import { useZoomPan } from "@/hooks/useZoomPan"
+import { getApp, updateDirImagesIndex, useAppStore, zoomIn, zoomOut } from "@/store/appStore"
+import { useArchiveProgressStore } from "@/store/archiveProgressStore"
+import { getSettings, useSettingsStore } from "@/store/settingsStore"
+import { cycleViewerBackground } from "@/store/settingsStore"
+import { toggleShuffleAndRefresh } from "@/utils/directoryOptions"
+import type { SaveEditsPayload } from "@/utils/imageEdits"
 
 export const Route = createFileRoute("/image")({
   beforeLoad: () => {
@@ -84,11 +76,12 @@ function ImagePage() {
     [loadImage, zoomPan.resetView]
   )
 
-  const { navigateImage, navigateToIndex, navigateByOffset } =
-    useDirectoryNavigation(loadImageAndReset, loadArchiveImageByIndex)
+  const { navigateImage, navigateToIndex, navigateByOffset } = useDirectoryNavigation(
+    loadImageAndReset,
+    loadArchiveImageByIndex
+  )
 
-  const [webtoonScrollTarget, setWebtoonScrollTarget] =
-    useState<WebtoonScrollTarget>(null)
+  const [webtoonScrollTarget, setWebtoonScrollTarget] = useState<WebtoonScrollTarget>(null)
   const [gridOpen, setGridOpen] = useState(false)
 
   // Webtoon 연속 스크롤: 중앙 이미지 변경을 가벼운 인덱스 동기화로 처리.
@@ -125,10 +118,7 @@ function ImagePage() {
   const scrollWebtoonTo = useCallback(
     (index: number) => {
       const st = useAppStore.getState()
-      const clamped = Math.max(
-        0,
-        Math.min(index, st.dirImages.images.length - 1)
-      )
+      const clamped = Math.max(0, Math.min(index, st.dirImages.images.length - 1))
       setWebtoonScrollTarget({ index: clamped, nonce: Date.now() })
       handleWebtoonIndexChange(clamped)
     },
@@ -201,22 +191,15 @@ function ImagePage() {
   }, [gridOpen, slideshow])
   const { toggle: toggleAlwaysOnTop } = useAlwaysOnTop()
   const { copy: copyImage } = useCopyImage()
-  const {
-    trashCurrent,
-    revealCurrent,
-    openExternal,
-    copyPathCurrent,
-    renameCurrent,
-    saveEdits
-  } = useFileOperations({
-    loadImage: loadImageAndReset
-  })
+  const { trashCurrent, revealCurrent, openExternal, copyPathCurrent, renameCurrent, saveEdits } =
+    useFileOperations({
+      loadImage: loadImageAndReset
+    })
   const autoHideUI = useSettingsStore((state) => state.autoHideUI)
   const chromeHidden = useIdleHide(autoHideUI)
   const [renameOpen, setRenameOpen] = useState(false)
   const [saveOpen, setSaveOpen] = useState(false)
-  const renameInitialName =
-    useAppStore((state) => state.imageInfo?.file_name) ?? ""
+  const renameInitialName = useAppStore((state) => state.imageInfo?.file_name) ?? ""
   const closeAndGoHome = useCloseImage()
 
   /** PSD/SVG/AVIF는 저장 불가라 다이얼로그를 열지 않고 즉시 안내한다. */
@@ -453,10 +436,8 @@ function ImagePage() {
         webtoonScrollTarget={webtoonScrollTarget}
       />
       {isDragOver && (
-        <div className="border-primary bg-background/80 pointer-events-none absolute inset-0 z-30 flex items-center justify-center border-2 border-dashed">
-          <p className="bg-background rounded-md border px-4 py-2 text-sm">
-            {t("home.drop")}
-          </p>
+        <div className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center border-2 border-dashed border-primary bg-background/80">
+          <p className="rounded-md border bg-background px-4 py-2 text-sm">{t("home.drop")}</p>
         </div>
       )}
       {gridOpen && (

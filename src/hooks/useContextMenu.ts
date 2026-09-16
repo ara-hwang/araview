@@ -1,6 +1,8 @@
 import { Menu, MenuItem, PredefinedMenuItem } from "@tauri-apps/api/menu"
 import { useCallback } from "react"
-import type { DirectoryImages } from "../types"
+
+import { toTauriAccelerator } from "@/constants/shortcuts"
+import i18n from "@/i18n"
 import {
   flipHorizontal,
   flipVertical,
@@ -13,8 +15,8 @@ import {
 } from "@/store/appStore"
 import { cycleViewerBackground, getSettings } from "@/store/settingsStore"
 import { toggleShuffleAndRefresh } from "@/utils/directoryOptions"
-import { toTauriAccelerator } from "@/constants/shortcuts"
-import i18n from "@/i18n"
+
+import type { DirectoryImages } from "../types"
 
 export type ImageViewerContextMenuActions = {
   onOpenFile: () => void

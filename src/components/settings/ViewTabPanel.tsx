@@ -1,10 +1,14 @@
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Label } from "@/components/ui/label"
-import { Slider } from "@/components/ui/slider"
-import { Switch } from "@/components/ui/switch"
-import { Field, FieldGroup, FieldSeparator } from "@/components/ui/field"
+import { Images, Palette, Presentation, PushPin, Timer } from "@phosphor-icons/react"
+import { useTranslation } from "react-i18next"
+import { useShallow } from "zustand/react/shallow"
+
 import { SettingsFieldSet } from "@/components/settings/SettingsFieldSet"
 import { ShortcutBadge } from "@/components/settings/ShortcutBadge"
+import { Field, FieldGroup, FieldSeparator } from "@/components/ui/field"
+import { Label } from "@/components/ui/label"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Slider } from "@/components/ui/slider"
+import { Switch } from "@/components/ui/switch"
 import {
   updateSettings,
   useSettingsStore,
@@ -12,15 +16,6 @@ import {
   type ViewerBackground,
   type ViewMode
 } from "@/store/settingsStore"
-import {
-  Images,
-  Palette,
-  Presentation,
-  PushPin,
-  Timer
-} from "@phosphor-icons/react"
-import { useTranslation } from "react-i18next"
-import { useShallow } from "zustand/react/shallow"
 
 export function ViewTabPanel() {
   const { t } = useTranslation()
@@ -48,15 +43,11 @@ export function ViewTabPanel() {
       >
         <RadioGroup
           value={settings.viewMode}
-          onValueChange={(value) =>
-            handleSettingsChange({ viewMode: value as ViewMode })
-          }
+          onValueChange={(value) => handleSettingsChange({ viewMode: value as ViewMode })}
         >
           <Field orientation="horizontal">
             <RadioGroupItem value="single" id="settings-view-single" />
-            <Label htmlFor="settings-view-single">
-              {t("settings.view.single")}
-            </Label>
+            <Label htmlFor="settings-view-single">{t("settings.view.single")}</Label>
           </Field>
           <Field orientation="horizontal">
             <RadioGroupItem value="left-to-right" id="settings-view-ltr" />
@@ -68,9 +59,7 @@ export function ViewTabPanel() {
           </Field>
           <Field orientation="horizontal">
             <RadioGroupItem value="webtoon" id="settings-view-webtoon" />
-            <Label htmlFor="settings-view-webtoon">
-              {t("settings.view.webtoon")}
-            </Label>
+            <Label htmlFor="settings-view-webtoon">{t("settings.view.webtoon")}</Label>
           </Field>
         </RadioGroup>
       </SettingsFieldSet>
@@ -105,9 +94,7 @@ export function ViewTabPanel() {
           </Field>
           <Field orientation="horizontal">
             <RadioGroupItem value="checker" id="settings-bg-checker" />
-            <Label htmlFor="settings-bg-checker">
-              {t("settings.bg.checker")}
-            </Label>
+            <Label htmlFor="settings-bg-checker">{t("settings.bg.checker")}</Label>
           </Field>
         </RadioGroup>
       </SettingsFieldSet>
@@ -123,25 +110,17 @@ export function ViewTabPanel() {
           <Switch
             id="settings-autohide"
             checked={settings.autoHideUI}
-            onCheckedChange={(checked) =>
-              handleSettingsChange({ autoHideUI: checked === true })
-            }
+            onCheckedChange={(checked) => handleSettingsChange({ autoHideUI: checked === true })}
           />
-          <Label htmlFor="settings-autohide">
-            {t("settings.present.autohide")}
-          </Label>
+          <Label htmlFor="settings-autohide">{t("settings.present.autohide")}</Label>
         </Field>
         <Field orientation="horizontal">
           <Switch
             id="settings-hide-menubar"
             checked={settings.menuBarHidden}
-            onCheckedChange={(checked) =>
-              handleSettingsChange({ menuBarHidden: checked === true })
-            }
+            onCheckedChange={(checked) => handleSettingsChange({ menuBarHidden: checked === true })}
           />
-          <Label htmlFor="settings-hide-menubar">
-            {t("settings.present.hideMenuBar")}
-          </Label>
+          <Label htmlFor="settings-hide-menubar">{t("settings.present.hideMenuBar")}</Label>
         </Field>
       </SettingsFieldSet>
 
@@ -156,9 +135,7 @@ export function ViewTabPanel() {
           <Switch
             id="settings-always-on-top"
             checked={settings.alwaysOnTop}
-            onCheckedChange={(checked) =>
-              handleSettingsChange({ alwaysOnTop: checked === true })
-            }
+            onCheckedChange={(checked) => handleSettingsChange({ alwaysOnTop: checked === true })}
           />
           <Label htmlFor="settings-always-on-top">
             {t("settings.window.alwaysOnTop")}
@@ -184,8 +161,7 @@ export function ViewTabPanel() {
           step={500}
           onValueChange={(value) => {
             const next = Array.isArray(value) ? value[0] : (value as number)
-            if (typeof next === "number")
-              handleSettingsChange({ slideshowIntervalMs: next })
+            if (typeof next === "number") handleSettingsChange({ slideshowIntervalMs: next })
           }}
         />
       </SettingsFieldSet>

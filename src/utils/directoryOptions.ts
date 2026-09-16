@@ -1,14 +1,11 @@
 import { invoke } from "@tauri-apps/api/core"
 import { toast } from "sonner"
-import { useAppStore } from "@/store/appStore"
+
 import i18n from "@/i18n"
-import { errorMessage } from "@/utils/appError"
-import {
-  getSettings,
-  updateSettings,
-  type SettingsState
-} from "@/store/settingsStore"
+import { useAppStore } from "@/store/appStore"
+import { getSettings, updateSettings, type SettingsState } from "@/store/settingsStore"
 import type { DirectoryImages } from "@/types"
+import { errorMessage } from "@/utils/appError"
 
 export type DirListOptionsPayload = {
   sortKey: SettingsState["sortKey"]
@@ -17,15 +14,10 @@ export type DirListOptionsPayload = {
   recursive: boolean
 }
 
-type SortPatch = Pick<
-  SettingsState,
-  "sortKey" | "sortDescending" | "shuffle" | "includeSubfolders"
->
+type SortPatch = Pick<SettingsState, "sortKey" | "sortDescending" | "shuffle" | "includeSubfolders">
 
 /** settingsStore → 백엔드 DirListOptions 페이로드 (camelCase) */
-export function buildDirListOptions(
-  settings: SortPatch
-): DirListOptionsPayload {
+export function buildDirListOptions(settings: SortPatch): DirListOptionsPayload {
   return {
     sortKey: settings.sortKey,
     descending: settings.sortDescending,
@@ -56,8 +48,7 @@ export async function refreshDirectoryListing(): Promise<void> {
   if (!imageInfo || archivePath) return
   // HEIC sidecar처럼 imageInfo.file_path가 원본 폴더가 아닐 수 있어
   // dirImages의 원본 경로를 우선 사용한다.
-  const currentSource =
-    prevDir.images[prevDir.current_index] ?? imageInfo.file_path
+  const currentSource = prevDir.images[prevDir.current_index] ?? imageInfo.file_path
   try {
     const dirImages = await invoke<DirectoryImages>("get_directory_images", {
       filePath: currentSource,
@@ -77,9 +68,7 @@ export async function refreshDirectoryListing(): Promise<void> {
 }
 
 /** 정렬 설정 변경 + 목록 새로고침 (설정 패널/단축키 공용) */
-export async function applySortSettings(
-  patch: Partial<SortPatch>
-): Promise<void> {
+export async function applySortSettings(patch: Partial<SortPatch>): Promise<void> {
   await updateSettings(patch)
   await refreshDirectoryListing()
 }

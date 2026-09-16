@@ -1,4 +1,6 @@
 import { useEffect, useRef } from "react"
+
+import { eventToBinding, type ShortcutActionId } from "@/constants/shortcuts"
 import {
   flipHorizontal,
   flipVertical,
@@ -14,7 +16,6 @@ import {
   zoomOut
 } from "@/store/appStore"
 import { getSettings } from "@/store/settingsStore"
-import { eventToBinding, type ShortcutActionId } from "@/constants/shortcuts"
 
 type ImageViewerHotkeysParams = {
   onNavigatePrev: () => void
@@ -131,10 +132,7 @@ export function useImageViewerHotkeys(props: ImageViewerHotkeysParams) {
           // Webtoon 상하는 연속 스크롤 컨테이너를 직접 스크롤한다.
           // 네이티브 중복 스크롤을 막고 일정량 이동.
           if (getSettings().viewMode === "webtoon") {
-            const dy =
-              action === "panUp"
-                ? -WEBTOON_KEY_SCROLL_PX
-                : WEBTOON_KEY_SCROLL_PX
+            const dy = action === "panUp" ? -WEBTOON_KEY_SCROLL_PX : WEBTOON_KEY_SCROLL_PX
             e.preventDefault()
             run(() => {
               scrollWebtoonBy(dy)

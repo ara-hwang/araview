@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest"
+
 import {
   formatDpi,
   formatUnixDateTime,
@@ -50,9 +51,7 @@ describe("formatUnixDateTime", () => {
 
 describe("histogramMax", () => {
   it("returns the largest bin with a floor of 1", () => {
-    expect(histogramMax({ r: [0, 5], g: [3], b: [0], sampled_pixels: 8 })).toBe(
-      5
-    )
+    expect(histogramMax({ r: [0, 5], g: [3], b: [0], sampled_pixels: 8 })).toBe(5)
     expect(histogramMax({ r: [0], g: [0], b: [0], sampled_pixels: 0 })).toBe(1)
   })
 })

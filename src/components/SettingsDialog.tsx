@@ -1,23 +1,3 @@
-import { useState } from "react"
-import { confirm } from "@tauri-apps/plugin-dialog"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogTitle
-} from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { Separator } from "@/components/ui/separator"
-import { GeneralTabPanel } from "@/components/settings/GeneralTabPanel"
-import { ViewTabPanel } from "@/components/settings/ViewTabPanel"
-import { ListTabPanel } from "@/components/settings/ListTabPanel"
-import { PerformanceTabPanel } from "@/components/settings/PerformanceTabPanel"
-import { ShortcutsTabPanel } from "@/components/settings/ShortcutsTabPanel"
-import { ExtensionSettingsPanel } from "@/components/settings/ExtensionSettingsPanel"
-import { resetSettings } from "@/store/settingsStore"
-import { useTheme } from "@/components/theme-provider"
-import { cn } from "cn"
 import {
   ArrowCounterClockwise,
   ArrowsDownUp,
@@ -27,10 +7,25 @@ import {
   Gear,
   Keyboard
 } from "@phosphor-icons/react"
+import { confirm } from "@tauri-apps/plugin-dialog"
+import { cn } from "cn"
+import { useState } from "react"
 import { useTranslation } from "react-i18next"
 
-type SettingsTab =
-  "general" | "view" | "list" | "performance" | "shortcuts" | "extensions"
+import { ExtensionSettingsPanel } from "@/components/settings/ExtensionSettingsPanel"
+import { GeneralTabPanel } from "@/components/settings/GeneralTabPanel"
+import { ListTabPanel } from "@/components/settings/ListTabPanel"
+import { PerformanceTabPanel } from "@/components/settings/PerformanceTabPanel"
+import { ShortcutsTabPanel } from "@/components/settings/ShortcutsTabPanel"
+import { ViewTabPanel } from "@/components/settings/ViewTabPanel"
+import { useTheme } from "@/components/theme-provider"
+import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Separator } from "@/components/ui/separator"
+import { resetSettings } from "@/store/settingsStore"
+
+type SettingsTab = "general" | "view" | "list" | "performance" | "shortcuts" | "extensions"
 
 type SettingsDialogProps = {
   open: boolean
@@ -96,13 +91,11 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="no-drag w-[840px] max-w-[calc(100%-2rem)] gap-0 overflow-hidden p-0 sm:max-w-[840px]">
+      <DialogContent className="w-[840px] max-w-[calc(100%-2rem)] gap-0 overflow-hidden p-0 no-drag sm:max-w-[840px]">
         <div className="flex h-[min(640px,86vh)] flex-col">
           <div className="border-b px-4 py-3 pr-12">
             <DialogTitle>{t("settings.title")}</DialogTitle>
-            <DialogDescription className="sr-only">
-              {t("settings.desc")}
-            </DialogDescription>
+            <DialogDescription className="sr-only">{t("settings.desc")}</DialogDescription>
           </div>
 
           <div className="flex min-h-0 flex-1">
@@ -132,7 +125,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
               <div className="p-2">
                 <Button
                   variant="ghost"
-                  className="hover:bg-destructive/10 hover:text-destructive dark:hover:bg-destructive/20 w-full justify-start"
+                  className="w-full justify-start hover:bg-destructive/10 hover:text-destructive dark:hover:bg-destructive/20"
                   onClick={() => void handleReset()}
                 >
                   <ArrowCounterClockwise data-icon="inline-start" />
@@ -145,14 +138,10 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
               <ScrollArea key={tab} className="h-full min-h-0 flex-1">
                 <div className="p-4">
                   {tab === "extensions" ? (
-                    <ExtensionSettingsPanel
-                      active={open && tab === "extensions"}
-                    />
+                    <ExtensionSettingsPanel active={open && tab === "extensions"} />
                   ) : (
                     <>
-                      <h3 className="mb-4 text-base font-medium">
-                        {TAB_TITLES[tab]}
-                      </h3>
+                      <h3 className="mb-4 text-base font-medium">{TAB_TITLES[tab]}</h3>
                       {tab === "general" ? (
                         <GeneralTabPanel />
                       ) : tab === "view" ? (

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
-import { buildSaveEditsPayload, describeTransform } from "@/utils/imageEdits"
+
 import ko from "@/i18n/locales/ko.json"
+import { buildSaveEditsPayload, describeTransform } from "@/utils/imageEdits"
 
 const t = (key: string, vars?: Record<string, string | number>) => {
   const parts = key.split(".")
@@ -39,9 +40,7 @@ describe("buildSaveEditsPayload", () => {
   })
 
   it("덮어쓰기면 파일명 무시, 새 파일이면 trim", () => {
-    expect(
-      buildSaveEditsPayload(0, false, false, "jpg", false, "  b.jpg ")
-    ).toEqual({
+    expect(buildSaveEditsPayload(0, false, false, "jpg", false, "  b.jpg ")).toEqual({
       rotationCw: 0,
       flipH: false,
       flipV: false,

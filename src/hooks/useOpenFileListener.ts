@@ -1,18 +1,14 @@
-import { useEffect } from "react"
 import { invoke } from "@tauri-apps/api/core"
 import { listen } from "@tauri-apps/api/event"
-import {
-  deliverOpenFile,
-  registerOpenFileHandler
-} from "@/utils/openFileDelivery"
+import { useEffect } from "react"
+
+import { deliverOpenFile, registerOpenFileHandler } from "@/utils/openFileDelivery"
 
 /**
  * 현재 라우트의 이미지 로더를 `open-file` 이벤트에 연결한다.
  * 라우트가 바뀌면 이전 등록은 자동 해제된다.
  */
-export function useOpenFileListener(
-  loadImage: (filePath: string) => Promise<void>
-) {
+export function useOpenFileListener(loadImage: (filePath: string) => Promise<void>) {
   useEffect(() => {
     const unregister = registerOpenFileHandler((filePath) => {
       void loadImage(filePath)

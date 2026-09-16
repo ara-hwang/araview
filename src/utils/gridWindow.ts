@@ -19,19 +19,13 @@ export type GridLayout = {
 
 /** 뷰포트 폭에 맞는 열 수와 셀 폭, 전체 높이를 계산한다. */
 export function computeGridLayout(input: GridLayoutInput): GridLayout {
-  const { viewportWidth, itemCount, minCellWidth, cellHeight, gap, padding } =
-    input
+  const { viewportWidth, itemCount, minCellWidth, cellHeight, gap, padding } = input
   const available = Math.max(0, viewportWidth - padding * 2)
-  const columns = Math.max(
-    1,
-    Math.floor((available + gap) / (Math.max(1, minCellWidth) + gap))
-  )
+  const columns = Math.max(1, Math.floor((available + gap) / (Math.max(1, minCellWidth) + gap)))
   const cellWidth = Math.max(0, (available - gap * (columns - 1)) / columns)
   const totalRows = Math.ceil(itemCount / columns)
   const totalHeight =
-    totalRows > 0
-      ? padding * 2 + totalRows * cellHeight + (totalRows - 1) * gap
-      : 0
+    totalRows > 0 ? padding * 2 + totalRows * cellHeight + (totalRows - 1) * gap : 0
   return {
     columns,
     cellWidth,
@@ -67,9 +61,7 @@ export function computeGridWindow(input: GridWindowInput): GridWindow {
   const rowStride = input.cellHeight + input.gap
   const totalHeight =
     totalRows > 0
-      ? input.padding * 2 +
-        totalRows * input.cellHeight +
-        (totalRows - 1) * input.gap
+      ? input.padding * 2 + totalRows * input.cellHeight + (totalRows - 1) * input.gap
       : 0
 
   if (totalRows === 0 || rowStride <= 0) {
@@ -82,12 +74,9 @@ export function computeGridWindow(input: GridWindowInput): GridWindow {
     }
   }
 
-  const firstVisible = Math.floor(
-    Math.max(0, input.scrollTop - input.padding) / rowStride
-  )
+  const firstVisible = Math.floor(Math.max(0, input.scrollTop - input.padding) / rowStride)
   const lastVisible = Math.ceil(
-    Math.max(0, input.scrollTop + input.viewportHeight - input.padding) /
-      rowStride
+    Math.max(0, input.scrollTop + input.viewportHeight - input.padding) / rowStride
   )
   const overscan = Math.max(0, Math.floor(input.overscanRows))
   const startRow = Math.min(totalRows, Math.max(0, firstVisible - overscan))

@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest"
+
 import { SUPPORTED_IMAGE_EXTENSIONS } from "./imageExtensions"
 
 describe("SUPPORTED_IMAGE_EXTENSIONS", () => {

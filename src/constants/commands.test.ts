@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest"
-import {
-  COMMAND_DEFS,
-  filterCommands,
-  isCommandEnabled
-} from "@/constants/commands"
+
+import { COMMAND_DEFS, filterCommands, isCommandEnabled } from "@/constants/commands"
 
 describe("filterCommands", () => {
   const items = [
@@ -13,11 +10,7 @@ describe("filterCommands", () => {
   ] as const
 
   it("빈 쿼리는 들어온 순서를 유지한다", () => {
-    expect(filterCommands(items, "  ").map((i) => i.id)).toEqual([
-      "zoomIn",
-      "zoomOut",
-      "openFile"
-    ])
+    expect(filterCommands(items, "  ").map((i) => i.id)).toEqual(["zoomIn", "zoomOut", "openFile"])
   })
 
   it("라벨 일치를 별칭 일치보다 먼저 둔다", () => {
@@ -48,30 +41,20 @@ describe("filterCommands", () => {
 describe("isCommandEnabled", () => {
   it("이미지 필요 명령은 홈에서 비활성화된다", () => {
     const def = COMMAND_DEFS.find((d) => d.id === "zoomIn")!
-    expect(isCommandEnabled(def, { hasImage: false, canNavigate: false })).toBe(
-      false
-    )
-    expect(isCommandEnabled(def, { hasImage: true, canNavigate: false })).toBe(
-      true
-    )
+    expect(isCommandEnabled(def, { hasImage: false, canNavigate: false })).toBe(false)
+    expect(isCommandEnabled(def, { hasImage: true, canNavigate: false })).toBe(true)
   })
 
   it("이전/다음은 이동 가능할 때만 활성화된다", () => {
     const def = COMMAND_DEFS.find((d) => d.id === "navigateNext")!
-    expect(isCommandEnabled(def, { hasImage: true, canNavigate: false })).toBe(
-      false
-    )
-    expect(isCommandEnabled(def, { hasImage: true, canNavigate: true })).toBe(
-      true
-    )
+    expect(isCommandEnabled(def, { hasImage: true, canNavigate: false })).toBe(false)
+    expect(isCommandEnabled(def, { hasImage: true, canNavigate: true })).toBe(true)
   })
 
   it("파일 열기와 설정은 항상 활성화된다", () => {
     for (const id of ["openFile", "openSettings"] as const) {
       const def = COMMAND_DEFS.find((d) => d.id === id)!
-      expect(
-        isCommandEnabled(def, { hasImage: false, canNavigate: false })
-      ).toBe(true)
+      expect(isCommandEnabled(def, { hasImage: false, canNavigate: false })).toBe(true)
     }
   })
 

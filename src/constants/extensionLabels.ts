@@ -84,8 +84,6 @@ export function extensionLabel(ext: string): string {
   return ext.toUpperCase()
 }
 
-export function isSupportedExtension(
-  ext: string
-): ext is SupportedImageExtension {
+export function isSupportedExtension(ext: string): ext is SupportedImageExtension {
   return (SUPPORTED_IMAGE_EXTENSIONS as readonly string[]).includes(ext)
 }

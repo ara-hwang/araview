@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react"
 import { toast } from "sonner"
-import { useSettingsStore } from "@/store/settingsStore"
+
 import i18n from "@/i18n"
+import { useSettingsStore } from "@/store/settingsStore"
 
 // 슬라이드쇼: 설정된 간격마다 onNavigateNext를 호출한다.
 // Space 단축키로 토글되며, 종료 시 토스트로 알린다.
@@ -23,12 +24,9 @@ export function useSlideshow(onNavigateNext: () => void) {
   const toggle = useCallback(() => {
     setActive((prev) => {
       const next = !prev
-      toast.info(
-        next ? i18n.t("toast.slideshow.start") : i18n.t("toast.slideshow.stop"),
-        {
-          duration: 1500
-        }
-      )
+      toast.info(next ? i18n.t("toast.slideshow.start") : i18n.t("toast.slideshow.stop"), {
+        duration: 1500
+      })
       return next
     })
   }, [])

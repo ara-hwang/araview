@@ -1,23 +1,24 @@
+import { CaretDown } from "@phosphor-icons/react"
 import { createRootRoute, Link, Outlet } from "@tanstack/react-router"
 import { useEffect, useRef, useState } from "react"
-import { CaretDown } from "@phosphor-icons/react"
-import { Toaster } from "@/components/ui/sonner"
-import { ThemeProvider } from "@/components/theme-provider"
+import { useTranslation } from "react-i18next"
+
+import { CommandPalette } from "@/components/CommandPalette"
+import { ExifPanel } from "@/components/ExifPanel"
 import Header from "@/components/Header"
 import { SettingsDialog } from "@/components/SettingsDialog"
-import { OPEN_SETTINGS_EVENT } from "@/hooks/useCommandPalette"
-import { Separator } from "@/components/ui/separator"
 import { StatusBar } from "@/components/StatusBar"
-import { ExifPanel } from "@/components/ExifPanel"
-import { CommandPalette } from "@/components/CommandPalette"
+import { ThemeProvider } from "@/components/theme-provider"
+import { Separator } from "@/components/ui/separator"
+import { Toaster } from "@/components/ui/sonner"
 import { UpdateDialogs } from "@/components/UpdateDialogs"
-import { useAppStore } from "@/store/appStore"
-import { useSettingsStore, updateSettings } from "@/store/settingsStore"
+import { OPEN_SETTINGS_EVENT } from "@/hooks/useCommandPalette"
 import { useIdleHide } from "@/hooks/useIdleHide"
 import { useOpenFileBridge } from "@/hooks/useOpenFileListener"
 import { useUpdateCheckRequestListener } from "@/hooks/useUpdater"
 import { cn } from "@/lib/utils"
-import { useTranslation } from "react-i18next"
+import { useAppStore } from "@/store/appStore"
+import { useSettingsStore, updateSettings } from "@/store/settingsStore"
 
 export const Route = createRootRoute({
   component: RootLayout,
@@ -29,10 +30,10 @@ function NotFound() {
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-center">
       <p className="text-sm font-medium">{t("notFound.title")}</p>
-      <p className="text-muted-foreground text-sm">{t("notFound.desc")}</p>
+      <p className="text-sm text-muted-foreground">{t("notFound.desc")}</p>
       <Link
         to="/"
-        className="bg-primary text-primary-foreground focus-visible:ring-ring mt-2 rounded-md px-3 py-1.5 text-sm focus-visible:ring-2 focus-visible:outline-none"
+        className="mt-2 rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
       >
         {t("notFound.home")}
       </Link>
@@ -79,10 +80,7 @@ function RootLayout() {
     if (!el) return
     const update = () => {
       const h = el.getBoundingClientRect().height
-      document.documentElement.style.setProperty(
-        "--header-height",
-        `${Math.round(h)}px`
-      )
+      document.documentElement.style.setProperty("--header-height", `${Math.round(h)}px`)
     }
     update()
     const ro = new ResizeObserver(update)
@@ -112,7 +110,7 @@ function RootLayout() {
               onClick={() => void updateSettings({ menuBarHidden: false })}
               title={t("header.showMenuBar")}
               aria-label={t("header.showMenuBar")}
-              className="no-drag bg-background text-muted-foreground hover:text-foreground focus-visible:ring-ring rounded-b-md border border-t-0 px-2 py-0.5 opacity-0 shadow-md transition-opacity group-hover:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:outline-none [&_svg]:pointer-events-none"
+              className="rounded-b-md border border-t-0 bg-background px-2 py-0.5 text-muted-foreground opacity-0 shadow-md transition-opacity no-drag group-hover:opacity-100 hover:text-foreground focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none [&_svg]:pointer-events-none"
             >
               <CaretDown aria-hidden="true" />
             </button>
@@ -163,10 +161,7 @@ function RootLayout() {
       </div>
       <ExifPanel />
       <CommandPalette />
-      <SettingsDialog
-        open={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
-      />
+      <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <UpdateDialogs />
       <Toaster position="bottom-right" richColors closeButton />
     </ThemeProvider>

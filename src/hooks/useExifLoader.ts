@@ -1,5 +1,6 @@
-import { useCallback } from "react"
 import { invoke } from "@tauri-apps/api/core"
+import { useCallback } from "react"
+
 import { useAppStore } from "@/store/appStore"
 import type { ExifData, ImageDetails, ImageHistogram } from "@/types"
 import { errorMessage } from "@/utils/appError"
@@ -48,10 +49,7 @@ export function useExifLoader() {
       }
     }
     // 히스토그램/파일 상세는 EXIF 유무와 독립적으로 병렬 로드한다.
-    await Promise.all([
-      loadHistogramSilent(filePath),
-      loadDetailsSilent(filePath)
-    ])
+    await Promise.all([loadHistogramSilent(filePath), loadDetailsSilent(filePath)])
   }, [])
 
   const toggleExifPanel = useCallback(async () => {

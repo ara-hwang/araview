@@ -1,10 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef } from "react"
-import {
-  getPositionBounds,
-  clampPosition,
-  getOrientedImageSize,
-  isFullyContained
-} from "../utils/zoomPanUtils"
+import { useShallow } from "zustand/react/shallow"
+
 import {
   useAppStore,
   zoomInBy,
@@ -14,7 +10,13 @@ import {
   moveDrag
 } from "@/store/appStore"
 import { getSettings } from "@/store/settingsStore"
-import { useShallow } from "zustand/react/shallow"
+
+import {
+  getPositionBounds,
+  clampPosition,
+  getOrientedImageSize,
+  isFullyContained
+} from "../utils/zoomPanUtils"
 
 function getMouseSettings() {
   return getSettings().mouse
@@ -89,11 +91,7 @@ export function useZoomPan() {
     if (!app.imageInfo) return
     const cw = app.containerSize.width
     const ch = app.containerSize.height
-    const oriented = getOrientedImageSize(
-      app.imageSize.width,
-      app.imageSize.height,
-      app.rotation
-    )
+    const oriented = getOrientedImageSize(app.imageSize.width, app.imageSize.height, app.rotation)
     const iw = oriented.width
     const ih = oriented.height
     if (cw <= 0 || ch <= 0 || iw <= 0 || ih <= 0) return
@@ -117,11 +115,7 @@ export function useZoomPan() {
     const newY = base.y * ratio
     const cw = app.containerSize.width
     const ch = app.containerSize.height
-    const oriented = getOrientedImageSize(
-      app.imageSize.width,
-      app.imageSize.height,
-      app.rotation
-    )
+    const oriented = getOrientedImageSize(app.imageSize.width, app.imageSize.height, app.rotation)
     const iw = oriented.width
     const ih = oriented.height
     if (cw <= 0 || ch <= 0 || iw <= 0 || ih <= 0) {

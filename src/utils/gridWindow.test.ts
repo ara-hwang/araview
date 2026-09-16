@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest"
+
 import {
   computeGridLayout,
   computeGridWindow,
@@ -135,9 +136,7 @@ describe("gridScrollTopToReveal", () => {
   })
 
   it("scrolls up to a cell above the viewport", () => {
-    expect(gridScrollTopToReveal({ ...params, index: 0, scrollTop: 600 })).toBe(
-      0
-    )
+    expect(gridScrollTopToReveal({ ...params, index: 0, scrollTop: 600 })).toBe(0)
   })
 })
 

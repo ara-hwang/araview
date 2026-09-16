@@ -1,13 +1,11 @@
-import { afterEach, describe, expect, it } from "vitest"
 import { cleanup, render, screen } from "@testing-library/react"
+import { afterEach, describe, expect, it } from "vitest"
+
 import { ShortcutBadge } from "@/components/settings/ShortcutBadge"
 import { DEFAULT_SHORTCUTS } from "@/constants/shortcuts"
 import { useSettingsStore } from "@/store/settingsStore"
 
-function setShortcut(
-  actionId: keyof typeof DEFAULT_SHORTCUTS,
-  binding: string
-) {
+function setShortcut(actionId: keyof typeof DEFAULT_SHORTCUTS, binding: string) {
   useSettingsStore.setState({
     shortcuts: { ...DEFAULT_SHORTCUTS, [actionId]: binding }
   })

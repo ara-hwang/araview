@@ -1,14 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef } from "react"
 import { convertFileSrc, invoke } from "@tauri-apps/api/core"
-import type { ImageInfo } from "../types"
-import {
-  getCacheByteLimit,
-  getCacheLimit,
-  getPrefetchDistance
-} from "../utils/cacheConfig"
-import { getPrefetchOrder } from "../utils/prefetchOrder"
-import { useSettingsStore } from "@/store/settingsStore"
+import { useCallback, useEffect, useMemo, useRef } from "react"
+
 import { useAppStore } from "@/store/appStore"
+import { useSettingsStore } from "@/store/settingsStore"
+
+import type { ImageInfo } from "../types"
+import { getCacheByteLimit, getCacheLimit, getPrefetchDistance } from "../utils/cacheConfig"
+import { getPrefetchOrder } from "../utils/prefetchOrder"
 
 // Tauri 백엔드에서 불러온 이미지를 메모리 캐시에 저장하고,
 // 설정에 따라 캐시 용량/프리패치 범위를 제어하는 훅
@@ -25,10 +23,7 @@ export function useImageCache() {
   const paintPreloadsRef = useRef<Map<string, HTMLImageElement>>(new Map())
 
   const cacheLimit = useMemo(() => getCacheLimit(cacheMode), [cacheMode])
-  const cacheByteLimit = useMemo(
-    () => getCacheByteLimit(cacheMode),
-    [cacheMode]
-  )
+  const cacheByteLimit = useMemo(() => getCacheByteLimit(cacheMode), [cacheMode])
 
   const estimateImageBytes = useCallback((imgInfo: ImageInfo): number => {
     // Asset Protocol 전환 이후 이미지 데이터는 프론트 메모리에 상주하지 않는다.
@@ -41,10 +36,7 @@ export function useImageCache() {
     const prevBytes = bytesMap.get(filePath) ?? 0
     imageCacheRef.current.delete(filePath)
     bytesMap.delete(filePath)
-    totalCacheBytesRef.current = Math.max(
-      0,
-      totalCacheBytesRef.current - prevBytes
-    )
+    totalCacheBytesRef.current = Math.max(0, totalCacheBytesRef.current - prevBytes)
     // 메타 제거 시 픽셀 프리웜도 함께 해제해 메모리를 돌려준다.
     const preloaded = paintPreloadsRef.current.get(filePath)
     if (preloaded) {
@@ -61,10 +53,7 @@ export function useImageCache() {
   const trimCacheToBudget = useCallback(
     (limitCount: number, limitBytes: number) => {
       const cache = imageCacheRef.current
-      while (
-        cache.size > limitCount ||
-        totalCacheBytesRef.current > limitBytes
-      ) {
+      while (cache.size > limitCount || totalCacheBytesRef.current > limitBytes) {
         const oldestKey = cache.keys().next().value
         if (!oldestKey) break
         deleteFromCache(oldestKey)
@@ -85,13 +74,7 @@ export function useImageCache() {
 
       trimCacheToBudget(cacheLimit, cacheByteLimit)
     },
-    [
-      cacheByteLimit,
-      cacheLimit,
-      deleteFromCache,
-      estimateImageBytes,
-      trimCacheToBudget
-    ]
+    [cacheByteLimit, cacheLimit, deleteFromCache, estimateImageBytes, trimCacheToBudget]
   )
 
   // ImageInfo(메타) 확보 후 WebView 디코딩까지 미리 끝내는 픽셀 프리웜.
@@ -165,20 +148,10 @@ export function useImageCache() {
   // 메타(ImageInfo) 확보에 이어 픽셀 프리웜(new Image)까지 수행해
   // 다음 페이지의 WebView 첫 디코딩 지연을 줄인다.
   const prefetchNearbyImages = useCallback(
-    (
-      images: string[],
-      index: number,
-      loopNavigation: boolean,
-      prefetchDistance: number
-    ) => {
+    (images: string[], index: number, loopNavigation: boolean, prefetchDistance: number) => {
       if (!images.length || prefetchDistance <= 0) return
 
-      const ordered = getPrefetchOrder(
-        images.length,
-        index,
-        loopNavigation,
-        prefetchDistance
-      )
+      const ordered = getPrefetchOrder(images.length, index, loopNavigation, prefetchDistance)
 
       for (const targetIndex of ordered) {
         const targetPath = images[targetIndex]
@@ -194,9 +167,7 @@ export function useImageCache() {
 
         const inflight = inflightLoadsRef.current.get(targetPath)
         if (inflight) {
-          void inflight
-            .then((info) => warmPaintImage(info, targetPath))
-            .catch(() => {})
+          void inflight.then((info) => warmPaintImage(info, targetPath)).catch(() => {})
           continue
         }
 
