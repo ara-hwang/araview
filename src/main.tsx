@@ -1,13 +1,16 @@
+import { createRouter, RouterProvider } from "@tanstack/react-router"
 import React from "react"
 import ReactDOM from "react-dom/client"
-import { createRouter, RouterProvider } from "@tanstack/react-router"
-import { routeTree } from "./routeTree.gen"
-import { initI18n, detectSystemLanguage } from "@/i18n"
-import { initSettingsFromStore } from "@/store/settingsStore"
+
 import { applyAlwaysOnTopFromSettings } from "@/hooks/useAlwaysOnTop"
-import { useRecentFilesStore } from "@/store/recentFilesStore"
-import { usePaletteMruStore } from "@/store/paletteMruStore"
+import { initI18n, detectSystemLanguage } from "@/i18n"
 import { useArchiveProgressStore } from "@/store/archiveProgressStore"
+import { usePaletteMruStore } from "@/store/paletteMruStore"
+import { useRecentFilesStore } from "@/store/recentFilesStore"
+import { initSettingsFromStore } from "@/store/settingsStore"
+
+import { routeTree } from "./routeTree.gen"
+
 import "./App.css"
 
 async function bootstrap() {

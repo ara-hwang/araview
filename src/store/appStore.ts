@@ -1,11 +1,6 @@
 import { create } from "zustand"
-import {
-  DirectoryImages,
-  ExifData,
-  ImageDetails,
-  ImageHistogram,
-  ImageInfo
-} from "@/types"
+
+import { DirectoryImages, ExifData, ImageDetails, ImageHistogram, ImageInfo } from "@/types"
 import {
   clampPosition,
   getFitZoomFromSizes,
@@ -50,9 +45,7 @@ type AppStoreActions = {
   setLoading: (nextLoading: AppState["loading"]) => void
   setPosition: (nextPosition: AppState["position"]) => void
   setIsDragging: (nextIsDragging: AppState["isDragging"]) => void
-  setContainerElement: (
-    nextContainerElement: AppState["containerElement"]
-  ) => void
+  setContainerElement: (nextContainerElement: AppState["containerElement"]) => void
   setImageElement: (nextImageElement: AppState["imageElement"]) => void
   setViewportSize: (nextViewportSize: AppState["viewportSize"]) => void
   setContainerSize: (nextContainerSize: AppState["containerSize"]) => void
@@ -106,29 +99,20 @@ export const useAppStore = create<AppState & AppStoreActions>((set) => ({
   setLoading: (nextLoading) => set({ loading: nextLoading }),
   setPosition: (nextPosition) => set({ position: nextPosition }),
   setIsDragging: (nextIsDragging) => set({ isDragging: nextIsDragging }),
-  setContainerElement: (nextContainerElement) =>
-    set({ containerElement: nextContainerElement }),
-  setImageElement: (nextImageElement) =>
-    set({ imageElement: nextImageElement }),
-  setViewportSize: (nextViewportSize) =>
-    set({ viewportSize: nextViewportSize }),
-  setContainerSize: (nextContainerSize) =>
-    set({ containerSize: nextContainerSize }),
+  setContainerElement: (nextContainerElement) => set({ containerElement: nextContainerElement }),
+  setImageElement: (nextImageElement) => set({ imageElement: nextImageElement }),
+  setViewportSize: (nextViewportSize) => set({ viewportSize: nextViewportSize }),
+  setContainerSize: (nextContainerSize) => set({ containerSize: nextContainerSize }),
   setImageSize: (nextImageSize) => set({ imageSize: nextImageSize }),
   setDragStart: (nextDragStart) => set({ dragStart: nextDragStart }),
   setExifData: (nextExifData) => set({ exifData: nextExifData }),
   setExifError: (nextExifError) => set({ exifError: nextExifError }),
-  setHistogramData: (nextHistogramData) =>
-    set({ histogramData: nextHistogramData }),
-  setImageDetails: (nextImageDetails) =>
-    set({ imageDetails: nextImageDetails }),
-  setShowExifPanel: (nextShowExifPanel) =>
-    set({ showExifPanel: nextShowExifPanel }),
+  setHistogramData: (nextHistogramData) => set({ histogramData: nextHistogramData }),
+  setImageDetails: (nextImageDetails) => set({ imageDetails: nextImageDetails }),
+  setShowExifPanel: (nextShowExifPanel) => set({ showExifPanel: nextShowExifPanel }),
   addFailedPath: (filePath) =>
     set((s) =>
-      s.failedPaths.includes(filePath)
-        ? s
-        : { failedPaths: [...s.failedPaths, filePath] }
+      s.failedPaths.includes(filePath) ? s : { failedPaths: [...s.failedPaths, filePath] }
     ),
   removeFailedPath: (filePath) =>
     set((s) => ({ failedPaths: s.failedPaths.filter((p) => p !== filePath) })),
@@ -139,11 +123,7 @@ export const getApp = () => useAppStore.getState()
 
 export const getFitZoom = (): number => {
   const { containerSize, imageSize, rotation } = useAppStore.getState()
-  const oriented = getOrientedImageSize(
-    imageSize.width,
-    imageSize.height,
-    rotation
-  )
+  const oriented = getOrientedImageSize(imageSize.width, imageSize.height, rotation)
   return getFitZoomFromSizes(
     containerSize.width,
     containerSize.height,
@@ -155,22 +135,13 @@ export const getFitZoom = (): number => {
 export const setZoomToFit = (mode: "width" | "height" | "screen") => {
   const { containerSize, imageSize, rotation } = useAppStore.getState()
   const { width: cw, height: ch } = containerSize
-  const oriented = getOrientedImageSize(
-    imageSize.width,
-    imageSize.height,
-    rotation
-  )
+  const oriented = getOrientedImageSize(imageSize.width, imageSize.height, rotation)
   const { width: iw, height: ih } = oriented
 
   if (iw <= 0 || ih <= 0) return
   if (cw <= 0 || ch <= 0) return
 
-  const zoom =
-    mode === "width"
-      ? cw / iw
-      : mode === "height"
-        ? ch / ih
-        : Math.min(cw / iw, ch / ih)
+  const zoom = mode === "width" ? cw / iw : mode === "height" ? ch / ih : Math.min(cw / iw, ch / ih)
 
   if (!Number.isFinite(zoom) || zoom <= 0) return
 
@@ -188,11 +159,7 @@ export const zoomInBy = (factor = 1.25) => {
 
 export const zoomOutBy = (factor = 1.25) => {
   const { zoom, containerSize, imageSize, rotation } = useAppStore.getState()
-  const oriented = getOrientedImageSize(
-    imageSize.width,
-    imageSize.height,
-    rotation
-  )
+  const oriented = getOrientedImageSize(imageSize.width, imageSize.height, rotation)
   const minZoom = getMinZoom(
     containerSize.width,
     containerSize.height,
@@ -228,12 +195,7 @@ export const setImageInfoAndResetView = (imgInfo: ImageInfo) => {
   const w = imgInfo.width ?? 0
   const h = imgInfo.height ?? 0
   if (w > 0 && h > 0) {
-    const fit = getFitZoomFromSizes(
-      containerSize.width,
-      containerSize.height,
-      w,
-      h
-    )
+    const fit = getFitZoomFromSizes(containerSize.width, containerSize.height, w, h)
     const zoom = Number.isFinite(fit) && fit > 0 ? Math.min(1, fit) : 1
     useAppStore.setState({
       imageInfo: imgInfo,
@@ -297,10 +259,7 @@ export const updateDirImagesIndex = (nextIndex: number) => {
   useAppStore.setState({
     dirImages: {
       ...dirImages,
-      current_index: Math.max(
-        0,
-        Math.min(nextIndex, dirImages.images.length - 1)
-      )
+      current_index: Math.max(0, Math.min(nextIndex, dirImages.images.length - 1))
     }
   })
 }

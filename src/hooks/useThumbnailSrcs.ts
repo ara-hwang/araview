@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from "react"
 import { convertFileSrc, invoke } from "@tauri-apps/api/core"
+import { useCallback, useEffect, useRef, useState } from "react"
+
 import type { ImageInfo, ThumbnailInfo } from "@/types"
 
 type GetOrLoadImage = (filePath: string) => Promise<ImageInfo>
@@ -117,9 +118,7 @@ export function useThumbnailSrcs(
     }
 
     void (async () => {
-      const missing = list.filter(
-        (p) => !urlsRef.current.has(p) && !failedRef.current.has(p)
-      )
+      const missing = list.filter((p) => !urlsRef.current.has(p) && !failedRef.current.has(p))
       if (missing.length === 0) return
 
       if (archivePath) {
@@ -133,10 +132,11 @@ export function useThumbnailSrcs(
             if (index >= missing.length) return
             const path = missing[index]
             try {
-              const thumb = await invoke<ThumbnailInfo>(
-                "generate_archive_thumbnail",
-                { archivePath, entryName: path, maxSide }
-              )
+              const thumb = await invoke<ThumbnailInfo>("generate_archive_thumbnail", {
+                archivePath,
+                entryName: path,
+                maxSide
+              })
               put(path, thumb.file_path)
             } catch {
               fallback.push(path)
@@ -144,10 +144,7 @@ export function useThumbnailSrcs(
           }
         }
         await Promise.all(
-          Array.from(
-            { length: Math.min(ARCHIVE_THUMB_CONCURRENCY, missing.length) },
-            worker
-          )
+          Array.from({ length: Math.min(ARCHIVE_THUMB_CONCURRENCY, missing.length) }, worker)
         )
         if (cancelled || fallback.length === 0) return
         await loadFallbacks(fallback)
@@ -157,10 +154,10 @@ export function useThumbnailSrcs(
       // 일반: 윈도우 1회 배치 호출. 실패 항목만 개별 폴백한다.
       let batchFailed: Set<string> | null = null
       try {
-        const results = await invoke<BatchThumb[]>(
-          "generate_thumbnails_batch",
-          { filePaths: missing, maxSide }
-        )
+        const results = await invoke<BatchThumb[]>("generate_thumbnails_batch", {
+          filePaths: missing,
+          maxSide
+        })
         if (cancelled) return
         batchFailed = new Set<string>()
         for (const r of results) {

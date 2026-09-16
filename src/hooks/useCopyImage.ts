@@ -1,8 +1,9 @@
-import { useCallback } from "react"
 import { convertFileSrc } from "@tauri-apps/api/core"
+import { useCallback } from "react"
 import { toast } from "sonner"
-import { useAppStore } from "@/store/appStore"
+
 import i18n from "@/i18n"
+import { useAppStore } from "@/store/appStore"
 import { errorMessage } from "@/utils/appError"
 
 // 현재 이미지를 PNG로 변환해 시스템 클립보드에 복사한다.
@@ -33,15 +34,12 @@ export function useCopyImage() {
 
       const pngBlob = await new Promise<Blob>((resolve, reject) => {
         canvas.toBlob(
-          (b) =>
-            b ? resolve(b) : reject(new Error(i18n.t("toast.copy.pngFail"))),
+          (b) => (b ? resolve(b) : reject(new Error(i18n.t("toast.copy.pngFail")))),
           "image/png"
         )
       })
 
-      await navigator.clipboard.write([
-        new ClipboardItem({ "image/png": pngBlob })
-      ])
+      await navigator.clipboard.write([new ClipboardItem({ "image/png": pngBlob })])
       toast.success(i18n.t("toast.copy.done"), {
         description: imageInfo.file_name,
         duration: 1500

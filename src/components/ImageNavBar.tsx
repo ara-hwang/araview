@@ -6,15 +6,17 @@ import {
   ArrowClockwise
 } from "@phosphor-icons/react"
 import { useEffect, useMemo, useRef } from "react"
-import { Button } from "@/components/ui/button"
-import { useSettingsStore } from "../store/settingsStore"
-import { Slider } from "./ui/slider"
-import { ButtonGroup } from "./ui/button-group"
-import { useAppStore } from "@/store/appStore"
-import { cn } from "@/lib/utils"
-import { useThumbnailSrcs } from "@/hooks/useThumbnailSrcs"
-import type { ImageInfo } from "@/types"
 import { useTranslation } from "react-i18next"
+
+import { Button } from "@/components/ui/button"
+import { useThumbnailSrcs } from "@/hooks/useThumbnailSrcs"
+import { cn } from "@/lib/utils"
+import { useAppStore } from "@/store/appStore"
+import type { ImageInfo } from "@/types"
+
+import { useSettingsStore } from "../store/settingsStore"
+import { ButtonGroup } from "./ui/button-group"
+import { Slider } from "./ui/slider"
 
 type GetOrLoadImage = (filePath: string) => Promise<ImageInfo>
 
@@ -64,11 +66,7 @@ export function ImageNavBar({
   }, [dirImages.images, dirImages.current_index])
 
   const thumbPaths = useMemo(() => thumbnails.map((t) => t.path), [thumbnails])
-  const {
-    urls,
-    failed: thumbFailed,
-    retry
-  } = useThumbnailSrcs(thumbPaths, getOrLoadImage)
+  const { urls, failed: thumbFailed, retry } = useThumbnailSrcs(thumbPaths, getOrLoadImage)
   const stripRef = useRef<HTMLDivElement>(null)
 
   // 선택된 썸네일이 윈도우 이동으로 벗어나지 않게 추적
@@ -81,7 +79,7 @@ export function ImageNavBar({
     // 하단 중앙에 고정된 내비게이션 바 (이전/다음 버튼 + 진행률 표시)
     <div
       className={cn(
-        "bg-background border-border absolute bottom-12 flex w-xl max-w-[calc(100%-2rem)] flex-col gap-2 rounded-md border p-2 shadow-lg transition-opacity duration-300",
+        "absolute bottom-12 flex w-xl max-w-[calc(100%-2rem)] flex-col gap-2 rounded-md border border-border bg-background p-2 shadow-lg transition-opacity duration-300",
         hidden && "pointer-events-none opacity-0"
       )}
       onMouseDown={(e) => e.stopPropagation()}
@@ -108,9 +106,9 @@ export function ImageNavBar({
                   onNavigateToIndex(index)
                 }}
                 className={cn(
-                  "focus-visible:ring-ring relative h-12 w-12 shrink-0 overflow-hidden rounded border-2 transition-all focus-visible:ring-2 focus-visible:outline-none",
+                  "relative h-12 w-12 shrink-0 overflow-hidden rounded border-2 transition-all focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
                   isCurrent
-                    ? "border-primary scale-110"
+                    ? "scale-110 border-primary"
                     : "border-transparent opacity-60 hover:opacity-100"
                 )}
                 title={name}
@@ -129,11 +127,8 @@ export function ImageNavBar({
                     draggable={false}
                   />
                 ) : failed ? (
-                  <span className="bg-muted/40 flex h-full w-full items-center justify-center">
-                    <WarningCircle
-                      aria-hidden="true"
-                      className="text-destructive size-5"
-                    />
+                  <span className="flex h-full w-full items-center justify-center bg-muted/40">
+                    <WarningCircle aria-hidden="true" className="size-5 text-destructive" />
                     <span className="sr-only">
                       {t("viewer.nav.thumbError", {
                         index: index + 1,
@@ -142,24 +137,21 @@ export function ImageNavBar({
                     </span>
                   </span>
                 ) : (
-                  <span
-                    aria-hidden="true"
-                    className="bg-muted/40 h-full w-full animate-pulse"
-                  />
+                  <span aria-hidden="true" className="h-full w-full animate-pulse bg-muted/40" />
                 )}
                 {failed && src && (
                   <span
                     aria-hidden="true"
-                    className="bg-background absolute top-0.5 right-0.5 rounded-full"
+                    className="absolute top-0.5 right-0.5 rounded-full bg-background"
                   >
-                    <WarningCircle className="text-destructive size-4" />
+                    <WarningCircle className="size-4 text-destructive" />
                   </span>
                 )}
                 {failed && !src && (
                   <span
                     aria-hidden="true"
                     title={t("viewer.nav.thumbRetry", { index: index + 1 })}
-                    className="bg-background/90 absolute right-0.5 bottom-0.5 rounded-full p-0.5"
+                    className="absolute right-0.5 bottom-0.5 rounded-full bg-background/90 p-0.5"
                   >
                     <ArrowClockwise aria-hidden="true" className="size-3.5" />
                   </span>
@@ -215,9 +207,7 @@ export function ImageNavBar({
           max={dirImages.images.length - 1}
           step={1}
           onValueChange={(value) => {
-            const nextIndex = Array.isArray(value)
-              ? value[0]
-              : (value as number)
+            const nextIndex = Array.isArray(value) ? value[0] : (value as number)
             onNavigateToIndex(nextIndex)
           }}
         />

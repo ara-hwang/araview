@@ -1,4 +1,7 @@
 import { useEffect, useState } from "react"
+import { useTranslation } from "react-i18next"
+
+import { Button } from "@/components/ui/button"
 import {
   Dialog,
   DialogContent,
@@ -7,10 +10,9 @@ import {
   DialogHeader,
   DialogTitle
 } from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
+import { Field } from "@/components/ui/field"
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Field } from "@/components/ui/field"
 import { useAppStore } from "@/store/appStore"
 import {
   buildSaveEditsPayload,
@@ -18,7 +20,6 @@ import {
   type SaveEditsPayload,
   type SaveOutputFormat
 } from "@/utils/imageEdits"
-import { useTranslation } from "react-i18next"
 
 type SaveEditsDialogProps = {
   open: boolean
@@ -26,11 +27,7 @@ type SaveEditsDialogProps = {
   onClose: () => void
 }
 
-export function SaveEditsDialog({
-  open,
-  onSubmit,
-  onClose
-}: SaveEditsDialogProps) {
+export function SaveEditsDialog({ open, onSubmit, onClose }: SaveEditsDialogProps) {
   const { t } = useTranslation()
   const rotation = useAppStore((state) => state.rotation)
   const flipH = useAppStore((state) => state.flipH)
@@ -56,9 +53,7 @@ export function SaveEditsDialog({
   }, [open])
 
   const submit = () => {
-    onSubmit(
-      buildSaveEditsPayload(rotation, flipH, flipV, format, overwrite, newName)
-    )
+    onSubmit(buildSaveEditsPayload(rotation, flipH, flipV, format, overwrite, newName))
   }
 
   return (
@@ -77,10 +72,7 @@ export function SaveEditsDialog({
               rotation,
               flipH,
               flipV,
-              t as unknown as (
-                key: string,
-                vars?: Record<string, string | number>
-              ) => string
+              t as unknown as (key: string, vars?: Record<string, string | number>) => string
             )}
           </DialogDescription>
         </DialogHeader>
@@ -108,9 +100,7 @@ export function SaveEditsDialog({
           >
             <Field orientation="horizontal">
               <RadioGroupItem value="overwrite" id="save-dest-overwrite" />
-              <Label htmlFor="save-dest-overwrite">
-                {t("dialog.save.overwrite")}
-              </Label>
+              <Label htmlFor="save-dest-overwrite">{t("dialog.save.overwrite")}</Label>
             </Field>
             <Field orientation="horizontal">
               <RadioGroupItem value="new" id="save-dest-new" />
@@ -125,12 +115,12 @@ export function SaveEditsDialog({
               spellCheck={false}
               autoComplete="off"
               aria-label={t("dialog.save.newNameAria")}
-              className="border-input focus-visible:ring-ring flex h-9 w-full rounded-md border bg-transparent px-3 py-1 text-sm shadow-xs transition-colors outline-none focus-visible:ring-1"
+              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors outline-none focus-visible:ring-1 focus-visible:ring-ring"
             />
           )}
         </div>
 
-        <p className="text-muted-foreground text-xs">{t("dialog.save.note")}</p>
+        <p className="text-xs text-muted-foreground">{t("dialog.save.note")}</p>
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>

@@ -1,12 +1,7 @@
-import { create } from "zustand"
 import { Store as TauriStore } from "@tauri-apps/plugin-store"
 import { toast } from "sonner"
-import i18n, {
-  detectSystemLanguage,
-  normalizeLanguage,
-  setI18nLanguage,
-  type AppLanguage
-} from "@/i18n"
+import { create } from "zustand"
+
 import {
   DEFAULT_MOUSE,
   DEFAULT_SHORTCUTS,
@@ -15,12 +10,17 @@ import {
   sanitizeShortcutMap,
   sanitizeWheelMap
 } from "@/constants/shortcuts"
+import i18n, {
+  detectSystemLanguage,
+  normalizeLanguage,
+  setI18nLanguage,
+  type AppLanguage
+} from "@/i18n"
 import { errorMessage } from "@/utils/appError"
 
 export type { AppLanguage }
 
-export type CacheMode =
-  "off" | "nearby" | "extended" | "memory-1gb" | "memory-2gb"
+export type CacheMode = "off" | "nearby" | "extended" | "memory-1gb" | "memory-2gb"
 
 export type ViewMode = "single" | "left-to-right" | "right-to-left" | "webtoon"
 
@@ -53,14 +53,10 @@ export type SettingsState = {
 }
 
 type SettingsStoreActions = {
-  setLoopNavigation: (
-    nextLoopNavigation: SettingsState["loopNavigation"]
-  ) => void
+  setLoopNavigation: (nextLoopNavigation: SettingsState["loopNavigation"]) => void
   setCacheMode: (nextCacheMode: SettingsState["cacheMode"]) => void
   setViewMode: (nextViewMode: SettingsState["viewMode"]) => void
-  setSlideshowIntervalMs: (
-    nextSlideshowIntervalMs: SettingsState["slideshowIntervalMs"]
-  ) => void
+  setSlideshowIntervalMs: (nextSlideshowIntervalMs: SettingsState["slideshowIntervalMs"]) => void
 }
 
 type SettingsStore = SettingsState & SettingsStoreActions
@@ -89,34 +85,13 @@ const initialSettings: SettingsState = {
 
 export const DEFAULT_SETTINGS: SettingsState = { ...initialSettings }
 
-const CACHE_MODES: readonly CacheMode[] = [
-  "off",
-  "nearby",
-  "extended",
-  "memory-1gb",
-  "memory-2gb"
-]
-const VIEW_MODES: readonly ViewMode[] = [
-  "single",
-  "left-to-right",
-  "right-to-left",
-  "webtoon"
-]
-const VIEWER_BACKGROUNDS: readonly ViewerBackground[] = [
-  "theme",
-  "black",
-  "white",
-  "checker"
-]
+const CACHE_MODES: readonly CacheMode[] = ["off", "nearby", "extended", "memory-1gb", "memory-2gb"]
+const VIEW_MODES: readonly ViewMode[] = ["single", "left-to-right", "right-to-left", "webtoon"]
+const VIEWER_BACKGROUNDS: readonly ViewerBackground[] = ["theme", "black", "white", "checker"]
 const SORT_KEYS: readonly DirSortKey[] = ["name", "date", "size"]
 
-function sanitizeEnum<T extends string>(
-  value: unknown,
-  allowed: readonly T[],
-  fallback: T
-): T {
-  return typeof value === "string" &&
-    (allowed as readonly string[]).includes(value)
+function sanitizeEnum<T extends string>(value: unknown, allowed: readonly T[], fallback: T): T {
+  return typeof value === "string" && (allowed as readonly string[]).includes(value)
     ? (value as T)
     : fallback
 }
@@ -128,11 +103,8 @@ function sanitizeBoolean(value: unknown): boolean {
 /** 저장된 설정이 손상됐어도 유효한 SettingsState로 복원한다. */
 export function sanitizeSettings(value: unknown): SettingsState {
   const record =
-    typeof value === "object" && value !== null
-      ? (value as Record<string, unknown>)
-      : {}
-  const language =
-    normalizeLanguage(record.language) ?? initialSettings.language
+    typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {}
+  const language = normalizeLanguage(record.language) ?? initialSettings.language
   const intervalRaw = record.slideshowIntervalMs
   const slideshowIntervalMs =
     typeof intervalRaw === "number" &&
@@ -144,16 +116,8 @@ export function sanitizeSettings(value: unknown): SettingsState {
   return {
     language,
     loopNavigation: sanitizeBoolean(record.loopNavigation),
-    cacheMode: sanitizeEnum(
-      record.cacheMode,
-      CACHE_MODES,
-      initialSettings.cacheMode
-    ),
-    viewMode: sanitizeEnum(
-      record.viewMode,
-      VIEW_MODES,
-      initialSettings.viewMode
-    ),
+    cacheMode: sanitizeEnum(record.cacheMode, CACHE_MODES, initialSettings.cacheMode),
+    viewMode: sanitizeEnum(record.viewMode, VIEW_MODES, initialSettings.viewMode),
     slideshowIntervalMs,
     autoOpenLastFile: sanitizeBoolean(record.autoOpenLastFile),
     recordRecentFiles:
@@ -210,20 +174,12 @@ const getTauriStore = (): Promise<TauriStore> => {
 
 export const getSettings = () => useSettingsStore.getState()
 
-const BACKGROUND_ORDER: SettingsState["viewerBackground"][] = [
-  "theme",
-  "black",
-  "white",
-  "checker"
-]
+const BACKGROUND_ORDER: SettingsState["viewerBackground"][] = ["theme", "black", "white", "checker"]
 
 /** B 키: 배경 모드 순환 (theme → black → white → checker) */
 export const cycleViewerBackground = () => {
   const current = getSettings().viewerBackground
-  const next =
-    BACKGROUND_ORDER[
-      (BACKGROUND_ORDER.indexOf(current) + 1) % BACKGROUND_ORDER.length
-    ]
+  const next = BACKGROUND_ORDER[(BACKGROUND_ORDER.indexOf(current) + 1) % BACKGROUND_ORDER.length]
   void updateSettings({ viewerBackground: next })
 }
 
@@ -280,8 +236,7 @@ export const initSettingsFromStore = async () => {
     const store = await getTauriStore()
     const stored = await store.get<SettingsState>("settings")
     const storedLanguage =
-      normalizeLanguage((stored as { language?: unknown } | null)?.language) ??
-      null
+      normalizeLanguage((stored as { language?: unknown } | null)?.language) ?? null
     const language = storedLanguage ?? systemLanguage
     if (stored) {
       useSettingsStore.setState({

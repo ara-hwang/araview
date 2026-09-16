@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from "react"
 import { invoke } from "@tauri-apps/api/core"
 import { getCurrentWindow } from "@tauri-apps/api/window"
+import { useCallback, useEffect, useState } from "react"
 import { toast } from "sonner"
+
 import i18n from "@/i18n"
 import type { FileAssociation } from "@/types"
 import { errorMessage } from "@/utils/appError"
@@ -54,37 +55,29 @@ export function useFileAssociations(enabled: boolean) {
     }
   }, [enabled, refresh])
 
-  const setAssociation = useCallback(
-    async (extension: string, associate: boolean) => {
-      setPendingExtension(extension)
-      try {
-        const next = await invoke<FileAssociation>("set_file_association", {
-          extension,
-          associate
-        })
-        setItems((prev) =>
-          prev.map((item) => (item.extension === extension ? next : item))
-        )
-      } catch (error) {
-        toast.error(i18n.t("toast.assoc.openFail"), {
-          description: errorMessage(error)
-        })
-      } finally {
-        setPendingExtension(null)
-      }
-    },
-    []
-  )
+  const setAssociation = useCallback(async (extension: string, associate: boolean) => {
+    setPendingExtension(extension)
+    try {
+      const next = await invoke<FileAssociation>("set_file_association", {
+        extension,
+        associate
+      })
+      setItems((prev) => prev.map((item) => (item.extension === extension ? next : item)))
+    } catch (error) {
+      toast.error(i18n.t("toast.assoc.openFail"), {
+        description: errorMessage(error)
+      })
+    } finally {
+      setPendingExtension(null)
+    }
+  }, [])
 
   const setAllAssociations = useCallback(async (associate: boolean) => {
     setPendingAll(true)
     try {
-      const next = await invoke<FileAssociation[]>(
-        "set_all_file_associations",
-        {
-          associate
-        }
-      )
+      const next = await invoke<FileAssociation[]>("set_all_file_associations", {
+        associate
+      })
       setItems(next)
       toast.info(i18n.t("toast.assoc.pickInfo"))
     } catch (error) {

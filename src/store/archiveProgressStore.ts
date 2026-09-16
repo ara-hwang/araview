@@ -1,5 +1,5 @@
-import { create } from "zustand"
 import { Store as TauriStore } from "@tauri-apps/plugin-store"
+import { create } from "zustand"
 
 const MAX_ENTRIES = 100
 const STORE_KEY = "archiveProgress"
@@ -10,12 +10,7 @@ function sanitizeProgress(value: unknown): Record<string, string> {
   }
   const out: Record<string, string> = {}
   for (const [key, entry] of Object.entries(value)) {
-    if (
-      typeof key === "string" &&
-      key !== "" &&
-      typeof entry === "string" &&
-      entry !== ""
-    ) {
+    if (typeof key === "string" && key !== "" && typeof entry === "string" && entry !== "") {
       out[key] = entry
     }
     if (Object.keys(out).length >= MAX_ENTRIES) break
@@ -67,31 +62,29 @@ function upsert(
   return next
 }
 
-export const useArchiveProgressStore = create<ArchiveProgressState>(
-  (set, get) => ({
-    progress: {},
-    get: (archivePath) => get().progress[archivePath] ?? null,
-    save: async (archivePath, entryName) => {
-      if (!archivePath || !entryName) return
-      const next = upsert(get().progress, archivePath, entryName)
-      set({ progress: next })
-      await persist(next)
-    },
-    remove: async (archivePath) => {
-      if (!(archivePath in get().progress)) return
-      const next = { ...get().progress }
-      delete next[archivePath]
-      set({ progress: next })
-      await persist(next)
-    },
-    init: async () => {
-      try {
-        const store = await getTauriStore()
-        const stored = await store.get<unknown>(STORE_KEY)
-        set({ progress: sanitizeProgress(stored) })
-      } catch (e) {
-        console.warn("[archiveProgress] load failed:", e)
-      }
+export const useArchiveProgressStore = create<ArchiveProgressState>((set, get) => ({
+  progress: {},
+  get: (archivePath) => get().progress[archivePath] ?? null,
+  save: async (archivePath, entryName) => {
+    if (!archivePath || !entryName) return
+    const next = upsert(get().progress, archivePath, entryName)
+    set({ progress: next })
+    await persist(next)
+  },
+  remove: async (archivePath) => {
+    if (!(archivePath in get().progress)) return
+    const next = { ...get().progress }
+    delete next[archivePath]
+    set({ progress: next })
+    await persist(next)
+  },
+  init: async () => {
+    try {
+      const store = await getTauriStore()
+      const stored = await store.get<unknown>(STORE_KEY)
+      set({ progress: sanitizeProgress(stored) })
+    } catch (e) {
+      console.warn("[archiveProgress] load failed:", e)
     }
-  })
-)
+  }
+}))

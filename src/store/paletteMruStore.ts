@@ -1,13 +1,12 @@
-import { create } from "zustand"
 import { Store as TauriStore } from "@tauri-apps/plugin-store"
+import { create } from "zustand"
+
 import { COMMAND_DEFS, type CommandId } from "@/constants/commands"
 
 export const MAX_PALETTE_MRU = 5
 const STORE_KEY = "paletteMru"
 
-const VALID_IDS: ReadonlySet<string> = new Set(
-  COMMAND_DEFS.map((def) => def.id)
-)
+const VALID_IDS: ReadonlySet<string> = new Set(COMMAND_DEFS.map((def) => def.id))
 
 function sanitizeIds(value: unknown): CommandId[] {
   if (!Array.isArray(value)) return []
@@ -51,10 +50,7 @@ export const usePaletteMruStore = create<PaletteMruState>((set, get) => ({
   ids: [],
   push: async (id) => {
     if (!VALID_IDS.has(id)) return
-    const next = [id, ...get().ids.filter((entry) => entry !== id)].slice(
-      0,
-      MAX_PALETTE_MRU
-    )
+    const next = [id, ...get().ids.filter((entry) => entry !== id)].slice(0, MAX_PALETTE_MRU)
     set({ ids: next })
     await persist(next)
   },

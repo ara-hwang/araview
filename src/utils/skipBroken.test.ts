@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest"
+
 import { findSkipTarget } from "./skipBroken"
 
 const images = ["a.png", "b.png", "c.png", "d.png"]
@@ -9,9 +10,7 @@ describe("findSkipTarget", () => {
   })
 
   it("이미 실패한 후보는 건너뛴다", () => {
-    expect(findSkipTarget(images, 0, new Set(["a.png", "b.png"]), false)).toBe(
-      2
-    )
+    expect(findSkipTarget(images, 0, new Set(["a.png", "b.png"]), false)).toBe(2)
   })
 
   it("loop가 꺼져 있으면 끝에서 null을 반환한다", () => {

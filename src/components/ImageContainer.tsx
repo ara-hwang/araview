@@ -1,30 +1,24 @@
-import { useLayoutEffect, useRef, type RefObject } from "react"
-import { convertFileSrc } from "@tauri-apps/api/core"
 import { useNavigate } from "@tanstack/react-router"
+import { convertFileSrc } from "@tauri-apps/api/core"
+import { useLayoutEffect, useRef, type RefObject } from "react"
+import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
-import { cn } from "@/lib/utils"
-import { Spinner } from "@/components/ui/spinner"
+import { useShallow } from "zustand/react/shallow"
+
 import { Button } from "@/components/ui/button"
-import { ImageNavBar } from "./ImageNavBar"
-import {
-  applyImageNaturalSize,
-  closeImage,
-  useAppStore
-} from "@/store/appStore"
+import { Spinner } from "@/components/ui/spinner"
+import type { MultiPage } from "@/hooks/useMultiPageImages"
+import i18n from "@/i18n"
+import { cn } from "@/lib/utils"
+import { applyImageNaturalSize, closeImage, useAppStore } from "@/store/appStore"
 import { useSettingsStore } from "@/store/settingsStore"
+import type { ViewMode } from "@/store/settingsStore"
+import type { ImageInfo } from "@/types"
 import { classifyError } from "@/utils/appError"
 import { MAX_SKIP_ATTEMPTS, findSkipTarget } from "@/utils/skipBroken"
-import i18n from "@/i18n"
-import { useShallow } from "zustand/react/shallow"
-import { useTranslation } from "react-i18next"
-import type { ViewMode } from "@/store/settingsStore"
-import type { MultiPage } from "@/hooks/useMultiPageImages"
-import type { ImageInfo } from "@/types"
 
-import {
-  WebtoonContinuousView,
-  type WebtoonScrollTarget
-} from "./WebtoonContinuousView"
+import { ImageNavBar } from "./ImageNavBar"
+import { WebtoonContinuousView, type WebtoonScrollTarget } from "./WebtoonContinuousView"
 
 type ImageContainerProps = {
   containerRef: RefObject<HTMLDivElement>
@@ -120,8 +114,7 @@ export function ImageContainer({
     const st = useAppStore.getState()
     const { dirImages, imageInfo } = st
     if (!imageInfo) return
-    const failedKey =
-      dirImages.images[dirImages.current_index] ?? imageInfo.file_path
+    const failedKey = dirImages.images[dirImages.current_index] ?? imageInfo.file_path
     st.addFailedPath(failedKey)
     if (!useSettingsStore.getState().skipBrokenFiles) return
     if (!onNavigateToIndex || dirImages.images.length <= 1) return
@@ -153,13 +146,8 @@ export function ImageContainer({
     }
   }, [imageSrc, imageRef])
 
-  const isDual =
-    (viewMode === "left-to-right" || viewMode === "right-to-left") &&
-    pages.length > 0
-  const isWebtoon =
-    viewMode === "webtoon" &&
-    app.dirImages.images.length > 0 &&
-    !!getOrLoadImage
+  const isDual = (viewMode === "left-to-right" || viewMode === "right-to-left") && pages.length > 0
+  const isWebtoon = viewMode === "webtoon" && app.dirImages.images.length > 0 && !!getOrLoadImage
   const isMulti = isDual || isWebtoon
 
   return (
@@ -248,16 +236,13 @@ export function ImageContainer({
 
       {app.loading && (
         <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
-          <Spinner
-            className="text-muted-foreground size-8"
-            aria-label={t("viewer.loading")}
-          />
+          <Spinner className="size-8 text-muted-foreground" aria-label={t("viewer.loading")} />
         </div>
       )}
 
       {slideshowActive && (
         <div
-          className="bg-background/90 border-border absolute top-2 left-1/2 z-20 w-64 -translate-x-1/2 rounded-md border px-3 py-2 shadow-lg"
+          className="absolute top-2 left-1/2 z-20 w-64 -translate-x-1/2 rounded-md border border-border bg-background/90 px-3 py-2 shadow-lg"
           onMouseDown={(e) => e.stopPropagation()}
         >
           <div className="flex items-center justify-between gap-2 text-xs">
@@ -273,7 +258,7 @@ export function ImageContainer({
                 <button
                   type="button"
                   onClick={onToggleFullscreen}
-                  className="hover:bg-accent focus-visible:ring-ring rounded px-1.5 py-0.5 focus-visible:ring-2 focus-visible:outline-none"
+                  className="rounded px-1.5 py-0.5 hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                   title={t("viewer.slideshow.fullscreenTitle")}
                   aria-label={t("viewer.slideshow.fullscreenTitle")}
                 >
@@ -284,7 +269,7 @@ export function ImageContainer({
                 <button
                   type="button"
                   onClick={onToggleSlideshow}
-                  className="hover:bg-accent focus-visible:ring-ring rounded px-1.5 py-0.5 focus-visible:ring-2 focus-visible:outline-none"
+                  className="rounded px-1.5 py-0.5 hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                   title={t("viewer.slideshow.stopTitle")}
                   aria-label={t("viewer.slideshow.stopTitle")}
                 >
@@ -293,10 +278,10 @@ export function ImageContainer({
               )}
             </span>
           </div>
-          <div className="bg-muted mt-1.5 h-1 overflow-hidden rounded-full">
+          <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-muted">
             <div
               key={`${app.dirImages.current_index}-${slideshowIntervalMs}`}
-              className="bg-primary h-full"
+              className="h-full bg-primary"
               style={{
                 animation: `slideshow-progress ${slideshowIntervalMs}ms linear forwards`
               }}
@@ -308,11 +293,11 @@ export function ImageContainer({
       {app.error && classified && (
         <div
           role="alert"
-          className="bg-background border-destructive/20 max-w-md rounded-lg border px-6 py-4 text-sm shadow-lg"
+          className="max-w-md rounded-lg border border-destructive/20 bg-background px-6 py-4 text-sm shadow-lg"
         >
-          <p className="text-destructive font-medium">{classifiedTitle}</p>
-          <p className="text-muted-foreground mt-1 break-words">{app.error}</p>
-          <p className="text-muted-foreground mt-1">{classifiedHint}</p>
+          <p className="font-medium text-destructive">{classifiedTitle}</p>
+          <p className="mt-1 break-words text-muted-foreground">{app.error}</p>
+          <p className="mt-1 text-muted-foreground">{classifiedHint}</p>
           <div className="mt-3 flex gap-2">
             {onRetry && (
               <Button size="sm" onClick={onRetry}>

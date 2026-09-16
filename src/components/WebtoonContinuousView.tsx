@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from "react"
 import { convertFileSrc } from "@tauri-apps/api/core"
+import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { cn } from "@/lib/utils"
+
 import { Button } from "@/components/ui/button"
-import { errorMessage } from "@/utils/appError"
+import { cn } from "@/lib/utils"
 import type { ImageInfo } from "@/types"
+import { errorMessage } from "@/utils/appError"
 
 type GetOrLoadImage = (filePath: string) => Promise<ImageInfo>
 
@@ -82,11 +83,7 @@ function WebtoonLazyPage({
   }, [path, getOrLoadImage, nonce])
 
   return (
-    <div
-      ref={wrapRef}
-      data-webtoon-index={index}
-      className="flex w-full justify-center"
-    >
+    <div ref={wrapRef} data-webtoon-index={index} className="flex w-full justify-center">
       {info && !error ? (
         <img
           src={convertFileSrc(info.file_path)}
@@ -101,8 +98,8 @@ function WebtoonLazyPage({
           }}
         />
       ) : error ? (
-        <div className="border-destructive/20 bg-background flex w-full max-w-2xl flex-col items-center gap-2 rounded-lg border p-6 text-center">
-          <p className="text-muted-foreground text-sm">
+        <div className="flex w-full max-w-2xl flex-col items-center gap-2 rounded-lg border border-destructive/20 bg-background p-6 text-center">
+          <p className="text-sm text-muted-foreground">
             {name}: {error}
           </p>
           <Button
@@ -119,7 +116,7 @@ function WebtoonLazyPage({
       ) : (
         <div
           aria-hidden="true"
-          className="bg-muted/40 min-h-64 w-full max-w-2xl animate-pulse rounded"
+          className="min-h-64 w-full max-w-2xl animate-pulse rounded bg-muted/40"
         />
       )}
     </div>
@@ -213,7 +210,7 @@ export function WebtoonContinuousView({
       role="region"
       tabIndex={0}
       className={cn(
-        "focus-visible:ring-ring absolute inset-0 overflow-x-hidden overflow-y-auto focus-visible:ring-2 focus-visible:outline-none"
+        "absolute inset-0 overflow-x-hidden overflow-y-auto focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
       )}
       aria-label="webtoon-scroll"
     >

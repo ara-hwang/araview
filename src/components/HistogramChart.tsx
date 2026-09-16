@@ -1,5 +1,6 @@
 import { useId } from "react"
 import { useTranslation } from "react-i18next"
+
 import type { ImageHistogram } from "@/types"
 import { histogramChannelPath, histogramMax } from "@/utils/imageDetails"
 
@@ -23,7 +24,7 @@ export function HistogramChart({ data }: { data: ImageHistogram }) {
         role="img"
         aria-labelledby={titleId}
         viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}
-        className="bg-muted/40 h-16 w-full rounded-md"
+        className="h-16 w-full rounded-md bg-muted/40"
         preserveAspectRatio="none"
       >
         <title id={titleId}>{t("histogram.chartLabel")}</title>
@@ -41,10 +42,7 @@ export function HistogramChart({ data }: { data: ImageHistogram }) {
       </svg>
       <figcaption className="flex gap-3 text-xs">
         {CHANNELS.map(({ key, color, labelKey }) => (
-          <span
-            key={key}
-            className="text-muted-foreground inline-flex items-center gap-1"
-          >
+          <span key={key} className="inline-flex items-center gap-1 text-muted-foreground">
             <span aria-hidden="true" className="inline-block size-2">
               <svg viewBox="0 0 8 8" className="block size-2">
                 <circle cx="4" cy="4" r="4" fill={color} />

@@ -1,19 +1,17 @@
-import { beforeEach, describe, expect, it, vi } from "vitest"
 import { renderHook, waitFor } from "@testing-library/react"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 
-const { mockCheck, mockRelaunch, mockGetVersion, mockToast } = vi.hoisted(
-  () => ({
-    mockCheck: vi.fn(),
-    mockRelaunch: vi.fn(),
-    mockGetVersion: vi.fn(),
-    mockToast: {
-      success: vi.fn(),
-      error: vi.fn(),
-      message: vi.fn(),
-      loading: vi.fn()
-    }
-  })
-)
+const { mockCheck, mockRelaunch, mockGetVersion, mockToast } = vi.hoisted(() => ({
+  mockCheck: vi.fn(),
+  mockRelaunch: vi.fn(),
+  mockGetVersion: vi.fn(),
+  mockToast: {
+    success: vi.fn(),
+    error: vi.fn(),
+    message: vi.fn(),
+    loading: vi.fn()
+  }
+}))
 
 vi.mock("@tauri-apps/plugin-updater", () => ({ check: mockCheck }))
 vi.mock("@tauri-apps/plugin-process", () => ({ relaunch: mockRelaunch }))
@@ -128,9 +126,7 @@ describe("startUpdateDownload", () => {
   })
 
   it("다운로드에 실패하면 에러를 저장한다", async () => {
-    const downloadAndInstall = vi
-      .fn()
-      .mockRejectedValueOnce(new Error("disk full"))
+    const downloadAndInstall = vi.fn().mockRejectedValueOnce(new Error("disk full"))
     mockCheck.mockResolvedValueOnce({
       version: "9.9.9",
       body: null,
@@ -162,9 +158,7 @@ describe("dismissUpdate", () => {
     })
     await checkForUpdatesNow()
     const pending = startUpdateDownload()
-    await vi.waitFor(() =>
-      expect(useUpdateStore.getState().stage).toBe("downloading")
-    )
+    await vi.waitFor(() => expect(useUpdateStore.getState().stage).toBe("downloading"))
 
     dismissUpdate(false)
     expect(useUpdateStore.getState().stage).toBe("downloading")

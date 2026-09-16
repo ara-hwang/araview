@@ -1,5 +1,5 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
 import { cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
@@ -9,11 +9,7 @@ vi.mock("react-i18next", () => ({
   })
 }))
 
-import {
-  extOf,
-  parentDir,
-  RecentFileAttachment
-} from "@/components/RecentFileAttachment"
+import { extOf, parentDir, RecentFileAttachment } from "@/components/RecentFileAttachment"
 
 afterEach(() => {
   cleanup()
@@ -58,9 +54,7 @@ describe("RecentFileAttachment", () => {
     expect(screen.getByText("/pics")).not.toBeNull()
     expect(container.querySelector("img")).not.toBeNull()
     expect(
-      container
-        .querySelector('[data-slot="attachment-media"]')
-        ?.getAttribute("data-variant")
+      container.querySelector('[data-slot="attachment-media"]')?.getAttribute("data-variant")
     ).toBe("image")
   })
 
@@ -78,14 +72,10 @@ describe("RecentFileAttachment", () => {
       />
     )
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "home.card.remove, photo.png" })
-    )
+    fireEvent.click(screen.getByRole("button", { name: "home.card.remove, photo.png" }))
     expect(onRemove).toHaveBeenCalledWith("/pics/photo.png")
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "home.list.open:photo.png" })
-    )
+    fireEvent.click(screen.getByRole("button", { name: "home.list.open:photo.png" }))
     expect(onOpen).toHaveBeenCalledWith("/pics/photo.png")
   })
 

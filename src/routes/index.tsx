@@ -1,5 +1,13 @@
-import { useShallow } from "zustand/react/shallow"
 import { createFileRoute, useNavigate } from "@tanstack/react-router"
+import { getCurrentWindow } from "@tauri-apps/api/window"
+import { useEffect, useRef } from "react"
+import { useTranslation } from "react-i18next"
+import { useShallow } from "zustand/react/shallow"
+
+import { AppIcon } from "@/components/AppIcon"
+import { RecentFileAttachment } from "@/components/RecentFileAttachment"
+import { AttachmentGroup } from "@/components/ui/attachment"
+import { Button } from "@/components/ui/button"
 import {
   Empty,
   EmptyContent,
@@ -7,20 +15,13 @@ import {
   EmptyHeader,
   EmptyMedia
 } from "@/components/ui/empty"
-import { AppIcon } from "@/components/AppIcon"
-import { Button } from "@/components/ui/button"
-import { useEffect, useRef } from "react"
-import { getCurrentWindow } from "@tauri-apps/api/window"
-import { useAppStore } from "@/store/appStore"
-import { useSettingsStore } from "@/store/settingsStore"
+import { DEV_BUILD_SUFFIX } from "@/constants/app"
 import { useImageLoader } from "@/hooks/useImageLoader"
 import { useOpenFileListener } from "@/hooks/useOpenFileListener"
 import { useRecentFileDetails } from "@/hooks/useRecentFileDetails"
+import { useAppStore } from "@/store/appStore"
 import { useRecentFilesStore } from "@/store/recentFilesStore"
-import { RecentFileAttachment } from "@/components/RecentFileAttachment"
-import { AttachmentGroup } from "@/components/ui/attachment"
-import { useTranslation } from "react-i18next"
-import { DEV_BUILD_SUFFIX } from "@/constants/app"
+import { useSettingsStore } from "@/store/settingsStore"
 
 export const Route = createFileRoute("/")({
   component: HomePage
@@ -44,9 +45,7 @@ function HomePage() {
 
   // 이미지 변경 시 창 제목 변경
   useEffect(() => {
-    const title = app.imageInfo
-      ? app.imageInfo.file_name
-      : `${t("app.title")}${DEV_BUILD_SUFFIX}`
+    const title = app.imageInfo ? app.imageInfo.file_name : `${t("app.title")}${DEV_BUILD_SUFFIX}`
     getCurrentWindow()
       .setTitle(title)
       .catch(() => {})
@@ -82,13 +81,7 @@ function HomePage() {
     if (recentFiles.length === 0) return
     autoOpenedRef.current = true
     void loadImage(recentFiles[0])
-  }, [
-    autoOpenLastFile,
-    recordRecentFiles,
-    recentFiles,
-    app.imageInfo,
-    loadImage
-  ])
+  }, [autoOpenLastFile, recordRecentFiles, recentFiles, app.imageInfo, loadImage])
   const visibleRecentFiles = recordRecentFiles ? recentFiles : []
   const details = useRecentFileDetails(visibleRecentFiles, getOrLoadImage)
 
@@ -121,7 +114,7 @@ function HomePage() {
           {visibleRecentFiles.length > 0 && (
             <div className="w-full border-t pt-6">
               <div className="mb-3 flex items-center justify-between">
-                <h2 className="text-muted-foreground text-xs tabular-nums">
+                <h2 className="text-xs text-muted-foreground tabular-nums">
                   {t("home.recent", { count: visibleRecentFiles.length })}
                 </h2>
                 <Button
@@ -154,10 +147,8 @@ function HomePage() {
         </div>
       </div>
       {isDragOver && (
-        <div className="border-primary bg-background/80 pointer-events-none absolute inset-0 z-30 flex items-center justify-center border-2 border-dashed">
-          <p className="bg-background rounded-md border px-4 py-2 text-sm">
-            {t("home.drop")}
-          </p>
+        <div className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center border-2 border-dashed border-primary bg-background/80">
+          <p className="rounded-md border bg-background px-4 py-2 text-sm">{t("home.drop")}</p>
         </div>
       )}
     </div>

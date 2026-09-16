@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest"
+
 import { DEFAULT_SHORTCUTS } from "@/constants/shortcuts"
 import { sanitizeSettings } from "@/store/settingsStore"
 
@@ -38,18 +39,10 @@ describe("sanitizeSettings", () => {
   })
 
   it("범위를 벗어난 슬라이드쇼 간격은 기본값으로 되돌린다", () => {
-    expect(
-      sanitizeSettings({ slideshowIntervalMs: 100 }).slideshowIntervalMs
-    ).toBe(3000)
-    expect(
-      sanitizeSettings({ slideshowIntervalMs: 60000 }).slideshowIntervalMs
-    ).toBe(3000)
-    expect(
-      sanitizeSettings({ slideshowIntervalMs: "fast" }).slideshowIntervalMs
-    ).toBe(3000)
-    expect(
-      sanitizeSettings({ slideshowIntervalMs: 2500 }).slideshowIntervalMs
-    ).toBe(2500)
+    expect(sanitizeSettings({ slideshowIntervalMs: 100 }).slideshowIntervalMs).toBe(3000)
+    expect(sanitizeSettings({ slideshowIntervalMs: 60000 }).slideshowIntervalMs).toBe(3000)
+    expect(sanitizeSettings({ slideshowIntervalMs: "fast" }).slideshowIntervalMs).toBe(3000)
+    expect(sanitizeSettings({ slideshowIntervalMs: 2500 }).slideshowIntervalMs).toBe(2500)
   })
 
   it("truthy 비불리언은 false로 정규화한다", () => {

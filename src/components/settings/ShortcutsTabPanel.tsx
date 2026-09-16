@@ -1,12 +1,11 @@
+import { ArrowCounterClockwise, Keyboard, Mouse, X } from "@phosphor-icons/react"
 import { useEffect, useState } from "react"
+import { useTranslation } from "react-i18next"
+import { toast } from "sonner"
+
+import { SettingsFieldSet } from "@/components/settings/SettingsFieldSet"
 import { Button } from "@/components/ui/button"
 import { Field, FieldGroup, FieldSeparator } from "@/components/ui/field"
-import { SettingsFieldSet } from "@/components/settings/SettingsFieldSet"
-import {
-  resetShortcutsToDefault,
-  updateSettings,
-  useSettingsStore
-} from "@/store/settingsStore"
 import {
   CLICK_MOUSE_OPTIONS,
   DEFAULT_SHORTCUTS,
@@ -22,14 +21,7 @@ import {
   type ShortcutActionId,
   type WheelAction
 } from "@/constants/shortcuts"
-import {
-  ArrowCounterClockwise,
-  Keyboard,
-  Mouse,
-  X
-} from "@phosphor-icons/react"
-import { useTranslation } from "react-i18next"
-import { toast } from "sonner"
+import { resetShortcutsToDefault, updateSettings, useSettingsStore } from "@/store/settingsStore"
 
 const ACTION_LABEL_KEY: Record<ShortcutActionId, string> = {
   navigatePrev: "menu.prev",
@@ -158,10 +150,7 @@ export function ShortcutsTabPanel() {
     setCapturing(null)
   }
 
-  const tx = t as unknown as (
-    key: string,
-    options?: Record<string, string>
-  ) => string
+  const tx = t as unknown as (key: string, options?: Record<string, string>) => string
 
   return (
     <FieldGroup>
@@ -170,20 +159,15 @@ export function ShortcutsTabPanel() {
         title={t("settings.shortcuts.title")}
         description={t("settings.shortcuts.desc")}
       >
-        <p className="text-muted-foreground text-xs" aria-live="polite">
-          {capturing
-            ? t("settings.shortcuts.capturing")
-            : t("settings.shortcuts.captureHint")}
+        <p className="text-xs text-muted-foreground" aria-live="polite">
+          {capturing ? t("settings.shortcuts.capturing") : t("settings.shortcuts.captureHint")}
         </p>
-        <ul className="divide-border divide-y rounded-lg border">
+        <ul className="divide-y divide-border rounded-lg border">
           {SHORTCUT_ACTION_IDS.map((actionId) => {
             const binding = shortcuts[actionId] ?? ""
             const isCapturing = capturing === actionId
             return (
-              <li
-                key={actionId}
-                className="flex items-center justify-between gap-2 px-2 py-1.5"
-              >
+              <li key={actionId} className="flex items-center justify-between gap-2 px-2 py-1.5">
                 <span className="min-w-0 flex-1 truncate text-sm">
                   {tx(ACTION_LABEL_KEY[actionId])}
                 </span>
@@ -233,26 +217,19 @@ export function ShortcutsTabPanel() {
             role="alertdialog"
             aria-labelledby="shortcut-conflict-title"
             aria-describedby="shortcut-conflict-desc"
-            className="border-destructive/30 bg-destructive/5 rounded-lg border p-3"
+            className="rounded-lg border border-destructive/30 bg-destructive/5 p-3"
           >
             <p id="shortcut-conflict-title" className="text-sm font-medium">
               {t("settings.shortcuts.conflictTitle")}
             </p>
-            <p
-              id="shortcut-conflict-desc"
-              className="text-muted-foreground mt-1 text-xs"
-            >
+            <p id="shortcut-conflict-desc" className="mt-1 text-xs text-muted-foreground">
               {tx("settings.shortcuts.conflictDesc", {
                 key: formatShortcutDisplay(conflict.binding),
                 action: tx(ACTION_LABEL_KEY[conflict.conflictingActionId])
               })}
             </p>
             <div className="mt-2 flex justify-end gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setConflict(null)}
-              >
+              <Button variant="outline" size="sm" onClick={() => setConflict(null)}>
                 {t("settings.shortcuts.cancel")}
               </Button>
               <Button size="sm" onClick={handleConfirmConflict}>
@@ -272,10 +249,7 @@ export function ShortcutsTabPanel() {
       >
         {WHEEL_SLOTS.map((slot) => (
           <Field key={slot} orientation="horizontal">
-            <label
-              htmlFor={`settings-wheel-${slot}`}
-              className="min-w-0 flex-1 text-sm"
-            >
+            <label htmlFor={`settings-wheel-${slot}`} className="min-w-0 flex-1 text-sm">
               {tx(`settings.wheel.slot.${slot}`)}
             </label>
             <select
@@ -285,11 +259,9 @@ export function ShortcutsTabPanel() {
                 const next = e.target.value as WheelAction
                 void updateSettings({ wheel: { ...wheel, [slot]: next } })
               }}
-              className="border-border bg-background h-8 rounded-lg border px-2 text-sm"
+              className="h-8 rounded-lg border border-border bg-background px-2 text-sm"
             >
-              {(
-                ["prev", "next", "zoomIn", "zoomOut", "none"] as WheelAction[]
-              ).map((action) => (
+              {(["prev", "next", "zoomIn", "zoomOut", "none"] as WheelAction[]).map((action) => (
                 <option key={action} value={action}>
                   {tx(`settings.wheel.action.${action}`)}
                 </option>
@@ -307,14 +279,10 @@ export function ShortcutsTabPanel() {
         description={t("settings.mouse.desc")}
       >
         {MOUSE_TRIGGERS.map((trigger) => {
-          const options =
-            trigger === "leftDrag" ? LEFT_DRAG_OPTIONS : CLICK_MOUSE_OPTIONS
+          const options = trigger === "leftDrag" ? LEFT_DRAG_OPTIONS : CLICK_MOUSE_OPTIONS
           return (
             <Field key={trigger} orientation="horizontal">
-              <label
-                htmlFor={`settings-mouse-${trigger}`}
-                className="min-w-0 flex-1 text-sm"
-              >
+              <label htmlFor={`settings-mouse-${trigger}`} className="min-w-0 flex-1 text-sm">
                 {tx(`settings.mouse.trigger.${trigger}`)}
               </label>
               <select
@@ -324,7 +292,7 @@ export function ShortcutsTabPanel() {
                   const next = e.target.value as MouseAction
                   void updateSettings({ mouse: { ...mouse, [trigger]: next } })
                 }}
-                className="border-border bg-background h-8 rounded-lg border px-2 text-sm"
+                className="h-8 rounded-lg border border-border bg-background px-2 text-sm"
               >
                 {options.map((action) => (
                   <option key={action} value={action}>
@@ -336,16 +304,12 @@ export function ShortcutsTabPanel() {
           )
         })}
         {mouse.rightClick !== "contextMenu" && (
-          <p role="note" className="text-muted-foreground text-xs">
+          <p role="note" className="text-xs text-muted-foreground">
             {t("settings.mouse.rightClickWarning")}
           </p>
         )}
         <div className="flex justify-end">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => void resetShortcutsToDefault()}
-          >
+          <Button variant="outline" size="sm" onClick={() => void resetShortcutsToDefault()}>
             {t("settings.shortcuts.resetAll")}
           </Button>
         </div>

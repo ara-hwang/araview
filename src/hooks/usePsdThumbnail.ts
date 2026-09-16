@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from "react"
 import { invoke } from "@tauri-apps/api/core"
+import { useCallback, useEffect, useState } from "react"
 import { toast } from "sonner"
+
 import i18n from "@/i18n"
 import type { PsdThumbStatus } from "@/types"
 import { errorMessage } from "@/utils/appError"
@@ -36,18 +37,11 @@ export function usePsdThumbnail(enabled: boolean) {
         register ? "register_psd_thumbnail" : "unregister_psd_thumbnail"
       )
       setStatus(next)
-      toast.success(
-        i18n.t(
-          register ? "toast.thumb.doneEnabled" : "toast.thumb.doneDisabled"
-        )
-      )
+      toast.success(i18n.t(register ? "toast.thumb.doneEnabled" : "toast.thumb.doneDisabled"))
     } catch (error) {
-      toast.error(
-        i18n.t(
-          register ? "toast.thumb.registerFail" : "toast.thumb.unregisterFail"
-        ),
-        { description: errorMessage(error) }
-      )
+      toast.error(i18n.t(register ? "toast.thumb.registerFail" : "toast.thumb.unregisterFail"), {
+        description: errorMessage(error)
+      })
     } finally {
       setPending(false)
     }

@@ -1,18 +1,15 @@
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Label } from "@/components/ui/label"
-import { Switch } from "@/components/ui/switch"
-import { Field, FieldGroup } from "@/components/ui/field"
-import { SettingsFieldSet } from "@/components/settings/SettingsFieldSet"
-import { ShortcutBadge } from "@/components/settings/ShortcutBadge"
-import {
-  useSettingsStore,
-  type DirSortKey,
-  type SettingsState
-} from "@/store/settingsStore"
-import { applySortSettings } from "@/utils/directoryOptions"
 import { ArrowsDownUp, Shuffle } from "@phosphor-icons/react"
 import { useTranslation } from "react-i18next"
 import { useShallow } from "zustand/react/shallow"
+
+import { SettingsFieldSet } from "@/components/settings/SettingsFieldSet"
+import { ShortcutBadge } from "@/components/settings/ShortcutBadge"
+import { Field, FieldGroup } from "@/components/ui/field"
+import { Label } from "@/components/ui/label"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Switch } from "@/components/ui/switch"
+import { useSettingsStore, type DirSortKey, type SettingsState } from "@/store/settingsStore"
+import { applySortSettings } from "@/utils/directoryOptions"
 
 export function ListTabPanel() {
   const { t } = useTranslation()
@@ -27,10 +24,7 @@ export function ListTabPanel() {
 
   const handleSortChange = (
     next: Partial<
-      Pick<
-        SettingsState,
-        "sortKey" | "sortDescending" | "shuffle" | "includeSubfolders"
-      >
+      Pick<SettingsState, "sortKey" | "sortDescending" | "shuffle" | "includeSubfolders">
     >
   ) => {
     void applySortSettings(next)
@@ -58,21 +52,15 @@ export function ListTabPanel() {
         >
           <Field orientation="horizontal">
             <RadioGroupItem value="name" id="settings-sort-name" />
-            <Label htmlFor="settings-sort-name">
-              {t("settings.sort.name")}
-            </Label>
+            <Label htmlFor="settings-sort-name">{t("settings.sort.name")}</Label>
           </Field>
           <Field orientation="horizontal">
             <RadioGroupItem value="date" id="settings-sort-date" />
-            <Label htmlFor="settings-sort-date">
-              {t("settings.sort.date")}
-            </Label>
+            <Label htmlFor="settings-sort-date">{t("settings.sort.date")}</Label>
           </Field>
           <Field orientation="horizontal">
             <RadioGroupItem value="size" id="settings-sort-size" />
-            <Label htmlFor="settings-sort-size">
-              {t("settings.sort.size")}
-            </Label>
+            <Label htmlFor="settings-sort-size">{t("settings.sort.size")}</Label>
           </Field>
           <Field orientation="horizontal">
             <RadioGroupItem value="shuffle" id="settings-sort-shuffle" />
@@ -86,9 +74,7 @@ export function ListTabPanel() {
         </RadioGroup>
         <RadioGroup
           value={settings.sortDescending ? "desc" : "asc"}
-          onValueChange={(value) =>
-            handleSortChange({ sortDescending: value === "desc" })
-          }
+          onValueChange={(value) => handleSortChange({ sortDescending: value === "desc" })}
         >
           <Field orientation="horizontal">
             <RadioGroupItem value="asc" id="settings-sort-asc" />
@@ -96,22 +82,16 @@ export function ListTabPanel() {
           </Field>
           <Field orientation="horizontal">
             <RadioGroupItem value="desc" id="settings-sort-desc" />
-            <Label htmlFor="settings-sort-desc">
-              {t("settings.sort.descOrder")}
-            </Label>
+            <Label htmlFor="settings-sort-desc">{t("settings.sort.descOrder")}</Label>
           </Field>
         </RadioGroup>
         <Field orientation="horizontal">
           <Switch
             id="settings-subfolders"
             checked={settings.includeSubfolders}
-            onCheckedChange={(checked) =>
-              handleSortChange({ includeSubfolders: checked === true })
-            }
+            onCheckedChange={(checked) => handleSortChange({ includeSubfolders: checked === true })}
           />
-          <Label htmlFor="settings-subfolders">
-            {t("settings.sort.subfolders")}
-          </Label>
+          <Label htmlFor="settings-subfolders">{t("settings.sort.subfolders")}</Label>
         </Field>
       </SettingsFieldSet>
     </FieldGroup>

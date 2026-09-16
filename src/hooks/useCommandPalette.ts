@@ -1,7 +1,24 @@
 import { useEffect, useMemo } from "react"
+import { useTranslation } from "react-i18next"
 import { create } from "zustand"
 import { useShallow } from "zustand/react/shallow"
-import { useTranslation } from "react-i18next"
+
+import {
+  COMMAND_DEFS,
+  COMMAND_GROUP_ORDER,
+  filterCommands,
+  isCommandEnabled,
+  type CommandContext,
+  type CommandDef,
+  type CommandId
+} from "@/constants/commands"
+import { eventToBinding, formatShortcutDisplay } from "@/constants/shortcuts"
+import { useAlwaysOnTop } from "@/hooks/useAlwaysOnTop"
+import { useCloseImage } from "@/hooks/useCloseImage"
+import { useFullscreen } from "@/hooks/useFullscreen"
+import { useImageLoader } from "@/hooks/useImageLoader"
+import { WEBTOON_KEY_SCROLL_PX, scrollWebtoonBy } from "@/hooks/useImageViewerHotkeys"
+import { requestUpdateCheck } from "@/hooks/useUpdater"
 import {
   flipHorizontal,
   flipVertical,
@@ -17,32 +34,9 @@ import {
   zoomIn,
   zoomOut
 } from "@/store/appStore"
-import {
-  cycleViewerBackground,
-  getSettings,
-  useSettingsStore
-} from "@/store/settingsStore"
-import {
-  WEBTOON_KEY_SCROLL_PX,
-  scrollWebtoonBy
-} from "@/hooks/useImageViewerHotkeys"
-import { eventToBinding, formatShortcutDisplay } from "@/constants/shortcuts"
-import {
-  COMMAND_DEFS,
-  COMMAND_GROUP_ORDER,
-  filterCommands,
-  isCommandEnabled,
-  type CommandContext,
-  type CommandDef,
-  type CommandId
-} from "@/constants/commands"
-import { useImageLoader } from "@/hooks/useImageLoader"
-import { useCloseImage } from "@/hooks/useCloseImage"
-import { useFullscreen } from "@/hooks/useFullscreen"
-import { useAlwaysOnTop } from "@/hooks/useAlwaysOnTop"
 import { usePaletteMruStore } from "@/store/paletteMruStore"
+import { cycleViewerBackground, getSettings, useSettingsStore } from "@/store/settingsStore"
 import { toggleShuffleAndRefresh } from "@/utils/directoryOptions"
-import { requestUpdateCheck } from "@/hooks/useUpdater"
 
 export const OPEN_SETTINGS_EVENT = "tiv:open-settings"
 
@@ -94,14 +88,11 @@ export const usePaletteStore = create<PaletteStore>((set) => ({
   open: false,
   query: "",
   activeIndex: 0,
-  setOpen: (open) =>
-    set(() => (open ? { open } : { open, query: "", activeIndex: 0 })),
+  setOpen: (open) => set(() => (open ? { open } : { open, query: "", activeIndex: 0 })),
   setQuery: (query) => set(() => ({ query, activeIndex: 0 })),
   setActiveIndex: (activeIndex) => set(() => ({ activeIndex })),
   toggle: () =>
-    set((state) =>
-      state.open ? { open: false, query: "", activeIndex: 0 } : { open: true }
-    )
+    set((state) => (state.open ? { open: false, query: "", activeIndex: 0 } : { open: true }))
 }))
 
 export type ResolvedPaletteCommand = {
@@ -168,13 +159,11 @@ function runCommand(
       else panRight()
       break
     case "panUp":
-      if (getSettings().viewMode === "webtoon")
-        scrollWebtoonBy(-WEBTOON_KEY_SCROLL_PX)
+      if (getSettings().viewMode === "webtoon") scrollWebtoonBy(-WEBTOON_KEY_SCROLL_PX)
       else panUp()
       break
     case "panDown":
-      if (getSettings().viewMode === "webtoon")
-        scrollWebtoonBy(WEBTOON_KEY_SCROLL_PX)
+      if (getSettings().viewMode === "webtoon") scrollWebtoonBy(WEBTOON_KEY_SCROLL_PX)
       else panDown()
       break
     case "resetView":
@@ -304,9 +293,7 @@ export function useCommandPaletteHost() {
     return COMMAND_DEFS.map((def) => ({
       def,
       label: tx(def.labelKey),
-      shortcutLabel: def.shortcutId
-        ? formatShortcutDisplay(shortcuts[def.shortcutId] ?? "")
-        : "",
+      shortcutLabel: def.shortcutId ? formatShortcutDisplay(shortcuts[def.shortcutId] ?? "") : "",
       enabled: isCommandEnabled(def, ctx)
     }))
   }, [t, shortcuts, ctx])
@@ -337,10 +324,7 @@ export function useCommandPaletteHost() {
     }
   }, [commands, query, mruIds])
 
-  const safeActiveIndex = Math.min(
-    activeIndex,
-    Math.max(filtered.length - 1, 0)
-  )
+  const safeActiveIndex = Math.min(activeIndex, Math.max(filtered.length - 1, 0))
 
   const run = (id: CommandId) => {
     runCommand(id, {

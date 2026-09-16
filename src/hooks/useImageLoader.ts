@@ -1,22 +1,19 @@
-import { useCallback, useRef, useState } from "react"
-import { open } from "@tauri-apps/plugin-dialog"
 import { invoke } from "@tauri-apps/api/core"
+import { open } from "@tauri-apps/plugin-dialog"
+import { useCallback, useRef, useState } from "react"
 import { toast } from "sonner"
-import i18n from "@/i18n"
-import type { DirectoryImages, ImageInfo } from "@/types"
+
 import { SUPPORTED_IMAGE_EXTENSIONS } from "@/constants/imageExtensions"
 import { useImageCache } from "@/hooks/useImageCache"
-import { useSettingsStore } from "@/store/settingsStore"
-import {
-  setImageInfoAndResetView,
-  updateDirImagesIndex,
-  useAppStore
-} from "@/store/appStore"
-import { useRecentFilesStore } from "@/store/recentFilesStore"
+import i18n from "@/i18n"
+import { setImageInfoAndResetView, updateDirImagesIndex, useAppStore } from "@/store/appStore"
 import { useArchiveProgressStore } from "@/store/archiveProgressStore"
+import { useRecentFilesStore } from "@/store/recentFilesStore"
+import { useSettingsStore } from "@/store/settingsStore"
+import type { DirectoryImages, ImageInfo } from "@/types"
+import { errorMessage } from "@/utils/appError"
 import { buildDirListOptions } from "@/utils/directoryOptions"
 import { MAX_SKIP_ATTEMPTS, findSkipTarget } from "@/utils/skipBroken"
-import { errorMessage } from "@/utils/appError"
 
 const ARCHIVE_EXTENSIONS = ["cbz", "cb7", "cbr", "rar", "zip", "7z", "cbt"]
 
@@ -37,8 +34,7 @@ export function useImageLoader() {
   const loopNavigation = useSettingsStore((state) => state.loopNavigation)
   const viewMode = useSettingsStore((state) => state.viewMode)
 
-  const { getOrLoadImage, prefetchNearbyImages, getPrefetchDistance } =
-    useImageCache()
+  const { getOrLoadImage, prefetchNearbyImages, getPrefetchDistance } = useImageCache()
 
   const [isDragOver, setIsDragOver] = useState(false)
   const dragDepthRef = useRef(0)
@@ -53,11 +49,7 @@ export function useImageLoader() {
       const baseDistance = getPrefetchDistance()
       if (baseDistance <= 0) return
       const bonus =
-        settings.viewMode === "webtoon"
-          ? baseDistance
-          : settings.viewMode === "single"
-            ? 0
-            : 1
+        settings.viewMode === "webtoon" ? baseDistance : settings.viewMode === "single" ? 0 : 1
       const distance = Math.min(Math.max(baseDistance + bonus, 1), 2)
       // 디스크 선추출은 오픈 1회 배치로, 픽셀 예열은 기존 경로로.
       const total = images.length
@@ -79,12 +71,7 @@ export function useImageLoader() {
           entryNames: targets
         }).catch(() => {})
       }
-      prefetchNearbyImages(
-        images,
-        currentIndex,
-        settings.loopNavigation,
-        distance
-      )
+      prefetchNearbyImages(images, currentIndex, settings.loopNavigation, distance)
     },
     [getPrefetchDistance, prefetchNearbyImages]
   )
@@ -94,20 +81,16 @@ export function useImageLoader() {
     async (archivePath: string) => {
       useAppStore.setState({ loading: true, archivePath })
       try {
-        const archiveImages = await invoke<DirectoryImages>(
-          "get_archive_images",
-          { filePath: archivePath }
-        )
+        const archiveImages = await invoke<DirectoryImages>("get_archive_images", {
+          filePath: archivePath
+        })
 
         // 저장된 이어보기 엔트리가 목록에 있으면 거기서 시작
         const saved = useArchiveProgressStore.getState().get(archivePath)
-        const startIndex =
-          saved !== null ? archiveImages.images.indexOf(saved) : 0
+        const startIndex = saved !== null ? archiveImages.images.indexOf(saved) : 0
         const resolvedStart = startIndex > 0 ? startIndex : 0
         const firstEntry =
-          startIndex > 0
-            ? archiveImages.images[startIndex]
-            : archiveImages.images[0]
+          startIndex > 0 ? archiveImages.images[startIndex] : archiveImages.images[0]
         const imgInfo = await invoke<ImageInfo>("load_archive_image", {
           archivePath,
           entryName: firstEntry
@@ -126,11 +109,7 @@ export function useImageLoader() {
           void useRecentFilesStore.getState().add(archivePath)
         }
 
-        prefetchArchiveNeighbors(
-          archivePath,
-          archiveImages.images,
-          resolvedStart
-        )
+        prefetchArchiveNeighbors(archivePath, archiveImages.images, resolvedStart)
       } catch (e) {
         const message = errorMessage(e)
         useAppStore.setState({
@@ -162,11 +141,7 @@ export function useImageLoader() {
         const st = useAppStore.getState()
         const currentIndex = st.dirImages.images.indexOf(entryName)
         if (currentIndex >= 0) {
-          prefetchArchiveNeighbors(
-            archivePath,
-            st.dirImages.images,
-            currentIndex
-          )
+          prefetchArchiveNeighbors(archivePath, st.dirImages.images, currentIndex)
         }
       } catch (e) {
         const message = errorMessage(e)
@@ -224,25 +199,17 @@ export function useImageLoader() {
 
         let resolvedDirInfo = dirImages
 
-        if (
-          refreshDirectory ||
-          !resolvedDirInfo ||
-          !resolvedDirInfo.images.includes(filePath)
-        ) {
-          resolvedDirInfo = await invoke<DirectoryImages>(
-            "get_directory_images",
-            {
-              filePath,
-              options: buildDirListOptions(useSettingsStore.getState())
-            }
-          )
+        if (refreshDirectory || !resolvedDirInfo || !resolvedDirInfo.images.includes(filePath)) {
+          resolvedDirInfo = await invoke<DirectoryImages>("get_directory_images", {
+            filePath,
+            options: buildDirListOptions(useSettingsStore.getState())
+          })
           useAppStore.setState({ dirImages: resolvedDirInfo })
         }
 
         if (resolvedDirInfo) {
           const resolvedIndex = resolvedDirInfo.images.indexOf(filePath)
-          const nextIndex =
-            resolvedIndex >= 0 ? resolvedIndex : resolvedDirInfo.current_index
+          const nextIndex = resolvedIndex >= 0 ? resolvedIndex : resolvedDirInfo.current_index
           // 보기 모드별 프리페치: 양면은 짝 페이지를, webtoon은 스크롤 앞쪽을 더 넓게.
           const baseDistance = getPrefetchDistance()
           const prefetchDistance =
@@ -251,12 +218,7 @@ export function useImageLoader() {
               : viewMode === "single"
                 ? baseDistance
                 : baseDistance + 1
-          prefetchNearbyImages(
-            resolvedDirInfo.images,
-            nextIndex,
-            loopNavigation,
-            prefetchDistance
-          )
+          prefetchNearbyImages(resolvedDirInfo.images, nextIndex, loopNavigation, prefetchDistance)
         }
       } catch (e) {
         const message = errorMessage(e)

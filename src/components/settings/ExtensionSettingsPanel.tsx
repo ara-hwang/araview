@@ -1,3 +1,6 @@
+import { WarningCircle } from "@phosphor-icons/react"
+import { useTranslation } from "react-i18next"
+
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import {
@@ -9,23 +12,16 @@ import {
 } from "@/components/ui/field"
 import { Spinner } from "@/components/ui/spinner"
 import { Switch } from "@/components/ui/switch"
-import { extensionLabel } from "@/constants/extensionLabels"
 import { APP_DISPLAY_NAME } from "@/constants/app"
-import {
-  hasBlockedAssociation,
-  useFileAssociations
-} from "@/hooks/useFileAssociations"
+import { extensionLabel } from "@/constants/extensionLabels"
+import { hasBlockedAssociation, useFileAssociations } from "@/hooks/useFileAssociations"
 import { usePsdThumbnail } from "@/hooks/usePsdThumbnail"
-import { WarningCircle } from "@phosphor-icons/react"
-import { useTranslation } from "react-i18next"
 
 type ExtensionSettingsPanelProps = {
   active: boolean
 }
 
-export function ExtensionSettingsPanel({
-  active
-}: ExtensionSettingsPanelProps) {
+export function ExtensionSettingsPanel({ active }: ExtensionSettingsPanelProps) {
   const { t } = useTranslation()
   const {
     items,
@@ -51,9 +47,7 @@ export function ExtensionSettingsPanel({
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-1">
         <h3 className="text-base font-medium">{t("settings.ext.title")}</h3>
-        <p className="text-muted-foreground text-sm">
-          {t("settings.ext.desc")}
-        </p>
+        <p className="text-sm text-muted-foreground">{t("settings.ext.desc")}</p>
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -77,7 +71,7 @@ export function ExtensionSettingsPanel({
       </div>
 
       {loading && items.length === 0 ? (
-        <div className="text-muted-foreground flex items-center gap-2 text-sm">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Spinner />
           {t("settings.ext.loading")}
         </div>
@@ -94,9 +88,7 @@ export function ExtensionSettingsPanel({
               >
                 <FieldContent>
                   <FieldLabel htmlFor={fieldId}>.{item.extension}</FieldLabel>
-                  <FieldDescription>
-                    {extensionLabel(item.extension)}
-                  </FieldDescription>
+                  <FieldDescription>{extensionLabel(item.extension)}</FieldDescription>
                 </FieldContent>
                 <Switch
                   id={fieldId}
@@ -133,24 +125,18 @@ export function ExtensionSettingsPanel({
 
       <div className="flex flex-col gap-2 border-t pt-4">
         <h3 className="text-base font-medium">{t("settings.thumb.title")}</h3>
-        <p className="text-muted-foreground text-sm">
-          {t("settings.thumb.desc")}
-        </p>
+        <p className="text-sm text-muted-foreground">{t("settings.thumb.desc")}</p>
         <div className="flex flex-wrap items-center gap-2">
           <Button
             variant="outline"
             size="sm"
             disabled={thumbBusy}
-            onClick={() =>
-              void setThumbnail(!(thumbStatus?.registered ?? false))
-            }
+            onClick={() => void setThumbnail(!(thumbStatus?.registered ?? false))}
           >
             {thumbPending ? <Spinner data-icon="inline-start" /> : null}
-            {thumbStatus?.registered
-              ? t("settings.thumb.disable")
-              : t("settings.thumb.enable")}
+            {thumbStatus?.registered ? t("settings.thumb.disable") : t("settings.thumb.enable")}
           </Button>
-          <span className="text-muted-foreground text-sm" role="status">
+          <span className="text-sm text-muted-foreground" role="status">
             {thumbLoading || thumbStatus === null
               ? t("settings.thumb.checking")
               : thumbStatus.registered
@@ -159,13 +145,9 @@ export function ExtensionSettingsPanel({
           </span>
         </div>
         {thumbStatus !== null && !thumbStatus.dll_exists ? (
-          <p className="text-muted-foreground text-sm">
-            {t("settings.thumb.dllMissing")}
-          </p>
+          <p className="text-sm text-muted-foreground">{t("settings.thumb.dllMissing")}</p>
         ) : null}
-        <p className="text-muted-foreground text-sm">
-          {t("settings.thumb.note")}
-        </p>
+        <p className="text-sm text-muted-foreground">{t("settings.thumb.note")}</p>
       </div>
     </div>
   )

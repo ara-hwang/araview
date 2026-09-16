@@ -1,11 +1,10 @@
 import { describe, it, expect } from "vitest"
+
 import { basenameOf, buildStatusModel, parentFolderNameOf } from "./statusBar"
 
 describe("basenameOf", () => {
   it("handles backslash paths", () => {
-    expect(basenameOf("D:\\Photos\\vacation\\IMG_1234.jpg")).toBe(
-      "IMG_1234.jpg"
-    )
+    expect(basenameOf("D:\\Photos\\vacation\\IMG_1234.jpg")).toBe("IMG_1234.jpg")
   })
 
   it("handles forward slash paths", () => {
@@ -23,9 +22,7 @@ describe("basenameOf", () => {
 
 describe("parentFolderNameOf", () => {
   it("returns the parent folder name", () => {
-    expect(parentFolderNameOf("D:\\Photos\\vacation\\IMG_1234.jpg")).toBe(
-      "vacation"
-    )
+    expect(parentFolderNameOf("D:\\Photos\\vacation\\IMG_1234.jpg")).toBe("vacation")
   })
 
   it("returns null when there is no parent", () => {

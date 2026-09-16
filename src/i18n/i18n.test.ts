@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest"
+
 import en from "./locales/en.json"
 import ko from "./locales/ko.json"
 

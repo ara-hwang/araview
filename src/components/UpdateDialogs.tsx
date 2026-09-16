@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next"
+
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -8,13 +10,8 @@ import {
   DialogTitle
 } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import {
-  dismissUpdate,
-  relaunchAfterUpdate,
-  startUpdateDownload
-} from "@/hooks/useUpdater"
+import { dismissUpdate, relaunchAfterUpdate, startUpdateDownload } from "@/hooks/useUpdater"
 import { useUpdateStore } from "@/store/updateStore"
-import { useTranslation } from "react-i18next"
 
 export function UpdateDialogs() {
   const { t } = useTranslation()
@@ -42,13 +39,11 @@ export function UpdateDialogs() {
               <DialogTitle>
                 {t("dialog.update.availableTitle", { version: version ?? "" })}
               </DialogTitle>
-              <DialogDescription>
-                {t("dialog.update.availableDesc")}
-              </DialogDescription>
+              <DialogDescription>{t("dialog.update.availableDesc")}</DialogDescription>
             </DialogHeader>
             <div className="rounded-md border">
               <ScrollArea className="max-h-40">
-                <p className="text-muted-foreground p-3 text-sm whitespace-pre-wrap">
+                <p className="p-3 text-sm whitespace-pre-wrap text-muted-foreground">
                   {body?.trim() ? body : t("dialog.update.noNotes")}
                 </p>
               </ScrollArea>
@@ -61,10 +56,7 @@ export function UpdateDialogs() {
               >
                 {t("dialog.update.later")}
               </Button>
-              <Button
-                data-testid="update-download"
-                onClick={() => void startUpdateDownload()}
-              >
+              <Button data-testid="update-download" onClick={() => void startUpdateDownload()}>
                 {t("dialog.update.download")}
               </Button>
             </DialogFooter>
@@ -89,18 +81,18 @@ export function UpdateDialogs() {
                 aria-valuenow={pct ?? undefined}
                 aria-label={t("dialog.update.downloadingTitle")}
                 data-testid="update-progress"
-                className="bg-muted h-2 w-full overflow-hidden rounded-full"
+                className="h-2 w-full overflow-hidden rounded-full bg-muted"
               >
                 <div
                   className={
                     pct === null
-                      ? "bg-primary h-full w-1/3 animate-pulse rounded-full"
-                      : "bg-primary h-full rounded-full transition-all"
+                      ? "h-full w-1/3 animate-pulse rounded-full bg-primary"
+                      : "h-full rounded-full bg-primary transition-all"
                   }
                   style={pct === null ? undefined : { width: `${pct}%` }}
                 />
               </div>
-              <p className="text-muted-foreground text-sm">
+              <p className="text-sm text-muted-foreground">
                 {error
                   ? error
                   : pct === null
@@ -108,7 +100,7 @@ export function UpdateDialogs() {
                     : t("dialog.update.downloadingPct", { pct })}
               </p>
               {error && (
-                <p role="alert" className="text-destructive text-sm">
+                <p role="alert" className="text-sm text-destructive">
                   {t("dialog.update.downloadFail")}
                 </p>
               )}
@@ -118,10 +110,7 @@ export function UpdateDialogs() {
                 <Button variant="outline" onClick={() => dismissUpdate(false)}>
                   {t("dialog.cancel")}
                 </Button>
-                <Button
-                  data-testid="update-retry"
-                  onClick={() => void startUpdateDownload()}
-                >
+                <Button data-testid="update-retry" onClick={() => void startUpdateDownload()}>
                   {t("dialog.update.retry")}
                 </Button>
               </DialogFooter>
@@ -133,9 +122,7 @@ export function UpdateDialogs() {
           <>
             <DialogHeader>
               <DialogTitle>{t("dialog.update.readyTitle")}</DialogTitle>
-              <DialogDescription>
-                {t("dialog.update.readyDesc")}
-              </DialogDescription>
+              <DialogDescription>{t("dialog.update.readyDesc")}</DialogDescription>
             </DialogHeader>
             <DialogFooter>
               <Button
@@ -145,10 +132,7 @@ export function UpdateDialogs() {
               >
                 {t("dialog.update.applyOnExit")}
               </Button>
-              <Button
-                data-testid="update-restart-now"
-                onClick={() => void relaunchAfterUpdate()}
-              >
+              <Button data-testid="update-restart-now" onClick={() => void relaunchAfterUpdate()}>
                 {t("dialog.update.restartNow")}
               </Button>
             </DialogFooter>

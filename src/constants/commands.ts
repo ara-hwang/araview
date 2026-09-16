@@ -333,10 +333,7 @@ export const COMMAND_DEFS: readonly CommandDef[] = [
   }
 ]
 
-export function isCommandEnabled(
-  def: CommandDef,
-  ctx: CommandContext
-): boolean {
+export function isCommandEnabled(def: CommandDef, ctx: CommandContext): boolean {
   if (def.requiresNavigation) return ctx.hasImage && ctx.canNavigate
   if (def.requiresImage) return ctx.hasImage
   return true
@@ -362,8 +359,7 @@ export function filterCommands<T extends SearchableCommand>(
   const scored: { item: T; score: number }[] = []
   for (const item of commands) {
     const label = item.label.toLowerCase()
-    const alias =
-      `${item.id ?? ""} ${(item.keywords ?? []).join(" ")}`.toLowerCase()
+    const alias = `${item.id ?? ""} ${(item.keywords ?? []).join(" ")}`.toLowerCase()
     let score = 0
     let matched = true
     for (const token of tokens) {

@@ -1,5 +1,5 @@
-import { create } from "zustand"
 import { Store as TauriStore } from "@tauri-apps/plugin-store"
+import { create } from "zustand"
 
 const MAX_RECENT = 20
 const STORE_KEY = "recentFiles"

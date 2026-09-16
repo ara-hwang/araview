@@ -5,13 +5,11 @@ export function formatDpi(
   dpiX: number | null | undefined,
   dpiY: number | null | undefined
 ): string | null {
-  const valid = (n: unknown): n is number =>
-    typeof n === "number" && Number.isFinite(n) && n > 0
+  const valid = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n) && n > 0
   const x = valid(dpiX) ? dpiX : null
   const y = valid(dpiY) ? dpiY : null
   if (x === null && y === null) return null
-  const one = (n: number) =>
-    Number.isInteger(n) ? String(n) : String(Math.round(n * 10) / 10)
+  const one = (n: number) => (Number.isInteger(n) ? String(n) : String(Math.round(n * 10) / 10))
   if (x !== null && y !== null) {
     return x === y ? `${one(x)} DPI` : `${one(x)} × ${one(y)} DPI`
   }

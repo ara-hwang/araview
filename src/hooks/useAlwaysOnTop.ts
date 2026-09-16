@@ -1,13 +1,10 @@
-import { useCallback, useEffect } from "react"
 import { getCurrentWindow } from "@tauri-apps/api/window"
+import { useCallback, useEffect } from "react"
 import { toast } from "sonner"
+
 import i18n from "@/i18n"
+import { getSettings, updateSettings, useSettingsStore } from "@/store/settingsStore"
 import { errorMessage } from "@/utils/appError"
-import {
-  getSettings,
-  updateSettings,
-  useSettingsStore
-} from "@/store/settingsStore"
 
 // 창 항상 위 토글. settingsStore.alwaysOnTop이 단일 소스이며
 // 변경될 때마다 Tauri 창에 반영하고 settings.json에 유지한다.

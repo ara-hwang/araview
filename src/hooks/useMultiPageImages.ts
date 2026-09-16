@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react"
-import type { ImageInfo } from "@/types"
+import { useShallow } from "zustand/react/shallow"
+
 import { useAppStore } from "@/store/appStore"
 import { useSettingsStore } from "@/store/settingsStore"
-import { useShallow } from "zustand/react/shallow"
+import type { ImageInfo } from "@/types"
 
 // viewMode에 따라 현재 이미지 외에 주변 이미지를 로드해 반환한다.
 //   - single               : 빈 배열 (ImageContainer가 기본 단일 렌더를 사용)
@@ -76,13 +77,7 @@ export function useMultiPageImages(getOrLoadImage: GetOrLoadImage) {
     return () => {
       cancelled = true
     }
-  }, [
-    viewMode,
-    loopNavigation,
-    dirImages.images,
-    dirImages.current_index,
-    getOrLoadImage
-  ])
+  }, [viewMode, loopNavigation, dirImages.images, dirImages.current_index, getOrLoadImage])
 
   return { viewMode, pages }
 }

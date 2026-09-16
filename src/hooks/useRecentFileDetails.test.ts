@@ -1,5 +1,5 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
 import { cleanup, renderHook, waitFor } from "@testing-library/react"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
 vi.mock("@tauri-apps/api/core", () => ({
   convertFileSrc: (p: string) => `asset://${p}`
@@ -25,9 +25,7 @@ const imgInfo = (overrides: Partial<ImageInfo> = {}): ImageInfo => ({
 describe("useRecentFileDetails", () => {
   it("이미지는 info와 src를 함께 반환한다", async () => {
     const getOrLoadImage = vi.fn(async () => imgInfo())
-    const { result } = renderHook(() =>
-      useRecentFileDetails(["/pics/a.png"], getOrLoadImage)
-    )
+    const { result } = renderHook(() => useRecentFileDetails(["/pics/a.png"], getOrLoadImage))
 
     await waitFor(() => {
       expect(result.current.get("/pics/a.png")?.status).toBe("done")
@@ -47,9 +45,7 @@ describe("useRecentFileDetails", () => {
         height: null
       })
     )
-    const { result } = renderHook(() =>
-      useRecentFileDetails(["/docs/comic.cbz"], getOrLoadImage)
-    )
+    const { result } = renderHook(() => useRecentFileDetails(["/docs/comic.cbz"], getOrLoadImage))
 
     await waitFor(() => {
       expect(result.current.get("/docs/comic.cbz")?.status).toBe("done")
@@ -61,9 +57,7 @@ describe("useRecentFileDetails", () => {
     const getOrLoadImage = vi.fn(async () => {
       throw new Error("missing")
     })
-    const { result } = renderHook(() =>
-      useRecentFileDetails(["/pics/gone.png"], getOrLoadImage)
-    )
+    const { result } = renderHook(() => useRecentFileDetails(["/pics/gone.png"], getOrLoadImage))
 
     await waitFor(() => {
       expect(result.current.get("/pics/gone.png")?.status).toBe("error")

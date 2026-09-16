@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest"
+
 import {
   getEffectivePath,
   getNextPathAfterTrash,
@@ -50,36 +51,26 @@ describe("isPsdImage", () => {
   })
 
   it("파일명 대소문자와 무관하게 .psd를 판정", () => {
-    expect(
-      isPsdImage({ mime_type: "image/png", file_name: "DESIGN.PSD" })
-    ).toBe(true)
+    expect(isPsdImage({ mime_type: "image/png", file_name: "DESIGN.PSD" })).toBe(true)
   })
 
   it("일반 이미지와 null은 false", () => {
-    expect(isPsdImage({ mime_type: "image/png", file_name: "a.png" })).toBe(
-      false
-    )
+    expect(isPsdImage({ mime_type: "image/png", file_name: "a.png" })).toBe(false)
     expect(isPsdImage(null)).toBe(false)
   })
 })
 
 describe("isSvgImage", () => {
   it("SVG MIME이면 true", () => {
-    expect(
-      isSvgImage({ mime_type: "image/svg+xml", file_name: "icon.svg" })
-    ).toBe(true)
+    expect(isSvgImage({ mime_type: "image/svg+xml", file_name: "icon.svg" })).toBe(true)
   })
 
   it("파일명으로 .svg를 판정", () => {
-    expect(isSvgImage({ mime_type: "image/png", file_name: "ICON.SVG" })).toBe(
-      true
-    )
+    expect(isSvgImage({ mime_type: "image/png", file_name: "ICON.SVG" })).toBe(true)
   })
 
   it("일반 이미지와 null은 false", () => {
-    expect(isSvgImage({ mime_type: "image/png", file_name: "a.png" })).toBe(
-      false
-    )
+    expect(isSvgImage({ mime_type: "image/png", file_name: "a.png" })).toBe(false)
     expect(isSvgImage(null)).toBe(false)
   })
 })
@@ -95,42 +86,31 @@ describe("saveBlockedReason", () => {
   })
 
   it("SVG는 noSvg", () => {
-    expect(
-      saveBlockedReason({ mime_type: "image/svg+xml", file_name: "a.svg" })
-    ).toBe("noSvg")
+    expect(saveBlockedReason({ mime_type: "image/svg+xml", file_name: "a.svg" })).toBe("noSvg")
   })
 
   it("AVIF는 noAvif", () => {
-    expect(
-      saveBlockedReason({ mime_type: "image/avif", file_name: "a.avif" })
-    ).toBe("noAvif")
-    expect(isAvifImage({ mime_type: "image/png", file_name: "A.AVIF" })).toBe(
-      true
-    )
+    expect(saveBlockedReason({ mime_type: "image/avif", file_name: "a.avif" })).toBe("noAvif")
+    expect(isAvifImage({ mime_type: "image/png", file_name: "A.AVIF" })).toBe(true)
     expect(isAvifImage(null)).toBe(false)
   })
 
   it("저장 가능 포맷과 null은 null", () => {
-    expect(
-      saveBlockedReason({ mime_type: "image/png", file_name: "a.png" })
-    ).toBeNull()
-    expect(
-      saveBlockedReason({ mime_type: "image/jpeg", file_name: "a.jpg" })
-    ).toBeNull()
+    expect(saveBlockedReason({ mime_type: "image/png", file_name: "a.png" })).toBeNull()
+    expect(saveBlockedReason({ mime_type: "image/jpeg", file_name: "a.jpg" })).toBeNull()
     expect(saveBlockedReason(null)).toBeNull()
   })
 })
 
 describe("replacePathInList", () => {
   it("구 경로만 신 경로로 교체", () => {
-    expect(replacePathInList(["/a.jpg", "/b.jpg"], "/a.jpg", "/z.jpg")).toEqual(
-      ["/z.jpg", "/b.jpg"]
-    )
+    expect(replacePathInList(["/a.jpg", "/b.jpg"], "/a.jpg", "/z.jpg")).toEqual([
+      "/z.jpg",
+      "/b.jpg"
+    ])
   })
 
   it("없는 경로는 목록 그대로", () => {
-    expect(replacePathInList(["/a.jpg"], "/x.jpg", "/z.jpg")).toEqual([
-      "/a.jpg"
-    ])
+    expect(replacePathInList(["/a.jpg"], "/x.jpg", "/z.jpg")).toEqual(["/a.jpg"])
   })
 })
