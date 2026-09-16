@@ -169,7 +169,7 @@ fn delete_key_best_effort(key_path: &str) {
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
     if let Err(e) = hkcu.delete_subkey_all(key_path) {
         if e.kind() != std::io::ErrorKind::NotFound {
-            eprintln!("[thumb-shell] failed to delete {key_path}: {e}");
+            log::warn!("[thumb-shell] failed to delete {key_path}: {e}");
         }
     }
 }
