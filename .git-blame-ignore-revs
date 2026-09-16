@@ -1,0 +1,7 @@
+# git blame에서 제외할 대량 리포맷 커밋 목록 (SHA 한 줄에 하나).
+#
+# 사용법:
+#   1. Oxfmt 도입 리포맷을 커밋한 뒤, 그 커밋 SHA를 아래에 추가한다.
+#   2. git config blame.ignoreRevsFile .git-blame-ignore-revs
+#
+# 아직 리포맷 커밋 전이므로 목록은 비어 있다.

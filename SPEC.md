@@ -557,7 +557,7 @@ Rust와 TypeScript는 같은 모양을 유지한다.
 - 창: 제목 기본값 `AraView`(런타임에는 이미지가 열리면 파일명, 아니면 현재 로케일의 앱 이름), 1024x768, 최소 600x400, 프레임리스, 시작 시 숨김(`visible: false`).
 - `window-state` 플러그인으로 창 상태를 유지한다.
 - 번들: `nsis`만 빌드한다(릴리즈 빌드 시간 단축을 위해 MSI 제외). 결과물은 `src-tauri/target/release/bundle/` 아래에 생성된다.
-- 릴리스 파이프라인: `.github/workflows/release.yml`만 있으며 태그(`v*`) 푸시에서만 돈다. 릴리스 러너 한 대에서 프런트 검사(`npm test`, `tsc --noEmit`, `prettier --check`)와 Rust 검사(`cargo fmt --check`, `cargo test --no-default-features`, `cargo clippy --no-default-features -- -D warnings`)를 먼저 수행하고, 하나라도 실패하면 빌드와 릴리스로 진행하지 않는다.
+- 릴리스 파이프라인: `.github/workflows/release.yml`만 있으며 태그(`v*`) 푸시에서만 돈다. 릴리스 러너 한 대에서 프런트 검사(`npm test`, `tsc --noEmit`, `oxfmt --check`)와 Rust 검사(`cargo fmt --check`, `cargo test --no-default-features`, `cargo clippy --no-default-features -- -D warnings`)를 먼저 수행하고, 하나라도 실패하면 빌드와 릴리스로 진행하지 않는다.
 - 릴리스 생성 권한: `GITHUB_TOKEN`(`contents: write`)을 쓰며, 저장소 기본 워크플로 권한이 `read`면 릴리스 생성이 403(`Resource not accessible by integration`)으로 실패한다. 기본 권한을 `read`로 유지하려면 `contents: write` fine-grained PAT를 `RELEASE_TOKEN` 시크릿으로 등록한다(워크플로가 `secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN`으로 선택).
 - 파일 연결 3그룹:
   - Image 14종: png, jpg, jpeg, gif, bmp, webp, svg, ico, tiff, tif, avif, heic, heif, psd.

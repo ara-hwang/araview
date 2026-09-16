@@ -43,8 +43,8 @@ npm test
 npm run test:watch
 npm run lint
 npx tsc --noEmit
-npx prettier --check "src/**/*.{ts,tsx}"
-npx prettier --write "src/**/*.{ts,tsx}"
+npm run format:check
+npm run format
 
 # Rust tests / lint
 cd src-tauri && cargo test
@@ -177,7 +177,7 @@ Tauri Store (`settings.json`) is used for:
   2. `cd src-tauri && cargo test` (only when Rust sources changed)
   3. `npx tsc --noEmit`
   4. `npm run lint`
-  5. `npx prettier --check` on changed files (fix with `--write`)
+  5. `npm run format:check` on changed files (fix with `npm run format`)
   6. Runtime verification with Tauri MCP (primary) or agent-browser
      over WebView2 CDP (fallback, skill:
      `.opencode/skills/agent-browser/SKILL.md`):

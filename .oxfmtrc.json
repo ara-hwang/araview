@@ -1,0 +1,36 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "printWidth": 100,
+  "trailingComma": "none",
+  "tabWidth": 2,
+  "semi": false,
+  "sortPackageJson": {
+    "sortScripts": true
+  },
+  "sortImports": true,
+  "sortTailwindcss": {
+    "stylesheet": "./src/App.css",
+    "functions": ["cn", "clsx", "cva"]
+  },
+  "ignorePatterns": [
+    ".agents",
+    ".cursor",
+    ".opencode",
+    ".impeccable",
+    "src-tauri",
+    "src/components/ui",
+    "**/routeTree.gen.ts",
+    "THIRD_PARTY_LICENSES.md",
+    ".DS_Store",
+    "node_modules",
+    "/build",
+    "/.svelte-kit",
+    "/package",
+    ".env",
+    ".env.*",
+    "!.env.example",
+    "pnpm-lock.yaml",
+    "package-lock.json",
+    "yarn.lock"
+  ]
+}
