@@ -2,7 +2,7 @@ use std::ffi::c_void;
 use std::os::windows::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
 use std::ptr;
-use std::time::Duration;
+use std::sync::{LazyLock, Mutex};
 
 use serde::Serialize;
 use winreg::enums::{HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE};
@@ -45,6 +45,10 @@ pub fn list_associations() -> Result<Vec<FileAssociation>, AppError> {
         .collect()
 }
 
+/// OS picker를 열어 사용자가 직접 기본 앱을 고르게 한다.
+///
+/// `associate`는 FE 호환용으로 유지되지만 무시된다. Windows UserChoice는
+/// 앱이 직접 쓸 수 없어 연결/해제 모두 OS 확인이 필요하기 때문이다.
 pub fn set_association(
     extension: &str,
     _associate: bool,
@@ -59,6 +63,9 @@ pub fn set_association(
     status_after_picker(&ext, &exe)
 }
 
+/// 기본 앱 설정 화면을 열어 사용자가 직접 고르게 한다.
+///
+/// `associate`는 FE 호환용으로 유지되지만 무시된다 (위 `set_association` 참조).
 pub fn set_all_associations(_associate: bool) -> Result<Vec<FileAssociation>, AppError> {
     let exe = current_exe()?;
     ensure_application_registration(&exe)?;
@@ -166,7 +173,19 @@ fn is_handled_by_us(prog_id: &str, exe: &Path) -> bool {
         .is_some_and(|command_exe| paths_equal(&command_exe, exe))
 }
 
+/// 프로세스당 1회만 등록한다. 읽기 경로(`list_associations`)에서 매번
+/// 21개 ProgID를 다시 쓰는 churn을 없앤다. 레지스트리가 실행 중 외부에서
+/// 지워지면 다음 프로세스 시작 시 다시 등록된다.
+static REGISTERED_EXE: LazyLock<Mutex<Option<PathBuf>>> = LazyLock::new(|| Mutex::new(None));
+
 fn ensure_application_registration(exe: &Path) -> Result<(), AppError> {
+    if REGISTERED_EXE
+        .lock()
+        .map(|guard| guard.as_deref() == Some(exe))
+        .unwrap_or(false)
+    {
+        return Ok(());
+    }
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
     let (capabilities, _) = hkcu.create_subkey(CAPABILITIES_PATH).map_err(reg_err)?;
     capabilities
@@ -196,6 +215,9 @@ fn ensure_application_registration(exe: &Path) -> Result<(), AppError> {
     registered
         .set_value(APP_NAME, &CAPABILITIES_PATH)
         .map_err(reg_err)?;
+    if let Ok(mut guard) = REGISTERED_EXE.lock() {
+        *guard = Some(exe.to_path_buf());
+    }
     Ok(())
 }
 
@@ -302,9 +324,29 @@ fn open_command(exe: &Path) -> String {
 }
 
 fn paths_equal(command_exe: &str, exe: &Path) -> bool {
-    Path::new(command_exe)
-        .to_string_lossy()
-        .eq_ignore_ascii_case(&exe.to_string_lossy())
+    // short(8.3)/long 경로, 슬래시 방향, 대소문자 차이를 흡수한다.
+    let normalized_command = normalize_exe_for_compare(command_exe);
+    let normalized_exe = normalize_exe_for_compare(&exe.to_string_lossy());
+    if normalized_command == normalized_exe {
+        return true;
+    }
+    // 둘 다 존재하면 canonicalize로 최종 판정한다.
+    let command_path = Path::new(command_exe.trim().trim_matches('"'));
+    match (
+        std::fs::canonicalize(command_path),
+        std::fs::canonicalize(exe),
+    ) {
+        (Ok(a), Ok(b)) => a.to_string_lossy().to_lowercase() == b.to_string_lossy().to_lowercase(),
+        _ => false,
+    }
+}
+
+fn normalize_exe_for_compare(value: &str) -> String {
+    value
+        .trim()
+        .trim_matches('"')
+        .replace('/', "\\")
+        .to_lowercase()
 }
 
 fn starts_with_ignore_ascii_case(value: &str, prefix: &str) -> bool {
@@ -343,17 +385,9 @@ fn open_settings_uri(uri: &str) -> Result<(), AppError> {
 }
 
 fn status_after_picker(ext: &str, exe: &Path) -> Result<FileAssociation, AppError> {
-    // 사용자가 피커에서 선택하면 레지스트리가 바뀌므로 변경 시 즉시 반환.
-    // 피커를 그냥 닫으면 변경이 없어 최대 대기 후 현재 상태를 돌려준다.
-    // FE도 창 포커스 복귀 시 목록을 새로고침하므로 이 폴링은 보조 수단이다.
-    let first = status_for(ext, exe)?;
-    for _ in 0..12 {
-        std::thread::sleep(Duration::from_millis(250));
-        let next = status_for(ext, exe)?;
-        if next != first {
-            return Ok(next);
-        }
-    }
+    // 피커는 모달이 아니라 사용자가 몇 초~몇 분 뒤에 고를 수 있어, command
+    // 스레드를 sleep 폴링으로 묶지 않고 현재 상태를 즉시 반환한다.
+    // FE가 창 포커스 복귀 시 목록을 새로고침하므로 선택 결과는 거기서 반영된다.
     status_for(ext, exe)
 }
 
