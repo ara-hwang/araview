@@ -1,9 +1,7 @@
 use std::collections::HashMap;
 use std::fs;
-use std::hash::{Hash, Hasher};
 use std::io::BufReader;
 use std::path::Path;
-use std::time::UNIX_EPOCH;
 
 use crate::app_error::{AppError, ErrorCode};
 use crate::archive;
@@ -202,24 +200,27 @@ fn archive_sub_dir(archive_path: &Path) -> Result<std::path::PathBuf, AppError> 
     let temp_dir = process_temp_dir()?;
     // 같은 stem을 가진 다른 아카이브가 임시 캐시를 공유하지 않도록
     // canonical 경로 + mtime + 크기로 하위 디렉터리를 구분한다.
-    let canonical = fs::canonicalize(archive_path).unwrap_or_else(|_| archive_path.to_path_buf());
-    let meta = fs::metadata(archive_path)
-        .map_err(|e| AppError::io("Failed to read archive metadata", e, ErrorCode::Corrupt))?;
-    let mtime = meta
-        .modified()
-        .ok()
-        .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    canonical.hash(&mut hasher);
-    mtime.hash(&mut hasher);
-    meta.len().hash(&mut hasher);
-    let sub_dir = temp_dir.join(format!("archive-{:016x}", hasher.finish()));
+    // 영속 파일명에 쓰이므로 안정 해시를 사용한다.
+    let hash = crate::sidecar::file_identity_hash(archive_path, &[])?;
+    let sub_dir = temp_dir.join(format!("archive-{hash:016x}"));
+    // 새 아카이브를 처음 열 때만 전체 temp 상한을 강제한다. 재사용 시에는
+    // 매번 전체를 훑지 않아 페이지 넘김/썸네일 비용을 늘리지 않는다.
+    let is_new = !sub_dir.is_dir();
     fs::create_dir_all(&sub_dir)
         .map_err(|e| AppError::io("Failed to create sub dir", e, ErrorCode::Unknown))?;
+    if is_new {
+        // 전체 트리 순회라 파일 수가 많으면 수 초가 걸린다. best-effort이므로
+        // 첫 페이지 렌더를 막지 않도록 백그라운드로 돌린다.
+        std::thread::spawn(|| {
+            crate::process_temp::enforce_total_cap(MAX_PROCESS_TEMP_BYTES).ok();
+        });
+    }
     Ok(sub_dir)
 }
+
+/// 프로세스 temp 전체 상한. 썸네일/paint/아카이브별 상한에 더해 여러 아카이브를
+/// 연달아 열 때의 총량 팽창을 막는다.
+const MAX_PROCESS_TEMP_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 
 /// 이웃 페이지 선추출 (zip은 오픈 1회). FE fire-and-forget용으로 항상 Ok다.
 #[tauri::command]
