@@ -9,6 +9,8 @@ pub mod image_info;
 pub mod process_temp;
 pub mod psd_sidecar;
 pub mod save;
+pub mod sidecar;
+pub mod stable_hash;
 pub mod thumb_shell;
 pub mod thumbnail;
 
@@ -49,7 +51,11 @@ fn deliver_open_file(app: &tauri::AppHandle, path: String) {
 fn frontend_ready(app: tauri::AppHandle) -> Result<(), AppError> {
     let state = app.state::<PendingOpenFile>();
     state.ready.store(true, Ordering::SeqCst);
-    let pending = state.path.lock().ok().and_then(|mut guard| guard.take());
+    let pending = state
+        .path
+        .lock()
+        .map_err(|_| AppError::lock_poisoned("pending open file"))?
+        .take();
     if let Some(path) = pending {
         app.emit("open-file", path).ok();
     }
@@ -57,6 +63,10 @@ fn frontend_ready(app: tauri::AppHandle) -> Result<(), AppError> {
 }
 
 pub fn run() {
+    // env_logger의 기본 필터는 error다. 기존 eprintln! 진단이 조용히 사라지지
+    // 않도록 warn을 기본값으로 두고, RUST_LOG로 덮어쓸 수 있게 둔다.
+    let _ = env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("warn"))
+        .try_init();
     let builder = tauri::Builder::default();
     // 개발용 MCP 브리지는 LAN에 노출되지 않도록 loopback에만 바인딩한다.
     // release CI는 --no-default-features로 dev-mcp를 끄고 컴파일한다.
@@ -114,7 +124,7 @@ pub fn run() {
             if let Ok(temp) = process_temp::process_temp_dir() {
                 let canonical = std::fs::canonicalize(&temp).unwrap_or(temp);
                 if let Err(e) = app.asset_protocol_scope().allow_directory(&canonical, true) {
-                    eprintln!("[asset-scope] failed to allow process temp dir: {e}");
+                    log::error!("[asset-scope] failed to allow process temp dir: {e}");
                 }
             }
             // Windows passes the file path as a CLI argument
