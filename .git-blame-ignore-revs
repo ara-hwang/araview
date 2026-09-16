@@ -5,3 +5,4 @@
 #   2. git config blame.ignoreRevsFile .git-blame-ignore-revs
 #
 # 아직 리포맷 커밋 전이므로 목록은 비어 있다.
+f6a7a9f3a817906bd266ae3f2fc21c2016c4ed33 # style: reformat everything with Oxfmt
