@@ -1,7 +1,8 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::io::BufReader;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::sync::{LazyLock, Mutex};
 
 use crate::app_error::{AppError, ErrorCode};
 use crate::archive;
@@ -9,9 +10,44 @@ use crate::image::{is_archive_file, is_supported_file, DirectoryImages, ImageInf
 use crate::process_temp::process_temp_dir;
 use tauri::Manager;
 
+/// 이미 허용한 asset 디렉터리. 파일마다 scope를 추가하면 세션 내내 팽창하므로
+/// 부모 디렉터리 단위로 1회만 허용한다. 프로세스 temp는 시작 시 통째로
+/// 허용되므로 여기서 건너뛴다.
+static ALLOWED_ASSET_DIRS: LazyLock<Mutex<HashSet<PathBuf>>> =
+    LazyLock::new(|| Mutex::new(HashSet::new()));
+
 /// asset 프로토콜 scope 매칭은 canonicalize된 요청 경로 기준이므로
 /// 허용할 때도 canonicalize한 경로를 등록한다.
 pub(crate) fn allow_asset_path(app: &tauri::AppHandle, path: &Path) -> Result<(), AppError> {
+    if let Ok(temp) = process_temp_dir() {
+        let temp_canon = fs::canonicalize(&temp).unwrap_or(temp.clone());
+        let path_canon = fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+        if path_canon.starts_with(&temp_canon) || path.starts_with(&temp) {
+            return Ok(());
+        }
+    }
+    let parent = path.parent().unwrap_or(path);
+    let canon_parent = fs::canonicalize(parent).unwrap_or_else(|_| parent.to_path_buf());
+    if ALLOWED_ASSET_DIRS
+        .lock()
+        .map(|set| set.contains(&canon_parent))
+        .unwrap_or(false)
+    {
+        return Ok(());
+    }
+    // 재귀 허용은 금지한다. `D:\a.jpg`의 부모는 `D:\`라서 recursive=true면
+    // 드라이브 전체가 webview에 열린다. 하위 폴더 이미지는 자기 파일을 열 때
+    // 그 폴더가 개별로 허용되므로 재귀 없이도 충분하다.
+    if app
+        .asset_protocol_scope()
+        .allow_directory(&canon_parent, false)
+        .is_ok()
+    {
+        if let Ok(mut set) = ALLOWED_ASSET_DIRS.lock() {
+            set.insert(canon_parent);
+        }
+        return Ok(());
+    }
     let canonical = fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
     app.asset_protocol_scope()
         .allow_file(&canonical)
@@ -411,7 +447,10 @@ mod tests {
             .duration_since(UNIX_EPOCH)
             .expect("clock")
             .as_nanos();
-        let dir = std::env::temp_dir().join(format!("tiv-rename-{suffix}-{nanos}"));
+        let dir = std::env::temp_dir().join(format!(
+            "tiv-rename-{suffix}-{}-{nanos}",
+            std::process::id()
+        ));
         fs::create_dir_all(&dir).expect("create temp dir");
         dir
     }
