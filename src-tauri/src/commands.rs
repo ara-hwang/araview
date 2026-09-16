@@ -39,12 +39,25 @@ pub fn get_directory_images(
     let images = crate::dir_cache::get_sorted_images(parent, &opts)?;
     let paths: Vec<String> = images.into_iter().map(|e| e.path).collect();
 
-    let current_index = paths.iter().position(|p| p == &file_path).unwrap_or(0);
+    // 보통은 문자열이 그대로 일치한다. 대소문자나 8.3 단축 경로처럼 철자가
+    // 다르게 들어온 경우에만 canonical 비교로 폴백한다.
+    let current_index = index_of_current(&paths, path).unwrap_or(0);
 
     Ok(DirectoryImages {
         images: paths,
         current_index,
     })
+}
+
+/// 대소문자만 다른 철자로 들어와도 현재 파일을 찾는다. 목록은 호출자가 준
+/// 부모 경로로 스캔되므로 보통 첫 비교에서 끝난다. 폴백에서 경로마다
+/// canonicalize를 돌리면 수천 장 폴더에서 syscall 폭주가 나므로 하지 않는다.
+fn index_of_current(paths: &[String], current: &Path) -> Option<usize> {
+    if let Some(pos) = paths.iter().position(|p| Path::new(p) == current) {
+        return Some(pos);
+    }
+    let lowered = current.to_string_lossy().to_lowercase();
+    paths.iter().position(|p| p.to_lowercase() == lowered)
 }
 
 /// 디렉토리 목록 정렬/수집 옵션 (프론트 settingsStore와 대응)
