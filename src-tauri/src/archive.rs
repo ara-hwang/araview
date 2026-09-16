@@ -1,5 +1,4 @@
 use std::fs;
-use std::hash::{Hash, Hasher};
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
@@ -9,15 +8,23 @@ use crate::image::is_image_file;
 /// 엔트리 전체 경로를 해시한 prefix로 임시 추출 경로를 고유화한다.
 /// 하위 폴더가 다른 동명 엔트리(a/001.jpg, b/001.jpg)가 같은 basename으로
 /// 겹쳐 서로를 덮어쓰는 문제를 막는다. 이웃 선추출이 병렬로 돌 때 필수.
+/// 해시는 영속 파일명에 쓰이므로 안정 해시(FNV-1a)를 사용한다.
 fn extraction_out_path(temp_dir: &Path, entry_name: &str) -> PathBuf {
     let file_name = Path::new(entry_name)
         .file_name()
         .and_then(|n| n.to_str())
         .unwrap_or("image");
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    entry_name.hash(&mut hasher);
-    temp_dir.join(format!("{:016x}_{}", hasher.finish(), file_name))
+    let hash = crate::sidecar::entry_name_hash(entry_name);
+    temp_dir.join(format!("{hash:016x}_{file_name}"))
 }
+
+/// 단일 엔트리 압축 해제 상한 (zipbomb 가드). 초과 시 에러로 중단한다.
+pub const MAX_ENTRY_BYTES: u64 = 200 * 1024 * 1024;
+
+/// 아카이브별 추출 디렉터리 상한. 초과분은 가장 오래된 추출물부터 지운다.
+/// 아직 화면에 있는 추출물은 `mark_in_use`로 보호되고(FE가 이미 asset URL을
+/// 들고 있어 재추출 계기가 없다), 나머지는 다음 접근 시 다시 추출된다.
+const MAX_ARCHIVE_DIR_BYTES: u64 = 1024 * 1024 * 1024;
 
 /// 아카이브 내부의 이미지 엔트리 이름을 정렬된 순서로 반환
 pub fn list_archive_images(archive_path: &Path) -> Result<Vec<String>, AppError> {
@@ -48,13 +55,17 @@ pub fn extract_archive_image(
         .map(|e| e.to_lowercase())
         .unwrap_or_default();
 
-    match ext.as_str() {
+    let out_path = match ext.as_str() {
         "cbz" | "zip" => extract_zip_image(archive_path, entry_name, temp_dir),
         "cb7" | "7z" => extract_7z_image(archive_path, entry_name, temp_dir),
         "cbr" | "rar" => extract_rar_image(archive_path, entry_name, temp_dir),
         "cbt" => extract_tar_image(archive_path, entry_name, temp_dir),
         _ => Err(AppError::unsupported("Unsupported archive format")),
-    }
+    }?;
+    // FE는 이 경로로 asset URL을 만들어 계속 참조한다. 용량 상한이 이 파일을
+    // 지워버리면 재추출 없이 깨진 이미지가 되므로 축출 대상에서 보호한다.
+    crate::process_temp::mark_in_use(&out_path);
+    Ok(out_path)
 }
 
 fn open_archive_file(archive_path: &Path) -> Result<fs::File, AppError> {
@@ -63,8 +74,20 @@ fn open_archive_file(archive_path: &Path) -> Result<fs::File, AppError> {
 }
 
 fn write_extracted(out_path: &Path, buf: &[u8]) -> Result<(), AppError> {
-    fs::write(out_path, buf)
-        .map_err(|e| AppError::io("Failed to write temp file", e, ErrorCode::Unknown))
+    if let Some(parent) = out_path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|e| AppError::io("Failed to create temp dir", e, ErrorCode::Unknown))?;
+    }
+    // 직접 쓰면 동시 로더가 부분 파일을 읽을 수 있어 temp+rename으로 발행한다.
+    let tmp = crate::sidecar::tmp_path_for(out_path);
+    fs::write(&tmp, buf)
+        .map_err(|e| AppError::io("Failed to write temp file", e, ErrorCode::Unknown))?;
+    crate::sidecar::publish_atomic(&tmp, out_path, "Failed to publish temp file")?;
+    // 엔트리마다 디렉터리를 다시 훑지 않도록 누적 바이트로 상한을 추적한다.
+    if let Some(dir) = out_path.parent() {
+        crate::process_temp::note_written(dir, buf.len() as u64, MAX_ARCHIVE_DIR_BYTES);
+    }
+    Ok(())
 }
 
 fn check_entry_size(len: u64) -> Result<(), AppError> {
@@ -115,9 +138,6 @@ fn list_zip_images(archive_path: &Path) -> Result<Vec<String>, AppError> {
     images.sort_by_key(|n| n.to_lowercase());
     Ok(images)
 }
-
-/// 단일 엔트리 압축 해제 상한 (zipbomb 가드). 초과 시 에러로 중단한다.
-pub const MAX_ENTRY_BYTES: u64 = 200 * 1024 * 1024;
 
 fn extract_zip_image(
     archive_path: &Path,
@@ -411,7 +431,7 @@ fn prefetch_zip_images(archive_path: &Path, entry_names: &[&String], temp_dir: &
             Ok(buf) => buf,
             Err(_) => continue,
         };
-        if fs::write(&out_path, &buf).is_ok() {
+        if write_extracted(&out_path, &buf).is_ok() {
             done += 1;
         }
     }
