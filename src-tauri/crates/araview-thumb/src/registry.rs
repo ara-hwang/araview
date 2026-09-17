@@ -89,6 +89,10 @@ fn hkcu() -> RegKey {
 /// Resolve this DLL's own path. Only meaningful when running inside
 /// `araview_thumb.dll` (i.e. from `DllRegisterServer`).
 fn own_dll_path() -> io::Result<PathBuf> {
+    // SAFETY: with `GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS` the second
+    // argument is an address inside the module, not a string, so passing this
+    // function's own address as a `PCWSTR` is the documented idiom.
+    // `UNCHANGED_REFCOUNT` means the returned handle must not be freed.
     unsafe {
         let mut hmodule = HMODULE::default();
         GetModuleHandleExW(
@@ -154,6 +158,9 @@ fn ensure_psd_perceived_type() -> io::Result<()> {
 
 fn notify_shell() {
     use windows::Win32::UI::Shell::{SHChangeNotify, SHCNE_ASSOCCHANGED, SHCNF_IDLIST};
+    // SAFETY: notification-only call with null item pointers, matching the
+    // documented `SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL)`
+    // usage.
     unsafe {
         SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, None, None);
     }

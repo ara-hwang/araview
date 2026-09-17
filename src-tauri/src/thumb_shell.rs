@@ -189,6 +189,9 @@ fn notify_shell() {
     }
 }
 
+//   SHChangeNotify(LONG wEventId, UINT uFlags, LPCVOID dwItem1, LPCVOID dwItem2)
+// 앱은 의도적으로 `windows` 크레이트를 쓰지 않으므로(위 모듈 주석) 직접
+// 선언한다. 시그니처를 바꿀 때는 MSDN 원본과 대조할 것.
 #[link(name = "shell32")]
 extern "system" {
     fn SHChangeNotify(

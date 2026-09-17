@@ -55,6 +55,9 @@ pub unsafe extern "system" fn DllGetClassObject(
         if rclsid.is_null() || riid.is_null() || ppv.is_null() {
             return E_POINTER;
         }
+        // SAFETY: all three pointers were null-checked above and, per the
+        // `DllGetClassObject` contract, point to valid aligned storage for the
+        // duration of the call.
         unsafe {
             if *rclsid == CLSID_RELEASE || *rclsid == CLSID_DEV {
                 let factory: IClassFactory = ThumbClassFactory.into();
