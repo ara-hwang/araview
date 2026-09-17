@@ -24,3 +24,11 @@ windows = { version = "0.62", features = [
 winreg = "0.56"
 psd = "0.3"
 image = { version = "0.25", default-features = false }
+
+[lints.rust]
+unsafe_op_in_unsafe_fn = "deny"
+
+[lints.clippy]
+all = "warn"
+# restriction 계열이라 `all`에 포함되지 않아 명시적으로 켠다.
+undocumented_unsafe_blocks = "warn"

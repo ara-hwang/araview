@@ -300,11 +300,10 @@ pub fn set_file_association(
     crate::file_assoc::set_association(&extension, associate, window_hwnd(&window))
 }
 
-fn window_hwnd(window: &tauri::WebviewWindow) -> *mut std::ffi::c_void {
-    window
-        .hwnd()
-        .map(|hwnd| hwnd.0)
-        .unwrap_or(std::ptr::null_mut())
+/// 소유자 창의 HWND 값(없으면 0). `file_assoc`가 raw 포인터를 safe
+/// 시그니처로 받지 않도록 정수로 넘긴다.
+fn window_hwnd(window: &tauri::WebviewWindow) -> isize {
+    window.hwnd().map(|hwnd| hwnd.0 as isize).unwrap_or(0)
 }
 
 #[tauri::command]

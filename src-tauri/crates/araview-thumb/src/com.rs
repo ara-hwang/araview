@@ -59,6 +59,9 @@ impl InitState {
 }
 
 fn read_stream_all(stream: &IStream) -> Result<Vec<u8>> {
+    // SAFETY: `stream` is a live COM interface handed to us by the caller;
+    // `Stat`/`Read` only touch the local out-params below. A hostile stream
+    // can lie about sizes, so every length it reports is bounded before use.
     unsafe {
         let mut stat = STATSTG::default();
         stream.Stat(&mut stat, STATFLAG_DEFAULT)?;
@@ -80,10 +83,13 @@ fn read_stream_all(stream: &IStream) -> Result<Vec<u8>> {
             if hr.is_err() {
                 return Err(windows::core::Error::from_hresult(hr));
             }
+            // A buggy or hostile `IStream` may report more bytes than the
+            // buffer holds; clamp instead of panicking on the slice index.
+            let read = (read as usize).min(buf.len());
             if read == 0 {
                 break;
             }
-            out.extend_from_slice(&buf[..read as usize]);
+            out.extend_from_slice(&buf[..read]);
             if out.len() as u64 > MAX_STREAM_BYTES {
                 return Err(E_FAIL.into());
             }
@@ -124,6 +130,9 @@ impl IClassFactory_Impl for ThumbClassFactory_Impl {
         if ppvobject.is_null() || riid.is_null() {
             return Err(E_POINTER.into());
         }
+        // SAFETY: both pointers were null-checked above and, per the
+        // `IClassFactory` contract, point to valid aligned storage for the
+        // duration of the call. `query` hands the caller one owned reference.
         unsafe {
             *ppvobject = std::ptr::null_mut();
             let provider = PsdThumbProvider::default();
@@ -166,6 +175,8 @@ impl IInitializeWithStream_Impl for PsdThumbProvider_Impl {
 impl IInitializeWithFile_Impl for PsdThumbProvider_Impl {
     fn Initialize(&self, pszfilepath: &PCWSTR, _grfmode: u32) -> Result<()> {
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            // SAFETY: per `IInitializeWithFile`, `pszfilepath` is a valid
+            // NUL-terminated UTF-16 string owned by the caller for this call.
             let path = unsafe { pszfilepath.to_string() }?;
             *self.this.state.borrow_mut() = InitState::Path(PathBuf::from(path));
             Ok(())
@@ -219,6 +230,9 @@ impl PsdThumbProvider_Impl {
         // Explorer's default icon instead of a broken bitmap.
         let hbmp = thumbnail_for_bytes(&bytes, cx)?;
 
+        // SAFETY: both out-params were null-checked at the top of this
+        // function and, per `IThumbnailProvider`, point to valid aligned
+        // storage. Ownership of `hbmp` transfers to the caller here.
         unsafe {
             *phbmp = hbmp;
             *pdwalpha = WTSAT_RGB;
@@ -237,6 +251,9 @@ pub fn clsid_matches_registry(active: &GUID) -> bool {
 }
 
 #[cfg(test)]
+// 테스트의 unsafe는 전부 GDI 핸들 정리/조회 같은 셋업 코드라
+// SAFETY 주석을 요구하지 않는다. 프로덕션 코드에는 그대로 적용된다.
+#[allow(clippy::undocumented_unsafe_blocks)]
 mod tests {
     use super::*;
     use crate::registry::{CLSID_DEV_STR, CLSID_RELEASE_STR};

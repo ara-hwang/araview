@@ -49,10 +49,12 @@ pub fn list_associations() -> Result<Vec<FileAssociation>, AppError> {
 ///
 /// `associate`는 FE 호환용으로 유지되지만 무시된다. Windows UserChoice는
 /// 앱이 직접 쓸 수 없어 연결/해제 모두 OS 확인이 필요하기 때문이다.
+/// `parent_hwnd`는 소유자 창의 HWND 값(없으면 0)이다. raw 포인터를 safe
+/// 시그니처로 노출하지 않기 위해 정수로 받고 FFI 직전에만 변환한다.
 pub fn set_association(
     extension: &str,
     _associate: bool,
-    parent_hwnd: *mut c_void,
+    parent_hwnd: isize,
 ) -> Result<FileAssociation, AppError> {
     let ext = parse_extension(extension)?;
     let exe = current_exe()?;
@@ -391,7 +393,7 @@ fn status_after_picker(ext: &str, exe: &Path) -> Result<FileAssociation, AppErro
     status_for(ext, exe)
 }
 
-fn open_extension_picker(ext: &str, parent_hwnd: *mut c_void) -> Result<(), AppError> {
+fn open_extension_picker(ext: &str, parent_hwnd: isize) -> Result<(), AppError> {
     let dotted = format!(".{ext}");
     let wide: Vec<u16> = std::ffi::OsStr::new(&dotted)
         .encode_wide()
@@ -408,7 +410,9 @@ fn open_extension_picker(ext: &str, parent_hwnd: *mut c_void) -> Result<(), AppE
                 "COM initialize failed ({init_hr:#x})"
             )));
         }
-        let should_uninit = init_hr == 0;
+        // 성공한 CoInitializeEx는 S_OK/S_FALSE 모두 CoUninitialize로 짝을
+        // 맞춰야 한다. RPC_E_CHANGED_MODE만 초기화가 일어나지 않은 경우다.
+        let should_uninit = init_hr >= 0 && init_hr != RPC_E_CHANGED_MODE;
 
         let mut punk: *mut c_void = ptr::null_mut();
         let create_hr = CoCreateInstance(
@@ -429,8 +433,19 @@ fn open_extension_picker(ext: &str, parent_hwnd: *mut c_void) -> Result<(), AppE
 
         CoAllowSetForegroundWindow(punk, ptr::null_mut());
 
+        // vtbl 레이아웃 가정: IUnknown 3개(QueryInterface/AddRef/Release) 뒤에
+        // `Launch(HWND hwndParent, LPCWSTR pszPath, OPENASINFO_FLAGS)` 하나뿐인
+        // 인터페이스다. CoCreateInstance가 IID_IOpenWithLauncher로 성공했으므로
+        // 이 레이아웃이 성립한다. 플래그 0x2004는 OAIF_EXEC(0x4)와
+        // 문서화되지 않은 0x2000의 조합으로, 셸이 "연결 프로그램" 대화상자를
+        // 띄울 때 쓰는 값이다. 실패하면 호출자가 ms-settings URI로 폴백한다.
         let launcher = punk as *mut IOpenWithLauncher;
-        let launch_hr = ((*(*launcher).vtbl).launch)(launcher, parent_hwnd, wide.as_ptr(), 0x2004);
+        let launch_hr = ((*(*launcher).vtbl).launch)(
+            launcher,
+            parent_hwnd as *mut c_void,
+            wide.as_ptr(),
+            0x2004,
+        );
         ((*(*launcher).vtbl).release)(launcher);
 
         if should_uninit {
@@ -470,6 +485,8 @@ fn guid_from_string(value: &str) -> Result<Guid, AppError> {
         data3: 0,
         data4: [0; 8],
     };
+    // SAFETY: `wide`는 NUL로 끝나는 UTF-16 버퍼이고 `guid`는 초기화된 로컬
+    // out-param이다. 둘 다 호출 동안 살아 있다.
     let hr = unsafe { CLSIDFromString(wide.as_ptr(), &mut guid) };
     if hr < 0 {
         return Err(AppError::unknown(format!(
@@ -479,6 +496,8 @@ fn guid_from_string(value: &str) -> Result<Guid, AppError> {
     Ok(guid)
 }
 
+/// `windows` 크레이트를 앱 쪽에 끌어들이지 않기 위한 최소 선언
+/// (`thumb_shell.rs` 상단 주석 참조). 레이아웃은 Win32 `GUID`와 동일하다.
 #[repr(C)]
 struct Guid {
     data1: u32,
@@ -487,6 +506,10 @@ struct Guid {
     data4: [u8; 8],
 }
 
+/// 문서화되지 않은 셸 내부 인터페이스. `windows` 크레이트에도 바인딩이 없어
+/// 손으로 선언한다. 메서드는 IUnknown 3개 뒤에 `Launch` 하나뿐이다.
+/// <https://learn.microsoft.com/windows/win32/api/shobjidl_core/> 에는 없고
+/// CLSID는 `HKLM\...\CurrentVersion\OpenWith` 의 `OpenWithLauncher` 값에서 읽는다.
 #[repr(C)]
 struct IOpenWithLauncher {
     vtbl: *const IOpenWithLauncherVtbl,
@@ -512,6 +535,14 @@ const IID_IOPEN_WITH_LAUNCHER: Guid = Guid {
     data4: [0x91, 0xC4, 0xE8, 0x09, 0x57, 0x13, 0x7B, 0x26],
 };
 
+// ole32/shell32 바인딩을 직접 선언한다. 앱은 의도적으로 `windows` 크레이트를
+// 쓰지 않으므로(`thumb_shell.rs` 상단 주석), 시그니처를 바꿀 때는 MSDN의
+// 원본 선언과 대조할 것. 인자 하나라도 어긋나면 호출 규약이 깨진다.
+//   CoInitializeEx(LPVOID, DWORD) -> HRESULT
+//   CoUninitialize(void)
+//   CoCreateInstance(REFCLSID, LPUNKNOWN, DWORD, REFIID, LPVOID*) -> HRESULT
+//   CLSIDFromString(LPCOLESTR, LPCLSID) -> HRESULT
+//   CoAllowSetForegroundWindow(IUnknown*, LPVOID) -> HRESULT
 #[link(name = "ole32")]
 extern "system" {
     fn CoInitializeEx(pvreserved: *mut c_void, dwcoinit: u32) -> i32;
@@ -527,6 +558,8 @@ extern "system" {
     fn CoAllowSetForegroundWindow(punk: *mut c_void, reserved: *mut c_void) -> i32;
 }
 
+//   ShellExecuteW(HWND, LPCWSTR, LPCWSTR, LPCWSTR, LPCWSTR, INT) -> HINSTANCE
+// 반환값은 실제로는 정수 코드이며 32 이하가 실패다(MSDN).
 #[link(name = "shell32")]
 extern "system" {
     fn ShellExecuteW(
