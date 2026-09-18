@@ -19,7 +19,8 @@ import {
   setImageInfoAndResetView,
   setZoomToFit,
   useAppStore,
-  zoomInBy
+  zoomInBy,
+  zoomOutBy
 } from "@/store/appStore"
 import { useSettingsStore } from "@/store/settingsStore"
 
@@ -445,5 +446,76 @@ describe("fitMode 기억", () => {
     expect(useAppStore.getState().zoom).toBeCloseTo(0.5)
     expect(useAppStore.getState().position).toEqual({ x: 0, y: 0 })
     expect(useSettingsStore.getState().fitMode).toBe("height")
+  })
+})
+
+describe("isFitLocked", () => {
+  it("초기 상태와 closeImage 후에는 잠긴다", () => {
+    expect(useAppStore.getState().isFitLocked).toBe(true)
+    useAppStore.setState({ isFitLocked: false })
+    closeImage()
+    expect(useAppStore.getState().isFitLocked).toBe(true)
+  })
+
+  it("setZoomToFit은 잠근다", () => {
+    useAppStore.setState({
+      containerSize: { width: 1000, height: 700 },
+      imageSize: { width: 2000, height: 1000 },
+      rotation: 0,
+      zoom: 1,
+      position: { x: 0, y: 0 },
+      isFitLocked: false
+    })
+    setZoomToFit("width")
+    expect(useAppStore.getState().isFitLocked).toBe(true)
+  })
+
+  it("수동 줌(zoomInBy/zoomOutBy)은 잠금을 푼다", () => {
+    useAppStore.setState({
+      containerSize: { width: 1000, height: 700 },
+      imageSize: { width: 2000, height: 1000 },
+      rotation: 0,
+      zoom: 0.5,
+      position: { x: 0, y: 0 },
+      isFitLocked: true
+    })
+    zoomInBy()
+    expect(useAppStore.getState().isFitLocked).toBe(false)
+    useAppStore.setState({ isFitLocked: true })
+    zoomOutBy()
+    expect(useAppStore.getState().isFitLocked).toBe(false)
+  })
+
+  it("resetZoomPan과 applyRememberedFit은 다시 잠근다", () => {
+    useSettingsStore.setState({ fitMode: "width" })
+    useAppStore.setState({
+      containerSize: { width: 1000, height: 700 },
+      imageSize: { width: 2000, height: 1000 },
+      rotation: 0,
+      zoom: 2,
+      position: { x: 10, y: 20 },
+      isFitLocked: false
+    })
+    resetZoomPan()
+    expect(useAppStore.getState().isFitLocked).toBe(true)
+    useAppStore.setState({ isFitLocked: false })
+    applyRememberedFit()
+    expect(useAppStore.getState().isFitLocked).toBe(true)
+  })
+
+  it("setImageInfoAndResetView는 다음 이미지를 잠근 상태로 연다", () => {
+    useAppStore.setState({
+      containerSize: { width: 1000, height: 700 },
+      isFitLocked: false
+    })
+    setImageInfoAndResetView({
+      file_path: "/pics/b.jpg",
+      file_name: "b.jpg",
+      file_size: 456,
+      mime_type: "image/jpeg",
+      width: 2000,
+      height: 1000
+    })
+    expect(useAppStore.getState().isFitLocked).toBe(true)
   })
 })

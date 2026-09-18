@@ -9,12 +9,13 @@ import {
   startDrag,
   moveDrag
 } from "@/store/appStore"
-import { getSettings } from "@/store/settingsStore"
+import { getSettings, useSettingsStore } from "@/store/settingsStore"
 
 import {
   getPositionBounds,
   clampPosition,
   getOrientedImageSize,
+  getZoomForFitMode,
   isFullyContained
 } from "../utils/zoomPanUtils"
 
@@ -38,8 +39,14 @@ export function useZoomPan() {
     }))
   )
   const setIsDragging = useAppStore((state) => state.setIsDragging)
+  const isFitLocked = useAppStore((state) => state.isFitLocked)
+  const viewMode = useSettingsStore((state) => state.viewMode)
+  const fitMode = useSettingsStore((state) => state.fitMode)
 
   const prevZoomRef = useRef(1)
+  // 컨테이너 변화 감지용. 이미지 전환 경로는 applyRememberedFit이 처리하므로
+  // 이 effect는 컨테이너 크기가 실제로 바뀐 경우에만 핏을 다시 계산한다.
+  const prevContainerRef = useRef({ width: 0, height: 0 })
   // 고빈도 mousemove를 rAF당 1회로 합쳐 zustand 갱신 폭주를 방지
   const rafRef = useRef(0)
   const pendingPosRef = useRef<{ x: number; y: number } | null>(null)
@@ -105,6 +112,40 @@ export function useZoomPan() {
     applyRememberedFit()
     prevZoomRef.current = useAppStore.getState().zoom
   }, [])
+
+  // 윈도우 리사이즈(컨테이너 크기 변화) 시 핏 잠금이 유지 중이면 기억된 맞춤 모드를
+  // 다시 적용한다. 수동 줌으로 잠금이 풀렸거나 single 모드가 아니면 기존 clamp만 유지한다.
+  useLayoutEffect(() => {
+    if (!app.imageInfo) return
+    const cw = app.containerSize.width
+    const ch = app.containerSize.height
+    if (prevContainerRef.current.width === cw && prevContainerRef.current.height === ch) {
+      return
+    }
+    prevContainerRef.current = { width: cw, height: ch }
+    if (viewMode !== "single") return
+    if (!isFitLocked) return
+    if (app.isDragging) return
+    const oriented = getOrientedImageSize(app.imageSize.width, app.imageSize.height, app.rotation)
+    const iw = oriented.width
+    const ih = oriented.height
+    if (cw <= 0 || ch <= 0 || iw <= 0 || ih <= 0) return
+    const zoom = getZoomForFitMode(fitMode, cw, ch, iw, ih)
+    if (!Number.isFinite(zoom) || zoom <= 0) return
+    if (Math.abs(zoom - app.zoom) < 1e-9) return
+    prevZoomRef.current = zoom
+    useAppStore.setState({ zoom, position: { x: 0, y: 0 } })
+  }, [
+    app.imageInfo,
+    app.containerSize,
+    app.imageSize,
+    app.rotation,
+    app.zoom,
+    app.isDragging,
+    viewMode,
+    fitMode,
+    isFitLocked
+  ])
 
   // 줌 값이 바뀔 때 기존 position 비율을 유지하면서,
   // 컨테이너를 벗어나지 않도록 clamp 해서 position을 재계산
