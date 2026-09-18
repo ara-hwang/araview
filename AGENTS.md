@@ -194,6 +194,23 @@ Tauri Store (`settings.json`) is used for:
         `agent-browser --cdp 9222` with
         `$env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-port=9222"`
         set in the launching shell. Never use stateful `connect`, it hangs.
+- Tauri MCP "missing" reports are usually misdiagnoses. Check in this order:
+  1. Names: repo `mcp-server-tauri` is not an npm name. MCP server is
+     `@hypothesi/tauri-mcp-server` (stdio protocol, no `--help`/`--version`
+     output by design), terminal CLI is `@hypothesi/tauri-mcp-cli`
+     (`tauri-mcp` binary, also no `--version`), Rust bridge is
+     `tauri-plugin-mcp-bridge`. Never probe with `npm view mcp-server-tauri`
+     (404 is expected) or `tauri-mcp --version` (unknown option is expected).
+     Use `npm ls -g @hypothesi/tauri-mcp-cli` and `tauri-mcp --help`.
+  2. Installed vs connected: the CLI responding means installed. Connecting
+     additionally needs `npm run dev:up` (`:1420` + `:9223`) plus
+     `driver-session start --port 9223`. The bridge only exists in dev builds
+     (`dev-mcp` feature, `src-tauri/src/lib.rs`); release builds
+     (`--no-default-features`) have no bridge, so connection failure there is
+     expected, not a missing installation.
+  3. Fresh-session flake: opencode loads MCP at session start and the first
+     `npx -y` download can time out. Restart the session before concluding
+     anything is missing.
 - Do not finish a change with "run the tests yourself" or similar. If the
   dev app or bridge cannot start, report the exact failure instead of
   skipping verification silently.
