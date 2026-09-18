@@ -36,10 +36,10 @@
 .EXAMPLE
   # Interim public feed: the release (assets plus latest.json) goes to a public repo
   # that plugins.updater.endpoints points at, while the source repo stays private.
-  npm run release:local -- -Publish -UpdatesRepo ara-hwang/araview-updates
+  npm run release:local -- -UpdatesRepo ara-hwang/araview-updates
 .EXAMPLE
-  # Reuse the last build and publish immediately instead of leaving a draft.
-  npm run release:local -- -SkipBuild -Publish
+  # Reuse the last build (publishes immediately by default).
+  npm run release:local -- -SkipBuild
 #>
 param(
   # GitHub repository that owns the source and, by default, the release.
@@ -49,8 +49,8 @@ param(
   [string]$UpdatesRepo,
   # Skip `npm run tauri build` and reuse the existing bundle artifacts.
   [switch]$SkipBuild,
-  # Publish the release immediately instead of leaving it as a draft.
-  [switch]$Publish,
+  # Publish the release immediately. Pass -Publish:$false to leave it as a draft.
+  [switch]$Publish = $true,
   # Release notes. Defaults to the same sentence the release workflow uses.
   [string]$Notes = "See the assets to download this version and install.",
   # Signing key file. Defaults to the search order documented in -Description.
@@ -291,5 +291,8 @@ if ($Publish -and $isDraft) {
 
 if (-not $Publish) {
   Write-Output "Draft release ready. Publish with: gh release edit $tag --repo $releaseRepo --draft=false"
+}
+else {
+  Write-Output "Release $tag published."
 }
 Write-Output "Done. Check with: gh release view $tag --repo $releaseRepo"

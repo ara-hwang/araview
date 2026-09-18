@@ -11,7 +11,7 @@ maintainer용 안내입니다. 사용자용 업데이트 확인 방법은 `usage
 앱의 updater는 인증 없이 엔드포인트를 받아야 하므로, 소스가 비공개인 동안에는 공개 저장소의 릴리스에 자산을 게시합니다.
 
 ```powershell
-npm run release:local -- -Publish -UpdatesRepo ara-hwang/araview-updates
+npm run release:local -- -UpdatesRepo ara-hwang/araview-updates
 ```
 
 - 피드(`latest.json`)와 설치본이 모두 `ara-hwang/araview-updates` 릴리스에 있고, `plugins.updater.endpoints`는 `https://github.com/ara-hwang/araview-updates/releases/latest/download/latest.json`을 가리킵니다.
@@ -61,8 +61,8 @@ CI 빌드가 오래 걸리거나 워크플로를 쓸 수 없을 때, 이 PC에�
 
 ```powershell
 # .env.example을 .env.local로 복사해 키와 비밀번호를 채우면 환경변수 없이 동작합니다.
-npm run release:local                 # 초안 릴리스 생성
-npm run release:local -- -Publish     # 바로 공개
+npm run release:local                    # 바로 공개
+npm run release:local -- -Publish:$false  # 초안으로 남기기
 ```
 
 - 키와 비밀번호는 `.env.local`(gitignored)에 두는 걸 권장합니다. `.env.example`을 복사해 값을 채우면 환경변수를 하나도 설정하지 않아도 됩니다. 이미 설정된 환경변수가 `.env.local`보다 우선합니다.
