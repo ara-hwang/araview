@@ -17,8 +17,9 @@
     6. Check that the signature belongs to plugins.updater.pubkey.
     7. Collect the installer, its signature, and latest.json in <repo>/release/<tag>.
     8. Push the tag and create or update the release in -UpdatesRepo (defaults to
-       -Repo). That release holds the installer, its signature, and latest.json,
-       which is what the updater endpoint points at while the source stays private.
+       the public updates feed). That release holds the installer, its signature,
+       and latest.json, which is what the updater endpoint points at while the
+       source stays private.
 
   The signing key stays on this machine; only the installer, its signature, and
   latest.json are uploaded.
@@ -34,9 +35,9 @@
   # Explicit key path, or inspect the flow without touching GitHub.
   pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/Publish-LocalRelease.ps1 -KeyPath D:\keys\araview.key -DryRun -SkipBuild
 .EXAMPLE
-  # Interim public feed: the release (assets plus latest.json) goes to a public repo
-  # that plugins.updater.endpoints points at, while the source repo stays private.
-  npm run release:local -- -UpdatesRepo ara-hwang/araview-updates
+  # Updates feed: release assets go to the public repo by default.
+  # Pass -UpdatesRepo to put them in the source repo instead.
+  npm run release:local -- -UpdatesRepo ara-hwang/araview
 .EXAMPLE
   # Reuse the last build (publishes immediately by default).
   npm run release:local -- -SkipBuild
@@ -44,9 +45,9 @@
 param(
   # GitHub repository that owns the source and, by default, the release.
   [string]$Repo = "ara-hwang/araview",
-  # Repository that hosts the release assets the updater downloads. Defaults to -Repo.
-  # Point this at a public repo while the source repository stays private.
-  [string]$UpdatesRepo,
+  # Repository that hosts the release assets the updater downloads.
+  # Defaults to the public updates feed while the source stays private.
+  [string]$UpdatesRepo = "ara-hwang/araview-updates",
   # Skip `npm run tauri build` and reuse the existing bundle artifacts.
   [switch]$SkipBuild,
   # Publish the release immediately. Pass -Publish:$false to leave it as a draft.
