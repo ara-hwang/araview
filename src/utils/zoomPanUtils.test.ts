@@ -6,7 +6,8 @@ import {
   isFullyContained,
   getFitZoomFromSizes,
   getMinZoom,
-  getOrientedImageSize
+  getOrientedImageSize,
+  getZoomForFitMode
 } from "./zoomPanUtils"
 
 describe("getOrientedImageSize", () => {
@@ -139,5 +140,38 @@ describe("getMinZoom", () => {
 
   it("allows large images to shrink to fit", () => {
     expect(getMinZoom(800, 600, 1600, 1200)).toBe(0.5)
+  })
+})
+
+describe("getZoomForFitMode", () => {
+  it("width는 컨테이너 너비에 맞춘다", () => {
+    expect(getZoomForFitMode("width", 1000, 700, 2000, 1000)).toBe(0.5)
+  })
+
+  it("height는 컨테이너 높이에 맞춘다", () => {
+    expect(getZoomForFitMode("height", 1000, 700, 2000, 1400)).toBe(0.5)
+  })
+
+  it("screen은 양쪽을 containment한다", () => {
+    expect(getZoomForFitMode("screen", 1000, 700, 2000, 1000)).toBe(0.5)
+  })
+
+  it("width/height/screen은 작은 이미지도 확대한다", () => {
+    expect(getZoomForFitMode("width", 1000, 700, 100, 100)).toBe(10)
+    expect(getZoomForFitMode("height", 1000, 700, 100, 100)).toBe(7)
+    expect(getZoomForFitMode("screen", 1000, 700, 100, 100)).toBe(7)
+  })
+
+  it("auto는 작은 이미지를 100%로 둔다", () => {
+    expect(getZoomForFitMode("auto", 1000, 700, 100, 100)).toBe(1)
+  })
+
+  it("auto는 큰 이미지를 화면에 맞춘다", () => {
+    expect(getZoomForFitMode("auto", 1000, 700, 2000, 1000)).toBe(0.5)
+  })
+
+  it("크기를 모르면 1을 반환한다", () => {
+    expect(getZoomForFitMode("width", 0, 700, 2000, 1000)).toBe(1)
+    expect(getZoomForFitMode("screen", 1000, 700, 0, 1000)).toBe(1)
   })
 })

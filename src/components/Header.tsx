@@ -75,6 +75,7 @@ export default function Header({
   const hasImage = useAppStore((state) => state.imageInfo !== null)
   const shortcuts = useSettingsStore((state) => state.shortcuts)
   const menuBarHidden = useSettingsStore((state) => state.menuBarHidden)
+  const fitMode = useSettingsStore((state) => state.fitMode)
   const withShortcut = (label: string, binding: string) =>
     binding ? `${label} (${formatShortcutDisplay(binding)})` : label
   const [isMaximized, setIsMaximized] = useState(false)
@@ -178,6 +179,11 @@ export default function Header({
                 disabled={!hasImage}
                 title={withShortcut(t("header.fitWidth"), shortcuts.fitWidth)}
                 aria-label={withShortcut(t("header.fitWidth"), shortcuts.fitWidth)}
+                aria-pressed={fitMode === "width"}
+                className={cn(
+                  fitMode === "width" &&
+                    "border-primary/40 bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary"
+                )}
               >
                 <ArrowsHorizontal />
                 <span className="hidden min-[1440px]:inline">{t("header.fitWidth")}</span>
@@ -188,6 +194,11 @@ export default function Header({
                 disabled={!hasImage}
                 title={withShortcut(t("header.fitHeight"), shortcuts.fitHeight)}
                 aria-label={withShortcut(t("header.fitHeight"), shortcuts.fitHeight)}
+                aria-pressed={fitMode === "height"}
+                className={cn(
+                  fitMode === "height" &&
+                    "border-primary/40 bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary"
+                )}
               >
                 <ArrowsVertical />
                 <span className="hidden min-[1440px]:inline">{t("header.fitHeight")}</span>
@@ -198,6 +209,11 @@ export default function Header({
                 disabled={!hasImage}
                 title={withShortcut(t("header.fitScreen"), shortcuts.fitScreen)}
                 aria-label={withShortcut(t("header.fitScreen"), shortcuts.fitScreen)}
+                aria-pressed={fitMode === "screen"}
+                className={cn(
+                  fitMode === "screen" &&
+                    "border-primary/40 bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary"
+                )}
               >
                 <ArrowsOut />
                 <span className="hidden min-[1440px]:inline">{t("header.fitScreen")}</span>

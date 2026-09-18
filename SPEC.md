@@ -193,8 +193,9 @@
 
 - `zoomIn`: `min(zoom * 1.25, 10)`.
 - `zoomOut`: 동적 최소값까지 `zoom / 1.25`.
-- `0`: 리셋(`resetZoomPan`, `min(1, fit)` + 위치 0 + 회전/반전 초기화).
-- `1/2/3`: 가로 맞춤 / 세로 맞춤 / 화면 맞춤(`setZoomToFit`).
+- `0`: 자동 맞춤으로 리셋(`resetZoomPan`, `fitMode: auto` 저장 + `getZoomForFitMode("auto")` + 위치 0 + 회전/반전 초기화).
+- `1/2/3`: 가로 맞춤 / 세로 맞춤 / 화면 맞춤(`setZoomToFit`, `fitMode` 저장).
+- `fitMode`: `width | height | screen | auto`. 기본 `auto`. `1/2/3`과 헤더 버튼으로 바꾸면 `settings.json`에 저장되고, 이미지 전환(`setImageInfoAndResetView`, `applyImageNaturalSize`, `applyRememberedFit`)마다 다시 적용된다. `auto`는 큰 이미지만 맞추고 작은 이미지는 100%로 두며, `width/height/screen`은 작은 이미지도 확대한다. 헤더 맞춤 버튼은 현재 `fitMode`를 `aria-pressed`와 하이라이트로 표시한다.
 - 맞춤 계산은 회전된 치수(90/270도면 가로세로 교환) 기준이다.
 
 ### 7.2 팬
@@ -208,7 +209,7 @@
 - `rotation`: `0 | 90 | 180 | 270`.
 - `R`: 시계 90도, `Shift+R`: 반시계 90도.
 - `H`: 좌우 반전, `V`: 상하 반전.
-- 이미지 변경 시 `resetZoomPan`으로 초기화된다.
+- 이미지 변경 시 기억된 맞춤 모드로 초기화된다(`setImageInfoAndResetView`, `applyRememberedFit`).
 - 저장 시 순서는 회전 먼저, 반전 나중이며 화면 CSS 합성과 일치한다.
 
 ### 7.4 배경/표시
@@ -385,6 +386,7 @@
 | `shuffle`             | 셔플                                                    | `false`                            |
 | `includeSubfolders`   | 하위 폴더 포함(재귀)                                    | `false`                            |
 | `skipBrokenFiles`     | 손상 파일 자동 건너뛰기                                 | `false`                            |
+| `fitMode`             | 맞춤 기억 `width \| height \| screen \| auto`           | `auto`                             |
 | `shortcuts`           | 단축키 맵                                               | 아래 기본표                        |
 | `wheel`               | 휠 맵                                                   | 아래 기본표                        |
 | `mouse`               | 마우스 맵                                               | 아래 기본표                        |

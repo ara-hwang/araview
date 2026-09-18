@@ -12,7 +12,8 @@ describe("sanitizeSettings", () => {
       viewMode: "webtoon",
       slideshowIntervalMs: 5000,
       sortKey: "size",
-      sortDescending: true
+      sortDescending: true,
+      fitMode: "width"
     })
     expect(sane.language).toBe("en")
     expect(sane.loopNavigation).toBe(true)
@@ -21,6 +22,7 @@ describe("sanitizeSettings", () => {
     expect(sane.slideshowIntervalMs).toBe(5000)
     expect(sane.sortKey).toBe("size")
     expect(sane.sortDescending).toBe(true)
+    expect(sane.fitMode).toBe("width")
   })
 
   it("잘못된 union 값은 기본값으로 되돌린다", () => {
@@ -29,13 +31,15 @@ describe("sanitizeSettings", () => {
       viewMode: "grid",
       viewerBackground: "neon",
       sortKey: "random",
-      language: "fr"
+      language: "fr",
+      fitMode: "cover"
     })
     expect(sane.cacheMode).toBe("nearby")
     expect(sane.viewMode).toBe("single")
     expect(sane.viewerBackground).toBe("theme")
     expect(sane.sortKey).toBe("name")
     expect(sane.language).toBe("ko")
+    expect(sane.fitMode).toBe("auto")
   })
 
   it("범위를 벗어난 슬라이드쇼 간격은 기본값으로 되돌린다", () => {
