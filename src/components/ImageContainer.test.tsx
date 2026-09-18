@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react"
+import { cleanup, render, screen } from "@testing-library/react"
 import { createRef } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -24,6 +24,7 @@ import { closeImage, useAppStore } from "@/store/appStore"
 const noop = () => {}
 
 beforeEach(() => {
+  cleanup()
   closeImage()
 })
 
@@ -74,5 +75,80 @@ describe("ImageContainer single mode", () => {
     expect(img.style.width).toBe("2000px")
     expect(img.style.height).toBe("1000px")
     expect(img.style.transform).toContain("scale(0.5")
+  })
+
+  it("SVG는 레이아웃 크기로 줌하고 transform에는 반전/회전만 남긴다", () => {
+    useAppStore.setState({
+      imageInfo: {
+        file_path: "/pics/vector.svg",
+        file_name: "vector.svg",
+        file_size: 456,
+        mime_type: "image/svg+xml",
+        width: 800,
+        height: 600
+      },
+      containerSize: { width: 1000, height: 700 },
+      imageSize: { width: 800, height: 600 },
+      zoom: 2,
+      position: { x: 0, y: 0 },
+      rotation: 0,
+      flipH: false,
+      flipV: false
+    })
+
+    render(
+      <ImageContainer
+        containerRef={createRef<HTMLDivElement>()}
+        imageRef={createRef<HTMLImageElement>()}
+        onWheel={noop}
+        onMouseDown={noop}
+        onMouseMove={noop}
+        onMouseUp={noop}
+      />
+    )
+
+    const img = screen.getByAltText("vector.svg")
+    // 표시 크기에서 재래스터되도록 레이아웃 크기에 줌을 곱한다.
+    expect(img.style.width).toBe("1600px")
+    expect(img.style.height).toBe("1200px")
+    expect(img.style.transform).toContain("scale(1, 1)")
+    expect(img.style.transform).not.toContain("scale(2")
+  })
+
+  it("SVG 반전은 줌과 분리된 부호로 transform에 남긴다", () => {
+    useAppStore.setState({
+      imageInfo: {
+        file_path: "/pics/vector.svg",
+        file_name: "vector.svg",
+        file_size: 456,
+        mime_type: "image/svg+xml",
+        width: 800,
+        height: 600
+      },
+      containerSize: { width: 1000, height: 700 },
+      imageSize: { width: 800, height: 600 },
+      zoom: 2,
+      position: { x: 10, y: -5 },
+      rotation: 90,
+      flipH: true,
+      flipV: false
+    })
+
+    render(
+      <ImageContainer
+        containerRef={createRef<HTMLDivElement>()}
+        imageRef={createRef<HTMLImageElement>()}
+        onWheel={noop}
+        onMouseDown={noop}
+        onMouseMove={noop}
+        onMouseUp={noop}
+      />
+    )
+
+    const img = screen.getByAltText("vector.svg")
+    expect(img.style.width).toBe("1600px")
+    expect(img.style.height).toBe("1200px")
+    expect(img.style.transform).toContain("scale(-1, 1)")
+    expect(img.style.transform).toContain("rotate(90deg)")
   })
 })

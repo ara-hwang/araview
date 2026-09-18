@@ -117,7 +117,7 @@ pub enum IccStatus {
 pub struct ImageDetails {
     pub file_path: String,
     pub file_size: u64,
-    /// 렌더 바이트 기준 치수. SVG 등 미지원분은 null.
+    /// 렌더 바이트 기준 치수. SVG는 헤더 파싱으로 복원하며, 해석 불가분만 null.
     pub width: Option<u32>,
     pub height: Option<u32>,
     /// "rgb" | "rgba" | "grayscale" | "grayscale-alpha" | "unknown".
@@ -152,6 +152,14 @@ pub fn details_for_path(path: &Path) -> Result<ImageDetails, AppError> {
         PaintStrategy::TranscodeJpeg => crate::heif::ensure_jpeg_sidecar(path)?,
     };
     let (width, height) = image::image_dimensions(&paint_path).ok().unzip();
+    // SVG는 image 크레이트 미지원이라 헤더 파싱으로 복원한다.
+    let (width, height) = match (width, height) {
+        (Some(w), Some(h)) => (Some(w), Some(h)),
+        (w, h) if mime == "image/svg+xml" => crate::image::svg_dimensions(&paint_path)
+            .map(|(sw, sh)| (Some(sw), Some(sh)))
+            .unwrap_or((w, h)),
+        (w, h) => (w, h),
+    };
     let (color_mode, bits_per_channel) = color_info(path, mime);
     let (dpi_x, dpi_y) = resolution_dpi(path);
     let (icc_status, icc_name, icc_bytes) = icc_info(path);
@@ -562,6 +570,20 @@ mod tests {
         let source = dir.path().join("anim.gif");
         fs::write(&source, b"GIF89a").unwrap();
         let details = details_for_path(&source).expect("details");
+        assert_eq!(details.icc_status, IccStatus::Unchecked);
+    }
+
+    #[test]
+    fn details_svg_reports_header_dimensions() {
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("vector.svg");
+        fs::write(
+            &source,
+            r#"<svg width="800" height="600" xmlns="http://www.w3.org/2000/svg"></svg>"#,
+        )
+        .unwrap();
+        let details = details_for_path(&source).expect("details");
+        assert_eq!((details.width, details.height), (Some(800), Some(600)));
         assert_eq!(details.icc_status, IccStatus::Unchecked);
     }
 

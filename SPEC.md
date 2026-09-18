@@ -25,20 +25,20 @@
 
 ### 2.1 순수 이미지 14종
 
-| 확장자        | MIME                        | 비고                                                                    |
-| ------------- | --------------------------- | ----------------------------------------------------------------------- |
-| `png`         | `image/png`                 | 네이티브 렌더                                                           |
-| `jpg`, `jpeg` | `image/jpeg`                | 네이티브 렌더                                                           |
-| `gif`         | `image/gif`                 | 네이티브 렌더                                                           |
-| `bmp`         | `image/bmp`                 | 네이티브 렌더                                                           |
-| `webp`        | `image/webp`                | 네이티브 렌더                                                           |
-| `svg`         | `image/svg+xml`             | 네이티브 렌더. `image` 크레이트 치수 미지원 시 `width/height` 생략 가능 |
-| `ico`         | `image/x-icon`              | 네이티브 렌더                                                           |
-| `tiff`, `tif` | `image/tiff`                | 네이티브 렌더                                                           |
-| `avif`        | `image/avif`                | 네이티브 렌더                                                           |
-| `heic`        | `image/heic`                | JPEG sidecar 트랜스코드 후 렌더                                         |
-| `heif`        | `image/heif`                | JPEG sidecar 트랜스코드 후 렌더                                         |
-| `psd`         | `image/vnd.adobe.photoshop` | JPEG sidecar 트랜스코드 후 렌더(읽기 전용, 편집 저장 미지원)            |
+| 확장자        | MIME                        | 비고                                                                                                                    |
+| ------------- | --------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `png`         | `image/png`                 | 네이티브 렌더                                                                                                           |
+| `jpg`, `jpeg` | `image/jpeg`                | 네이티브 렌더                                                                                                           |
+| `gif`         | `image/gif`                 | 네이티브 렌더                                                                                                           |
+| `bmp`         | `image/bmp`                 | 네이티브 렌더                                                                                                           |
+| `webp`        | `image/webp`                | 네이티브 렌더                                                                                                           |
+| `svg`         | `image/svg+xml`             | 네이티브 렌더. 치수는 `<svg>` 헤더(width/height/viewBox, 절대 단위) 파싱으로 복원하며 해석 불가분만 `width/height` 생략 |
+| `ico`         | `image/x-icon`              | 네이티브 렌더                                                                                                           |
+| `tiff`, `tif` | `image/tiff`                | 네이티브 렌더                                                                                                           |
+| `avif`        | `image/avif`                | 네이티브 렌더                                                                                                           |
+| `heic`        | `image/heic`                | JPEG sidecar 트랜스코드 후 렌더                                                                                         |
+| `heif`        | `image/heif`                | JPEG sidecar 트랜스코드 후 렌더                                                                                         |
+| `psd`         | `image/vnd.adobe.photoshop` | JPEG sidecar 트랜스코드 후 렌더(읽기 전용, 편집 저장 미지원)                                                            |
 
 ### 2.2 아카이브 7종
 
@@ -191,7 +191,7 @@
 
 ### 7.1 줌
 
-- `zoomIn`: `min(zoom * 1.25, 10)`.
+- `zoomIn`: `min(zoom * 1.25, max)`. 상한은 SVG 40, 그 외 10.
 - `zoomOut`: 동적 최소값까지 `zoom / 1.25`.
 - `0`: 자동 맞춤으로 리셋(`resetZoomPan`, `fitMode: auto` 저장 + `getZoomForFitMode("auto")` + 위치 0 + 회전/반전 초기화).
 - `1/2/3`: 가로 맞춤 / 세로 맞춤 / 화면 맞춤(`setZoomToFit`, `fitMode` 저장).
@@ -276,7 +276,7 @@
 
 - 입력 `file_path`, 반환 `Histogram`(`r/g/b` 256빈 + `sampled_pixels`).
 - HEIC/HEIF/PSD는 전용 디코더, 그 외는 `image` 크레이트로 디코드 후 최대 변 256px로 다운샘플해 집계한다.
-- 디코드 불가 포맷(SVG, AVIF 등)은 `unsupported`/`corrupt` 에러를 내고, 프론트는 차트 대신 안내 문구를 표시한다(`histogram.unavailable`).
+- 디코드 불가 포맷(SVG, AVIF 등)은 `unsupported`/`corrupt` 에러를 내고, 프론트는 차트 대신 안내 문구를 표시한다(`histogram.unavailable`, SVG는 벡터 안내 `histogram.vectorUnavailable`).
 - 렌더는 신규 의존성 없이 SVG 영역 차트(`HistogramChart`, 채널별 3경로 + 범례, `role="img"` + 제목)이다.
 
 ### 10.2 파일 상세 `get_image_details`
@@ -496,7 +496,7 @@ Rust와 TypeScript는 같은 모양을 유지한다.
 - `mime_type: string`
 - `file_name: string`
 - `file_size: number`
-- `width: number | null`, `height: number | null`: 렌더 바이트 기준 치수. SVG 등 미지원분은 null.
+- `width: number | null`, `height: number | null`: 렌더 바이트 기준 치수. SVG는 헤더 파싱으로 복원하며 해석 불가분만 null.
 
 ### 17.2 기타
 
@@ -536,7 +536,7 @@ Rust와 TypeScript는 같은 모양을 유지한다.
 
 ## 19. 렌더링 경로
 
-- 백엔드는 디코드용 파일 경로를 돌려주고, 프론트는 `convertFileSrc(...)`로 변환해 `<img>`에 넣는다.
+- 백엔드는 디코드용 파일 경로를 돌려주고, 프론트는 `convertFileSrc(...)`로 변환해 `<img>`에 넣는다. single 모드의 SVG는 `scale(zoom)` 대신 레이아웃 크기(`원본 x 줌`)로 확대해 브라우저가 표시 크기에서 재래스터하게 한다.
 - HEIC/HEIF/PSD만 JPEG sidecar를 만든다. sidecar는 프로세스 임시 디렉터리 아래에 있다.
 - 아카이브 추출물도 같은 임시 디렉터리 아래 `archive-<hash>/`에 둔다. hash는 아카이브 canonical 경로+mtime+크기라 동명 아카이브가 캐시를 공유하지 않는다.
 - 썸네일은 `process_temp/thumbs/` 아래 JPEG 캐시를 쓴다.
@@ -589,7 +589,7 @@ Windows 파일 탐색기에서 `.psd` 축소판을 표시한다. 미리보기 �
 - 핸들러는 `araview_thumb.dll` 안의 In-Proc COM 서버이다. `IThumbnailProvider` + `IInitializeWithStream`(격리 surrogate 주 경로)/`IInitializeWithFile`을 구현하고, `psd` 크레이트 합성 디코드 + 흰 배경 합성(앱 JPEG sidecar와 동일 규칙)으로 32bpp DIB를 돌려준다. PSB(`8BPB`)는 거부하고 탐색기가 기본 아이콘으로 폴백한다. `DisableProcessIsolation`은 두지 않는다.
 - CLSID(발행 후 변경 금지): 릴리스 `{FD6BD976-2DF4-4656-94F2-1D166163EC59}`, 개발 `{BD277595-1702-4AC5-AA7C-A67965C3D570}`. 문자열은 DLL 크레이트(`registry.rs`)와 앱(`thumb_shell.rs`)에 중복 정의되어 있으며 함께 바꿔야 한다(앱은 `windows` 크레이트 의존을 피한다).
 - 등록은 전부 HKCU(`Software\Classes`)라 관리자 권한이 필요 없다: `CLSID\{CLSID}\InprocServer32`(DLL 경로 + `ThreadingModel=Apartment`), `.psd`와 채널 ProgID(`com.araview.viewer[.dev].psd`)의 `ShellEx\{E357FCCD-A995-4576-B01F-234630154E96}` 슬롯, `.psd`의 `PerceivedType=image`/`Content Type` 빈값 채우기. 등록/해제 후 `SHChangeNotify(SHCNE_ASSOCCHANGED)`를 보낸다.
-- DLL 전달: 워크스페이스 멤버(`src-tauri` `[workspace]`)로 함께 빌드한다. 개발 DLL은 공유 target dir라 dev exe 옆에 놓이고, 릴리스는 `scripts/Build-ThumbDll.ps1`(`npm run build:thumb`)로 빌드해 `src-tauri/resources/`에 스테이징하면 NSIS 번들이 `$INSTDIR\resources\`에 싣는다. Windows 리소스 목록의 진실은 `src-tauri/tauri.windows.conf.json`이며, 플랫폼 설정이 `tauri.conf.json`의 `bundle.resources`를 통째로 교체(JSON Merge Patch)하므로 Windows용 리소스는 전부 이 파일에 반복해야 한다(base에만 두면 설치본에서 빠진다). 앱은 exe 옆, `resources/` 순으로 DLL을 찾는다.
+- DLL 전달: 워크스페이스 멤버(`src-tauri` `[workspace]`)로 함께 빌드한다. 개발 DLL은 공유 target dir라 dev exe 옆에 놓이고, 릴리스는 `scripts/Build-ThumbDll.ps1`(`npm run build:thumb`)로 빌드해 `src-tauri/resources/`에 스테이징하면 NSIS 번들이 `$INSTDIR\resources\`에 싣는다. Windows 리소스 목록의 진실은 `src-tauri/tauri.windows.conf.json`이며, 플랫폼 설정이 `tauri.conf.json`의 `bundle.resources`를 통째로 교체(JSON Merge Patch)하므로 Windows용 리소스는 전부 이 파일에 반복해야 한다(base에만 두면 설치본에서 빠진다). 이 파일은 빌드 스크립트(`tauri-build`)가 strict JSON으로 파싱하므로 주석(`//`)을 넣으면 `cargo test`/`tauri dev`가 실패한다. 앱은 exe 옆, `resources/` 순으로 DLL을 찾는다.
 - 설정 UI(확장자 탭 하단): 상태 조회(`get_psd_thumbnail_status`), 켜기(`register_psd_thumbnail`)/끄기(`unregister_psd_thumbnail`). DLL이 없으면 등록을 거부하고 안내한다. 적용 뒤 탐색기 재시작/썸네일 캐시 정리가 필요할 수 있음을 안내한다.
 - 제한: 고무결성 Explorer(Windows Sandbox 등)는 HKCU COM을 무시하므로 dev 채널 썸네일이 동작하지 않는다. 삭제 시 HKCU 키는 남을 수 있으며 다시 설치 후 설정에서 다시 켜면 복구된다.
 

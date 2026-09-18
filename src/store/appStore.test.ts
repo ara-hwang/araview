@@ -11,13 +11,15 @@ vi.mock("@tauri-apps/plugin-store", () => ({
 }))
 
 import {
+  applyImageNaturalSize,
   applyRememberedFit,
   closeImage,
   panBy,
   resetZoomPan,
   setImageInfoAndResetView,
   setZoomToFit,
-  useAppStore
+  useAppStore,
+  zoomInBy
 } from "@/store/appStore"
 import { useSettingsStore } from "@/store/settingsStore"
 
@@ -163,6 +165,94 @@ describe("setImageInfoAndResetView", () => {
     expect(state.imageSize).toEqual({ width: 0, height: 0 })
     expect(state.zoom).toBe(1)
     expect(state.position).toEqual({ x: 0, y: 0 })
+  })
+})
+
+describe("applyImageNaturalSize", () => {
+  it("SVG 백엔드 치수와 종횡비가 같으면 natural 덮어쓰기를 건너뛴다", () => {
+    useAppStore.setState({ containerSize: { width: 1000, height: 700 } })
+    setImageInfoAndResetView({
+      file_path: "/pics/vector.svg",
+      file_name: "vector.svg",
+      file_size: 10,
+      mime_type: "image/svg+xml",
+      width: 400,
+      height: 300
+    })
+    const before = useAppStore.getState()
+    expect(before.imageSize).toEqual({ width: 400, height: 300 })
+    // viewBox-only SVG의 브라우저 기본 natural(200x150): 비율만 같으므로 유지
+    applyImageNaturalSize(200, 150)
+    const after = useAppStore.getState()
+    expect(after.imageSize).toEqual({ width: 400, height: 300 })
+    expect(after.zoom).toBe(before.zoom)
+  })
+
+  it("SVG라도 종횡비가 다르면 natural로 보정한다", () => {
+    useAppStore.setState({ containerSize: { width: 1000, height: 700 } })
+    setImageInfoAndResetView({
+      file_path: "/pics/vector.svg",
+      file_name: "vector.svg",
+      file_size: 10,
+      mime_type: "image/svg+xml",
+      width: 400,
+      height: 300
+    })
+    applyImageNaturalSize(100, 100)
+    expect(useAppStore.getState().imageSize).toEqual({ width: 100, height: 100 })
+  })
+
+  it("래스터는 기존대로 natural로 보정한다", () => {
+    useAppStore.setState({ containerSize: { width: 1000, height: 700 } })
+    setImageInfoAndResetView({
+      file_path: "/pics/a.jpg",
+      file_name: "a.jpg",
+      file_size: 10,
+      mime_type: "image/jpeg",
+      width: 400,
+      height: 300
+    })
+    applyImageNaturalSize(200, 150)
+    expect(useAppStore.getState().imageSize).toEqual({ width: 200, height: 150 })
+  })
+
+  it("증분 확대는 래스터 10x에서 멈춘다", () => {
+    useAppStore.setState({
+      imageInfo: {
+        file_path: "/pics/a.jpg",
+        file_name: "a.jpg",
+        file_size: 10,
+        mime_type: "image/jpeg",
+        width: 400,
+        height: 300
+      },
+      zoom: 9
+    })
+    zoomInBy()
+    expect(useAppStore.getState().zoom).toBe(10)
+    zoomInBy()
+    expect(useAppStore.getState().zoom).toBe(10)
+  })
+
+  it("증분 확대는 SVG 40x까지 허용한다", () => {
+    useAppStore.setState({
+      imageInfo: {
+        file_path: "/pics/vector.svg",
+        file_name: "vector.svg",
+        file_size: 10,
+        mime_type: "image/svg+xml",
+        width: 400,
+        height: 300
+      },
+      zoom: 9
+    })
+    zoomInBy()
+    expect(useAppStore.getState().zoom).toBeCloseTo(11.25)
+    useAppStore.setState({ zoom: 39 })
+    zoomInBy()
+    expect(useAppStore.getState().zoom).toBe(40)
+    zoomInBy()
+    expect(useAppStore.getState().zoom).toBe(40)
   })
 })
 

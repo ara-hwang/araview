@@ -150,6 +150,23 @@ export function ImageContainer({
   const isWebtoon = viewMode === "webtoon" && app.dirImages.images.length > 0 && !!getOrLoadImage
   const isMulti = isDual || isWebtoon
 
+  const isSvgImage =
+    app.imageInfo?.mime_type === "image/svg+xml" ||
+    (app.imageInfo?.file_name.toLowerCase().endsWith(".svg") ?? false)
+  // 벡터는 레이아웃 크기로 줌하고 transform에는 이동/반전/회전만 남긴다.
+  // scale(zoom) 확대는 래스터를 늘려 흐릿해지지만, 레이아웃 크기면
+  // 브라우저가 표시 크기에서 재래스터해 선명도가 유지된다.
+  const svgSharpZoom = isSvgImage && app.imageSize.width > 0 && app.imageSize.height > 0
+  const singleImgWidth = svgSharpZoom
+    ? app.imageSize.width * app.zoom
+    : app.imageSize.width || undefined
+  const singleImgHeight = svgSharpZoom
+    ? app.imageSize.height * app.zoom
+    : app.imageSize.height || undefined
+  const singleImgTransform = svgSharpZoom
+    ? `translate3d(${app.position.x}px, ${app.position.y}px, 0) scale(${app.flipH ? -1 : 1}, ${app.flipV ? -1 : 1}) rotate(${app.rotation}deg)`
+    : `translate3d(${app.position.x}px, ${app.position.y}px, 0) scale(${app.zoom * (app.flipH ? -1 : 1)}, ${app.zoom * (app.flipV ? -1 : 1)}) rotate(${app.rotation}deg)`
+
   return (
     <div
       ref={containerRef}
@@ -181,11 +198,11 @@ export function ImageContainer({
             alt={app.imageInfo?.file_name}
             className="pointer-events-auto block max-h-none max-w-none shrink-0 origin-center will-change-transform"
             style={{
-              width: app.imageSize.width || undefined,
-              height: app.imageSize.height || undefined,
+              width: singleImgWidth,
+              height: singleImgHeight,
               maxWidth: "none",
               maxHeight: "none",
-              transform: `translate3d(${app.position.x}px, ${app.position.y}px, 0) scale(${app.zoom * (app.flipH ? -1 : 1)}, ${app.zoom * (app.flipV ? -1 : 1)}) rotate(${app.rotation}deg)`,
+              transform: singleImgTransform,
               cursor: app.isDragging ? "grabbing" : "grab"
             }}
             onLoad={(event) => {
