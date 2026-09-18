@@ -461,6 +461,9 @@
     }
   },
   "toast": {
+    "copyMessage": "오류 메시지 복사",
+    "copied": "복사됨",
+    "close": "닫기",
     "settings": {
       "saveFail": "설정 저장 실패",
       "resetDone": "설정을 초기화했습니다"

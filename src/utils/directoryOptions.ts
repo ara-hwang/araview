@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core"
-import { toast } from "sonner"
 
+import { toast } from "@/components/ui/toast"
 import i18n from "@/i18n"
 import { useAppStore } from "@/store/appStore"
 import { getSettings, updateSettings, type SettingsState } from "@/store/settingsStore"

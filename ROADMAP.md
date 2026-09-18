@@ -358,13 +358,13 @@
 
 ### 5.2 에러 처리 개선 (P1) — ✅ 완료 (2026-09-14 코드 대조 확정)
 
-**현재 상태**: 구현됨. 백엔드 구조화 에러 8종(`app_error.rs`) + 프론트 5종 분류(`appError.ts`, `titleKey`/`hintKey` 번역 표시), 에러 카드에 재시도/홈으로 복구/닫기(`ImageContainer.tsx`, `role="alert"`), 경미한 실패는 `sonner` 토스트, 손상 파일 자동 건너뛰기(`skipBrokenFiles` + `failedPaths`), 대안 동작으로 기본 앱 열기(`Ctrl+Shift+O`)·포맷 변환 저장(`save_image_edits`)이 있다. SPEC §18과 일치.
+**현재 상태**: 구현됨. 백엔드 구조화 에러 8종(`app_error.rs`) + 프론트 5종 분류(`appError.ts`, `titleKey`/`hintKey` 번역 표시), 에러 카드에 재시도/홈으로 복구/닫기(`ImageContainer.tsx`, `role="alert"`), 경미한 실패는 base 토스트(`@/components/ui/toast`), 손상 파일 자동 건너뛰기(`skipBrokenFiles` + `failedPaths`), 대안 동작으로 기본 앱 열기(`Ctrl+Shift+O`)·포맷 변환 저장(`save_image_edits`)이 있다. SPEC §18과 일치.
 
 **개선 계획**:
 
 - 에러 유형별 구체적 메시지 (파일 없음, 권한 없음, 손상된 파일, 미지원 포맷)
 - 에러 발생 시 대안 제시 ("다른 뷰어로 열기", "포맷 변환 시도")
-- `sonner` 토스트를 활용한 비침투적 경고 (경미한 에러)
+- base 토스트를 활용한 비침투적 경고 (경미한 에러)
 - 치명적 에러 시 복구 옵션 (홈으로 돌아가기, 마지막 성공 이미지로 돌아가기)
 
 **관련 파일**:

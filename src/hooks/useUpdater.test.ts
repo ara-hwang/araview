@@ -6,17 +6,19 @@ const { mockCheck, mockRelaunch, mockGetVersion, mockToast } = vi.hoisted(() => 
   mockRelaunch: vi.fn(),
   mockGetVersion: vi.fn(),
   mockToast: {
+    add: vi.fn(),
+    close: vi.fn(),
     success: vi.fn(),
     error: vi.fn(),
-    message: vi.fn(),
-    loading: vi.fn()
+    info: vi.fn(),
+    warning: vi.fn()
   }
 }))
 
 vi.mock("@tauri-apps/plugin-updater", () => ({ check: mockCheck }))
 vi.mock("@tauri-apps/plugin-process", () => ({ relaunch: mockRelaunch }))
 vi.mock("@tauri-apps/api/app", () => ({ getVersion: mockGetVersion }))
-vi.mock("sonner", () => ({ toast: mockToast }))
+vi.mock("@/components/ui/toast", () => ({ toast: mockToast }))
 vi.mock("@/i18n", () => ({
   default: {
     t: (key: string, opts?: Record<string, unknown>) =>
@@ -63,7 +65,9 @@ describe("checkForUpdatesNow", () => {
     expect(state.stage).toBe("available")
     expect(state.version).toBe("9.9.9")
     expect(state.body).toBe("notes")
-    expect(mockToast.message).not.toHaveBeenCalled()
+    expect(mockToast.success).not.toHaveBeenCalled()
+    expect(mockToast.error).not.toHaveBeenCalled()
+    expect(mockToast.info).not.toHaveBeenCalled()
   })
 
   it("확인 중에는 두 번째 요청을 busy로 돌려보낸다", async () => {

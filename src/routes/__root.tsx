@@ -10,7 +10,7 @@ import { SettingsDialog } from "@/components/SettingsDialog"
 import { StatusBar } from "@/components/StatusBar"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Separator } from "@/components/ui/separator"
-import { Toaster } from "@/components/ui/sonner"
+import { Toaster } from "@/components/ui/toast"
 import { UpdateDialogs } from "@/components/UpdateDialogs"
 import { OPEN_SETTINGS_EVENT } from "@/hooks/useCommandPalette"
 import { useIdleHide } from "@/hooks/useIdleHide"
@@ -163,7 +163,7 @@ function RootLayout() {
       <CommandPalette />
       <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <UpdateDialogs />
-      <Toaster position="bottom-right" richColors closeButton />
+      <Toaster />
     </ThemeProvider>
   )
 }

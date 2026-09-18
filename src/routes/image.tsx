@@ -1,12 +1,12 @@
 import { createFileRoute, redirect } from "@tanstack/react-router"
 import { useCallback, useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { toast } from "sonner"
 
 import { ImageContainer } from "@/components/ImageContainer"
 import { RenameDialog } from "@/components/RenameDialog"
 import { SaveEditsDialog } from "@/components/SaveEditsDialog"
 import { ThumbnailGrid } from "@/components/ThumbnailGrid"
+import { toast } from "@/components/ui/toast"
 import type { WebtoonScrollTarget } from "@/components/WebtoonContinuousView"
 import type { MouseAction } from "@/constants/shortcuts"
 import { useAlwaysOnTop } from "@/hooks/useAlwaysOnTop"

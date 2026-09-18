@@ -1,7 +1,7 @@
 import { getCurrentWindow } from "@tauri-apps/api/window"
 import { useCallback } from "react"
-import { toast } from "sonner"
 
+import { toast } from "@/components/ui/toast"
 import i18n from "@/i18n"
 import { errorMessage } from "@/utils/appError"
 
