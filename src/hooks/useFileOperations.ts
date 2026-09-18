@@ -10,7 +10,7 @@ import { closeImage, useAppStore } from "@/store/appStore"
 import { useRecentFilesStore } from "@/store/recentFilesStore"
 import { useSettingsStore } from "@/store/settingsStore"
 import type { ImageInfo } from "@/types"
-import { errorMessage } from "@/utils/appError"
+import { errorCopyDetails, errorMessage } from "@/utils/appError"
 import type { SaveEditsPayload } from "@/utils/imageEdits"
 
 type LoadImageFn = (filePath: string, options?: { refreshDirectory?: boolean }) => Promise<void>
@@ -96,7 +96,10 @@ export function useFileOperations({ loadImage }: { loadImage: LoadImageFn }) {
     try {
       await revealItemInDir(target)
     } catch (e) {
-      toast.error(i18n.t("toast.reveal.fail"), { description: errorMessage(e) })
+      toast.error(i18n.t("toast.reveal.fail"), {
+        description: errorMessage(e),
+        details: errorCopyDetails(e, target)
+      })
     }
   }, [])
 
@@ -111,7 +114,8 @@ export function useFileOperations({ loadImage }: { loadImage: LoadImageFn }) {
       await openPath(target)
     } catch (e) {
       toast.error(i18n.t("toast.external.fail"), {
-        description: errorMessage(e)
+        description: errorMessage(e),
+        details: errorCopyDetails(e, target)
       })
     }
   }, [])
@@ -136,7 +140,10 @@ export function useFileOperations({ loadImage }: { loadImage: LoadImageFn }) {
     try {
       await invoke("trash_file", { filePath: imageInfo.file_path })
     } catch (e) {
-      toast.error(i18n.t("toast.trash.fail"), { description: errorMessage(e) })
+      toast.error(i18n.t("toast.trash.fail"), {
+        description: errorMessage(e),
+        details: errorCopyDetails(e, imageInfo.file_path)
+      })
       return
     }
 
@@ -176,7 +183,10 @@ export function useFileOperations({ loadImage }: { loadImage: LoadImageFn }) {
         duration: 1500
       })
     } catch (e) {
-      toast.error(i18n.t("toast.path.fail"), { description: errorMessage(e) })
+      toast.error(i18n.t("toast.path.fail"), {
+        description: errorMessage(e),
+        details: errorCopyDetails(e, target)
+      })
     }
   }, [])
 
@@ -203,7 +213,10 @@ export function useFileOperations({ loadImage }: { loadImage: LoadImageFn }) {
         newName: newName.trim()
       })
     } catch (e) {
-      toast.error(i18n.t("toast.rename.fail"), { description: errorMessage(e) })
+      toast.error(i18n.t("toast.rename.fail"), {
+        description: errorMessage(e),
+        details: errorCopyDetails(e, imageInfo.file_path)
+      })
       return false
     }
 
@@ -273,7 +286,10 @@ export function useFileOperations({ loadImage }: { loadImage: LoadImageFn }) {
           options: payload
         })
       } catch (e) {
-        toast.error(i18n.t("toast.save.fail"), { description: errorMessage(e) })
+        toast.error(i18n.t("toast.save.fail"), {
+          description: errorMessage(e),
+          details: errorCopyDetails(e, imageInfo.file_path)
+        })
         return false
       }
 

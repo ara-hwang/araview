@@ -4,7 +4,7 @@ import { useCallback, useEffect } from "react"
 import { toast } from "@/components/ui/toast"
 import i18n from "@/i18n"
 import { getSettings, updateSettings, useSettingsStore } from "@/store/settingsStore"
-import { errorMessage } from "@/utils/appError"
+import { errorCopyDetails, errorMessage } from "@/utils/appError"
 
 // 창 항상 위 토글. settingsStore.alwaysOnTop이 단일 소스이며
 // 변경될 때마다 Tauri 창에 반영하고 settings.json에 유지한다.
@@ -23,7 +23,8 @@ export function useAlwaysOnTop() {
       await getCurrentWindow().setAlwaysOnTop(next)
     } catch (e) {
       toast.error(i18n.t("toast.alwaysOnTop.fail"), {
-        description: errorMessage(e)
+        description: errorMessage(e),
+        details: errorCopyDetails(e)
       })
       return
     }

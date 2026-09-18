@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react"
 import { toast } from "@/components/ui/toast"
 import i18n from "@/i18n"
 import type { PsdThumbStatus } from "@/types"
-import { errorMessage } from "@/utils/appError"
+import { errorCopyDetails, errorMessage } from "@/utils/appError"
 
 export function usePsdThumbnail(enabled: boolean) {
   const [status, setStatus] = useState<PsdThumbStatus | null>(null)
@@ -18,7 +18,8 @@ export function usePsdThumbnail(enabled: boolean) {
       setStatus(next)
     } catch (error) {
       toast.error(i18n.t("toast.thumb.loadFail"), {
-        description: errorMessage(error)
+        description: errorMessage(error),
+        details: errorCopyDetails(error)
       })
     } finally {
       setLoading(false)
@@ -40,7 +41,8 @@ export function usePsdThumbnail(enabled: boolean) {
       toast.success(i18n.t(register ? "toast.thumb.doneEnabled" : "toast.thumb.doneDisabled"))
     } catch (error) {
       toast.error(i18n.t(register ? "toast.thumb.registerFail" : "toast.thumb.unregisterFail"), {
-        description: errorMessage(error)
+        description: errorMessage(error),
+        details: errorCopyDetails(error)
       })
     } finally {
       setPending(false)

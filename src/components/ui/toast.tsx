@@ -17,8 +17,18 @@ import {
 
 const toastManager = ToastPrimitive.createToastManager()
 
-type ToastHelperOptions = Omit<ToastManagerAddOptions<object>, "title" | "type" | "description" | "timeout"> & {
+/** toast `data`에 실리는 복사 전용 진단 정보 (화면에는 표시하지 않음) */
+export type ToastCopyData = {
+  /** `errorCopyDetails()` 등으로 만든 `code:`/`path:` 줄 */
+  details?: string
+  /** 토스트 생성 시각 (ms epoch). 복사문의 `time:` 줄에 쓴다 */
+  createdAt?: number
+}
+
+type ToastHelperOptions = Omit<ToastManagerAddOptions<ToastCopyData>, "title" | "type" | "description" | "timeout"> & {
   description?: React.ReactNode
+  /** 화면에는 보이지 않고 오류 복사문에 포함되는 상세 줄 */
+  details?: React.ReactNode
   /** sonner-style duration (ms). base-ui 명칭으로는 timeout이다. */
   duration?: number
   timeout?: number
@@ -29,13 +39,19 @@ function addWithType(
   title: React.ReactNode,
   options?: ToastHelperOptions
 ): string {
-  const { description, duration, timeout, ...rest } = options ?? {}
+  const { description, details, duration, timeout, data, ...rest } = options ?? {}
+  const detailsText = toCopyText(details)
   return toastManager.add({
     title,
     description,
     type,
     timeout: timeout ?? duration,
-    ...rest
+    ...rest,
+    data: {
+      ...(typeof data === "object" && data !== null ? data : null),
+      ...(detailsText ? { details: detailsText } : null),
+      createdAt: Date.now()
+    }
   })
 }
 
@@ -224,13 +240,33 @@ function toCopyText(value: React.ReactNode): string {
   return ""
 }
 
-/** 오류 토스트의 제목+설명을 클립보드에 복사하는 아이콘 버튼 */
+/** 오류 토스트 복사문. 제목+설명에 이어 상세 줄과 발생 시각을 붙인다. */
+export function buildErrorCopyText(parts: {
+  title?: React.ReactNode
+  description?: React.ReactNode
+  details?: string | null
+  createdAt?: number | null
+}): string {
+  const lines = [
+    toCopyText(parts.title),
+    toCopyText(parts.description),
+    (parts.details ?? "").trim()
+  ].filter(Boolean)
+  lines.push(`time: ${new Date(parts.createdAt ?? Date.now()).toLocaleString()}`)
+  return lines.join("\n")
+}
+
+/** 오류 토스트의 제목+설명+상세를 클립보드에 복사하는 아이콘 버튼 */
 function ToastCopyButton({
   title,
-  description
+  description,
+  details,
+  createdAt
 }: {
   title?: React.ReactNode
   description?: React.ReactNode
+  details?: string | null
+  createdAt?: number | null
 }) {
   const { t } = useTranslation()
   const [copied, setCopied] = React.useState(false)
@@ -243,8 +279,11 @@ function ToastCopyButton({
     []
   )
 
-  const text = [toCopyText(title), toCopyText(description)].filter(Boolean).join("\n")
-  if (!text) return null
+  const hasContent = [toCopyText(title), toCopyText(description), (details ?? "").trim()].some(
+    Boolean
+  )
+  if (!hasContent) return null
+  const text = buildErrorCopyText({ title, description, details, createdAt })
 
   const label = copied ? t("toast.copied") : t("toast.copyMessage")
 
@@ -300,7 +339,12 @@ function ToastList() {
           <ToastDescription />
         </div>
         {toastItem.type === "error" && (
-          <ToastCopyButton title={toastItem.title} description={toastItem.description} />
+          <ToastCopyButton
+            title={toastItem.title}
+            description={toastItem.description}
+            details={(toastItem.data as ToastCopyData | undefined)?.details}
+            createdAt={(toastItem.data as ToastCopyData | undefined)?.createdAt}
+          />
         )}
         <ToastAction />
         <ToastClose />

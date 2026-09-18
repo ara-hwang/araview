@@ -5,7 +5,7 @@ import i18n from "@/i18n"
 import { useAppStore } from "@/store/appStore"
 import { getSettings, updateSettings, type SettingsState } from "@/store/settingsStore"
 import type { DirectoryImages } from "@/types"
-import { errorMessage } from "@/utils/appError"
+import { errorCopyDetails, errorMessage } from "@/utils/appError"
 
 export type DirListOptionsPayload = {
   sortKey: SettingsState["sortKey"]
@@ -62,7 +62,8 @@ export async function refreshDirectoryListing(): Promise<void> {
     useAppStore.setState({ dirImages: { ...dirImages, current_index } })
   } catch (e) {
     toast.error(i18n.t("toast.dir.refreshFail"), {
-      description: errorMessage(e)
+      description: errorMessage(e),
+      details: errorCopyDetails(e, currentSource)
     })
   }
 }

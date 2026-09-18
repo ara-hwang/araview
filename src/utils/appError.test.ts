@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest"
 
-import { classifyError, errorMessage } from "./appError"
+import { classifyError, errorCode, errorCopyDetails, errorMessage } from "./appError"
 
 describe("classifyError", () => {
   it("classifies missing files", () => {
@@ -49,6 +49,37 @@ describe("classifyError", () => {
   it("falls back to message matching for generic codes", () => {
     expect(classifyError({ code: "unknown", message: "permission denied" }).kind).toBe("permission")
     expect(classifyError({ code: "invalid_input", message: "nope" }).kind).toBe("unknown")
+  })
+})
+
+describe("errorCode", () => {
+  it("구조화 에러에서 코드를 추출한다", () => {
+    expect(errorCode({ code: "corrupt", message: "boom" })).toBe("corrupt")
+  })
+
+  it("코드가 없으면 null이다", () => {
+    expect(errorCode("boom")).toBeNull()
+    expect(errorCode({ message: "no code" })).toBeNull()
+    expect(errorCode(null)).toBeNull()
+  })
+})
+
+describe("errorCopyDetails", () => {
+  it("코드와 경로를 줄로 모은다", () => {
+    expect(errorCopyDetails({ code: "not_found", message: "x" }, "D:\\a.png")).toBe(
+      "code: not_found\npath: D:\\a.png"
+    )
+  })
+
+  it("빈 경로는 건너뛴다", () => {
+    expect(errorCopyDetails({ code: "corrupt", message: "x" }, null, undefined, "")).toBe(
+      "code: corrupt"
+    )
+  })
+
+  it("모을 줄이 없으면 undefined이다", () => {
+    expect(errorCopyDetails("boom")).toBeUndefined()
+    expect(errorCopyDetails("boom", null)).toBeUndefined()
   })
 })
 

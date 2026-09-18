@@ -11,7 +11,7 @@ import { useArchiveProgressStore } from "@/store/archiveProgressStore"
 import { useRecentFilesStore } from "@/store/recentFilesStore"
 import { useSettingsStore } from "@/store/settingsStore"
 import type { DirectoryImages, ImageInfo } from "@/types"
-import { errorMessage } from "@/utils/appError"
+import { errorCopyDetails, errorMessage } from "@/utils/appError"
 import { buildDirListOptions } from "@/utils/directoryOptions"
 import { MAX_SKIP_ATTEMPTS, findSkipTarget } from "@/utils/skipBroken"
 
@@ -117,7 +117,10 @@ export function useImageLoader() {
           imageInfo: null,
           archivePath: null
         })
-        toast.error(i18n.t("toast.load.archiveFail"), { description: message })
+        toast.error(i18n.t("toast.load.archiveFail"), {
+          description: message,
+          details: errorCopyDetails(e, archivePath)
+        })
       } finally {
         useAppStore.setState({ loading: false })
       }
@@ -167,7 +170,10 @@ export function useImageLoader() {
             return
           }
         }
-        toast.error(i18n.t("toast.load.imageFail"), { description: message })
+        toast.error(i18n.t("toast.load.imageFail"), {
+          description: message,
+          details: errorCopyDetails(e, archivePath, entryName)
+        })
       } finally {
         useAppStore.setState({ loading: false })
       }
@@ -254,7 +260,8 @@ export function useImageLoader() {
           }
         }
         toast.error(i18n.t("toast.load.imageFail"), {
-          description: message
+          description: message,
+          details: errorCopyDetails(e, filePath)
         })
       } finally {
         useAppStore.setState({ loading: false })

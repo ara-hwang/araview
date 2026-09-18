@@ -6,7 +6,7 @@ import { useEffect, useState } from "react"
 import { toast } from "@/components/ui/toast"
 import i18n from "@/i18n"
 import { useUpdateStore } from "@/store/updateStore"
-import { errorMessage } from "@/utils/appError"
+import { errorCopyDetails, errorMessage } from "@/utils/appError"
 
 /** 명령 팔레트 등 전역에서 수동 업데이트 확인을 요청하는 이벤트. */
 export const REQUEST_UPDATE_CHECK_EVENT = "tiv:check-updates"
@@ -41,7 +41,8 @@ export async function checkForUpdatesNow(): Promise<UpdateCheckResult> {
     return "available"
   } catch (e) {
     toast.error(i18n.t("toast.update.checkFail"), {
-      description: errorMessage(e)
+      description: errorMessage(e),
+      details: errorCopyDetails(e)
     })
     return "failed"
   } finally {
@@ -98,7 +99,8 @@ export async function relaunchAfterUpdate(): Promise<void> {
     await relaunch()
   } catch (e) {
     toast.error(i18n.t("toast.update.restartFail"), {
-      description: errorMessage(e)
+      description: errorMessage(e),
+      details: errorCopyDetails(e)
     })
   }
 }

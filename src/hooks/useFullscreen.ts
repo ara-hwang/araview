@@ -3,7 +3,7 @@ import { useCallback } from "react"
 
 import { toast } from "@/components/ui/toast"
 import i18n from "@/i18n"
-import { errorMessage } from "@/utils/appError"
+import { errorCopyDetails, errorMessage } from "@/utils/appError"
 
 // F11: Tauri 창의 전체화면 토글. 실패 시 토스트로 알림.
 export function useFullscreen() {
@@ -14,7 +14,8 @@ export function useFullscreen() {
       await win.setFullscreen(!isFs)
     } catch (e) {
       toast.error(i18n.t("toast.fullscreen.fail"), {
-        description: errorMessage(e)
+        description: errorMessage(e),
+        details: errorCopyDetails(e)
       })
     }
   }, [])

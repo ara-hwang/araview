@@ -138,6 +138,36 @@ export function errorMessage(input: unknown): string {
   return String(input)
 }
 
+/**
+ * 구조화 에러(`{code, message}`)에서 코드만 추출.
+ * 레거시 문자열 등 코드가 없으면 null이다.
+ */
+export function errorCode(input: unknown): string | null {
+  if (typeof input === "object" && input !== null && "code" in input) {
+    const code = (input as { code?: unknown }).code
+    if (typeof code === "string" && code.length > 0) return code
+  }
+  return null
+}
+
+/**
+ * 오류 토스트 복사문에 붙일 상세 줄 (`code:`/`path:`).
+ * 화면 description에는 보이지 않고 클립보드 복사 시에만 포함된다.
+ * 모을 줄이 없으면 undefined를 돌려 호출부가 details를 생략할 수 있다.
+ */
+export function errorCopyDetails(
+  input: unknown,
+  ...paths: Array<string | null | undefined>
+): string | undefined {
+  const lines: string[] = []
+  const code = errorCode(input)
+  if (code) lines.push(`code: ${code}`)
+  for (const p of paths) {
+    if (p) lines.push(`path: ${p}`)
+  }
+  return lines.length > 0 ? lines.join("\n") : undefined
+}
+
 function kindOf(message: string): AppErrorKind {
   // 백엔드 고정 문자열은 정확히 매칭한다 (영문 부분일치보다 우선).
   // 새 백엔드 에러를 추가하면 아래 표에도 행을 추가할 것.

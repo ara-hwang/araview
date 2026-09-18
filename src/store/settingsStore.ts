@@ -16,7 +16,7 @@ import i18n, {
   setI18nLanguage,
   type AppLanguage
 } from "@/i18n"
-import { errorMessage } from "@/utils/appError"
+import { errorCopyDetails, errorMessage } from "@/utils/appError"
 
 export type { AppLanguage }
 
@@ -209,7 +209,8 @@ export const updateSettings = async (partial: Partial<SettingsState>) => {
   } catch (e) {
     // 설정 저장 실패는 UI 동작을 막지 않지만 사용자에게 알림
     toast.error(i18n.t("toast.settings.saveFail"), {
-      description: errorMessage(e)
+      description: errorMessage(e),
+      details: errorCopyDetails(e)
     })
     return false
   }

@@ -5,7 +5,7 @@ vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
-import { ToastCopyButton, toCopyText, toast } from "@/components/ui/toast"
+import { ToastCopyButton, buildErrorCopyText, toCopyText, toast } from "@/components/ui/toast"
 
 describe("toCopyText", () => {
   it("문자열과 숫자를 그대로 반환한다", () => {
@@ -24,6 +24,29 @@ describe("toCopyText", () => {
   })
 })
 
+describe("buildErrorCopyText", () => {
+  it("제목·설명·상세·시각을 순서대로 합친다", () => {
+    const text = buildErrorCopyText({
+      title: "실패",
+      description: "원인",
+      details: "code: corrupt\npath: D:\\a.png",
+      createdAt: 0
+    })
+    const lines = text.split("\n")
+    expect(lines[0]).toBe("실패")
+    expect(lines[1]).toBe("원인")
+    expect(lines[2]).toBe("code: corrupt")
+    expect(lines[3]).toBe("path: D:\\a.png")
+    expect(lines[4]).toMatch(/^time: /)
+  })
+
+  it("상세가 없어도 시각 줄은 붙는다", () => {
+    const text = buildErrorCopyText({ title: "실패", createdAt: 0 })
+    expect(text.split("\n")[0]).toBe("실패")
+    expect(text).toContain("\ntime: ")
+  })
+})
+
 describe("toast 헬퍼", () => {
   it("error는 type=error와 timeout(duration 매핑)으로 add를 호출한다", () => {
     const spy = vi.spyOn(toast, "add")
@@ -35,6 +58,29 @@ describe("toast 헬퍼", () => {
           description: "원인",
           type: "error",
           timeout: 2000
+        })
+      )
+      toast.close(id)
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
+  it("details는 data에 텍스트로 저장하고 생성 시각을 함께 기록한다", () => {
+    const spy = vi.spyOn(toast, "add")
+    try {
+      const id = toast.error("실패", {
+        description: "원인",
+        details: "code: corrupt\npath: D:\\a.png"
+      })
+      expect(spy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: "실패",
+          type: "error",
+          data: expect.objectContaining({
+            details: "code: corrupt\npath: D:\\a.png",
+            createdAt: expect.any(Number)
+          })
         })
       )
       toast.close(id)
@@ -65,16 +111,29 @@ describe("toast 헬퍼", () => {
 })
 
 describe("ToastCopyButton", () => {
-  it("제목과 설명을 합쳐 클립보드에 복사한다", async () => {
+  it("제목·설명·상세·시각을 합쳐 클립보드에 복사한다", async () => {
     const writeText = vi.fn().mockResolvedValue(undefined)
     Object.assign(navigator, { clipboard: { writeText } })
 
-    const { unmount } = render(<ToastCopyButton title="실패" description="원인" />)
+    const { unmount } = render(
+      <ToastCopyButton
+        title="실패"
+        description="원인"
+        details="code: corrupt"
+        createdAt={0}
+      />
+    )
     try {
       const button = screen.getByRole("button", { name: "toast.copyMessage" })
       fireEvent.click(button)
 
-      await waitFor(() => expect(writeText).toHaveBeenCalledWith("실패\n원인"))
+      await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1))
+      const copied: string = writeText.mock.calls[0][0]
+      const lines = copied.split("\n")
+      expect(lines[0]).toBe("실패")
+      expect(lines[1]).toBe("원인")
+      expect(lines[2]).toBe("code: corrupt")
+      expect(lines[3]).toMatch(/^time: /)
       expect(screen.getByRole("button", { name: "toast.copied" })).toBeDefined()
     } finally {
       unmount()
