@@ -17,6 +17,7 @@ import type { ImageInfo } from "@/types"
 import { useSettingsStore } from "../store/settingsStore"
 import { ButtonGroup } from "./ui/button-group"
 import { Slider } from "./ui/slider"
+import { Toggle } from "./ui/toggle"
 
 type GetOrLoadImage = (filePath: string) => Promise<ImageInfo>
 
@@ -187,16 +188,15 @@ export function ImageNavBar({
         </ButtonGroup>
 
         {onToggleGrid && (
-          <Button
-            variant={gridActive ? "secondary" : "outline"}
-            size="icon"
-            onClick={onToggleGrid}
+          <Toggle
+            variant="outline"
+            pressed={gridActive}
+            onPressedChange={onToggleGrid}
             title={t("viewer.nav.gridTitle")}
             aria-label={t("viewer.nav.grid")}
-            aria-pressed={gridActive}
           >
             <SquaresFour />
-          </Button>
+          </Toggle>
         )}
 
         {/* 슬라이더를 클릭/드래그해서 원하는 위치로 점프 이동 */}
