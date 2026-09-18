@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from "react"
 import { toast } from "@/components/ui/toast"
 import i18n from "@/i18n"
 import type { FileAssociation } from "@/types"
-import { errorMessage } from "@/utils/appError"
+import { errorCopyDetails, errorMessage } from "@/utils/appError"
 
 export function hasBlockedAssociation(items: FileAssociation[]): boolean {
   return items.some((item) => item.needs_os_confirmation && !item.associated)
@@ -24,7 +24,8 @@ export function useFileAssociations(enabled: boolean) {
       setItems(next)
     } catch (error) {
       toast.error(i18n.t("toast.assoc.loadFail"), {
-        description: errorMessage(error)
+        description: errorMessage(error),
+        details: errorCopyDetails(error)
       })
     } finally {
       setLoading(false)
@@ -65,7 +66,8 @@ export function useFileAssociations(enabled: boolean) {
       setItems((prev) => prev.map((item) => (item.extension === extension ? next : item)))
     } catch (error) {
       toast.error(i18n.t("toast.assoc.openFail"), {
-        description: errorMessage(error)
+        description: errorMessage(error),
+        details: errorCopyDetails(error, `*.${extension}`)
       })
     } finally {
       setPendingExtension(null)
@@ -82,7 +84,8 @@ export function useFileAssociations(enabled: boolean) {
       toast.info(i18n.t("toast.assoc.pickInfo"))
     } catch (error) {
       toast.error(i18n.t("toast.assoc.settingsFail"), {
-        description: errorMessage(error)
+        description: errorMessage(error),
+        details: errorCopyDetails(error)
       })
     } finally {
       setPendingAll(false)
@@ -94,7 +97,8 @@ export function useFileAssociations(enabled: boolean) {
       await invoke("open_default_apps_settings")
     } catch (error) {
       toast.error(i18n.t("toast.assoc.settingsFail"), {
-        description: errorMessage(error)
+        description: errorMessage(error),
+        details: errorCopyDetails(error)
       })
     }
   }, [])

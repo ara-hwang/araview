@@ -4,7 +4,7 @@ import { useCallback } from "react"
 import { toast } from "@/components/ui/toast"
 import i18n from "@/i18n"
 import { useAppStore } from "@/store/appStore"
-import { errorMessage } from "@/utils/appError"
+import { errorCopyDetails, errorMessage } from "@/utils/appError"
 
 // 현재 이미지를 PNG로 변환해 시스템 클립보드에 복사한다.
 // Asset Protocol을 통해 파일을 fetch → Blob → Canvas → PNG Blob → ClipboardItem.
@@ -45,7 +45,10 @@ export function useCopyImage() {
         duration: 1500
       })
     } catch (e) {
-      toast.error(i18n.t("toast.copy.fail"), { description: errorMessage(e) })
+      toast.error(i18n.t("toast.copy.fail"), {
+        description: errorMessage(e),
+        details: errorCopyDetails(e, imageInfo.file_path)
+      })
     }
   }, [])
 
