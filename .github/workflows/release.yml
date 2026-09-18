@@ -102,7 +102,7 @@ jobs:
       # 릴리스. 검증을 모두 통과한 뒤에만 실행된다.
       # ------------------------------------------------------------------
       # PSD 탐색기 썸네일 DLL을 먼저 빌드해 번들 resources에 스테이징한다.
-      # tauri.conf.json bundle.resources가 src-tauri/resources/를 참조한다.
+      # tauri.windows.conf.json bundle.resources가 src-tauri/resources/를 참조한다.
       - name: Build PSD thumbnail DLL
         run: |
           cd src-tauri

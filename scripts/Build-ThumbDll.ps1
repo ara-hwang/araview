@@ -5,7 +5,7 @@
 .DESCRIPTION
   Compiles crates/araview-thumb and copies araview_thumb.dll to
   src-tauri/resources/ so `tauri build` includes it in the NSIS bundle
-  (tauri.conf.json bundle.resources). Debug DLLs land next to the dev
+  (src-tauri/tauri.windows.conf.json bundle.resources). Debug DLLs land next to the dev
   executable automatically via the shared workspace target dir, so this
   script is only needed for release/staged builds.
 .EXAMPLE

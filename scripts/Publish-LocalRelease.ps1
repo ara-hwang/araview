@@ -176,6 +176,12 @@ if (-not $SkipBuild) {
   Write-Output "Running signed release build, this takes a few minutes..."
   Push-Location $root
   try {
+    # PSD 썸네일 DLL을 먼저 빌드해 번들 resources에 스테이징한다.
+    # tauri.windows.conf.json bundle.resources가 src-tauri/resources/를 참조한다.
+    # (CI release.yml의 "Build PSD thumbnail DLL" 단계와 동일. 로컬 빌드에서
+    # 빠지면 설치본에 DLL이 없어 탐색기 썸네일 등록이 실패한다.)
+    pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/Build-ThumbDll.ps1
+    if ($LASTEXITCODE -ne 0) { Fail "Build-ThumbDll.ps1 failed with exit code $LASTEXITCODE" }
     npm run tauri build
     if ($LASTEXITCODE -ne 0) { Fail "npm run tauri build failed with exit code $LASTEXITCODE" }
   }
