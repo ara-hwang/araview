@@ -205,9 +205,10 @@ extern "system" {
 pub fn register() -> Result<PsdThumbStatus, AppError> {
     let dll_path = thumb_dll_path()?;
     if !dll_path.is_file() {
-        return Err(AppError::not_found(
-            "Thumbnail DLL not found (build it with `cargo build -p araview-thumb`)",
-        ));
+        return Err(AppError::not_found(format!(
+            "Thumbnail DLL not found at {} (build it with `cargo build -p araview-thumb`)",
+            dll_path.display()
+        )));
     }
     register_clsid(&dll_path)?;
     register_shellex(&ext_shellex_key())?;
