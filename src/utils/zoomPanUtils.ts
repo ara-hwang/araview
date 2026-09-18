@@ -1,6 +1,8 @@
 /**
  * 90°/270° 회전 시 가로/세로를 교체한 이미지 크기를 반환합니다.
  */
+import type { FitMode } from "@/store/settingsStore"
+
 export function getOrientedImageSize(
   imgW: number,
   imgH: number,
@@ -58,6 +60,39 @@ export function getFitZoomFromSizes(
   const fit = Math.min(containerW / imgW, containerH / imgH)
   if (!Number.isFinite(fit) || fit <= 0) return 1
   return fit
+}
+
+/**
+ * 기억된 맞춤 모드에 따른 줌 배율.
+ * width/height/screen은 컨테이너에 꽉 맞추고(작은 이미지도 확대),
+ * auto는 큰 이미지만 맞추고 작은 이미지는 100%로 둔다(기존 기본 동작).
+ */
+export function getZoomForFitMode(
+  mode: FitMode,
+  containerW: number,
+  containerH: number,
+  imgW: number,
+  imgH: number
+): number {
+  if (containerW <= 0 || containerH <= 0 || imgW <= 0 || imgH <= 0) return 1
+  let zoom: number
+  switch (mode) {
+    case "width":
+      zoom = containerW / imgW
+      break
+    case "height":
+      zoom = containerH / imgH
+      break
+    case "screen":
+      zoom = Math.min(containerW / imgW, containerH / imgH)
+      break
+    case "auto":
+    default:
+      zoom = Math.min(1, Math.min(containerW / imgW, containerH / imgH))
+      break
+  }
+  if (!Number.isFinite(zoom) || zoom <= 0) return 1
+  return zoom
 }
 
 /**

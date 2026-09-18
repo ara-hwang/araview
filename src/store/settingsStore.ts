@@ -28,6 +28,8 @@ export type ViewerBackground = "theme" | "black" | "white" | "checker"
 
 export type DirSortKey = "name" | "date" | "size"
 
+export type FitMode = "width" | "height" | "screen" | "auto"
+
 export type { MouseMap, ShortcutMap, WheelMap } from "@/constants/shortcuts"
 
 export type SettingsState = {
@@ -47,6 +49,7 @@ export type SettingsState = {
   shuffle: boolean
   includeSubfolders: boolean
   skipBrokenFiles: boolean
+  fitMode: FitMode
   shortcuts: import("@/constants/shortcuts").ShortcutMap
   wheel: import("@/constants/shortcuts").WheelMap
   mouse: import("@/constants/shortcuts").MouseMap
@@ -78,6 +81,7 @@ const initialSettings: SettingsState = {
   shuffle: false,
   includeSubfolders: false,
   skipBrokenFiles: false,
+  fitMode: "auto",
   shortcuts: { ...DEFAULT_SHORTCUTS },
   wheel: { ...DEFAULT_WHEEL },
   mouse: { ...DEFAULT_MOUSE }
@@ -89,6 +93,7 @@ const CACHE_MODES: readonly CacheMode[] = ["off", "nearby", "extended", "memory-
 const VIEW_MODES: readonly ViewMode[] = ["single", "left-to-right", "right-to-left", "webtoon"]
 const VIEWER_BACKGROUNDS: readonly ViewerBackground[] = ["theme", "black", "white", "checker"]
 const SORT_KEYS: readonly DirSortKey[] = ["name", "date", "size"]
+const FIT_MODES: readonly FitMode[] = ["width", "height", "screen", "auto"]
 
 function sanitizeEnum<T extends string>(value: unknown, allowed: readonly T[], fallback: T): T {
   return typeof value === "string" && (allowed as readonly string[]).includes(value)
@@ -137,6 +142,7 @@ export function sanitizeSettings(value: unknown): SettingsState {
     shuffle: sanitizeBoolean(record.shuffle),
     includeSubfolders: sanitizeBoolean(record.includeSubfolders),
     skipBrokenFiles: sanitizeBoolean(record.skipBrokenFiles),
+    fitMode: sanitizeEnum(record.fitMode, FIT_MODES, initialSettings.fitMode),
     shortcuts: sanitizeShortcutMap(record.shortcuts),
     wheel: sanitizeWheelMap(record.wheel),
     mouse: sanitizeMouseMap(record.mouse)

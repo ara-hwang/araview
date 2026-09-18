@@ -2,10 +2,10 @@ import { useCallback, useEffect, useLayoutEffect, useRef } from "react"
 import { useShallow } from "zustand/react/shallow"
 
 import {
+  applyRememberedFit,
   useAppStore,
   zoomInBy,
   zoomOutBy,
-  resetZoomPan,
   startDrag,
   moveDrag
 } from "@/store/appStore"
@@ -101,8 +101,9 @@ export function useZoomPan() {
   }, [app.imageInfo, app.zoom, app.containerSize, app.imageSize, app.rotation])
 
   const resetView = useCallback(() => {
-    resetZoomPan()
-    prevZoomRef.current = 1
+    // 이미지 전환 시 기억된 맞춤 모드를 다시 적용한다. fitMode는 바꾸지 않는다.
+    applyRememberedFit()
+    prevZoomRef.current = useAppStore.getState().zoom
   }, [])
 
   // 줌 값이 바뀔 때 기존 position 비율을 유지하면서,

@@ -1,15 +1,29 @@
-import { beforeEach, describe, expect, it } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
+
+vi.mock("@tauri-apps/plugin-store", () => ({
+  Store: {
+    load: vi.fn(async () => ({
+      get: vi.fn(async () => null),
+      set: vi.fn(async () => {}),
+      save: vi.fn(async () => {})
+    }))
+  }
+}))
 
 import {
+  applyRememberedFit,
   closeImage,
   panBy,
+  resetZoomPan,
   setImageInfoAndResetView,
   setZoomToFit,
   useAppStore
 } from "@/store/appStore"
+import { useSettingsStore } from "@/store/settingsStore"
 
 beforeEach(() => {
   closeImage()
+  useSettingsStore.setState({ fitMode: "auto" })
 })
 
 describe("closeImage", () => {
@@ -222,5 +236,124 @@ describe("setZoomToFit", () => {
     expect(useAppStore.getState().zoom).toBe(1)
     setZoomToFit("screen")
     expect(useAppStore.getState().zoom).toBe(1)
+  })
+
+  it("맞춤 모드를 기억한다", () => {
+    useAppStore.setState({
+      containerSize: { width: 1000, height: 700 },
+      imageSize: { width: 2000, height: 1000 },
+      rotation: 0,
+      zoom: 1,
+      position: { x: 0, y: 0 }
+    })
+    setZoomToFit("width")
+    expect(useSettingsStore.getState().fitMode).toBe("width")
+    setZoomToFit("height")
+    expect(useSettingsStore.getState().fitMode).toBe("height")
+    setZoomToFit("screen")
+    expect(useSettingsStore.getState().fitMode).toBe("screen")
+  })
+})
+
+describe("fitMode 기억", () => {
+  it("너비 맞춤을 기억해 다음 이미지도 너비에 맞춘다", () => {
+    useSettingsStore.setState({ fitMode: "width" })
+    useAppStore.setState({ containerSize: { width: 1000, height: 700 } })
+    setImageInfoAndResetView({
+      file_path: "/pics/b.jpg",
+      file_name: "b.jpg",
+      file_size: 456,
+      mime_type: "image/jpeg",
+      width: 2000,
+      height: 1000
+    })
+    // 너비 맞춤: 1000/2000 = 0.5 (높이는 500으로 컨테이너보다 작아도 너비 기준)
+    expect(useAppStore.getState().zoom).toBeCloseTo(0.5)
+  })
+
+  it("높이 맞춤을 기억해 다음 이미지도 높이에 맞춘다", () => {
+    useSettingsStore.setState({ fitMode: "height" })
+    useAppStore.setState({ containerSize: { width: 1000, height: 700 } })
+    setImageInfoAndResetView({
+      file_path: "/pics/c.jpg",
+      file_name: "c.jpg",
+      file_size: 456,
+      mime_type: "image/jpeg",
+      width: 2000,
+      height: 1400
+    })
+    // 높이 맞춤: 700/1400 = 0.5
+    expect(useAppStore.getState().zoom).toBeCloseTo(0.5)
+  })
+
+  it("화면 맞춤을 기억해 다음 이미지도 화면에 맞춘다", () => {
+    useSettingsStore.setState({ fitMode: "screen" })
+    useAppStore.setState({ containerSize: { width: 1000, height: 700 } })
+    setImageInfoAndResetView({
+      file_path: "/pics/d.jpg",
+      file_name: "d.jpg",
+      file_size: 456,
+      mime_type: "image/jpeg",
+      width: 2000,
+      height: 1000
+    })
+    expect(useAppStore.getState().zoom).toBeCloseTo(0.5)
+  })
+
+  it("작은 이미지도 너비 맞춤이면 확대한다", () => {
+    useSettingsStore.setState({ fitMode: "width" })
+    useAppStore.setState({ containerSize: { width: 1000, height: 700 } })
+    setImageInfoAndResetView({
+      file_path: "/pics/small.png",
+      file_name: "small.png",
+      file_size: 10,
+      mime_type: "image/png",
+      width: 100,
+      height: 100
+    })
+    // 너비 맞춤: 1000/100 = 10
+    expect(useAppStore.getState().zoom).toBeCloseTo(10)
+  })
+
+  it("auto에서는 작은 이미지를 100%로 둔다", () => {
+    useSettingsStore.setState({ fitMode: "auto" })
+    useAppStore.setState({ containerSize: { width: 1000, height: 700 } })
+    setImageInfoAndResetView({
+      file_path: "/pics/small.png",
+      file_name: "small.png",
+      file_size: 10,
+      mime_type: "image/png",
+      width: 100,
+      height: 100
+    })
+    expect(useAppStore.getState().zoom).toBe(1)
+  })
+
+  it("0 리셋은 맞춤 잠금을 auto로 되돌린다", () => {
+    useSettingsStore.setState({ fitMode: "width" })
+    useAppStore.setState({
+      containerSize: { width: 1000, height: 700 },
+      imageSize: { width: 2000, height: 1000 },
+      rotation: 0,
+      zoom: 0.5,
+      position: { x: 0, y: 0 }
+    })
+    resetZoomPan()
+    expect(useSettingsStore.getState().fitMode).toBe("auto")
+  })
+
+  it("applyRememberedFit은 fitMode를 바꾸지 않고 줌만 맞춘다", () => {
+    useSettingsStore.setState({ fitMode: "height" })
+    useAppStore.setState({
+      containerSize: { width: 1000, height: 700 },
+      imageSize: { width: 2000, height: 1400 },
+      rotation: 0,
+      zoom: 1,
+      position: { x: 10, y: 20 }
+    })
+    applyRememberedFit()
+    expect(useAppStore.getState().zoom).toBeCloseTo(0.5)
+    expect(useAppStore.getState().position).toEqual({ x: 0, y: 0 })
+    expect(useSettingsStore.getState().fitMode).toBe("height")
   })
 })

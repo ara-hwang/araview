@@ -1,12 +1,14 @@
 import { create } from "zustand"
 
+import { updateSettings, useSettingsStore } from "@/store/settingsStore"
 import { DirectoryImages, ExifData, ImageDetails, ImageHistogram, ImageInfo } from "@/types"
 import {
   clampPosition,
   getFitZoomFromSizes,
   getMinZoom,
   getOrientedImageSize,
-  getPositionBounds
+  getPositionBounds,
+  getZoomForFitMode
 } from "@/utils/zoomPanUtils"
 
 type AppState = {
@@ -141,7 +143,7 @@ export const setZoomToFit = (mode: "width" | "height" | "screen") => {
   if (iw <= 0 || ih <= 0) return
   if (cw <= 0 || ch <= 0) return
 
-  const zoom = mode === "width" ? cw / iw : mode === "height" ? ch / ih : Math.min(cw / iw, ch / ih)
+  const zoom = getZoomForFitMode(mode, cw, ch, iw, ih)
 
   if (!Number.isFinite(zoom) || zoom <= 0) return
 
@@ -149,6 +151,8 @@ export const setZoomToFit = (mode: "width" | "height" | "screen") => {
     zoom,
     position: { x: 0, y: 0 }
   }))
+  // 선택한 맞춤 모드를 기억해 다음 이미지와 재시작 후에도 유지한다.
+  void updateSettings({ fitMode: mode })
 }
 
 export const zoomInBy = (factor = 1.25) => {
@@ -174,9 +178,45 @@ export const zoomIn = () => zoomInBy(1.25)
 export const zoomOut = () => zoomOutBy(1.25)
 
 export const resetZoomPan = () => {
+  const { containerSize, imageSize, rotation } = useAppStore.getState()
+  const oriented = getOrientedImageSize(imageSize.width, imageSize.height, rotation)
+  const zoom = getZoomForFitMode(
+    "auto",
+    containerSize.width,
+    containerSize.height,
+    oriented.width,
+    oriented.height
+  )
   useAppStore.setState((s) => ({
     ...s,
-    zoom: Math.min(1, getFitZoom()),
+    zoom,
+    position: { x: 0, y: 0 },
+    rotation: 0,
+    flipH: false,
+    flipV: false
+  }))
+  // 0(실제 크기/자동 맞춤)은 맞춤 잠금을 해제하고 기억한다.
+  void updateSettings({ fitMode: "auto" })
+}
+
+/**
+ * 기억된 맞춤 모드를 현재 이미지에 다시 적용한다.
+ * 이미지 전환(onAfterLoad/onLoad)용으로, fitMode 자체는 바꾸지 않는다.
+ */
+export const applyRememberedFit = () => {
+  const { containerSize, imageSize, rotation } = useAppStore.getState()
+  const oriented = getOrientedImageSize(imageSize.width, imageSize.height, rotation)
+  const fitMode = useSettingsStore.getState().fitMode
+  const zoom = getZoomForFitMode(
+    fitMode,
+    containerSize.width,
+    containerSize.height,
+    oriented.width,
+    oriented.height
+  )
+  useAppStore.setState((s) => ({
+    ...s,
+    zoom,
     position: { x: 0, y: 0 },
     rotation: 0,
     flipH: false,
@@ -186,21 +226,22 @@ export const resetZoomPan = () => {
 
 /**
  * 새 파일로 전환할 때 이미지 메타와 뷰(줌/팬/회전/반전)를 원자적으로 교체한다.
- * 백엔드 치수로 맞춤 줌을 즉시 계산하므로, 이전 파일의 줌에서 새 줌으로
+ * 백엔드 치수로 기억된 맞춤 모드의 줌을 즉시 계산하므로, 이전 파일의 줌에서 새 줌으로
  * 보간되는 전환 애니메이션 없이 첫 페인트부터 올바른 배율로 표시된다.
  * 치수를 모르면 1로 두고 onLoad의 applyImageNaturalSize가 보정한다.
  */
 export const setImageInfoAndResetView = (imgInfo: ImageInfo) => {
   const { containerSize } = useAppStore.getState()
+  const fitMode = useSettingsStore.getState().fitMode
   const w = imgInfo.width ?? 0
   const h = imgInfo.height ?? 0
   if (w > 0 && h > 0) {
-    const fit = getFitZoomFromSizes(containerSize.width, containerSize.height, w, h)
-    const zoom = Number.isFinite(fit) && fit > 0 ? Math.min(1, fit) : 1
+    const computed = getZoomForFitMode(fitMode, containerSize.width, containerSize.height, w, h)
+    const finalZoom = Number.isFinite(computed) && computed > 0 ? computed : 1
     useAppStore.setState({
       imageInfo: imgInfo,
       imageSize: { width: w, height: h },
-      zoom,
+      zoom: finalZoom,
       position: { x: 0, y: 0 },
       rotation: 0,
       flipH: false,
@@ -227,7 +268,8 @@ export const applyImageNaturalSize = (width: number, height: number) => {
   const prev = useAppStore.getState().imageSize
   if (prev.width === width && prev.height === height) return
   useAppStore.setState({ imageSize: { width, height } })
-  resetZoomPan()
+  // onLoad 보정도 기억된 맞춤 모드를 따른다. fitMode 자체는 바꾸지 않는다.
+  applyRememberedFit()
 }
 
 export const rotateCW = () => {
