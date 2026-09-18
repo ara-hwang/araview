@@ -1,8 +1,8 @@
 import { invoke } from "@tauri-apps/api/core"
 import { open } from "@tauri-apps/plugin-dialog"
 import { useCallback, useRef, useState } from "react"
-import { toast } from "sonner"
 
+import { toast } from "@/components/ui/toast"
 import { SUPPORTED_IMAGE_EXTENSIONS } from "@/constants/imageExtensions"
 import { useImageCache } from "@/hooks/useImageCache"
 import i18n from "@/i18n"

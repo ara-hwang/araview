@@ -1,11 +1,11 @@
 import { ArrowCounterClockwise, Keyboard, Mouse, X } from "@phosphor-icons/react"
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { toast } from "sonner"
 
 import { SettingsFieldSet } from "@/components/settings/SettingsFieldSet"
 import { Button } from "@/components/ui/button"
 import { Field, FieldGroup, FieldSeparator } from "@/components/ui/field"
+import { toast } from "@/components/ui/toast"
 import {
   CLICK_MOUSE_OPTIONS,
   DEFAULT_SHORTCUTS,

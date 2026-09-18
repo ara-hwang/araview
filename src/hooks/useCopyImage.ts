@@ -1,7 +1,7 @@
 import { convertFileSrc } from "@tauri-apps/api/core"
 import { useCallback } from "react"
-import { toast } from "sonner"
 
+import { toast } from "@/components/ui/toast"
 import i18n from "@/i18n"
 import { useAppStore } from "@/store/appStore"
 import { errorMessage } from "@/utils/appError"

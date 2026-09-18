@@ -461,6 +461,9 @@
     }
   },
   "toast": {
+    "copyMessage": "Copy error message",
+    "copied": "Copied",
+    "close": "Close",
     "settings": {
       "saveFail": "Failed to save settings",
       "resetDone": "Settings reset"

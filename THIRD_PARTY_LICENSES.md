@@ -762,7 +762,6 @@ Pretendard font (OFL-1.1): no license text file found in pretendard npm package.
 | react | 18.3.1 | MIT |
 | react-dom | 18.3.1 | MIT |
 | react-i18next | 17.0.13 | MIT |
-| sonner | 2.0.8 | MIT |
 | tailwindcss | 4.3.3 | MIT |
 | tw-animate-css | 1.4.0 | MIT |
 | zustand | 5.0.15 | MIT |

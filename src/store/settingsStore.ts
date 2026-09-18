@@ -1,7 +1,7 @@
 import { Store as TauriStore } from "@tauri-apps/plugin-store"
-import { toast } from "sonner"
 import { create } from "zustand"
 
+import { toast } from "@/components/ui/toast"
 import {
   DEFAULT_MOUSE,
   DEFAULT_SHORTCUTS,
