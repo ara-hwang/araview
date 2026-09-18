@@ -33,6 +33,11 @@ type AppState = {
   rotation: 0 | 90 | 180 | 270
   flipH: boolean
   flipV: boolean
+  /**
+   * 핏 잠금. true면 윈도우 리사이즈(컨테이너 변화) 시 기억된 fitMode를 다시 적용하고,
+   * 수동 줌(zoomInBy/zoomOutBy) 시 false로 풀려 리사이즈해도 줌을 유지한다. 영속화하지 않음.
+   */
+  isFitLocked: boolean
   /** 아카이브 모드: 현재 열린 아카이브 파일 경로 (null이면 일반 모드) */
   archivePath: string | null
   /** 이번 세션에 로드 실패한 경로/엔트리 (썸네일 오류 배지용, 영속화하지 않음) */
@@ -88,6 +93,7 @@ const initialApp: AppState = {
   rotation: 0,
   flipH: false,
   flipV: false,
+  isFitLocked: true,
   archivePath: null,
   failedPaths: []
 }
@@ -149,7 +155,8 @@ export const setZoomToFit = (mode: "width" | "height" | "screen") => {
 
   useAppStore.setState(() => ({
     zoom,
-    position: { x: 0, y: 0 }
+    position: { x: 0, y: 0 },
+    isFitLocked: true
   }))
   // 선택한 맞춤 모드를 기억해 다음 이미지와 재시작 후에도 유지한다.
   void updateSettings({ fitMode: mode })
@@ -169,7 +176,7 @@ const isVectorImage = (): boolean => {
 export const zoomInBy = (factor = 1.25) => {
   const { zoom } = useAppStore.getState()
   const next = Math.min(zoom * factor, isVectorImage() ? MAX_ZOOM_VECTOR : MAX_ZOOM)
-  useAppStore.setState((s) => ({ ...s, zoom: next }))
+  useAppStore.setState((s) => ({ ...s, zoom: next, isFitLocked: false }))
 }
 
 export const zoomOutBy = (factor = 1.25) => {
@@ -182,7 +189,7 @@ export const zoomOutBy = (factor = 1.25) => {
     oriented.height
   )
   const next = Math.max(zoom / factor, minZoom)
-  useAppStore.setState((s) => ({ ...s, zoom: next }))
+  useAppStore.setState((s) => ({ ...s, zoom: next, isFitLocked: false }))
 }
 
 export const zoomIn = () => zoomInBy(1.25)
@@ -204,7 +211,8 @@ export const resetZoomPan = () => {
     position: { x: 0, y: 0 },
     rotation: 0,
     flipH: false,
-    flipV: false
+    flipV: false,
+    isFitLocked: true
   }))
   // 0(실제 크기/자동 맞춤)은 맞춤 잠금을 해제하고 기억한다.
   void updateSettings({ fitMode: "auto" })
@@ -231,7 +239,8 @@ export const applyRememberedFit = () => {
     position: { x: 0, y: 0 },
     rotation: 0,
     flipH: false,
-    flipV: false
+    flipV: false,
+    isFitLocked: true
   }))
 }
 
@@ -257,6 +266,7 @@ export const setImageInfoAndResetView = (imgInfo: ImageInfo) => {
       rotation: 0,
       flipH: false,
       flipV: false,
+      isFitLocked: true,
       error: null
     })
     return
@@ -270,6 +280,7 @@ export const setImageInfoAndResetView = (imgInfo: ImageInfo) => {
     rotation: 0,
     flipH: false,
     flipV: false,
+    isFitLocked: true,
     error: null
   })
 }

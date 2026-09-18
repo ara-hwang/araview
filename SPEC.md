@@ -195,7 +195,7 @@
 - `zoomOut`: 동적 최소값까지 `zoom / 1.25`.
 - `0`: 자동 맞춤으로 리셋(`resetZoomPan`, `fitMode: auto` 저장 + `getZoomForFitMode("auto")` + 위치 0 + 회전/반전 초기화).
 - `1/2/3`: 가로 맞춤 / 세로 맞춤 / 화면 맞춤(`setZoomToFit`, `fitMode` 저장).
-- `fitMode`: `width | height | screen | auto`. 기본 `auto`. `1/2/3`과 헤더 버튼으로 바꾸면 `settings.json`에 저장되고, 이미지 전환(`setImageInfoAndResetView`, `applyImageNaturalSize`, `applyRememberedFit`)마다 다시 적용된다. `auto`는 큰 이미지만 맞추고 작은 이미지는 100%로 두며, `width/height/screen`은 작은 이미지도 확대한다. 헤더 맞춤 버튼은 현재 `fitMode`를 `aria-pressed`와 하이라이트로 표시한다.
+- `fitMode`: `width | height | screen | auto`. 기본 `auto`. `1/2/3`과 헤더 버튼으로 바꾸면 `settings.json`에 저장되고, 이미지 전환(`setImageInfoAndResetView`, `applyImageNaturalSize`, `applyRememberedFit`)마다 다시 적용된다. single 모드에서 핏 잠금(`isFitLocked`)이 유지 중이면 윈도우 리사이즈(컨테이너 변화) 시에도 다시 적용되며, 수동 줌(`zoomInBy`/`zoomOutBy`)은 잠금을 풀어 리사이즈해도 줌을 유지한다. `auto`는 큰 이미지만 맞추고 작은 이미지는 100%로 두며, `width/height/screen`은 작은 이미지도 확대한다. 헤더 맞춤 버튼은 현재 `fitMode`를 `aria-pressed`와 하이라이트로 표시한다.
 - 맞춤 계산은 회전된 치수(90/270도면 가로세로 교환) 기준이다.
 
 ### 7.2 팬
