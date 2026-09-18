@@ -54,6 +54,12 @@ if ($LASTEXITCODE -ne 0) {
   Write-Error "Thumbnail DLL (debug) build failed (exit $LASTEXITCODE)"
   exit $LASTEXITCODE
 }
+# tauri.conf.json bundles resources/araview_thumb.dll (gitignored), so stage the
+# debug DLL there. Without this `tauri dev` fails with "resource path doesn't exist".
+$thumbSrc = Join-Path $root "src-tauri" "target" "debug" "araview_thumb.dll"
+$thumbDstDir = Join-Path $root "src-tauri" "resources"
+New-Item -ItemType Directory -Force -Path $thumbDstDir | Out-Null
+Copy-Item $thumbSrc (Join-Path $thumbDstDir "araview_thumb.dll") -Force
 Start-Process -FilePath "cmd.exe" -ArgumentList "/c", "npm run tauri dev -- --config src-tauri/tauri.dev.conf.json > logs\tauri-dev.log 2>&1" -WorkingDirectory $root
 
 $deadline = (Get-Date).AddSeconds($TimeoutSec)
