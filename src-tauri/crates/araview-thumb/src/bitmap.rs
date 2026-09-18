@@ -52,7 +52,13 @@ pub fn from_rgb8(rgb: &Rgb8) -> Result<HBITMAP> {
     unsafe {
         let dst =
             std::slice::from_raw_parts_mut(bits as *mut u8, width as usize * height as usize * 4);
-        for (src_px, dst_px) in rgb.bytes.chunks_exact(3).zip(dst.chunks_exact_mut(4)) {
+        for (src_px, dst_px) in rgb
+            .bytes
+            .as_chunks::<3>()
+            .0
+            .iter()
+            .zip(dst.as_chunks_mut::<4>().0.iter_mut())
+        {
             dst_px[0] = src_px[2]; // B
             dst_px[1] = src_px[1]; // G
             dst_px[2] = src_px[0]; // R
