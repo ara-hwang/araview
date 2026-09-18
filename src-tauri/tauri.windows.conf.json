@@ -1,7 +1,11 @@
 {
+  // NOTE: Windows 전용 설정은 기본 tauri.conf.json과 JSON Merge Patch(RFC 7396)로
+  // 병합되며, bundle.resources는 배열이 아니라 통째로 교체된다. 따라서 Windows
+  // 빌드에 필요한 리소스는 전부 여기에 반복해야 한다. base에만 두면 빠진다.
   "bundle": {
     "resources": {
-      "generated/libheif-dlls/*.dll": "../"
+      "resources/araview_thumb.dll": "resources/araview_thumb.dll",
+      "generated/libheif-dlls/*.dll": ""
     }
   }
 }
