@@ -50,7 +50,7 @@ pub fn decode_psd_rgb8(bytes: &[u8]) -> Result<Rgb8, PsdError> {
         return Err(PsdError::CorruptFile);
     }
     let mut rgb = Vec::with_capacity(width as usize * height as usize * 3);
-    for px in rgba.chunks_exact(4) {
+    for px in rgba.as_chunks::<4>().0 {
         let a = f32::from(px[3]) / 255.0;
         let blend = |c: u8| (f32::from(c) * a + 255.0 * (1.0 - a)).round() as u8;
         rgb.extend_from_slice(&[blend(px[0]), blend(px[1]), blend(px[2])]);
