@@ -78,6 +78,7 @@ function buildDetailRows(
   details: ImageDetails,
   pathLabel: string,
   isArchive: boolean,
+  isVector: boolean,
   t: (key: string, vars?: Record<string, string | number>) => string,
   locale: string | undefined
 ): DetailRow[] {
@@ -120,13 +121,16 @@ function buildDetailRows(
       })
     }
   }
-  const colorLabel = t(COLOR_LABEL_KEY[details.color_mode] ?? "details.colorUnknown")
-  const colorValue =
-    typeof details.bits_per_channel === "number"
-      ? `${colorLabel} · ${t("details.bitsPerChannel", {
-          bits: details.bits_per_channel
-        })}`
-      : colorLabel
+  const colorValue = isVector
+    ? t("details.colorVector")
+    : (() => {
+        const colorLabel = t(COLOR_LABEL_KEY[details.color_mode] ?? "details.colorUnknown")
+        return typeof details.bits_per_channel === "number"
+          ? `${colorLabel} · ${t("details.bitsPerChannel", {
+              bits: details.bits_per_channel
+            })}`
+          : colorLabel
+      })()
   rows.push({ key: "color", label: t("details.color"), value: colorValue })
   const dpi = formatDpi(details.dpi_x, details.dpi_y)
   if (dpi !== null) {
@@ -177,6 +181,7 @@ export function ExifPanel() {
     exifError,
     histogramData,
     imageDetails,
+    imageInfo,
     archivePath,
     dirImages,
     showExifPanel
@@ -186,6 +191,7 @@ export function ExifPanel() {
       exifError: state.exifError,
       histogramData: state.histogramData,
       imageDetails: state.imageDetails,
+      imageInfo: state.imageInfo,
       archivePath: state.archivePath,
       dirImages: state.dirImages,
       showExifPanel: state.showExifPanel
@@ -225,6 +231,9 @@ export function ExifPanel() {
   }
 
   const isArchivePanel = archivePath !== null
+  const isVectorImage =
+    imageInfo?.mime_type === "image/svg+xml" ||
+    (imageInfo?.file_name.toLowerCase().endsWith(".svg") ?? false)
   const panelEntryName = dirImages.images[dirImages.current_index]
   const detailPathLabel =
     imageDetails !== null && isArchivePanel && archivePath !== null && panelEntryName !== undefined
@@ -233,7 +242,14 @@ export function ExifPanel() {
   const detailRows =
     imageDetails === null
       ? []
-      : buildDetailRows(imageDetails, detailPathLabel, isArchivePanel, translate, locale)
+      : buildDetailRows(
+          imageDetails,
+          detailPathLabel,
+          isArchivePanel,
+          isVectorImage,
+          translate,
+          locale
+        )
   const hasAnyContent = imageDetails !== null || histogramData !== null || sections.length > 0
 
   return (
@@ -262,7 +278,9 @@ export function ExifPanel() {
                 {t("histogram.title")}
               </h3>
               {histogramData === null ? (
-                <p className="text-sm text-muted-foreground">{t("histogram.unavailable")}</p>
+                <p className="text-sm text-muted-foreground">
+                  {t(isVectorImage ? "histogram.vectorUnavailable" : "histogram.unavailable")}
+                </p>
               ) : (
                 <HistogramChart data={histogramData} />
               )}

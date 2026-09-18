@@ -311,6 +311,7 @@
     "colorGrayscale": "Grayscale",
     "colorGrayscaleAlpha": "Grayscale (alpha)",
     "colorUnknown": "Unknown",
+    "colorVector": "Vector",
     "bitsPerChannel": "{{bits}} bits/channel",
     "dpi": "Resolution",
     "icc": "Color profile",
@@ -322,6 +323,7 @@
   "histogram": {
     "title": "Histogram",
     "unavailable": "Histogram is not available for this format.",
+    "vectorUnavailable": "Histograms are not shown for SVG vector images.",
     "chartLabel": "RGB brightness distribution chart",
     "red": "Red",
     "green": "Green",

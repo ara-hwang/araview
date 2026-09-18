@@ -155,9 +155,20 @@ export const setZoomToFit = (mode: "width" | "height" | "screen") => {
   void updateSettings({ fitMode: mode })
 }
 
+export const MAX_ZOOM = 10
+/** 벡터(SVG)는 표시 크기에서 재래스터되므로 증분 확대 상한을 높인다. */
+export const MAX_ZOOM_VECTOR = 40
+
+const isVectorImage = (): boolean => {
+  const info = useAppStore.getState().imageInfo
+  return (
+    info?.mime_type === "image/svg+xml" || (info?.file_name.toLowerCase().endsWith(".svg") ?? false)
+  )
+}
+
 export const zoomInBy = (factor = 1.25) => {
   const { zoom } = useAppStore.getState()
-  const next = Math.min(zoom * factor, 10)
+  const next = Math.min(zoom * factor, isVectorImage() ? MAX_ZOOM_VECTOR : MAX_ZOOM)
   useAppStore.setState((s) => ({ ...s, zoom: next }))
 }
 
@@ -267,6 +278,24 @@ export const applyImageNaturalSize = (width: number, height: number) => {
   if (width <= 0 || height <= 0) return
   const prev = useAppStore.getState().imageSize
   if (prev.width === width && prev.height === height) return
+  // SVG는 백엔드가 헤더(viewBox 등)에서 치수를 복원한다. 브라우저 natural은
+  // viewBox-only처럼 고유 크기가 없을 때 기본값(300x150 계열)이라 종횡비만
+  // 같으면 백엔드 값을 유지해 첫 페인트 보정 깜빡임을 막는다.
+  const info = useAppStore.getState().imageInfo
+  const isSvg =
+    info?.mime_type === "image/svg+xml" || (info?.file_name.toLowerCase().endsWith(".svg") ?? false)
+  if (
+    isSvg &&
+    typeof info?.width === "number" &&
+    typeof info?.height === "number" &&
+    info.width > 0 &&
+    info.height > 0 &&
+    prev.width === info.width &&
+    prev.height === info.height &&
+    Math.abs(width / height - info.width / info.height) < 0.01
+  ) {
+    return
+  }
   useAppStore.setState({ imageSize: { width, height } })
   // onLoad 보정도 기억된 맞춤 모드를 따른다. fitMode 자체는 바꾸지 않는다.
   applyRememberedFit()
