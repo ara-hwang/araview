@@ -50,6 +50,20 @@ export async function checkForUpdatesNow(): Promise<UpdateCheckResult> {
   }
 }
 
+/**
+ * 다운로드 진행률(0-100 정수)을 계산한다. 총 길이를 알 수 없거나 값이
+ * 비정상적이면 null을 돌려주고, 호출자는 indeterminate 표시를 유지한다.
+ * NaN/Infinity/음수/100 초과는 절대 내보내지 않는다.
+ */
+export function computeDownloadPct(
+  downloaded: number,
+  total: number | null | undefined
+): number | null {
+  if (total == null || !Number.isFinite(total) || total <= 0) return null
+  if (!Number.isFinite(downloaded) || downloaded < 0) return null
+  return Math.min(100, Math.max(0, Math.round((downloaded / total) * 100)))
+}
+
 /** 사용 가능한 Dialog에서 [다운로드]를 눌렀을 때 호출된다. */
 export async function startUpdateDownload(): Promise<void> {
   const update = pendingUpdate
@@ -59,15 +73,34 @@ export async function startUpdateDownload(): Promise<void> {
   try {
     let total: number | undefined
     let downloaded = 0
+    let lastPct: number | null = null
     await update.downloadAndInstall((event) => {
       if (event.event === "Started") {
-        total = event.data.contentLength
+        const contentLength = event.data.contentLength
+        total =
+          typeof contentLength === "number" && Number.isFinite(contentLength) && contentLength > 0
+            ? contentLength
+            : undefined
+        downloaded = 0
+        lastPct = null
         useUpdateStore.getState().setProgress(null)
       } else if (event.event === "Progress") {
-        downloaded += event.data.chunkLength
-        if (total) {
-          const pct = Math.min(100, Math.round((downloaded / total) * 100))
+        const chunkLength = event.data.chunkLength
+        if (typeof chunkLength !== "number" || !Number.isFinite(chunkLength) || chunkLength < 0) {
+          return
+        }
+        downloaded += chunkLength
+        const pct = computeDownloadPct(downloaded, total)
+        if (pct !== lastPct) {
+          lastPct = pct
           useUpdateStore.getState().setProgress(pct)
+        }
+      } else if (event.event === "Finished") {
+        // 최종 누적값이 contentLength와 어긋나도 바가 100% 미만에서
+        // 멈추지 않도록 완료 시점에 마무리한다.
+        if (total !== undefined && lastPct !== 100) {
+          lastPct = 100
+          useUpdateStore.getState().setProgress(100)
         }
       }
     })
