@@ -32,6 +32,7 @@ import {
   REQUEST_UPDATE_CHECK_EVENT,
   __resetUpdateModuleForTests,
   checkForUpdatesNow,
+  computeDownloadPct,
   dismissUpdate,
   relaunchAfterUpdate,
   requestUpdateCheck,
@@ -106,6 +107,36 @@ describe("checkForUpdatesNow", () => {
   })
 })
 
+describe("computeDownloadPct", () => {
+  it("정상 범위에서는 반올림한 정수를 돌려준다", () => {
+    expect(computeDownloadPct(0, 100)).toBe(0)
+    expect(computeDownloadPct(50, 100)).toBe(50)
+    expect(computeDownloadPct(1, 3)).toBe(33)
+    expect(computeDownloadPct(2, 3)).toBe(67)
+    expect(computeDownloadPct(100, 100)).toBe(100)
+  })
+
+  it("누적값이 총 길이를 초과해도 100에 고정한다", () => {
+    expect(computeDownloadPct(150, 100)).toBe(100)
+    expect(computeDownloadPct(10274949 + 8192, 10274949)).toBe(100)
+  })
+
+  it("총 길이를 알 수 없거나 비정상이면 null을 돌려준다", () => {
+    expect(computeDownloadPct(50, undefined)).toBeNull()
+    expect(computeDownloadPct(50, null)).toBeNull()
+    expect(computeDownloadPct(50, 0)).toBeNull()
+    expect(computeDownloadPct(50, -100)).toBeNull()
+    expect(computeDownloadPct(50, Number.NaN)).toBeNull()
+    expect(computeDownloadPct(50, Number.POSITIVE_INFINITY)).toBeNull()
+  })
+
+  it("누적값이 비정상이면 null을 돌려준다", () => {
+    expect(computeDownloadPct(Number.NaN, 100)).toBeNull()
+    expect(computeDownloadPct(-1, 100)).toBeNull()
+    expect(computeDownloadPct(Number.POSITIVE_INFINITY, 100)).toBeNull()
+  })
+})
+
 describe("startUpdateDownload", () => {
   it("다운로드 진행률을 저장하고 완료 시 ready가 된다", async () => {
     const downloadAndInstall = vi.fn((onEvent: (e: unknown) => void) => {
@@ -127,6 +158,71 @@ describe("startUpdateDownload", () => {
     const state = useUpdateStore.getState()
     expect(state.stage).toBe("ready")
     expect(state.pct).toBe(100)
+  })
+
+  it("Finished에서 바를 100으로 마무리한다", async () => {
+    let pctAtFinished: number | null | undefined
+    const downloadAndInstall = vi.fn((onEvent: (e: unknown) => void) => {
+      onEvent({ event: "Started", data: { contentLength: 100 } })
+      onEvent({ event: "Progress", data: { chunkLength: 30 } })
+      onEvent({ event: "Finished" })
+      pctAtFinished = useUpdateStore.getState().pct
+      return Promise.resolve()
+    })
+    mockCheck.mockResolvedValueOnce({
+      version: "9.9.9",
+      body: "notes",
+      downloadAndInstall
+    })
+    await checkForUpdatesNow()
+
+    await startUpdateDownload()
+
+    expect(pctAtFinished).toBe(100)
+    expect(useUpdateStore.getState().stage).toBe("ready")
+  })
+
+  it("총 길이를 알 수 없으면 indeterminate를 유지한다", async () => {
+    let pctAfterProgress: number | null | undefined = -1
+    const downloadAndInstall = vi.fn((onEvent: (e: unknown) => void) => {
+      onEvent({ event: "Started", data: { contentLength: null } })
+      onEvent({ event: "Progress", data: { chunkLength: 30 } })
+      pctAfterProgress = useUpdateStore.getState().pct
+      return Promise.resolve()
+    })
+    mockCheck.mockResolvedValueOnce({
+      version: "9.9.9",
+      body: null,
+      downloadAndInstall
+    })
+    await checkForUpdatesNow()
+
+    await startUpdateDownload()
+
+    expect(pctAfterProgress).toBeNull()
+  })
+
+  it("비정상 chunk는 무시하고 유효한 chunk로 진행률을 계산한다", async () => {
+    const seen: Array<number | null> = []
+    const downloadAndInstall = vi.fn((onEvent: (e: unknown) => void) => {
+      onEvent({ event: "Started", data: { contentLength: 100 } })
+      onEvent({ event: "Progress", data: { chunkLength: Number.NaN } })
+      onEvent({ event: "Progress", data: { chunkLength: -5 } })
+      seen.push(useUpdateStore.getState().pct)
+      onEvent({ event: "Progress", data: { chunkLength: 50 } })
+      seen.push(useUpdateStore.getState().pct)
+      return Promise.resolve()
+    })
+    mockCheck.mockResolvedValueOnce({
+      version: "9.9.9",
+      body: null,
+      downloadAndInstall
+    })
+    await checkForUpdatesNow()
+
+    await startUpdateDownload()
+
+    expect(seen).toEqual([null, 50])
   })
 
   it("다운로드에 실패하면 에러를 저장한다", async () => {
