@@ -46,7 +46,6 @@ export type SettingsState = {
   alwaysOnTop: boolean
   sortKey: DirSortKey
   sortDescending: boolean
-  shuffle: boolean
   includeSubfolders: boolean
   skipBrokenFiles: boolean
   fitMode: FitMode
@@ -78,7 +77,6 @@ const initialSettings: SettingsState = {
   alwaysOnTop: false,
   sortKey: "name",
   sortDescending: false,
-  shuffle: false,
   includeSubfolders: false,
   skipBrokenFiles: false,
   fitMode: "auto",
@@ -139,7 +137,6 @@ export function sanitizeSettings(value: unknown): SettingsState {
     alwaysOnTop: sanitizeBoolean(record.alwaysOnTop),
     sortKey: sanitizeEnum(record.sortKey, SORT_KEYS, initialSettings.sortKey),
     sortDescending: sanitizeBoolean(record.sortDescending),
-    shuffle: sanitizeBoolean(record.shuffle),
     includeSubfolders: sanitizeBoolean(record.includeSubfolders),
     skipBrokenFiles: sanitizeBoolean(record.skipBrokenFiles),
     fitMode: sanitizeEnum(record.fitMode, FIT_MODES, initialSettings.fitMode),

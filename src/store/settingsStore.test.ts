@@ -52,11 +52,9 @@ describe("sanitizeSettings", () => {
   it("truthy 비불리언은 false로 정규화한다", () => {
     const sane = sanitizeSettings({
       loopNavigation: 1,
-      shuffle: "yes",
       skipBrokenFiles: 1
     })
     expect(sane.loopNavigation).toBe(false)
-    expect(sane.shuffle).toBe(false)
     expect(sane.skipBrokenFiles).toBe(false)
   })
 

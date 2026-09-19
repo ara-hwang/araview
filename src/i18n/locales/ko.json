@@ -169,7 +169,6 @@
       "name": "이름",
       "date": "수정한 날짜",
       "size": "파일 크기",
-      "shuffle": "셔플",
       "asc": "오름차순",
       "descOrder": "내림차순",
       "subfolders": "하위 폴더 포함"
@@ -412,7 +411,6 @@
     "toggleAlwaysOnTop": "맨 위에 두기 토글",
     "copyImage": "이미지 복사",
     "cycleBg": "배경 순환",
-    "toggleShuffle": "셔플 토글",
     "jumpPrev10": "10장 앞으로",
     "jumpNext10": "10장 뒤로",
     "jumpFirst": "처음 이미지로",

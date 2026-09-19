@@ -53,7 +53,6 @@ const ACTION_LABEL_KEY: Record<ShortcutActionId, string> = {
   cycleBackground: "menu.cycleBg",
   renameFile: "menu.rename",
   copyPath: "menu.copyPath",
-  toggleShuffle: "menu.toggleShuffle",
   saveEdits: "menu.saveEdits",
   togglePalette: "palette.open",
   jumpPrev10: "menu.jumpPrev10",

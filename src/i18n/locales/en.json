@@ -169,7 +169,6 @@
       "name": "Name",
       "date": "Date modified",
       "size": "File size",
-      "shuffle": "Shuffle",
       "asc": "Ascending",
       "descOrder": "Descending",
       "subfolders": "Include subfolders"
@@ -412,7 +411,6 @@
     "toggleAlwaysOnTop": "Toggle Always on Top",
     "copyImage": "Copy Image",
     "cycleBg": "Cycle Background",
-    "toggleShuffle": "Toggle Shuffle",
     "jumpPrev10": "Jump Back 10",
     "jumpNext10": "Jump Forward 10",
     "jumpFirst": "Jump to First",

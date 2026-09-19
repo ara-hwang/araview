@@ -14,7 +14,6 @@ import {
   zoomOut
 } from "@/store/appStore"
 import { cycleViewerBackground, getSettings } from "@/store/settingsStore"
-import { toggleShuffleAndRefresh } from "@/utils/directoryOptions"
 
 import type { DirectoryImages } from "../types"
 
@@ -162,11 +161,6 @@ export async function showImageViewerContextMenu(
       text: t("menu.cycleBg"),
       accelerator: acc(s.cycleBackground),
       action: () => cycleViewerBackground()
-    }),
-    MenuItem.new({
-      text: t("menu.toggleShuffle"),
-      accelerator: acc(s.toggleShuffle),
-      action: () => toggleShuffleAndRefresh()
     }),
     PredefinedMenuItem.new({ item: "Separator" }),
     MenuItem.new({

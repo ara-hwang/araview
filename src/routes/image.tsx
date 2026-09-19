@@ -32,7 +32,6 @@ import { getApp, updateDirImagesIndex, useAppStore, zoomIn, zoomOut } from "@/st
 import { useArchiveProgressStore } from "@/store/archiveProgressStore"
 import { getSettings, useSettingsStore } from "@/store/settingsStore"
 import { cycleViewerBackground } from "@/store/settingsStore"
-import { toggleShuffleAndRefresh } from "@/utils/directoryOptions"
 import type { SaveEditsPayload } from "@/utils/imageEdits"
 
 export const Route = createFileRoute("/image")({
@@ -395,7 +394,6 @@ function ImagePage() {
     onCycleBackground: () => cycleViewerBackground(),
     onRenameFile: () => setRenameOpen(true),
     onCopyPath: () => void copyPathCurrent(),
-    onToggleShuffle: () => toggleShuffleAndRefresh(),
     onSaveEdits: handleOpenSaveDialog,
     onToggleGrid: toggleGrid,
     disabled: gridOpen
