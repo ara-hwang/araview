@@ -1,9 +1,11 @@
 import {
+  ArrowsDownUp,
   ArrowsHorizontal,
   ArrowsOut,
   ArrowsVertical,
   ArrowClockwise,
   ArrowCounterClockwise,
+  BookOpenText,
   CaretDown,
   CaretUp,
   Command,
@@ -13,6 +15,7 @@ import {
   FolderOpen,
   Gear,
   House,
+  Image as ImageIcon,
   Info,
   MagnifyingGlassMinus,
   MagnifyingGlassPlus,
@@ -44,7 +47,7 @@ import {
   zoomOut,
   useAppStore
 } from "@/store/appStore"
-import { updateSettings, useSettingsStore } from "@/store/settingsStore"
+import { updateSettings, useSettingsStore, type ViewMode } from "@/store/settingsStore"
 
 import { ButtonGroup } from "./ui/button-group"
 import { ButtonGroupText } from "./ui/button-group"
@@ -77,6 +80,7 @@ export default function Header({
   const shortcuts = useSettingsStore((state) => state.shortcuts)
   const menuBarHidden = useSettingsStore((state) => state.menuBarHidden)
   const fitMode = useSettingsStore((state) => state.fitMode)
+  const viewMode = useSettingsStore((state) => state.viewMode)
   const withShortcut = (label: string, binding: string) =>
     binding ? `${label} (${formatShortcutDisplay(binding)})` : label
   // ToggleGroup(single)은 값 배열로 동작한다. auto는 선택 없음(빈 배열)으로 둔다.
@@ -85,6 +89,19 @@ export default function Header({
     const next = value[0]
     if (next === "width" || next === "height" || next === "screen") {
       setZoomToFit(next)
+    }
+  }
+  // 보기 모드는 항상 하나가 선택된다. 선택 해제는 무시하고 유지한다.
+  const viewValue: ViewMode[] = [viewMode]
+  const handleViewModeChange = (value: string[]) => {
+    const next = value[0]
+    if (
+      next === "single" ||
+      next === "left-to-right" ||
+      next === "right-to-left" ||
+      next === "webtoon"
+    ) {
+      void updateSettings({ viewMode: next })
     }
   }
   const [isMaximized, setIsMaximized] = useState(false)
@@ -261,49 +278,109 @@ export default function Header({
               </Button>
             </ButtonGroup>
 
+            <ToggleGroup
+              variant="outline"
+              spacing={0}
+              value={viewValue}
+              onValueChange={handleViewModeChange}
+              aria-label={t("settings.view.title")}
+              className="hidden no-drag min-[1024px]:flex"
+            >
+              {/* 공간이 충분한 넓은 창에서만 짧은 텍스트 라벨을 붙인다.
+                  그 아래에서는 아이콘 + 툴팁으로 안내한다. */}
+              <ToggleGroupItem
+                value="single"
+                title={t("settings.view.single")}
+                aria-label={t("settings.view.single")}
+              >
+                <ImageIcon data-icon="inline-start" />
+                <span data-wide-label className="hidden min-[1950px]:inline">
+                  {t("header.viewSingle")}
+                </span>
+              </ToggleGroupItem>
+              <ToggleGroupItem
+                value="left-to-right"
+                title={t("settings.view.ltr")}
+                aria-label={t("settings.view.ltr")}
+              >
+                <BookOpenText data-icon="inline-start" />
+                <span data-wide-label className="hidden min-[1950px]:inline">
+                  {t("header.viewLtr")}
+                </span>
+              </ToggleGroupItem>
+              <ToggleGroupItem
+                value="right-to-left"
+                title={t("settings.view.rtl")}
+                aria-label={t("settings.view.rtl")}
+              >
+                <BookOpenText data-icon="inline-start" className="scale-x-[-1]" />
+                <span data-wide-label className="hidden min-[1950px]:inline">
+                  {t("header.viewRtl")}
+                </span>
+              </ToggleGroupItem>
+              <ToggleGroupItem
+                value="webtoon"
+                title={t("settings.view.webtoon")}
+                aria-label={t("settings.view.webtoon")}
+              >
+                <ArrowsDownUp data-icon="inline-start" />
+                <span data-wide-label className="hidden min-[1950px]:inline">
+                  {t("header.viewWebtoon")}
+                </span>
+              </ToggleGroupItem>
+            </ToggleGroup>
+
             <ButtonGroup
               aria-label={t("header.transformGroup")}
               className="hidden no-drag min-[840px]:flex"
             >
               <Button
                 variant="outline"
-                size="icon"
                 onClick={rotateCCW}
                 disabled={!hasImage}
                 title={withShortcut(t("menu.rotateCcw"), shortcuts.rotateCCW)}
                 aria-label={withShortcut(t("menu.rotateCcw"), shortcuts.rotateCCW)}
               >
-                <ArrowCounterClockwise />
+                <ArrowCounterClockwise data-icon="inline-start" />
+                <span data-wide-label className="hidden min-[1950px]:inline">
+                  {t("header.rotateCcw")}
+                </span>
               </Button>
               <Button
                 variant="outline"
-                size="icon"
                 onClick={rotateCW}
                 disabled={!hasImage}
                 title={withShortcut(t("menu.rotateCw"), shortcuts.rotateCW)}
                 aria-label={withShortcut(t("menu.rotateCw"), shortcuts.rotateCW)}
               >
-                <ArrowClockwise />
+                <ArrowClockwise data-icon="inline-start" />
+                <span data-wide-label className="hidden min-[1950px]:inline">
+                  {t("header.rotateCw")}
+                </span>
               </Button>
               <Button
                 variant="outline"
-                size="icon"
                 onClick={flipHorizontal}
                 disabled={!hasImage}
                 title={withShortcut(t("menu.flipH"), shortcuts.flipH)}
                 aria-label={withShortcut(t("menu.flipH"), shortcuts.flipH)}
               >
-                <FlipHorizontal />
+                <FlipHorizontal data-icon="inline-start" />
+                <span data-wide-label className="hidden min-[1950px]:inline">
+                  {t("header.flipH")}
+                </span>
               </Button>
               <Button
                 variant="outline"
-                size="icon"
                 onClick={flipVertical}
                 disabled={!hasImage}
                 title={withShortcut(t("menu.flipV"), shortcuts.flipV)}
                 aria-label={withShortcut(t("menu.flipV"), shortcuts.flipV)}
               >
-                <FlipVertical />
+                <FlipVertical data-icon="inline-start" />
+                <span data-wide-label className="hidden min-[1950px]:inline">
+                  {t("header.flipV")}
+                </span>
               </Button>
             </ButtonGroup>
           </div>
@@ -351,17 +428,26 @@ export default function Header({
             aria-label={withShortcut(t("header.alwaysOnTop"), shortcuts.toggleAlwaysOnTop)}
             className="hidden no-drag md:inline-flex"
           >
-            <PushPin weight={alwaysOnTop ? "fill" : "regular"} />
+            <PushPin data-icon="inline-start" weight={alwaysOnTop ? "fill" : "regular"} />
+            <span data-wide-label className="hidden min-[1950px]:inline">
+              {t("header.onTop")}
+            </span>
           </Toggle>
           <ButtonGroup className="no-drag">
             <Button
               variant="outline"
-              size="icon"
               onClick={handleHideMenuBar}
               title={t(menuBarHidden ? "header.showMenuBar" : "header.hideMenuBar")}
               aria-label={t(menuBarHidden ? "header.showMenuBar" : "header.hideMenuBar")}
             >
-              {menuBarHidden ? <CaretDown /> : <CaretUp />}
+              {menuBarHidden ? (
+                <CaretDown data-icon="inline-start" />
+              ) : (
+                <CaretUp data-icon="inline-start" />
+              )}
+              <span data-wide-label className="hidden min-[1950px]:inline">
+                {t(menuBarHidden ? "header.showBar" : "header.hideBar")}
+              </span>
             </Button>
           </ButtonGroup>
         </div>
