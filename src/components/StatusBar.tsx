@@ -40,15 +40,18 @@ export function StatusBar() {
     fallbackFileName: imageInfo?.file_name ?? null
   })
 
+  // 빈 화면(홈)에서는 상태바 문구가 불필요하므로 바 자체를 렌더하지 않는다.
+  if (model.kind === "empty") {
+    return null
+  }
+
   return (
     <div
       className="absolute bottom-0 flex h-6 w-full items-center justify-between gap-2 border-t bg-background px-2 text-xs"
       role="status"
       aria-label={t("status.barLabel")}
     >
-      {model.kind === "empty" ? (
-        <span className="min-w-0 flex-1 truncate">{t("status.empty")}</span>
-      ) : model.kind === "archive" ? (
+      {model.kind === "archive" ? (
         <span
           className="flex min-w-0 flex-1 items-baseline gap-1 overflow-hidden whitespace-nowrap"
           title={model.tooltip}
@@ -93,9 +96,7 @@ export function StatusBar() {
           <span className="min-w-0 flex-1 truncate font-medium">{model.fileName}</span>
         </span>
       )}
-      <span className="shrink-0 font-mono tabular-nums">
-        {tokens.length > 0 ? tokens.join(" | ") : t("status.unknown")}
-      </span>
+      <span className="shrink-0 font-mono tabular-nums">{tokens.join(" | ")}</span>
     </div>
   )
 }

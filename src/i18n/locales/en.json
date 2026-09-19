@@ -376,8 +376,6 @@
     }
   },
   "status": {
-    "empty": "Empty",
-    "unknown": "Unknown",
     "barLabel": "Image status bar"
   },
   "notFound": {
