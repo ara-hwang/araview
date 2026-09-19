@@ -376,8 +376,6 @@
     }
   },
   "status": {
-    "empty": "비어 있음",
-    "unknown": "알 수 없음",
     "barLabel": "이미지 상태 표시줄"
   },
   "notFound": {
