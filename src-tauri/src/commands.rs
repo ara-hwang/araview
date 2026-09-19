@@ -105,8 +105,6 @@ pub struct DirListOptions {
     #[serde(default)]
     pub descending: bool,
     #[serde(default)]
-    pub shuffle: bool,
-    #[serde(default)]
     pub recursive: bool,
 }
 
@@ -618,32 +616,6 @@ mod tests {
         .expect("list ok")
         .current_index;
         assert_eq!(index, 1);
-        fs::remove_dir_all(&dir).ok();
-    }
-
-    #[test]
-    fn dir_list_shuffle_is_stable_per_directory() {
-        let dir = unique_dir("shuffle");
-        let a = write_sized(&dir, "a.png", 10);
-        for name in [
-            "b.png", "c.png", "d.png", "e.png", "f.png", "g.png", "h.png",
-        ] {
-            write_sized(&dir, name, 10);
-        }
-        let opts = || {
-            Some(DirListOptions {
-                shuffle: true,
-                ..Default::default()
-            })
-        };
-
-        // 같은 폴더는 반복 조회해도 같은 순서
-        let first = list_paths(&a, opts());
-        let second = list_paths(&a, opts());
-        assert_eq!(first, second);
-        // 이름순과는 다를 가능성이 극히 높음 (8! = 40320)
-        let ordered = list_paths(&a, None);
-        assert_ne!(first, ordered);
         fs::remove_dir_all(&dir).ok();
     }
 

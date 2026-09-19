@@ -120,13 +120,6 @@ export const COMMAND_DEFS: readonly CommandDef[] = [
     keywords: ["next"]
   },
   {
-    id: "toggleShuffle",
-    group: "navigate",
-    labelKey: "menu.toggleShuffle",
-    shortcutId: "toggleShuffle",
-    keywords: ["shuffle", "random"]
-  },
-  {
     id: "jumpPrev10",
     group: "navigate",
     labelKey: "menu.jumpPrev10",

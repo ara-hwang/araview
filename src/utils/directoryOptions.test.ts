@@ -8,13 +8,11 @@ describe("buildDirListOptions", () => {
       buildDirListOptions({
         sortKey: "size",
         sortDescending: true,
-        shuffle: false,
         includeSubfolders: true
       })
     ).toEqual({
       sortKey: "size",
       descending: true,
-      shuffle: false,
       recursive: true
     })
   })
@@ -24,13 +22,11 @@ describe("buildDirListOptions", () => {
       buildDirListOptions({
         sortKey: "name",
         sortDescending: false,
-        shuffle: false,
         includeSubfolders: false
       })
     ).toEqual({
       sortKey: "name",
       descending: false,
-      shuffle: false,
       recursive: false
     })
   })

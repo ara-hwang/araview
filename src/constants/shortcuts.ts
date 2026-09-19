@@ -28,7 +28,6 @@ export type ShortcutActionId =
   | "cycleBackground"
   | "renameFile"
   | "copyPath"
-  | "toggleShuffle"
   | "saveEdits"
   | "togglePalette"
   | "jumpPrev10"
@@ -97,7 +96,6 @@ export const SHORTCUT_ACTION_IDS: ShortcutActionId[] = [
   "cycleBackground",
   "renameFile",
   "copyPath",
-  "toggleShuffle",
   "saveEdits",
   "togglePalette",
   "jumpPrev10",
@@ -155,7 +153,6 @@ export const DEFAULT_SHORTCUTS: ShortcutMap = {
   cycleBackground: "B",
   renameFile: "F2",
   copyPath: "Ctrl+Shift+C",
-  toggleShuffle: "S",
   saveEdits: "Ctrl+S",
   togglePalette: "Ctrl+K",
   jumpPrev10: "PageUp",

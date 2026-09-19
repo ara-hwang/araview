@@ -36,7 +36,6 @@ import {
 } from "@/store/appStore"
 import { usePaletteMruStore } from "@/store/paletteMruStore"
 import { cycleViewerBackground, getSettings, useSettingsStore } from "@/store/settingsStore"
-import { toggleShuffleAndRefresh } from "@/utils/directoryOptions"
 
 export const OPEN_SETTINGS_EVENT = "tiv:open-settings"
 
@@ -222,9 +221,6 @@ function runCommand(
       break
     case "copyPath":
       viewerHandlers?.onCopyPath()
-      break
-    case "toggleShuffle":
-      void toggleShuffleAndRefresh()
       break
     case "saveEdits":
       viewerHandlers?.onSaveEdits()

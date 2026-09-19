@@ -133,10 +133,8 @@
 - `DirListOptions` (camelCase):
   - `sortKey: name | date | size` (기본 `name`)
   - `descending: boolean` (기본 false)
-  - `shuffle: boolean` (기본 false)
   - `recursive: boolean` (기본 false, 설정 `includeSubfolders`와 대응)
 - 부모 폴더 기준으로 정렬 목록을 만들고, `current_index`는 요청 경로의 위치(없으면 0)이다.
-- 셔플은 폴더별로 안정적이다(같은 폴더 반복 조회 시 동일 순서).
 - 재귀가 켜지면 하위 폴더 이미지를 포함한다.
 - 디렉토리 캐시는 폴더 mtime 지문(일반 모드)과 워처 기반 무효화(재귀 모드)를 쓰며 상한 128개이다.
 
@@ -383,7 +381,6 @@
 | `alwaysOnTop`         | 항상 위                                                 | `false`                            |
 | `sortKey`             | `name \| date \| size`                                  | `name`                             |
 | `sortDescending`      | 내림차순                                                | `false`                            |
-| `shuffle`             | 셔플                                                    | `false`                            |
 | `includeSubfolders`   | 하위 폴더 포함(재귀)                                    | `false`                            |
 | `skipBrokenFiles`     | 손상 파일 자동 건너뛰기                                 | `false`                            |
 | `fitMode`             | 맞춤 기억 `width \| height \| screen \| auto`           | `auto`                             |
@@ -391,7 +388,7 @@
 | `wheel`               | 휠 맵                                                   | 아래 기본표                        |
 | `mouse`               | 마우스 맵                                               | 아래 기본표                        |
 
-설정 항목에 연결된 단축키가 있으면 항목 옆에 현재 할당된 단축키를 배지로 표시한다: 배경 `cycleBackground`, 창 `toggleAlwaysOnTop`, 정렬의 셔플 `toggleShuffle`. 재할당하거나 해제하면 배지도 즉시 따라간다.
+설정 항목에 연결된 단축키가 있으면 항목 옆에 현재 할당된 단축키를 배지로 표시한다: 배경 `cycleBackground`, 창 `toggleAlwaysOnTop`. 재할당하거나 해제하면 배지도 즉시 따라간다.
 
 ## 15. 단축키/휠/마우스/명령 팔레트
 
@@ -415,11 +412,10 @@
 | 이미지 복사   | `Ctrl+C`         | 휴지통           | `Delete`          |
 | 탐색기에 표시 | `Ctrl+Shift+E`   | 기본 앱으로 열기 | `Ctrl+Shift+O`    |
 | 배경 순환     | `B`              | 이름 변경        | `F2`              |
-| 경로 복사     | `Ctrl+Shift+C`   | 셔플 토글        | `S`               |
-| 편집 저장     | `Ctrl+S`         | 명령 팔레트      | `Ctrl+K`          |
-| 10장 이전     | `PageUp`         | 10장 다음        | `PageDown`        |
-| 처음          | `Home`           | 마지막           | `End`             |
-| 썸네일 그리드 | `G`              |                  |                   |
+| 경로 복사     | `Ctrl+Shift+C`   | 편집 저장        | `Ctrl+S`          |
+| 명령 팔레트   | `Ctrl+K`         | 10장 이전        | `PageUp`          |
+| 10장 다음     | `PageDown`       | 처음             | `Home`            |
+| 마지막        | `End`            | 썸네일 그리드    | `G`               |
 
 그리드 내부: 화살표(선택 이동), `Home`/`End`, `PageUp`/`PageDown`, `Enter`(점프), `Esc`/`G`(닫기). 그리드가 열려 있는 동안 다른 뷰어 단축키는 동작하지 않는다.
 
@@ -509,7 +505,7 @@ Rust와 TypeScript는 같은 모양을 유지한다.
 - `FileAssociation`: `{ extension, associated, current_prog_id, needs_os_confirmation }`.
 - `PsdThumbStatus`: `{ registered, clsid, dll_path, dll_exists }`. 탐색기 썸네일 등록 상태(21.2절). 백엔드 출력은 snake_case를 유지한다.
 - `SaveImageOptions`: camelCase `{ rotationCw, flipH, flipV, format?, overwrite, newFileName? }`.
-- `DirListOptions`: camelCase `{ sortKey, descending, shuffle, recursive }`.
+- `DirListOptions`: camelCase `{ sortKey, descending, recursive }`.
 
 ## 18. 에러 모델
 

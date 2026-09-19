@@ -1,9 +1,8 @@
-import { ArrowsDownUp, Shuffle } from "@phosphor-icons/react"
+import { ArrowsDownUp } from "@phosphor-icons/react"
 import { useTranslation } from "react-i18next"
 import { useShallow } from "zustand/react/shallow"
 
 import { SettingsFieldSet } from "@/components/settings/SettingsFieldSet"
-import { ShortcutBadge } from "@/components/settings/ShortcutBadge"
 import { Field, FieldGroup } from "@/components/ui/field"
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
@@ -17,15 +16,12 @@ export function ListTabPanel() {
     useShallow((state) => ({
       sortKey: state.sortKey,
       sortDescending: state.sortDescending,
-      shuffle: state.shuffle,
       includeSubfolders: state.includeSubfolders
     }))
   )
 
   const handleSortChange = (
-    next: Partial<
-      Pick<SettingsState, "sortKey" | "sortDescending" | "shuffle" | "includeSubfolders">
-    >
+    next: Partial<Pick<SettingsState, "sortKey" | "sortDescending" | "includeSubfolders">>
   ) => {
     void applySortSettings(next)
   }
@@ -38,16 +34,11 @@ export function ListTabPanel() {
         description={t("settings.sort.desc")}
       >
         <RadioGroup
-          value={settings.shuffle ? "shuffle" : settings.sortKey}
+          value={settings.sortKey}
           onValueChange={(value) => {
-            if (value === "shuffle") {
-              handleSortChange({ shuffle: true })
-            } else {
-              handleSortChange({
-                shuffle: false,
-                sortKey: value as DirSortKey
-              })
-            }
+            handleSortChange({
+              sortKey: value as DirSortKey
+            })
           }}
         >
           <Field orientation="horizontal">
@@ -61,15 +52,6 @@ export function ListTabPanel() {
           <Field orientation="horizontal">
             <RadioGroupItem value="size" id="settings-sort-size" />
             <Label htmlFor="settings-sort-size">{t("settings.sort.size")}</Label>
-          </Field>
-          <Field orientation="horizontal">
-            <RadioGroupItem value="shuffle" id="settings-sort-shuffle" />
-            <Label htmlFor="settings-sort-shuffle">
-              <span className="flex items-center gap-1">
-                <Shuffle className="size-3.5" /> {t("settings.sort.shuffle")}
-                <ShortcutBadge actionId="toggleShuffle" />
-              </span>
-            </Label>
           </Field>
         </RadioGroup>
         <RadioGroup

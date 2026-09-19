@@ -6,7 +6,7 @@
 
 기본값 진실은 `src/constants/shortcuts.ts`(`DEFAULT_SHORTCUTS`)이며, 설정에서 재할당할 수 있습니다. 규격 표는 `SPEC.md` §15를 따릅니다.
 
-- **파일/탐색**: `Ctrl+O`(열기), `Ctrl+ArrowLeft`/`Ctrl+ArrowRight`(이전/다음), `S`(셔플 토글)
+- **파일/탐색**: `Ctrl+O`(열기), `Ctrl+ArrowLeft`/`Ctrl+ArrowRight`(이전/다음)
 - **이동**: `ArrowLeft`/`ArrowRight`/`ArrowUp`/`ArrowDown`(팬, 항상 동작)
 - **점프**: `PageUp`/`PageDown`(10장), `Home`/`End`(처음/마지막)
 - **줌**: `=`, `-`, `0`(초기화), `1`(가로 맞춤), `2`(세로 맞춤), `3`(화면 맞춤)

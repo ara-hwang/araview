@@ -10,18 +10,16 @@ import { errorCopyDetails, errorMessage } from "@/utils/appError"
 export type DirListOptionsPayload = {
   sortKey: SettingsState["sortKey"]
   descending: boolean
-  shuffle: boolean
   recursive: boolean
 }
 
-type SortPatch = Pick<SettingsState, "sortKey" | "sortDescending" | "shuffle" | "includeSubfolders">
+type SortPatch = Pick<SettingsState, "sortKey" | "sortDescending" | "includeSubfolders">
 
 /** settingsStore → 백엔드 DirListOptions 페이로드 (camelCase) */
 export function buildDirListOptions(settings: SortPatch): DirListOptionsPayload {
   return {
     sortKey: settings.sortKey,
     descending: settings.sortDescending,
-    shuffle: settings.shuffle,
     recursive: settings.includeSubfolders
   }
 }
@@ -72,9 +70,4 @@ export async function refreshDirectoryListing(): Promise<void> {
 export async function applySortSettings(patch: Partial<SortPatch>): Promise<void> {
   await updateSettings(patch)
   await refreshDirectoryListing()
-}
-
-/** S 키: 셔플 토글 + 목록 새로고침 */
-export function toggleShuffleAndRefresh(): void {
-  void applySortSettings({ shuffle: !getSettings().shuffle })
 }

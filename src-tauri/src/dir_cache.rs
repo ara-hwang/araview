@@ -87,11 +87,10 @@ pub(crate) fn cache_key(canonical: &Path, opts: &DirListOptions) -> String {
         DirSortKey::Size => "size",
     };
     format!(
-        "{}|{}|{}|{}|{}",
+        "{}|{}|{}|{}",
         canonical.to_string_lossy().to_lowercase(),
         sort,
         opts.descending,
-        opts.shuffle,
         opts.recursive
     )
 }
@@ -122,7 +121,7 @@ pub(crate) fn get_sorted_images(
         }
         let mut images = Vec::new();
         collect_images(parent, false, &mut images)?;
-        sort_images(&mut images, opts, &canonical);
+        sort_images(&mut images, opts);
         ensure_watched(&canonical, false);
         insert_cache(canonical, opts, current, images.clone());
         Ok(images)
@@ -139,7 +138,7 @@ pub(crate) fn get_sorted_images(
         }
         let mut images = Vec::new();
         collect_images(parent, true, &mut images)?;
-        sort_images(&mut images, opts, &canonical);
+        sort_images(&mut images, opts);
         ensure_watched(&canonical, true);
         insert_cache(canonical, opts, None, images.clone());
         Ok(images)
@@ -393,53 +392,22 @@ fn is_reparse_point(entry: &fs::DirEntry) -> bool {
     false
 }
 
-fn sort_images(images: &mut [ImageEntry], opts: &DirListOptions, dir: &Path) {
-    if opts.shuffle {
-        // 새로고침해도 순서가 바뀌지 않게 폴더 경로 해시를 시드로 사용
-        deterministic_shuffle(images, dir_seed(dir));
-    } else {
-        match opts.sort_key {
-            DirSortKey::Name => images.sort_by_key(|e| e.path.to_lowercase()),
-            DirSortKey::Date => images.sort_by(|a, b| {
-                a.modified
-                    .cmp(&b.modified)
-                    .then_with(|| a.path.to_lowercase().cmp(&b.path.to_lowercase()))
-            }),
-            DirSortKey::Size => images.sort_by(|a, b| {
-                a.size
-                    .cmp(&b.size)
-                    .then_with(|| a.path.to_lowercase().cmp(&b.path.to_lowercase()))
-            }),
-        }
+fn sort_images(images: &mut [ImageEntry], opts: &DirListOptions) {
+    match opts.sort_key {
+        DirSortKey::Name => images.sort_by_key(|e| e.path.to_lowercase()),
+        DirSortKey::Date => images.sort_by(|a, b| {
+            a.modified
+                .cmp(&b.modified)
+                .then_with(|| a.path.to_lowercase().cmp(&b.path.to_lowercase()))
+        }),
+        DirSortKey::Size => images.sort_by(|a, b| {
+            a.size
+                .cmp(&b.size)
+                .then_with(|| a.path.to_lowercase().cmp(&b.path.to_lowercase()))
+        }),
     }
     if opts.descending {
         images.reverse();
-    }
-}
-
-fn dir_seed(dir: &Path) -> u64 {
-    // djb2 해시 (추가 크레이트 없이 결정적 셔플용)
-    let mut hash: u64 = 5381;
-    for b in dir.to_string_lossy().to_lowercase().bytes() {
-        hash = hash.wrapping_mul(33).wrapping_add(b as u64);
-    }
-    hash
-}
-
-fn deterministic_shuffle(images: &mut [ImageEntry], mut seed: u64) {
-    if seed == 0 {
-        seed = 0x9E3779B97F4A7C15;
-    }
-    // xorshift64* + Fisher-Yates
-    let mut rand = move || {
-        seed ^= seed >> 12;
-        seed ^= seed << 25;
-        seed ^= seed >> 27;
-        seed.wrapping_mul(0x2545F4914F6CDD1D)
-    };
-    for i in (1..images.len()).rev() {
-        let j = (rand() % (i as u64 + 1)) as usize;
-        images.swap(i, j);
     }
 }
 
