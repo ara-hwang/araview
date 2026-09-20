@@ -17,6 +17,7 @@ import type { ImageInfo } from "@/types"
 import { classifyError } from "@/utils/appError"
 import { MAX_SKIP_ATTEMPTS, findSkipTarget } from "@/utils/skipBroken"
 
+import { ArchivePreviewCallout } from "./ArchivePreviewCallout"
 import { ImageNavBar } from "./ImageNavBar"
 import { WebtoonContinuousView, type WebtoonScrollTarget } from "./WebtoonContinuousView"
 
@@ -41,6 +42,7 @@ type ImageContainerProps = {
   onRetry?: () => void
   onWebtoonIndexChange?: (index: number) => void
   webtoonScrollTarget?: WebtoonScrollTarget
+  onOpenArchiveFromPreview?: () => void
 }
 
 const toSrc = (info: ImageInfo) => convertFileSrc(info.file_path)
@@ -64,7 +66,8 @@ export function ImageContainer({
   chromeHidden = false,
   onRetry,
   onWebtoonIndexChange,
-  webtoonScrollTarget
+  webtoonScrollTarget,
+  onOpenArchiveFromPreview
 }: ImageContainerProps) {
   const { t } = useTranslation()
   const app = useAppStore(
@@ -79,7 +82,8 @@ export function ImageContainer({
       rotation: state.rotation,
       flipH: state.flipH,
       flipV: state.flipV,
-      imageSize: state.imageSize
+      imageSize: state.imageSize,
+      archivePreviewPath: state.archivePreviewPath
     }))
   )
 
@@ -275,6 +279,13 @@ export function ImageContainer({
             </Button>
           </div>
         </div>
+      )}
+
+      {app.archivePreviewPath && onOpenArchiveFromPreview && (
+        <ArchivePreviewCallout
+          archivePath={app.archivePreviewPath}
+          onOpenArchive={onOpenArchiveFromPreview}
+        />
       )}
 
       {showNavBar && onNavigate && onNavigateToIndex && getOrLoadImage && (
