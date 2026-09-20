@@ -10,7 +10,6 @@ describe("sanitizeSettings", () => {
       loopNavigation: true,
       cacheMode: "extended",
       viewMode: "webtoon",
-      slideshowIntervalMs: 5000,
       sortKey: "size",
       sortDescending: true,
       fitMode: "width"
@@ -19,7 +18,6 @@ describe("sanitizeSettings", () => {
     expect(sane.loopNavigation).toBe(true)
     expect(sane.cacheMode).toBe("extended")
     expect(sane.viewMode).toBe("webtoon")
-    expect(sane.slideshowIntervalMs).toBe(5000)
     expect(sane.sortKey).toBe("size")
     expect(sane.sortDescending).toBe(true)
     expect(sane.fitMode).toBe("width")
@@ -40,13 +38,6 @@ describe("sanitizeSettings", () => {
     expect(sane.sortKey).toBe("name")
     expect(sane.language).toBe("ko")
     expect(sane.fitMode).toBe("auto")
-  })
-
-  it("범위를 벗어난 슬라이드쇼 간격은 기본값으로 되돌린다", () => {
-    expect(sanitizeSettings({ slideshowIntervalMs: 100 }).slideshowIntervalMs).toBe(3000)
-    expect(sanitizeSettings({ slideshowIntervalMs: 60000 }).slideshowIntervalMs).toBe(3000)
-    expect(sanitizeSettings({ slideshowIntervalMs: "fast" }).slideshowIntervalMs).toBe(3000)
-    expect(sanitizeSettings({ slideshowIntervalMs: 2500 }).slideshowIntervalMs).toBe(2500)
   })
 
   it("truthy 비불리언은 false로 정규화한다", () => {

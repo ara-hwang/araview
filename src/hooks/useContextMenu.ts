@@ -23,7 +23,6 @@ export type ImageViewerContextMenuActions = {
   onNavigatePrev: () => void
   onNavigateNext: () => void
   onToggleExif: () => void
-  onToggleSlideshow: () => void
   onToggleFullscreen: () => void
   onToggleAlwaysOnTop: () => void
   onCopyImage: () => void
@@ -135,11 +134,6 @@ export async function showImageViewerContextMenu(
       text: t("menu.toggleGrid"),
       accelerator: acc(s.toggleGrid),
       action: () => actions.onToggleGrid()
-    }),
-    MenuItem.new({
-      text: t("menu.toggleSlideshow"),
-      accelerator: acc(s.toggleSlideshow),
-      action: () => actions.onToggleSlideshow()
     }),
     MenuItem.new({
       text: t("menu.toggleFullscreen"),

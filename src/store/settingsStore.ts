@@ -37,7 +37,6 @@ export type SettingsState = {
   loopNavigation: boolean
   cacheMode: CacheMode
   viewMode: ViewMode
-  slideshowIntervalMs: number
   autoOpenLastFile: boolean
   recordRecentFiles: boolean
   viewerBackground: ViewerBackground
@@ -58,7 +57,6 @@ type SettingsStoreActions = {
   setLoopNavigation: (nextLoopNavigation: SettingsState["loopNavigation"]) => void
   setCacheMode: (nextCacheMode: SettingsState["cacheMode"]) => void
   setViewMode: (nextViewMode: SettingsState["viewMode"]) => void
-  setSlideshowIntervalMs: (nextSlideshowIntervalMs: SettingsState["slideshowIntervalMs"]) => void
 }
 
 type SettingsStore = SettingsState & SettingsStoreActions
@@ -68,7 +66,6 @@ const initialSettings: SettingsState = {
   loopNavigation: false,
   cacheMode: "nearby",
   viewMode: "single",
-  slideshowIntervalMs: 3000,
   autoOpenLastFile: false,
   recordRecentFiles: true,
   viewerBackground: "theme",
@@ -108,20 +105,11 @@ export function sanitizeSettings(value: unknown): SettingsState {
   const record =
     typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {}
   const language = normalizeLanguage(record.language) ?? initialSettings.language
-  const intervalRaw = record.slideshowIntervalMs
-  const slideshowIntervalMs =
-    typeof intervalRaw === "number" &&
-    Number.isFinite(intervalRaw) &&
-    intervalRaw >= 1000 &&
-    intervalRaw <= 30000
-      ? Math.round(intervalRaw)
-      : initialSettings.slideshowIntervalMs
   return {
     language,
     loopNavigation: sanitizeBoolean(record.loopNavigation),
     cacheMode: sanitizeEnum(record.cacheMode, CACHE_MODES, initialSettings.cacheMode),
     viewMode: sanitizeEnum(record.viewMode, VIEW_MODES, initialSettings.viewMode),
-    slideshowIntervalMs,
     autoOpenLastFile: sanitizeBoolean(record.autoOpenLastFile),
     recordRecentFiles:
       record.recordRecentFiles === undefined
@@ -159,10 +147,6 @@ export const useSettingsStore = create<SettingsStore>((set) => ({
   setViewMode: (nextViewMode) =>
     set(() => ({
       viewMode: nextViewMode
-    })),
-  setSlideshowIntervalMs: (nextSlideshowIntervalMs) =>
-    set(() => ({
-      slideshowIntervalMs: nextSlideshowIntervalMs
     }))
 }))
 

@@ -43,7 +43,6 @@ const ACTION_LABEL_KEY: Record<ShortcutActionId, string> = {
   rotateCCW: "menu.rotateCcw",
   flipH: "menu.flipH",
   flipV: "menu.flipV",
-  toggleSlideshow: "menu.toggleSlideshow",
   toggleFullscreen: "menu.toggleFullscreen",
   toggleAlwaysOnTop: "menu.toggleAlwaysOnTop",
   copyImage: "menu.copyImage",

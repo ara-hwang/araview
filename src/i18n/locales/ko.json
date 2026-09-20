@@ -184,11 +184,6 @@
       "descOrder": "내림차순",
       "subfolders": "하위 폴더 포함"
     },
-    "slideshow": {
-      "title": "슬라이드쇼 간격",
-      "desc": "자동 넘김 간격 ({{sec}}초)",
-      "aria": "슬라이드쇼 간격"
-    },
     "bg": {
       "title": "배경",
       "desc": "이미지 영역 배경",
@@ -268,13 +263,6 @@
   },
   "viewer": {
     "loading": "이미지 불러오는 중",
-    "slideshow": {
-      "label": "슬라이드쇼 {{index}}/{{total}} · {{sec}}초",
-      "fullscreen": "전체화면",
-      "fullscreenTitle": "전체화면 (F11)",
-      "stop": "정지",
-      "stopTitle": "슬라이드쇼 정지 (Space)"
-    },
     "error": {
       "home": "홈으로 돌아가기",
       "dismiss": "닫기",
@@ -415,7 +403,6 @@
     "flipV": "상하 반전",
     "toggleExif": "EXIF 패널 토글",
     "toggleGrid": "썸네일 그리드 토글",
-    "toggleSlideshow": "슬라이드쇼 토글",
     "toggleFullscreen": "전체화면 토글",
     "toggleAlwaysOnTop": "맨 위에 두기 토글",
     "copyImage": "이미지 복사",
@@ -544,10 +531,6 @@
       "unregisterFail": "탐색기 썸네일 해제 실패",
       "doneEnabled": "탐색기 썸네일을 켰습니다",
       "doneDisabled": "탐색기 썸네일을 껐습니다"
-    },
-    "slideshow": {
-      "start": "슬라이드쇼 시작",
-      "stop": "슬라이드쇼 정지"
     },
     "update": {
       "latest": "최신 버전을 사용 중입니다",

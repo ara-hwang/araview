@@ -174,15 +174,6 @@
   background-size: 20px 20px;
 }
 
-@keyframes slideshow-progress {
-  from {
-    clip-path: inset(0 100% 0 0);
-  }
-  to {
-    clip-path: inset(0 0 0 0);
-  }
-}
-
 /* 다이얼로그/Sheet가 열리면 헤더 버튼을 비활성화한다. 오버레이가 헤더
    아래부터 시작하므로 헤더는 가려지지 않고 그대로 보인다. 빈 영역의
    창 드래그는 유지되도록 버튼/입력 요소만 막는다 (키보드 포커스는

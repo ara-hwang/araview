@@ -27,7 +27,6 @@ type ImageViewerHotkeysParams = {
   onOpenFile: () => void
   onCloseImage: () => void
   onToggleExif: () => void
-  onToggleSlideshow: () => void
   onToggleFullscreen: () => void
   onToggleAlwaysOnTop: () => void
   onCopyImage: () => void
@@ -191,9 +190,6 @@ export function useImageViewerHotkeys(props: ImageViewerHotkeysParams) {
           break
         case "flipV":
           run(flipVertical)
-          break
-        case "toggleSlideshow":
-          run(p.onToggleSlideshow)
           break
         case "toggleFullscreen":
           run(p.onToggleFullscreen)

@@ -184,11 +184,6 @@
       "descOrder": "Descending",
       "subfolders": "Include subfolders"
     },
-    "slideshow": {
-      "title": "Slideshow interval",
-      "desc": "Auto-advance interval ({{sec}}s)",
-      "aria": "Slideshow interval"
-    },
     "bg": {
       "title": "Background",
       "desc": "Image area background",
@@ -268,13 +263,6 @@
   },
   "viewer": {
     "loading": "Loading image",
-    "slideshow": {
-      "label": "Slideshow {{index}}/{{total}} · {{sec}}s",
-      "fullscreen": "Fullscreen",
-      "fullscreenTitle": "Fullscreen (F11)",
-      "stop": "Stop",
-      "stopTitle": "Stop slideshow (Space)"
-    },
     "error": {
       "home": "Go home",
       "dismiss": "Close",
@@ -415,7 +403,6 @@
     "flipV": "Flip Vertical",
     "toggleExif": "Toggle EXIF Panel",
     "toggleGrid": "Toggle Thumbnail Grid",
-    "toggleSlideshow": "Toggle Slideshow",
     "toggleFullscreen": "Toggle Fullscreen",
     "toggleAlwaysOnTop": "Toggle Always on Top",
     "copyImage": "Copy Image",
@@ -544,10 +531,6 @@
       "unregisterFail": "Failed to disable Explorer thumbnails",
       "doneEnabled": "Explorer thumbnails enabled",
       "doneDisabled": "Explorer thumbnails disabled"
-    },
-    "slideshow": {
-      "start": "Slideshow started",
-      "stop": "Slideshow stopped"
     },
     "update": {
       "latest": "You are on the latest version",

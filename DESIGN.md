@@ -79,7 +79,7 @@ A calm, paper-neutral room built for looking, not for clicking. The viewer chrom
 - Paper-neutral surfaces in rest; ink only for structure and primary action.
 - Small semibold labels and tabular readouts instead of decorative icon walls.
 - Flat by default; shadow appears only on floating layers (dialogs, popovers, error cards).
-- Motion is limited to state feedback (press, fade, slide) and the slideshow progress line.
+- Motion is limited to state feedback (press, fade, slide).
 
 ## Colors
 
@@ -116,7 +116,7 @@ One ink, one paper, warm-gray washes between. No accent hue exists; emphasis com
 - **Title** (500, 1rem, 1.5): dialog titles only.
 - **Body** (400, 0.875rem, 1.5): settings copy, empty/error messages, panel text.
 - **Label** (600, 0.75rem, 1.33, 0.05em tracking, uppercase for section heads): EXIF groups, toolbar button labels beside icons.
-- **Readout** (500, 0.875rem, tabular numerals): zoom percentage, page position, slideshow interval.
+- **Readout** (500, 0.875rem, tabular numerals): zoom percentage, page position.
 
 ### Named Rules
 
@@ -185,7 +185,6 @@ Toolbar buttons with a quiet, tactile press (1px downward shift on active, excep
 ### Viewer Layers (signature)
 
 - **Reading well:** square, borderless, background follows the viewer-background setting; empty state names a real next action (open a file or folder).
-- **Slideshow progress:** a single 1px linear progress line; linear easing only.
 - **Error card:** floating, hairline alarm-tinted border, alarm-ink message, retry or open action. Never a bare toast for a failed load.
 
 ## Do's and Don'ts
@@ -194,7 +193,7 @@ Toolbar buttons with a quiet, tactile press (1px downward shift on active, excep
 
 - **Do** let the image be the largest, most saturated thing on every screen.
 - **Do** give every icon button a real accessible label and a keyboard path.
-- **Do** use tabular numerals for zoom, page, and interval readouts.
+- **Do** use tabular numerals for zoom and page readouts.
 - **Do** keep destructive actions at low-fill alarm with ink-weight text.
 
 ### Don't:

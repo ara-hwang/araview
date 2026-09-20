@@ -1,4 +1,4 @@
-import { Images, Palette, Presentation, PushPin, Timer } from "@phosphor-icons/react"
+import { Images, Palette, Presentation, PushPin } from "@phosphor-icons/react"
 import { useTranslation } from "react-i18next"
 import { useShallow } from "zustand/react/shallow"
 
@@ -7,7 +7,6 @@ import { ShortcutBadge } from "@/components/settings/ShortcutBadge"
 import { Field, FieldGroup, FieldSeparator } from "@/components/ui/field"
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Slider } from "@/components/ui/slider"
 import { Switch } from "@/components/ui/switch"
 import {
   updateSettings,
@@ -25,8 +24,7 @@ export function ViewTabPanel() {
       viewerBackground: state.viewerBackground,
       autoHideUI: state.autoHideUI,
       menuBarHidden: state.menuBarHidden,
-      alwaysOnTop: state.alwaysOnTop,
-      slideshowIntervalMs: state.slideshowIntervalMs
+      alwaysOnTop: state.alwaysOnTop
     }))
   )
 
@@ -142,28 +140,6 @@ export function ViewTabPanel() {
             <ShortcutBadge actionId="toggleAlwaysOnTop" />
           </Label>
         </Field>
-      </SettingsFieldSet>
-
-      <FieldSeparator />
-
-      <SettingsFieldSet
-        icon={<Timer className="size-6" />}
-        title={t("settings.slideshow.title")}
-        description={t("settings.slideshow.desc", {
-          sec: (settings.slideshowIntervalMs / 1000).toFixed(1)
-        })}
-      >
-        <Slider
-          aria-label={t("settings.slideshow.aria")}
-          value={[settings.slideshowIntervalMs]}
-          min={1000}
-          max={30000}
-          step={500}
-          onValueChange={(value) => {
-            const next = Array.isArray(value) ? value[0] : (value as number)
-            if (typeof next === "number") handleSettingsChange({ slideshowIntervalMs: next })
-          }}
-        />
       </SettingsFieldSet>
     </FieldGroup>
   )

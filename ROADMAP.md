@@ -5,8 +5,8 @@
 >
 > ## 구현 현황 (2026-09-14 기준 + 문서 동기화)
 >
-> - ✅ 완료: 뷰 모드 렌더(`useMultiPageImages` + `ImageContainer`), 회전/뒤집기(`appStore` + CSS transform + `R/Shift+R/H/V`), 클립보드 복사 PNG(`useCopyImage`), 슬라이드쇼 코어(`useSlideshow` + `Space/F5` + 간격 설정), 최근 파일 목록(최대 20개, `settings.json`), Asset Protocol 경로 기반 렌더링(base64 제거).
-> - ✅ Phase 1 폴리시 완료: 설정 UI 노출(viewMode/간격/자동열기), 헤더 회전/뒤집기 + 컨텍스트 메뉴 풀셋, 양면 2장 넘김 + 회전 bounds, 슬라이드쇼 진행바 오버레이, 다중 DnD + 오버레이, 에러 분류 + 홈으로 복구, EXIF 아카이브修正·썸네일 alt·테마 데드코드 제거.
+> - ✅ 완료: 뷰 모드 렌더(`useMultiPageImages` + `ImageContainer`), 회전/뒤집기(`appStore` + CSS transform + `R/Shift+R/H/V`), 클립보드 복사 PNG(`useCopyImage`), 최근 파일 목록(최대 20개, `settings.json`), Asset Protocol 경로 기반 렌더링(base64 제거).
+> - ✅ Phase 1 폴리시 완료: 설정 UI 노출(viewMode/자동열기), 헤더 회전/뒤집기 + 컨텍스트 메뉴 풀셋, 양면 2장 넘김 + 회전 bounds, 다중 DnD + 오버레이, 에러 분류 + 홈으로 복구, EXIF 아카이브修正·썸네일 alt·테마 데드코드 제거.
 > - ✅ 포맷/성능 라운드: 디렉토리 스캔 캐시+워처(`dir_cache.rs` + `notify`), 썸네일 파이프라인(`thumbnail.rs` + `generate_thumbnail` + `useThumbnailSrcs`, 500MB cap), 렌더링 성능(rAF 팬 스로틀·`translate3d`+`will-change`·Webtoon 지연 로드·모드별 프리페치), CB7 아카이브 지원(`sevenz-rust2`, 15개 확장자). CBR/RAR/ZIP/7Z/CBT는 Step 4에서 추가 지원(20개 확장자, `rars` 퓨어 Rust, MIT/Apache-2.0). QOI/JXL/RAW는 JPEG sidecar 전제가 필요해 제외 유지. PSD는 읽기 전용 미리보기로 추가 지원(21개 확장자, `psd` 크레이트 + JPEG sidecar, PSB 제외).
 > - ✅ 썸네일 그리드 뷰(2.1): `G` 토글, 뷰포트 가상화(`ThumbnailGrid.tsx` + `gridWindow.ts`), 파일명 필터, 아카이브 전용 `generate_archive_thumbnail` 백엔드, 팔레트/컨텍스트 메뉴/하단 바 진입점.
 > - ✅ 문서 동기화(2026-09-14, 코드 대조): 2.4 i18n·2.5 DnD·3.4 메모리 최적화(핵심)·5.2 에러 처리를 완료로 확정. 3.5 렌더링(타일 미도입)·5.1 접근성(고대비 미지원)·5.3 테스트(훅/컴포넌트/통합 일부)·5.4 CI(PR용 워크플로 미분리)는 부분 완료로 재정의. 4.1 비교 모드·4.2 잔여분(크롭/리사이즈/밝기대비)·4.3 배치 작업·4.5 인쇄는 범위 제외.
@@ -84,25 +84,9 @@
 
 ---
 
-### 1.4 슬라이드쇼 모드 (P1) — ✅ 코어 완료 / 폴리시 남음
+### 1.4 슬라이드쇼 모드 (P1) — ❌ 제거 (2026-09-20)
 
-**현재 상태 (2026-09-09)**: `useSlideshow` 간격(`slideshowIntervalMs`, 기본 3000ms) + `Space` 토글 + 토스트 + 루프 연동 완료. 남은 폴리시는 진행바/오버레이/전체화면 연동/헤더 버튼(Phase 1-4, 1-2). 설정 UI 미노출(Phase 1-1).
-
-**당시 구현 계획 (보존)**:
-
-- 단축키 `Space`로 슬라이드쇼 시작/정지
-- 설정 가능한 간격 (1초 ~ 30초, 기본 3초)
-- 전체화면 지원 (Tauri window fullscreen API)
-- 진행 바 표시 (현재 이미지 위치 및 타이머)
-- 슬라이드쇼 중 마우스 이동 시 컨트롤 오버레이 표시
-- 루프 설정 연동 (`loopNavigation`)
-
-**관련 파일**:
-
-- `src/hooks/useSlideshow.ts` — 새 훅 생성
-- `src/store/settingsStore.ts` — slideshowInterval 설정 추가
-- `src/components/Header.tsx` — 슬라이드쇼 버튼 추가
-- `src/components/ImageContainer.tsx` — 전체화면 모드 오버레이
+제품 범위에서 제외했다. `useSlideshow`, `slideshowIntervalMs` 설정, `Space` 단축키, 진행바 오버레이, 설정 UI를 모두 제거했다. 제거 사유는 로드맵 범위 밖이며, 재도입 계획은 없다.
 
 ---
 
@@ -310,7 +294,7 @@
 
 > 이미지 뷰어의 경쟁력을 높이는 고급 기능.
 >
-> 범위 제외(2026-09-14): 4.1 비교 모드·4.2 잔여분(크롭/리사이즈/밝기대비)·4.3 배치 작업·4.5 인쇄는 로드맵에서 제외한다. 4.2의 회전/반전 저장 파이프라인은 구현되어 있으며 SPEC §12.3에 문서화되어 유지된다.
+> 범위 제외(2026-09-14): 4.1 비교 모드·4.2 잔여분(크롭/리사이즈/밝기대비)·4.3 배치 작업·4.5 인쇄는 로드맵에서 제외한다. 4.2의 회전/반전 저장 파이프라인은 구현되어 있으며 SPEC §11.3에 문서화되어 유지된다.
 
 ### 4.4 추가 이미지 포맷 지원 (P2) — 의도적 제외 유지 (2026-09-14 재확인)
 
@@ -341,7 +325,7 @@
 
 ### 5.1 접근성 (A11y) 개선 (P1) — 부분 완료: 고대비 모드만 남음 (2026-09-14 코드 대조 확정)
 
-**현재 상태**: 상당 부분 구현됨. 파일명 기반 `alt`(Single/양면/Webtoon/썸네일/홈 카드), `Header` 전 버튼 `aria-label` + 단축키 병기, `ImageNavBar` 슬라이더·그리드 버튼 레이블, 썸네일 그리드 `listbox`/`option`, 슬라이드쇼 `aria-live` 진행 표시, 에러 카드 `role="alert"` + `StatusBar` `role="status"`, 전역 `focus-visible` 링, 키보드 조작(단축키·그리드 화살표/`Enter`/`Esc`·팔레트). 남은 것은 고대비 모드 지원이다.
+**현재 상태**: 상당 부분 구현됨. 파일명 기반 `alt`(Single/양면/Webtoon/썸네일/홈 카드), `Header` 전 버튼 `aria-label` + 단축키 병기, `ImageNavBar` 슬라이더·그리드 버튼 레이블, 썸네일 그리드 `listbox`/`option`, 에러 카드 `role="alert"` + `StatusBar` `role="status"`, 전역 `focus-visible` 링, 키보드 조작(단축키·그리드 화살표/`Enter`/`Esc`·팔레트). 남은 것은 고대비 모드 지원이다.
 
 **개선 계획** (남은 1건):
 
@@ -358,7 +342,7 @@
 
 ### 5.2 에러 처리 개선 (P1) — ✅ 완료 (2026-09-14 코드 대조 확정)
 
-**현재 상태**: 구현됨. 백엔드 구조화 에러 8종(`app_error.rs`) + 프론트 5종 분류(`appError.ts`, `titleKey`/`hintKey` 번역 표시), 에러 카드에 재시도/홈으로 복구/닫기(`ImageContainer.tsx`, `role="alert"`), 경미한 실패는 base 토스트(`@/components/ui/toast`), 손상 파일 자동 건너뛰기(`skipBrokenFiles` + `failedPaths`), 대안 동작으로 기본 앱 열기(`Ctrl+Shift+O`)·포맷 변환 저장(`save_image_edits`)이 있다. SPEC §18과 일치.
+**현재 상태**: 구현됨. 백엔드 구조화 에러 8종(`app_error.rs`) + 프론트 5종 분류(`appError.ts`, `titleKey`/`hintKey` 번역 표시), 에러 카드에 재시도/홈으로 복구/닫기(`ImageContainer.tsx`, `role="alert"`), 경미한 실패는 base 토스트(`@/components/ui/toast`), 손상 파일 자동 건너뛰기(`skipBrokenFiles` + `failedPaths`), 대안 동작으로 기본 앱 열기(`Ctrl+Shift+O`)·포맷 변환 저장(`save_image_edits`)이 있다. SPEC §17과 일치.
 
 **개선 계획**:
 
@@ -398,7 +382,7 @@
 
 ### 5.4 CI/CD 파이프라인 강화 (P2) — 부분 완료: 릴리스 게이트 존재 / PR용 분리 미구현 (2026-09-14 재확인)
 
-**현재 상태**: 워크플로는 `release.yml` 1개(`.github/workflows/`). 단, 태그 푸시 시 프론트 검사(`npm test`, `tsc --noEmit`, `oxfmt --check`)와 Rust 검사(`cargo fmt --check`, `cargo test`, `cargo clippy -D warnings`)를 먼저 수행하고 실패 시 빌드·릴리스로 진행하지 않는다(SPEC §21). 남은 것은 아래 계획이다.
+**현재 상태**: 워크플로는 `release.yml` 1개(`.github/workflows/`). 단, 태그 푸시 시 프론트 검사(`npm test`, `tsc --noEmit`, `oxfmt --check`)와 Rust 검사(`cargo fmt --check`, `cargo test`, `cargo clippy -D warnings`)를 먼저 수행하고 실패 시 빌드·릴리스로 진행하지 않는다(SPEC §20). 남은 것은 아래 계획이다.
 
 **개선 계획**:
 
@@ -422,7 +406,6 @@
 | **P0**   | 뷰 모드 구현           | 1     |
 | **P0**   | 이미지 회전/뒤집기     | 1     |
 | **P1**   | 클립보드 복사          | 1     |
-| **P1**   | 슬라이드쇼 모드        | 1     |
 | **P1**   | 썸네일 그리드 뷰       | 2     |
 | **P1**   | 이미지 정보 패널 강화  | 2     |
 | **P1**   | 스트리밍 이미지 디코딩 | 3     |

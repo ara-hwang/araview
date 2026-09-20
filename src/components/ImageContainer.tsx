@@ -36,10 +36,6 @@ type ImageContainerProps = {
   getOrLoadImage?: (filePath: string) => Promise<ImageInfo>
   viewMode?: ViewMode
   pages?: MultiPage[]
-  slideshowActive?: boolean
-  slideshowIntervalMs?: number
-  onToggleSlideshow?: () => void
-  onToggleFullscreen?: () => void
   /** UI 자동 숨김(프레젠테이션) 시 하단 내비게이션 바 숨김 */
   chromeHidden?: boolean
   onRetry?: () => void
@@ -65,10 +61,6 @@ export function ImageContainer({
   getOrLoadImage,
   viewMode = "single",
   pages = [],
-  slideshowActive = false,
-  slideshowIntervalMs = 3000,
-  onToggleSlideshow,
-  onToggleFullscreen,
   chromeHidden = false,
   onRetry,
   onWebtoonIndexChange,
@@ -254,56 +246,6 @@ export function ImageContainer({
       {app.loading && (
         <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
           <Spinner className="size-8 text-muted-foreground" aria-label={t("viewer.loading")} />
-        </div>
-      )}
-
-      {slideshowActive && (
-        <div
-          className="absolute top-2 left-1/2 z-20 w-64 -translate-x-1/2 rounded-md border border-border bg-background/90 px-3 py-2 shadow-lg"
-          onMouseDown={(e) => e.stopPropagation()}
-        >
-          <div className="flex items-center justify-between gap-2 text-xs">
-            <span aria-live="polite">
-              {t("viewer.slideshow.label", {
-                index: app.dirImages.current_index + 1,
-                total: app.dirImages.images.length,
-                sec: (slideshowIntervalMs / 1000).toFixed(1)
-              })}
-            </span>
-            <span className="flex gap-1">
-              {onToggleFullscreen && (
-                <button
-                  type="button"
-                  onClick={onToggleFullscreen}
-                  className="rounded px-1.5 py-0.5 hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-                  title={t("viewer.slideshow.fullscreenTitle")}
-                  aria-label={t("viewer.slideshow.fullscreenTitle")}
-                >
-                  {t("viewer.slideshow.fullscreen")}
-                </button>
-              )}
-              {onToggleSlideshow && (
-                <button
-                  type="button"
-                  onClick={onToggleSlideshow}
-                  className="rounded px-1.5 py-0.5 hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-                  title={t("viewer.slideshow.stopTitle")}
-                  aria-label={t("viewer.slideshow.stopTitle")}
-                >
-                  {t("viewer.slideshow.stop")}
-                </button>
-              )}
-            </span>
-          </div>
-          <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-muted">
-            <div
-              key={`${app.dirImages.current_index}-${slideshowIntervalMs}`}
-              className="h-full bg-primary"
-              style={{
-                animation: `slideshow-progress ${slideshowIntervalMs}ms linear forwards`
-              }}
-            />
-          </div>
         </div>
       )}
 

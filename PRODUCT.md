@@ -8,7 +8,7 @@ desktop (Windows 10/11 x64, Tauri)
 
 ## Users
 
-Primary: Windows 10/11 (x64) desktop users viewing local images. Core job is fast photo/image inspection: open a file, move through a folder, zoom and fit. Secondary job is comic reading (CBZ archives, multi-page spreads, vertical webtoon scroll), including right-to-left reading. Interface languages: Korean and English. Users operate keyboard-first (arrow/page navigation, slideshow, fullscreen) with mouse/touchpad for zoom and pan.
+Primary: Windows 10/11 (x64) desktop users viewing local images. Core job is fast photo/image inspection: open a file, move through a folder, zoom and fit. Secondary job is comic reading (CBZ archives, multi-page spreads, vertical webtoon scroll), including right-to-left reading. Interface languages: Korean and English. Users operate keyboard-first (arrow/page navigation, fullscreen) with mouse/touchpad for zoom and pan.
 
 ## Product Purpose
 
@@ -20,11 +20,11 @@ A neighboring viewer cannot truthfully copy this combination: genuinely offline 
 
 ## Operating Context
 
-Local-filesystem workflows only: file picker, drag-and-drop of files or folders, and OS file-association launch (Windows passes the path as a CLI argument; backend emits `open-file`). Frameless app window with a custom titlebar/toolbar; window state persists across launches. Viewer chrome auto-hides during reading. Slideshow and fullscreen are presentation contexts. Settings (viewer preferences, recent files) persist locally via Tauri Store. Supported inputs: png, jpg, jpeg, gif, bmp, webp, svg, ico, tiff, tif, avif, heic, heif, psd (read-only preview), cbz, cb7, cbr, rar, zip, 7z, cbt. The only network use is an explicit manual update check (Settings or command palette); there is no background polling.
+Local-filesystem workflows only: file picker, drag-and-drop of files or folders, and OS file-association launch (Windows passes the path as a CLI argument; backend emits `open-file`). Frameless app window with a custom titlebar/toolbar; window state persists across launches. Viewer chrome auto-hides during reading. Fullscreen is a presentation context. Settings (viewer preferences, recent files) persist locally via Tauri Store. Supported inputs: png, jpg, jpeg, gif, bmp, webp, svg, ico, tiff, tif, avif, heic, heif, psd (read-only preview), cbz, cb7, cbr, rar, zip, 7z, cbt. The only network use is an explicit manual update check (Settings or command palette); there is no background polling.
 
 ## Capabilities and Constraints
 
-Confirmed capabilities: zoom, fit-to-width/height/screen, pan, rotate, flip; previous/next navigation, slider jump, thumbnail strip, optional loop navigation; multi-page view modes (single, left-to-right, right-to-left, webtoon); EXIF panel; slideshow; fullscreen; copy image to clipboard as PNG; recent files; Korean/English UI.
+Confirmed capabilities: zoom, fit-to-width/height/screen, pan, rotate, flip; previous/next navigation, slider jump, thumbnail strip, optional loop navigation; multi-page view modes (single, left-to-right, right-to-left, webtoon); EXIF panel; fullscreen; copy image to clipboard as PNG; recent files; Korean/English UI.
 
 Constraints: Windows 10/11 x64 only. Offline by design. File associations can only open the Windows per-extension default-app picker; silent UserChoice registry writes are not possible. HEIC/HEIF/PSD render through a JPEG sidecar under the process temp dir. Backend responses carry file metadata (`file_path`, `mime_type`, `file_name`, `file_size`, `width`, `height`) plus directory, thumbnail, archive, EXIF, and file-operation payloads; no base64 payloads. Undecided: any cloud or sharing features (out of scope unless explicitly requested).
 

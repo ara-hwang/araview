@@ -19,7 +19,7 @@ Product truth lives in `PRODUCT.md`, visual system in `DESIGN.md`, full function
 - Input flows: file picker, drag-and-drop (file/folder), OS file association open
 - Viewer controls: zoom, fit-to-width/height/screen, pan, rotate, flip
 - Navigation: previous/next, slider jump, thumbnail strip, optional loop navigation
-- Extra features: EXIF panel, slideshow, fullscreen, copy image to clipboard (PNG), recent files, manual update check (tauri-plugin-updater, no background polling)
+- Extra features: EXIF panel, fullscreen, copy image to clipboard (PNG), recent files, manual update check (tauri-plugin-updater, no background polling)
 - Command palette (`Ctrl+K`): searchable global commands, see `src/constants/commands.ts`
 - File associations: settings open the Windows per-extension default-app picker; silent UserChoice writes are not possible. Dev builds register as `AraView (Dev)` with separate registry keys/ProgIDs so they cannot collide with the installed build (`src-tauri/src/file_assoc.rs`)
 - Multi-page view modes: `single`, `left-to-right`, `right-to-left`, `webtoon`
@@ -88,7 +88,7 @@ Frontend uses `invoke()` for these commands:
 - `set_all_file_associations(associate)`
 - `open_default_apps_settings()`
 
-Full IPC contract (20 commands including thumbnails, archive prefetch, trash/rename/save): see `SPEC.md` §16.
+Full IPC contract (20 commands including thumbnails, archive prefetch, trash/rename/save): see `SPEC.md` §15.
 
 When app is opened from file association, Windows passes the file path as a CLI argument. Backend buffers it in `PendingOpenFile` until the webview signals readiness (`frontend_ready`), then emits `open-file`; the root layout (`useOpenFileBridge`) bridges the event to the active route's loader.
 
@@ -108,7 +108,7 @@ Keep Rust `serde` output aligned with TypeScript types.
 
 Do not reintroduce base64 payload fields unless explicitly required.
 
-Full data model: see `SPEC.md` §17.
+Full data model: see `SPEC.md` §16.
 
 ### Rendering path
 
