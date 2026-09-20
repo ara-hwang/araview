@@ -21,8 +21,8 @@ import { ImageNavBar } from "./ImageNavBar"
 import { WebtoonContinuousView, type WebtoonScrollTarget } from "./WebtoonContinuousView"
 
 type ImageContainerProps = {
-  containerRef: RefObject<HTMLDivElement>
-  imageRef: RefObject<HTMLImageElement>
+  containerRef: RefObject<HTMLDivElement | null>
+  imageRef: RefObject<HTMLImageElement | null>
   onWheel: (e: React.WheelEvent) => void
   onMouseDown: (e: React.MouseEvent) => void
   onMouseMove: (e: React.MouseEvent) => void

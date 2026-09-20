@@ -28,6 +28,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window"
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 
+import { AppTooltip } from "@/components/AppTooltip"
 import { Button } from "@/components/ui/button"
 import { formatShortcutDisplay } from "@/constants/shortcuts"
 import { useAlwaysOnTop } from "@/hooks/useAlwaysOnTop"
@@ -175,25 +176,28 @@ export default function Header({
         className="flex min-w-0 flex-1 items-center justify-between gap-2 overflow-hidden p-2"
       >
         <ButtonGroup aria-label={t("palette.group.file")} className="no-drag">
-          <Button
-            variant="outline"
-            onClick={handleGoHome}
-            disabled={!hasImage}
-            title={withShortcut(t("header.home"), shortcuts.closeImage)}
-            aria-label={withShortcut(t("header.home"), shortcuts.closeImage)}
-          >
-            <House data-icon="inline-start" />
-            <span className="hidden min-[1440px]:inline">{t("header.home")}</span>
-          </Button>
-          <Button
-            variant="outline"
-            onClick={handleOpenFile}
-            title={withShortcut(t("header.open"), shortcuts.openFile)}
-            aria-label={withShortcut(t("header.open"), shortcuts.openFile)}
-          >
-            <FolderOpen data-icon="inline-start" />
-            <span className="hidden min-[1440px]:inline">{t("header.open")}</span>
-          </Button>
+          <AppTooltip content={withShortcut(t("header.home"), shortcuts.closeImage)}>
+            <Button
+              variant="outline"
+              onClick={handleGoHome}
+              disabled={!hasImage}
+              title={withShortcut(t("header.home"), shortcuts.closeImage)}
+              aria-label={withShortcut(t("header.home"), shortcuts.closeImage)}
+            >
+              <House data-icon="inline-start" />
+              <span className="hidden min-[1440px]:inline">{t("header.home")}</span>
+            </Button>
+          </AppTooltip>
+          <AppTooltip content={withShortcut(t("header.open"), shortcuts.openFile)}>
+            <Button
+              variant="outline"
+              onClick={handleOpenFile}
+              aria-label={withShortcut(t("header.open"), shortcuts.openFile)}
+            >
+              <FolderOpen data-icon="inline-start" />
+              <span className="hidden min-[1440px]:inline">{t("header.open")}</span>
+            </Button>
+          </AppTooltip>
         </ButtonGroup>
 
         {/* ButtonGroup은 동작 버튼용, ToggleGroup은 상태 토글용으로 구분한다 (shadcn).
@@ -209,73 +213,85 @@ export default function Header({
               aria-label={t("header.fitGroup")}
               className="no-drag"
             >
-              <ToggleGroupItem
-                value="width"
-                disabled={!hasImage}
-                title={withShortcut(t("header.fitWidth"), shortcuts.fitWidth)}
-                aria-label={withShortcut(t("header.fitWidth"), shortcuts.fitWidth)}
-              >
-                <ArrowsHorizontal data-icon="inline-start" />
-                <span className="hidden min-[1440px]:inline">{t("header.fitWidth")}</span>
-              </ToggleGroupItem>
-              <ToggleGroupItem
-                value="height"
-                disabled={!hasImage}
-                title={withShortcut(t("header.fitHeight"), shortcuts.fitHeight)}
-                aria-label={withShortcut(t("header.fitHeight"), shortcuts.fitHeight)}
-              >
-                <ArrowsVertical data-icon="inline-start" />
-                <span className="hidden min-[1440px]:inline">{t("header.fitHeight")}</span>
-              </ToggleGroupItem>
-              <ToggleGroupItem
-                value="screen"
-                disabled={!hasImage}
-                title={withShortcut(t("header.fitScreen"), shortcuts.fitScreen)}
-                aria-label={withShortcut(t("header.fitScreen"), shortcuts.fitScreen)}
-              >
-                <ArrowsOut data-icon="inline-start" />
-                <span className="hidden min-[1440px]:inline">{t("header.fitScreen")}</span>
-              </ToggleGroupItem>
+              <AppTooltip content={withShortcut(t("header.fitWidth"), shortcuts.fitWidth)}>
+                <ToggleGroupItem
+                  value="width"
+                  disabled={!hasImage}
+                  title={withShortcut(t("header.fitWidth"), shortcuts.fitWidth)}
+                  aria-label={withShortcut(t("header.fitWidth"), shortcuts.fitWidth)}
+                >
+                  <ArrowsHorizontal data-icon="inline-start" />
+                  <span className="hidden min-[1440px]:inline">{t("header.fitWidth")}</span>
+                </ToggleGroupItem>
+              </AppTooltip>
+              <AppTooltip content={withShortcut(t("header.fitHeight"), shortcuts.fitHeight)}>
+                <ToggleGroupItem
+                  value="height"
+                  disabled={!hasImage}
+                  title={withShortcut(t("header.fitHeight"), shortcuts.fitHeight)}
+                  aria-label={withShortcut(t("header.fitHeight"), shortcuts.fitHeight)}
+                >
+                  <ArrowsVertical data-icon="inline-start" />
+                  <span className="hidden min-[1440px]:inline">{t("header.fitHeight")}</span>
+                </ToggleGroupItem>
+              </AppTooltip>
+              <AppTooltip content={withShortcut(t("header.fitScreen"), shortcuts.fitScreen)}>
+                <ToggleGroupItem
+                  value="screen"
+                  disabled={!hasImage}
+                  title={withShortcut(t("header.fitScreen"), shortcuts.fitScreen)}
+                  aria-label={withShortcut(t("header.fitScreen"), shortcuts.fitScreen)}
+                >
+                  <ArrowsOut data-icon="inline-start" />
+                  <span className="hidden min-[1440px]:inline">{t("header.fitScreen")}</span>
+                </ToggleGroupItem>
+              </AppTooltip>
             </ToggleGroup>
 
             <ButtonGroup aria-label={t("header.zoomGroup")} className="no-drag">
-              <Button
-                variant="outline"
-                onClick={zoomOut}
-                disabled={!hasImage}
-                title={withShortcut(t("header.zoomOut"), shortcuts.zoomOut)}
-                aria-label={withShortcut(t("header.zoomOut"), shortcuts.zoomOut)}
-              >
-                <MagnifyingGlassMinus data-icon="inline-start" />
-                <span className="hidden min-[1440px]:inline">{t("header.zoomOut")}</span>
-              </Button>
-              <ButtonGroupText
-                className={cn(
-                  "hidden tabular-nums no-drag focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none sm:flex",
-                  !hasImage && "opacity-50"
-                )}
-                render={
-                  <button
-                    type="button"
-                    disabled={!hasImage}
-                    onClick={hasImage ? resetZoomPan : undefined}
-                    title={withShortcut(t("menu.actualSize"), shortcuts.resetView)}
-                    aria-label={withShortcut(t("menu.actualSize"), shortcuts.resetView)}
-                  />
-                }
-              >
-                {Math.round(zoom * 100)}%
-              </ButtonGroupText>
-              <Button
-                variant="outline"
-                onClick={zoomIn}
-                disabled={!hasImage}
-                title={withShortcut(t("header.zoomIn"), shortcuts.zoomIn)}
-                aria-label={withShortcut(t("header.zoomIn"), shortcuts.zoomIn)}
-              >
-                <MagnifyingGlassPlus data-icon="inline-start" />
-                <span className="hidden min-[1440px]:inline">{t("header.zoomIn")}</span>
-              </Button>
+              <AppTooltip content={withShortcut(t("header.zoomOut"), shortcuts.zoomOut)}>
+                <Button
+                  variant="outline"
+                  onClick={zoomOut}
+                  disabled={!hasImage}
+                  title={withShortcut(t("header.zoomOut"), shortcuts.zoomOut)}
+                  aria-label={withShortcut(t("header.zoomOut"), shortcuts.zoomOut)}
+                >
+                  <MagnifyingGlassMinus data-icon="inline-start" />
+                  <span className="hidden min-[1440px]:inline">{t("header.zoomOut")}</span>
+                </Button>
+              </AppTooltip>
+              <AppTooltip content={withShortcut(t("menu.actualSize"), shortcuts.resetView)}>
+                <ButtonGroupText
+                  className={cn(
+                    "hidden tabular-nums no-drag focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none sm:flex",
+                    !hasImage && "opacity-50"
+                  )}
+                  render={
+                    <button
+                      type="button"
+                      disabled={!hasImage}
+                      onClick={hasImage ? resetZoomPan : undefined}
+                      title={withShortcut(t("menu.actualSize"), shortcuts.resetView)}
+                      aria-label={withShortcut(t("menu.actualSize"), shortcuts.resetView)}
+                    />
+                  }
+                >
+                  {Math.round(zoom * 100)}%
+                </ButtonGroupText>
+              </AppTooltip>
+              <AppTooltip content={withShortcut(t("header.zoomIn"), shortcuts.zoomIn)}>
+                <Button
+                  variant="outline"
+                  onClick={zoomIn}
+                  disabled={!hasImage}
+                  title={withShortcut(t("header.zoomIn"), shortcuts.zoomIn)}
+                  aria-label={withShortcut(t("header.zoomIn"), shortcuts.zoomIn)}
+                >
+                  <MagnifyingGlassPlus data-icon="inline-start" />
+                  <span className="hidden min-[1440px]:inline">{t("header.zoomIn")}</span>
+                </Button>
+              </AppTooltip>
             </ButtonGroup>
 
             <ToggleGroup
@@ -288,201 +304,210 @@ export default function Header({
             >
               {/* 공간이 충분한 넓은 창에서만 짧은 텍스트 라벨을 붙인다.
                   그 아래에서는 아이콘 + 툴팁으로 안내한다. */}
-              <ToggleGroupItem
-                value="single"
-                title={t("settings.view.single")}
-                aria-label={t("settings.view.single")}
-              >
-                <ImageIcon data-icon="inline-start" />
-                <span data-wide-label className="hidden min-[1950px]:inline">
-                  {t("header.viewSingle")}
-                </span>
-              </ToggleGroupItem>
-              <ToggleGroupItem
-                value="left-to-right"
-                title={t("settings.view.ltr")}
-                aria-label={t("settings.view.ltr")}
-              >
-                <BookOpenText data-icon="inline-start" />
-                <span data-wide-label className="hidden min-[1950px]:inline">
-                  {t("header.viewLtr")}
-                </span>
-              </ToggleGroupItem>
-              <ToggleGroupItem
-                value="right-to-left"
-                title={t("settings.view.rtl")}
-                aria-label={t("settings.view.rtl")}
-              >
-                <BookOpenText data-icon="inline-start" className="scale-x-[-1]" />
-                <span data-wide-label className="hidden min-[1950px]:inline">
-                  {t("header.viewRtl")}
-                </span>
-              </ToggleGroupItem>
-              <ToggleGroupItem
-                value="webtoon"
-                title={t("settings.view.webtoon")}
-                aria-label={t("settings.view.webtoon")}
-              >
-                <ArrowsDownUp data-icon="inline-start" />
-                <span data-wide-label className="hidden min-[1950px]:inline">
-                  {t("header.viewWebtoon")}
-                </span>
-              </ToggleGroupItem>
+              <AppTooltip content={t("settings.view.single")}>
+                <ToggleGroupItem value="single" aria-label={t("settings.view.single")}>
+                  <ImageIcon data-icon="inline-start" />
+                  <span data-wide-label className="hidden min-[1950px]:inline">
+                    {t("header.viewSingle")}
+                  </span>
+                </ToggleGroupItem>
+              </AppTooltip>
+              <AppTooltip content={t("settings.view.ltr")}>
+                <ToggleGroupItem value="left-to-right" aria-label={t("settings.view.ltr")}>
+                  <BookOpenText data-icon="inline-start" />
+                  <span data-wide-label className="hidden min-[1950px]:inline">
+                    {t("header.viewLtr")}
+                  </span>
+                </ToggleGroupItem>
+              </AppTooltip>
+              <AppTooltip content={t("settings.view.rtl")}>
+                <ToggleGroupItem value="right-to-left" aria-label={t("settings.view.rtl")}>
+                  <BookOpenText data-icon="inline-start" className="scale-x-[-1]" />
+                  <span data-wide-label className="hidden min-[1950px]:inline">
+                    {t("header.viewRtl")}
+                  </span>
+                </ToggleGroupItem>
+              </AppTooltip>
+              <AppTooltip content={t("settings.view.webtoon")}>
+                <ToggleGroupItem value="webtoon" aria-label={t("settings.view.webtoon")}>
+                  <ArrowsDownUp data-icon="inline-start" />
+                  <span data-wide-label className="hidden min-[1950px]:inline">
+                    {t("header.viewWebtoon")}
+                  </span>
+                </ToggleGroupItem>
+              </AppTooltip>
             </ToggleGroup>
 
             <ButtonGroup
               aria-label={t("header.transformGroup")}
               className="hidden no-drag min-[840px]:flex"
             >
-              <Button
-                variant="outline"
-                onClick={rotateCCW}
-                disabled={!hasImage}
-                title={withShortcut(t("menu.rotateCcw"), shortcuts.rotateCCW)}
-                aria-label={withShortcut(t("menu.rotateCcw"), shortcuts.rotateCCW)}
-              >
-                <ArrowCounterClockwise data-icon="inline-start" />
-                <span data-wide-label className="hidden min-[1950px]:inline">
-                  {t("header.rotateCcw")}
-                </span>
-              </Button>
-              <Button
-                variant="outline"
-                onClick={rotateCW}
-                disabled={!hasImage}
-                title={withShortcut(t("menu.rotateCw"), shortcuts.rotateCW)}
-                aria-label={withShortcut(t("menu.rotateCw"), shortcuts.rotateCW)}
-              >
-                <ArrowClockwise data-icon="inline-start" />
-                <span data-wide-label className="hidden min-[1950px]:inline">
-                  {t("header.rotateCw")}
-                </span>
-              </Button>
-              <Button
-                variant="outline"
-                onClick={flipHorizontal}
-                disabled={!hasImage}
-                title={withShortcut(t("menu.flipH"), shortcuts.flipH)}
-                aria-label={withShortcut(t("menu.flipH"), shortcuts.flipH)}
-              >
-                <FlipHorizontal data-icon="inline-start" />
-                <span data-wide-label className="hidden min-[1950px]:inline">
-                  {t("header.flipH")}
-                </span>
-              </Button>
-              <Button
-                variant="outline"
-                onClick={flipVertical}
-                disabled={!hasImage}
-                title={withShortcut(t("menu.flipV"), shortcuts.flipV)}
-                aria-label={withShortcut(t("menu.flipV"), shortcuts.flipV)}
-              >
-                <FlipVertical data-icon="inline-start" />
-                <span data-wide-label className="hidden min-[1950px]:inline">
-                  {t("header.flipV")}
-                </span>
-              </Button>
+              <AppTooltip content={withShortcut(t("menu.rotateCcw"), shortcuts.rotateCCW)}>
+                <Button
+                  variant="outline"
+                  onClick={rotateCCW}
+                  disabled={!hasImage}
+                  title={withShortcut(t("menu.rotateCcw"), shortcuts.rotateCCW)}
+                  aria-label={withShortcut(t("menu.rotateCcw"), shortcuts.rotateCCW)}
+                >
+                  <ArrowCounterClockwise data-icon="inline-start" />
+                  <span data-wide-label className="hidden min-[1950px]:inline">
+                    {t("header.rotateCcw")}
+                  </span>
+                </Button>
+              </AppTooltip>
+              <AppTooltip content={withShortcut(t("menu.rotateCw"), shortcuts.rotateCW)}>
+                <Button
+                  variant="outline"
+                  onClick={rotateCW}
+                  disabled={!hasImage}
+                  title={withShortcut(t("menu.rotateCw"), shortcuts.rotateCW)}
+                  aria-label={withShortcut(t("menu.rotateCw"), shortcuts.rotateCW)}
+                >
+                  <ArrowClockwise data-icon="inline-start" />
+                  <span data-wide-label className="hidden min-[1950px]:inline">
+                    {t("header.rotateCw")}
+                  </span>
+                </Button>
+              </AppTooltip>
+              <AppTooltip content={withShortcut(t("menu.flipH"), shortcuts.flipH)}>
+                <Button
+                  variant="outline"
+                  onClick={flipHorizontal}
+                  disabled={!hasImage}
+                  title={withShortcut(t("menu.flipH"), shortcuts.flipH)}
+                  aria-label={withShortcut(t("menu.flipH"), shortcuts.flipH)}
+                >
+                  <FlipHorizontal data-icon="inline-start" />
+                  <span data-wide-label className="hidden min-[1950px]:inline">
+                    {t("header.flipH")}
+                  </span>
+                </Button>
+              </AppTooltip>
+              <AppTooltip content={withShortcut(t("menu.flipV"), shortcuts.flipV)}>
+                <Button
+                  variant="outline"
+                  onClick={flipVertical}
+                  disabled={!hasImage}
+                  title={withShortcut(t("menu.flipV"), shortcuts.flipV)}
+                  aria-label={withShortcut(t("menu.flipV"), shortcuts.flipV)}
+                >
+                  <FlipVertical data-icon="inline-start" />
+                  <span data-wide-label className="hidden min-[1950px]:inline">
+                    {t("header.flipV")}
+                  </span>
+                </Button>
+              </AppTooltip>
             </ButtonGroup>
           </div>
 
           {/* 이미지 종속(Info)은 캔버스 조작 쪽에, 전역(Command/Settings)은 우측 유틸군에 둔다 */}
           <ButtonGroup className="no-drag">
-            <Button
-              variant="outline"
-              onClick={() => void toggleExifPanel()}
-              disabled={!hasImage}
-              title={withShortcut(t("header.info"), shortcuts.toggleExif)}
-              aria-label={withShortcut(t("header.info"), shortcuts.toggleExif)}
-            >
-              <Info data-icon="inline-start" />
-              <span className="hidden min-[1440px]:inline">{t("header.info")}</span>
-            </Button>
+            <AppTooltip content={withShortcut(t("header.info"), shortcuts.toggleExif)}>
+              <Button
+                variant="outline"
+                onClick={() => void toggleExifPanel()}
+                disabled={!hasImage}
+                title={withShortcut(t("header.info"), shortcuts.toggleExif)}
+                aria-label={withShortcut(t("header.info"), shortcuts.toggleExif)}
+              >
+                <Info data-icon="inline-start" />
+                <span className="hidden min-[1440px]:inline">{t("header.info")}</span>
+              </Button>
+            </AppTooltip>
           </ButtonGroup>
 
           <ButtonGroup aria-label={t("palette.group.system")} className="no-drag">
-            <Button
-              variant="outline"
-              onClick={() => usePaletteStore.getState().setOpen(true)}
-              title={withShortcut(t("palette.open"), shortcuts.togglePalette)}
-              aria-label={withShortcut(t("palette.open"), shortcuts.togglePalette)}
-            >
-              <Command data-icon="inline-start" />
-              <span className="hidden min-[1440px]:inline">{t("palette.open")}</span>
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => requestOpenSettings()}
-              title={t("header.settingsTitle")}
-              aria-label={t("header.settingsTitle")}
-            >
-              <Gear data-icon="inline-start" />
-              <span className="hidden min-[1440px]:inline">{t("header.settings")}</span>
-            </Button>
+            <AppTooltip content={withShortcut(t("palette.open"), shortcuts.togglePalette)}>
+              <Button
+                variant="outline"
+                onClick={() => usePaletteStore.getState().setOpen(true)}
+                aria-label={withShortcut(t("palette.open"), shortcuts.togglePalette)}
+              >
+                <Command data-icon="inline-start" />
+                <span className="hidden min-[1440px]:inline">{t("palette.open")}</span>
+              </Button>
+            </AppTooltip>
+            <AppTooltip content={t("header.settingsTitle")}>
+              <Button
+                variant="outline"
+                onClick={() => requestOpenSettings()}
+                aria-label={t("header.settingsTitle")}
+              >
+                <Gear data-icon="inline-start" />
+                <span className="hidden min-[1440px]:inline">{t("header.settings")}</span>
+              </Button>
+            </AppTooltip>
           </ButtonGroup>
 
-          <Toggle
-            variant="outline"
-            pressed={alwaysOnTop}
-            onPressedChange={() => void toggleAlwaysOnTop()}
-            title={withShortcut(t("header.alwaysOnTop"), shortcuts.toggleAlwaysOnTop)}
-            aria-label={withShortcut(t("header.alwaysOnTop"), shortcuts.toggleAlwaysOnTop)}
-            className="hidden no-drag md:inline-flex"
-          >
-            <PushPin data-icon="inline-start" weight={alwaysOnTop ? "fill" : "regular"} />
-            <span data-wide-label className="hidden min-[1950px]:inline">
-              {t("header.onTop")}
-            </span>
-          </Toggle>
-          <ButtonGroup className="no-drag">
-            <Button
+          <AppTooltip content={withShortcut(t("header.alwaysOnTop"), shortcuts.toggleAlwaysOnTop)}>
+            <Toggle
               variant="outline"
-              onClick={handleHideMenuBar}
-              title={t(menuBarHidden ? "header.showMenuBar" : "header.hideMenuBar")}
-              aria-label={t(menuBarHidden ? "header.showMenuBar" : "header.hideMenuBar")}
+              pressed={alwaysOnTop}
+              onPressedChange={() => void toggleAlwaysOnTop()}
+              aria-label={withShortcut(t("header.alwaysOnTop"), shortcuts.toggleAlwaysOnTop)}
+              className="hidden no-drag md:inline-flex"
             >
-              {menuBarHidden ? (
-                <CaretDown data-icon="inline-start" />
-              ) : (
-                <CaretUp data-icon="inline-start" />
-              )}
+              <PushPin data-icon="inline-start" weight={alwaysOnTop ? "fill" : "regular"} />
               <span data-wide-label className="hidden min-[1950px]:inline">
-                {t(menuBarHidden ? "header.showBar" : "header.hideBar")}
+                {t("header.onTop")}
               </span>
-            </Button>
+            </Toggle>
+          </AppTooltip>
+          <ButtonGroup className="no-drag">
+            <AppTooltip content={t(menuBarHidden ? "header.showMenuBar" : "header.hideMenuBar")}>
+              <Button
+                variant="outline"
+                onClick={handleHideMenuBar}
+                aria-label={t(menuBarHidden ? "header.showMenuBar" : "header.hideMenuBar")}
+              >
+                {menuBarHidden ? (
+                  <CaretDown data-icon="inline-start" />
+                ) : (
+                  <CaretUp data-icon="inline-start" />
+                )}
+                <span data-wide-label className="hidden min-[1950px]:inline">
+                  {t(menuBarHidden ? "header.showBar" : "header.hideBar")}
+                </span>
+              </Button>
+            </AppTooltip>
           </ButtonGroup>
         </div>
       </div>
 
       {/* 윈도우 캡션 버튼: 타이틀바 우측 끝을 꽉 채운다. 드래그/더블클릭 최대화 제외. */}
       <div className="flex shrink-0 items-stretch no-drag">
-        <button
-          type="button"
-          onClick={handleMinimize}
-          title={t("header.minimize")}
-          aria-label={t("header.minimize")}
-          className={captionButtonClassName}
-        >
-          <Minus />
-        </button>
-        <button
-          type="button"
-          onClick={handleMaximize}
-          title={t("header.maximize")}
-          aria-label={t("header.maximize")}
-          aria-pressed={isMaximized}
-          className={captionButtonClassName}
-        >
-          {isMaximized ? <Copy /> : <Square />}
-        </button>
-        <button
-          type="button"
-          onClick={handleClose}
-          title={t("header.close")}
-          aria-label={t("header.close")}
-          className={captionCloseButtonClassName}
-        >
-          <X />
-        </button>
+        <AppTooltip content={t("header.minimize")}>
+          <button
+            type="button"
+            onClick={handleMinimize}
+            aria-label={t("header.minimize")}
+            className={captionButtonClassName}
+          >
+            <Minus />
+          </button>
+        </AppTooltip>
+        <AppTooltip content={t("header.maximize")}>
+          <button
+            type="button"
+            onClick={handleMaximize}
+            aria-label={t("header.maximize")}
+            aria-pressed={isMaximized}
+            className={captionButtonClassName}
+          >
+            {isMaximized ? <Copy /> : <Square />}
+          </button>
+        </AppTooltip>
+        <AppTooltip content={t("header.close")}>
+          <button
+            type="button"
+            onClick={handleClose}
+            aria-label={t("header.close")}
+            className={captionCloseButtonClassName}
+          >
+            <X />
+          </button>
+        </AppTooltip>
       </div>
     </div>
   )

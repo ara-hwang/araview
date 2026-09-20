@@ -14,7 +14,7 @@
 ## 1. 개요
 
 - Windows 10/11 x64 전용 오프라인 데스크톱 이미지/코믹 뷰어.
-- 프론트: React 18, TypeScript, Vite 6, Tailwind CSS 4, TanStack Router v1, Zustand 5, i18next.
+- 프론트: React 19, TypeScript, Vite 6, Tailwind CSS 4, TanStack Router v1, Zustand 5, i18next.
 - 백엔드: Rust + Tauri 2. 플러그인: `store`, `window-state`, `opener`, `dialog`, `fs`, `single-instance`, `updater`, `process` (디버그 한정 `mcp-bridge`).
 - 라이브러리 가져오기, 계정, 네트워크 없이 로컬 파일만 다룬다.
 - 창은 프레임리스(`decorations: false`)이며 커스텀 타이틀바/툴바(`src/components/Header.tsx`)를 쓴다.

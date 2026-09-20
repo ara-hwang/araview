@@ -6,9 +6,9 @@ Product truth lives in `PRODUCT.md`, visual system in `DESIGN.md`, full function
 
 ## Project Overview
 
-`araview` is a Windows desktop image viewer built with Tauri 2 + React 18 + TypeScript. Windows 10/11 x64 is the only supported OS.
+`araview` is a Windows desktop image viewer built with Tauri 2 + React 19 + TypeScript. Windows 10/11 x64 is the only supported OS.
 
-- Frontend: React 18, TypeScript, Vite 6, Tailwind CSS 4, TanStack Router v1, Zustand 5
+- Frontend: React 19, TypeScript, Vite 6, Tailwind CSS 4, TanStack Router v1, Zustand 5
 - Backend: Rust + Tauri 2 commands (`src-tauri/src/commands.rs`)
 - UI primitives: shadcn/ui built on `@base-ui/react` (do not introduce `@radix-ui/*`)
 - Package manager/runtime assumptions: Node.js `>=22`, npm scripts in `package.json`
@@ -211,6 +211,12 @@ Tauri Store (`settings.json`) is used for:
   3. Fresh-session flake: opencode loads MCP at session start and the first
      `npx -y` download can time out. Restart the session before concluding
      anything is missing.
+- Bump a frontend version? Kill the old dev processes first, then check the
+  bundle is fresh: `dev:up` is idempotent by port, so a stale Vite server can
+  keep serving the old optimized bundle and produce phantom errors from the
+  previous library version. Stale evidence is indistinguishable from a real
+  bug until the served chunk graph is checked
+  (`node_modules/.vite/deps` timestamps and `page.url` chunk hashes).
 - Do not finish a change with "run the tests yourself" or similar. If the
   dev app or bridge cannot start, report the exact failure instead of
   skipping verification silently.

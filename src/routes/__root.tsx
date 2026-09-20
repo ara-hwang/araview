@@ -3,6 +3,7 @@ import { createRootRoute, Link, Outlet } from "@tanstack/react-router"
 import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 
+import { AppTooltip } from "@/components/AppTooltip"
 import { CommandPalette } from "@/components/CommandPalette"
 import { ExifPanel } from "@/components/ExifPanel"
 import Header from "@/components/Header"
@@ -11,6 +12,7 @@ import { StatusBar } from "@/components/StatusBar"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Separator } from "@/components/ui/separator"
 import { Toaster } from "@/components/ui/toast"
+import { TooltipProvider } from "@/components/ui/tooltip"
 import { UpdateDialogs } from "@/components/UpdateDialogs"
 import { OPEN_SETTINGS_EVENT } from "@/hooks/useCommandPalette"
 import { useIdleHide } from "@/hooks/useIdleHide"
@@ -95,75 +97,78 @@ function RootLayout() {
 
   return (
     <ThemeProvider>
-      {/* 앱 셸은 절대 문서 스크롤되지 않는다. 스크롤은 각 라우트 안에서 처리. */}
-      <div className="relative flex h-screen w-full flex-col overflow-hidden">
-        {menuBarCollapsed ? (
-          <div
-            ref={headerRef}
-            data-header-root
-            data-tauri-drag-region
-            onMouseEnter={() => setMenuBarPeek(true)}
-            className="group absolute inset-x-0 top-0 z-40 flex h-5 items-start justify-center"
-          >
-            <button
-              type="button"
-              onClick={() => void updateSettings({ menuBarHidden: false })}
-              title={t("header.showMenuBar")}
-              aria-label={t("header.showMenuBar")}
-              className="rounded-b-md border border-t-0 bg-background px-2 py-0.5 text-muted-foreground opacity-0 shadow-md transition-opacity no-drag group-hover:opacity-100 hover:text-foreground focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none [&_svg]:pointer-events-none"
+      <TooltipProvider delay={300}>
+        {/* 앱 셸은 절대 문서 스크롤되지 않는다. 스크롤은 각 라우트 안에서 처리. */}
+        <div className="relative flex h-screen w-full flex-col overflow-hidden">
+          {menuBarCollapsed ? (
+            <div
+              ref={headerRef}
+              data-header-root
+              data-tauri-drag-region
+              onMouseEnter={() => setMenuBarPeek(true)}
+              className="group absolute inset-x-0 top-0 z-40 flex h-5 items-start justify-center"
             >
-              <CaretDown aria-hidden="true" />
-            </button>
-          </div>
-        ) : menuBarOverlay ? (
-          <div
-            ref={headerRef}
-            data-header-root
-            onMouseLeave={() => setMenuBarPeek(false)}
-            onBlur={(e) => {
-              if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
-                setMenuBarPeek(false)
-              }
-            }}
-            onKeyDown={(e) => {
-              if (e.key === "Escape") setMenuBarPeek(false)
-            }}
-            className="absolute inset-x-0 top-0 z-40 shadow-md"
-          >
-            <Header onHideMenuBar={() => setMenuBarPeek(false)} />
-            <Separator />
-          </div>
-        ) : (
-          <div
-            ref={headerRef}
-            data-header-root
-            className={cn(
-              "transition-opacity duration-300",
-              chromeHidden && "pointer-events-none opacity-0"
-            )}
-          >
-            <Header onHideMenuBar={() => setMenuBarPeek(false)} />
-            <Separator />
-          </div>
-        )}
-        {/* min-h-0: flex 자식이 콘텐츠 높이만큼 커져 셸을 밀어내지 않게 한다 */}
-        <div className="relative min-h-0 flex-1 overflow-hidden">
-          <Outlet />
-          <div
-            className={cn(
-              "transition-opacity duration-300",
-              chromeHidden && "pointer-events-none opacity-0"
-            )}
-          >
-            <StatusBar />
+              <AppTooltip content={t("header.showMenuBar")}>
+                <button
+                  type="button"
+                  onClick={() => void updateSettings({ menuBarHidden: false })}
+                  aria-label={t("header.showMenuBar")}
+                  className="rounded-b-md border border-t-0 bg-background px-2 py-0.5 text-muted-foreground opacity-0 shadow-md transition-opacity no-drag group-hover:opacity-100 hover:text-foreground focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none [&_svg]:pointer-events-none"
+                >
+                  <CaretDown aria-hidden="true" />
+                </button>
+              </AppTooltip>
+            </div>
+          ) : menuBarOverlay ? (
+            <div
+              ref={headerRef}
+              data-header-root
+              onMouseLeave={() => setMenuBarPeek(false)}
+              onBlur={(e) => {
+                if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+                  setMenuBarPeek(false)
+                }
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") setMenuBarPeek(false)
+              }}
+              className="absolute inset-x-0 top-0 z-40 shadow-md"
+            >
+              <Header onHideMenuBar={() => setMenuBarPeek(false)} />
+              <Separator />
+            </div>
+          ) : (
+            <div
+              ref={headerRef}
+              data-header-root
+              className={cn(
+                "transition-opacity duration-300",
+                chromeHidden && "pointer-events-none opacity-0"
+              )}
+            >
+              <Header onHideMenuBar={() => setMenuBarPeek(false)} />
+              <Separator />
+            </div>
+          )}
+          {/* min-h-0: flex 자식이 콘텐츠 높이만큼 커져 셸을 밀어내지 않게 한다 */}
+          <div className="relative min-h-0 flex-1 overflow-hidden">
+            <Outlet />
+            <div
+              className={cn(
+                "transition-opacity duration-300",
+                chromeHidden && "pointer-events-none opacity-0"
+              )}
+            >
+              <StatusBar />
+            </div>
           </div>
         </div>
-      </div>
-      <ExifPanel />
-      <CommandPalette />
-      <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
-      <UpdateDialogs />
-      <Toaster />
+        <ExifPanel />
+        <CommandPalette />
+        <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+        <UpdateDialogs />
+        <Toaster />
+      </TooltipProvider>
     </ThemeProvider>
   )
 }

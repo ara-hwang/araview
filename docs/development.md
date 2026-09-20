@@ -4,7 +4,7 @@
 
 ## 기술 스택
 
-- **Frontend**: React 18, TypeScript, Vite 6, Tailwind CSS 4, TanStack Router v1, Zustand 5
+- **Frontend**: React 19, TypeScript, Vite 6, Tailwind CSS 4, TanStack Router v1, Zustand 5
 - **Backend**: Rust, Tauri 2
 - **Tauri Plugins**: `dialog`, `fs`, `opener`, `store`, `window-state`, `single-instance`, `updater`, `process`
 
