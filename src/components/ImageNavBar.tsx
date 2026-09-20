@@ -107,9 +107,9 @@ export function ImageNavBar({
                   onNavigateToIndex(index)
                 }}
                 className={cn(
-                  "relative h-12 w-12 shrink-0 overflow-hidden rounded border-2 transition-all focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+                  "relative h-12 w-12 shrink-0 overflow-hidden rounded border-2 transition duration-150 ease-motion-out focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
                   isCurrent
-                    ? "scale-110 border-primary"
+                    ? "scale-110 border-primary motion-reduce:scale-100"
                     : "border-transparent opacity-60 hover:opacity-100"
                 )}
                 title={name}
@@ -138,7 +138,10 @@ export function ImageNavBar({
                     </span>
                   </span>
                 ) : (
-                  <span aria-hidden="true" className="h-full w-full animate-pulse bg-muted/40" />
+                  <span
+                    aria-hidden="true"
+                    className="h-full w-full animate-pulse bg-muted/40 motion-reduce:animate-none"
+                  />
                 )}
                 {failed && src && (
                   <span

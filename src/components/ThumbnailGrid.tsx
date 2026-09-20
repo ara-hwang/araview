@@ -439,7 +439,10 @@ export function ThumbnailGrid({
                         </span>
                       </span>
                     ) : (
-                      <span aria-hidden="true" className="block h-full w-full animate-pulse" />
+                      <span
+                        aria-hidden="true"
+                        className="block h-full w-full animate-pulse motion-reduce:animate-none"
+                      />
                     )}
                     <span className="absolute top-0.5 left-0.5 rounded bg-background/85 px-1 text-[10px] tabular-nums">
                       {item.index + 1}

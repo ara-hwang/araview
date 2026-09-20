@@ -116,7 +116,7 @@ function WebtoonLazyPage({
       ) : (
         <div
           aria-hidden="true"
-          className="min-h-64 w-full max-w-2xl animate-pulse rounded bg-muted/40"
+          className="min-h-64 w-full max-w-2xl animate-pulse rounded bg-muted/40 motion-reduce:animate-none"
         />
       )}
     </div>

@@ -78,6 +78,15 @@
   --sidebar-ring: oklch(0.556 0 0);
 }
 
+/* Motion tokens: stronger curves for new motion, from the vendored animate
+   skill's vocabulary. Tailwind's built-in ease-out/ease-in-out stay untouched
+   so existing components keep their current feel. */
+@theme {
+  --ease-motion-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-motion-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-motion-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
 @theme inline {
   --font-sans:
     "Pretendard Variable", Pretendard, -apple-system, "Segoe UI", "Malgun Gothic", sans-serif;
@@ -167,10 +176,10 @@
 
 @keyframes slideshow-progress {
   from {
-    width: 0%;
+    clip-path: inset(0 100% 0 0);
   }
   to {
-    width: 100%;
+    clip-path: inset(0 0 0 0);
   }
 }
 

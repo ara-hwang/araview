@@ -87,9 +87,9 @@ export function UpdateDialogs() {
                   className={
                     pct === null
                       ? "h-full w-1/3 animate-pulse rounded-full bg-primary"
-                      : "h-full rounded-full bg-primary transition-all"
+                      : "h-full w-full origin-left rounded-full bg-primary transition-transform duration-200 ease-linear"
                   }
-                  style={pct === null ? undefined : { width: `${pct}%` }}
+                  style={pct === null ? undefined : { transform: `scaleX(${pct / 100})` }}
                 />
               </div>
               <p className="text-sm text-muted-foreground">
