@@ -13,6 +13,7 @@ import { useThumbnailSrcs } from "@/hooks/useThumbnailSrcs"
 import { cn } from "@/lib/utils"
 import { useAppStore } from "@/store/appStore"
 import type { ImageInfo } from "@/types"
+import { parentFolderNameOf, basenameOf } from "@/utils/statusBar"
 
 import { useSettingsStore } from "../store/settingsStore"
 import { ButtonGroup } from "./ui/button-group"
@@ -42,6 +43,7 @@ export function ImageNavBar({
 }: ImageNavBarProps) {
   const { t } = useTranslation()
   const dirImages = useAppStore((state) => state.dirImages)
+  const archivePath = useAppStore((state) => state.archivePath)
   const failedPaths = useAppStore((state) => state.failedPaths)
   const loopNavigation = useSettingsStore((state) => state.loopNavigation)
   const failedSet = useMemo(() => new Set(failedPaths), [failedPaths])
@@ -67,7 +69,19 @@ export function ImageNavBar({
   }, [dirImages.images, dirImages.current_index])
 
   const thumbPaths = useMemo(() => thumbnails.map((t) => t.path), [thumbnails])
-  const { urls, failed: thumbFailed, retry } = useThumbnailSrcs(thumbPaths, getOrLoadImage)
+  const thumbnailOptions = useMemo(() => ({ archivePath }), [archivePath])
+  const {
+    urls,
+    failed: thumbFailed,
+    retry
+  } = useThumbnailSrcs(thumbPaths, getOrLoadImage, thumbnailOptions)
+
+  const thumbLabel = (path: string) => {
+    if (archivePath) return path.split(/[\\/]/).pop() ?? path
+    const name = basenameOf(path)
+    const parent = parentFolderNameOf(path)
+    return parent ? `${parent}/${name}` : name
+  }
   const stripRef = useRef<HTMLDivElement>(null)
 
   // 선택된 썸네일이 윈도우 이동으로 벗어나지 않게 추적
@@ -93,7 +107,7 @@ export function ImageNavBar({
         >
           {thumbnails.map(({ index, path }) => {
             const src = urls.get(path)
-            const name = path.split(/[\\/]/).pop() ?? path
+            const name = thumbLabel(path)
             const failed = failedSet.has(path) || thumbFailed.has(path)
             const isCurrent = index === dirImages.current_index
             return (

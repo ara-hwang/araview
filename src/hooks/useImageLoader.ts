@@ -12,15 +12,9 @@ import { useRecentFilesStore } from "@/store/recentFilesStore"
 import { useSettingsStore } from "@/store/settingsStore"
 import type { DirectoryImages, ImageInfo } from "@/types"
 import { errorCopyDetails, errorMessage } from "@/utils/appError"
+import { isArchiveFilePath } from "@/utils/archiveFile"
 import { buildDirListOptions } from "@/utils/directoryOptions"
 import { MAX_SKIP_ATTEMPTS, findSkipTarget } from "@/utils/skipBroken"
-
-const ARCHIVE_EXTENSIONS = ["cbz", "cb7", "cbr", "rar", "zip", "7z", "cbt"]
-
-function isArchiveFile(filePath: string): boolean {
-  const ext = filePath.split(".").pop()?.toLowerCase() ?? ""
-  return ARCHIVE_EXTENSIONS.includes(ext)
-}
 
 type LoadImageOptions = {
   refreshDirectory?: boolean
@@ -183,7 +177,7 @@ export function useImageLoader() {
 
   const loadImage = useCallback(
     async (filePath: string, options?: LoadImageOptions) => {
-      if (isArchiveFile(filePath)) {
+      if (isArchiveFilePath(filePath)) {
         await loadArchive(filePath)
         options?.onAfterLoad?.()
         return
@@ -308,7 +302,7 @@ export function useImageLoader() {
       // 여러 파일/폴더 드롭: 각각 해석 후 첫 이미지를 열고 나머지는 알림
       const resolved: string[] = []
       for (const raw of rawPaths) {
-        if (isArchiveFile(raw)) {
+        if (isArchiveFilePath(raw)) {
           resolved.push(raw)
           continue
         }
