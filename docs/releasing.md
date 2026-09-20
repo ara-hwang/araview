@@ -77,4 +77,5 @@ npm run release:local -- -Publish:$false  # 초안으로 남기기
 - 작업 트리가 지저분하거나 태그가 HEAD와 다른 커밋을 가리키면 중단합니다.
 - `.sig`의 키 ID가 `plugins.updater.pubkey`와 다르면 중단합니다.
 - 빌드를 건너뛰고 이미 만든 산출물을 올리려면 `-SkipBuild`, GitHub를 건드리지 않고 결과만 확인하려면 `-DryRun`을 씁니다.
+- 빌드가 코어를 모두 점유해 PC가 버벅이면 `-Jobs 4`처럼 cargo 병렬도를 낮춥니다(`CARGO_BUILD_JOBS`). 값이 클수록 빠르지만 부하가 커집니다.
 - 같은 태그에 CI가 만든 릴리스가 이미 있으면 그 릴리스의 자산을 덮어씁니다(`--clobber`). CI와 로컬 중 한쪽만 쓰세요.
