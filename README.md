@@ -1,6 +1,6 @@
 # AraView
 
-Tauri 2 + React 18 + TypeScript 기반의 Windows 데스크톱 이미지 뷰어입니다.
+Tauri 2 + React 19 + TypeScript 기반의 Windows 데스크톱 이미지 뷰어입니다.
 
 - 일반 이미지 포맷과 만화 아카이브(`.cbz`, `.cb7`, `.cbr`, `.cbt`) 및 일반 아카이브(`.zip`, `.7z`, `.rar`)를 지원합니다.
 - 폴더 내 이미지 탐색, EXIF 표시, 슬라이드쇼, 멀티 페이지 보기 모드를 제공합니다.
