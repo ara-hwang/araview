@@ -244,8 +244,14 @@ Skill precedence for overlapping frontend work:
 1. **shadcn** (`.agents/skills/shadcn/`): component selection, styling rules, forms, and `components.json` workflows.
 2. **impeccable** (`.agents/skills/impeccable/`): design polish, UX review, accessibility hardening, and visual craft.
 3. **modern-web-guidance** (`.agents/skills/modern-web-guidance/`): web platform APIs, performance patterns, and browser compatibility when introducing or changing HTML/CSS/clientside JS behavior.
+4. **animate** (`.agents/skills/animate/`, vendored): building or changing motion, transitions, and micro-interactions. Load `RECIPES.md` when the request matches one of its components.
+5. **review-animations** (`.agents/skills/review-animations/`, vendored): critiquing motion only. Load `STANDARDS.md` when a finding needs an exact curve, duration, or spring value.
 
-Use modern-web-guidance when adding or changing image loading, scroll/motion, forms, accessibility patterns, or CSS layout features. Skip it for Rust/Tauri IPC, Zustand state, and routine shadcn component edits. Adapt framework-agnostic guides to React + `@base-ui/react` + shadcn; do not replace the existing component stack with native `<dialog>`/Popover API unless explicitly requested.
+Use modern-web-guidance when adding or changing image loading, scroll platform behavior, forms, accessibility patterns, or CSS layout features; motion taste and values belong to animate/review-animations. Skip it for Rust/Tauri IPC, Zustand state, and routine shadcn component edits. Adapt framework-agnostic guides to React + `@base-ui/react` + shadcn; do not replace the existing component stack with native `<dialog>`/Popover API unless explicitly requested.
+
+Motion routing: send motion-only work to animate/review-animations and broad design work to impeccable; do not route motion-only requests through impeccable's `animate` command. Motion tokens live in `src/App.css` (`@theme`): `--ease-motion-out` (entrances, exits), `--ease-motion-in-out` (on-screen movement), `--ease-motion-drawer` (sheets, drawers), available as `ease-motion-*` utilities; the built-in `ease-out`/`ease-in-out` stay untouched. Durations come from the vendored tables (press 100-160ms, tooltips 125-200ms, dropdowns 150-250ms, modals/drawers 200-500ms). Ship `prefers-reduced-motion` and `@media (hover: hover) and (pointer: fine)` gating in the same change as the motion, not after.
+
+Vendored skills: `animate` and `review-animations` are copied from `emilkowalski/skills` (MIT, commit 85e8e23; provenance in `skills-lock.json`, license text in each skill folder). Their upstream "Initial Response" greeting block was removed so opencode can auto-invoke them, and `review-animations` keeps its upstream `disable-model-invocation: true` field, which opencode ignores. `npx skills@latest update` overwrites these local edits: review its diff and re-apply the greeting-block removal.
 
 ```bash
 # Search for a relevant guide
