@@ -80,7 +80,7 @@
 
 - `beforeLoad`에서 `imageInfo`가 없으면 `/`로 리다이렉트한다.
 - 구성: `ImageContainer`(읽기 영역) + 드래그 오버레이 + `ThumbnailGrid`(선택) + `RenameDialog` + `SaveEditsDialog`.
-- `G`(기본, 재할당 가능)로 썸네일 그리드 오버레이를 연다. 열 때 현재 이미지를 중앙에 두고, 슬라이드쇼가 돌고 있으면 멈춘다.
+- `G`(기본, 재할당 가능)로 썸네일 그리드 오버레이를 연다. 열 때 현재 이미지를 중앙에 둔다.
 - 그리드: 뷰포트 기반 가상화(고정 셀, overscan 2행), 클릭/`Enter`로 점프 후 닫기, `Esc`/`G`로 닫기, 파일명 필터, 실패 셀 배지와 재시도. 그리드가 열려 있는 동안 뷰어 단축키는 비활성이다.
 - 우클릭은 설정(`mouse.rightClick`)에 따라 컨텍스트 메뉴 또는 다른 동작이다. 홈에서는 우클릭을 막는다.
 - `Esc` 닫기: 이름 변경/저장 다이얼로그가 열려 있거나 입력 포커스 중이면 닫지 않는다.
@@ -229,7 +229,7 @@
 - 이어보기: `archiveProgressStore`가 `archivePath → entryName`을 최대 100개 LRU로 저장한다. 목록에 저장된 항목이 있으면 거기서 시작한다.
 - `appStore.archivePath`가 null이 아니면 아카이브 모드이다.
 - 아카이브 모드 제한: 휴지통 이동, 이름 변경, 편집 저장은 안내 토스트와 함께 차단된다.
-- 탐색/썸네일/슬라이드쇼는 엔트리 목록 기준으로 동일하게 동작한다.
+- 탐색/썸네일은 엔트리 목록 기준으로 동일하게 동작한다.
 
 ## 9. 캐시/썸네일/프리페치
 
@@ -285,28 +285,19 @@
 - 패널 표시: 경로(아카이브 모드면 `아카이브경로 › 엔트리명`), 크기, 치수 + 픽셀 수, 생성/수정 시각(아카이브 모드 숨김), 색상 + 비트/채널, DPI, 색상 프로파일.
 - 로딩: `useExifLoader.loadExif`가 EXIF와 병렬로 조회한다. 셋 다 실패해도 패널은 열리고 섹션별 안내 문구를 표시한다.
 
-## 11. 슬라이드쇼
-
-진실: `src/hooks/useSlideshow.ts`.
-
-- 설정 간격마다 다음 이미지로 이동한다.
-- 간격 기본 3000ms, 허용 1000~30000ms이며 저장값은 정수로 반올림 후 검증한다.
-- 토글 시 시작/종료 토스트를 표시한다.
-- 루프 설정과 연동된다. 진행바 오버레이는 읽기 영역에 표시한다.
-
-## 12. 파일 작업
+## 11. 파일 작업
 
 진실: `src/hooks/useFileOperations.ts`, `src-tauri/src/commands.rs`, `src-tauri/src/save.rs`, `src/hooks/useCopyImage.ts`.
 
 공통: 아카이브 모드면 원본 아카이브 경로를 대상으로 삼는다(`getEffectivePath`). 단, 휴지통/이름 변경/편집 저장은 아카이브에서 차단된다.
 
-### 12.1 휴지통 이동 `Delete`
+### 11.1 휴지통 이동 `Delete`
 
 - `trash_file(file_path)`: OS 휴지통으로 이동(영구 삭제 아님). 디렉토리 불가.
 - 확인 다이얼로그(warning) 후 실행한다.
 - 성공 시 최근 파일에서 제거하고, 남은 목록에서 `min(currentIndex, remaining-1)`을 연다. 남은 게 없으면 홈으로 돌아간다.
 
-### 12.2 이름 변경 `F2`
+### 11.2 이름 변경 `F2`
 
 - `rename_file(old_path, new_name)` 후 새 `ImageInfo`를 반환한다.
 - 검증(`validate_new_file_name`):
@@ -318,7 +309,7 @@
 - 대소문자만 바꾸는 동일 파일은 이동을 생략한다.
 - 성공 시 디렉토리 목록과 최근 파일 경로를 교체한다.
 
-### 12.3 편집 저장 `Ctrl+S`
+### 11.3 편집 저장 `Ctrl+S`
 
 - PSD/SVG/AVIF는 저장 불가라 저장 진입(단축키/팔레트/컨텍스트 메뉴)에서 다이얼로그를 열지 않고 `toast.save.noPsd`/`noSvg`/`noAvif`로 안내한다. 백엔드도 `unsupported`로 2중 차단한다. 그 외 지원 포맷(png/jpg/jpeg/webp/gif/bmp/tiff/tif/ico/heic/heif)은 저장 가능하다.
 - `save_image_edits(filePath → file_path, options)`:
@@ -335,18 +326,18 @@
 - 덮어쓰기는 확인 다이얼로그 후 실행한다.
 - 성공 시 최근 파일에 추가하고 새 경로로 다시 로드한다(회전 상태 초기화 포함).
 
-### 12.4 클립보드 복사 `Ctrl+C`
+### 11.4 클립보드 복사 `Ctrl+C`
 
 - Asset URL fetch → Blob → `createImageBitmap` → Canvas → PNG Blob → `ClipboardItem("image/png")`.
 - 이미지가 없거나 캔버스/PNG 변환 실패 시 에러 토스트이다.
 
-### 12.5 경로/외부 열기
+### 11.5 경로/외부 열기
 
 - `Ctrl+Shift+C`: 유효 경로를 텍스트로 복사한다.
 - `Ctrl+Shift+E`: `revealItemInDir`로 탐색기에 표시한다.
 - `Ctrl+Shift+O`: `openPath`로 기본 앱으로 연다.
 
-## 13. 최근 파일/영속화
+## 12. 최근 파일/영속화
 
 진실: `src/store/recentFilesStore.ts`, `src/store/archiveProgressStore.ts`, `src/store/settingsStore.ts`.
 
@@ -362,70 +353,86 @@
 - 설정 저장은 손상값도 `sanitizeSettings`로 복원한다. 언어는 저장값이 없으면 시스템 언어를 쓴다.
 - 저장 실패는 토스트로 알리되 UI 동작을 막지 않는다.
 
-## 14. 설정
+## 13. 설정
 
 진실: `src/store/settingsStore.ts`.
 
-| 설정                  | 값                                                      | 기본값                             |
-| --------------------- | ------------------------------------------------------- | ---------------------------------- |
-| `language`            | `ko \| en`                                              | `ko`(초기 로드는 시스템 감지 우선) |
-| `loopNavigation`      | 끝에서 루프 여부                                        | `false`                            |
-| `cacheMode`           | `off \| nearby \| extended \| memory-1gb \| memory-2gb` | `nearby`                           |
-| `viewMode`            | `single \| left-to-right \| right-to-left \| webtoon`   | `single`                           |
-| `slideshowIntervalMs` | 1000~30000                                              | `3000`                             |
-| `autoOpenLastFile`    | 시작 시 마지막 파일 자동 열기                           | `false`                            |
-| `recordRecentFiles`   | 최근 기록 유지                                          | `true`                             |
-| `viewerBackground`    | `theme \| black \| white \| checker`                    | `theme`                            |
-| `autoHideUI`          | 읽기 중 크롬 자동 숨김                                  | `false`                            |
-| `menuBarHidden`       | 상단바 수동 숨김 (상단 호버 시 peek 오버레이로 표시)    | `false`                            |
-| `alwaysOnTop`         | 항상 위                                                 | `false`                            |
-| `sortKey`             | `name \| date \| size`                                  | `name`                             |
-| `sortDescending`      | 내림차순                                                | `false`                            |
-| `includeSubfolders`   | 하위 폴더 포함(재귀)                                    | `false`                            |
-| `skipBrokenFiles`     | 손상 파일 자동 건너뛰기                                 | `false`                            |
-| `fitMode`             | 맞춤 기억 `width \| height \| screen \| auto`           | `auto`                             |
-| `shortcuts`           | 단축키 맵                                               | 아래 기본표                        |
-| `wheel`               | 휠 맵                                                   | 아래 기본표                        |
-| `mouse`               | 마우스 맵                                               | 아래 기본표                        |
+| 설정                | 값                                                      | 기본값                             |
+| ------------------- | ------------------------------------------------------- | ---------------------------------- |
+| `language`          | `ko \| en`                                              | `ko`(초기 로드는 시스템 감지 우선) |
+| `loopNavigation`    | 끝에서 루프 여부                                        | `false`                            |
+| `cacheMode`         | `off \| nearby \| extended \| memory-1gb \| memory-2gb` | `nearby`                           |
+| `viewMode`          | `single \| left-to-right \| right-to-left \| webtoon`   | `single`                           |
+| `autoOpenLastFile`  | 시작 시 마지막 파일 자동 열기                           | `false`                            |
+| `recordRecentFiles` | 최근 기록 유지                                          | `true`                             |
+| `viewerBackground`  | `theme \| black \| white \| checker`                    | `theme`                            |
+| `autoHideUI`        | 읽기 중 크롬 자동 숨김                                  | `false`                            |
+| `menuBarHidden`     | 상단바 수동 숨김 (상단 호버 시 peek 오버레이로 표시)    | `false`                            |
+| `alwaysOnTop`       | 항상 위                                                 | `false`                            |
+| `sortKey`           | `name \| date \| size`                                  | `name`                             |
+| `sortDescending`    | 내림차순                                                | `false`                            |
+| `includeSubfolders` | 하위 폴더 포함(재귀)                                    | `false`                            |
+| `skipBrokenFiles`   | 손상 파일 자동 건너뛰기                                 | `false`                            |
+| `fitMode`           | 맞춤 기억 `width \| height \| screen \| auto`           | `auto`                             |
+| `shortcuts`         | 단축키 맵                                               | 아래 기본표                        |
+| `wheel`             | 휠 맵                                                   | 아래 기본표                        |
+| `mouse`             | 마우스 맵                                               | 아래 기본표                        |
 
 설정 항목에 연결된 단축키가 있으면 항목 옆에 현재 할당된 단축키를 배지로 표시한다: 배경 `cycleBackground`, 창 `toggleAlwaysOnTop`. 재할당하거나 해제하면 배지도 즉시 따라간다.
 
-## 15. 단축키/휠/마우스/명령 팔레트
+## 14. 단축키/휠/마우스/명령 팔레트
 
 진실: `src/constants/shortcuts.ts`, `src/constants/commands.ts`, `src/hooks/useImageViewerHotkeys.ts`.
 
-### 15.1 기본 단축키
+### 14.1 기본 단축키
 
-| 동작          | 기본값           | 동작             | 기본값            |
-| ------------- | ---------------- | ---------------- | ----------------- |
-| 이전          | `Ctrl+ArrowLeft` | 다음             | `Ctrl+ArrowRight` |
-| 왼쪽 팬       | `ArrowLeft`      | 오른쪽 팬        | `ArrowRight`      |
-| 위 팬         | `ArrowUp`        | 아래 팬          | `ArrowDown`       |
-| 확대          | `=`              | 축소             | `-`               |
-| 보기 초기화   | `0`              | 가로 맞춤        | `1`               |
-| 세로 맞춤     | `2`              | 화면 맞춤        | `3`               |
-| 파일 열기     | `Ctrl+O`         | 이미지 닫기      | `Escape`          |
-| EXIF          | `I`              | 시계 회전        | `R`               |
-| 반시계 회전   | `Shift+R`        | 좌우 반전        | `H`               |
-| 상하 반전     | `V`              | 슬라이드쇼       | `Space`           |
-| 전체화면      | `F11`            | 항상 위          | `T`               |
-| 이미지 복사   | `Ctrl+C`         | 휴지통           | `Delete`          |
-| 탐색기에 표시 | `Ctrl+Shift+E`   | 기본 앱으로 열기 | `Ctrl+Shift+O`    |
-| 배경 순환     | `B`              | 이름 변경        | `F2`              |
-| 경로 복사     | `Ctrl+Shift+C`   | 편집 저장        | `Ctrl+S`          |
-| 명령 팔레트   | `Ctrl+K`         | 10장 이전        | `PageUp`          |
-| 10장 다음     | `PageDown`       | 처음             | `Home`            |
-| 마지막        | `End`            | 썸네일 그리드    | `G`               |
+| 동작             | 기본값            |
+| ---------------- | ----------------- |
+| 이전             | `Ctrl+ArrowLeft`  |
+| 다음             | `Ctrl+ArrowRight` |
+| 왼쪽 팬          | `ArrowLeft`       |
+| 오른쪽 팬        | `ArrowRight`      |
+| 위 팬            | `ArrowUp`         |
+| 아래 팬          | `ArrowDown`       |
+| 확대             | `=`               |
+| 축소             | `-`               |
+| 보기 초기화      | `0`               |
+| 가로 맞춤        | `1`               |
+| 세로 맞춤        | `2`               |
+| 화면 맞춤        | `3`               |
+| 파일 열기        | `Ctrl+O`          |
+| 이미지 닫기      | `Escape`          |
+| EXIF             | `I`               |
+| 시계 회전        | `R`               |
+| 반시계 회전      | `Shift+R`         |
+| 좌우 반전        | `H`               |
+| 상하 반전        | `V`               |
+| 전체화면         | `F11`             |
+| 항상 위          | `T`               |
+| 이미지 복사      | `Ctrl+C`          |
+| 휴지통           | `Delete`          |
+| 탐색기에 표시    | `Ctrl+Shift+E`    |
+| 기본 앱으로 열기 | `Ctrl+Shift+O`    |
+| 배경 순환        | `B`               |
+| 이름 변경        | `F2`              |
+| 경로 복사        | `Ctrl+Shift+C`    |
+| 편집 저장        | `Ctrl+S`          |
+| 명령 팔레트      | `Ctrl+K`          |
+| 10장 이전        | `PageUp`          |
+| 10장 다음        | `PageDown`        |
+| 처음             | `Home`            |
+| 마지막           | `End`             |
+| 썸네일 그리드    | `G`               |
 
 그리드 내부: 화살표(선택 이동), `Home`/`End`, `PageUp`/`PageDown`, `Enter`(점프), `Esc`/`G`(닫기). 그리드가 열려 있는 동안 다른 뷰어 단축키는 동작하지 않는다.
 
-### 15.2 휠/마우스 기본값
+### 14.2 휠/마우스 기본값
 
 - 휠 위: 이전, 휠 아래: 다음.
 - `Ctrl+휠`: 확대/축소. `Shift/Alt+휠`: 없음.
 - 왼쪽 드래그: 팬. 가운데: 없음. 더블클릭: 전체화면. 우클릭: 컨텍스트 메뉴.
 
-### 15.3 커스텀 규칙
+### 14.3 커스텀 규칙
 
 - `Ctrl/Shift/Alt`만 허용하며 `Meta`는 거부한다.
 - `Tab`은 예약어로 금지한다.
@@ -436,15 +443,15 @@
 - 왼쪽 드래그는 `pan` 또는 `none`만 허용한다.
 - 다이얼로그/입력 포커스에서는 뷰어 단축키를 막는다(EXIF 패널의 `I` 닫기 예외 제외).
 
-### 15.4 명령 팔레트 `Ctrl+K`
+### 14.4 명령 팔레트 `Ctrl+K`
 
 - 그룹 순서: `file → navigate → view → display → system`.
 - `requiresImage`는 이미지 있을 때만, `requiresNavigation`은 이동 가능할 때만 활성화된다.
 - `system` 그룹은 항상 활성이다: 설정 열기(`openSettings`), 업데이트 확인(`checkForUpdates`).
 - 공백 분리 토큰 AND 매칭이며 점수는 라벨 시작 3점, 라벨 포함 2점, ID/영문 별칭 1점이다.
-- 한국어 UI에서도 영문 별칭(`open`, `copy`, `rotate`, `slideshow` 등)으로 검색된다.
+- 한국어 UI에서도 영문 별칭(`open`, `copy`, `rotate`, `grid` 등)으로 검색된다.
 
-## 16. 백엔드 IPC 계약
+## 15. 백엔드 IPC 계약
 
 진실: `src-tauri/src/lib.rs` `invoke_handler`, `src-tauri/src/commands.rs`, `src-tauri/src/save.rs`.
 
@@ -474,17 +481,17 @@
 | `save_image_edits`           | `filePath` → `file_path`, `options`                                                  | `ImageInfo`                    |
 | `frontend_ready`             | 없음                                                                                 | 없음 (`PendingOpenFile` flush) |
 
-최상위 인자 키는 Tauri 기본 camelCase 변환을 사용하므로 JS 호출 키와 Rust 파라미터명이 위와 같이 대응한다. 중첩 `options` 페이로드(`DirListOptions`, `SaveImageOptions`)는 `serde(rename_all = "camelCase")`라 JS와 Rust 필드명이 같다(`sortKey`, `rotationCw` 등). 응답은 모두 snake_case이다(17절).
+최상위 인자 키는 Tauri 기본 camelCase 변환을 사용하므로 JS 호출 키와 Rust 파라미터명이 위와 같이 대응한다. 중첩 `options` 페이로드(`DirListOptions`, `SaveImageOptions`)는 `serde(rename_all = "camelCase")`라 JS와 Rust 필드명이 같다(`sortKey`, `rotationCw` 등). 응답은 모두 snake_case이다(16절).
 
 파일 연결 주의: 설정에서 연결 변경은 해당 확장자의 Windows 기본 앱 선택 창을 연다. 조용한 UserChoice 레지스트리 쓰기는 할 수 없다.
 
 개발 빌드(디버그)는 설치 버전과 확장자 연결이 서로 덮어쓰지 않도록 `AraView (Dev)` 이름과 별도 레지스트리 키(`Software\AraView (Dev)\Capabilities`), 별도 ProgID(`com.araview.viewer.dev.<ext>`)를 사용한다. 창 제목도 `(Dev)`가 붙는다.
 
-## 17. 데이터 모델
+## 16. 데이터 모델
 
 진실: `src/types/index.ts`, `src-tauri/src/image.rs`, `src-tauri/src/thumbnail.rs`, `src-tauri/src/file_assoc.rs`.
 
-### 17.1 `ImageInfo`
+### 16.1 `ImageInfo`
 
 Rust와 TypeScript는 같은 모양을 유지한다.
 
@@ -494,7 +501,7 @@ Rust와 TypeScript는 같은 모양을 유지한다.
 - `file_size: number`
 - `width: number | null`, `height: number | null`: 렌더 바이트 기준 치수. SVG는 헤더 파싱으로 복원하며 해석 불가분만 null.
 
-### 17.2 기타
+### 16.2 기타
 
 - `DirectoryImages`: `{ images: string[], current_index: number }`.
 - `ThumbnailInfo`: `{ file_path: string, width: number, height: number }`.
@@ -503,11 +510,11 @@ Rust와 TypeScript는 같은 모양을 유지한다.
 - `ImageDetails`: `{ file_path, file_size, width, height, color_mode, bits_per_channel?, created_unix?, modified_unix?, dpi_x?, dpi_y?, icc_status: "present"|"absent"|"unchecked", icc_name?, icc_bytes? }`. 백엔드 출력은 snake_case를 유지한다(`ImageInfo`·`DirectoryImages` 선례).
 - `ArchiveState`: `{ archivePath: string | null }`.
 - `FileAssociation`: `{ extension, associated, current_prog_id, needs_os_confirmation }`.
-- `PsdThumbStatus`: `{ registered, clsid, dll_path, dll_exists }`. 탐색기 썸네일 등록 상태(21.2절). 백엔드 출력은 snake_case를 유지한다.
+- `PsdThumbStatus`: `{ registered, clsid, dll_path, dll_exists }`. 탐색기 썸네일 등록 상태(20.2절). 백엔드 출력은 snake_case를 유지한다.
 - `SaveImageOptions`: camelCase `{ rotationCw, flipH, flipV, format?, overwrite, newFileName? }`.
 - `DirListOptions`: camelCase `{ sortKey, descending, recursive }`.
 
-## 18. 에러 모델
+## 17. 에러 모델
 
 진실: `src-tauri/src/app_error.rs`, `src/utils/appError.ts`.
 
@@ -530,7 +537,7 @@ Rust와 TypeScript는 같은 모양을 유지한다.
 - 새 백엔드 에러 문구를 추가하면 프론트 `EXACT_KIND`/`PREFIX_KIND` 표에도 행을 추가한다.
 - 표시는 `titleKey`/`hintKey`를 번역한다.
 
-## 19. 렌더링 경로
+## 18. 렌더링 경로
 
 - 백엔드는 디코드용 파일 경로를 돌려주고, 프론트는 `convertFileSrc(...)`로 변환해 `<img>`에 넣는다. single 모드의 SVG는 `scale(zoom)` 대신 레이아웃 크기(`원본 x 줌`)로 확대해 브라우저가 표시 크기에서 재래스터하게 한다.
 - HEIC/HEIF/PSD만 JPEG sidecar를 만든다. sidecar는 프로세스 임시 디렉터리 아래에 있다.
@@ -539,7 +546,7 @@ Rust와 TypeScript는 같은 모양을 유지한다.
 - `assetProtocol.enable=true`이고 정적 `scope`는 비어 있다. 프로세스 임시 디렉터리만 setup에서 재귀 허용하고, 사용자가 여는 파일/폴더는 `load_image`, `load_archive_image`, `rename_file`, `save_image_edits`가 런타임에 `asset_protocol_scope().allow_file/allow_directory`로 허용한다.
 - CSP는 `default-src 'self'` 기반이며 `img-src`에 `asset:`/`http://asset.localhost`, `connect-src`에 `ipc: http://ipc.localhost`와 `http://asset.localhost`를 허용한다. 프로덕션은 `withGlobalTauri=false`이고, MCP 검증용 dev 실행만 `src-tauri/tauri.dev.conf.json`으로 `withGlobalTauri=true`를 덮어쓴다.
 
-## 20. 다국어
+## 19. 다국어
 
 진실: `src/i18n/index.ts`, `src/i18n/locales/ko.json`, `src/i18n/locales/en.json`.
 
@@ -548,7 +555,7 @@ Rust와 TypeScript는 같은 모양을 유지한다.
 - 폴백: `ko`.
 - 설정 변경 즉시 적용된다.
 
-## 21. 윈도우/배포
+## 20. 윈도우/배포
 
 진실: `src-tauri/tauri.conf.json`, `src-tauri/src/lib.rs`, `docs/releasing.md`, `.github/workflows/release.yml`.
 
@@ -563,7 +570,7 @@ Rust와 TypeScript는 같은 모양을 유지한다.
   - Archive 3종: rar, zip, 7z.
 - HEIC/HEIF는 vcpkg `libheif[core]` 동적 링크 + `libde265`만 사용한다. `embedded-libheif`를 켜지 않고 `x265`를 넣지 않는다. `VCPKG_ROOT`가 있으면 빌드 시 `heif.dll`, `libde265.dll`을 복사한다.
 
-### 21.1 자동 업데이트 (tauri-plugin-updater)
+### 20.1 자동 업데이트 (tauri-plugin-updater)
 
 수동 확인만 제공한다. 시작 시 자동 확인이나 백그라운드 폴링은 없다(오프라인 우선).
 
@@ -577,7 +584,7 @@ Rust와 TypeScript는 같은 모양을 유지한다.
 - 서명 생략: `npm run tauri build -- --no-sign`은 updater 서명을 건너뛴다. 로컬 확인용이며 `.sig`가 없으므로 배포에 쓰지 않는다.
 - 로컬 릴리스(CI 대체): `scripts/Publish-LocalRelease.ps1`(`npm run release:local`). `tauri.conf.json` 버전으로 태그를 확인하고, 서명 빌드, `.sig`와 `plugins.updater.pubkey`의 키 ID 대조, `latest.json` 생성, 태그 푸시, `gh release create`/`upload`를 수행한다. 기본은 바로 공개이며 `-Publish:$false`로 draft 유지, `-SkipBuild`로 기존 산출물 재사용, `-DryRun`으로 GitHub 접촉 없이 점검한다. 산출물(설치본, `.sig`, `latest.json`)은 저장소 안 `release/vX.Y.Z/`에 모으고 `.gitignore`로 제외하며 `-OutputDir`로 바꿀 수 있다. 서명 키는 `-KeyPath`, `TAURI_SIGNING_PRIVATE_KEY`, 저장소 루트 `araview.key`, `~/.tauri/araview.key` 순서로 찾고, 비밀번호는 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`로 받는다. 둘 다 `.env.local`(gitignored, `.env.example` 참고)에서 읽을 수 있고 이미 설정된 환경변수가 우선한다. `.env.local`은 Vite도 읽지만 `VITE_` 접두사만 클라이언트로 노출되므로 키가 프런트엔드로 새지 않는다.
 
-### 21.2 PSD 탐색기 썸네일 (IThumbnailProvider)
+### 20.2 PSD 탐색기 썸네일 (IThumbnailProvider)
 
 Windows 파일 탐색기에서 `.psd` 축소판을 표시한다. 미리보기 창(`Alt+P`)은 범위 밖이며 썸네일만 제공한다.
 
@@ -589,7 +596,7 @@ Windows 파일 탐색기에서 `.psd` 축소판을 표시한다. 미리보기 �
 - 설정 UI(확장자 탭 하단): 상태 조회(`get_psd_thumbnail_status`), 켜기(`register_psd_thumbnail`)/끄기(`unregister_psd_thumbnail`). DLL이 없으면 등록을 거부하고 안내한다. 적용 뒤 탐색기 재시작/썸네일 캐시 정리가 필요할 수 있음을 안내한다.
 - 제한: 고무결성 Explorer(Windows Sandbox 등)는 HKCU COM을 무시하므로 dev 채널 썸네일이 동작하지 않는다. 삭제 시 HKCU 키는 남을 수 있으며 다시 설치 후 설정에서 다시 켜면 복구된다.
 
-## 22. 비목표와 제약
+## 21. 비목표와 제약
 
 - 클라우드, 공유, 라이브러리 가져오기는 범위 밖이다.
 - 브랜드명, 로고, 수치, 후기, 컴플라이언스 문구를 만들지 않는다.
@@ -597,9 +604,9 @@ Windows 파일 탐색기에서 `.psd` 축소판을 표시한다. 미리보기 �
 - 빈 상태는 가짜 샘플 대신 실제 다음 행동을 안내한다.
 - 파일 연결은 OS 확인 없이 바꿀 수 없다.
 
-## 23. 변경 시 동기화 체크리스트
+## 22. 변경 시 동기화 체크리스트
 
-### 23.1 포맷 추가
+### 22.1 포맷 추가
 
 1. `src-tauri/src/image.rs` MIME 매핑 + 테스트.
 2. `src/constants/imageExtensions.ts`.
@@ -607,17 +614,17 @@ Windows 파일 탐색기에서 `.psd` 축소판을 표시한다. 미리보기 �
 4. `samples/` 파일로 `load_image` 확인, EXIF 포맷은 `get_exif_data`도 확인.
 5. `README.md`, `docs/`(해당 안내), 본 문서(`SPEC.md`), 필요 시 `AGENTS.md` 범위 갱신.
 
-### 23.2 백엔드 명령 추가
+### 22.2 백엔드 명령 추가
 
 1. `src-tauri/src/commands.rs`에 `#[tauri::command]` 구현.
 2. `src-tauri/src/lib.rs` `invoke_handler` 등록.
 3. 프론트 `invoke(...)`(보통 훅)에서 호출.
 4. 타입 변경 시 TypeScript/Rust 양쪽 갱신.
-5. 본 문서 16절 IPC 표와 17절 데이터 모델 갱신.
+5. 본 문서 15절 IPC 표와 16절 데이터 모델 갱신.
 
-### 23.3 설정/단축키 추가
+### 22.3 설정/단축키 추가
 
 1. `src/store/settingsStore.ts` 기본값 + sanitize.
 2. `src/constants/shortcuts.ts` ID/기본값(필요 시).
-3. 본 문서 14~15절 갱신.
-4. 영속화 키 변경 시 13절도 갱신한다.
+3. 본 문서 13~14절 갱신.
+4. 영속화 키 변경 시 12절도 갱신한다.

@@ -24,7 +24,6 @@ import { useImageLoader } from "@/hooks/useImageLoader"
 import { useImageViewerHotkeys } from "@/hooks/useImageViewerHotkeys"
 import { useMultiPageImages } from "@/hooks/useMultiPageImages"
 import { useOpenFileListener } from "@/hooks/useOpenFileListener"
-import { useSlideshow } from "@/hooks/useSlideshow"
 import { useViewerElements } from "@/hooks/useViewerElements"
 import { useWheelNavigation } from "@/hooks/useWheelNavigation"
 import { useZoomPan } from "@/hooks/useZoomPan"
@@ -176,18 +175,15 @@ function ImagePage() {
 
   useOpenFileListener(loadImageAndReset)
 
-  const slideshow = useSlideshow(() => handleNavigateImage("next"))
   const fullscreen = useFullscreen()
 
-  // 그리드를 열면 슬라이드쇼를 멈춘다. 자동 이동이 그리드 선택과 어긋나지 않게.
   const toggleGrid = useCallback(() => {
     if (gridOpen) {
       setGridOpen(false)
       return
     }
-    if (slideshow.active) slideshow.toggle()
     setGridOpen(true)
-  }, [gridOpen, slideshow])
+  }, [gridOpen])
   const { toggle: toggleAlwaysOnTop } = useAlwaysOnTop()
   const { copy: copyImage } = useCopyImage()
   const { trashCurrent, revealCurrent, openExternal, copyPathCurrent, renameCurrent, saveEdits } =
@@ -221,7 +217,6 @@ function ImagePage() {
       onJumpFirst: () => handleNavigateToIndex(0),
       onJumpLast: () => handleNavigateToIndex(dirImages.images.length - 1),
       onToggleExif: () => void toggleExifPanel(),
-      onToggleSlideshow: slideshow.toggle,
       onCopyImage: () => void copyImage(),
       onTrashFile: () => void trashCurrent(),
       onRevealInExplorer: () => void revealCurrent(),
@@ -240,7 +235,6 @@ function ImagePage() {
     handleNavigateToIndex,
     dirImages.images.length,
     toggleExifPanel,
-    slideshow.toggle,
     copyImage,
     trashCurrent,
     revealCurrent,
@@ -291,7 +285,6 @@ function ImagePage() {
     onNavigatePrev: () => handleNavigateImage("prev"),
     onNavigateNext: () => handleNavigateImage("next"),
     onToggleExif: () => void toggleExifPanel(),
-    onToggleSlideshow: slideshow.toggle,
     onToggleFullscreen: () => void fullscreen.toggle(),
     onToggleAlwaysOnTop: () => void toggleAlwaysOnTop(),
     onCopyImage: () => void copyImage(),
@@ -384,7 +377,6 @@ function ImagePage() {
     onOpenFile: handleOpenFile,
     onCloseImage: handleCloseImage,
     onToggleExif: () => void toggleExifPanel(),
-    onToggleSlideshow: slideshow.toggle,
     onToggleFullscreen: () => void fullscreen.toggle(),
     onToggleAlwaysOnTop: () => void toggleAlwaysOnTop(),
     onCopyImage: () => void copyImage(),
@@ -424,10 +416,6 @@ function ImagePage() {
         getOrLoadImage={getOrLoadImage}
         viewMode={viewMode}
         pages={pages}
-        slideshowActive={slideshow.active}
-        slideshowIntervalMs={slideshow.intervalMs}
-        onToggleSlideshow={slideshow.toggle}
-        onToggleFullscreen={() => void fullscreen.toggle()}
         chromeHidden={chromeHidden}
         onRetry={handleRetry}
         onWebtoonIndexChange={handleWebtoonIndexChange}

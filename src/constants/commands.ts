@@ -282,14 +282,6 @@ export const COMMAND_DEFS: readonly CommandDef[] = [
     keywords: ["exif", "info", "metadata"]
   },
   {
-    id: "toggleSlideshow",
-    group: "display",
-    labelKey: "menu.toggleSlideshow",
-    shortcutId: "toggleSlideshow",
-    requiresImage: true,
-    keywords: ["slideshow", "play"]
-  },
-  {
     id: "toggleFullscreen",
     group: "display",
     labelKey: "menu.toggleFullscreen",

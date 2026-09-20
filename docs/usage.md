@@ -4,20 +4,20 @@
 
 ## 단축키
 
-기본값 진실은 `src/constants/shortcuts.ts`(`DEFAULT_SHORTCUTS`)이며, 설정에서 재할당할 수 있습니다. 규격 표는 `SPEC.md` §15를 따릅니다.
+기본값 진실은 `src/constants/shortcuts.ts`(`DEFAULT_SHORTCUTS`)이며, 설정에서 재할당할 수 있습니다. 규격 표는 `SPEC.md` §14를 따릅니다.
 
 - **파일/탐색**: `Ctrl+O`(열기), `Ctrl+ArrowLeft`/`Ctrl+ArrowRight`(이전/다음)
 - **이동**: `ArrowLeft`/`ArrowRight`/`ArrowUp`/`ArrowDown`(팬, 항상 동작)
 - **점프**: `PageUp`/`PageDown`(10장), `Home`/`End`(처음/마지막)
 - **줌**: `=`, `-`, `0`(초기화), `1`(가로 맞춤), `2`(세로 맞춤), `3`(화면 맞춤)
 - **이미지 조작**: `R`(시계 회전), `Shift+R`(반시계 회전), `H`(좌우 반전), `V`(상하 반전), `Ctrl+S`(편집 저장)
-- **보기**: `I`(EXIF), `G`(썸네일 그리드), `Space`(슬라이드쇼), `F11`(전체화면), `T`(항상 위), `B`(배경 순환)
+- **보기**: `I`(EXIF), `G`(썸네일 그리드), `F11`(전체화면), `T`(항상 위), `B`(배경 순환)
 - **복사/외부**: `Ctrl+C`(이미지 복사), `Ctrl+Shift+C`(경로 복사), `Ctrl+Shift+E`(탐색기에서 보기), `Ctrl+Shift+O`(기본 앱으로 열기)
 - **파일 관리**: `Delete`(휴지통 이동), `F2`(이름 변경)
 - **기타**: `Ctrl+K`(명령 팔레트), `Escape`(이미지 닫기)
 - **그리드 내부**: 화살표(이동), `Home`/`End`, `PageUp`/`PageDown`, `Enter`(열기), `Esc` 또는 `G`(닫기)
 
-휠/마우스 기본값은 `SPEC.md` §15.2를 따릅니다. 휠 위/아래는 이전/다음, `Ctrl+휠`은 확대/축소, 왼쪽 드래그는 팬, 더블클릭은 전체화면, 우클릭은 컨텍스트 메뉴입니다.
+휠/마우스 기본값은 `SPEC.md` §14.2를 따릅니다. 휠 위/아래는 이전/다음, `Ctrl+휠`은 확대/축소, 왼쪽 드래그는 팬, 더블클릭은 전체화면, 우클릭은 컨텍스트 메뉴입니다.
 
 ## 설정 항목
 
@@ -32,10 +32,9 @@
   - `memory-1gb` / `memory-2gb`: 메모리 상한 기반 캐시
 - **확장자 연결**: 연결을 바꾸면 해당 확장자의 Windows 기본 앱 선택 창이 열립니다.
 - **View Mode**: `single`, `left-to-right`, `right-to-left`, `webtoon` (양면 모드는 2장씩 넘김)
-- **Slideshow Interval**: 슬라이드쇼 간격(ms, 1~30초)
 - **시작**: 홈 화면 표시 또는 마지막 파일 자동 열기
 
-설정과 최근 파일 목록은 Tauri Store(`settings.json`)에 저장됩니다. 전체 설정 표와 기본값은 `SPEC.md` §14를 따릅니다.
+설정과 최근 파일 목록은 Tauri Store(`settings.json`)에 저장됩니다. 전체 설정 표와 기본값은 `SPEC.md` §13을 따릅니다.
 
 ## 업데이트 확인
 

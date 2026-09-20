@@ -52,7 +52,6 @@ export type PaletteViewerHandlers = {
   onJumpFirst: () => void
   onJumpLast: () => void
   onToggleExif: () => void
-  onToggleSlideshow: () => void
   onCopyImage: () => void
   onTrashFile: () => void
   onRevealInExplorer: () => void
@@ -191,9 +190,6 @@ function runCommand(
       break
     case "toggleExif":
       viewerHandlers?.onToggleExif()
-      break
-    case "toggleSlideshow":
-      viewerHandlers?.onToggleSlideshow()
       break
     case "toggleFullscreen":
       void host.toggleFullscreen()

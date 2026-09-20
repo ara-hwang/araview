@@ -18,7 +18,6 @@ export type ShortcutActionId =
   | "rotateCCW"
   | "flipH"
   | "flipV"
-  | "toggleSlideshow"
   | "toggleFullscreen"
   | "toggleAlwaysOnTop"
   | "copyImage"
@@ -86,7 +85,6 @@ export const SHORTCUT_ACTION_IDS: ShortcutActionId[] = [
   "rotateCCW",
   "flipH",
   "flipV",
-  "toggleSlideshow",
   "toggleFullscreen",
   "toggleAlwaysOnTop",
   "copyImage",
@@ -143,7 +141,6 @@ export const DEFAULT_SHORTCUTS: ShortcutMap = {
   rotateCCW: "Shift+R",
   flipH: "H",
   flipV: "V",
-  toggleSlideshow: "Space",
   toggleFullscreen: "F11",
   toggleAlwaysOnTop: "T",
   copyImage: "Ctrl+C",
