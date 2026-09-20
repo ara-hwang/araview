@@ -13,7 +13,8 @@
     4. Resolve the signing key: -KeyPath, then TAURI_SIGNING_PRIVATE_KEY, then
        <repo>/araview.key, then ~/.tauri/araview.key. The password comes from
        TAURI_SIGNING_PRIVATE_KEY_PASSWORD, otherwise the build prompts for it.
-    5. Run a signed release build (skip with -SkipBuild to reuse artifacts).
+    5. Run a signed release build (skip with -SkipBuild to reuse artifacts, cap
+       cargo parallelism with -Jobs to keep the machine responsive).
     6. Check that the signature belongs to plugins.updater.pubkey.
     7. Collect the installer, its signature, and latest.json in <repo>/release/<tag>.
     8. Push the tag and create or update the release in -UpdatesRepo (defaults to
@@ -41,6 +42,9 @@
 .EXAMPLE
   # Reuse the last build (publishes immediately by default).
   npm run release:local -- -SkipBuild
+.EXAMPLE
+  # Keep the machine responsive: cap cargo at 4 parallel jobs.
+  npm run release:local -- -Jobs 4
 #>
 param(
   # GitHub repository that owns the source and, by default, the release.
@@ -62,7 +66,10 @@ param(
   # Defaults to <repo>/release/<tag>.
   [string]$OutputDir,
   # Resolve everything and collect the assets, but do not create a tag or a release.
-  [switch]$DryRun
+  [switch]$DryRun,
+  # Cargo build parallelism. 0 keeps cargo's default (one job per logical CPU).
+  # Lower it to keep the machine responsive during the release build.
+  [int]$Jobs = 0
 )
 
 $ErrorActionPreference = "Stop"
@@ -173,6 +180,12 @@ if (-not (Test-Path env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD)) {
 
 # 4. build
 if (-not $SkipBuild) {
+  # Limit cargo parallelism so a release build does not saturate every core.
+  # Applies to the thumbnail DLL build and `tauri build` (both inherit this env var).
+  if ($Jobs -gt 0) {
+    $env:CARGO_BUILD_JOBS = "$Jobs"
+    Write-Output "cargo jobs: $Jobs (CARGO_BUILD_JOBS)"
+  }
   Write-Output "Running signed release build, this takes a few minutes..."
   Push-Location $root
   try {
