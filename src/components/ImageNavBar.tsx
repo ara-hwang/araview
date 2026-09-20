@@ -98,6 +98,7 @@ export function ImageNavBar({
         hidden && "pointer-events-none opacity-0"
       )}
       onMouseDown={(e) => e.stopPropagation()}
+      onDoubleClick={(e) => e.stopPropagation()}
     >
       {/* 썸네일 스트립: scale-110이 잘리지 않게 여유를 두고, 스크롤바 없이 스크롤만 유지 */}
       {thumbnails.length > 1 && (

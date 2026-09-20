@@ -179,7 +179,6 @@ export function ImageContainer({
       onMouseMove={viewMode === "single" ? onMouseMove : undefined}
       onMouseUp={viewMode === "single" ? onMouseUp : undefined}
       onMouseLeave={viewMode === "single" ? onMouseUp : undefined}
-      onDoubleClick={onDoubleClick}
       onAuxClick={(e) => {
         if (e.button === 1 && onMiddleClick) onMiddleClick(e)
       }}
@@ -207,6 +206,7 @@ export function ImageContainer({
               applyImageNaturalSize(img.naturalWidth, img.naturalHeight)
             }}
             onError={handleImageError}
+            onDoubleClick={onDoubleClick}
             draggable={false}
           />
         </div>
@@ -231,6 +231,7 @@ export function ImageContainer({
                   : "max-h-full max-w-[50%] object-contain"
               }
               draggable={false}
+              onDoubleClick={onDoubleClick}
             />
           ))}
         </div>
@@ -244,6 +245,7 @@ export function ImageContainer({
           getOrLoadImage={getOrLoadImage}
           onCenterChange={(i) => onWebtoonIndexChange?.(i)}
           scrollTarget={webtoonScrollTarget ?? null}
+          onImageDoubleClick={onDoubleClick}
         />
       )}
 
