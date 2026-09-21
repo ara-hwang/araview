@@ -275,6 +275,7 @@
       "thumb": "Image {{index}}: {{name}}",
       "thumbError": "Failed image {{index}}: {{name}}",
       "thumbRetry": "Retry thumbnail {{index}}",
+      "cloudOnly": "Cloud only {{index}}: {{name}}",
       "grid": "Thumbnail grid",
       "gridTitle": "Thumbnail grid (G)"
     },
@@ -291,7 +292,8 @@
       "close": "Close grid (Esc)",
       "empty": "No images to show",
       "noResults": "No matching files",
-      "failed": "Failed"
+      "failed": "Failed",
+      "cloudOnly": "Cloud only"
     }
   },
   "exif": {
