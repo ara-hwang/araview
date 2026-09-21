@@ -1,11 +1,14 @@
+import { CaretDown, CaretLeft, CaretRight, CaretUp } from "@phosphor-icons/react"
 import { createFileRoute, redirect } from "@tanstack/react-router"
 import { useCallback, useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 
 import { ImageContainer } from "@/components/ImageContainer"
+import { ImageNavBar } from "@/components/ImageNavBar"
 import { RenameDialog } from "@/components/RenameDialog"
 import { SaveEditsDialog } from "@/components/SaveEditsDialog"
 import { ThumbnailGrid } from "@/components/ThumbnailGrid"
+import { Button } from "@/components/ui/button"
 import { toast } from "@/components/ui/toast"
 import type { WebtoonScrollTarget } from "@/components/WebtoonContinuousView"
 import type { MouseAction } from "@/constants/shortcuts"
@@ -27,9 +30,10 @@ import { useOpenFileListener } from "@/hooks/useOpenFileListener"
 import { useViewerElements } from "@/hooks/useViewerElements"
 import { useWheelNavigation } from "@/hooks/useWheelNavigation"
 import { useZoomPan } from "@/hooks/useZoomPan"
+import { cn } from "@/lib/utils"
 import { getApp, updateDirImagesIndex, useAppStore, zoomIn, zoomOut } from "@/store/appStore"
 import { useArchiveProgressStore } from "@/store/archiveProgressStore"
-import { getSettings, useSettingsStore } from "@/store/settingsStore"
+import { getSettings, updateSettings, useSettingsStore } from "@/store/settingsStore"
 import { cycleViewerBackground } from "@/store/settingsStore"
 import type { SaveEditsPayload } from "@/utils/imageEdits"
 
@@ -200,6 +204,17 @@ function ImagePage() {
     }
     setGridOpen(true)
   }, [gridOpen])
+  const toggleDock = useCallback(() => {
+    void updateSettings({ dockVisible: !useSettingsStore.getState().dockVisible })
+  }, [])
+  const handleGridClose = useCallback(() => {
+    setGridOpen(false)
+    // 그리드에서 돌아오면 도크 현재 썸네일로 포커스를 되돌린다.
+    requestAnimationFrame(() => {
+      const el = document.querySelector<HTMLElement>('[data-dock-current="true"]')
+      el?.focus({ preventScroll: true })
+    })
+  }, [])
   const { toggle: toggleAlwaysOnTop } = useAlwaysOnTop()
   const { copy: copyImage } = useCopyImage()
   const { trashCurrent, revealCurrent, openExternal, copyPathCurrent, renameCurrent, saveEdits } =
@@ -208,6 +223,11 @@ function ImagePage() {
     })
   const autoHideUI = useSettingsStore((state) => state.autoHideUI)
   const chromeHidden = useIdleHide(autoHideUI)
+  const dockPosition = useSettingsStore((state) => state.dockPosition)
+  const dockVisible = useSettingsStore((state) => state.dockVisible)
+  const dockThumbSize = useSettingsStore((state) => state.dockThumbSize)
+  const dockShowName = useSettingsStore((state) => state.dockShowName)
+  const dockShowIndex = useSettingsStore((state) => state.dockShowIndex)
   const [renameOpen, setRenameOpen] = useState(false)
   const [saveOpen, setSaveOpen] = useState(false)
   const renameInitialName = useAppStore((state) => state.imageInfo?.file_name) ?? ""
@@ -240,7 +260,8 @@ function ImagePage() {
       onRenameFile: () => setRenameOpen(true),
       onCopyPath: () => void copyPathCurrent(),
       onSaveEdits: handleOpenSaveDialog,
-      onToggleGrid: toggleGrid
+      onToggleGrid: toggleGrid,
+      onToggleDock: toggleDock
     })
     return () => {
       unregisterPaletteHandlers()
@@ -257,6 +278,7 @@ function ImagePage() {
     openExternal,
     copyPathCurrent,
     toggleGrid,
+    toggleDock,
     handleOpenSaveDialog
   ])
 
@@ -310,7 +332,8 @@ function ImagePage() {
     onRenameFile: () => setRenameOpen(true),
     onCopyPath: () => void copyPathCurrent(),
     onSaveEdits: handleOpenSaveDialog,
-    onToggleGrid: toggleGrid
+    onToggleGrid: toggleGrid,
+    onToggleDock: toggleDock
   })
 
   const runMouseAction = useCallback(
@@ -407,37 +430,100 @@ function ImagePage() {
     disabled: gridOpen
   })
 
+  const showDock = dirImages.images.length > 1
+  // 자동숨김/프레젠테이션 중에는 도크를 언마운트해 읽기 영역을 전부 비운다.
+  const dockEffectiveVisible = showDock && dockVisible && !chromeHidden
+  const dockCollapsedVisible = showDock && !dockVisible && !chromeHidden
+
+  const dockNode = dockEffectiveVisible ? (
+    <ImageNavBar
+      onNavigate={handleNavigateImage}
+      onNavigateToIndex={handleNavigateToIndex}
+      getOrLoadImage={getOrLoadImage}
+      onToggleGrid={toggleGrid}
+      gridActive={gridOpen}
+      onToggleDock={toggleDock}
+      position={dockPosition}
+      thumbSize={dockThumbSize}
+      showName={dockShowName}
+      showIndex={dockShowIndex}
+    />
+  ) : null
+
+  const ExpandIcon =
+    dockPosition === "top"
+      ? CaretDown
+      : dockPosition === "bottom"
+        ? CaretUp
+        : dockPosition === "left"
+          ? CaretRight
+          : CaretLeft
+
+  const collapsedNode = dockCollapsedVisible ? (
+    <div
+      className={cn(
+        "flex shrink-0 items-center justify-center bg-background",
+        (dockPosition === "top" || dockPosition === "bottom") && "h-6 w-full border-border",
+        dockPosition === "top" && "border-b",
+        dockPosition === "bottom" && "border-t",
+        (dockPosition === "left" || dockPosition === "right") && "h-full w-6 border-border",
+        dockPosition === "left" && "border-r",
+        dockPosition === "right" && "border-l"
+      )}
+    >
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        onClick={toggleDock}
+        title={t("viewer.nav.dockShow")}
+        aria-label={t("viewer.nav.dockShow")}
+      >
+        <ExpandIcon />
+      </Button>
+    </div>
+  ) : null
+
   return (
     <div
-      className="relative flex h-full w-full flex-col"
+      className="relative flex h-full w-full flex-col bg-background"
       onContextMenu={handleContextMenu}
       onDrop={handleDrop}
       onDragOver={handleDragOver}
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
     >
-      <ImageContainer
-        containerRef={containerRef}
-        imageRef={imageRef}
-        onWheel={handleWheel}
-        onMouseDown={zoomPan.handleMouseDown}
-        onMouseMove={zoomPan.handleMouseMove}
-        onMouseUp={zoomPan.handleMouseUp}
-        onDoubleClick={handleDoubleClick}
-        onMiddleClick={handleMiddleClick}
-        onNavigate={handleNavigateImage}
-        onNavigateToIndex={handleNavigateToIndex}
-        onToggleGrid={toggleGrid}
-        gridActive={gridOpen}
-        getOrLoadImage={getOrLoadImage}
-        viewMode={viewMode}
-        pages={pages}
-        chromeHidden={chromeHidden}
-        onRetry={handleRetry}
-        onWebtoonIndexChange={handleWebtoonIndexChange}
-        webtoonScrollTarget={webtoonScrollTarget}
-        onOpenArchiveFromPreview={handleOpenArchiveFromPreview}
-      />
+      {dockPosition === "top" && (dockNode ?? collapsedNode)}
+      <div className="flex min-h-0 min-w-0 flex-1 flex-row">
+        {dockPosition === "left" && (
+          <div className="flex min-h-0 shrink-0 pb-6">{dockNode ?? collapsedNode}</div>
+        )}
+        <div className="flex min-h-0 min-w-0 flex-1">
+          <ImageContainer
+            containerRef={containerRef}
+            imageRef={imageRef}
+            onWheel={handleWheel}
+            onMouseDown={zoomPan.handleMouseDown}
+            onMouseMove={zoomPan.handleMouseMove}
+            onMouseUp={zoomPan.handleMouseUp}
+            onDoubleClick={handleDoubleClick}
+            onMiddleClick={handleMiddleClick}
+            onNavigateToIndex={handleNavigateToIndex}
+            getOrLoadImage={getOrLoadImage}
+            viewMode={viewMode}
+            pages={pages}
+            onRetry={handleRetry}
+            onWebtoonIndexChange={handleWebtoonIndexChange}
+            webtoonScrollTarget={webtoonScrollTarget}
+            onOpenArchiveFromPreview={handleOpenArchiveFromPreview}
+          />
+        </div>
+        {dockPosition === "right" && (
+          <div className="flex min-h-0 shrink-0 pb-6">{dockNode ?? collapsedNode}</div>
+        )}
+      </div>
+      {dockPosition === "bottom" && (
+        <div className="mb-6 shrink-0">{dockNode ?? collapsedNode}</div>
+      )}
       {isDragOver && (
         <div className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center border-2 border-dashed border-primary bg-background/80">
           <p className="rounded-md border bg-background px-4 py-2 text-sm">{t("home.drop")}</p>
@@ -450,7 +536,7 @@ function ImagePage() {
           getOrLoadImage={getOrLoadImage}
           failedPaths={failedPaths}
           onNavigateToIndex={handleNavigateToIndex}
-          onClose={() => setGridOpen(false)}
+          onClose={handleGridClose}
         />
       )}
       <RenameDialog

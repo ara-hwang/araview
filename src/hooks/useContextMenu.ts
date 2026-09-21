@@ -33,6 +33,7 @@ export type ImageViewerContextMenuActions = {
   onCopyPath: () => void
   onSaveEdits: () => void
   onToggleGrid: () => void
+  onToggleDock: () => void
 }
 
 export async function showImageViewerContextMenu(
@@ -134,6 +135,10 @@ export async function showImageViewerContextMenu(
       text: t("menu.toggleGrid"),
       accelerator: acc(s.toggleGrid),
       action: () => actions.onToggleGrid()
+    }),
+    MenuItem.new({
+      text: t("menu.toggleDock"),
+      action: () => actions.onToggleDock()
     }),
     MenuItem.new({
       text: t("menu.toggleFullscreen"),

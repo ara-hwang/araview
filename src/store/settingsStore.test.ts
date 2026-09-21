@@ -12,7 +12,12 @@ describe("sanitizeSettings", () => {
       viewMode: "webtoon",
       sortKey: "size",
       sortDescending: true,
-      fitMode: "width"
+      fitMode: "width",
+      dockPosition: "left",
+      dockVisible: false,
+      dockThumbSize: "l",
+      dockShowName: true,
+      dockShowIndex: true
     })
     expect(sane.language).toBe("en")
     expect(sane.loopNavigation).toBe(true)
@@ -21,6 +26,20 @@ describe("sanitizeSettings", () => {
     expect(sane.sortKey).toBe("size")
     expect(sane.sortDescending).toBe(true)
     expect(sane.fitMode).toBe("width")
+    expect(sane.dockPosition).toBe("left")
+    expect(sane.dockVisible).toBe(false)
+    expect(sane.dockThumbSize).toBe("l")
+    expect(sane.dockShowName).toBe(true)
+    expect(sane.dockShowIndex).toBe(true)
+  })
+
+  it("도크 기본값은 아래쪽 펼침이다", () => {
+    const sane = sanitizeSettings({})
+    expect(sane.dockPosition).toBe("bottom")
+    expect(sane.dockVisible).toBe(true)
+    expect(sane.dockThumbSize).toBe("s")
+    expect(sane.dockShowName).toBe(false)
+    expect(sane.dockShowIndex).toBe(false)
   })
 
   it("잘못된 union 값은 기본값으로 되돌린다", () => {
@@ -30,7 +49,9 @@ describe("sanitizeSettings", () => {
       viewerBackground: "neon",
       sortKey: "random",
       language: "fr",
-      fitMode: "cover"
+      fitMode: "cover",
+      dockPosition: "center",
+      dockThumbSize: "xl"
     })
     expect(sane.cacheMode).toBe("nearby")
     expect(sane.viewMode).toBe("single")
@@ -38,6 +59,8 @@ describe("sanitizeSettings", () => {
     expect(sane.sortKey).toBe("name")
     expect(sane.language).toBe("ko")
     expect(sane.fitMode).toBe("auto")
+    expect(sane.dockPosition).toBe("bottom")
+    expect(sane.dockThumbSize).toBe("s")
   })
 
   it("truthy 비불리언은 false로 정규화한다", () => {

@@ -60,6 +60,7 @@ export type PaletteViewerHandlers = {
   onCopyPath: () => void
   onSaveEdits: () => void
   onToggleGrid: () => void
+  onToggleDock: () => void
 }
 
 let viewerHandlers: PaletteViewerHandlers | null = null
@@ -223,6 +224,9 @@ function runCommand(
       break
     case "toggleGrid":
       viewerHandlers?.onToggleGrid()
+      break
+    case "toggleDock":
+      viewerHandlers?.onToggleDock()
       break
     case "openSettings":
       requestOpenSettings()

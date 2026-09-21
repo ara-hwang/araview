@@ -79,12 +79,13 @@
 ### 3.2 뷰어 `/image`
 
 - `beforeLoad`에서 `imageInfo`가 없으면 `/`로 리다이렉트한다.
-- 구성: `ImageContainer`(읽기 영역) + 드래그 오버레이 + `ThumbnailGrid`(선택) + `RenameDialog` + `SaveEditsDialog`.
+- 구성: `ImageContainer`(읽기 영역) + 이미지 목록 도크(`ImageNavBar`, 상/하/좌/우) + 드래그 오버레이 + `ThumbnailGrid`(선택) + `RenameDialog` + `SaveEditsDialog`.
+- 도크: 뷰어 가장자리 플로우에 붙으며 읽기 영역을 밀어낸다. 위치(`dockPosition`, 기본 `bottom`), 표시(`dockVisible`, 기본 펼침), 썸네일 크기(`dockThumbSize` S/M/L), 파일명(`dockShowName`)/번호(`dockShowIndex`)를 보기 설정에서 바꾼다. 도크의 `⋯` 버튼(`DropdownMenu`, 위치/크기/표시)에서도 같은 값을 즉시 바꿀 수 있다. 바 전체를 접으면 얇은 엣지 바로 복구한다. 수직 도크(좌/우)에서는 슬라이더를 생략하고 썸네일+버튼만 세로로 둔다. 이미지가 2장 이상일 때만 표시한다.
 - `G`(기본, 재할당 가능)로 썸네일 그리드 오버레이를 연다. 열 때 현재 이미지를 중앙에 둔다.
 - 그리드: 뷰포트 기반 가상화(고정 셀, overscan 2행), 클릭/`Enter`로 점프 후 닫기, `Esc`/`G`로 닫기, 파일명 필터, 실패 셀 배지와 재시도. 그리드가 열려 있는 동안 뷰어 단축키는 비활성이다.
 - 우클릭은 설정(`mouse.rightClick`)에 따라 컨텍스트 메뉴 또는 다른 동작이다. 홈에서는 우클릭을 막는다.
 - `Esc` 닫기: 이름 변경/저장 다이얼로그가 열려 있거나 입력 포커스 중이면 닫지 않는다.
-- `autoHideUI`가 true일 때만 `useIdleHide`로 크롬을 숨긴다.
+- `autoHideUI`가 true일 때만 `useIdleHide`로 크롬(상단바, 이미지 목록 도크, 상태바)을 숨긴다. 도크는 숨김 중 언마운트되어 읽기 영역이 확장된다.
 - `menuBarHidden`이 true이면 상단바를 숨기고, 상단 20px 호버 영역에서 peek 오버레이로 표시한다. 헤더 숨기기 버튼과 보기 설정 스위치로 토글한다.
 - 로드 실패 시 에러 카드에 재시도/홈 복구 경로를 제공한다. 실패한 적은 토스트로 알린다.
 
@@ -375,6 +376,11 @@
 | `includeSubfolders` | 하위 폴더 포함(재귀)                                    | `false`                            |
 | `skipBrokenFiles`   | 손상 파일 자동 건너뛰기                                 | `false`                            |
 | `fitMode`           | 맞춤 기억 `width \| height \| screen \| auto`           | `auto`                             |
+| `dockPosition`      | 이미지 목록 위치 `top \| bottom \| left \| right`       | `bottom`                           |
+| `dockVisible`       | 이미지 목록 표시                                        | `true`                             |
+| `dockThumbSize`     | 썸네일 크기 `s \| m \| l`                               | `s`                                |
+| `dockShowName`      | 썸네일 파일명 표시                                      | `false`                            |
+| `dockShowIndex`     | 썸네일 번호 표시                                        | `false`                            |
 | `shortcuts`         | 단축키 맵                                               | 아래 기본표                        |
 | `wheel`             | 휠 맵                                                   | 아래 기본표                        |
 | `mouse`             | 마우스 맵                                               | 아래 기본표                        |
