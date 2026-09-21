@@ -460,14 +460,18 @@ function ImagePage() {
           ? CaretRight
           : CaretLeft
 
+  // 접힘 바의 펼치기 버튼은 도크의 접기 버튼과 같은 쪽(가로 도크는 우측,
+  // 세로 도크는 아래)에 두어 마우스를 움직이지 않고 바로 토글할 수 있게 한다.
   const collapsedNode = dockCollapsedVisible ? (
     <div
       className={cn(
-        "flex shrink-0 items-center justify-center bg-background",
-        (dockPosition === "top" || dockPosition === "bottom") && "h-6 w-full border-border",
+        "flex shrink-0 bg-background",
+        (dockPosition === "top" || dockPosition === "bottom") &&
+          "h-6 w-full flex-row items-center justify-end border-border pr-1",
         dockPosition === "top" && "border-b",
         dockPosition === "bottom" && "border-t",
-        (dockPosition === "left" || dockPosition === "right") && "h-full w-6 border-border",
+        (dockPosition === "left" || dockPosition === "right") &&
+          "h-full w-6 flex-col items-center justify-end border-border pb-1",
         dockPosition === "left" && "border-r",
         dockPosition === "right" && "border-l"
       )}
