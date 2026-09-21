@@ -96,3 +96,12 @@ src-tauri/
   src/archive.rs     # 아카이브 목록/추출 처리 (cbz/zip, cb7/7z, cbr/rar, cbt)
   src/lib.rs         # Tauri 앱 설정 및 command 등록
 ```
+
+## PSD 탐색기 썸네일 구현 메모
+
+사용자 동작 계약은 `SPEC.md` §20.2를 따릅니다. 아래는 개발용 구현 메모입니다.
+
+- 핸들러는 `src-tauri/crates/araview-thumb/`의 In-Proc COM DLL(`araview_thumb.dll`)이며 `IThumbnailProvider` + `IInitializeWithStream`/`IInitializeWithFile`을 구현합니다. PSB(`8BPB`)는 거부합니다.
+- CLSID(발행 후 변경 금지): 릴리스 `{FD6BD976-2DF4-4656-94F2-1D166163EC59}`, 개발 `{BD277595-1702-4AC5-AA7C-A67965C3D570}`. `registry.rs`와 `thumb_shell.rs`에 중복 정의되어 함께 바꿔야 합니다.
+- 등록은 전부 HKCU(`Software\Classes`)입니다: `CLSID\{CLSID}\InprocServer32`(DLL 경로 + `ThreadingModel=Apartment`), `.psd`와 채널 ProgID의 `ShellEx\{E357FCCD-A995-4576-B01F-234630154E96}` 슬롯, `.psd`의 `PerceivedType`/`Content Type` 채우기. 등록/해제 후 `SHChangeNotify`를 보냅니다.
+- DLL 전달: 워크스페이스 멤버로 함께 빌드합니다. 릴리스는 `scripts/Build-ThumbDll.ps1`(`npm run build:thumb`)로 빌드해 `src-tauri/resources/`에 스테이징하면 NSIS 번들에 실립니다. Windows 리소스는 `src-tauri/tauri.windows.conf.json`에 반복해야 합니다(플랫폼 설정이 `bundle.resources`를 통째로 교체). 이 파일은 strict JSON이라 주석을 넣으면 빌드가 실패합니다. 앱은 exe 옆, `resources/` 순으로 DLL을 찾습니다.
