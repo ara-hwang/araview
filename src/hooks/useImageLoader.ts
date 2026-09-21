@@ -13,7 +13,14 @@ import { useSettingsStore } from "@/store/settingsStore"
 import type { DirectoryImages, ImageInfo } from "@/types"
 import { errorCopyDetails, errorMessage } from "@/utils/appError"
 import { buildDirListOptions } from "@/utils/directoryOptions"
+import { beginImageLoad, isCurrentImageLoad } from "@/utils/imageLoadSession"
 import { MAX_SKIP_ATTEMPTS, findSkipTarget } from "@/utils/skipBroken"
+
+function endImageLoadIfCurrent(token: number): void {
+  if (isCurrentImageLoad(token)) {
+    useAppStore.setState({ loading: false })
+  }
+}
 
 const ARCHIVE_EXTENSIONS = ["cbz", "cb7", "cbr", "rar", "zip", "7z", "cbt"]
 
@@ -34,7 +41,8 @@ export function useImageLoader() {
   const loopNavigation = useSettingsStore((state) => state.loopNavigation)
   const viewMode = useSettingsStore((state) => state.viewMode)
 
-  const { getOrLoadImage, prefetchNearbyImages, getPrefetchDistance } = useImageCache()
+  const { getOrLoadImage, prefetchNearbyImages, getPrefetchDistance, clearImageMetaCache } =
+    useImageCache()
 
   const [isDragOver, setIsDragOver] = useState(false)
   const dragDepthRef = useRef(0)
@@ -78,7 +86,9 @@ export function useImageLoader() {
 
   /** 아카이브 파일을 열어 내부 첫 이미지(또는 이어보기 위치)를 표시 */
   const loadArchive = useCallback(
-    async (archivePath: string) => {
+    async (archivePath: string, onAfterLoad?: () => void) => {
+      const loadToken = beginImageLoad()
+      clearImageMetaCache()
       useAppStore.setState({ loading: true, archivePath })
       try {
         const archiveImages = await invoke<DirectoryImages>("get_archive_images", {
@@ -96,6 +106,8 @@ export function useImageLoader() {
           entryName: firstEntry
         })
 
+        if (!isCurrentImageLoad(loadToken)) return
+
         useAppStore.setState({
           dirImages: {
             images: archiveImages.images,
@@ -110,7 +122,9 @@ export function useImageLoader() {
         }
 
         prefetchArchiveNeighbors(archivePath, archiveImages.images, resolvedStart)
+        onAfterLoad?.()
       } catch (e) {
+        if (!isCurrentImageLoad(loadToken)) return
         const message = errorMessage(e)
         useAppStore.setState({
           error: message,
@@ -122,21 +136,23 @@ export function useImageLoader() {
           details: errorCopyDetails(e, archivePath)
         })
       } finally {
-        useAppStore.setState({ loading: false })
+        endImageLoadIfCurrent(loadToken)
       }
     },
-    [prefetchArchiveNeighbors]
+    [clearImageMetaCache, prefetchArchiveNeighbors]
   )
 
   /** 아카이브 내부 특정 인덱스의 이미지를 로드 */
   const loadArchiveImageByIndex = useCallback(
     async (archivePath: string, entryName: string, skipDepth = 0) => {
+      const loadToken = beginImageLoad()
       useAppStore.setState({ loading: true })
       try {
         const imgInfo = await invoke<ImageInfo>("load_archive_image", {
           archivePath,
           entryName
         })
+        if (!isCurrentImageLoad(loadToken)) return
         setImageInfoAndResetView(imgInfo)
         useAppStore.getState().removeFailedPath(entryName)
         void useArchiveProgressStore.getState().save(archivePath, entryName)
@@ -147,6 +163,7 @@ export function useImageLoader() {
           prefetchArchiveNeighbors(archivePath, st.dirImages.images, currentIndex)
         }
       } catch (e) {
+        if (!isCurrentImageLoad(loadToken)) return
         const message = errorMessage(e)
         useAppStore.setState({ error: message })
         useAppStore.getState().addFailedPath(entryName)
@@ -175,7 +192,7 @@ export function useImageLoader() {
           details: errorCopyDetails(e, archivePath, entryName)
         })
       } finally {
-        useAppStore.setState({ loading: false })
+        endImageLoadIfCurrent(loadToken)
       }
     },
     [prefetchArchiveNeighbors]
@@ -184,18 +201,21 @@ export function useImageLoader() {
   const loadImage = useCallback(
     async (filePath: string, options?: LoadImageOptions) => {
       if (isArchiveFile(filePath)) {
-        await loadArchive(filePath)
-        options?.onAfterLoad?.()
+        await loadArchive(filePath, options?.onAfterLoad)
         return
       }
 
+      const loadToken = beginImageLoad()
+      const leavingArchive = useAppStore.getState().archivePath !== null
       useAppStore.setState({ archivePath: null })
+      if (leavingArchive) clearImageMetaCache()
 
       const refreshDirectory = options?.refreshDirectory ?? true
 
       useAppStore.setState({ loading: true })
       try {
         const imgInfo = await getOrLoadImage(filePath)
+        if (!isCurrentImageLoad(loadToken)) return
         setImageInfoAndResetView(imgInfo)
         useAppStore.getState().removeFailedPath(filePath)
         if (useSettingsStore.getState().recordRecentFiles) {
@@ -210,6 +230,7 @@ export function useImageLoader() {
             filePath,
             options: buildDirListOptions(useSettingsStore.getState())
           })
+          if (!isCurrentImageLoad(loadToken)) return
           useAppStore.setState({ dirImages: resolvedDirInfo })
         }
 
@@ -227,6 +248,7 @@ export function useImageLoader() {
           prefetchNearbyImages(resolvedDirInfo.images, nextIndex, loopNavigation, prefetchDistance)
         }
       } catch (e) {
+        if (!isCurrentImageLoad(loadToken)) return
         const message = errorMessage(e)
         useAppStore.setState({ error: message })
         useAppStore.setState({ imageInfo: null })
@@ -264,10 +286,11 @@ export function useImageLoader() {
           details: errorCopyDetails(e, filePath)
         })
       } finally {
-        useAppStore.setState({ loading: false })
+        endImageLoadIfCurrent(loadToken)
       }
     },
     [
+      clearImageMetaCache,
       dirImages,
       getOrLoadImage,
       getPrefetchDistance,
