@@ -58,6 +58,11 @@ type ImageNavBarProps = {
   thumbSize: DockThumbSize
   showName: boolean
   showIndex: boolean
+  /**
+   * 도크 숨김 (자동 숨김 포함). 언마운트하지 않고 display:none으로 감춰
+   * 목록 스크롤 위치와 로드한 썸네일을 그대로 유지한다.
+   */
+  hidden?: boolean
 }
 
 const THUMB_SIDE: Record<DockThumbSize, number> = { s: 48, m: 72, l: 96 }
@@ -76,7 +81,8 @@ export function ImageNavBar({
   position,
   thumbSize,
   showName,
-  showIndex
+  showIndex,
+  hidden = false
 }: ImageNavBarProps) {
   const { t } = useTranslation()
   const dirImages = useAppStore((state) => state.dirImages)
@@ -97,6 +103,7 @@ export function ImageNavBar({
   const [scrollOffset, setScrollOffset] = useState(0)
   const [viewportSize, setViewportSize] = useState(0)
   const scrollFrameRef = useRef(0)
+  const needsRevealRef = useRef(true)
 
   // 컨테이너 크기 추적 (가시 창 계산 기준)
   useEffect(() => {
@@ -126,6 +133,38 @@ export function ImageNavBar({
   useEffect(() => {
     return () => window.cancelAnimationFrame(scrollFrameRef.current)
   }, [])
+
+  // 인덱스나 썸네일 크기가 바뀌면 현재 항목이 보이도록 맞춘다.
+  // 도크를 접었다 펼 때는 위치를 그대로 두기 위해 이 플래그를 세우지 않는다.
+  useEffect(() => {
+    needsRevealRef.current = true
+  }, [dirImages.current_index, side])
+
+  // 도크가 보이는 상태가 되면 스크롤 상태를 동기화한다.
+  // (display:none 동안 브라우저가 스크롤 위치를 보존하므로 값만 다시 읽는다)
+  useEffect(() => {
+    const el = stripRef.current
+    if (!el || viewportSize <= 0) return
+    const current = isVertical ? el.scrollTop : el.scrollLeft
+    if (needsRevealRef.current) {
+      needsRevealRef.current = false
+      const next = stripScrollToReveal({
+        index: dirImages.current_index,
+        scrollOffset: current,
+        viewportSize,
+        itemSize: side,
+        gap: STRIP_GAP,
+        padding: STRIP_PADDING
+      })
+      if (next !== current) {
+        if (isVertical) el.scrollTo({ top: next })
+        else el.scrollTo({ left: next })
+        setScrollOffset(next)
+        return
+      }
+    }
+    setScrollOffset((prev) => (prev === current ? prev : current))
+  }, [viewportSize, dirImages.current_index, isVertical, side])
 
   const stripWindow = useMemo(
     () =>
@@ -168,24 +207,6 @@ export function ImageNavBar({
     const parent = parentFolderNameOf(path)
     return parent ? `${parent}/${name}` : name
   }
-
-  // 현재 항목이 항상 보이도록 스크롤을 맞춘다. (가상화라 DOM 조회로는 찾을 수 없다)
-  useEffect(() => {
-    const el = stripRef.current
-    if (!el) return
-    const current = isVertical ? el.scrollTop : el.scrollLeft
-    const next = stripScrollToReveal({
-      index: dirImages.current_index,
-      scrollOffset: current,
-      viewportSize: isVertical ? el.clientHeight : el.clientWidth,
-      itemSize: side,
-      gap: STRIP_GAP,
-      padding: STRIP_PADDING
-    })
-    if (next === current) return
-    if (isVertical) el.scrollTo({ top: next })
-    else el.scrollTo({ left: next })
-  }, [dirImages.current_index, isVertical, side, viewportSize])
 
   // 도크 위 휠은 설정된 휠 동작을 따른다. 동작이 없으면 스크롤로 넘긴다.
   const wheelNavigate = useWheelNavigation(
@@ -426,8 +447,8 @@ export function ImageNavBar({
   return (
     <div
       className={cn(
-        "flex min-h-0 min-w-0 items-center gap-1 border-border bg-background p-1",
-        isVertical ? "h-full flex-col" : "w-full flex-row",
+        "min-h-0 min-w-0 items-center gap-1 border-border bg-background p-1",
+        hidden ? "hidden" : cn("flex", isVertical ? "h-full flex-col" : "w-full flex-row"),
         position === "top" && "border-b",
         position === "bottom" && "border-t",
         position === "left" && "border-r",
