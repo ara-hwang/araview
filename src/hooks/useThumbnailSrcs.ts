@@ -20,6 +20,8 @@ export type ThumbnailSrcsOptions = {
   maxSide?: number
   /** 아카이브 모드일 때 엔트리 이름. 설정하면 추출+리사이즈 전용 커맨드를 쓴다. */
   archivePath?: string | null
+  /** 클라우드 placeholder 등 썸네일 생성을 건너뛸 경로 */
+  skipThumbnailPaths?: ReadonlySet<string>
 }
 
 // 썸네일 스트립/그리드용 축소 이미지 URL을 로드하는 훅.
@@ -42,6 +44,7 @@ export function useThumbnailSrcs(
   const pathsKey = paths.join("\0")
   const maxSide = options.maxSide ?? THUMB_MAX_SIDE
   const archivePath = options.archivePath ?? null
+  const skipThumbnailPaths = options.skipThumbnailPaths
   const getOrLoadRef = useRef(getOrLoadImage)
   getOrLoadRef.current = getOrLoadImage
   const urlsRef = useRef(urls)
@@ -118,7 +121,10 @@ export function useThumbnailSrcs(
     }
 
     void (async () => {
-      const missing = list.filter((p) => !urlsRef.current.has(p) && !failedRef.current.has(p))
+      const missing = list.filter((p) => {
+        if (skipThumbnailPaths?.has(p)) return false
+        return !urlsRef.current.has(p) && !failedRef.current.has(p)
+      })
       if (missing.length === 0) return
 
       if (archivePath) {
@@ -176,7 +182,7 @@ export function useThumbnailSrcs(
       cancelled = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathsKey, retryNonce, maxSide, archivePath])
+  }, [pathsKey, retryNonce, maxSide, archivePath, skipThumbnailPaths])
 
   const retry = useCallback((path: string) => {
     setFailed((prev) => {

@@ -275,6 +275,7 @@
       "thumb": "이미지 {{index}}: {{name}}",
       "thumbError": "읽기 실패한 이미지 {{index}}: {{name}}",
       "thumbRetry": "{{index}}번 썸네일 다시 시도",
+      "cloudOnly": "클라우드에만 있음 {{index}}: {{name}}",
       "grid": "썸네일 그리드",
       "gridTitle": "썸네일 그리드 (G)"
     },
@@ -286,7 +287,8 @@
       "close": "그리드 닫기 (Esc)",
       "empty": "표시할 이미지가 없습니다",
       "noResults": "일치하는 파일이 없습니다",
-      "failed": "읽기 실패"
+      "failed": "읽기 실패",
+      "cloudOnly": "클라우드에만 있음"
     }
   },
   "exif": {
