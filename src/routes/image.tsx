@@ -431,11 +431,11 @@ function ImagePage() {
   })
 
   const showDock = dirImages.images.length > 1
-  // 자동숨김/프레젠테이션 중에는 도크를 언마운트해 읽기 영역을 전부 비운다.
-  const dockEffectiveVisible = showDock && dockVisible && !chromeHidden
+  // 도크는 항상 마운트해 두고 CSS로만 감춘다. 접었다 펼 때 목록 스크롤 위치와
+  // 로드한 썸네일이 유지된다. (display:none이라 읽기 영역은 그대로 넓어진다)
   const dockCollapsedVisible = showDock && !dockVisible && !chromeHidden
 
-  const dockNode = dockEffectiveVisible ? (
+  const dockNode = showDock ? (
     <ImageNavBar
       onNavigate={handleNavigateImage}
       onNavigateToIndex={handleNavigateToIndex}
@@ -447,6 +447,7 @@ function ImagePage() {
       thumbSize={dockThumbSize}
       showName={dockShowName}
       showIndex={dockShowIndex}
+      hidden={!dockVisible || chromeHidden}
     />
   ) : null
 
@@ -483,6 +484,15 @@ function ImagePage() {
     </div>
   ) : null
 
+  // 접힘 상태에서도 도크는 display:none으로 남겨 스크롤 위치와 썸네일을 유지하고,
+  // 그 옆에 얇은 엣지 바를 함께 그린다.
+  const dockArea = (
+    <>
+      {dockNode}
+      {collapsedNode}
+    </>
+  )
+
   return (
     <div
       className="relative flex h-full w-full flex-col bg-background"
@@ -492,11 +502,9 @@ function ImagePage() {
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
     >
-      {dockPosition === "top" && (dockNode ?? collapsedNode)}
+      {dockPosition === "top" && <div className="shrink-0">{dockArea}</div>}
       <div className="flex min-h-0 min-w-0 flex-1 flex-row">
-        {dockPosition === "left" && (
-          <div className="flex min-h-0 shrink-0 pb-6">{dockNode ?? collapsedNode}</div>
-        )}
+        {dockPosition === "left" && <div className="flex min-h-0 shrink-0 pb-6">{dockArea}</div>}
         <div className="flex min-h-0 min-w-0 flex-1">
           <ImageContainer
             containerRef={containerRef}
@@ -517,13 +525,9 @@ function ImagePage() {
             onOpenArchiveFromPreview={handleOpenArchiveFromPreview}
           />
         </div>
-        {dockPosition === "right" && (
-          <div className="flex min-h-0 shrink-0 pb-6">{dockNode ?? collapsedNode}</div>
-        )}
+        {dockPosition === "right" && <div className="flex min-h-0 shrink-0 pb-6">{dockArea}</div>}
       </div>
-      {dockPosition === "bottom" && (
-        <div className="mb-6 shrink-0">{dockNode ?? collapsedNode}</div>
-      )}
+      {dockPosition === "bottom" && <div className="mb-6 shrink-0">{dockArea}</div>}
       {isDragOver && (
         <div className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center border-2 border-dashed border-primary bg-background/80">
           <p className="rounded-md border bg-background px-4 py-2 text-sm">{t("home.drop")}</p>
