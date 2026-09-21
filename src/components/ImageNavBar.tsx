@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils"
 import { useAppStore } from "@/store/appStore"
 import type { ImageInfo } from "@/types"
 import { cloudOnlyPathSet } from "@/utils/fileAvailability"
+import { parentFolderNameOf, basenameOf } from "@/utils/statusBar"
 
 import { useSettingsStore } from "../store/settingsStore"
 import { ButtonGroup } from "./ui/button-group"
@@ -44,6 +45,7 @@ export function ImageNavBar({
 }: ImageNavBarProps) {
   const { t } = useTranslation()
   const dirImages = useAppStore((state) => state.dirImages)
+  const archivePath = useAppStore((state) => state.archivePath)
   const failedPaths = useAppStore((state) => state.failedPaths)
   const loopNavigation = useSettingsStore((state) => state.loopNavigation)
   const failedSet = useMemo(() => new Set(failedPaths), [failedPaths])
@@ -70,12 +72,22 @@ export function ImageNavBar({
 
   const thumbPaths = useMemo(() => thumbnails.map((t) => t.path), [thumbnails])
   const cloudOnlySet = useMemo(() => cloudOnlyPathSet(dirImages), [dirImages])
-  const thumbOptions = useMemo(() => ({ skipThumbnailPaths: cloudOnlySet }), [cloudOnlySet])
+  const thumbnailOptions = useMemo(
+    () => ({ archivePath, skipThumbnailPaths: cloudOnlySet }),
+    [archivePath, cloudOnlySet]
+  )
   const {
     urls,
     failed: thumbFailed,
     retry
-  } = useThumbnailSrcs(thumbPaths, getOrLoadImage, thumbOptions)
+  } = useThumbnailSrcs(thumbPaths, getOrLoadImage, thumbnailOptions)
+
+  const thumbLabel = (path: string) => {
+    if (archivePath) return path.split(/[\\/]/).pop() ?? path
+    const name = basenameOf(path)
+    const parent = parentFolderNameOf(path)
+    return parent ? `${parent}/${name}` : name
+  }
   const stripRef = useRef<HTMLDivElement>(null)
 
   // 선택된 썸네일이 윈도우 이동으로 벗어나지 않게 추적
@@ -92,6 +104,7 @@ export function ImageNavBar({
         hidden && "pointer-events-none opacity-0"
       )}
       onMouseDown={(e) => e.stopPropagation()}
+      onDoubleClick={(e) => e.stopPropagation()}
     >
       {/* 썸네일 스트립: scale-110이 잘리지 않게 여유를 두고, 스크롤바 없이 스크롤만 유지 */}
       {thumbnails.length > 1 && (
@@ -101,9 +114,10 @@ export function ImageNavBar({
         >
           {thumbnails.map(({ index, path }) => {
             const src = urls.get(path)
-            const name = path.split(/[\\/]/).pop() ?? path
+            const name = thumbLabel(path)
             const isCloudOnly = cloudOnlySet.has(path)
-            const failed = !isCloudOnly && (failedSet.has(path) || thumbFailed.has(path))
+            const failed =
+              !isCloudOnly && (failedSet.has(path) || thumbFailed.has(path))
             const isCurrent = index === dirImages.current_index
             return (
               <button
