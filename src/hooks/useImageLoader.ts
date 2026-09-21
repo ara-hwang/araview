@@ -12,21 +12,19 @@ import { useRecentFilesStore } from "@/store/recentFilesStore"
 import { useSettingsStore } from "@/store/settingsStore"
 import type { DirectoryImages, ImageInfo } from "@/types"
 import { errorCopyDetails, errorMessage } from "@/utils/appError"
+import { isArchiveFilePath } from "@/utils/archiveFile"
 import { buildDirListOptions } from "@/utils/directoryOptions"
 import { MAX_SKIP_ATTEMPTS, findSkipTarget } from "@/utils/skipBroken"
 
-const ARCHIVE_EXTENSIONS = ["cbz", "cb7", "cbr", "rar", "zip", "7z", "cbt"]
+export type ArchiveOpenMode = "full" | "folderPreview"
 
-function isArchiveFile(filePath: string): boolean {
-  const ext = filePath.split(".").pop()?.toLowerCase() ?? ""
-  return ARCHIVE_EXTENSIONS.includes(ext)
-}
-
-type LoadImageOptions = {
+export type LoadImageOptions = {
   refreshDirectory?: boolean
   onAfterLoad?: () => void
   /** 자동 스킵 연쇄 깊이 (내부용, 무한 재귀 방지) */
   skipDepth?: number
+  /** 아카이브일 때: full=만화 모드, folderPreview=폴더 목록 유지·1쪽 미리보기 (기본) */
+  archiveOpen?: ArchiveOpenMode
 }
 
 export function useImageLoader() {
@@ -78,8 +76,8 @@ export function useImageLoader() {
 
   /** 아카이브 파일을 열어 내부 첫 이미지(또는 이어보기 위치)를 표시 */
   const loadArchive = useCallback(
-    async (archivePath: string) => {
-      useAppStore.setState({ loading: true, archivePath })
+    async (archivePath: string, options?: { onAfterLoad?: () => void }) => {
+      useAppStore.setState({ loading: true, archivePath, archivePreviewPath: null })
       try {
         const archiveImages = await invoke<DirectoryImages>("get_archive_images", {
           filePath: archivePath
@@ -110,6 +108,7 @@ export function useImageLoader() {
         }
 
         prefetchArchiveNeighbors(archivePath, archiveImages.images, resolvedStart)
+        options?.onAfterLoad?.()
       } catch (e) {
         const message = errorMessage(e)
         useAppStore.setState({
@@ -126,6 +125,52 @@ export function useImageLoader() {
       }
     },
     [prefetchArchiveNeighbors]
+  )
+
+  /** 폴더 목록을 유지하고 아카이브 첫 페이지만 미리본다 (이어보기·내부 목록 미적용). */
+  const loadArchivePreview = useCallback(
+    async (archivePath: string, options?: LoadImageOptions) => {
+      useAppStore.setState({
+        loading: true,
+        archivePath: null,
+        archivePreviewPath: archivePath
+      })
+      try {
+        const archiveImages = await invoke<DirectoryImages>("get_archive_images", {
+          filePath: archivePath
+        })
+        const firstEntry = archiveImages.images[0]
+        if (!firstEntry) {
+          throw new Error("No images in archive")
+        }
+        const imgInfo = await invoke<ImageInfo>("load_archive_image", {
+          archivePath,
+          entryName: firstEntry
+        })
+        setImageInfoAndResetView(imgInfo)
+        useAppStore.getState().removeFailedPath(archivePath)
+        options?.onAfterLoad?.()
+      } catch (e) {
+        const message = errorMessage(e)
+        useAppStore.setState({ error: message, imageInfo: null, archivePreviewPath: null })
+        toast.error(i18n.t("toast.load.archiveFail"), {
+          description: message,
+          details: errorCopyDetails(e, archivePath)
+        })
+      } finally {
+        useAppStore.setState({ loading: false })
+      }
+    },
+    []
+  )
+
+  const openArchiveFromPreview = useCallback(
+    async (options?: { onAfterLoad?: () => void }) => {
+      const preview = useAppStore.getState().archivePreviewPath
+      if (!preview) return
+      await loadArchive(preview, options)
+    },
+    [loadArchive]
   )
 
   /** 아카이브 내부 특정 인덱스의 이미지를 로드 */
@@ -183,13 +228,17 @@ export function useImageLoader() {
 
   const loadImage = useCallback(
     async (filePath: string, options?: LoadImageOptions) => {
-      if (isArchiveFile(filePath)) {
-        await loadArchive(filePath)
-        options?.onAfterLoad?.()
+      if (isArchiveFilePath(filePath)) {
+        const mode = options?.archiveOpen ?? "folderPreview"
+        if (mode === "full") {
+          await loadArchive(filePath, { onAfterLoad: options?.onAfterLoad })
+        } else {
+          await loadArchivePreview(filePath, options)
+        }
         return
       }
 
-      useAppStore.setState({ archivePath: null })
+      useAppStore.setState({ archivePath: null, archivePreviewPath: null })
 
       const refreshDirectory = options?.refreshDirectory ?? true
 
@@ -274,7 +323,8 @@ export function useImageLoader() {
       prefetchNearbyImages,
       loopNavigation,
       viewMode,
-      loadArchive
+      loadArchive,
+      loadArchivePreview
     ]
   )
 
@@ -288,7 +338,7 @@ export function useImageLoader() {
         }
       ]
     })
-    if (selected) await loadImage(selected)
+    if (selected) await loadImage(selected, { archiveOpen: "full" })
   }, [loadImage])
 
   const handleDrop = useCallback(
@@ -308,7 +358,7 @@ export function useImageLoader() {
       // 여러 파일/폴더 드롭: 각각 해석 후 첫 이미지를 열고 나머지는 알림
       const resolved: string[] = []
       for (const raw of rawPaths) {
-        if (isArchiveFile(raw)) {
+        if (isArchiveFilePath(raw)) {
           resolved.push(raw)
           continue
         }
@@ -329,7 +379,7 @@ export function useImageLoader() {
       }
 
       resolved.sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()))
-      await loadImage(resolved[0])
+      await loadImage(resolved[0], { archiveOpen: "full" })
       if (resolved.length > 1) {
         toast.info(i18n.t("toast.drop.firstOf", { count: resolved.length }), {
           duration: 2000
@@ -362,6 +412,7 @@ export function useImageLoader() {
   return {
     loadImage,
     loadArchiveImageByIndex,
+    openArchiveFromPreview,
     handleOpenFile,
     handleDrop,
     handleDragOver,

@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router"
 import { getCurrentWindow } from "@tauri-apps/api/window"
-import { useEffect, useRef } from "react"
+import { useCallback, useEffect, useRef } from "react"
 import { useTranslation } from "react-i18next"
 import { useShallow } from "zustand/react/shallow"
 
@@ -69,8 +69,13 @@ function HomePage() {
     isDragOver
   } = useImageLoader()
 
+  const loadImageExplicit = useCallback(
+    (filePath: string) => loadImage(filePath, { archiveOpen: "full" }),
+    [loadImage]
+  )
+
   // 파일 연결/두 번째 실행으로 열린 파일은 홈에서도 받아 연다.
-  useOpenFileListener(loadImage)
+  useOpenFileListener(loadImageExplicit)
 
   // 시작 옵션: 마지막 파일 자동 열기 (스토어 로드 후 1회)
   useEffect(() => {
@@ -80,7 +85,7 @@ function HomePage() {
     if (app.imageInfo) return
     if (recentFiles.length === 0) return
     autoOpenedRef.current = true
-    void loadImage(recentFiles[0])
+    void loadImage(recentFiles[0], { archiveOpen: "full" })
   }, [autoOpenLastFile, recordRecentFiles, recentFiles, app.imageInfo, loadImage])
   const visibleRecentFiles = recordRecentFiles ? recentFiles : []
   const details = useRecentFileDetails(visibleRecentFiles, getOrLoadImage)
@@ -136,7 +141,7 @@ function HomePage() {
                       info={detail?.info}
                       src={detail?.src}
                       status={detail?.status ?? "loading"}
-                      onOpen={(p) => void loadImage(p)}
+                      onOpen={(p) => void loadImage(p, { archiveOpen: "full" })}
                       onRemove={(p) => void removeRecent(p)}
                     />
                   )
