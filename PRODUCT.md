@@ -16,7 +16,7 @@ A lightweight offline image and comic viewer for Windows. It exists so opening a
 
 ## Positioning
 
-A neighboring viewer cannot truthfully copy this combination: genuinely offline Windows viewer with first-class comic reading (CBZ archives plus single, left-to-right, right-to-left, and webtoon view modes) and a path-based rendering pipeline that keeps large images and archives responsive, including HEIC/HEIF via JPEG sidecar transcode.
+A neighboring viewer cannot truthfully copy this combination: genuinely offline Windows viewer with first-class comic reading (CBZ archives plus single, left-to-right, right-to-left, and webtoon view modes) and a path-based rendering pipeline that keeps large images and archives responsive, including HEIC/HEIF/PSD via JPEG sidecar transcode.
 
 ## Operating Context
 
@@ -24,7 +24,7 @@ Local-filesystem workflows only: file picker, drag-and-drop of files or folders,
 
 ## Capabilities and Constraints
 
-Confirmed capabilities: zoom, fit-to-width/height/screen, pan, rotate, flip; previous/next navigation, slider jump, thumbnail strip, optional loop navigation; multi-page view modes (single, left-to-right, right-to-left, webtoon); EXIF panel; fullscreen; copy image to clipboard as PNG; recent files; Korean/English UI.
+Confirmed capabilities: zoom, fit-to-width/height/screen, pan, rotate, flip; previous/next navigation, index jump, thumbnail strip/grid, optional loop navigation; multi-page view modes (single, left-to-right, right-to-left, webtoon); EXIF panel; fullscreen; copy image to clipboard as PNG; recent files; Korean/English UI.
 
 Constraints: Windows 10/11 x64 only. Offline by design. File associations can only open the Windows per-extension default-app picker; silent UserChoice registry writes are not possible. HEIC/HEIF/PSD render through a JPEG sidecar under the process temp dir. Backend responses carry file metadata (`file_path`, `mime_type`, `file_name`, `file_size`, `width`, `height`) plus directory, thumbnail, archive, EXIF, and file-operation payloads; no base64 payloads. Undecided: any cloud or sharing features (out of scope unless explicitly requested).
 

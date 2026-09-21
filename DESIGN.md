@@ -107,7 +107,7 @@ One ink, one paper, warm-gray washes between. No accent hue exists; emphasis com
 
 **Display Font:** none. This product has no marketing surfaces; there is no display role.
 **Body Font:** Pretendard Variable (with Pretendard, system fallbacks). Reason in one line: the only typeface in the product must read Korean and Latin equally well at small UI sizes while staying quiet behind images.
-**Label/Mono Font:** same family; numerals use tabular figures (`tnum`) for the zoom readout and sliders.
+**Label/Mono Font:** same family; numerals use tabular figures (`tnum`) for the zoom and page readouts.
 
 **Character:** Restrained grotesk, small sizes, medium weights. Labels earn their place by being scannable, never by being loud.
 
@@ -125,7 +125,7 @@ One ink, one paper, warm-gray washes between. No accent hue exists; emphasis com
 
 ## Layout
 
-Single-window app shell: a thin top toolbar (8px padding, grouped controls separated by vertical rules), a content well that owns all remaining space, and optional side/bottom layers (EXIF panel, thumbnail strip, nav bar). The toolbar sheds controls in priority order instead of overlapping the caption buttons: text labels below 1440px, then the rotate/flip cluster below 840px. Even at the 600px minimum window width the remaining controls fit. The reading well never scrolls the page itself except in webtoon mode, where vertical scroll is the content. Spacing rhythm is 8px in chrome, 16px in dialogs and panels.
+Single-window app shell: a thin top toolbar (8px padding, grouped controls separated by vertical rules), a content well that owns all remaining space, and optional side/bottom layers (EXIF panel, thumbnail strip, nav bar). The toolbar sheds controls in priority order instead of overlapping the caption buttons: text labels below 1440px, then the view-mode cluster below 1024px, then the rotate/flip cluster below 840px; wide text labels inside those clusters appear only on very wide windows (1950px and up). Even at the 600px minimum window width the remaining controls fit. The reading well never scrolls the page itself except in webtoon mode, where vertical scroll is the content. Spacing rhythm is 8px in chrome, 16px in dialogs and panels.
 
 ## Elevation & Depth
 
@@ -179,7 +179,7 @@ Toolbar buttons with a quiet, tactile press (1px downward shift on active, excep
 ### Navigation
 
 - **Toolbar:** grouped button clusters with 6-8px gaps and vertical rule separators; the layout responds to window width by collapsing labels first, then lower-priority groups, so it never collides with the caption buttons.
-- **Thumbnail strip / slider:** edge-docked (top/bottom/left/right, movable), single row with inline prev/next, collapsible as a whole; the strip keeps every image in the folder and loads thumbnails progressively. Its `⋯` menu (dropdown) carries the same dock options as the View settings.
+- **Thumbnail strip:** edge-docked (top/bottom/left/right, movable), single row with inline prev/next, collapsible as a whole; the strip keeps every image in the folder and loads thumbnails progressively. Its `⋯` menu (dropdown) carries the same dock options as the View settings. There is no slider control; index jumps use keyboard, grid, or strip selection.
 - **Settings dialog:** tabbed (general, view, list, performance, shortcuts, extensions), field-group rhythm, 16px panel padding.
 
 ### Viewer Layers (signature)
