@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
   deliverOpenFile,
+  hasBufferedOpenFile,
   registerOpenFileHandler,
   resetOpenFileDelivery
 } from "@/utils/openFileDelivery"
@@ -22,12 +23,14 @@ describe("openFileDelivery", () => {
 
   it("buffers the path until a handler registers", () => {
     deliverOpenFile("D:/b.png")
+    expect(hasBufferedOpenFile()).toBe(true)
 
     const handler = vi.fn()
     registerOpenFileHandler(handler)
 
     expect(handler).toHaveBeenCalledTimes(1)
     expect(handler).toHaveBeenCalledWith("D:/b.png")
+    expect(hasBufferedOpenFile()).toBe(false)
   })
 
   it("keeps only the latest buffered path", () => {

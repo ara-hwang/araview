@@ -22,6 +22,7 @@ import { useRecentFileDetails } from "@/hooks/useRecentFileDetails"
 import { useAppStore } from "@/store/appStore"
 import { useRecentFilesStore } from "@/store/recentFilesStore"
 import { useSettingsStore } from "@/store/settingsStore"
+import { hasBufferedOpenFile } from "@/utils/openFileDelivery"
 
 export const Route = createFileRoute("/")({
   component: HomePage
@@ -83,6 +84,7 @@ function HomePage() {
     if (!autoOpenLastFile) return
     if (!recordRecentFiles) return
     if (app.imageInfo) return
+    if (hasBufferedOpenFile()) return
     if (recentFiles.length === 0) return
     autoOpenedRef.current = true
     void loadImage(recentFiles[0], { archiveOpen: "full" })
