@@ -78,7 +78,8 @@ const initialApp: AppState = {
   imageInfo: null,
   dirImages: {
     images: [],
-    current_index: 0
+    current_index: 0,
+    availability: []
   },
   error: null,
   loading: false,
@@ -356,7 +357,7 @@ export const updateDirImagesIndex = (nextIndex: number) => {
 export const closeImage = () => {
   useAppStore.setState({
     ...initialApp,
-    dirImages: { images: [], current_index: 0 },
+    dirImages: { images: [], current_index: 0, availability: [] },
     archivePreviewPath: null,
     position: { x: 0, y: 0 },
     viewportSize: { width: 0, height: 0 },

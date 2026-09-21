@@ -2,6 +2,7 @@ pub mod app_error;
 pub mod archive;
 pub mod commands;
 pub mod dir_cache;
+pub mod file_availability;
 pub mod file_assoc;
 pub mod heif;
 pub mod image;

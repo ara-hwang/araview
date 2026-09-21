@@ -3,7 +3,8 @@ import {
   CaretRight,
   SquaresFour,
   WarningCircle,
-  ArrowClockwise
+  ArrowClockwise,
+  Cloud
 } from "@phosphor-icons/react"
 import { useEffect, useMemo, useRef } from "react"
 import { useTranslation } from "react-i18next"
@@ -13,6 +14,7 @@ import { useThumbnailSrcs } from "@/hooks/useThumbnailSrcs"
 import { cn } from "@/lib/utils"
 import { useAppStore } from "@/store/appStore"
 import type { ImageInfo } from "@/types"
+import { cloudOnlyPathSet } from "@/utils/fileAvailability"
 import { parentFolderNameOf, basenameOf } from "@/utils/statusBar"
 
 import { useSettingsStore } from "../store/settingsStore"
@@ -69,7 +71,11 @@ export function ImageNavBar({
   }, [dirImages.images, dirImages.current_index])
 
   const thumbPaths = useMemo(() => thumbnails.map((t) => t.path), [thumbnails])
-  const thumbnailOptions = useMemo(() => ({ archivePath }), [archivePath])
+  const cloudOnlySet = useMemo(() => cloudOnlyPathSet(dirImages), [dirImages])
+  const thumbnailOptions = useMemo(
+    () => ({ archivePath, skipThumbnailPaths: cloudOnlySet }),
+    [archivePath, cloudOnlySet]
+  )
   const {
     urls,
     failed: thumbFailed,
@@ -109,7 +115,9 @@ export function ImageNavBar({
           {thumbnails.map(({ index, path }) => {
             const src = urls.get(path)
             const name = thumbLabel(path)
-            const failed = failedSet.has(path) || thumbFailed.has(path)
+            const isCloudOnly = cloudOnlySet.has(path)
+            const failed =
+              !isCloudOnly && (failedSet.has(path) || thumbFailed.has(path))
             const isCurrent = index === dirImages.current_index
             return (
               <button
@@ -129,9 +137,11 @@ export function ImageNavBar({
                 )}
                 title={name}
                 aria-label={
-                  failed
-                    ? t("viewer.nav.thumbError", { index: index + 1, name })
-                    : t("viewer.nav.thumb", { index: index + 1, name })
+                  isCloudOnly
+                    ? t("viewer.nav.cloudOnly", { index: index + 1, name })
+                    : failed
+                      ? t("viewer.nav.thumbError", { index: index + 1, name })
+                      : t("viewer.nav.thumb", { index: index + 1, name })
                 }
               >
                 {src ? (
@@ -142,6 +152,16 @@ export function ImageNavBar({
                     className="h-full w-full object-cover"
                     draggable={false}
                   />
+                ) : isCloudOnly ? (
+                  <span className="flex h-full w-full items-center justify-center bg-muted/40">
+                    <Cloud aria-hidden="true" className="size-5 text-muted-foreground" />
+                    <span className="sr-only">
+                      {t("viewer.nav.cloudOnly", {
+                        index: index + 1,
+                        name
+                      })}
+                    </span>
+                  </span>
                 ) : failed ? (
                   <span className="flex h-full w-full items-center justify-center bg-muted/40">
                     <WarningCircle aria-hidden="true" className="size-5 text-destructive" />

@@ -96,7 +96,7 @@ export function useImageLoader() {
 
         useAppStore.setState({
           dirImages: {
-            images: archiveImages.images,
+            ...archiveImages,
             current_index: resolvedStart
           }
         })
