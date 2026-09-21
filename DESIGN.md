@@ -179,7 +179,7 @@ Toolbar buttons with a quiet, tactile press (1px downward shift on active, excep
 ### Navigation
 
 - **Toolbar:** grouped button clusters with 6-8px gaps and vertical rule separators; the layout responds to window width by collapsing labels first, then lower-priority groups, so it never collides with the caption buttons.
-- **Thumbnail strip / slider:** edge-docked (top/bottom/left/right, movable), collapsible as a whole; page position as tabular readout. Its `⋯` menu (dropdown) carries the same dock options as the View settings.
+- **Thumbnail strip / slider:** edge-docked (top/bottom/left/right, movable), single row with inline prev/next, collapsible as a whole; the strip keeps every image in the folder and loads thumbnails progressively. Its `⋯` menu (dropdown) carries the same dock options as the View settings.
 - **Settings dialog:** tabbed (general, view, list, performance, shortcuts, extensions), field-group rhythm, 16px panel padding.
 
 ### Viewer Layers (signature)
