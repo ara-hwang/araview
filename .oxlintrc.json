@@ -66,7 +66,9 @@
           "fill-[#525252]",
           "fill-[#F5F5F5]",
           "text-[10px]",
-          "text-[11px]"
+          "text-[11px]",
+          "transition-[grid-template-rows]",
+          "transition-[translate,opacity]"
         ]
       }
     ],
