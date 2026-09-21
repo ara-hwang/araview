@@ -8,7 +8,7 @@ vi.mock("react-i18next", () => ({
 import { HistogramChart } from "@/components/HistogramChart"
 
 const solid = (value: number, at: number) => {
-  const bins = new Array(256).fill(0)
+  const bins = Array.from({ length: 256 }, () => 0)
   bins[at] = value
   return bins
 }
