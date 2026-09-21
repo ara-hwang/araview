@@ -139,9 +139,9 @@
 
 **현재 상태 (2026-09-09)**: `recentFilesStore` + `settings.json` 영속화 + 홈 그리드 + 개별 삭제/전체 삭제 + `navigate(/image)` 완료. 남은 옵션은 앱 시작 시 마지막 이미지 자동 열기(Phase 1-7).
 
-**당시 구현 계획 (보존)**:
+**당시 구현 계획 (보존, 상한은 20개로 확정)**:
 
-- Tauri Store에 최근 열어본 파일 목록 저장 (최대 50개)
+- Tauri Store에 최근 열어본 파일 목록 저장 (당시 안 최대 50개, 현행 최대 20개로 `SPEC.md` §12 확정)
 - 홈 화면(`index.tsx`)에 최근 파일 목록 표시
 - 마지막으로 본 이미지를 앱 시작 시 자동으로 열기 옵션
 - 최근 파일 목록 삭제 기능
@@ -304,7 +304,7 @@
 
 **추가 후보**:
 
-- **PSD**: Photoshop 파일 미리보기 — 구현됨. `psd` 크레이트(순수 Rust)로 합성 디코드 후 JPEG sidecar 렌더, 읽기 전용(편집 저장 미지원). PSB는 디코더가 없어 제외 유지.
+- **PSD**: Photoshop 파일 미리보기 — 구현됨. `psd` 크레이트(순수 Rust)로 합성 디코드 후 JPEG sidecar 렌더, 읽기 전용(편집 저장 미지원). PSB는 디코더가 없어 제외 유지. 탐색기 썸네일은 별도 opt-in `IThumbnailProvider`이며 `SPEC.md` §20.2를 따른다.
 - **RAW**: 카메라 RAW 포맷 (CR2, NEF, ARW 등) — `rawloader` 크레이트. JPEG sidecar 전제가 필요해 제외 유지.
 - **JXL (JPEG XL)**: 차세대 이미지 포맷 — `jxl-oxide` 크레이트. JPEG sidecar 전제가 필요해 제외 유지.
 - **QOI**: 빠른 무손실 포맷. 백엔드 디코드(`image` 크레이트)는 가능하나 WebView2 네이티브 렌더 불가로 sidecar 전제가 필요해 제외 유지.
@@ -382,13 +382,13 @@
 
 ### 5.4 CI/CD 파이프라인 강화 (P2) — 부분 완료: 릴리스 게이트 존재 / PR용 분리 미구현 (2026-09-14 재확인)
 
-**현재 상태**: 워크플로는 `release.yml` 1개(`.github/workflows/`). 단, 태그 푸시 시 프론트 검사(`npm test`, `tsc --noEmit`, `oxfmt --check`)와 Rust 검사(`cargo fmt --check`, `cargo test`, `cargo clippy -D warnings`)를 먼저 수행하고 실패 시 빌드·릴리스로 진행하지 않는다(SPEC §20). 남은 것은 아래 계획이다.
+**현재 상태**: 워크플로는 `release.yml` 1개(`.github/workflows/`). 단, 태그 푸시 시 프런트 검사(`npm test`, `npx tsc --noEmit`, `npm run format:check`)와 Rust 검사(`cargo fmt --check`, `cargo test --workspace --no-default-features`, `cargo clippy --workspace --no-default-features --all-targets -- -D warnings`)를 먼저 수행하고 실패 시 빌드·릴리스로 진행하지 않는다(SPEC §20). 남은 것은 아래 계획이다.
 
 **개선 계획**:
 
 - PR별 자동 테스트 실행 (프론트엔드 + Rust)
-- 코드 린팅 체크 (Prettier + Clippy)
-- TypeScript 타입 체크 (`tsc --noEmit`)
+- 코드 린팅 체크 (oxlint + oxfmt + Clippy)
+- TypeScript 타입 체크 (`npx tsc --noEmit`)
 - 의존성 보안 감사 (`npm audit`, `cargo audit`)
 - 자동 릴리즈 노트 생성
 

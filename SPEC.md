@@ -87,7 +87,7 @@
 - 그리드: 뷰포트 기반 가상화(고정 셀, overscan 2행), 클릭/`Enter`로 점프 후 닫기, `Esc`/`G`로 닫기, 파일명 필터, 실패 셀 배지와 재시도. 그리드가 열려 있는 동안 뷰어 단축키는 비활성이다.
 - 우클릭은 설정(`mouse.rightClick`)에 따라 컨텍스트 메뉴 또는 다른 동작이다. 홈에서는 우클릭을 막는다.
 - `Esc` 닫기: 이름 변경/저장 다이얼로그가 열려 있거나 입력 포커스 중이면 닫지 않는다.
-- `autoHideUI`가 true일 때만 `useIdleHide`로 크롬(상단바, 이미지 목록 도크, 상태바)을 숨긴다. 도크는 숨김 중 언마운트되어 읽기 영역이 확장된다.
+- `autoHideUI`가 true일 때만 `useIdleHide`로 크롬(상단바, 이미지 목록 도크, 상태바)을 숨긴다. 도크는 숨김 중에도 마운트를 유지한 채 `display:none`으로만 감춰 목록 스크롤 위치와 로드한 썸네일이 유지되며, 읽기 영역이 확장된다.
 - `menuBarHidden`이 true이면 상단바를 숨기고, 상단 20px 호버 영역에서 peek 오버레이로 표시한다. 헤더 숨기기 버튼과 보기 설정 스위치로 토글한다. 헤더는 마운트를 유지한 채 높이(`grid-template-rows` 1fr↔0fr)와 슬라이드(`translate`, `opacity`)를 200ms `ease-motion-out`으로 함께 움직여 접히고, peek 시에는 흐름 높이 없이 읽기 영역 위로 겹쳐 내려온다. 접힘 중에는 `inert`로 포커스를 막는다. `prefers-reduced-motion`에서는 애니메이션 없이 즉시 전환한다. peek 열기는 즉시, 닫기는 150ms 지연 후 시작한다. 내려오는 동안 헤더 경계가 움직여 근처 빠른 움직임에 leave/enter가 연속 발생해도 스침은 닫힘 시작 전에 흡수되고, 다시 들어오면 대기 중인 닫힘이 취소된다. 포커스 이탈 시에는 즉시 닫힌다. `Esc`로는 닫히지 않는다. 뷰어의 `Esc`(이미지 닫기·홈 이동)와 충돌하지 않게 peek을 `Esc` 체인에 넣지 않는다.
 - 로드 실패 시 에러 카드에 재시도/홈 복구 경로를 제공한다. 실패한 적은 토스트로 알린다.
 
@@ -462,7 +462,7 @@
 
 ## 15. 백엔드 IPC 계약
 
-진실: `src-tauri/src/lib.rs` `invoke_handler`, `src-tauri/src/commands.rs`, `src-tauri/src/save.rs`.
+진실: `src-tauri/src/lib.rs` `invoke_handler`, `src-tauri/src/commands.rs`, `src-tauri/src/save.rs`, `src-tauri/src/thumb_shell.rs`.
 
 | 명령                         | 입력 (JS camelCase → Rust snake_case)                                                | 반환                           |
 | ---------------------------- | ------------------------------------------------------------------------------------ | ------------------------------ |
@@ -478,6 +478,7 @@
 | `generate_thumbnail`         | `filePath` → `file_path`, `maxSide?` → `max_side?`                                   | `ThumbnailInfo`                |
 | `generate_thumbnails_batch`  | `filePaths` → `file_paths`, `maxSide?` → `max_side?`                                 | `BatchThumb[]`                 |
 | `generate_archive_thumbnail` | `archivePath` → `archive_path`, `entryName` → `entry_name`, `maxSide?` → `max_side?` | `ThumbnailInfo`                |
+| `generate_archive_file_thumbnail` | `archivePath` → `archive_path`, `maxSide?` → `max_side?` | `ThumbnailInfo`(첫 이미지 엔트리 기준) |
 | `get_file_associations`      | 없음                                                                                 | `FileAssociation[]`            |
 | `set_file_association`       | `extension`, `associate`                                                             | `FileAssociation`              |
 | `set_all_file_associations`  | `associate`                                                                          | `FileAssociation[]`            |
@@ -571,7 +572,7 @@ Rust와 TypeScript는 같은 모양을 유지한다.
 - 창: 제목 기본값 `AraView`(런타임에는 이미지가 열리면 파일명, 아니면 현재 로케일의 앱 이름), 1024x768, 최소 600x400, 프레임리스, 시작 시 숨김(`visible: false`).
 - `window-state` 플러그인으로 창 상태를 유지한다.
 - 번들: `nsis`만 빌드한다(릴리즈 빌드 시간 단축을 위해 MSI 제외). 결과물은 `src-tauri/target/release/bundle/` 아래에 생성된다.
-- 릴리스 파이프라인: `.github/workflows/release.yml`만 있으며 태그(`v*`) 푸시에서만 돈다. 릴리스 러너 한 대에서 프런트 검사(`npm test`, `tsc --noEmit`, `oxfmt --check`)와 Rust 검사(`cargo fmt --check`, `cargo test --no-default-features`, `cargo clippy --no-default-features -- -D warnings`)를 먼저 수행하고, 하나라도 실패하면 빌드와 릴리스로 진행하지 않는다.
+- 릴리스 파이프라인: `.github/workflows/release.yml`만 있으며 태그(`v*`) 푸시에서만 돈다. 릴리스 러너 한 대에서 프런트 검사(`npm test`, `npx tsc --noEmit`, `npm run format:check`)와 Rust 검사(`cargo fmt --check`, `cargo test --workspace --no-default-features`, `cargo clippy --workspace --no-default-features --all-targets -- -D warnings`)를 먼저 수행하고, 하나라도 실패하면 빌드와 릴리스로 진행하지 않는다.
 - 릴리스 생성 권한: `GITHUB_TOKEN`(`contents: write`)을 쓰며, 저장소 기본 워크플로 권한이 `read`면 릴리스 생성이 403(`Resource not accessible by integration`)으로 실패한다. 기본 권한을 `read`로 유지하려면 `contents: write` fine-grained PAT를 `RELEASE_TOKEN` 시크릿으로 등록한다(워크플로가 `secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN`으로 선택).
 - 파일 연결 3그룹:
   - Image 14종: png, jpg, jpeg, gif, bmp, webp, svg, ico, tiff, tif, avif, heic, heif, psd.

@@ -18,10 +18,10 @@ Product truth lives in `PRODUCT.md`, visual system in `DESIGN.md`, full function
 - Supported file extensions: `png`, `jpg`, `jpeg`, `gif`, `bmp`, `webp`, `svg`, `ico`, `tiff`, `tif`, `avif`, `heic`, `heif`, `psd` (read-only preview via JPEG sidecar, no edit-save), `cbz`, `cb7`, `cbr`, `rar`, `zip`, `7z`, `cbt` (PSB excluded, no decoder)
 - Input flows: file picker, drag-and-drop (file/folder), OS file association open
 - Viewer controls: zoom, fit-to-width/height/screen, pan, rotate, flip
-- Navigation: previous/next, slider jump, thumbnail strip, optional loop navigation
+- Navigation: previous/next, index jump, thumbnail strip/grid, optional loop navigation
 - Extra features: EXIF panel, fullscreen, copy image to clipboard (PNG), recent files, manual update check (tauri-plugin-updater, no background polling)
 - Command palette (`Ctrl+K`): searchable global commands, see `src/constants/commands.ts`
-- File associations: settings open the Windows per-extension default-app picker; silent UserChoice writes are not possible. Dev builds register as `AraView (Dev)` with separate registry keys/ProgIDs so they cannot collide with the installed build (`src-tauri/src/file_assoc.rs`)
+- File associations: settings open the Windows per-extension default-app picker; silent UserChoice writes are not possible. Dev builds register as `AraView (Dev)` with separate registry keys/ProgIDs so they cannot collide with the installed build (`src-tauri/src/file_assoc.rs`). Explorer PSD thumbnails are opt-in via HKCU `IThumbnailProvider` (see `SPEC.md` §20.2).
 - Multi-page view modes: `single`, `left-to-right`, `right-to-left`, `webtoon`
 
 ## Commands
@@ -88,7 +88,7 @@ Frontend uses `invoke()` for these commands:
 - `set_all_file_associations(associate)`
 - `open_default_apps_settings()`
 
-Full IPC contract (20 commands including thumbnails, archive prefetch, trash/rename/save): see `SPEC.md` §15.
+Full IPC contract (24 commands including thumbnails, archive prefetch, trash/rename/save, PSD thumbnail): see `SPEC.md` §15.
 
 When app is opened from file association, Windows passes the file path as a CLI argument. Backend buffers it in `PendingOpenFile` until the webview signals readiness (`frontend_ready`), then emits `open-file`; the root layout (`useOpenFileBridge`) bridges the event to the active route's loader.
 
