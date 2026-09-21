@@ -16,7 +16,6 @@
     ".agents",
     ".cursor",
     ".opencode",
-    ".impeccable",
     "src-tauri",
     "src/components/ui",
     "**/routeTree.gen.ts",
