@@ -2,6 +2,7 @@ pub mod app_error;
 pub mod archive;
 pub mod commands;
 pub mod dir_cache;
+pub mod file_availability;
 pub mod file_assoc;
 pub mod heif;
 pub mod image;
@@ -16,7 +17,8 @@ pub mod thumbnail;
 
 use app_error::AppError;
 use commands::{
-    archive_prefetch, generate_archive_thumbnail, generate_thumbnail, generate_thumbnails_batch,
+    archive_prefetch, generate_archive_file_thumbnail, generate_archive_thumbnail,
+    generate_thumbnail, generate_thumbnails_batch,
     get_archive_images, get_directory_images, get_exif_data, get_file_associations,
     get_image_details, get_image_histogram, load_archive_image, load_image,
     open_default_apps_settings, rename_file, resolve_dropped_path, set_all_file_associations,
@@ -99,6 +101,7 @@ pub fn run() {
             generate_thumbnail,
             generate_thumbnails_batch,
             generate_archive_thumbnail,
+            generate_archive_file_thumbnail,
             resolve_dropped_path,
             get_archive_images,
             load_archive_image,

@@ -3,7 +3,8 @@ import {
   CaretRight,
   SquaresFour,
   WarningCircle,
-  ArrowClockwise
+  ArrowClockwise,
+  Cloud
 } from "@phosphor-icons/react"
 import { useEffect, useMemo, useRef } from "react"
 import { useTranslation } from "react-i18next"
@@ -13,6 +14,8 @@ import { useThumbnailSrcs } from "@/hooks/useThumbnailSrcs"
 import { cn } from "@/lib/utils"
 import { useAppStore } from "@/store/appStore"
 import type { ImageInfo } from "@/types"
+import { cloudOnlyPathSet } from "@/utils/fileAvailability"
+import { parentFolderNameOf, basenameOf } from "@/utils/statusBar"
 
 import { useSettingsStore } from "../store/settingsStore"
 import { ButtonGroup } from "./ui/button-group"
@@ -42,6 +45,7 @@ export function ImageNavBar({
 }: ImageNavBarProps) {
   const { t } = useTranslation()
   const dirImages = useAppStore((state) => state.dirImages)
+  const archivePath = useAppStore((state) => state.archivePath)
   const failedPaths = useAppStore((state) => state.failedPaths)
   const loopNavigation = useSettingsStore((state) => state.loopNavigation)
   const failedSet = useMemo(() => new Set(failedPaths), [failedPaths])
@@ -67,7 +71,23 @@ export function ImageNavBar({
   }, [dirImages.images, dirImages.current_index])
 
   const thumbPaths = useMemo(() => thumbnails.map((t) => t.path), [thumbnails])
-  const { urls, failed: thumbFailed, retry } = useThumbnailSrcs(thumbPaths, getOrLoadImage)
+  const cloudOnlySet = useMemo(() => cloudOnlyPathSet(dirImages), [dirImages])
+  const thumbnailOptions = useMemo(
+    () => ({ archivePath, skipThumbnailPaths: cloudOnlySet }),
+    [archivePath, cloudOnlySet]
+  )
+  const {
+    urls,
+    failed: thumbFailed,
+    retry
+  } = useThumbnailSrcs(thumbPaths, getOrLoadImage, thumbnailOptions)
+
+  const thumbLabel = (path: string) => {
+    if (archivePath) return path.split(/[\\/]/).pop() ?? path
+    const name = basenameOf(path)
+    const parent = parentFolderNameOf(path)
+    return parent ? `${parent}/${name}` : name
+  }
   const stripRef = useRef<HTMLDivElement>(null)
 
   // 선택된 썸네일이 윈도우 이동으로 벗어나지 않게 추적
@@ -84,6 +104,7 @@ export function ImageNavBar({
         hidden && "pointer-events-none opacity-0"
       )}
       onMouseDown={(e) => e.stopPropagation()}
+      onDoubleClick={(e) => e.stopPropagation()}
     >
       {/* 썸네일 스트립: scale-110이 잘리지 않게 여유를 두고, 스크롤바 없이 스크롤만 유지 */}
       {thumbnails.length > 1 && (
@@ -93,8 +114,10 @@ export function ImageNavBar({
         >
           {thumbnails.map(({ index, path }) => {
             const src = urls.get(path)
-            const name = path.split(/[\\/]/).pop() ?? path
-            const failed = failedSet.has(path) || thumbFailed.has(path)
+            const name = thumbLabel(path)
+            const isCloudOnly = cloudOnlySet.has(path)
+            const failed =
+              !isCloudOnly && (failedSet.has(path) || thumbFailed.has(path))
             const isCurrent = index === dirImages.current_index
             return (
               <button
@@ -114,9 +137,11 @@ export function ImageNavBar({
                 )}
                 title={name}
                 aria-label={
-                  failed
-                    ? t("viewer.nav.thumbError", { index: index + 1, name })
-                    : t("viewer.nav.thumb", { index: index + 1, name })
+                  isCloudOnly
+                    ? t("viewer.nav.cloudOnly", { index: index + 1, name })
+                    : failed
+                      ? t("viewer.nav.thumbError", { index: index + 1, name })
+                      : t("viewer.nav.thumb", { index: index + 1, name })
                 }
               >
                 {src ? (
@@ -127,6 +152,16 @@ export function ImageNavBar({
                     className="h-full w-full object-cover"
                     draggable={false}
                   />
+                ) : isCloudOnly ? (
+                  <span className="flex h-full w-full items-center justify-center bg-muted/40">
+                    <Cloud aria-hidden="true" className="size-5 text-muted-foreground" />
+                    <span className="sr-only">
+                      {t("viewer.nav.cloudOnly", {
+                        index: index + 1,
+                        name
+                      })}
+                    </span>
+                  </span>
                 ) : failed ? (
                   <span className="flex h-full w-full items-center justify-center bg-muted/40">
                     <WarningCircle aria-hidden="true" className="size-5 text-destructive" />

@@ -1,4 +1,4 @@
-import { ArrowClockwise, MagnifyingGlass, WarningCircle, X } from "@phosphor-icons/react"
+import { ArrowClockwise, Cloud, MagnifyingGlass, WarningCircle, X } from "@phosphor-icons/react"
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 
@@ -8,6 +8,7 @@ import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empt
 import { useThumbnailSrcs } from "@/hooks/useThumbnailSrcs"
 import { cn } from "@/lib/utils"
 import type { DirectoryImages, ImageInfo } from "@/types"
+import { cloudOnlyPathSet } from "@/utils/fileAvailability"
 import {
   computeGridLayout,
   computeGridWindow,
@@ -272,7 +273,15 @@ export function ThumbnailGrid({
     () => filtered.slice(gridWindow.startIndex, gridWindow.endIndex).map((item) => item.path),
     [filtered, gridWindow.startIndex, gridWindow.endIndex]
   )
-  const thumbnailOptions = useMemo(() => ({ maxSide: THUMB_MAX_SIDE, archivePath }), [archivePath])
+  const cloudOnlySet = useMemo(() => cloudOnlyPathSet(dirImages), [dirImages])
+  const thumbnailOptions = useMemo(
+    () => ({
+      maxSide: THUMB_MAX_SIDE,
+      archivePath,
+      skipThumbnailPaths: cloudOnlySet
+    }),
+    [archivePath, cloudOnlySet]
+  )
   const {
     urls,
     failed: thumbFailed,
@@ -377,7 +386,9 @@ export function ThumbnailGrid({
               const isCurrent = item.index === dirImages.current_index
               const isSelected = position === selectedPos
               const src = urls.get(item.path)
-              const isFailed = failedSet.has(item.path) || thumbFailed.has(item.path)
+              const isCloudOnly = cloudOnlySet.has(item.path)
+              const isFailed =
+                !isCloudOnly && (failedSet.has(item.path) || thumbFailed.has(item.path))
               const name = basename(item.path)
               const left = PADDING + (position % layout.columns) * (layout.cellWidth + GAP)
               const top = gridOffsetForIndex(
@@ -431,6 +442,13 @@ export function ThumbnailGrid({
                         draggable={false}
                         className="h-full w-full object-contain"
                       />
+                    ) : isCloudOnly ? (
+                      <span className="flex h-full w-full flex-col items-center justify-center gap-1 px-1 text-center">
+                        <Cloud aria-hidden="true" className="size-5 text-muted-foreground" />
+                        <span className="text-[10px] leading-tight text-muted-foreground">
+                          {t("viewer.grid.cloudOnly")}
+                        </span>
+                      </span>
                     ) : isFailed ? (
                       <span className="flex h-full w-full flex-col items-center justify-center gap-1">
                         <WarningCircle aria-hidden="true" className="size-5 text-destructive" />

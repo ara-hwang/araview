@@ -40,7 +40,11 @@ describe("closeImage", () => {
         width: 800,
         height: 600
       },
-      dirImages: { images: ["/pics/a.jpg", "/pics/b.jpg"], current_index: 1 },
+      dirImages: {
+        images: ["/pics/a.jpg", "/pics/b.jpg"],
+        current_index: 1,
+        availability: ["local", "local"]
+      },
       error: "boom",
       loading: true,
       position: { x: 10, y: 20 },
@@ -50,14 +54,15 @@ describe("closeImage", () => {
       flipV: true,
       exifData: {},
       showExifPanel: true,
-      archivePath: "/docs/m.cbz"
+      archivePath: "/docs/m.cbz",
+      archivePreviewPath: "/docs/preview.cbz"
     })
 
     closeImage()
 
     const state = useAppStore.getState()
     expect(state.imageInfo).toBeNull()
-    expect(state.dirImages).toEqual({ images: [], current_index: 0 })
+    expect(state.dirImages).toEqual({ images: [], current_index: 0, availability: [] })
     expect(state.error).toBeNull()
     expect(state.loading).toBe(false)
     expect(state.position).toEqual({ x: 0, y: 0 })
@@ -68,6 +73,7 @@ describe("closeImage", () => {
     expect(state.exifData).toBeNull()
     expect(state.showExifPanel).toBe(false)
     expect(state.archivePath).toBeNull()
+    expect(state.archivePreviewPath).toBeNull()
   })
 })
 

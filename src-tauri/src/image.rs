@@ -2,6 +2,7 @@ use serde::Serialize;
 use std::path::{Path, PathBuf};
 
 use crate::app_error::{AppError, ErrorCode};
+use crate::file_availability::FileAvailability;
 
 #[derive(Serialize, Debug)]
 pub struct ImageInfo {
@@ -31,6 +32,8 @@ pub const SUPPORTED_EXTENSIONS: &[&str] = &[
 pub struct DirectoryImages {
     pub images: Vec<String>,
     pub current_index: usize,
+    /// Same order as `images`. Empty for archive listings.
+    pub availability: Vec<FileAvailability>,
 }
 
 pub fn get_mime_type(path: &Path) -> Option<&'static str> {

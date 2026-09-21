@@ -28,6 +28,7 @@ use std::time::{Instant, SystemTime};
 
 use crate::app_error::{AppError, ErrorCode};
 use crate::commands::{DirListOptions, DirSortKey};
+use crate::file_availability::FileAvailability;
 use crate::image::is_supported_file;
 
 /// Upper bound for cached directory listings; oldest entry evicted past this.
@@ -41,6 +42,7 @@ pub(crate) struct ImageEntry {
     pub(crate) path: String,
     pub(crate) modified: Option<SystemTime>,
     pub(crate) size: u64,
+    pub(crate) availability: FileAvailability,
 }
 
 struct CachedListing {
@@ -346,7 +348,10 @@ fn collect_images(dir: &Path, recursive: bool, out: &mut Vec<ImageEntry>) -> Res
             let entry =
                 entry.map_err(|e| AppError::corrupt(format!("Failed to read entry: {e}")))?;
             let entry_path = entry.path();
-            if entry_path.is_dir() {
+            let file_type = entry
+                .file_type()
+                .map_err(|e| AppError::corrupt(format!("Failed to read entry type: {e}")))?;
+            if file_type.is_dir() {
                 // junction/symlink 같은 reparse point는 따라가지 않는다.
                 // 순환 링크로 인한 무한 순회와 범위 밖 스캔을 막는다.
                 if recursive && !is_reparse_point(&entry) {
@@ -354,20 +359,25 @@ fn collect_images(dir: &Path, recursive: bool, out: &mut Vec<ImageEntry>) -> Res
                 }
                 continue;
             }
-            if !entry_path.is_file() || !is_supported_file(&entry_path) {
+            if !file_type.is_file() || !entry_path.is_file() || !is_supported_file(&entry_path) {
                 continue;
             }
             let Some(path_str) = entry_path.to_str().map(str::to_string) else {
                 continue;
             };
-            let (modified, size) = entry
-                .metadata()
-                .map(|m| (m.modified().ok(), m.len()))
-                .unwrap_or((None, 0));
+            let (availability, modified, size) = match entry.metadata() {
+                Ok(meta) => (
+                    crate::file_availability::availability_from_metadata(&meta),
+                    meta.modified().ok(),
+                    meta.len(),
+                ),
+                Err(_) => (FileAvailability::Unknown, None, 0),
+            };
             out.push(ImageEntry {
                 path: path_str,
                 modified,
                 size,
+                availability,
             });
         }
     }

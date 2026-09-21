@@ -7,9 +7,13 @@ export type ImageInfo = {
   height: number | null
 }
 
+export type FileAvailability = "local" | "cloud_only" | "unknown"
+
 export type DirectoryImages = {
   images: string[]
   current_index: number
+  /** Same order as `images`. Empty for archive listings. */
+  availability: FileAvailability[]
 }
 
 export type ThumbnailInfo = {

@@ -137,6 +137,7 @@
 - 부모 폴더 기준으로 정렬 목록을 만들고, `current_index`는 요청 경로의 위치(없으면 0)이다.
 - 재귀가 켜지면 하위 폴더 이미지를 포함한다.
 - 디렉토리 캐시는 폴더 mtime 지문(일반 모드)과 워처 기반 무효화(재귀 모드)를 쓰며 상한 128개이다.
+- 응답 `availability`는 `images`와 같은 순서의 `local` | `cloud_only` | `unknown` 배열이다. Windows Files On-Demand placeholder는 메타데이터만으로 `cloud_only`로 표시한다(썸네일 스트립/그리드는 미리 hydration하지 않음). 아카이브 목록은 빈 배열이다.
 
 ### 5.2 목록 새로고침
 
@@ -503,7 +504,7 @@ Rust와 TypeScript는 같은 모양을 유지한다.
 
 ### 16.2 기타
 
-- `DirectoryImages`: `{ images: string[], current_index: number }`.
+- `DirectoryImages`: `{ images: string[], current_index: number, availability: ("local"|"cloud_only"|"unknown")[] }`.
 - `ThumbnailInfo`: `{ file_path: string, width: number, height: number }`.
 - `ExifData`: `Record<string, string>`.
 - `Histogram`: `{ r: number[256], g: number[256], b: number[256], sampled_pixels: number }`.
