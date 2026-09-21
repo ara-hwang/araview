@@ -18,12 +18,14 @@ function WebtoonLazyPage({
   path,
   index,
   getOrLoadImage,
-  registerRef
+  registerRef,
+  onImageDoubleClick
 }: {
   path: string
   index: number
   getOrLoadImage: GetOrLoadImage
   registerRef: (index: number, el: HTMLDivElement | null) => void
+  onImageDoubleClick?: (e: React.MouseEvent) => void
 }) {
   const { t } = useTranslation()
   const wrapRef = useRef<HTMLDivElement>(null)
@@ -96,6 +98,7 @@ function WebtoonLazyPage({
             setInfo(null)
             setError(t("error.corrupt.title"))
           }}
+          onDoubleClick={onImageDoubleClick}
         />
       ) : error ? (
         <div className="flex w-full max-w-2xl flex-col items-center gap-2 rounded-lg border border-destructive/20 bg-background p-6 text-center">
@@ -128,13 +131,15 @@ export function WebtoonContinuousView({
   currentIndex,
   getOrLoadImage,
   onCenterChange,
-  scrollTarget
+  scrollTarget,
+  onImageDoubleClick
 }: {
   images: string[]
   currentIndex: number
   getOrLoadImage: GetOrLoadImage
   onCenterChange: (index: number) => void
   scrollTarget: WebtoonScrollTarget
+  onImageDoubleClick?: (e: React.MouseEvent) => void
 }) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const itemRefs = useRef(new Map<number, HTMLDivElement>())
@@ -222,6 +227,7 @@ export function WebtoonContinuousView({
             index={i}
             getOrLoadImage={getOrLoadImage}
             registerRef={registerRef}
+            onImageDoubleClick={onImageDoubleClick}
           />
         ))}
       </div>

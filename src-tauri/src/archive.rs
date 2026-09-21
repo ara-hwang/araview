@@ -124,7 +124,12 @@ fn list_zip_images(archive_path: &Path) -> Result<Vec<String>, AppError> {
         let name = entry.name().to_string();
 
         // 디렉토리 스킵, 숨김 파일(__MACOSX 등) 스킵
-        if entry.is_dir() || name.starts_with("__") || name.starts_with('.') {
+        if entry.is_dir()
+            || name.ends_with('/')
+            || name.ends_with('\\')
+            || name.starts_with("__")
+            || name.starts_with('.')
+        {
             continue;
         }
 

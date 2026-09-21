@@ -2,6 +2,7 @@ import { convertFileSrc, invoke } from "@tauri-apps/api/core"
 import { useCallback, useEffect, useRef, useState } from "react"
 
 import type { ImageInfo, ThumbnailInfo } from "@/types"
+import { isArchiveFilePath } from "@/utils/archiveFile"
 
 type GetOrLoadImage = (filePath: string) => Promise<ImageInfo>
 
@@ -20,6 +21,8 @@ export type ThumbnailSrcsOptions = {
   maxSide?: number
   /** 아카이브 모드일 때 엔트리 이름. 설정하면 추출+리사이즈 전용 커맨드를 쓴다. */
   archivePath?: string | null
+  /** 클라우드 placeholder 등 썸네일 생성을 건너뛸 경로 */
+  skipThumbnailPaths?: ReadonlySet<string>
 }
 
 // 썸네일 스트립/그리드용 축소 이미지 URL을 로드하는 훅.
@@ -42,6 +45,7 @@ export function useThumbnailSrcs(
   const pathsKey = paths.join("\0")
   const maxSide = options.maxSide ?? THUMB_MAX_SIDE
   const archivePath = options.archivePath ?? null
+  const skipThumbnailPaths = options.skipThumbnailPaths
   const getOrLoadRef = useRef(getOrLoadImage)
   getOrLoadRef.current = getOrLoadImage
   const urlsRef = useRef(urls)
@@ -118,7 +122,10 @@ export function useThumbnailSrcs(
     }
 
     void (async () => {
-      const missing = list.filter((p) => !urlsRef.current.has(p) && !failedRef.current.has(p))
+      const missing = list.filter((p) => {
+        if (skipThumbnailPaths?.has(p)) return false
+        return !urlsRef.current.has(p) && !failedRef.current.has(p)
+      })
       if (missing.length === 0) return
 
       if (archivePath) {
@@ -151,32 +158,52 @@ export function useThumbnailSrcs(
         return
       }
 
-      // 일반: 윈도우 1회 배치 호출. 실패 항목만 개별 폴백한다.
-      let batchFailed: Set<string> | null = null
-      try {
-        const results = await invoke<BatchThumb[]>("generate_thumbnails_batch", {
-          filePaths: missing,
-          maxSide
-        })
-        if (cancelled) return
-        batchFailed = new Set<string>()
-        for (const r of results) {
-          if (r.thumb) put(r.source, r.thumb.file_path)
-          else batchFailed.add(r.source)
+      const archiveFiles = missing.filter((p) => isArchiveFilePath(p))
+      const rasterPaths = missing.filter((p) => !isArchiveFilePath(p))
+      const loaded = new Set<string>()
+
+      for (const archiveFile of archiveFiles) {
+        try {
+          const thumb = await invoke<ThumbnailInfo>("generate_archive_file_thumbnail", {
+            archivePath: archiveFile,
+            maxSide
+          })
+          put(archiveFile, thumb.file_path)
+          loaded.add(archiveFile)
+        } catch {
+          // 아래 raster 폴백과 동일하게 load_image 시도
         }
-      } catch {
-        if (cancelled) return
-        batchFailed = new Set(missing)
       }
-      if (cancelled || !batchFailed || batchFailed.size === 0) return
-      await loadFallbacks(batchFailed)
+
+      // 일반: 윈도우 1회 배치 호출. 실패 항목만 개별 폴백한다.
+      if (rasterPaths.length > 0) {
+        try {
+          const results = await invoke<BatchThumb[]>("generate_thumbnails_batch", {
+            filePaths: rasterPaths,
+            maxSide
+          })
+          if (cancelled) return
+          for (const r of results) {
+            if (r.thumb) {
+              put(r.source, r.thumb.file_path)
+              loaded.add(r.source)
+            }
+          }
+        } catch {
+          if (cancelled) return
+        }
+      }
+
+      const stillMissing = missing.filter((p) => !loaded.has(p))
+      if (cancelled || stillMissing.length === 0) return
+      await loadFallbacks(stillMissing)
     })()
 
     return () => {
       cancelled = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathsKey, retryNonce, maxSide, archivePath])
+  }, [pathsKey, retryNonce, maxSide, archivePath, skipThumbnailPaths])
 
   const retry = useCallback((path: string) => {
     setFailed((prev) => {

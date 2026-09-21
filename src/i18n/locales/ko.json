@@ -275,8 +275,14 @@
       "thumb": "이미지 {{index}}: {{name}}",
       "thumbError": "읽기 실패한 이미지 {{index}}: {{name}}",
       "thumbRetry": "{{index}}번 썸네일 다시 시도",
+      "cloudOnly": "클라우드에만 있음 {{index}}: {{name}}",
       "grid": "썸네일 그리드",
       "gridTitle": "썸네일 그리드 (G)"
+    },
+    "archivePreview": {
+      "hint": "「{{name}}」은 만화 파일입니다. 첫 페이지만 미리 보고 있습니다.",
+      "open": "만화 열기",
+      "openTitle": "이어보기 위치부터 만화 읽기"
     },
     "grid": {
       "title": "썸네일 그리드",
@@ -286,7 +292,8 @@
       "close": "그리드 닫기 (Esc)",
       "empty": "표시할 이미지가 없습니다",
       "noResults": "일치하는 파일이 없습니다",
-      "failed": "읽기 실패"
+      "failed": "읽기 실패",
+      "cloudOnly": "클라우드에만 있음"
     }
   },
   "exif": {

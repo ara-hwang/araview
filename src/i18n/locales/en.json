@@ -275,8 +275,14 @@
       "thumb": "Image {{index}}: {{name}}",
       "thumbError": "Failed image {{index}}: {{name}}",
       "thumbRetry": "Retry thumbnail {{index}}",
+      "cloudOnly": "Cloud only {{index}}: {{name}}",
       "grid": "Thumbnail grid",
       "gridTitle": "Thumbnail grid (G)"
+    },
+    "archivePreview": {
+      "hint": "\"{{name}}\" is a comic archive. Showing the first page only.",
+      "open": "Open comic",
+      "openTitle": "Continue reading from saved progress"
     },
     "grid": {
       "title": "Thumbnail grid",
@@ -286,7 +292,8 @@
       "close": "Close grid (Esc)",
       "empty": "No images to show",
       "noResults": "No matching files",
-      "failed": "Failed"
+      "failed": "Failed",
+      "cloudOnly": "Cloud only"
     }
   },
   "exif": {
