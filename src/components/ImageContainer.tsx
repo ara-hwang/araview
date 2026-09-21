@@ -18,7 +18,6 @@ import { classifyError } from "@/utils/appError"
 import { MAX_SKIP_ATTEMPTS, findSkipTarget } from "@/utils/skipBroken"
 
 import { ArchivePreviewCallout } from "./ArchivePreviewCallout"
-import { ImageNavBar } from "./ImageNavBar"
 import { WebtoonContinuousView, type WebtoonScrollTarget } from "./WebtoonContinuousView"
 
 type ImageContainerProps = {
@@ -30,15 +29,10 @@ type ImageContainerProps = {
   onMouseUp: () => void
   onDoubleClick?: (e: React.MouseEvent) => void
   onMiddleClick?: (e: React.MouseEvent) => void
-  onNavigate?: (direction: "prev" | "next") => void
   onNavigateToIndex?: (index: number) => void
-  onToggleGrid?: () => void
-  gridActive?: boolean
   getOrLoadImage?: (filePath: string) => Promise<ImageInfo>
   viewMode?: ViewMode
   pages?: MultiPage[]
-  /** UI 자동 숨김(프레젠테이션) 시 하단 내비게이션 바 숨김 */
-  chromeHidden?: boolean
   onRetry?: () => void
   onWebtoonIndexChange?: (index: number) => void
   webtoonScrollTarget?: WebtoonScrollTarget
@@ -56,14 +50,10 @@ export function ImageContainer({
   onMouseUp,
   onDoubleClick,
   onMiddleClick,
-  onNavigate,
   onNavigateToIndex,
-  onToggleGrid,
-  gridActive = false,
   getOrLoadImage,
   viewMode = "single",
   pages = [],
-  chromeHidden = false,
   onRetry,
   onWebtoonIndexChange,
   webtoonScrollTarget,
@@ -85,13 +75,6 @@ export function ImageContainer({
       imageSize: state.imageSize,
       archivePreviewPath: state.archivePreviewPath
     }))
-  )
-
-  const showNavBar = !!(
-    app.dirImages.images.length > 1 &&
-    onNavigate &&
-    onNavigateToIndex &&
-    getOrLoadImage
   )
 
   const viewerBackground = useSettingsStore((state) => state.viewerBackground)
@@ -287,17 +270,6 @@ export function ImageContainer({
         <ArchivePreviewCallout
           archivePath={app.archivePreviewPath}
           onOpenArchive={onOpenArchiveFromPreview}
-        />
-      )}
-
-      {showNavBar && onNavigate && onNavigateToIndex && getOrLoadImage && (
-        <ImageNavBar
-          onNavigate={onNavigate}
-          onNavigateToIndex={onNavigateToIndex}
-          getOrLoadImage={getOrLoadImage}
-          onToggleGrid={onToggleGrid}
-          gridActive={gridActive}
-          hidden={chromeHidden}
         />
       )}
     </div>

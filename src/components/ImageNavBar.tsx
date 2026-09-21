@@ -1,23 +1,42 @@
 import {
+  ArrowClockwise,
+  CaretDown,
   CaretLeft,
   CaretRight,
+  CaretUp,
+  Cloud,
+  DotsThree,
   SquaresFour,
-  WarningCircle,
-  ArrowClockwise,
-  Cloud
+  WarningCircle
 } from "@phosphor-icons/react"
 import { useEffect, useMemo, useRef } from "react"
 import { useTranslation } from "react-i18next"
 
 import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger
+} from "@/components/ui/dropdown-menu"
 import { useThumbnailSrcs } from "@/hooks/useThumbnailSrcs"
 import { cn } from "@/lib/utils"
 import { useAppStore } from "@/store/appStore"
 import type { ImageInfo } from "@/types"
 import { cloudOnlyPathSet } from "@/utils/fileAvailability"
-import { parentFolderNameOf, basenameOf } from "@/utils/statusBar"
+import { basenameOf, parentFolderNameOf } from "@/utils/statusBar"
 
-import { useSettingsStore } from "../store/settingsStore"
+import {
+  updateSettings,
+  useSettingsStore,
+  type DockPosition,
+  type DockThumbSize
+} from "../store/settingsStore"
 import { ButtonGroup } from "./ui/button-group"
 import { Slider } from "./ui/slider"
 import { Toggle } from "./ui/toggle"
@@ -31,9 +50,15 @@ type ImageNavBarProps = {
   /** 썸네일 그리드 토글 */
   onToggleGrid?: () => void
   gridActive?: boolean
-  /** UI 자동 숨김 시 투명화 (마우스 이동 시 복귀) */
-  hidden?: boolean
+  /** 도크 접기 (전체 숨김) */
+  onToggleDock?: () => void
+  position: DockPosition
+  thumbSize: DockThumbSize
+  showName: boolean
+  showIndex: boolean
 }
+
+const THUMB_SIDE: Record<DockThumbSize, number> = { s: 48, m: 72, l: 96 }
 
 export function ImageNavBar({
   onNavigate,
@@ -41,7 +66,11 @@ export function ImageNavBar({
   getOrLoadImage,
   onToggleGrid,
   gridActive = false,
-  hidden = false
+  onToggleDock,
+  position,
+  thumbSize,
+  showName,
+  showIndex
 }: ImageNavBarProps) {
   const { t } = useTranslation()
   const dirImages = useAppStore((state) => state.dirImages)
@@ -49,6 +78,8 @@ export function ImageNavBar({
   const failedPaths = useAppStore((state) => state.failedPaths)
   const loopNavigation = useSettingsStore((state) => state.loopNavigation)
   const failedSet = useMemo(() => new Set(failedPaths), [failedPaths])
+  const isVertical = position === "left" || position === "right"
+  const side = THUMB_SIDE[thumbSize]
 
   // 맨 앞·맨 뒤 이미지 여부와 설정에 따른 이전/다음 비활성화 상태 계산
   const isFirst = dirImages.current_index === 0
@@ -92,152 +123,241 @@ export function ImageNavBar({
 
   // 선택된 썸네일이 윈도우 이동으로 벗어나지 않게 추적
   useEffect(() => {
-    const el = stripRef.current?.querySelector('[data-current="true"]')
+    const el = stripRef.current?.querySelector('[data-dock-current="true"]')
     el?.scrollIntoView({ block: "nearest", inline: "nearest" })
   }, [dirImages.current_index])
 
-  return (
-    // 하단 중앙에 고정된 내비게이션 바 (이전/다음 버튼 + 진행률 표시)
-    <div
-      className={cn(
-        "absolute bottom-12 flex w-xl max-w-[calc(100%-2rem)] flex-col gap-2 rounded-md border border-border bg-background p-2 shadow-lg transition-opacity duration-300",
-        hidden && "pointer-events-none opacity-0"
-      )}
-      onMouseDown={(e) => e.stopPropagation()}
-      onDoubleClick={(e) => e.stopPropagation()}
-    >
-      {/* 썸네일 스트립: scale-110이 잘리지 않게 여유를 두고, 스크롤바 없이 스크롤만 유지 */}
-      {thumbnails.length > 1 && (
-        <div
-          ref={stripRef}
-          className="flex [scrollbar-width:none] items-center [justify-content:safe_center] gap-1 overflow-x-auto overflow-y-hidden p-1 [&::-webkit-scrollbar]:hidden"
-        >
-          {thumbnails.map(({ index, path }) => {
-            const src = urls.get(path)
-            const name = thumbLabel(path)
-            const isCloudOnly = cloudOnlySet.has(path)
-            const failed =
-              !isCloudOnly && (failedSet.has(path) || thumbFailed.has(path))
-            const isCurrent = index === dirImages.current_index
-            return (
-              <button
-                key={path}
-                type="button"
-                data-current={isCurrent ? "true" : undefined}
-                aria-current={isCurrent ? "true" : undefined}
-                onClick={() => {
-                  if (failed && !src) retry(path)
-                  onNavigateToIndex(index)
-                }}
-                className={cn(
-                  "relative h-12 w-12 shrink-0 overflow-hidden rounded border-2 transition duration-150 ease-motion-out focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
-                  isCurrent
-                    ? "scale-110 border-primary motion-reduce:scale-100"
-                    : "border-transparent opacity-60 hover:opacity-100"
-                )}
-                title={name}
-                aria-label={
-                  isCloudOnly
-                    ? t("viewer.nav.cloudOnly", { index: index + 1, name })
-                    : failed
-                      ? t("viewer.nav.thumbError", { index: index + 1, name })
-                      : t("viewer.nav.thumb", { index: index + 1, name })
-                }
-              >
-                {src ? (
-                  <img
-                    src={src}
-                    alt={name}
-                    loading="lazy"
-                    className="h-full w-full object-cover"
-                    draggable={false}
-                  />
-                ) : isCloudOnly ? (
-                  <span className="flex h-full w-full items-center justify-center bg-muted/40">
-                    <Cloud aria-hidden="true" className="size-5 text-muted-foreground" />
-                    <span className="sr-only">
-                      {t("viewer.nav.cloudOnly", {
-                        index: index + 1,
-                        name
-                      })}
-                    </span>
-                  </span>
-                ) : failed ? (
-                  <span className="flex h-full w-full items-center justify-center bg-muted/40">
-                    <WarningCircle aria-hidden="true" className="size-5 text-destructive" />
-                    <span className="sr-only">
-                      {t("viewer.nav.thumbError", {
-                        index: index + 1,
-                        name
-                      })}
-                    </span>
-                  </span>
-                ) : (
-                  <span
-                    aria-hidden="true"
-                    className="h-full w-full animate-pulse bg-muted/40 motion-reduce:animate-none"
-                  />
-                )}
-                {failed && src && (
-                  <span
-                    aria-hidden="true"
-                    className="absolute top-0.5 right-0.5 rounded-full bg-background"
-                  >
-                    <WarningCircle className="size-4 text-destructive" />
-                  </span>
-                )}
-                {failed && !src && (
-                  <span
-                    aria-hidden="true"
-                    title={t("viewer.nav.thumbRetry", { index: index + 1 })}
-                    className="absolute right-0.5 bottom-0.5 rounded-full bg-background/90 p-0.5"
-                  >
-                    <ArrowClockwise aria-hidden="true" className="size-3.5" />
-                  </span>
-                )}
-              </button>
-            )
-          })}
-        </div>
-      )}
+  const PrevIcon = isVertical ? CaretUp : CaretLeft
+  const NextIcon = isVertical ? CaretDown : CaretRight
+  const CollapseIcon =
+    position === "top"
+      ? CaretUp
+      : position === "bottom"
+        ? CaretDown
+        : position === "left"
+          ? CaretLeft
+          : CaretRight
+  // 메뉴가 읽기 영역 쪽으로 열리도록 도크 반대편을 side로 둔다.
+  const menuSide =
+    position === "top"
+      ? "bottom"
+      : position === "bottom"
+        ? "top"
+        : position === "left"
+          ? "right"
+          : "left"
 
-      <div className="flex items-center gap-4">
-        <ButtonGroup>
+  const dockMenu = (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
           <Button
-            variant="outline"
+            variant="ghost"
             size="icon"
-            onClick={() => onNavigate("prev")}
-            title={t("viewer.nav.prev")}
-            aria-label={t("viewer.nav.prev")}
-            disabled={isPrevDisabled}
+            title={t("viewer.nav.dockMenu")}
+            aria-label={t("viewer.nav.dockMenu")}
+          />
+        }
+      >
+        <DotsThree aria-hidden="true" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent side={menuSide} align="end" className="min-w-48">
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>{t("settings.dock.position")}</DropdownMenuLabel>
+          <DropdownMenuRadioGroup
+            value={position}
+            onValueChange={(value) => void updateSettings({ dockPosition: value as DockPosition })}
           >
-            <CaretLeft />
-          </Button>
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => onNavigate("next")}
-            title={t("viewer.nav.next")}
-            aria-label={t("viewer.nav.next")}
-            disabled={isNextDisabled}
+            <DropdownMenuRadioItem value="top">{t("settings.dock.top")}</DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="bottom">
+              {t("settings.dock.bottom")}
+            </DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="left">{t("settings.dock.left")}</DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="right">{t("settings.dock.right")}</DropdownMenuRadioItem>
+          </DropdownMenuRadioGroup>
+        </DropdownMenuGroup>
+        <DropdownMenuSeparator />
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>{t("settings.dock.thumbSize")}</DropdownMenuLabel>
+          <DropdownMenuRadioGroup
+            value={thumbSize}
+            onValueChange={(value) =>
+              void updateSettings({ dockThumbSize: value as DockThumbSize })
+            }
           >
-            <CaretRight />
-          </Button>
-        </ButtonGroup>
+            <DropdownMenuRadioItem value="s">{t("settings.dock.thumbS")}</DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="m">{t("settings.dock.thumbM")}</DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="l">{t("settings.dock.thumbL")}</DropdownMenuRadioItem>
+          </DropdownMenuRadioGroup>
+        </DropdownMenuGroup>
+        <DropdownMenuSeparator />
+        <DropdownMenuGroup>
+          <DropdownMenuCheckboxItem
+            checked={showName}
+            onCheckedChange={(checked) => void updateSettings({ dockShowName: checked === true })}
+          >
+            {t("settings.dock.showName")}
+          </DropdownMenuCheckboxItem>
+          <DropdownMenuCheckboxItem
+            checked={showIndex}
+            onCheckedChange={(checked) => void updateSettings({ dockShowIndex: checked === true })}
+          >
+            {t("settings.dock.showIndex")}
+          </DropdownMenuCheckboxItem>
+        </DropdownMenuGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
 
-        {onToggleGrid && (
-          <Toggle
-            variant="outline"
-            pressed={gridActive}
-            onPressedChange={onToggleGrid}
-            title={t("viewer.nav.gridTitle")}
-            aria-label={t("viewer.nav.grid")}
-          >
-            <SquaresFour />
-          </Toggle>
+  const renderThumbButton = ({ index, path }: { index: number; path: string }) => {
+    const src = urls.get(path)
+    const name = thumbLabel(path)
+    const shortName = archivePath ? name : basenameOf(path)
+    const isCloudOnly = cloudOnlySet.has(path)
+    const failed = !isCloudOnly && (failedSet.has(path) || thumbFailed.has(path))
+    const isCurrent = index === dirImages.current_index
+    return (
+      <button
+        key={path}
+        type="button"
+        data-dock-current={isCurrent ? "true" : undefined}
+        aria-current={isCurrent ? "true" : undefined}
+        onClick={() => {
+          if (failed && !src) retry(path)
+          onNavigateToIndex(index)
+        }}
+        style={{ width: side }}
+        className={cn(
+          "relative shrink-0 overflow-hidden rounded border-2 transition duration-150 ease-motion-out focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+          isCurrent ? "border-primary" : "border-transparent opacity-60 hover:opacity-100"
         )}
+        title={name}
+        aria-label={
+          isCloudOnly
+            ? t("viewer.nav.cloudOnly", { index: index + 1, name })
+            : failed
+              ? t("viewer.nav.thumbError", { index: index + 1, name })
+              : t("viewer.nav.thumb", { index: index + 1, name })
+        }
+      >
+        <span
+          className="relative block w-full overflow-hidden bg-muted/40"
+          style={{ width: side, height: side }}
+        >
+          {src ? (
+            <img
+              src={src}
+              alt={shortName}
+              loading="lazy"
+              className="h-full w-full object-cover"
+              draggable={false}
+            />
+          ) : isCloudOnly ? (
+            <span className="flex h-full w-full items-center justify-center">
+              <Cloud aria-hidden="true" className="size-5 text-muted-foreground" />
+              <span className="sr-only">
+                {t("viewer.nav.cloudOnly", { index: index + 1, name })}
+              </span>
+            </span>
+          ) : failed ? (
+            <span className="flex h-full w-full items-center justify-center">
+              <WarningCircle aria-hidden="true" className="size-5 text-destructive" />
+              <span className="sr-only">
+                {t("viewer.nav.thumbError", { index: index + 1, name })}
+              </span>
+            </span>
+          ) : (
+            <span
+              aria-hidden="true"
+              className="block h-full w-full animate-pulse motion-reduce:animate-none"
+            />
+          )}
+          {showIndex && (
+            <span className="absolute top-0.5 left-0.5 rounded bg-background/85 px-1 text-[10px] tabular-nums">
+              {index + 1}
+            </span>
+          )}
+          {failed && src && (
+            <span
+              aria-hidden="true"
+              className="absolute top-0.5 right-0.5 rounded-full bg-background"
+            >
+              <WarningCircle className="size-4 text-destructive" />
+            </span>
+          )}
+          {failed && !src && (
+            <span
+              aria-hidden="true"
+              title={t("viewer.nav.thumbRetry", { index: index + 1 })}
+              className="absolute right-0.5 bottom-0.5 rounded-full bg-background/90 p-0.5"
+            >
+              <ArrowClockwise aria-hidden="true" className="size-3.5" />
+            </span>
+          )}
+        </span>
+        {showName && (
+          <span className="block truncate px-1 py-0.5 text-left text-[10px] leading-tight">
+            {shortName}
+          </span>
+        )}
+      </button>
+    )
+  }
 
-        {/* 슬라이더를 클릭/드래그해서 원하는 위치로 점프 이동 */}
+  const strip =
+    thumbnails.length > 1 ? (
+      <div
+        ref={stripRef}
+        className={cn(
+          "flex [scrollbar-width:none] items-center gap-1 p-1 [&::-webkit-scrollbar]:hidden",
+          isVertical
+            ? "flex-1 flex-col [justify-content:safe_center] overflow-x-hidden overflow-y-auto"
+            : "flex-1 flex-row [justify-content:safe_center] overflow-x-auto overflow-y-hidden"
+        )}
+      >
+        {thumbnails.map(renderThumbButton)}
+      </div>
+    ) : null
+
+  const controls = (
+    <div className={cn("flex items-center gap-2 p-2", isVertical ? "flex-col" : "flex-row")}>
+      <ButtonGroup orientation={isVertical ? "vertical" : "horizontal"}>
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={() => onNavigate("prev")}
+          title={t("viewer.nav.prev")}
+          aria-label={t("viewer.nav.prev")}
+          disabled={isPrevDisabled}
+        >
+          <PrevIcon />
+        </Button>
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={() => onNavigate("next")}
+          title={t("viewer.nav.next")}
+          aria-label={t("viewer.nav.next")}
+          disabled={isNextDisabled}
+        >
+          <NextIcon />
+        </Button>
+      </ButtonGroup>
+
+      {onToggleGrid && (
+        <Toggle
+          variant="outline"
+          pressed={gridActive}
+          onPressedChange={onToggleGrid}
+          title={t("viewer.nav.gridTitle")}
+          aria-label={t("viewer.nav.grid")}
+        >
+          <SquaresFour />
+        </Toggle>
+      )}
+
+      {/* 수직 도크에서는 슬라이더를 생략하고 썸네일+버튼만 둔다 */}
+      {!isVertical && (
         <Slider
           aria-label={t("viewer.nav.slider")}
           value={[dirImages.current_index]}
@@ -249,7 +369,55 @@ export function ImageNavBar({
             onNavigateToIndex(nextIndex)
           }}
         />
-      </div>
+      )}
+      <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+        {t("viewer.nav.count", {
+          current: dirImages.current_index + 1,
+          total: dirImages.images.length
+        })}
+      </span>
+      {dockMenu}
+      {onToggleDock && (
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onToggleDock}
+          title={t("viewer.nav.dockHide")}
+          aria-label={t("viewer.nav.dockHide")}
+        >
+          <CollapseIcon />
+        </Button>
+      )}
+    </div>
+  )
+
+  return (
+    <div
+      className={cn(
+        "flex min-h-0 min-w-0 border-border bg-background",
+        isVertical ? "h-full flex-col" : "w-full flex-col",
+        position === "top" && "border-b",
+        position === "bottom" && "border-t",
+        position === "left" && "border-r",
+        position === "right" && "border-l"
+      )}
+      style={isVertical ? { width: side + 24 } : undefined}
+      onMouseDown={(e) => e.stopPropagation()}
+      onDoubleClick={(e) => e.stopPropagation()}
+    >
+      {isVertical ? (
+        <>
+          {controls}
+          {strip && <div className="my-1 h-px w-full bg-border" aria-hidden="true" />}
+          {strip}
+        </>
+      ) : (
+        <>
+          {strip}
+          {strip && <div className="mx-1 h-px w-auto bg-border" aria-hidden="true" />}
+          {controls}
+        </>
+      )}
     </div>
   )
 }

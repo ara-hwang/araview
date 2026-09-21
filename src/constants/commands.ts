@@ -2,7 +2,7 @@ import type { ShortcutActionId } from "@/constants/shortcuts"
 
 export type CommandGroup = "file" | "navigate" | "view" | "display" | "system"
 
-export type CommandId = ShortcutActionId | "openSettings" | "checkForUpdates"
+export type CommandId = ShortcutActionId | "openSettings" | "checkForUpdates" | "toggleDock"
 
 export type CommandContext = {
   hasImage: boolean
@@ -239,6 +239,13 @@ export const COMMAND_DEFS: readonly CommandDef[] = [
     shortcutId: "toggleGrid",
     requiresImage: true,
     keywords: ["grid", "thumbnails", "overview", "contact sheet"]
+  },
+  {
+    id: "toggleDock",
+    group: "view",
+    labelKey: "menu.toggleDock",
+    requiresImage: true,
+    keywords: ["dock", "list", "strip", "filmstrip", "도크", "목록"]
   },
   {
     id: "rotateCW",

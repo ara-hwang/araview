@@ -61,4 +61,10 @@ describe("isCommandEnabled", () => {
   it("팔레트 자체 토글은 목록에 포함하지 않는다", () => {
     expect(COMMAND_DEFS.some((d) => d.id === "togglePalette")).toBe(false)
   })
+
+  it("도크 토글은 이미지가 있을 때만 활성화된다", () => {
+    const def = COMMAND_DEFS.find((d) => d.id === "toggleDock")!
+    expect(isCommandEnabled(def, { hasImage: false, canNavigate: false })).toBe(false)
+    expect(isCommandEnabled(def, { hasImage: true, canNavigate: false })).toBe(true)
+  })
 })

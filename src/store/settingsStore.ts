@@ -30,6 +30,10 @@ export type DirSortKey = "name" | "date" | "size"
 
 export type FitMode = "width" | "height" | "screen" | "auto"
 
+export type DockPosition = "top" | "bottom" | "left" | "right"
+
+export type DockThumbSize = "s" | "m" | "l"
+
 export type { MouseMap, ShortcutMap, WheelMap } from "@/constants/shortcuts"
 
 export type SettingsState = {
@@ -48,6 +52,11 @@ export type SettingsState = {
   includeSubfolders: boolean
   skipBrokenFiles: boolean
   fitMode: FitMode
+  dockPosition: DockPosition
+  dockVisible: boolean
+  dockThumbSize: DockThumbSize
+  dockShowName: boolean
+  dockShowIndex: boolean
   shortcuts: import("@/constants/shortcuts").ShortcutMap
   wheel: import("@/constants/shortcuts").WheelMap
   mouse: import("@/constants/shortcuts").MouseMap
@@ -77,6 +86,11 @@ const initialSettings: SettingsState = {
   includeSubfolders: false,
   skipBrokenFiles: false,
   fitMode: "auto",
+  dockPosition: "bottom",
+  dockVisible: true,
+  dockThumbSize: "s",
+  dockShowName: false,
+  dockShowIndex: false,
   shortcuts: { ...DEFAULT_SHORTCUTS },
   wheel: { ...DEFAULT_WHEEL },
   mouse: { ...DEFAULT_MOUSE }
@@ -89,6 +103,8 @@ const VIEW_MODES: readonly ViewMode[] = ["single", "left-to-right", "right-to-le
 const VIEWER_BACKGROUNDS: readonly ViewerBackground[] = ["theme", "black", "white", "checker"]
 const SORT_KEYS: readonly DirSortKey[] = ["name", "date", "size"]
 const FIT_MODES: readonly FitMode[] = ["width", "height", "screen", "auto"]
+const DOCK_POSITIONS: readonly DockPosition[] = ["top", "bottom", "left", "right"]
+const DOCK_THUMB_SIZES: readonly DockThumbSize[] = ["s", "m", "l"]
 
 function sanitizeEnum<T extends string>(value: unknown, allowed: readonly T[], fallback: T): T {
   return typeof value === "string" && (allowed as readonly string[]).includes(value)
@@ -128,6 +144,18 @@ export function sanitizeSettings(value: unknown): SettingsState {
     includeSubfolders: sanitizeBoolean(record.includeSubfolders),
     skipBrokenFiles: sanitizeBoolean(record.skipBrokenFiles),
     fitMode: sanitizeEnum(record.fitMode, FIT_MODES, initialSettings.fitMode),
+    dockPosition: sanitizeEnum(record.dockPosition, DOCK_POSITIONS, initialSettings.dockPosition),
+    dockVisible:
+      record.dockVisible === undefined
+        ? initialSettings.dockVisible
+        : sanitizeBoolean(record.dockVisible),
+    dockThumbSize: sanitizeEnum(
+      record.dockThumbSize,
+      DOCK_THUMB_SIZES,
+      initialSettings.dockThumbSize
+    ),
+    dockShowName: sanitizeBoolean(record.dockShowName),
+    dockShowIndex: sanitizeBoolean(record.dockShowIndex),
     shortcuts: sanitizeShortcutMap(record.shortcuts),
     wheel: sanitizeWheelMap(record.wheel),
     mouse: sanitizeMouseMap(record.mouse)

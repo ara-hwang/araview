@@ -174,6 +174,22 @@
       "rtl": "우→좌 두 페이지",
       "webtoon": "웹툰 스크롤"
     },
+    "dock": {
+      "title": "이미지 목록 도크",
+      "desc": "뷰어 가장자리에 붙는 썸네일 목록 위치와 표시 방식",
+      "position": "위치",
+      "top": "위",
+      "bottom": "아래",
+      "left": "왼쪽",
+      "right": "오른쪽",
+      "visible": "도크 표시",
+      "thumbSize": "썸네일 크기",
+      "thumbS": "작게",
+      "thumbM": "보통",
+      "thumbL": "크게",
+      "showName": "파일명 표시",
+      "showIndex": "번호 표시"
+    },
     "sort": {
       "title": "정렬",
       "desc": "폴더 내 이미지 순서",
@@ -194,7 +210,7 @@
     },
     "present": {
       "title": "프레젠테이션",
-      "desc": "3초 무입력 시 상단바/하단바 자동 숨김 (움직이면 복귀)",
+      "desc": "3초 무입력 시 상단바/이미지 목록/상태바 자동 숨김 (움직이면 복귀)",
       "autohide": "UI 자동 숨김",
       "hideMenuBar": "상단바 숨기기 (위에 마우스를 올리면 표시)"
     },
@@ -277,7 +293,11 @@
       "thumbRetry": "{{index}}번 썸네일 다시 시도",
       "cloudOnly": "클라우드에만 있음 {{index}}: {{name}}",
       "grid": "썸네일 그리드",
-      "gridTitle": "썸네일 그리드 (G)"
+      "gridTitle": "썸네일 그리드 (G)",
+      "dockHide": "이미지 목록 숨기기",
+      "dockShow": "이미지 목록 보이기",
+      "dockMenu": "이미지 목록 설정",
+      "count": "{{current}}/{{total}}"
     },
     "archivePreview": {
       "hint": "「{{name}}」은 만화 파일입니다. 첫 페이지만 미리 보고 있습니다.",
@@ -410,6 +430,7 @@
     "flipV": "상하 반전",
     "toggleExif": "EXIF 패널 토글",
     "toggleGrid": "썸네일 그리드 토글",
+    "toggleDock": "이미지 목록 도크 토글",
     "toggleFullscreen": "전체화면 토글",
     "toggleAlwaysOnTop": "맨 위에 두기 토글",
     "copyImage": "이미지 복사",

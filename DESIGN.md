@@ -133,7 +133,7 @@ Flat by default. Depth is conveyed by tonal layering (paper over muted wash) and
 
 ### Shadow Vocabulary
 
-- **Floating layer** (Tailwind v4 default `shadow-lg`): dialogs, popovers, error cards, floating nav bar. Only elements that hover above the reading well may cast it.
+- **Floating layer** (Tailwind v4 default `shadow-lg`): dialogs, popovers, error cards. Only elements that hover above the reading well may cast it.
 - **Field rest** (Tailwind v4 default `shadow-xs`): text inputs at rest.
 
 ### Named Rules
@@ -179,7 +179,7 @@ Toolbar buttons with a quiet, tactile press (1px downward shift on active, excep
 ### Navigation
 
 - **Toolbar:** grouped button clusters with 6-8px gaps and vertical rule separators; the layout responds to window width by collapsing labels first, then lower-priority groups, so it never collides with the caption buttons.
-- **Thumbnail strip / slider:** bottom-dwelling, floating, dismissible; page position as tabular readout.
+- **Thumbnail strip / slider:** edge-docked (top/bottom/left/right, movable), collapsible as a whole; page position as tabular readout. Its `⋯` menu (dropdown) carries the same dock options as the View settings.
 - **Settings dialog:** tabbed (general, view, list, performance, shortcuts, extensions), field-group rhythm, 16px panel padding.
 
 ### Viewer Layers (signature)
