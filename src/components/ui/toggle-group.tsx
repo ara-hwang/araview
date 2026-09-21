@@ -5,6 +5,7 @@ import { Toggle as TogglePrimitive } from "@base-ui/react/toggle"
 import { ToggleGroup as ToggleGroupPrimitive } from "@base-ui/react/toggle-group"
 import { type VariantProps } from "class-variance-authority"
 import { cn } from "cn"
+import { forwardRef } from "react"
 
 import { toggleVariants } from "@/components/ui/toggle"
 
@@ -56,17 +57,16 @@ function ToggleGroup({
   )
 }
 
-function ToggleGroupItem({
-  className,
-  children,
-  variant = "default",
-  size = "default",
-  ...props
-}: TogglePrimitive.Props & VariantProps<typeof toggleVariants>) {
+// base-ui 트리거(툴팁 등)가 render 엘리먼트에 ref를 주입하므로 forwardRef가 필요하다.
+const ToggleGroupItem = forwardRef<
+  HTMLButtonElement,
+  TogglePrimitive.Props & VariantProps<typeof toggleVariants>
+>(({ className, children, variant = "default", size = "default", ...props }, ref) => {
   const context = React.useContext(ToggleGroupContext)
 
   return (
     <TogglePrimitive
+      ref={ref}
       data-slot="toggle-group-item"
       data-variant={context.variant || variant}
       data-size={context.size || size}
@@ -84,6 +84,6 @@ function ToggleGroupItem({
       {children}
     </TogglePrimitive>
   )
-}
+})
 
 export { ToggleGroup, ToggleGroupItem }
