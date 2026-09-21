@@ -73,7 +73,14 @@ pub fn get_directory_images(
         .ok_or_else(|| AppError::not_found("Cannot get parent directory"))?;
 
     let images = crate::dir_cache::get_sorted_images(parent, &opts)?;
-    let paths: Vec<String> = images.into_iter().map(|e| e.path).collect();
+    let paths: Vec<String> = images
+        .into_iter()
+        .map(|e| e.path)
+        .filter(|p| {
+            let path = Path::new(p);
+            path.is_file() && is_supported_file(path)
+        })
+        .collect();
 
     // 보통은 문자열이 그대로 일치한다. 대소문자나 8.3 단축 경로처럼 철자가
     // 다르게 들어온 경우에만 canonical 비교로 폴백한다.
@@ -372,6 +379,27 @@ pub fn generate_archive_thumbnail(
     Ok(thumb)
 }
 
+/// 폴더 목록에 있는 아카이브 파일(.cbz 등)의 표지 썸네일. 첫 이미지 엔트리를 사용한다.
+#[tauri::command]
+pub fn generate_archive_file_thumbnail(
+    app: tauri::AppHandle,
+    archive_path: String,
+    max_side: Option<u32>,
+) -> Result<crate::thumbnail::ThumbnailInfo, AppError> {
+    let path = Path::new(&archive_path);
+    let entries = archive::list_archive_images(path)?;
+    let first = entries
+        .first()
+        .ok_or_else(|| AppError::not_found("No images in archive"))?;
+    let thumb = generate_archive_thumbnail_impl(
+        path,
+        first,
+        max_side.unwrap_or_else(crate::thumbnail::default_max_side),
+    )?;
+    allow_asset_path(&app, Path::new(&thumb.file_path))?;
+    Ok(thumb)
+}
+
 /// 현재 이미지를 OS 휴지통으로 이동 (영구 삭제 아님)
 #[tauri::command]
 pub fn trash_file(file_path: String) -> Result<(), AppError> {
@@ -620,6 +648,19 @@ mod tests {
     }
 
     #[test]
+    fn dir_list_excludes_subdirectory_entries() {
+        let dir = unique_dir("no-subdir-rows");
+        let top = write_sized(&dir, "top.png", 10);
+        let sub = dir.join("nested");
+        fs::create_dir_all(&sub).expect("create sub");
+        write_sized(&sub, "inner.png", 10);
+
+        let names = file_names(&list_paths(&top, None));
+        assert_eq!(names, vec!["top.png"]);
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
     fn dir_list_recursive_includes_subfolders() {
         let dir = unique_dir("recursive");
         let top = write_sized(&dir, "top.png", 10);
@@ -684,5 +725,17 @@ mod tests {
         let err =
             generate_archive_thumbnail_impl(Path::new("no-such.cbz"), "page.png", 64).unwrap_err();
         assert_eq!(err.code, ErrorCode::NotFound);
+    }
+
+    #[test]
+    fn archive_file_cover_matches_first_listed_entry() {
+        let dir = unique_dir("archive-file-thumb");
+        let archive = write_cbz_fixture(&dir, "comic.cbz");
+        let entries = archive::list_archive_images(&archive).expect("list");
+        let first = entries.first().expect("entry");
+        let cover = generate_archive_thumbnail_impl(&archive, first, 64).expect("cover");
+        let direct = generate_archive_thumbnail_impl(&archive, "page.png", 64).expect("page");
+        assert_eq!(cover.file_path, direct.file_path);
+        fs::remove_dir_all(&dir).ok();
     }
 }

@@ -278,6 +278,11 @@
       "grid": "Thumbnail grid",
       "gridTitle": "Thumbnail grid (G)"
     },
+    "archivePreview": {
+      "hint": "\"{{name}}\" is a comic archive. Showing the first page only.",
+      "open": "Open comic",
+      "openTitle": "Continue reading from saved progress"
+    },
     "grid": {
       "title": "Thumbnail grid",
       "aria": "Image thumbnail grid",

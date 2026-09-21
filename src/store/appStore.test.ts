@@ -50,7 +50,8 @@ describe("closeImage", () => {
       flipV: true,
       exifData: {},
       showExifPanel: true,
-      archivePath: "/docs/m.cbz"
+      archivePath: "/docs/m.cbz",
+      archivePreviewPath: "/docs/preview.cbz"
     })
 
     closeImage()
@@ -68,6 +69,7 @@ describe("closeImage", () => {
     expect(state.exifData).toBeNull()
     expect(state.showExifPanel).toBe(false)
     expect(state.archivePath).toBeNull()
+    expect(state.archivePreviewPath).toBeNull()
   })
 })
 
