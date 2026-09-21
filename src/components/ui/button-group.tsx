@@ -2,6 +2,7 @@ import { mergeProps } from "@base-ui/react/merge-props"
 import { useRender } from "@base-ui/react/use-render"
 import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "cn"
+import { forwardRef } from "react"
 
 import { Separator } from "@/components/ui/separator"
 
@@ -38,28 +39,28 @@ function ButtonGroup({
   )
 }
 
-function ButtonGroupText({
-  className,
-  render,
-  ...props
-}: useRender.ComponentProps<"div">) {
-  return useRender({
-    defaultTagName: "div",
-    props: mergeProps<"div">(
-      {
-        className: cn(
-          "flex items-center gap-2 rounded-lg border bg-muted px-2.5 text-sm font-medium [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4",
-          className
-        ),
+// base-ui 트리거(툴팁 등)가 render 엘리먼트에 ref를 주입하므로 forwardRef가 필요하다.
+const ButtonGroupText = forwardRef<HTMLDivElement, useRender.ComponentProps<"div">>(
+  function ButtonGroupText({ className, render, ...props }, ref) {
+    return useRender({
+      defaultTagName: "div",
+      ref,
+      props: mergeProps<"div">(
+        {
+          className: cn(
+            "flex items-center gap-2 rounded-lg border bg-muted px-2.5 text-sm font-medium [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4",
+            className
+          ),
+        },
+        props
+      ),
+      render,
+      state: {
+        slot: "button-group-text",
       },
-      props
-    ),
-    render,
-    state: {
-      slot: "button-group-text",
-    },
-  })
-}
+    })
+  }
+)
 
 function ButtonGroupSeparator({
   className,
