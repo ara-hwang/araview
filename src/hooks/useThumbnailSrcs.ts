@@ -15,6 +15,12 @@ type BatchThumb = {
 const THUMB_MAX_SIDE = 128
 /** 아카이브 엔트리 썸네일 동시 추출 수. 압축 해제 경합을 제한한다. */
 const ARCHIVE_THUMB_CONCURRENCY = 4
+/** 배경 로딩 청크 크기. 한 번에 너무 많이 디코드하지 않도록 나눈다. */
+const DEFAULT_CHUNK_SIZE = 8
+/** 청크 사이 지연(ms). 스트립 전체를 천천히 채우기 위한 간격. */
+const DEFAULT_CHUNK_DELAY_MS = 60
+/** 보이는 창이 바뀔 때 배경 큐를 다시 시작하기 전 대기(ms). 스크롤 중 재시작 방지. */
+const PRIORITY_SETTLE_MS = 150
 
 export type ThumbnailSrcsOptions = {
   /** 백엔드 썸네일 최대 변 길이 (기본 128) */
@@ -23,13 +29,23 @@ export type ThumbnailSrcsOptions = {
   archivePath?: string | null
   /** 클라우드 placeholder 등 썸네일 생성을 건너뛸 경로 */
   skipThumbnailPaths?: ReadonlySet<string>
+  /** 먼저 채울 경로 (보이는 창). 나머지는 청크로 천천히 이어서 로드한다. */
+  priorityPaths?: readonly string[]
+  /** 배경 로딩 청크 크기 */
+  chunkSize?: number
+  /** 청크 사이 지연(ms) */
+  chunkDelayMs?: number
 }
+
+const sleep = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms))
 
 // 썸네일 스트립/그리드용 축소 이미지 URL을 로드하는 훅.
 // 백엔드 썸네일이 실패하면(아카이브 엔트리, SVG 등)
 // 원본 로드로 조용히 폴백한다.
 // 인덱스 이동 시 깜빡임을 막기 위해 이전 목록에 남아 있는 항목은 유지하고
 // 새로 들어온 경로만 추가로 로드한다.
+// 목록 전체를 한 번에 요청하지 않고 보이는 창을 먼저 채운 뒤
+// 나머지를 청크 단위로 천천히 이어서 채워 스트립 개수가 흔들리지 않게 한다.
 export function useThumbnailSrcs(
   paths: string[],
   getOrLoadImage: GetOrLoadImage,
@@ -43,9 +59,13 @@ export function useThumbnailSrcs(
   const [failed, setFailed] = useState<Set<string>>(() => new Set())
   const [retryNonce, setRetryNonce] = useState(0)
   const pathsKey = paths.join("\0")
+  const priorityKey = (options.priorityPaths ?? []).join("\0")
+  const [settledPriorityKey, setSettledPriorityKey] = useState(priorityKey)
   const maxSide = options.maxSide ?? THUMB_MAX_SIDE
   const archivePath = options.archivePath ?? null
   const skipThumbnailPaths = options.skipThumbnailPaths
+  const chunkSize = Math.max(1, options.chunkSize ?? DEFAULT_CHUNK_SIZE)
+  const chunkDelayMs = Math.max(0, options.chunkDelayMs ?? DEFAULT_CHUNK_DELAY_MS)
   const getOrLoadRef = useRef(getOrLoadImage)
   getOrLoadRef.current = getOrLoadImage
   const urlsRef = useRef(urls)
@@ -53,12 +73,142 @@ export function useThumbnailSrcs(
   const failedRef = useRef(failed)
   failedRef.current = failed
 
+  // 보이는 창이 잠깐 바뀌는 동안에는 큐를 다시 시작하지 않는다.
+  useEffect(() => {
+    const id = window.setTimeout(() => setSettledPriorityKey(priorityKey), PRIORITY_SETTLE_MS)
+    return () => window.clearTimeout(id)
+  }, [priorityKey])
+
+  const put = useCallback((path: string, filePath: string) => {
+    const src = convertFileSrc(filePath)
+    setUrls((prev) => {
+      if (prev.get(path) === src) return prev
+      const next = new Map(prev)
+      next.set(path, src)
+      return next
+    })
+    setFailed((prev) => {
+      if (!prev.has(path)) return prev
+      const next = new Set(prev)
+      next.delete(path)
+      return next
+    })
+  }, [])
+
+  const markFailed = useCallback((path: string) => {
+    setFailed((prev) => {
+      if (prev.has(path)) return prev
+      const next = new Set(prev)
+      next.add(path)
+      return next
+    })
+  }, [])
+
+  // 썸네일 생성 자체가 불가한 입력(SVG 등)만 원본 로드로 폴백한다.
+  const loadFallbacks = useCallback(
+    async (fallback: Iterable<string>) => {
+      await Promise.all(
+        [...fallback].map(async (path) => {
+          try {
+            const info = await getOrLoadRef.current(path)
+            put(path, info.file_path)
+          } catch {
+            markFailed(path)
+          }
+        })
+      )
+    },
+    [markFailed, put]
+  )
+
+  /** 주어진 목록을 로드한다. 아카이브는 동시 4개, 일반은 1회 배치 + 폴백. */
+  const loadBatch = useCallback(
+    async (list: string[], isCancelled: () => boolean) => {
+      if (list.length === 0) return
+
+      if (archivePath) {
+        // 아카이브: 엔트리별 추출+리사이즈. 동시성을 제한하고 실패분만 폴백한다.
+        const fallback: string[] = []
+        let cursor = 0
+        const worker = async () => {
+          while (!isCancelled()) {
+            const index = cursor
+            cursor += 1
+            if (index >= list.length) return
+            const path = list[index]
+            try {
+              const thumb = await invoke<ThumbnailInfo>("generate_archive_thumbnail", {
+                archivePath,
+                entryName: path,
+                maxSide
+              })
+              put(path, thumb.file_path)
+            } catch {
+              fallback.push(path)
+            }
+          }
+        }
+        await Promise.all(
+          Array.from({ length: Math.min(ARCHIVE_THUMB_CONCURRENCY, list.length) }, worker)
+        )
+        if (isCancelled() || fallback.length === 0) return
+        await loadFallbacks(fallback)
+        return
+      }
+
+      const archiveFiles = list.filter((p) => isArchiveFilePath(p))
+      const rasterPaths = list.filter((p) => !isArchiveFilePath(p))
+      const loaded = new Set<string>()
+
+      for (const archiveFile of archiveFiles) {
+        if (isCancelled()) return
+        try {
+          const thumb = await invoke<ThumbnailInfo>("generate_archive_file_thumbnail", {
+            archivePath: archiveFile,
+            maxSide
+          })
+          put(archiveFile, thumb.file_path)
+          loaded.add(archiveFile)
+        } catch {
+          // 아래 raster 폴백과 동일하게 load_image 시도
+        }
+      }
+
+      // 일반: 청크 1회 배치 호출. 실패 항목만 개별 폴백한다.
+      if (rasterPaths.length > 0) {
+        try {
+          const results = await invoke<BatchThumb[]>("generate_thumbnails_batch", {
+            filePaths: rasterPaths,
+            maxSide
+          })
+          if (isCancelled()) return
+          for (const r of results) {
+            if (r.thumb) {
+              put(r.source, r.thumb.file_path)
+              loaded.add(r.source)
+            }
+          }
+        } catch {
+          if (isCancelled()) return
+        }
+      }
+
+      const stillMissing = list.filter(
+        (p) => !loaded.has(p) && !urlsRef.current.has(p) && !failedRef.current.has(p)
+      )
+      if (isCancelled() || stillMissing.length === 0) return
+      await loadFallbacks(stillMissing)
+    },
+    [archivePath, loadFallbacks, maxSide, put]
+  )
+
   useEffect(() => {
     const list = pathsKey === "" ? [] : pathsKey.split("\0")
     const wanted = new Set(list)
     let cancelled = false
+    const isCancelled = () => cancelled
 
-    // 이전 목록 중 새 윈도우에 없는 항목만 제거, 나머지는 유지 (깜빡임 방지)
+    // 이전 목록 중 새 목록에 없는 항목만 제거, 나머지는 유지 (깜빡임 방지)
     setUrls((prev) => {
       let changed = false
       const next = new Map<string, string>()
@@ -80,46 +230,8 @@ export function useThumbnailSrcs(
       return next
     })
 
-    const put = (path: string, filePath: string) => {
-      if (cancelled) return
-      const src = convertFileSrc(filePath)
-      setUrls((prev) => {
-        if (prev.get(path) === src) return prev
-        const next = new Map(prev)
-        next.set(path, src)
-        return next
-      })
-      setFailed((prev) => {
-        if (!prev.has(path)) return prev
-        const next = new Set(prev)
-        next.delete(path)
-        return next
-      })
-    }
-
-    const markFailed = (path: string) => {
-      if (cancelled) return
-      setFailed((prev) => {
-        if (prev.has(path)) return prev
-        const next = new Set(prev)
-        next.add(path)
-        return next
-      })
-    }
-
-    // 썸네일 생성 자체가 불가한 입력(SVG 등)만 원본 로드로 폴백한다.
-    const loadFallbacks = async (fallback: Iterable<string>) => {
-      await Promise.all(
-        [...fallback].map(async (path) => {
-          try {
-            const info = await getOrLoadRef.current(path)
-            put(path, info.file_path)
-          } catch {
-            markFailed(path)
-          }
-        })
-      )
-    }
+    const priority = settledPriorityKey === "" ? [] : settledPriorityKey.split("\0")
+    const prioritySet = new Set(priority)
 
     void (async () => {
       const missing = list.filter((p) => {
@@ -128,82 +240,40 @@ export function useThumbnailSrcs(
       })
       if (missing.length === 0) return
 
-      if (archivePath) {
-        // 아카이브: 엔트리별 추출+리사이즈. 동시성을 제한하고 실패분만 폴백한다.
-        const fallback: string[] = []
-        let cursor = 0
-        const worker = async () => {
-          while (!cancelled) {
-            const index = cursor
-            cursor += 1
-            if (index >= missing.length) return
-            const path = missing[index]
-            try {
-              const thumb = await invoke<ThumbnailInfo>("generate_archive_thumbnail", {
-                archivePath,
-                entryName: path,
-                maxSide
-              })
-              put(path, thumb.file_path)
-            } catch {
-              fallback.push(path)
-            }
-          }
-        }
-        await Promise.all(
-          Array.from({ length: Math.min(ARCHIVE_THUMB_CONCURRENCY, missing.length) }, worker)
-        )
-        if (cancelled || fallback.length === 0) return
-        await loadFallbacks(fallback)
-        return
+      // 보이는 창을 먼저 채운다.
+      const priorityMissing = missing.filter((p) => prioritySet.has(p))
+      if (priorityMissing.length > 0) {
+        await loadBatch(priorityMissing, isCancelled)
+        if (cancelled) return
       }
 
-      const archiveFiles = missing.filter((p) => isArchiveFilePath(p))
-      const rasterPaths = missing.filter((p) => !isArchiveFilePath(p))
-      const loaded = new Set<string>()
-
-      for (const archiveFile of archiveFiles) {
-        try {
-          const thumb = await invoke<ThumbnailInfo>("generate_archive_file_thumbnail", {
-            archivePath: archiveFile,
-            maxSide
-          })
-          put(archiveFile, thumb.file_path)
-          loaded.add(archiveFile)
-        } catch {
-          // 아래 raster 폴백과 동일하게 load_image 시도
-        }
+      // 나머지는 청크 단위로 천천히 이어서 채운다.
+      const rest = missing.filter((p) => !prioritySet.has(p))
+      for (let i = 0; i < rest.length; i += chunkSize) {
+        if (cancelled) return
+        const chunk = rest
+          .slice(i, i + chunkSize)
+          .filter((p) => !urlsRef.current.has(p) && !failedRef.current.has(p))
+        if (chunk.length > 0) await loadBatch(chunk, isCancelled)
+        if (cancelled) return
+        if (chunkDelayMs > 0) await sleep(chunkDelayMs)
       }
-
-      // 일반: 윈도우 1회 배치 호출. 실패 항목만 개별 폴백한다.
-      if (rasterPaths.length > 0) {
-        try {
-          const results = await invoke<BatchThumb[]>("generate_thumbnails_batch", {
-            filePaths: rasterPaths,
-            maxSide
-          })
-          if (cancelled) return
-          for (const r of results) {
-            if (r.thumb) {
-              put(r.source, r.thumb.file_path)
-              loaded.add(r.source)
-            }
-          }
-        } catch {
-          if (cancelled) return
-        }
-      }
-
-      const stillMissing = missing.filter((p) => !loaded.has(p))
-      if (cancelled || stillMissing.length === 0) return
-      await loadFallbacks(stillMissing)
     })()
 
     return () => {
       cancelled = true
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathsKey, retryNonce, maxSide, archivePath, skipThumbnailPaths])
+  }, [
+    pathsKey,
+    settledPriorityKey,
+    retryNonce,
+    maxSide,
+    archivePath,
+    skipThumbnailPaths,
+    chunkSize,
+    chunkDelayMs,
+    loadBatch
+  ])
 
   const retry = useCallback((path: string) => {
     setFailed((prev) => {

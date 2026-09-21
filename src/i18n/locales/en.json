@@ -287,7 +287,6 @@
     "nav": {
       "prev": "Previous image",
       "next": "Next image",
-      "slider": "Image position",
       "thumb": "Image {{index}}: {{name}}",
       "thumbError": "Failed image {{index}}: {{name}}",
       "thumbRetry": "Retry thumbnail {{index}}",
@@ -296,8 +295,7 @@
       "gridTitle": "Thumbnail grid (G)",
       "dockHide": "Hide image list",
       "dockShow": "Show image list",
-      "dockMenu": "Image list options",
-      "count": "{{current}}/{{total}}"
+      "dockMenu": "Image list options"
     },
     "archivePreview": {
       "hint": "\"{{name}}\" is a comic archive. Showing the first page only.",

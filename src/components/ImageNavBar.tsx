@@ -9,7 +9,7 @@ import {
   SquaresFour,
   WarningCircle
 } from "@phosphor-icons/react"
-import { useEffect, useMemo, useRef } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 
 import { Button } from "@/components/ui/button"
@@ -25,20 +25,22 @@ import {
   DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu"
 import { useThumbnailSrcs } from "@/hooks/useThumbnailSrcs"
+import { useWheelNavigation } from "@/hooks/useWheelNavigation"
 import { cn } from "@/lib/utils"
 import { useAppStore } from "@/store/appStore"
 import type { ImageInfo } from "@/types"
 import { cloudOnlyPathSet } from "@/utils/fileAvailability"
 import { basenameOf, parentFolderNameOf } from "@/utils/statusBar"
+import { computeStripWindow, stripOffsetForIndex, stripScrollToReveal } from "@/utils/stripWindow"
+import { resolveWheelAction } from "@/utils/wheelAction"
 
 import {
+  getSettings,
   updateSettings,
   useSettingsStore,
   type DockPosition,
   type DockThumbSize
 } from "../store/settingsStore"
-import { ButtonGroup } from "./ui/button-group"
-import { Slider } from "./ui/slider"
 import { Toggle } from "./ui/toggle"
 
 type GetOrLoadImage = (filePath: string) => Promise<ImageInfo>
@@ -59,6 +61,10 @@ type ImageNavBarProps = {
 }
 
 const THUMB_SIDE: Record<DockThumbSize, number> = { s: 48, m: 72, l: 96 }
+const STRIP_GAP = 4
+const STRIP_PADDING = 4
+/** 화면 밖으로 미리 그릴 항목 수 (스크롤 방향 여유) */
+const STRIP_OVERSCAN = 4
 
 export function ImageNavBar({
   onNavigate,
@@ -87,31 +93,74 @@ export function ImageNavBar({
   const isPrevDisabled = isFirst && !loopNavigation
   const isNextDisabled = isLast && !loopNavigation
 
-  // 현재 인덱스 주변의 썸네일 창 (양쪽 4장씩, 총 최대 9장)
-  const thumbnails = useMemo(() => {
-    const THUMB_WINDOW = 4
-    const total = dirImages.images.length
-    if (total === 0) return [] as { index: number; path: string }[]
-    const start = Math.max(0, dirImages.current_index - THUMB_WINDOW)
-    const end = Math.min(total, dirImages.current_index + THUMB_WINDOW + 1)
-    const out: { index: number; path: string }[] = []
-    for (let i = start; i < end; i += 1) {
-      out.push({ index: i, path: dirImages.images[i] })
-    }
-    return out
-  }, [dirImages.images, dirImages.current_index])
+  const stripRef = useRef<HTMLDivElement>(null)
+  const [scrollOffset, setScrollOffset] = useState(0)
+  const [viewportSize, setViewportSize] = useState(0)
+  const scrollFrameRef = useRef(0)
 
-  const thumbPaths = useMemo(() => thumbnails.map((t) => t.path), [thumbnails])
+  // 컨테이너 크기 추적 (가시 창 계산 기준)
+  useEffect(() => {
+    const el = stripRef.current
+    if (!el) return
+    const update = () => {
+      const next = isVertical ? el.clientHeight : el.clientWidth
+      setViewportSize((prev) => (prev === next ? prev : next))
+    }
+    update()
+    if (typeof ResizeObserver === "undefined") return
+    const observer = new ResizeObserver(update)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [isVertical])
+
+  const handleStripScroll = useCallback(() => {
+    if (scrollFrameRef.current !== 0) return
+    scrollFrameRef.current = window.requestAnimationFrame(() => {
+      scrollFrameRef.current = 0
+      const el = stripRef.current
+      if (!el) return
+      setScrollOffset(isVertical ? el.scrollTop : el.scrollLeft)
+    })
+  }, [isVertical])
+
+  useEffect(() => {
+    return () => window.cancelAnimationFrame(scrollFrameRef.current)
+  }, [])
+
+  const stripWindow = useMemo(
+    () =>
+      computeStripWindow({
+        scrollOffset,
+        viewportSize,
+        itemCount: dirImages.images.length,
+        itemSize: side,
+        gap: STRIP_GAP,
+        padding: STRIP_PADDING,
+        overscan: STRIP_OVERSCAN
+      }),
+    [scrollOffset, viewportSize, dirImages.images.length, side]
+  )
+
+  const visiblePaths = useMemo(
+    () => dirImages.images.slice(stripWindow.startIndex, stripWindow.endIndex),
+    [dirImages.images, stripWindow.startIndex, stripWindow.endIndex]
+  )
+
+  // 목록 전체를 대상으로 하되, 보이는 창을 먼저 채우고 나머지를 천천히 이어서 채운다.
   const cloudOnlySet = useMemo(() => cloudOnlyPathSet(dirImages), [dirImages])
   const thumbnailOptions = useMemo(
-    () => ({ archivePath, skipThumbnailPaths: cloudOnlySet }),
-    [archivePath, cloudOnlySet]
+    () => ({
+      archivePath,
+      skipThumbnailPaths: cloudOnlySet,
+      priorityPaths: visiblePaths
+    }),
+    [archivePath, cloudOnlySet, visiblePaths]
   )
   const {
     urls,
     failed: thumbFailed,
     retry
-  } = useThumbnailSrcs(thumbPaths, getOrLoadImage, thumbnailOptions)
+  } = useThumbnailSrcs(dirImages.images, getOrLoadImage, thumbnailOptions)
 
   const thumbLabel = (path: string) => {
     if (archivePath) return path.split(/[\\/]/).pop() ?? path
@@ -119,13 +168,46 @@ export function ImageNavBar({
     const parent = parentFolderNameOf(path)
     return parent ? `${parent}/${name}` : name
   }
-  const stripRef = useRef<HTMLDivElement>(null)
 
-  // 선택된 썸네일이 윈도우 이동으로 벗어나지 않게 추적
+  // 현재 항목이 항상 보이도록 스크롤을 맞춘다. (가상화라 DOM 조회로는 찾을 수 없다)
   useEffect(() => {
-    const el = stripRef.current?.querySelector('[data-dock-current="true"]')
-    el?.scrollIntoView({ block: "nearest", inline: "nearest" })
-  }, [dirImages.current_index])
+    const el = stripRef.current
+    if (!el) return
+    const current = isVertical ? el.scrollTop : el.scrollLeft
+    const next = stripScrollToReveal({
+      index: dirImages.current_index,
+      scrollOffset: current,
+      viewportSize: isVertical ? el.clientHeight : el.clientWidth,
+      itemSize: side,
+      gap: STRIP_GAP,
+      padding: STRIP_PADDING
+    })
+    if (next === current) return
+    if (isVertical) el.scrollTo({ top: next })
+    else el.scrollTo({ left: next })
+  }, [dirImages.current_index, isVertical, side, viewportSize])
+
+  // 도크 위 휠은 설정된 휠 동작을 따른다. 동작이 없으면 스크롤로 넘긴다.
+  const wheelNavigate = useWheelNavigation(
+    { handleWheel: () => {} },
+    (direction) => onNavigate(direction),
+    { webtoonPassthrough: false }
+  )
+  const handleStripWheel = useCallback(
+    (e: React.WheelEvent) => {
+      const action = resolveWheelAction(e, getSettings().wheel)
+      if (action) {
+        wheelNavigate(e)
+        return
+      }
+      const el = stripRef.current
+      if (!el || e.deltaY === 0) return
+      e.preventDefault()
+      if (isVertical) el.scrollTop += e.deltaY
+      else el.scrollLeft += e.deltaY
+    },
+    [isVertical, wheelNavigate]
+  )
 
   const PrevIcon = isVertical ? CaretUp : CaretLeft
   const NextIcon = isVertical ? CaretDown : CaretRight
@@ -209,13 +291,17 @@ export function ImageNavBar({
     </DropdownMenu>
   )
 
-  const renderThumbButton = ({ index, path }: { index: number; path: string }) => {
+  const renderThumbButton = (index: number) => {
+    const path = dirImages.images[index]
+    if (!path) return null
     const src = urls.get(path)
     const name = thumbLabel(path)
     const shortName = archivePath ? name : basenameOf(path)
     const isCloudOnly = cloudOnlySet.has(path)
     const failed = !isCloudOnly && (failedSet.has(path) || thumbFailed.has(path))
     const isCurrent = index === dirImages.current_index
+    const labelHeight = showName ? 18 : 0
+    const left = stripOffsetForIndex(index, side, STRIP_GAP, STRIP_PADDING)
     return (
       <button
         key={path}
@@ -226,9 +312,13 @@ export function ImageNavBar({
           if (failed && !src) retry(path)
           onNavigateToIndex(index)
         }}
-        style={{ width: side }}
+        style={
+          isVertical
+            ? { top: left, width: side, height: side + labelHeight }
+            : { left, width: side, height: side + labelHeight }
+        }
         className={cn(
-          "relative shrink-0 overflow-hidden rounded border-2 transition duration-150 ease-motion-out focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+          "absolute overflow-hidden rounded border-2 transition duration-150 ease-motion-out focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
           isCurrent ? "border-primary" : "border-transparent opacity-60 hover:opacity-100"
         )}
         title={name}
@@ -304,98 +394,40 @@ export function ImageNavBar({
     )
   }
 
-  const strip =
-    thumbnails.length > 1 ? (
+  const hasStrip = dirImages.images.length > 1
+  const stripSize = side + (showName ? 18 : 0)
+
+  const strip = hasStrip ? (
+    <div
+      ref={stripRef}
+      onWheel={handleStripWheel}
+      className={cn(
+        "relative min-h-0 min-w-0 flex-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+        isVertical ? "overflow-x-hidden overflow-y-auto" : "overflow-x-auto overflow-y-hidden"
+      )}
+      onScroll={handleStripScroll}
+    >
       <div
-        ref={stripRef}
-        className={cn(
-          "flex [scrollbar-width:none] items-center gap-1 p-1 [&::-webkit-scrollbar]:hidden",
+        className="relative mx-auto"
+        style={
           isVertical
-            ? "flex-1 flex-col [justify-content:safe_center] overflow-x-hidden overflow-y-auto"
-            : "flex-1 flex-row [justify-content:safe_center] overflow-x-auto overflow-y-hidden"
-        )}
+            ? { height: stripWindow.totalSize, width: stripSize }
+            : { width: stripWindow.totalSize, height: stripSize }
+        }
       >
-        {thumbnails.map(renderThumbButton)}
+        {Array.from(
+          { length: stripWindow.endIndex - stripWindow.startIndex },
+          (_, offset) => stripWindow.startIndex + offset
+        ).map(renderThumbButton)}
       </div>
-    ) : null
-
-  const controls = (
-    <div className={cn("flex items-center gap-2 p-2", isVertical ? "flex-col" : "flex-row")}>
-      <ButtonGroup orientation={isVertical ? "vertical" : "horizontal"}>
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={() => onNavigate("prev")}
-          title={t("viewer.nav.prev")}
-          aria-label={t("viewer.nav.prev")}
-          disabled={isPrevDisabled}
-        >
-          <PrevIcon />
-        </Button>
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={() => onNavigate("next")}
-          title={t("viewer.nav.next")}
-          aria-label={t("viewer.nav.next")}
-          disabled={isNextDisabled}
-        >
-          <NextIcon />
-        </Button>
-      </ButtonGroup>
-
-      {onToggleGrid && (
-        <Toggle
-          variant="outline"
-          pressed={gridActive}
-          onPressedChange={onToggleGrid}
-          title={t("viewer.nav.gridTitle")}
-          aria-label={t("viewer.nav.grid")}
-        >
-          <SquaresFour />
-        </Toggle>
-      )}
-
-      {/* 수직 도크에서는 슬라이더를 생략하고 썸네일+버튼만 둔다 */}
-      {!isVertical && (
-        <Slider
-          aria-label={t("viewer.nav.slider")}
-          value={[dirImages.current_index]}
-          min={0}
-          max={dirImages.images.length - 1}
-          step={1}
-          onValueChange={(value) => {
-            const nextIndex = Array.isArray(value) ? value[0] : (value as number)
-            onNavigateToIndex(nextIndex)
-          }}
-        />
-      )}
-      <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
-        {t("viewer.nav.count", {
-          current: dirImages.current_index + 1,
-          total: dirImages.images.length
-        })}
-      </span>
-      {dockMenu}
-      {onToggleDock && (
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onToggleDock}
-          title={t("viewer.nav.dockHide")}
-          aria-label={t("viewer.nav.dockHide")}
-        >
-          <CollapseIcon />
-        </Button>
-      )}
     </div>
-  )
+  ) : null
 
   return (
     <div
       className={cn(
-        "flex min-h-0 min-w-0 border-border bg-background",
-        isVertical ? "h-full flex-col" : "w-full flex-col",
+        "flex min-h-0 min-w-0 items-center gap-1 border-border bg-background p-1",
+        isVertical ? "h-full flex-col" : "w-full flex-row",
         position === "top" && "border-b",
         position === "bottom" && "border-t",
         position === "left" && "border-r",
@@ -405,18 +437,58 @@ export function ImageNavBar({
       onMouseDown={(e) => e.stopPropagation()}
       onDoubleClick={(e) => e.stopPropagation()}
     >
-      {isVertical ? (
-        <>
-          {controls}
-          {strip && <div className="my-1 h-px w-full bg-border" aria-hidden="true" />}
-          {strip}
-        </>
-      ) : (
-        <>
-          {strip}
-          {strip && <div className="mx-1 h-px w-auto bg-border" aria-hidden="true" />}
-          {controls}
-        </>
+      <Button
+        variant="outline"
+        size="icon"
+        onClick={() => onNavigate("prev")}
+        title={t("viewer.nav.prev")}
+        aria-label={t("viewer.nav.prev")}
+        disabled={isPrevDisabled}
+        className="shrink-0"
+      >
+        <PrevIcon />
+      </Button>
+
+      {strip}
+
+      <Button
+        variant="outline"
+        size="icon"
+        onClick={() => onNavigate("next")}
+        title={t("viewer.nav.next")}
+        aria-label={t("viewer.nav.next")}
+        disabled={isNextDisabled}
+        className="shrink-0"
+      >
+        <NextIcon />
+      </Button>
+
+      {onToggleGrid && (
+        <Toggle
+          variant="outline"
+          pressed={gridActive}
+          onPressedChange={onToggleGrid}
+          title={t("viewer.nav.gridTitle")}
+          aria-label={t("viewer.nav.grid")}
+          className="shrink-0"
+        >
+          <SquaresFour />
+        </Toggle>
+      )}
+
+      {dockMenu}
+
+      {onToggleDock && (
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onToggleDock}
+          title={t("viewer.nav.dockHide")}
+          aria-label={t("viewer.nav.dockHide")}
+          className="shrink-0"
+        >
+          <CollapseIcon />
+        </Button>
       )}
     </div>
   )
