@@ -27,7 +27,8 @@ pub fn process_temp_dir() -> Result<PathBuf, AppError> {
 /// `asset://` URL for whatever it renders, and nothing re-creates a cache file
 /// once that URL exists, so evicting one leaves a broken image. Bounded ring
 /// buffer: the oldest hand-out loses its protection first.
-const MAX_IN_USE: usize = 256;
+/// Webtoon·대용량 아카이브에서 오래된 페이지 asset URL이 깨지지 않도록 여유를 둔다.
+const MAX_IN_USE: usize = 1024;
 
 static IN_USE: LazyLock<Mutex<(VecDeque<PathBuf>, HashSet<PathBuf>)>> =
     LazyLock::new(|| Mutex::new((VecDeque::new(), HashSet::new())));
@@ -38,10 +39,16 @@ pub(crate) fn mark_in_use(path: &Path) {
         return;
     };
     let (queue, set) = &mut *guard;
-    if !set.insert(path.to_path_buf()) {
+    let path_buf = path.to_path_buf();
+    if set.contains(&path_buf) {
+        if let Some(pos) = queue.iter().position(|p| p == &path_buf) {
+            queue.remove(pos);
+        }
+        queue.push_back(path_buf);
         return;
     }
-    queue.push_back(path.to_path_buf());
+    set.insert(path_buf.clone());
+    queue.push_back(path_buf);
     while queue.len() > MAX_IN_USE {
         if let Some(old) = queue.pop_front() {
             set.remove(&old);
@@ -240,6 +247,24 @@ mod tests {
         enforce_cap_in(dir.path(), 150).expect("evict");
         assert!(old.exists());
         assert!(!dir.path().join("new.jpg").exists());
+    }
+
+    #[test]
+    fn mark_in_use_touch_refreshes_protection_order() {
+        let dir = tempfile::tempdir().unwrap();
+        let first = dir.path().join("first.jpg");
+        let second = dir.path().join("second.jpg");
+        for path in [&first, &second] {
+            fs::write(path, vec![0u8; 100]).unwrap();
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        mark_in_use(&first);
+        mark_in_use(&second);
+        // Re-touch the older file so it should survive eviction before the other.
+        mark_in_use(&first);
+        enforce_cap_in(dir.path(), 150).expect("evict");
+        assert!(first.exists());
+        assert!(!second.exists());
     }
 
     #[test]

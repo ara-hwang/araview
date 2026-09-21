@@ -8,7 +8,8 @@ describe("cn", () => {
   })
 
   it("handles conditional classes via clsx", () => {
-    expect(cn("base", false && "hidden", "visible")).toBe("base visible")
+    const includeHidden = false
+    expect(cn("base", includeHidden && "hidden", "visible")).toBe("base visible")
   })
 
   it("merges conflicting tailwind classes (last wins)", () => {

@@ -30,6 +30,11 @@ export function deliverOpenFile(path: string): void {
   else pendingPath = path
 }
 
+/** 핸들러 등록 전에 보류된 연결 실행 경로가 있는지 */
+export function hasBufferedOpenFile(): boolean {
+  return pendingPath !== null
+}
+
 /** 테스트 전용 상태 초기화. */
 export function resetOpenFileDelivery(): void {
   handler = null
