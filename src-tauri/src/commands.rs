@@ -73,7 +73,11 @@ pub fn get_directory_images(
         .ok_or_else(|| AppError::not_found("Cannot get parent directory"))?;
 
     let images = crate::dir_cache::get_sorted_images(parent, &opts)?;
-    let paths: Vec<String> = images.into_iter().map(|e| e.path).collect();
+    let paths: Vec<String> = images.iter().map(|e| e.path.clone()).collect();
+    let availability: Vec<crate::file_availability::FileAvailability> = images
+        .into_iter()
+        .map(|e| e.availability)
+        .collect();
 
     // 보통은 문자열이 그대로 일치한다. 대소문자나 8.3 단축 경로처럼 철자가
     // 다르게 들어온 경우에만 canonical 비교로 폴백한다.
@@ -82,6 +86,7 @@ pub fn get_directory_images(
     Ok(DirectoryImages {
         images: paths,
         current_index,
+        availability,
     })
 }
 
@@ -217,6 +222,7 @@ pub fn get_archive_images(file_path: String) -> Result<DirectoryImages, AppError
     Ok(DirectoryImages {
         images,
         current_index: 0,
+        availability: Vec::new(),
     })
 }
 
