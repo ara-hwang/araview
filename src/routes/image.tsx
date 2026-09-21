@@ -61,7 +61,8 @@ function ImagePage() {
     handleDragEnter,
     handleDragLeave,
     isDragOver,
-    getOrLoadImage
+    getOrLoadImage,
+    openArchiveFromPreview
   } = useImageLoader()
 
   const { viewMode, pages } = useMultiPageImages(getOrLoadImage)
@@ -73,6 +74,17 @@ function ImagePage() {
       loadImage(filePath, { ...options, onAfterLoad: zoomPan.resetView }),
     [loadImage, zoomPan.resetView]
   )
+
+  /** 파일 연동·드롭·홈에서 직접 열 때는 만화 모드로 진입 */
+  const loadImageExplicit = useCallback(
+    (filePath: string) =>
+      loadImage(filePath, { archiveOpen: "full", onAfterLoad: zoomPan.resetView }),
+    [loadImage, zoomPan.resetView]
+  )
+
+  const handleOpenArchiveFromPreview = useCallback(() => {
+    void openArchiveFromPreview({ onAfterLoad: zoomPan.resetView })
+  }, [openArchiveFromPreview, zoomPan.resetView])
 
   const { navigateImage, navigateToIndex, navigateByOffset } = useDirectoryNavigation(
     loadImageAndReset,
@@ -168,12 +180,16 @@ function ImagePage() {
       void loadArchiveImageByIndex(st.archivePath, current)
       return
     }
+    if (st.archivePreviewPath) {
+      void loadImageAndReset(st.archivePreviewPath, { refreshDirectory: false })
+      return
+    }
     void loadImageAndReset(current, { refreshDirectory: false })
   }, [loadArchiveImageByIndex, loadImageAndReset])
 
   const handleWheel = useWheelNavigation(zoomPan, navigateImage)
 
-  useOpenFileListener(loadImageAndReset)
+  useOpenFileListener(loadImageExplicit)
 
   const fullscreen = useFullscreen()
 
@@ -420,6 +436,7 @@ function ImagePage() {
         onRetry={handleRetry}
         onWebtoonIndexChange={handleWebtoonIndexChange}
         webtoonScrollTarget={webtoonScrollTarget}
+        onOpenArchiveFromPreview={handleOpenArchiveFromPreview}
       />
       {isDragOver && (
         <div className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center border-2 border-dashed border-primary bg-background/80">

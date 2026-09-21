@@ -40,6 +40,11 @@ type AppState = {
   isFitLocked: boolean
   /** 아카이브 모드: 현재 열린 아카이브 파일 경로 (null이면 일반 모드) */
   archivePath: string | null
+  /**
+   * 폴더 탐색 중 아카이브 미리보기. `archivePath`는 null이고 폴더 `dirImages`는 유지된다.
+   * 첫 페이지만 표시하며, 「만화 열기」 시 `archivePath` 모드로 전환한다.
+   */
+  archivePreviewPath: string | null
   /** 이번 세션에 로드 실패한 경로/엔트리 (썸네일 오류 배지용, 영속화하지 않음) */
   failedPaths: string[]
 }
@@ -95,6 +100,7 @@ const initialApp: AppState = {
   flipV: false,
   isFitLocked: true,
   archivePath: null,
+  archivePreviewPath: null,
   failedPaths: []
 }
 
@@ -351,6 +357,7 @@ export const closeImage = () => {
   useAppStore.setState({
     ...initialApp,
     dirImages: { images: [], current_index: 0 },
+    archivePreviewPath: null,
     position: { x: 0, y: 0 },
     viewportSize: { width: 0, height: 0 },
     containerSize: { width: 0, height: 0 },
