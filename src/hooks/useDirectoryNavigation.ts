@@ -2,6 +2,7 @@ import { useCallback } from "react"
 
 import { updateDirImagesIndex, useAppStore } from "@/store/appStore"
 import { useSettingsStore } from "@/store/settingsStore"
+import { resolveOffsetIndex, resolveStepIndex } from "@/utils/dirNavigation"
 
 type LoadImageFn = (filePath: string, options?: { refreshDirectory?: boolean }) => Promise<void>
 
@@ -23,28 +24,14 @@ export function useDirectoryNavigation(
     async (direction: "prev" | "next") => {
       if (!dirImages || dirImages.images.length <= 1) return
 
-      const last = dirImages.images.length - 1
-      let newIndex: number
-      if (direction === "prev") {
-        newIndex = dirImages.current_index - step
-        if (newIndex < 0) {
-          if (!loopNavigation) return
-          newIndex =
-            ((newIndex % dirImages.images.length) + dirImages.images.length) %
-            dirImages.images.length
-        }
-      } else {
-        newIndex = dirImages.current_index + step
-        if (newIndex > last) {
-          if (!loopNavigation) {
-            // 끝에서 멈춤 모드라도 마지막 장은 볼 수 있게 clamps
-            if (dirImages.current_index === last) return
-            newIndex = last
-          } else {
-            newIndex = newIndex % dirImages.images.length
-          }
-        }
-      }
+      const newIndex = resolveStepIndex(
+        dirImages.current_index,
+        dirImages.images.length,
+        step,
+        loopNavigation,
+        direction
+      )
+      if (newIndex === null) return
 
       if (archivePath && loadArchiveImageByIndex) {
         await loadArchiveImageByIndex(archivePath, dirImages.images[newIndex])
@@ -80,11 +67,12 @@ export function useDirectoryNavigation(
   const navigateByOffset = useCallback(
     async (offset: number) => {
       if (!dirImages || dirImages.images.length === 0) return
-      const total = dirImages.images.length
-      const raw = dirImages.current_index + offset
-      const target = loopNavigation
-        ? ((raw % total) + total) % total
-        : Math.max(0, Math.min(raw, total - 1))
+      const target = resolveOffsetIndex(
+        dirImages.current_index,
+        dirImages.images.length,
+        offset,
+        loopNavigation
+      )
       await navigateToIndex(target)
     },
     [dirImages, loopNavigation, navigateToIndex]

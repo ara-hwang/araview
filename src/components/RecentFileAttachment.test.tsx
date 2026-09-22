@@ -3,8 +3,8 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
-    t: (key: string, options?: Record<string, string>) =>
-      options?.name ? `${key}:${options.name}` : key,
+    t: (key: string, options?: Record<string, unknown>) =>
+      options ? `${key}:${Object.values(options).join("/")}` : key,
     i18n: { language: "en" }
   })
 }))
@@ -22,6 +22,15 @@ const imgInfo = {
   file_size: 2048,
   width: 800,
   height: 600
+}
+
+const archiveInfo = {
+  file_path: "C:/comics/m.cbz",
+  mime_type: "application/vnd.comicbook+zip",
+  file_name: "m.cbz",
+  file_size: 1024,
+  width: null,
+  height: null
 }
 
 describe("recent path helpers", () => {
@@ -91,5 +100,50 @@ describe("RecentFileAttachment", () => {
 
     expect(screen.getByText("home.list.unavailable")).not.toBeNull()
     expect(container.querySelector('[data-state="error"]')).not.toBeNull()
+  })
+
+  it("아카이브 카드에 읽기 진도를 함께 표시한다", () => {
+    render(
+      <RecentFileAttachment
+        path={archiveInfo.file_path}
+        info={archiveInfo}
+        status="done"
+        progress={{ entry: "010.jpg", index: 9, total: 340 }}
+        onOpen={() => {}}
+        onRemove={() => {}}
+      />
+    )
+
+    expect(
+      screen.getByText((content) => content.includes("home.card.progress:10/340"))
+    ).not.toBeNull()
+  })
+
+  it("진도 기록이 없거나 이미지 카드면 진도 문구를 넣지 않는다", () => {
+    render(
+      <RecentFileAttachment
+        path={archiveInfo.file_path}
+        info={archiveInfo}
+        status="done"
+        onOpen={() => {}}
+        onRemove={() => {}}
+      />
+    )
+    expect(screen.queryByText((content) => content.includes("home.card.progress"))).toBeNull()
+
+    cleanup()
+
+    render(
+      <RecentFileAttachment
+        path="/pics/photo.png"
+        info={imgInfo}
+        status="done"
+        progress={{ entry: "010.jpg", index: 9, total: 340 }}
+        onOpen={() => {}}
+        onRemove={() => {}}
+      />
+    )
+    expect(screen.getByText("PNG · 2.0 KB · 800x600")).not.toBeNull()
+    expect(screen.queryByText((content) => content.includes("home.card.progress"))).toBeNull()
   })
 })
