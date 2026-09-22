@@ -186,7 +186,14 @@ fn decode_source(source: &Path) -> Result<DynamicImage, AppError> {
             .map(DynamicImage::ImageRgb8)
             .ok_or_else(|| AppError::corrupt("HEIF decode produced invalid buffer"));
     }
-    image::open(source).map_err(|e| AppError::corrupt(format!("Cannot decode image: {e}")))
+    let img =
+        image::open(source).map_err(|e| AppError::corrupt(format!("Cannot decode image: {e}")))?;
+    // 화면(WebView2)이 EXIF orientation을 적용해 보여주므로, 편집 저장도
+    // 회전된 픽셀 기준으로 맞춰야 사용자가 보는 방향과 결과가 일치한다.
+    Ok(crate::orientation::apply_to_image(
+        img,
+        crate::orientation::read_orientation(source),
+    ))
 }
 
 /// RGBA 등을 흰 배경에 합성해 RGB로. JPEG처럼 알파가 없는 출력에만 쓴다.
@@ -353,6 +360,32 @@ mod tests {
         let out = apply_transform(&img, &opts(0, true, false)).unwrap();
         assert_eq!(out.get_pixel(0, 0), &Rgba([0, 255, 0, 0]));
         assert_eq!(out.get_pixel(1, 0), &Rgba([255, 0, 0, 128]));
+    }
+
+    #[test]
+    fn overwrite_jpeg_bakes_exif_orientation_into_pixels() {
+        let dir = test_dir("orientation");
+        let path = dir.join("phone.jpg");
+        // 4x2 + EXIF 6(시계 90°) → 저장 결과는 회전된 2x4.
+        crate::orientation::write_test_jpeg_with_orientation(&path, 4, 2, 6);
+
+        let info = save_image_edits_impl(
+            path.to_str().unwrap(),
+            &SaveImageOptions {
+                overwrite: true,
+                ..Default::default()
+            },
+        )
+        .expect("save ok");
+        assert_eq!((info.width, info.height), (Some(2), Some(4)));
+        let back = image::open(&path).unwrap().to_rgb8();
+        assert_eq!((back.width(), back.height()), (2, 4));
+        // 회전 후 상단은 원본 왼쪽(빨강), 하단은 원본 오른쪽(파랑).
+        let top = back.get_pixel(0, 0);
+        let bottom = back.get_pixel(1, 3);
+        assert!(top[0] > 200 && top[2] < 60, "top={top:?}");
+        assert!(bottom[2] > 200 && bottom[0] < 60, "bottom={bottom:?}");
+        fs::remove_dir_all(&dir).ok();
     }
 
     #[test]

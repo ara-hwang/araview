@@ -63,6 +63,10 @@ pub fn generate_thumbnail(source: &Path, max_side: u32) -> Result<ThumbnailInfo,
             }
             let img = image::open(source)
                 .map_err(|e| AppError::corrupt(format!("Failed to decode image: {e}")))?;
+            let img = crate::orientation::apply_to_image(
+                img,
+                crate::orientation::read_orientation(source),
+            );
             let thumb = img.thumbnail(max_side, max_side);
             write_jpeg_atomic(&dest, &thumb)?;
             // Best effort: eviction failures must not fail thumbnail delivery.
@@ -221,6 +225,17 @@ mod tests {
 
         let bytes = fs::read(&thumb.file_path).unwrap();
         assert_eq!(&bytes[..2], &[0xFF, 0xD8]);
+    }
+
+    #[test]
+    fn oriented_jpeg_thumbnail_uses_upright_dimensions() {
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("phone.jpg");
+        // 40x20 + EXIF 6 → 썸네일도 세로(최소 32 클램프 기준 16x32)여야 한다.
+        crate::orientation::write_test_jpeg_with_orientation(&source, 40, 20, 6);
+
+        let thumb = generate_thumbnail(&source, 8).expect("thumb");
+        assert_eq!((thumb.width, thumb.height), (16, 32));
     }
 
     #[test]

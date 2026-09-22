@@ -94,6 +94,7 @@ src-tauri/
   src/psd_sidecar.rs # PSD 합성 디코드(`psd` 크레이트) 및 JPEG sidecar (읽기 전용)
   src/process_temp.rs # 프로세스 수명 임시 디렉터리
   src/archive.rs     # 아카이브 목록/추출 처리 (cbz/zip, cb7/7z, cbr/rar, cbt)
+  src/orientation.rs # EXIF Orientation 읽기/적용 (JPEG/TIFF 표시·썸네일·저장 정합)
   src/lib.rs         # Tauri 앱 설정 및 command 등록
 ```
 
