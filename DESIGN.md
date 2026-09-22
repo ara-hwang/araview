@@ -167,7 +167,7 @@ Toolbar buttons with a quiet, tactile press (1px downward shift on active, excep
 - **Outline:** paper fill, hairline rule border, used for window-level actions (open, info, settings).
 - **Ghost:** borderless, used for in-canvas adjustments (fit, zoom, rotate, flip); hover shows muted wash.
 - **Icon:** 32px square ghost/outline for canvas transforms; every icon button carries an accessible label.
-- **Window controls:** minimize, maximize/restore, and close are native-style caption buttons pinned to the top-right corner: 48px wide, full titlebar height (edge to edge, no gaps, square corners, no border), glyphs Minus/Square/Copy/X. Hover shows the muted wash; close hovers to alarm fill with paper glyph; focus uses a 2px inset ring so it is never clipped at the window edge.
+- **Window controls:** minimize, maximize/restore, and close are native-style caption buttons pinned to the top-right corner: 48px wide, full titlebar height (edge to edge, no gaps, square corners, no border), glyphs Minus/Square/Copy/X. Hover shows the muted wash; close hovers to alarm fill with paper glyph; focus uses a 2px inset ring so it is never clipped at the window edge. On Windows 11, hovering the maximize/restore button shows the OS Snap Layouts flyout (transparent native hit-test overlay, `tauri-plugin-snap-layout`); the overlay owns the mouse there, so the button's hover wash and tooltip are mirrored from the plugin's mouseenter/mouseleave events instead of CSS `:hover`.
 - **Hover / Focus:** muted wash hover; visible focus ring on all variants; disabled at 50% opacity.
 
 ### Inputs / Fields

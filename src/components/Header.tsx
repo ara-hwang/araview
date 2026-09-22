@@ -36,6 +36,7 @@ import { useCloseImage } from "@/hooks/useCloseImage"
 import { requestOpenSettings, usePaletteStore } from "@/hooks/useCommandPalette"
 import { useExifLoader } from "@/hooks/useExifLoader"
 import { useImageLoader } from "@/hooks/useImageLoader"
+import { useSnapLayout } from "@/hooks/useSnapLayout"
 import { cn } from "@/lib/utils"
 import {
   flipHorizontal,
@@ -57,6 +58,8 @@ import { ToggleGroup, ToggleGroupItem } from "./ui/toggle-group"
 
 // 윈도우 캡션 버튼: 네이티브처럼 타이틀바 높이를 꽉 채우고 모서리에 붙인다.
 // 드래그 영역 안에 있으므로 no-drag로 제외한다 (더블클릭 최대화 방지).
+// 최대화 버튼은 네이티브 오버레이가 마우스를 가로채므로 :hover가 발생하지 않는다.
+// 호버 상태는 useSnapLayout의 snapHover를 클래스/툴팁으로 미러링한다 (아래에서).
 const captionButtonClassName = cn(
   "flex w-12 shrink-0 items-center justify-center text-foreground transition-colors no-drag [&_svg]:pointer-events-none [&_svg]:size-4",
   "hover:bg-foreground/10 active:bg-foreground/20 dark:hover:bg-white/15 dark:active:bg-white/25",
@@ -70,9 +73,12 @@ const captionCloseButtonClassName = cn(
 
 // 위쪽 툴바
 export default function Header({
-  onHideMenuBar
+  onHideMenuBar,
+  snapOverlayEnabled = true
 }: {
   onHideMenuBar?: () => void
+  /** Snap Layouts 네이티브 오버레이 유지 여부. 헤더가 완전히 가려지는 동안 false. */
+  snapOverlayEnabled?: boolean
 } = {}) {
   const { t } = useTranslation()
   const [appWindow] = useState(() => getCurrentWindow())
@@ -111,6 +117,9 @@ export default function Header({
   const handleGoHome = useCloseImage()
   const { toggleExifPanel } = useExifLoader()
   const { alwaysOnTop, toggle: toggleAlwaysOnTop } = useAlwaysOnTop()
+  // Snap Layouts 오버레이가 최대화 버튼 위의 마우스를 가로채므로 CSS :hover와
+  // React 이벤트가 발생하지 않는다. 호버 상태와 툴팁을 플러그인 이벤트로 미러링한다.
+  const { snapHover } = useSnapLayout(snapOverlayEnabled)
 
   useEffect(() => {
     let cancelled = false
@@ -487,13 +496,14 @@ export default function Header({
             <Minus />
           </button>
         </AppTooltip>
-        <AppTooltip content={t("header.maximize")}>
+        <AppTooltip content={t("header.maximize")} forceOpen={snapHover}>
           <button
             type="button"
+            id="caption-maximize"
             onClick={handleMaximize}
             aria-label={t("header.maximize")}
             aria-pressed={isMaximized}
-            className={captionButtonClassName}
+            className={cn(captionButtonClassName, snapHover && "bg-foreground/10 dark:bg-white/15")}
           >
             {isMaximized ? <Copy /> : <Square />}
           </button>

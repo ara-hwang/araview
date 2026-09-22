@@ -37,6 +37,7 @@ tauri-plugin-dialog = "2.7.3"
 tauri-plugin-store = "2.4.4"
 tauri-plugin-window-state = "2"
 tauri-plugin-single-instance = "2"
+tauri-plugin-snap-layout = "1"
 log = "0.4"
 env_logger = "0.11"
 exif = { package = "kamadak-exif", version = "0.6" }
