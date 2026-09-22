@@ -1,4 +1,11 @@
-import { Images, ListBullets, Palette, Presentation, PushPin } from "@phosphor-icons/react"
+import {
+  BookOpenText,
+  Images,
+  ListBullets,
+  Palette,
+  Presentation,
+  PushPin
+} from "@phosphor-icons/react"
 import { useTranslation } from "react-i18next"
 import { useShallow } from "zustand/react/shallow"
 
@@ -24,6 +31,7 @@ export function ViewTabPanel() {
     useShallow((state) => ({
       viewMode: state.viewMode,
       viewerBackground: state.viewerBackground,
+      resumeReading: state.resumeReading,
       autoHideUI: state.autoHideUI,
       menuBarHidden: state.menuBarHidden,
       alwaysOnTop: state.alwaysOnTop,
@@ -67,6 +75,23 @@ export function ViewTabPanel() {
             <Label htmlFor="settings-view-webtoon">{t("settings.view.webtoon")}</Label>
           </Field>
         </RadioGroup>
+      </SettingsFieldSet>
+
+      <FieldSeparator />
+
+      <SettingsFieldSet
+        icon={<BookOpenText className="size-6" />}
+        title={t("settings.reading.title")}
+        description={t("settings.reading.desc")}
+      >
+        <Field orientation="horizontal">
+          <Switch
+            id="settings-reading-resume"
+            checked={settings.resumeReading}
+            onCheckedChange={(checked) => handleSettingsChange({ resumeReading: checked === true })}
+          />
+          <Label htmlFor="settings-reading-resume">{t("settings.reading.resume")}</Label>
+        </Field>
       </SettingsFieldSet>
 
       <FieldSeparator />

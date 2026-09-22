@@ -42,6 +42,12 @@ describe("sanitizeSettings", () => {
     expect(sane.dockShowIndex).toBe(false)
   })
 
+  it("이어보기는 기본 켜짐이고 저장된 값을 따른다", () => {
+    expect(sanitizeSettings({}).resumeReading).toBe(true)
+    expect(sanitizeSettings({ resumeReading: false }).resumeReading).toBe(false)
+    expect(sanitizeSettings({ resumeReading: "no" }).resumeReading).toBe(false)
+  })
+
   it("잘못된 union 값은 기본값으로 되돌린다", () => {
     const sane = sanitizeSettings({
       cacheMode: "turbo",

@@ -51,6 +51,8 @@ export type SettingsState = {
   sortDescending: boolean
   includeSubfolders: boolean
   skipBrokenFiles: boolean
+  /** 아카이브(만화) 재진입 시 마지막으로 본 페이지에서 이어본다 */
+  resumeReading: boolean
   fitMode: FitMode
   dockPosition: DockPosition
   dockVisible: boolean
@@ -85,6 +87,7 @@ const initialSettings: SettingsState = {
   sortDescending: false,
   includeSubfolders: false,
   skipBrokenFiles: false,
+  resumeReading: true,
   fitMode: "auto",
   dockPosition: "bottom",
   dockVisible: true,
@@ -143,6 +146,10 @@ export function sanitizeSettings(value: unknown): SettingsState {
     sortDescending: sanitizeBoolean(record.sortDescending),
     includeSubfolders: sanitizeBoolean(record.includeSubfolders),
     skipBrokenFiles: sanitizeBoolean(record.skipBrokenFiles),
+    resumeReading:
+      record.resumeReading === undefined
+        ? initialSettings.resumeReading
+        : sanitizeBoolean(record.resumeReading),
     fitMode: sanitizeEnum(record.fitMode, FIT_MODES, initialSettings.fitMode),
     dockPosition: sanitizeEnum(record.dockPosition, DOCK_POSITIONS, initialSettings.dockPosition),
     dockVisible:

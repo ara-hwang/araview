@@ -108,7 +108,10 @@ function ImagePage() {
       if (!path) return
       updateDirImagesIndex(index)
       if (st.archivePath) {
-        void useArchiveProgressStore.getState().save(st.archivePath, path)
+        void useArchiveProgressStore.getState().save(st.archivePath, path, {
+          index,
+          total: st.dirImages.images.length
+        })
       }
       void getOrLoadImage(path)
         .then((info) => {
