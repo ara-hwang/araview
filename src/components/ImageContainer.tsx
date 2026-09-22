@@ -7,14 +7,17 @@ import { useShallow } from "zustand/react/shallow"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
 import { toast } from "@/components/ui/toast"
+import { useGifPlayer } from "@/hooks/useGifPlayer"
 import type { MultiPage } from "@/hooks/useMultiPageImages"
 import i18n from "@/i18n"
 import { cn } from "@/lib/utils"
 import { applyImageNaturalSize, closeImage, useAppStore } from "@/store/appStore"
+import { useGifStore } from "@/store/gifStore"
 import { useSettingsStore } from "@/store/settingsStore"
 import type { ViewMode } from "@/store/settingsStore"
 import type { ImageInfo } from "@/types"
 import { classifyError } from "@/utils/appError"
+import { canControlGif } from "@/utils/gifPlayback"
 import { MAX_SKIP_ATTEMPTS, findSkipTarget } from "@/utils/skipBroken"
 
 import { ArchivePreviewCallout } from "./ArchivePreviewCallout"
@@ -129,6 +132,19 @@ export function ImageContainer({
   const isWebtoon = viewMode === "webtoon" && app.dirImages.images.length > 0 && !!getOrLoadImage
   const isMulti = isDual || isWebtoon
 
+  // GIF는 단일 보기에서만 캔버스로 제어한다(재생/정지/프레임 이동).
+  const gifCanvasRef = useRef<HTMLCanvasElement>(null)
+  const gifControllable = canControlGif(app.imageInfo, viewMode)
+  const gifActive = useGifStore((state) => state.active)
+  const { failed: gifFailed } = useGifPlayer(
+    gifCanvasRef,
+    gifControllable ? imageSrc : null,
+    gifControllable
+  )
+  // 디코더가 다중 프레임을 확인해 active가 되기 전에는 기존 <img>로 보여준다
+  // (정지 GIF가 빈 캔버스가 되는 것을 막는다).
+  const showGifCanvas = gifControllable && gifActive && !gifFailed
+
   const isSvgImage =
     app.imageInfo?.mime_type === "image/svg+xml" ||
     (app.imageInfo?.file_name.toLowerCase().endsWith(".svg") ?? false)
@@ -167,7 +183,7 @@ export function ImageContainer({
       }}
     >
       {/* Single mode: 기존 줌/팬 동작 */}
-      {!isMulti && imageSrc && (
+      {!isMulti && imageSrc && !showGifCanvas && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
           <img
             key={imageSrc}
@@ -191,6 +207,27 @@ export function ImageContainer({
             onError={handleImageError}
             onDoubleClick={onDoubleClick}
             draggable={false}
+          />
+        </div>
+      )}
+
+      {/* GIF 캔버스: 프레임 제어가 가능할 때만. 줌/팬 transform은 img와 동일하다. */}
+      {!isMulti && showGifCanvas && (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+          <canvas
+            ref={gifCanvasRef}
+            role="img"
+            aria-label={app.imageInfo?.file_name}
+            className="pointer-events-auto block max-h-none max-w-none shrink-0 origin-center will-change-transform"
+            style={{
+              width: singleImgWidth,
+              height: singleImgHeight,
+              maxWidth: "none",
+              maxHeight: "none",
+              transform: singleImgTransform,
+              cursor: app.isDragging ? "grabbing" : "grab"
+            }}
+            onDoubleClick={onDoubleClick}
           />
         </div>
       )}

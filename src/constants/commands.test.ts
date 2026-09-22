@@ -39,22 +39,29 @@ describe("filterCommands", () => {
 })
 
 describe("isCommandEnabled", () => {
+  const ctx = (partial: Partial<{ hasImage: boolean; canNavigate: boolean; isGif: boolean }>) => ({
+    hasImage: false,
+    canNavigate: false,
+    isGif: false,
+    ...partial
+  })
+
   it("이미지 필요 명령은 홈에서 비활성화된다", () => {
     const def = COMMAND_DEFS.find((d) => d.id === "zoomIn")!
-    expect(isCommandEnabled(def, { hasImage: false, canNavigate: false })).toBe(false)
-    expect(isCommandEnabled(def, { hasImage: true, canNavigate: false })).toBe(true)
+    expect(isCommandEnabled(def, ctx({}))).toBe(false)
+    expect(isCommandEnabled(def, ctx({ hasImage: true }))).toBe(true)
   })
 
   it("이전/다음은 이동 가능할 때만 활성화된다", () => {
     const def = COMMAND_DEFS.find((d) => d.id === "navigateNext")!
-    expect(isCommandEnabled(def, { hasImage: true, canNavigate: false })).toBe(false)
-    expect(isCommandEnabled(def, { hasImage: true, canNavigate: true })).toBe(true)
+    expect(isCommandEnabled(def, ctx({ hasImage: true }))).toBe(false)
+    expect(isCommandEnabled(def, ctx({ hasImage: true, canNavigate: true }))).toBe(true)
   })
 
   it("파일 열기와 설정은 항상 활성화된다", () => {
     for (const id of ["openFile", "openSettings"] as const) {
       const def = COMMAND_DEFS.find((d) => d.id === id)!
-      expect(isCommandEnabled(def, { hasImage: false, canNavigate: false })).toBe(true)
+      expect(isCommandEnabled(def, ctx({}))).toBe(true)
     }
   })
 
@@ -64,7 +71,16 @@ describe("isCommandEnabled", () => {
 
   it("도크 토글은 이미지가 있을 때만 활성화된다", () => {
     const def = COMMAND_DEFS.find((d) => d.id === "toggleDock")!
-    expect(isCommandEnabled(def, { hasImage: false, canNavigate: false })).toBe(false)
-    expect(isCommandEnabled(def, { hasImage: true, canNavigate: false })).toBe(true)
+    expect(isCommandEnabled(def, ctx({}))).toBe(false)
+    expect(isCommandEnabled(def, ctx({ hasImage: true }))).toBe(true)
+  })
+
+  it("GIF 제어 명령은 제어 가능한 GIF일 때만 활성화된다", () => {
+    for (const id of ["toggleGifPlayback", "gifPrevFrame", "gifNextFrame"] as const) {
+      const def = COMMAND_DEFS.find((d) => d.id === id)!
+      expect(isCommandEnabled(def, ctx({}))).toBe(false)
+      expect(isCommandEnabled(def, ctx({ hasImage: true }))).toBe(false)
+      expect(isCommandEnabled(def, ctx({ hasImage: true, isGif: true }))).toBe(true)
+    }
   })
 })

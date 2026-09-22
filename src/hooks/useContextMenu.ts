@@ -13,6 +13,7 @@ import {
   zoomIn,
   zoomOut
 } from "@/store/appStore"
+import { stepGifFrameBy, toggleGifPlayback, useGifStore } from "@/store/gifStore"
 import { cycleViewerBackground, getSettings } from "@/store/settingsStore"
 
 import type { DirectoryImages } from "../types"
@@ -56,6 +57,29 @@ export async function showImageViewerContextMenu(
             text: t("menu.next"),
             accelerator: acc(s.navigateNext),
             action: () => actions.onNavigateNext()
+          })
+        ]
+      : []
+
+  const gif = useGifStore.getState()
+  const gifItems =
+    gif.active && gif.frameCount > 1
+      ? [
+          PredefinedMenuItem.new({ item: "Separator" }),
+          MenuItem.new({
+            text: t("menu.gifPlayPause"),
+            accelerator: acc(s.toggleGifPlayback),
+            action: () => toggleGifPlayback()
+          }),
+          MenuItem.new({
+            text: t("menu.gifPrevFrame"),
+            accelerator: acc(s.gifPrevFrame),
+            action: () => stepGifFrameBy(-1)
+          }),
+          MenuItem.new({
+            text: t("menu.gifNextFrame"),
+            accelerator: acc(s.gifNextFrame),
+            action: () => stepGifFrameBy(1)
           })
         ]
       : []
@@ -140,6 +164,7 @@ export async function showImageViewerContextMenu(
       text: t("menu.toggleDock"),
       action: () => actions.onToggleDock()
     }),
+    ...gifItems,
     MenuItem.new({
       text: t("menu.toggleFullscreen"),
       accelerator: acc(s.toggleFullscreen),

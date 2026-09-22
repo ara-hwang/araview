@@ -34,6 +34,7 @@ import {
   zoomIn,
   zoomOut
 } from "@/store/appStore"
+import { stepGifFrameBy, toggleGifPlayback, useGifStore } from "@/store/gifStore"
 import { usePaletteMruStore } from "@/store/paletteMruStore"
 import { cycleViewerBackground, getSettings, useSettingsStore } from "@/store/settingsStore"
 
@@ -228,6 +229,15 @@ function runCommand(
     case "toggleDock":
       viewerHandlers?.onToggleDock()
       break
+    case "toggleGifPlayback":
+      toggleGifPlayback()
+      break
+    case "gifPrevFrame":
+      stepGifFrameBy(-1)
+      break
+    case "gifNextFrame":
+      stepGifFrameBy(1)
+      break
     case "openSettings":
       requestOpenSettings()
       break
@@ -255,6 +265,7 @@ export function useCommandPaletteHost() {
   const shortcuts = useSettingsStore((s) => s.shortcuts)
   const hasImage = useAppStore((s) => s.imageInfo !== null)
   const imageCount = useAppStore((s) => s.dirImages.images.length)
+  const isGif = useGifStore((s) => s.active && s.frameCount > 1)
   const mruIds = usePaletteMruStore((s) => s.ids)
 
   const { handleOpenFile } = useImageLoader()
@@ -280,8 +291,8 @@ export function useCommandPaletteHost() {
   }, [])
 
   const ctx: CommandContext = useMemo(
-    () => ({ hasImage, canNavigate: imageCount > 1 }),
-    [hasImage, imageCount]
+    () => ({ hasImage, canNavigate: imageCount > 1, isGif }),
+    [hasImage, imageCount, isGif]
   )
 
   const commands: ResolvedPaletteCommand[] = useMemo(() => {

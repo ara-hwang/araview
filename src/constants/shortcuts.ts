@@ -34,6 +34,9 @@ export type ShortcutActionId =
   | "jumpFirst"
   | "jumpLast"
   | "toggleGrid"
+  | "toggleGifPlayback"
+  | "gifPrevFrame"
+  | "gifNextFrame"
 
 export type ShortcutMap = Record<ShortcutActionId, string>
 
@@ -100,7 +103,10 @@ export const SHORTCUT_ACTION_IDS: ShortcutActionId[] = [
   "jumpNext10",
   "jumpFirst",
   "jumpLast",
-  "toggleGrid"
+  "toggleGrid",
+  "toggleGifPlayback",
+  "gifPrevFrame",
+  "gifNextFrame"
 ]
 
 export const WHEEL_SLOTS: WheelSlot[] = [
@@ -156,7 +162,10 @@ export const DEFAULT_SHORTCUTS: ShortcutMap = {
   jumpNext10: "PageDown",
   jumpFirst: "Home",
   jumpLast: "End",
-  toggleGrid: "G"
+  toggleGrid: "G",
+  toggleGifPlayback: "P",
+  gifPrevFrame: ",",
+  gifNextFrame: "."
 }
 
 export const DEFAULT_WHEEL: WheelMap = {
