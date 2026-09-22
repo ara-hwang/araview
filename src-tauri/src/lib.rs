@@ -2,8 +2,8 @@ pub mod app_error;
 pub mod archive;
 pub mod commands;
 pub mod dir_cache;
-pub mod file_availability;
 pub mod file_assoc;
+pub mod file_availability;
 pub mod heif;
 pub mod image;
 pub mod image_info;
@@ -18,11 +18,10 @@ pub mod thumbnail;
 use app_error::AppError;
 use commands::{
     archive_prefetch, generate_archive_file_thumbnail, generate_archive_thumbnail,
-    generate_thumbnail, generate_thumbnails_batch,
-    get_archive_images, get_directory_images, get_exif_data, get_file_associations,
-    get_image_details, get_image_histogram, load_archive_image, load_image,
-    open_default_apps_settings, rename_file, resolve_dropped_path, set_all_file_associations,
-    set_file_association, trash_file,
+    generate_thumbnail, generate_thumbnails_batch, get_archive_images, get_directory_images,
+    get_exif_data, get_file_associations, get_image_details, get_image_histogram,
+    load_archive_image, load_image, open_default_apps_settings, rename_file, resolve_dropped_path,
+    set_all_file_associations, set_file_association, trash_file,
 };
 use save::save_image_edits;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -79,6 +78,15 @@ pub fn run() {
     builder
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_window_state::Builder::default().build())
+        // Windows 11 Snap Layouts: 커스텀 최대화 버튼 위에 WM_NCHITTEST에
+        // HTMAXBUTTON으로 응답하는 투명 네이티브 오버레이를 띄워 OS 플라이아웃을
+        // 띄운다. 비-Windows에서는 no-op. 대상 버튼 id는 Header.tsx의 캡션 버튼과
+        // 일치해야 한다.
+        .plugin(
+            tauri_plugin_snap_layout::init()
+                .button_id("caption-maximize")
+                .build(),
+        )
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_dialog::init())

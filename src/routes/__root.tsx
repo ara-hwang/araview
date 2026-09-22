@@ -54,6 +54,10 @@ function RootLayout() {
   const autoHideUI = useSettingsStore((state) => state.autoHideUI)
   const menuBarHidden = useSettingsStore((state) => state.menuBarHidden)
   const chromeHidden = useIdleHide(autoHideUI && hasImage)
+  // Snap Layouts 네이티브 오버레이는 최대화 버튼 위에만 존재한다. 헤더가
+  // opacity로만 가려지는 동안은 버튼 rect가 유효해 오버레이가 남으므로,
+  // 헤더가 완전히 보이지 않는 동안은 명시적으로 떼어낸다 (peek 중에는 다시 붙인다).
+  const snapOverlayEnabled = !menuBarHidden && !chromeHidden
 
   // 상단바 수동 숨김: 접힌 상태에서는 상단 호버 영역에서만 peek으로 표시
   const [menuBarPeek, setMenuBarPeek] = useState(false)
@@ -191,7 +195,10 @@ function RootLayout() {
                   !menuBarHidden && chromeHidden && "pointer-events-none opacity-0"
                 )}
               >
-                <Header onHideMenuBar={() => setMenuBarPeek(false)} />
+                <Header
+                  onHideMenuBar={() => setMenuBarPeek(false)}
+                  snapOverlayEnabled={snapOverlayEnabled}
+                />
                 <Separator />
               </div>
             </div>

@@ -38,7 +38,7 @@ pub fn availability_from_metadata(meta: &fs::Metadata) -> FileAvailability {
         {
             return FileAvailability::CloudOnly;
         }
-        return FileAvailability::Local;
+        FileAvailability::Local
     }
     #[cfg(not(windows))]
     {

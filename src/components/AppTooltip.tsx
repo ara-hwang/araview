@@ -7,6 +7,9 @@ type AppTooltipProps = {
   content: ReactNode
   side?: React.ComponentProps<typeof TooltipContent>["side"]
   align?: React.ComponentProps<typeof TooltipContent>["align"]
+  /** 외부에서 표시를 강제한다. 네이티브 오버레이가 마우스를 가로채
+   * 자체 호버 감지가 안 되는 요소(스냅 레이아웃 최대화 버튼 등)에 쓴다. */
+  forceOpen?: boolean
   children: ReactElement
 }
 
@@ -32,11 +35,15 @@ export function AppTooltip({
   content,
   side = "bottom",
   align = "center",
+  forceOpen = false,
   children
 }: AppTooltipProps) {
   if (content == null || content === "") return children
+  // forceOpen을 쓰는 경우만 제어 컴포넌트가 된다. 항상 boolean을 넘기면
+  // 제어/비제어 전환 경고가 없고, false는 호버 감지를 대체하는 강제 닫힘으로도 쓸 수 있다.
+  // forceOpen을 안 쓰면 기존처럼 완전 비제어로 둔다.
   return (
-    <Tooltip>
+    <Tooltip open={forceOpen ? true : undefined}>
       <TooltipTrigger render={children} />
       <TooltipContent side={side} align={align}>
         {content}

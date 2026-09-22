@@ -225,6 +225,7 @@ Tauri Store (`settings.json`) is used for:
 
 - App window is frameless (`decorations: false`), custom titlebar is in `src/components/Header.tsx`
 - Window state persistence uses `tauri-plugin-window-state`
+- Windows 11 Snap Layouts comes from `tauri-plugin-snap-layout`: it floats a transparent native hit-test overlay (`WM_NCHITTEST` → `HTMAXBUTTON`) over the maximize caption button (`id=caption-maximize`). The overlay owns the mouse, so that button's hover wash/tooltip are mirrored from `tauri-snap://snap/mouseenter|mouseleave` events via `src/hooks/useSnapLayout.ts`; keep the Rust `button_id` and the DOM id in sync. Non-Windows and jsdom are no-ops.
 - App starts hidden (`visible: false`) and appears after webview startup
 
 ## Browser Support

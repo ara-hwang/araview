@@ -16,7 +16,7 @@
         "title": "AraView",
         "width": 1024,
         "height": 768,
-        "minWidth": 600,
+        "minWidth": 500,
         "minHeight": 400,
         "decorations": false,
         "visible": false
