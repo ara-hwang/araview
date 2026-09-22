@@ -252,12 +252,8 @@
     },
     "thumb": {
       "title": "Explorer thumbnails (PSD)",
-      "desc": "Show PSD thumbnails in Windows File Explorer. Registration is per user, so no admin rights are needed.",
-      "enable": "Enable thumbnails",
-      "disable": "Disable thumbnails",
-      "checking": "Checking thumbnail status",
-      "enabled": "Explorer thumbnails are on",
-      "disabled": "Explorer thumbnails are off",
+      "desc": "Show PSD previews in Windows File Explorer. Registration is per user, so no admin rights are needed.",
+      "label": "PSD Explorer thumbnails",
       "dllMissing": "Thumbnail DLL not found. Bundled with the installer. For development, build it with cargo build -p araview-thumb.",
       "note": "After applying, restart Explorer or clear the thumbnail cache to see the change."
     }
