@@ -25,13 +25,13 @@
 | 확장자        | MIME                        | 비고                                                                                                                    |
 | ------------- | --------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | `png`         | `image/png`                 | 네이티브 렌더                                                                                                           |
-| `jpg`, `jpeg` | `image/jpeg`                | 네이티브 렌더                                                                                                           |
+| `jpg`, `jpeg` | `image/jpeg`                | 네이티브 렌더. EXIF Orientation(1~8)을 치수·썸네일·편집 저장에 반영(WebView2 표시와 일치)                               |
 | `gif`         | `image/gif`                 | 네이티브 렌더                                                                                                           |
 | `bmp`         | `image/bmp`                 | 네이티브 렌더                                                                                                           |
 | `webp`        | `image/webp`                | 네이티브 렌더                                                                                                           |
 | `svg`         | `image/svg+xml`             | 네이티브 렌더. 치수는 `<svg>` 헤더(width/height/viewBox, 절대 단위) 파싱으로 복원하며 해석 불가분만 `width/height` 생략 |
 | `ico`         | `image/x-icon`              | 네이티브 렌더                                                                                                           |
-| `tiff`, `tif` | `image/tiff`                | 네이티브 렌더                                                                                                           |
+| `tiff`, `tif` | `image/tiff`                | 네이티브 렌더. EXIF Orientation을 JPEG와 동일하게 반영                                                                  |
 | `avif`        | `image/avif`                | 네이티브 렌더                                                                                                           |
 | `heic`        | `image/heic`                | JPEG sidecar 트랜스코드 후 렌더                                                                                         |
 | `heif`        | `image/heif`                | JPEG sidecar 트랜스코드 후 렌더                                                                                         |
@@ -257,6 +257,7 @@
 - `I`로 패널 토글. 패널 내부 포커스에서는 `I` 닫기를 허용한다.
 - 표시 범주는 Camera, Exposure, Image, Lens, DateTime, GPS, Software 계열이다.
 - HEIC는 원본 경로 기준 EXIF를 읽으므로 비어 있는 경우가 많다.
+- JPEG/TIFF의 Orientation은 표시·썸네일·저장에 반영한다. 패널에는 EXIF 원문 설명을 그대로 보여준다.
 
 ### 10.1 히스토그램 `get_image_histogram`
 
@@ -324,10 +325,10 @@
 
 `settings.json`(Tauri Store) 키:
 
-| 키                | 내용                                                   | 상한     |
-| ----------------- | ------------------------------------------------------ | -------- |
-| `settings`        | `SettingsState` 전체                                   | 1개 객체 |
-| `recentFiles`     | 최근 경로 배열(최신 먼저)                              | 20       |
+| 키                | 내용                                                    | 상한     |
+| ----------------- | ------------------------------------------------------- | -------- |
+| `settings`        | `SettingsState` 전체                                    | 1개 객체 |
+| `recentFiles`     | 최근 경로 배열(최신 먼저)                               | 20       |
 | `archiveProgress` | 아카이브 경로 → `{ entry, index, total }` 이어보기 기록 | 100      |
 
 - 최근 파일은 중복 제거 후 맨 앞에 넣고 자른다. `recordRecentFiles=false`면 목록을 숨기고 자동 열기도 막는다.
@@ -524,6 +525,7 @@ Rust와 TypeScript는 같은 모양을 유지한다.
 
 - 백엔드는 디코드용 파일 경로를 돌려주고, 프론트는 `convertFileSrc(...)`로 변환해 `<img>`에 넣는다.
 - HEIC/HEIF/PSD만 JPEG sidecar를 만든다. sidecar와 아카이브 추출물, 썸네일 캐시는 프로세스 임시 디렉터리 아래에 둔다.
+- JPEG/TIFF의 EXIF Orientation(1~8)은 WebView2 `<img>`가 자동 적용한다. 백엔드는 같은 기준을 따르도록 치수(`ImageInfo.width/height`, `get_image_details`), 썸네일, 편집 저장(`save_image_edits`)에 회전을 명시 적용한다(SVG/WebP/PNG/HEIC는 대상 아님).
 - 사용자가 여는 파일/폴더는 명령 실행 시 런타임에 asset scope로 허용한다.
 - CSP는 `default-src 'self'` 기반이며 `asset:`/`ipc:` 접근을 허용한다. dev 전용 설정은 `docs/development.md`를 따른다.
 

@@ -143,7 +143,8 @@ pub fn details_for_path(path: &Path) -> Result<ImageDetails, AppError> {
         .ok_or_else(|| AppError::unsupported("Unsupported image format"))?;
     let meta = fs::metadata(path)
         .map_err(|e| AppError::io("Failed to read metadata", e, ErrorCode::Corrupt))?;
-    // 치수는 렌더 경로 기준 (HEIC/PSD는 JPEG sidecar).
+    // 치수는 렌더 경로 기준 (HEIC/PSD는 JPEG sidecar). JPEG/TIFF는 EXIF
+    // orientation까지 반영해 표시 치수와 맞춘다.
     let paint_path = match crate::image::paint_strategy(mime) {
         PaintStrategy::Native => path.to_path_buf(),
         PaintStrategy::TranscodeJpeg if mime == crate::psd_sidecar::PSD_MIME => {
@@ -151,15 +152,7 @@ pub fn details_for_path(path: &Path) -> Result<ImageDetails, AppError> {
         }
         PaintStrategy::TranscodeJpeg => crate::heif::ensure_jpeg_sidecar(path)?,
     };
-    let (width, height) = image::image_dimensions(&paint_path).ok().unzip();
-    // SVG는 image 크레이트 미지원이라 헤더 파싱으로 복원한다.
-    let (width, height) = match (width, height) {
-        (Some(w), Some(h)) => (Some(w), Some(h)),
-        (w, h) if mime == "image/svg+xml" => crate::image::svg_dimensions(&paint_path)
-            .map(|(sw, sh)| (Some(sw), Some(sh)))
-            .unwrap_or((w, h)),
-        (w, h) => (w, h),
-    };
+    let (width, height) = crate::image::render_dimensions(mime, path, &paint_path);
     let (color_mode, bits_per_channel) = color_info(path, mime);
     let (dpi_x, dpi_y) = resolution_dpi(path);
     let (icc_status, icc_name, icc_bytes) = icc_info(path);
@@ -401,6 +394,17 @@ mod tests {
         assert_eq!(hist.r[10], 256 * 256);
         assert_eq!(hist.g[20], 256 * 256);
         assert_eq!(hist.b[30], 256 * 256);
+    }
+
+    #[test]
+    fn details_report_oriented_dimensions_for_jpeg() {
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("phone.jpg");
+        // 4x2 + EXIF 6(시계 90°) → 파일 정보도 표시 기준 2x4.
+        crate::orientation::write_test_jpeg_with_orientation(&source, 4, 2, 6);
+
+        let details = details_for_path(&source).expect("details");
+        assert_eq!((details.width, details.height), (Some(2), Some(4)));
     }
 
     #[test]

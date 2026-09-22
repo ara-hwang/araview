@@ -70,9 +70,20 @@ pub fn paint_strategy(mime: &str) -> PaintStrategy {
 
 /// 렌더 기준 치수. image 크레이트가 디코드하면 그 값을 쓰고,
 /// SVG처럼 미지원이면 헤더 파싱으로 복원한다.
-fn render_dimensions(mime: &str, source: &Path, paint_path: &Path) -> (Option<u32>, Option<u32>) {
+/// WebView2가 `<img>`에 EXIF orientation을 적용하므로 JPEG/TIFF는 회전된
+/// 기준(5~8은 가로/세로 교환)으로 보고해 초기 fit이 표시와 어긋나지 않게 한다.
+pub(crate) fn render_dimensions(
+    mime: &str,
+    source: &Path,
+    paint_path: &Path,
+) -> (Option<u32>, Option<u32>) {
     let (width, height) = image::image_dimensions(paint_path).ok().unzip();
     if width.is_some() && height.is_some() {
+        if is_exif_orientation_format(mime)
+            && crate::orientation::swaps_axes(crate::orientation::read_orientation(source))
+        {
+            return (height, width);
+        }
         return (width, height);
     }
     if mime == "image/svg+xml" {
@@ -81,6 +92,12 @@ fn render_dimensions(mime: &str, source: &Path, paint_path: &Path) -> (Option<u3
         }
     }
     (width, height)
+}
+
+/// EXIF orientation을 적용하는 표시 포맷. HEIC/HEIF/PSD는 sidecar 디코더가
+/// 변환을 반영하므로 여기서 다루지 않는다.
+fn is_exif_orientation_format(mime: &str) -> bool {
+    matches!(mime, "image/jpeg" | "image/tiff")
 }
 
 /// SVG `<svg>` 루트 태그의 width/height/viewBox에서 픽셀 치수를 구한다.
@@ -619,6 +636,27 @@ mod tests {
         assert_eq!(info.file_path, source.to_string_lossy());
         assert_eq!(info.width, Some(1));
         assert_eq!(info.height, Some(1));
+    }
+
+    #[test]
+    fn load_viewable_reports_oriented_dimensions_for_jpeg() {
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("phone.jpg");
+        // 4x2 파일 + EXIF 6(시계 90°) → 표시 기준 2x4
+        crate::orientation::write_test_jpeg_with_orientation(&source, 4, 2, 6);
+        let info = load_viewable(&source).unwrap();
+        assert_eq!((info.width, info.height), (Some(2), Some(4)));
+        // 네이티브 렌더라 paint 경로는 원본 그대로다.
+        assert_eq!(info.file_path, source.to_string_lossy());
+    }
+
+    #[test]
+    fn load_viewable_keeps_dimensions_for_normal_orientation() {
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("plain.jpg");
+        crate::orientation::write_test_jpeg_with_orientation(&source, 4, 2, 1);
+        let info = load_viewable(&source).unwrap();
+        assert_eq!((info.width, info.height), (Some(4), Some(2)));
     }
 
     #[test]

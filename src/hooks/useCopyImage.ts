@@ -22,8 +22,9 @@ export function useCopyImage() {
       const response = await fetch(url)
       const blob = await response.blob()
 
-      // ClipboardItem은 PNG만 안정적으로 지원 → Canvas로 재인코딩
-      const bitmap = await createImageBitmap(blob)
+      // ClipboardItem은 PNG만 안정적으로 지원 → Canvas로 재인코딩.
+      // JPEG EXIF orientation은 브라우저 기본값과 동일하게 명시해 회전 누락을 막는다.
+      const bitmap = await createImageBitmap(blob, { imageOrientation: "from-image" })
       const canvas = document.createElement("canvas")
       canvas.width = bitmap.width
       canvas.height = bitmap.height
