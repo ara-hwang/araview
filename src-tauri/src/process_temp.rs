@@ -254,17 +254,25 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let first = dir.path().join("first.jpg");
         let second = dir.path().join("second.jpg");
-        for path in [&first, &second] {
-            fs::write(path, vec![0u8; 100]).unwrap();
-            std::thread::sleep(std::time::Duration::from_millis(5));
-        }
         mark_in_use(&first);
         mark_in_use(&second);
-        // Re-touch the older file so it should survive eviction before the other.
+        // 재터치하면 LRU 맨 뒤로 이동한다. 보호 자체는 절대적이라(화면에 떠 있는
+        // 파일은 cap을 넘어도 지우지 않는다, enforce_cap_keeps_files_still_displayed
+        // 참고) 터치 순번은 MAX_IN_USE 넘침 때 누가 보호를 잃을지만 결정한다.
+        // 다른 테스트가 병행으로 mark해 큐 뒤에 항목이 끼어도 상대 순서는 유지되므로
+        // 절대 위치 대신 상대 순서를 단언한다.
         mark_in_use(&first);
-        enforce_cap_in(dir.path(), 150).expect("evict");
-        assert!(first.exists());
-        assert!(!second.exists());
+        let guard = IN_USE.lock().unwrap();
+        let (queue, set) = &*guard;
+        assert!(set.contains(&first));
+        assert!(set.contains(&second));
+        let pos = |p: &PathBuf| {
+            queue
+                .iter()
+                .position(|q| q == p)
+                .expect("marked path in queue")
+        };
+        assert!(pos(&second) < pos(&first));
     }
 
     #[test]
