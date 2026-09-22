@@ -91,6 +91,8 @@
 ### 3.3 상태 규칙
 
 - `PRODUCT.md` 원칙과 `DESIGN.md` 시스템을 따른다: 모든 데이터 뷰는 empty/loading/error 상태, 모든 컨트롤은 키보드 조작과 포커스 표시, UI 카피 금칙(문서 참조)을 지킨다.
+- 고대비: OS 설정(`prefers-contrast: more`, Windows 대비 테마의 `forced-colors: active`)에 반응한다. 별도 토글은 두지 않으며, 강제 색상 모드에서도 시스템 Highlight 외곽선으로 포커스를 표시한다.
+- 체감 로딩: 큰 이미지는 캐시된 저해상 썸네일을 먼저 깔고 원본이 디코드되면 페이드 인한다(9.2절). 모션 최소화 설정에서는 페이드를 끈다.
 
 ## 4. 파일 열기 흐름
 
@@ -254,6 +256,7 @@
 - 디코드 불가 입력(SVG 등)이나 아카이브 엔트리명은 에러를 내고, 프론트는 원본으로 폴백한다.
 - 배치 조회와 아카이브 엔트리용 썸네일 API를 별도로 제공한다. 아카이브 썸네일은 추출물과 캐시를 재사용해 풀사이즈 로드를 피한다.
 - 그리드는 보이는 창의 경로만 썸네일을 요청한다.
+- `get_cached_thumbnail`: 생성 없이 캐시에 있는 썸네일(256/128/96/72/48/32)만 반환한다. 큰 이미지(2MP 또는 1.5MB 이상)를 열 때 풀사이즈 디코드와 병행 조회해 첫 페인트 프리뷰로 쓰고, 원본 `onLoad`에서 걷는다. GIF는 제외한다.
 
 ## 10. EXIF/파일 정보
 
@@ -461,6 +464,7 @@
 | `archive_prefetch`                | `archivePath`, `entryNames`            | 추출 개수 `number`                     |
 | `generate_thumbnail`              | `filePath`, `maxSide?`                 | `ThumbnailInfo`                        |
 | `generate_thumbnails_batch`       | `filePaths`, `maxSide?`                | `BatchThumb[]`                         |
+| `get_cached_thumbnail`            | `filePath`                             | `ThumbnailInfo \| null`(캐시 히트만)   |
 | `generate_archive_thumbnail`      | `archivePath`, `entryName`, `maxSide?` | `ThumbnailInfo`                        |
 | `generate_archive_file_thumbnail` | `archivePath`, `maxSide?`              | `ThumbnailInfo`(첫 이미지 엔트리 기준) |
 | `get_file_associations`           | 없음                                   | `FileAssociation[]`                    |
@@ -550,13 +554,13 @@ Rust와 TypeScript는 같은 모양을 유지한다.
 
 ## 20. 윈도우/배포
 
-진실: `src-tauri/tauri.conf.json`, `src-tauri/src/lib.rs`, `docs/releasing.md`, `.github/workflows/release.yml`.
+진실: `src-tauri/tauri.conf.json`, `src-tauri/src/lib.rs`, `docs/releasing.md`, `.github/workflows/release.yml`, `.github/workflows/ci.yml`.
 
 - 창: 제목 기본값 `AraView`(이미지가 열리면 파일명, 아니면 앱 이름), 1024x768, 최소 500x400, 프레임리스, 시작 시 숨김. 최소 너비 500은 Windows 11 Snap Layouts의 모든 배치에 창이 들어가기 위한 상한이다(Microsoft 권장 ≤500epx).
 - `window-state` 플러그인으로 창 상태를 유지한다.
 - Windows 11 Snap Layouts: 커스텀 최대화 버튼(`id=caption-maximize`) 위에 `WM_NCHITTEST`에 `HTMAXBUTTON`으로 응답하는 투명 네이티브 오버레이를 띄운다(`tauri-plugin-snap-layout`, 비-Windows no-op). 오버레이가 마우스를 가로채므로 버튼의 hover 배경/툴팁은 플러그인 이벤트(`tauri-snap://snap/mouseenter|mouseleave`)로 미러링하고, 클릭 최대화/복원은 네이티브가, 키보드(Enter/Space)는 기존 onClick이 담당한다. 헤더가 완전히 가려지는 동안(auto-hide, 메뉴바 숨김; peek 제외) 오버레이를 떼어낸다(`useSnapLayout` 훅).
 - 번들: `nsis`만 빌드한다. 결과물은 `src-tauri/target/release/bundle/` 아래에 생성된다.
-- 릴리스 파이프라인: 태그(`v*`) 푸시에서만 돌며 검사 실패 시 빌드와 릴리스로 진행하지 않는다. 권한과 절차 상세는 `docs/releasing.md`를 따른다.
+- 릴리스 파이프라인: 태그(`v*`) 푸시에서만 돌며 검사 실패 시 빌드와 릴리스로 진행하지 않는다. PR과 main 푸시에서는 `ci.yml`이 같은 검사(린트, 커버리지 포함 테스트, 타입, 포맷, cargo test/clippy)를 수행한다. 권한과 절차 상세는 `docs/releasing.md`를 따른다.
 - 파일 연결 3그룹:
   - Image 14종: png, jpg, jpeg, gif, bmp, webp, svg, ico, tiff, tif, avif, heic, heif, psd.
   - Comic 4종: cbz, cb7, cbr, cbt.

@@ -104,6 +104,12 @@ fn thumb_sidecar_path(source: &Path, max_side: u32) -> Result<PathBuf, AppError>
     Ok(paint_dir()?.join(name))
 }
 
+/// 캐시에 이미 있는 썸네일 sidecar 경로만 돌려준다(생성하지 않음).
+pub fn cached_jpeg_sidecar_thumb(source: &Path, max_side: u32) -> Option<PathBuf> {
+    let dest = thumb_sidecar_path(source, max_side.clamp(32, 1024)).ok()?;
+    dest.exists().then_some(dest)
+}
+
 fn sidecar_path(source: &Path) -> Result<PathBuf, AppError> {
     let hash = crate::sidecar::file_identity_hash(source, &[])?;
     let name = format!("psd-{hash:016x}.jpg");

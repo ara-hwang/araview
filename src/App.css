@@ -78,6 +78,50 @@
   --sidebar-ring: oklch(0.556 0 0);
 }
 
+/* 고대비 환경(Windows 대비 테마 포함): OS 설정을 따르며 별도 토글은 두지 않는다.
+   경계/보조 텍스트/포커스 링을 더 진하게 만들어 AA 여유를 키운다. */
+@media (prefers-contrast: more) {
+  :root {
+    --foreground: oklch(0 0 0);
+    --muted-foreground: oklch(0.35 0 0);
+    --primary: oklch(0 0 0);
+    --primary-foreground: oklch(1 0 0);
+    --secondary: oklch(0.9 0 0);
+    --muted: oklch(0.9 0 0);
+    --accent: oklch(0.9 0 0);
+    --border: oklch(0.2 0 0);
+    --input: oklch(0.2 0 0);
+    --ring: oklch(0 0 0);
+    --destructive: oklch(0.45 0.22 27.325);
+  }
+  .dark {
+    --foreground: oklch(1 0 0);
+    --muted-foreground: oklch(0.85 0 0);
+    --primary: oklch(1 0 0);
+    --primary-foreground: oklch(0 0 0);
+    --secondary: oklch(0.35 0 0);
+    --muted: oklch(0.35 0 0);
+    --accent: oklch(0.35 0 0);
+    --border: oklch(0.8 0 0);
+    --input: oklch(0.8 0 0);
+    --ring: oklch(1 0 0);
+    --destructive: oklch(0.75 0.18 22.216);
+  }
+}
+
+/* Windows 고대비 테마: 체커보드 장식은 시스템 캔버스로 대체하고,
+   box-shadow 기반 포커스 링이 사라지므로 시스템 Highlight 외곽선을 보장한다. */
+@media (forced-colors: active) {
+  .checkerboard {
+    background-image: none;
+    background-color: Canvas;
+  }
+  :focus-visible {
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
+  }
+}
+
 /* Motion tokens: stronger curves for new motion, from the vendored animate
    skill's vocabulary. Tailwind's built-in ease-out/ease-in-out stay untouched
    so existing components keep their current feel. */

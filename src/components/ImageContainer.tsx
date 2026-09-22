@@ -1,6 +1,6 @@
 import { useNavigate } from "@tanstack/react-router"
 import { convertFileSrc } from "@tauri-apps/api/core"
-import { useLayoutEffect, useRef, type RefObject } from "react"
+import { useLayoutEffect, useRef, useState, type RefObject } from "react"
 import { useTranslation } from "react-i18next"
 import { useShallow } from "zustand/react/shallow"
 
@@ -76,7 +76,8 @@ export function ImageContainer({
       flipH: state.flipH,
       flipV: state.flipV,
       imageSize: state.imageSize,
-      archivePreviewPath: state.archivePreviewPath
+      archivePreviewPath: state.archivePreviewPath,
+      previewPath: state.previewPath
     }))
   )
 
@@ -84,6 +85,10 @@ export function ImageContainer({
   const isChecker = viewerBackground === "checker"
 
   const imageSrc = app.imageInfo ? toSrc(app.imageInfo) : null
+  const previewSrc = app.previewPath ? convertFileSrc(app.previewPath) : null
+  // 풀사이즈가 실제로 로드된 src. 프리뷰는 그 전까지만 깔린다.
+  const [loadedSrc, setLoadedSrc] = useState<string | null>(null)
+  const fullLoaded = imageSrc !== null && loadedSrc === imageSrc
   const navigate = useNavigate()
   const classified = app.error ? classifyError(app.error) : null
   const tx = t as unknown as (key: string) => string
@@ -93,6 +98,7 @@ export function ImageContainer({
   const skipChainRef = useRef(0)
 
   const handleImageError = () => {
+    useAppStore.setState({ previewPath: null })
     const st = useAppStore.getState()
     const { dirImages, imageInfo } = st
     if (!imageInfo) return
@@ -124,6 +130,9 @@ export function ImageContainer({
   useLayoutEffect(() => {
     const img = imageRef.current
     if (img?.complete && img.naturalWidth > 0) {
+      // 캐시 적중으로 onLoad가 이미 지나간 경우에도 프리뷰를 걷고 원본을 표시한다.
+      if (imageSrc) setLoadedSrc(imageSrc)
+      useAppStore.setState({ previewPath: null })
       applyImageNaturalSize(img.naturalWidth, img.naturalHeight)
     }
   }, [imageSrc, imageRef])
@@ -182,6 +191,26 @@ export function ImageContainer({
         if (e.button === 1 && onMiddleClick) onMiddleClick(e)
       }}
     >
+      {/* 큰 이미지의 캐시된 저해상 프리뷰. 풀사이즈 onLoad 전까지만 깔린다. */}
+      {!isMulti && previewSrc && !fullLoaded && !showGifCanvas && (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+          <img
+            src={previewSrc}
+            alt=""
+            aria-hidden="true"
+            className="block max-h-none max-w-none shrink-0 origin-center"
+            style={{
+              width: singleImgWidth,
+              height: singleImgHeight,
+              maxWidth: "none",
+              maxHeight: "none",
+              transform: singleImgTransform
+            }}
+            draggable={false}
+          />
+        </div>
+      )}
+
       {/* Single mode: 기존 줌/팬 동작 */}
       {!isMulti && imageSrc && !showGifCanvas && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
@@ -190,7 +219,10 @@ export function ImageContainer({
             ref={imageRef}
             src={imageSrc}
             alt={app.imageInfo?.file_name}
-            className="pointer-events-auto block max-h-none max-w-none shrink-0 origin-center will-change-transform"
+            className={cn(
+              "pointer-events-auto block max-h-none max-w-none shrink-0 origin-center transition-opacity duration-150 ease-motion-out will-change-transform motion-reduce:transition-none",
+              fullLoaded ? "opacity-100" : "opacity-0"
+            )}
             style={{
               width: singleImgWidth,
               height: singleImgHeight,
@@ -202,6 +234,8 @@ export function ImageContainer({
             onLoad={(event) => {
               const img = event.currentTarget
               skipChainRef.current = 0
+              setLoadedSrc(imageSrc)
+              useAppStore.setState({ previewPath: null })
               applyImageNaturalSize(img.naturalWidth, img.naturalHeight)
             }}
             onError={handleImageError}
