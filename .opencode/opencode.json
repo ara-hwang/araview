@@ -29,6 +29,9 @@
     "tauri": {
       "type": "local",
       "command": ["npx", "-y", "@hypothesi/tauri-mcp-server"],
+      "environment": {
+        "MCP_BRIDGE_PORT": "9323"
+      },
       "enabled": true
     },
     "shadcn": {

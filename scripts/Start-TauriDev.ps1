@@ -4,8 +4,11 @@
   Starts `npm run tauri dev` detached (only if needed) and waits for readiness.
 .DESCRIPTION
   Idempotent launcher for Tauri MCP runtime verification on Windows.
-  READY means: Vite dev server on :1420 AND MCP bridge on :9223 accept TCP.
-  App output goes to logs/tauri-dev.log. Safe to run when already up.
+  READY means: Vite dev server on :1420 AND the dev MCP bridge on :9323 accept
+  TCP. The dev bridge port is pinned in src-tauri/src/lib.rs and is distinct
+  from the plugin default (9223) so an installed build or another Tauri app
+  cannot steal it. App output goes to logs/tauri-dev.log. Safe to run when
+  already up.
 .EXAMPLE
   pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/Start-TauriDev.ps1
   npm run dev:up
@@ -40,8 +43,8 @@ function Test-Port {
   return $false
 }
 
-if ((Test-Port 1420) -and (Test-Port 9223)) {
-  Write-Output "READY (already running): vite :1420 + bridge :9223"
+if ((Test-Port 1420) -and (Test-Port 9323)) {
+  Write-Output "READY (already running): vite :1420 + dev bridge :9323"
   exit 0
 }
 
@@ -65,12 +68,30 @@ Start-Process -FilePath "cmd.exe" -ArgumentList "/c", "npm run tauri dev -- --co
 $deadline = (Get-Date).AddSeconds($TimeoutSec)
 while ((Get-Date) -lt $deadline) {
   Start-Sleep -Seconds $PollSec
-  if ((Test-Port 1420) -and (Test-Port 9223)) {
-    Write-Output "READY: vite :1420 + bridge :9223"
+  if ((Test-Port 1420) -and (Test-Port 9323)) {
+    Write-Output "READY: vite :1420 + dev bridge :9323"
     exit 0
   }
 }
 
-Write-Error "TIMEOUT after ${TimeoutSec}s waiting for :1420 + :9223. Tail of log:"
+Write-Error "TIMEOUT after ${TimeoutSec}s waiting for :1420 + :9323. Tail of log:"
 Get-Content -LiteralPath $logFile -Tail 40
+Write-Output ""
+Write-Output "Diagnosis hints:"
+if (Test-Port 1420) {
+  Write-Output "- Vite :1420 is up but the dev bridge never appeared. The app process"
+  Write-Output "  likely exited at startup; review the log tail above."
+}
+$installed = @(Get-Process -Name 'araview' -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "$env:LOCALAPPDATA\AraView\*" })
+if ($installed.Count -gt 0) {
+  Write-Output "- Installed AraView is running (pid $($installed.Id -join ', ')). Current dev"
+  Write-Output "  builds use identifier com.araview.viewer.dev so they can coexist; an older"
+  Write-Output "  build sharing com.araview.viewer + the same version would exit via"
+  Write-Output "  single-instance instead of starting."
+}
+$occupant = @(Get-NetTCPConnection -State Listen -LocalPort 9323 -ErrorAction SilentlyContinue)
+if ($occupant.Count -gt 0) {
+  Write-Output "- Port :9323 is already owned by pid(s) $($occupant.OwningProcess -join ', ')."
+  Write-Output "  A stale dev process can hold it; stop that process and retry."
+}
 exit 1

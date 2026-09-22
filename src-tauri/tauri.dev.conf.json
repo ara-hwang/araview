@@ -2,5 +2,6 @@
   "$schema": "https://schema.tauri.app/config/2",
   "app": {
     "withGlobalTauri": true
-  }
+  },
+  "identifier": "com.araview.viewer.dev"
 }

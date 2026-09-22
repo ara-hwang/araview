@@ -71,10 +71,18 @@ pub fn run() {
     let builder = tauri::Builder::default();
     // 개발용 MCP 브리지는 LAN에 노출되지 않도록 loopback에만 바인딩한다.
     // release CI는 --no-default-features로 dev-mcp를 끄고 컴파일한다.
+    // base port는 플러그인 기본값(9223)을 쓰지 않는다. 9223을 다른 브리지가
+    // 선점하면 dev 브리지가 조용히 다음 포트로 밀리고, MCP 클라이언트는 9223에
+    // 붙어 엉뚱한 앱(설치본 등)을 검증하게 된다. dev 전용 포트를 고정해
+    // 소유자를 명확히 한다. 클라이언트는 `--port 9323` 또는
+    // MCP_BRIDGE_PORT=9323을 쓴다(.opencode/opencode.json 참고).
     #[cfg(feature = "dev-mcp")]
-    let builder = builder.plugin(tauri_plugin_mcp_bridge::init_with_config(
-        tauri_plugin_mcp_bridge::Config::localhost_only(),
-    ));
+    let builder = builder.plugin(
+        tauri_plugin_mcp_bridge::Builder::new()
+            .bind_address("127.0.0.1")
+            .base_port(9323)
+            .build(),
+    );
     builder
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_window_state::Builder::default().build())
