@@ -29,6 +29,7 @@ import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 
 import { AppTooltip } from "@/components/AppTooltip"
+import { GifControls } from "@/components/GifControls"
 import { Button } from "@/components/ui/button"
 import { formatShortcutDisplay } from "@/constants/shortcuts"
 import { useAlwaysOnTop } from "@/hooks/useAlwaysOnTop"
@@ -409,6 +410,8 @@ export default function Header({
               </AppTooltip>
             </ButtonGroup>
           </div>
+
+          <GifControls />
 
           {/* 이미지 종속(Info)은 캔버스 조작 쪽에, 전역(Command/Settings)은 우측 유틸군에 둔다 */}
           <ButtonGroup className="no-drag">

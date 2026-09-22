@@ -15,6 +15,7 @@ import {
   zoomIn,
   zoomOut
 } from "@/store/appStore"
+import { stepGifFrameBy, toggleGifPlayback } from "@/store/gifStore"
 import { getSettings } from "@/store/settingsStore"
 
 type ImageViewerHotkeysParams = {
@@ -223,6 +224,15 @@ export function useImageViewerHotkeys(props: ImageViewerHotkeysParams) {
           break
         case "toggleGrid":
           run(p.onToggleGrid)
+          break
+        case "toggleGifPlayback":
+          run(toggleGifPlayback)
+          break
+        case "gifPrevFrame":
+          run(() => stepGifFrameBy(-1))
+          break
+        case "gifNextFrame":
+          run(() => stepGifFrameBy(1))
           break
         default:
           break
