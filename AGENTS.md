@@ -183,12 +183,20 @@ Tauri Store (`settings.json`) is used for:
   5. `npm run format` (write mode; `npm run format:check` is check-only)
   6. `cd src-tauri && cargo fmt` (only when Rust sources changed; `cargo fmt --check` is check-only)
   7. Runtime verification with Tauri MCP:
-     1. `npm run dev:up` (idempotent launcher, waits for `:1420` + `:9223`)
-     2. `tauri-mcp driver-session start --port 9223`, then
+     1. `npm run dev:up` (idempotent launcher, waits for `:1420` + `:9323`;
+        the dev bridge port is pinned to 9323 in `src-tauri/src/lib.rs` so an
+        installed build or another Tauri app cannot take it)
+     2. `tauri-mcp driver-session start --port 9323`, then
         `webview-screenshot`, `webview-execute-js` (`open-file` event),
         `webview-keyboard`, `read-logs --source console`. See `/verify-ui`.
         (MCP client tools: `driver_session`, `webview_*`, `read_logs`.)
-     3. If `driver-session start` fails, repair the bridge with
+     3. Confirm the session target before trusting any result:
+        `ipc-get-backend-state` (client tool: `ipc_get_backend_state`) must
+        report `environment.debug: true` and identifier
+        `com.araview.viewer.dev`. An installed build answers with `debug: false`
+        and `com.araview.viewer`, so stop and report instead of verifying the
+        wrong app.
+     4. If `driver-session start` fails, repair the bridge with
         `get_setup_instructions` or restart the session (`npx -y` download
         flake) before concluding anything is broken. There is no browser
         automation fallback: report the exact failure instead of skipping
@@ -202,11 +210,11 @@ Tauri Store (`settings.json`) is used for:
      (404 is expected) or `tauri-mcp --version` (unknown option is expected).
      Use `npm ls -g @hypothesi/tauri-mcp-cli` and `tauri-mcp --help`.
   2. Installed vs connected: the CLI responding means installed. Connecting
-     additionally needs `npm run dev:up` (`:1420` + `:9223`) plus
-     `driver-session start --port 9223`. The bridge only exists in dev builds
+     additionally needs `npm run dev:up` (`:1420` + `:9323`) plus
+     `driver-session start --port 9323`. The bridge only exists in dev builds
      (`dev-mcp` feature, `src-tauri/src/lib.rs`); release builds
-     (`--no-default-features`) have no bridge, so connection failure there is
-     expected, not a missing installation.
+     (`--no-default-features`, used by CI and `release:local`) have no bridge,
+     so connection failure there is expected, not a missing installation.
   3. Fresh-session flake: opencode loads MCP at session start and the first
      `npx -y` download can time out. Restart the session before concluding
      anything is missing.

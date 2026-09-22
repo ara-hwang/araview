@@ -48,6 +48,7 @@ npm run tauri build
 - `TAURI_SIGNING_PRIVATE_KEY_PATH`는 `tauri signer sign` 전용이라 `tauri build`에서는 무시됩니다.
 - 비밀번호를 설정하지 않으면 대화형 프롬프트가 뜨므로 비대화형 환경에서는 반드시 설정합니다. (`--ci` 또는 `CI` 환경이면 빈 문자열로 처리)
 - 성공하면 `src-tauri/target/release/bundle/nsis/` 아래에 설치본과 `.sig`가 함께 생성됩니다.
+- `npm run tauri build`를 직접 실행하면 기본 features에 `dev-mcp`가 포함되어 설치본이 loopback MCP 브리지를 띄웁니다(플러그인 기본 base port 9223). 릴리스용 산출물은 `npm run release:local`이 CI와 동일하게 `--no-default-features`로 빌드하므로 브리지가 빠집니다. 직접 빌드할 때도 맞추려면 `npm run tauri -- build -- --no-default-features`를 씁니다.
 
 ## 서명 없이 설치본만 만들기
 
@@ -78,4 +79,5 @@ npm run release:local -- -Publish:$false  # 초안으로 남기기
 - `.sig`의 키 ID가 `plugins.updater.pubkey`와 다르면 중단합니다.
 - 빌드를 건너뛰고 이미 만든 산출물을 올리려면 `-SkipBuild`, GitHub를 건드리지 않고 결과만 확인하려면 `-DryRun`을 씁니다.
 - 빌드가 코어를 모두 점유해 PC가 버벅이면 `-Jobs 4`처럼 cargo 병렬도를 낮춥니다(`CARGO_BUILD_JOBS`). 값이 클수록 빠르지만 부하가 커집니다.
+- `release:local`은 `--no-default-features`로 빌드해 MCP 브리지(dev-mcp)를 산출물에서 제외합니다. 설치본으로 MCP UI 검증을 하는 경로는 없고, 그 목적은 dev 빌드(`npm run dev:up`, 브리지 `127.0.0.1:9323`)가 담당합니다.
 - 같은 태그에 CI가 만든 릴리스가 이미 있으면 그 릴리스의 자산을 덮어씁니다(`--clobber`). CI와 로컬 중 한쪽만 쓰세요.

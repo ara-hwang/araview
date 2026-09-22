@@ -195,7 +195,12 @@ if (-not $SkipBuild) {
     # 빠지면 설치본에 DLL이 없어 탐색기 썸네일 등록이 실패한다.)
     pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/Build-ThumbDll.ps1
     if ($LASTEXITCODE -ne 0) { Fail "Build-ThumbDll.ps1 failed with exit code $LASTEXITCODE" }
-    npm run tauri build
+    # CI release.yml(tauri-action `args: -- --no-default-features`)와 동일하게
+    # dev-mcp를 끈다. 기본 features로 빌드하면 설치본이 loopback MCP 브리지를
+    # 띄워 dev 검증이 설치본에 붙는 사고가 나고, 배포본에 로컬 자동화 표면이
+    # 함께 실린다. 첫 `--`는 npm 구분자, 둘째 `--`는 tauri CLI가 cargo로
+    # 넘기는 구분자다(cargo가 --no-default-features를 받는다).
+    npm run tauri -- build -- --no-default-features
     if ($LASTEXITCODE -ne 0) { Fail "npm run tauri build failed with exit code $LASTEXITCODE" }
   }
   finally {
