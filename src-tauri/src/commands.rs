@@ -747,4 +747,116 @@ mod tests {
         assert_eq!(cover.file_path, direct.file_path);
         fs::remove_dir_all(&dir).ok();
     }
+
+    #[test]
+    fn index_of_current_matches_exact_then_case_insensitive() {
+        let paths = vec!["/pics/a.png".to_string(), "/pics/b.png".to_string()];
+        assert_eq!(index_of_current(&paths, Path::new("/pics/b.png")), Some(1));
+        assert_eq!(index_of_current(&paths, Path::new("/PICS/B.PNG")), Some(1));
+        assert_eq!(index_of_current(&paths, Path::new("/pics/z.png")), None);
+        assert_eq!(index_of_current(&[], Path::new("/pics/a.png")), None);
+    }
+
+    #[test]
+    fn dir_list_options_default_to_name_ascending() {
+        let opts = DirListOptions::default();
+        assert_eq!(opts.sort_key, DirSortKey::Name);
+        assert!(!opts.descending);
+        assert!(!opts.recursive);
+    }
+
+    #[test]
+    fn resolve_dropped_path_rejects_missing() {
+        let err =
+            resolve_dropped_path("D:\\no-such-dir-commands\\nope.png".to_string()).unwrap_err();
+        assert_eq!(err.code, ErrorCode::NotFound);
+    }
+
+    #[test]
+    fn resolve_dropped_path_returns_file_as_is() {
+        let dir = unique_dir("drop-file");
+        let file = write_sized(&dir, "photo.png", 8);
+        let resolved = resolve_dropped_path(file.clone()).expect("file ok");
+        assert_eq!(resolved, file);
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn resolve_dropped_path_returns_first_image_in_dir() {
+        let dir = unique_dir("drop-dir");
+        write_sized(&dir, "b.png", 8);
+        write_sized(&dir, "a.png", 8);
+        write_sized(&dir, "notes.txt", 8);
+        let resolved = resolve_dropped_path(dir.to_str().unwrap().to_string()).expect("dir ok");
+        assert!(resolved.ends_with("a.png"), "got {resolved}");
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn resolve_dropped_path_rejects_dir_without_images() {
+        let dir = unique_dir("drop-empty");
+        write_sized(&dir, "notes.txt", 8);
+        let err = resolve_dropped_path(dir.to_str().unwrap().to_string()).unwrap_err();
+        assert_eq!(err.code, ErrorCode::NotFound);
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn trash_file_rejects_missing_and_directories() {
+        let err = trash_file("D:\\no-such-dir-commands\\nope.png".to_string()).unwrap_err();
+        assert_eq!(err.code, ErrorCode::NotFound);
+
+        let dir = unique_dir("trash-dir");
+        let err = trash_file(dir.to_str().unwrap().to_string()).unwrap_err();
+        assert_eq!(err.code, ErrorCode::InvalidInput);
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn get_exif_data_rejects_missing_file() {
+        let err = get_exif_data("D:\\no-such-dir-commands\\nope.jpg".to_string()).unwrap_err();
+        assert_eq!(err.code, ErrorCode::NotFound);
+    }
+
+    #[test]
+    fn get_archive_images_rejects_missing_and_non_archive() {
+        let err = match get_archive_images("D:\\no-such-dir-commands\\nope.cbz".to_string()) {
+            Ok(_) => panic!("expected error"),
+            Err(e) => e,
+        };
+        assert_eq!(err.code, ErrorCode::NotFound);
+
+        let dir = unique_dir("archive-not");
+        let png = write_sized(&dir, "a.png", 16);
+        let err = match get_archive_images(png) {
+            Ok(_) => panic!("expected error"),
+            Err(e) => e,
+        };
+        assert_eq!(err.code, ErrorCode::Unsupported);
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn get_archive_images_rejects_archive_without_images() {
+        use std::io::Write as _;
+
+        let dir = unique_dir("archive-noimg");
+        let archive_path = dir.join("empty.cbz");
+        let file = fs::File::create(&archive_path).expect("create cbz");
+        let mut writer = zip::ZipWriter::new(file);
+        let options = zip::write::SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Stored);
+        writer
+            .start_file("notes.txt", options)
+            .expect("start entry");
+        writer.write_all(b"hello").expect("write entry");
+        writer.finish().expect("finish cbz");
+
+        let err = match get_archive_images(archive_path.to_str().unwrap().to_string()) {
+            Ok(_) => panic!("expected error"),
+            Err(e) => e,
+        };
+        assert_eq!(err.code, ErrorCode::NotFound);
+        fs::remove_dir_all(&dir).ok();
+    }
 }
