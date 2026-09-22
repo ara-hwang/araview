@@ -377,14 +377,9 @@
 
 ---
 
-### 5.4 CI/CD 파이프라인 강화 (P2) — ✅ PR CI 추가 (2026-09-22), 보안 감사/릴리즈 노트는 남음
+### 5.4 CI/CD 파이프라인 강화 (P2) — ✅ 완료 (2026-09-22 보안 감사·릴리즈 노트 추가)
 
-**현재 상태**: `.github/workflows/ci.yml`이 PR과 main 푸시에서 프런트(린트, 커버리지 포함 테스트, 타입, 포맷)와 Rust(`cargo fmt --check`, `cargo test`, `clippy -D warnings`)를 검사한다. `release.yml`은 태그 푸시에서 같은 검사를 게이트로 두고 릴리스를 빌드한다. 남은 것은 아래 계획이다.
-
-**개선 계획**:
-
-- 의존성 보안 감사 (`npm audit`, `cargo audit`)
-- 자동 릴리즈 노트 생성
+**현재 상태**: `.github/workflows/ci.yml`이 PR과 main 푸시에서 프런트(린트, 커버리지 포함 테스트, 타입, 포맷, `npm audit --audit-level=moderate`)와 Rust(`cargo fmt --check`, `cargo test`, `clippy -D warnings`, `rustsec/audit-check` v2 핀)를 검사한다. `release.yml`은 태그 푸시에서 같은 검사를 게이트로 두고, 이전 태그 이후 커밋 목록과 비교 링크로 릴리스 본문을 자동 생성(`Generate release notes`, 전체 히스토리 checkout)한 뒤 릴리스를 빌드한다. 로컬 기준선: `npm audit` 0건, `cargo audit` 취약점 0건(비취약 경고 8건만, 게이트 통과).
 
 **관련 파일**:
 

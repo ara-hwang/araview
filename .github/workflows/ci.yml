@@ -2,6 +2,7 @@ name: CI
 
 # PR과 main 푸시에서 검사만 돈다. 릴리스(태그)는 release.yml이 담당한다.
 # 검증 항목과 커맨드는 release.yml의 검증 단계와 같게 유지한다.
+# (린트, 커버리지 포함 테스트, 타입, 포맷, 의존성 감사, cargo test/clippy)
 on:
   pull_request:
   push:
@@ -42,6 +43,10 @@ jobs:
 
       - name: Format check
         run: npm run format:check
+
+      # moderate 이상 취약점이 있으면 실패한다. 로컬 기준선: 0건.
+      - name: Frontend dependency audit
+        run: npm audit --audit-level=moderate
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
@@ -91,3 +96,10 @@ jobs:
 
       - name: Cargo clippy
         run: cd src-tauri && cargo clippy --workspace --no-default-features --all-targets -- -D warnings
+
+      # RustSec 자문 DB 대조. 발견 시 실패한다. 정보성 자문은 통과.
+      - name: Rust dependency audit
+        uses: rustsec/audit-check@69366f33c96575abad1ee0dba8212993eecbe998 # v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          working-directory: src-tauri
