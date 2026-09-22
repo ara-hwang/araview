@@ -174,6 +174,11 @@
       "rtl": "우→좌 두 페이지",
       "webtoon": "웹툰 스크롤"
     },
+    "reading": {
+      "title": "읽기",
+      "desc": "만화(CBZ 등)를 다시 열 때 마지막으로 본 페이지에서 이어봅니다",
+      "resume": "이어보기"
+    },
     "dock": {
       "title": "이미지 목록 도크",
       "desc": "뷰어 가장자리에 붙는 썸네일 목록 위치와 표시 방식",
@@ -265,7 +270,8 @@
     "recent": "최근 파일, {{count}}",
     "clearAll": "전체 지우기",
     "card": {
-      "remove": "목록에서 제거"
+      "remove": "목록에서 제거",
+      "progress": "{{index}}/{{total}} 페이지"
     },
     "list": {
       "open": "{{name}} 열기",
@@ -572,6 +578,10 @@
       "archiveFail": "아카이브를 불러오지 못했습니다",
       "imageFail": "이미지를 불러오지 못했습니다",
       "skipped": "읽을 수 없는 파일을 건너뛰었습니다"
+    },
+    "archive": {
+      "resumed": "{{index}}/{{total}} 페이지에서 이어봅니다",
+      "startOver": "처음부터"
     },
     "drop": {
       "fail": "드롭한 항목을 열 수 없습니다",

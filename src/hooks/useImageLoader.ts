@@ -13,6 +13,7 @@ import { useSettingsStore } from "@/store/settingsStore"
 import type { DirectoryImages, ImageInfo } from "@/types"
 import { errorCopyDetails, errorMessage } from "@/utils/appError"
 import { isArchiveFilePath } from "@/utils/archiveFile"
+import { resolveArchiveStartIndex } from "@/utils/archiveResume"
 import { buildDirListOptions } from "@/utils/directoryOptions"
 import { beginImageLoad, isCurrentImageLoad } from "@/utils/imageLoadSession"
 import { MAX_SKIP_ATTEMPTS, findSkipTarget } from "@/utils/skipBroken"
@@ -82,6 +83,65 @@ export function useImageLoader() {
     [getPrefetchDistance, prefetchNearbyImages]
   )
 
+  /** 아카이브 내부 특정 엔트리의 이미지를 로드 */
+  const loadArchiveImageByIndex = useCallback(
+    async (archivePath: string, entryName: string, skipDepth = 0) => {
+      const loadToken = beginImageLoad()
+      useAppStore.setState({ loading: true })
+      try {
+        const imgInfo = await invoke<ImageInfo>("load_archive_image", {
+          archivePath,
+          entryName
+        })
+        if (!isCurrentImageLoad(loadToken)) return
+        setImageInfoAndResetView(imgInfo)
+        useAppStore.getState().removeFailedPath(entryName)
+
+        const st = useAppStore.getState()
+        const currentIndex = st.dirImages.images.indexOf(entryName)
+        void useArchiveProgressStore.getState().save(archivePath, entryName, {
+          index: currentIndex >= 0 ? currentIndex : undefined,
+          total: st.dirImages.images.length || undefined
+        })
+        if (currentIndex >= 0) {
+          prefetchArchiveNeighbors(archivePath, st.dirImages.images, currentIndex)
+        }
+      } catch (e) {
+        if (!isCurrentImageLoad(loadToken)) return
+        const message = errorMessage(e)
+        useAppStore.setState({ error: message })
+        useAppStore.getState().addFailedPath(entryName)
+        const settings = useSettingsStore.getState()
+        if (settings.skipBrokenFiles && skipDepth < MAX_SKIP_ATTEMPTS) {
+          const st = useAppStore.getState()
+          const failedIndex = st.dirImages.images.indexOf(entryName)
+          const target = findSkipTarget(
+            st.dirImages.images,
+            failedIndex >= 0 ? failedIndex : st.dirImages.current_index,
+            new Set(st.failedPaths),
+            settings.loopNavigation
+          )
+          if (target !== null) {
+            const nextEntry = st.dirImages.images[target]
+            toast.info(i18n.t("toast.load.skipped"), {
+              description: entryName
+            })
+            await loadArchiveImageByIndex(archivePath, nextEntry, skipDepth + 1)
+            updateDirImagesIndex(target)
+            return
+          }
+        }
+        toast.error(i18n.t("toast.load.imageFail"), {
+          description: message,
+          details: errorCopyDetails(e, archivePath, entryName)
+        })
+      } finally {
+        endImageLoadIfCurrent(loadToken)
+      }
+    },
+    [prefetchArchiveNeighbors]
+  )
+
   /** 아카이브 파일을 열어 내부 첫 이미지(또는 이어보기 위치)를 표시 */
   const loadArchive = useCallback(
     async (archivePath: string, options?: { onAfterLoad?: () => void }) => {
@@ -93,12 +153,12 @@ export function useImageLoader() {
           filePath: archivePath
         })
 
-        // 저장된 이어보기 엔트리가 목록에 있으면 거기서 시작
-        const saved = useArchiveProgressStore.getState().get(archivePath)
-        const startIndex = saved !== null ? archiveImages.images.indexOf(saved) : 0
-        const resolvedStart = startIndex > 0 ? startIndex : 0
-        const firstEntry =
-          startIndex > 0 ? archiveImages.images[startIndex] : archiveImages.images[0]
+        // 이어보기 설정이 켜져 있고 저장된 엔트리가 목록에 있으면 거기서 시작
+        const resumeEnabled = useSettingsStore.getState().resumeReading
+        const saved = resumeEnabled ? useArchiveProgressStore.getState().get(archivePath) : null
+        const startIndex = resolveArchiveStartIndex(archiveImages.images, saved)
+        const firstEntry = archiveImages.images[startIndex]
+        const total = archiveImages.images.length
         const imgInfo = await invoke<ImageInfo>("load_archive_image", {
           archivePath,
           entryName: firstEntry
@@ -109,17 +169,35 @@ export function useImageLoader() {
         useAppStore.setState({
           dirImages: {
             ...archiveImages,
-            current_index: resolvedStart
+            current_index: startIndex
           }
         })
         setImageInfoAndResetView(imgInfo)
-        void useArchiveProgressStore.getState().save(archivePath, firstEntry)
+        // 이어보기를 끈 상태에서는 열기만으로 저장 위치를 0페이지로 덮지 않는다.
+        if (resumeEnabled) {
+          void useArchiveProgressStore.getState().save(archivePath, firstEntry, {
+            index: startIndex,
+            total
+          })
+        }
+
+        if (startIndex > 0) {
+          toast.info(i18n.t("toast.archive.resumed", { index: startIndex + 1, total }), {
+            actionProps: {
+              children: i18n.t("toast.archive.startOver"),
+              onClick: () => {
+                void loadArchiveImageByIndex(archivePath, archiveImages.images[0])
+                updateDirImagesIndex(0)
+              }
+            }
+          })
+        }
 
         if (useSettingsStore.getState().recordRecentFiles) {
           void useRecentFilesStore.getState().add(archivePath)
         }
 
-        prefetchArchiveNeighbors(archivePath, archiveImages.images, resolvedStart)
+        prefetchArchiveNeighbors(archivePath, archiveImages.images, startIndex)
         options?.onAfterLoad?.()
       } catch (e) {
         if (!isCurrentImageLoad(loadToken)) return
@@ -137,7 +215,7 @@ export function useImageLoader() {
         endImageLoadIfCurrent(loadToken)
       }
     },
-    [clearImageMetaCache, prefetchArchiveNeighbors]
+    [clearImageMetaCache, loadArchiveImageByIndex, prefetchArchiveNeighbors]
   )
 
   /** 폴더 목록을 유지하고 아카이브 첫 페이지만 미리본다 (이어보기·내부 목록 미적용). */
@@ -188,62 +266,6 @@ export function useImageLoader() {
       await loadArchive(preview, options)
     },
     [loadArchive]
-  )
-
-  /** 아카이브 내부 특정 인덱스의 이미지를 로드 */
-  const loadArchiveImageByIndex = useCallback(
-    async (archivePath: string, entryName: string, skipDepth = 0) => {
-      const loadToken = beginImageLoad()
-      useAppStore.setState({ loading: true })
-      try {
-        const imgInfo = await invoke<ImageInfo>("load_archive_image", {
-          archivePath,
-          entryName
-        })
-        if (!isCurrentImageLoad(loadToken)) return
-        setImageInfoAndResetView(imgInfo)
-        useAppStore.getState().removeFailedPath(entryName)
-        void useArchiveProgressStore.getState().save(archivePath, entryName)
-
-        const st = useAppStore.getState()
-        const currentIndex = st.dirImages.images.indexOf(entryName)
-        if (currentIndex >= 0) {
-          prefetchArchiveNeighbors(archivePath, st.dirImages.images, currentIndex)
-        }
-      } catch (e) {
-        if (!isCurrentImageLoad(loadToken)) return
-        const message = errorMessage(e)
-        useAppStore.setState({ error: message })
-        useAppStore.getState().addFailedPath(entryName)
-        const settings = useSettingsStore.getState()
-        if (settings.skipBrokenFiles && skipDepth < MAX_SKIP_ATTEMPTS) {
-          const st = useAppStore.getState()
-          const failedIndex = st.dirImages.images.indexOf(entryName)
-          const target = findSkipTarget(
-            st.dirImages.images,
-            failedIndex >= 0 ? failedIndex : st.dirImages.current_index,
-            new Set(st.failedPaths),
-            settings.loopNavigation
-          )
-          if (target !== null) {
-            const nextEntry = st.dirImages.images[target]
-            toast.info(i18n.t("toast.load.skipped"), {
-              description: entryName
-            })
-            await loadArchiveImageByIndex(archivePath, nextEntry, skipDepth + 1)
-            updateDirImagesIndex(target)
-            return
-          }
-        }
-        toast.error(i18n.t("toast.load.imageFail"), {
-          description: message,
-          details: errorCopyDetails(e, archivePath, entryName)
-        })
-      } finally {
-        endImageLoadIfCurrent(loadToken)
-      }
-    },
-    [prefetchArchiveNeighbors]
   )
 
   const loadImage = useCallback(

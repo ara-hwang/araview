@@ -20,6 +20,7 @@ import { useImageLoader } from "@/hooks/useImageLoader"
 import { useOpenFileListener } from "@/hooks/useOpenFileListener"
 import { useRecentFileDetails } from "@/hooks/useRecentFileDetails"
 import { useAppStore } from "@/store/appStore"
+import { useArchiveProgressStore } from "@/store/archiveProgressStore"
 import { useRecentFilesStore } from "@/store/recentFilesStore"
 import { useSettingsStore } from "@/store/settingsStore"
 import { hasBufferedOpenFile } from "@/utils/openFileDelivery"
@@ -40,6 +41,7 @@ function HomePage() {
   const recentFiles = useRecentFilesStore((s) => s.files)
   const removeRecent = useRecentFilesStore((s) => s.remove)
   const clearRecent = useRecentFilesStore((s) => s.clear)
+  const archiveProgress = useArchiveProgressStore((s) => s.progress)
   const autoOpenLastFile = useSettingsStore((s) => s.autoOpenLastFile)
   const recordRecentFiles = useSettingsStore((s) => s.recordRecentFiles)
   const autoOpenedRef = useRef(false)
@@ -143,6 +145,7 @@ function HomePage() {
                       info={detail?.info}
                       src={detail?.src}
                       status={detail?.status ?? "loading"}
+                      progress={archiveProgress[path]}
                       onOpen={(p) => void loadImage(p, { archiveOpen: "full" })}
                       onRemove={(p) => void removeRecent(p)}
                     />

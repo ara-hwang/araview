@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/attachment"
 import { Spinner } from "@/components/ui/spinner"
 import type { RecentFileStatus } from "@/hooks/useRecentFileDetails"
+import type { ArchiveReadingProgress } from "@/store/archiveProgressStore"
 import type { ImageInfo } from "@/types"
 import { formatDimensions, formatFileSize } from "@/utils/format"
 
@@ -21,6 +22,8 @@ type RecentFileAttachmentProps = {
   info?: ImageInfo
   src?: string
   status: RecentFileStatus
+  /** 아카이브(만화) 읽기 진도. 최근 목록에서 위치를 함께 보여준다. */
+  progress?: ArchiveReadingProgress
   onOpen: (path: string) => void
   onRemove: (path: string) => void
 }
@@ -43,6 +46,7 @@ export function RecentFileAttachment({
   info,
   src,
   status,
+  progress,
   onOpen,
   onRemove
 }: RecentFileAttachmentProps) {
@@ -50,13 +54,18 @@ export function RecentFileAttachment({
   const name = info?.file_name ?? path.split(/[\\/]/).pop() ?? path
   const isArchive = info ? info.mime_type.startsWith("application/") : false
   const showImage = status === "done" && !!src && !isArchive
+  const progressText =
+    isArchive && progress && progress.total > 0 && progress.index >= 0
+      ? t("home.card.progress", { index: progress.index + 1, total: progress.total })
+      : null
 
   const meta =
     status === "done" && info
       ? [
           extOf(path),
           formatFileSize(info.file_size, i18n.language),
-          formatDimensions(info.width, info.height)
+          formatDimensions(info.width, info.height),
+          progressText
         ]
           .filter((part): part is string => !!part)
           .join(" · ")

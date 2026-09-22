@@ -174,6 +174,11 @@
       "rtl": "Two pages right-to-left",
       "webtoon": "Webtoon scroll"
     },
+    "reading": {
+      "title": "Reading",
+      "desc": "Resume comics (CBZ and other archives) from the last page you viewed",
+      "resume": "Resume reading"
+    },
     "dock": {
       "title": "Image list dock",
       "desc": "Thumbnail list position and display on the viewer edge",
@@ -265,7 +270,8 @@
     "recent": "Recent files, {{count}}",
     "clearAll": "Clear all",
     "card": {
-      "remove": "Remove from list"
+      "remove": "Remove from list",
+      "progress": "Page {{index}} of {{total}}"
     },
     "list": {
       "open": "Open {{name}}",
@@ -572,6 +578,10 @@
       "archiveFail": "Failed to load archive",
       "imageFail": "Failed to load image",
       "skipped": "Skipped an unreadable file"
+    },
+    "archive": {
+      "resumed": "Resuming at page {{index}} of {{total}}",
+      "startOver": "Start over"
     },
     "drop": {
       "fail": "Cannot open dropped item",
