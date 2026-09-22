@@ -47,6 +47,11 @@ type AppState = {
   archivePreviewPath: string | null
   /** 이번 세션에 로드 실패한 경로/엔트리 (썸네일 오류 배지용, 영속화하지 않음) */
   failedPaths: string[]
+  /**
+   * 캐시된 저해상 썸네일 경로. 큰 이미지가 풀사이즈로 디코드되는 동안
+   * 먼저 깔아 보여주는 프리뷰이며, 원본 로드(onLoad)에서 지운다.
+   */
+  previewPath: string | null
 }
 
 type AppStoreActions = {
@@ -102,7 +107,8 @@ const initialApp: AppState = {
   isFitLocked: true,
   archivePath: null,
   archivePreviewPath: null,
-  failedPaths: []
+  failedPaths: [],
+  previewPath: null
 }
 
 export const useAppStore = create<AppState & AppStoreActions>((set) => ({
@@ -274,7 +280,8 @@ export const setImageInfoAndResetView = (imgInfo: ImageInfo) => {
       flipH: false,
       flipV: false,
       isFitLocked: true,
-      error: null
+      error: null,
+      previewPath: null
     })
     return
   }
@@ -288,7 +295,8 @@ export const setImageInfoAndResetView = (imgInfo: ImageInfo) => {
     flipH: false,
     flipV: false,
     isFitLocked: true,
-    error: null
+    error: null,
+    previewPath: null
   })
 }
 

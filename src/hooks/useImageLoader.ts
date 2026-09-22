@@ -10,12 +10,13 @@ import { setImageInfoAndResetView, updateDirImagesIndex, useAppStore } from "@/s
 import { useArchiveProgressStore } from "@/store/archiveProgressStore"
 import { useRecentFilesStore } from "@/store/recentFilesStore"
 import { useSettingsStore } from "@/store/settingsStore"
-import type { DirectoryImages, ImageInfo } from "@/types"
+import type { DirectoryImages, ImageInfo, ThumbnailInfo } from "@/types"
 import { errorCopyDetails, errorMessage } from "@/utils/appError"
 import { isArchiveFilePath } from "@/utils/archiveFile"
 import { resolveArchiveStartIndex } from "@/utils/archiveResume"
 import { buildDirListOptions } from "@/utils/directoryOptions"
 import { beginImageLoad, isCurrentImageLoad } from "@/utils/imageLoadSession"
+import { shouldUsePreviewThumbnail } from "@/utils/previewThumbnail"
 import { MAX_SKIP_ATTEMPTS, findSkipTarget } from "@/utils/skipBroken"
 
 function endImageLoadIfCurrent(token: number): void {
@@ -289,10 +290,18 @@ export function useImageLoader() {
       const refreshDirectory = options?.refreshDirectory ?? true
 
       useAppStore.setState({ loading: true })
+      // 캐시된 저해상 썸네일이 있으면 풀사이즈 디코드와 병행해 조회한다(생성은 하지 않음).
+      const cachedPreview = invoke<ThumbnailInfo | null>("get_cached_thumbnail", {
+        filePath
+      }).catch(() => null)
       try {
         const imgInfo = await getOrLoadImage(filePath)
         if (!isCurrentImageLoad(loadToken)) return
         setImageInfoAndResetView(imgInfo)
+        const preview = await cachedPreview
+        if (preview && isCurrentImageLoad(loadToken) && shouldUsePreviewThumbnail(imgInfo)) {
+          useAppStore.setState({ previewPath: preview.file_path })
+        }
         useAppStore.getState().removeFailedPath(filePath)
         if (useSettingsStore.getState().recordRecentFiles) {
           void useRecentFilesStore.getState().add(filePath)

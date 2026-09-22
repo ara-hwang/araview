@@ -19,10 +19,10 @@ pub mod thumbnail;
 use app_error::AppError;
 use commands::{
     archive_prefetch, generate_archive_file_thumbnail, generate_archive_thumbnail,
-    generate_thumbnail, generate_thumbnails_batch, get_archive_images, get_directory_images,
-    get_exif_data, get_file_associations, get_image_details, get_image_histogram,
-    load_archive_image, load_image, open_default_apps_settings, rename_file, resolve_dropped_path,
-    set_all_file_associations, set_file_association, trash_file,
+    generate_thumbnail, generate_thumbnails_batch, get_archive_images, get_cached_thumbnail,
+    get_directory_images, get_exif_data, get_file_associations, get_image_details,
+    get_image_histogram, load_archive_image, load_image, open_default_apps_settings, rename_file,
+    resolve_dropped_path, set_all_file_associations, set_file_association, trash_file,
 };
 use save::save_image_edits;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -117,6 +117,7 @@ pub fn run() {
             get_image_details,
             generate_thumbnail,
             generate_thumbnails_batch,
+            get_cached_thumbnail,
             generate_archive_thumbnail,
             generate_archive_file_thumbnail,
             resolve_dropped_path,

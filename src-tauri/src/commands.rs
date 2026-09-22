@@ -338,6 +338,12 @@ pub fn generate_thumbnail(
     )
 }
 
+/// 캐시에 이미 있는 썸네일만 반환한다. 없으면 null이며 프론트는 바로 원본을 그린다.
+#[tauri::command]
+pub fn get_cached_thumbnail(file_path: String) -> Option<crate::thumbnail::ThumbnailInfo> {
+    crate::thumbnail::cached_thumbnail(Path::new(&file_path))
+}
+
 /// 썸네일 윈도우 배치 처리. 항목별 성공/실패를 함께 반환한다.
 #[tauri::command]
 pub fn generate_thumbnails_batch(

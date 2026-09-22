@@ -88,7 +88,7 @@ Frontend uses `invoke()` for these commands:
 - `set_all_file_associations(associate)`
 - `open_default_apps_settings()`
 
-Full IPC contract (24 commands including thumbnails, archive prefetch, trash/rename/save, PSD thumbnail): see `SPEC.md` §15.
+Full IPC contract (25 commands including thumbnails, archive prefetch, trash/rename/save, PSD thumbnail): see `SPEC.md` §15.
 
 When app is opened from file association, Windows passes the file path as a CLI argument. Backend buffers it in `PendingOpenFile` until the webview signals readiness (`frontend_ready`), then emits `open-file`; the root layout (`useOpenFileBridge`) bridges the event to the active route's loader.
 

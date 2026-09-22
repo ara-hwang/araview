@@ -33,6 +33,42 @@ const MAX_CACHE_BYTES: u64 = 500 * 1024 * 1024;
 pub fn default_max_side() -> u32 {
     DEFAULT_MAX_SIDE
 }
+
+/// 큰 이미지 첫 렌더용 프리뷰 후보. 도크 스트립(기본 128)과 그리드(256)가 실제로
+/// 만드는 크기이며, 캐시에 있는 것 중 가장 큰 썸네일을 골라 쓴다.
+const PREVIEW_THUMB_CANDIDATES: &[u32] = &[256, 128, 96, 72, 48, 32];
+
+/// 프리뷰용: 이미 캐시에 있는 썸네일만 반환한다. 없으면 생성하지 않고 None.
+/// 풀사이즈 디코드가 오래 걸리는 이미지에서 첫 페인트를 앞당기는 용도다.
+pub fn cached_thumbnail(source: &Path) -> Option<ThumbnailInfo> {
+    if !source.is_file() {
+        return None;
+    }
+    let sidecar_source = is_sidecar_source(source);
+    for &max_side in PREVIEW_THUMB_CANDIDATES {
+        let path = if sidecar_source {
+            if is_psd_source(source) {
+                crate::psd_sidecar::cached_jpeg_sidecar_thumb(source, max_side)
+            } else {
+                crate::heif::cached_jpeg_sidecar_thumb(source, max_side)
+            }
+        } else {
+            thumb_path(source, max_side).ok().filter(|p| p.exists())
+        };
+        let Some(path) = path else { continue };
+        let Ok((width, height)) = image::image_dimensions(&path) else {
+            continue;
+        };
+        // 화면에 띄우는 동안 캐시 축출로 사라지지 않게 보호한다.
+        crate::process_temp::mark_in_use(&path);
+        return Some(ThumbnailInfo {
+            file_path: path.to_string_lossy().to_string(),
+            width,
+            height,
+        });
+    }
+    None
+}
 pub fn generate_thumbnail(source: &Path, max_side: u32) -> Result<ThumbnailInfo, AppError> {
     if !source.is_file() {
         return Err(AppError::not_found("File not found"));
@@ -236,6 +272,48 @@ mod tests {
 
         let thumb = generate_thumbnail(&source, 8).expect("thumb");
         assert_eq!((thumb.width, thumb.height), (16, 32));
+    }
+
+    #[test]
+    fn cached_thumbnail_is_none_until_generated() {
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("preview.png");
+        write_png(&source, 200, 100);
+
+        assert!(cached_thumbnail(&source).is_none());
+        let thumb = generate_thumbnail(&source, 96).expect("generate");
+        let cached = cached_thumbnail(&source).expect("cached");
+        assert_eq!(cached.file_path, thumb.file_path);
+        assert_eq!((cached.width, cached.height), (thumb.width, thumb.height));
+    }
+
+    #[test]
+    fn cached_thumbnail_prefers_largest_candidate() {
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("preview-wide.png");
+        write_png(&source, 400, 100);
+
+        let small = generate_thumbnail(&source, 48).expect("48");
+        let large = generate_thumbnail(&source, 96).expect("96");
+        let cached = cached_thumbnail(&source).expect("cached");
+        assert_eq!(cached.file_path, large.file_path);
+        assert_ne!(cached.file_path, small.file_path);
+    }
+
+    #[test]
+    fn cached_thumbnail_reads_psd_sidecar_thumb() {
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("preview.psd");
+        fs::write(
+            &source,
+            crate::psd_sidecar::minimal_psd_bytes(200, 100, [9, 9, 9]),
+        )
+        .unwrap();
+
+        assert!(cached_thumbnail(&source).is_none());
+        let thumb = generate_thumbnail(&source, 96).expect("psd thumb");
+        let cached = cached_thumbnail(&source).expect("cached psd");
+        assert_eq!(cached.file_path, thumb.file_path);
     }
 
     #[test]

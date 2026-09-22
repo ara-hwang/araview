@@ -13,6 +13,7 @@
 > - ✅ 2.2 이미지 정보 패널 강화(2026-09-14): `get_image_histogram` + `get_image_details` 백엔드(`image_info.rs`), SVG 히스토그램 차트 + 파일 상세 섹션(`ExifPanel`).
 > - ✅ EXIF Orientation 반영(2026-09-22): JPEG/TIFF의 Orientation(1~8)을 치수 계산, 썸네일, 편집 저장에 적용해 WebView2 표시와 일치시킴(`orientation.rs`).
 > - ✅ GIF 재생 제어(2026-09-22): 단일 보기에서 캔버스 재생/정지·프레임 이동·카운터·명령 팔레트/컨텍스트 메뉴(`useGifPlayer`, `gifStore`). `ImageDecoder` 미지원·정지 GIF·웹툰/양면은 네이티브 폴백.
+> - ✅ 로드맵 잔여분(2026-09-22): 고대비(`prefers-contrast`/`forced-colors`), 캐시 썸네일 프리뷰(`get_cached_thumbnail`), PR CI(`ci.yml`)와 커버리지 리포트(`npm run test:coverage`), 이동/컴포넌트 테스트 보강. 타일 렌더링은 보류.
 
 ---
 
@@ -196,9 +197,9 @@
 
 > 대용량 이미지 및 대량 파일 처리 시 성능을 개선하는 최적화.
 
-### 3.1 스트리밍 이미지 디코딩 (P1) — ✅ 완료 (asset protocol)
+### 3.1 스트리밍 이미지 디코딩 (P1) — ✅ 완료 (asset protocol + 캐시 썸네일 프리뷰)
 
-**현재 상태 (2026-09-09)**: `ImageInfo.file_path` + `convertFileSrc` 경로 기반 렌더링으로 base64 제거 완료. HEIC만 JPEG sidecar transcoding. 남은 것은 저해상도 프리뷰 우선 표시(선택).
+**현재 상태 (2026-09-22)**: `ImageInfo.file_path` + `convertFileSrc` 경로 기반 렌더링으로 base64 제거 완료. HEIC만 JPEG sidecar transcoding. 큰 이미지(2MP 또는 1.5MB 이상)는 `get_cached_thumbnail`으로 스트립/그리드가 만든 캐시 썸네일(256/128/96/72/48/32)을 풀사이즈 디코드와 병행 조회해 먼저 깔고, 원본 `onLoad`에서 페이드 인한다. 생성 없는 조회라 첫 방문에는 프리뷰가 없고, 두 번째 방문부터 즉시 표시된다.
 
 **당시 최적화 계획 (보존)**:
 
@@ -275,7 +276,7 @@
 
 ### 3.5 렌더링 성능 최적화 (P3) — 부분 완료 (2026-09-14 코드 대조 재확인)
 
-**현재 상태 (포맷/성능 라운드)**: 부분 완료. Single 모드 `translate3d` + `will-change: transform`, `useZoomPan` rAF 기반 팬 스로틀, Webtoon `IntersectionObserver` 지연 로드(`rootMargin 100%`), viewMode별 프리페치(single=d·양면=d+1·webtoon=d×2). 미도입: 타일 기반 렌더링, 휠 이벤트 throttling(`useWheelNavigation`은 직접 실행).
+**현재 상태 (포맷/성능 라운드)**: 부분 완료. Single 모드 `translate3d` + `will-change: transform`, `useZoomPan` rAF 기반 팬 스로틀, Webtoon `IntersectionObserver` 지연 로드(`rootMargin 100%`), viewMode별 프리페치(single=d·양면=d+1·webtoon=d×2). 미도입: 타일 기반 렌더링, 휠 이벤트 throttling(`useWheelNavigation`은 직접 실행). 타일 렌더링은 딥줌 전용 대형 작업이라 당분간 보류한다(2026-09-22).
 
 **최적화 계획**:
 
@@ -325,13 +326,9 @@
 
 > 앱의 전반적 품질과 접근성을 높이는 개선.
 
-### 5.1 접근성 (A11y) 개선 (P1) — 부분 완료: 고대비 모드만 남음 (2026-09-14 코드 대조 확정)
+### 5.1 접근성 (A11y) 개선 (P1) — ✅ 완료 (2026-09-22 고대비 추가)
 
-**현재 상태**: 상당 부분 구현됨. 파일명 기반 `alt`(Single/양면/Webtoon/썸네일/홈 카드), `Header` 전 버튼 `aria-label` + 단축키 병기, `ImageNavBar` 슬라이더·그리드 버튼 레이블, 썸네일 그리드 `listbox`/`option`, 에러 카드 `role="alert"` + `StatusBar` `role="status"`, 전역 `focus-visible` 링, 키보드 조작(단축키·그리드 화살표/`Enter`/`Esc`·팔레트). 남은 것은 고대비 모드 지원이다.
-
-**개선 계획** (남은 1건):
-
-- 고대비 모드 지원
+**현재 상태**: 구현됨. 파일명 기반 `alt`(Single/양면/Webtoon/썸네일/홈 카드), `Header` 전 버튼 `aria-label` + 단축키 병기, `ImageNavBar` 슬라이더·그리드 버튼 레이블, 썸네일 그리드 `listbox`/`option`, 에러 카드 `role="alert"` + `StatusBar` `role="status"`, 전역 `focus-visible` 링, 키보드 조작(단축키·그리드 화살표/`Enter`/`Esc`·팔레트), GIF 컨트롤 `aria-label`/프레임 카운터. 고대비는 `prefers-contrast: more` 토큰 강화와 `forced-colors: active` 대응(체커보드 대체, 시스템 Highlight 외곽선)으로 지원한다.
 
 **관련 파일**:
 
@@ -361,17 +358,15 @@
 
 ---
 
-### 5.3 테스트 커버리지 확대 (P2) — 부분 완료 (2026-09-14 코드 대조 확정)
+### 5.3 테스트 커버리지 확대 (P2) — 진행 중 (2026-09-22 보강)
 
-**현재 상태**: 27개 테스트 파일. 훅(`useFileOperations`, `useFileAssociations`, `useUpdater`), 컴포넌트(`ImageContainer`, `button`, `ShortcutBadge`), 스토어(app/settings/archiveProgress/paletteMru), 유틸 10여종이 있다. Rust는 `commands.rs`(rename·정렬·재귀·아카이브 썸네일)·`save.rs`(회전/뒤집기/덮어쓰기/포맷 변환) 단위 테스트가 있다. 남은 것은 아래 계획이다.
+**현재 상태**: 프런트 52개 테스트 파일(340여 케이스). 훅(`useFileOperations`, `useFileAssociations`, `useUpdater`, `useZoomPan`), 컴포넌트(`ImageContainer`, `GifControls`, `RecentFileAttachment`, `button`, `ShortcutBadge` 등), 스토어(app/settings/archiveProgress/paletteMru/gif), 유틸 20여종이 있다. 이동 인덱스 계산은 `dirNavigation`으로 분리해 테스트한다. `npm run test:coverage`(v8, text+html)로 리포트를 만들고 CI에서 함께 돌린다. 남은 것은 아래 계획이다.
 
 **개선 계획**:
 
-- **훅 테스트**: `useDirectoryNavigation`, `useZoomPan` 등 핵심 훅 테스트
 - **컴포넌트 테스트**: `Header`, `ImageNavBar`, `SettingsDialog` 등 렌더링/상호작용 테스트
 - **통합 테스트**: 이미지 로드 → 표시 → 네비게이션 플로우 테스트
 - **Rust 테스트**: `commands.rs` 단위 테스트 추가
-- 테스트 커버리지 리포트 생성 설정
 
 **관련 파일**:
 
@@ -382,15 +377,12 @@
 
 ---
 
-### 5.4 CI/CD 파이프라인 강화 (P2) — 부분 완료: 릴리스 게이트 존재 / PR용 분리 미구현 (2026-09-14 재확인)
+### 5.4 CI/CD 파이프라인 강화 (P2) — ✅ PR CI 추가 (2026-09-22), 보안 감사/릴리즈 노트는 남음
 
-**현재 상태**: 워크플로는 `release.yml` 1개(`.github/workflows/`). 단, 태그 푸시 시 프런트 검사(`npm test`, `npx tsc --noEmit`, `npm run format:check`)와 Rust 검사(`cargo fmt --check`, `cargo test --workspace --no-default-features`, `cargo clippy --workspace --no-default-features --all-targets -- -D warnings`)를 먼저 수행하고 실패 시 빌드·릴리스로 진행하지 않는다(SPEC §20). 남은 것은 아래 계획이다.
+**현재 상태**: `.github/workflows/ci.yml`이 PR과 main 푸시에서 프런트(린트, 커버리지 포함 테스트, 타입, 포맷)와 Rust(`cargo fmt --check`, `cargo test`, `clippy -D warnings`)를 검사한다. `release.yml`은 태그 푸시에서 같은 검사를 게이트로 두고 릴리스를 빌드한다. 남은 것은 아래 계획이다.
 
 **개선 계획**:
 
-- PR별 자동 테스트 실행 (프론트엔드 + Rust)
-- 코드 린팅 체크 (oxlint + oxfmt + Clippy)
-- TypeScript 타입 체크 (`npx tsc --noEmit`)
 - 의존성 보안 감사 (`npm audit`, `cargo audit`)
 - 자동 릴리즈 노트 생성
 
