@@ -13,7 +13,7 @@
 > - ✅ 2.2 이미지 정보 패널 강화(2026-09-14): `get_image_histogram` + `get_image_details` 백엔드(`image_info.rs`), SVG 히스토그램 차트 + 파일 상세 섹션(`ExifPanel`).
 > - ✅ EXIF Orientation 반영(2026-09-22): JPEG/TIFF의 Orientation(1~8)을 치수 계산, 썸네일, 편집 저장에 적용해 WebView2 표시와 일치시킴(`orientation.rs`).
 > - ✅ GIF 재생 제어(2026-09-22): 단일 보기에서 캔버스 재생/정지·프레임 이동·카운터·명령 팔레트/컨텍스트 메뉴(`useGifPlayer`, `gifStore`). `ImageDecoder` 미지원·정지 GIF·웹툰/양면은 네이티브 폴백.
-> - ✅ 로드맵 잔여분(2026-09-22): 고대비(`prefers-contrast`/`forced-colors`), 캐시 썸네일 프리뷰(`get_cached_thumbnail`), PR CI(`ci.yml`)와 커버리지 리포트(`npm run test:coverage`), 이동/컴포넌트 테스트 보강. 타일 렌더링은 보류.
+> - ✅ 로드맵 잔여분(2026-09-22): 고대비(`prefers-contrast`/`forced-colors`), 캐시 썸네일 프리뷰(`get_cached_thumbnail`), PR CI(`ci.yml`)와 커버리지 리포트(`npm run test:coverage`), 컴포넌트 테스트(`Header`·`ImageNavBar`·`SettingsDialog`), 로드→표시→이동 통합 플로우(`useDirectoryNavigation`), `commands.rs` 단위 테스트 보강. 타일 렌더링은 보류.
 
 ---
 
@@ -358,15 +358,15 @@
 
 ---
 
-### 5.3 테스트 커버리지 확대 (P2) — 진행 중 (2026-09-22 보강)
+### 5.3 테스트 커버리지 확대 (P2) — ✅ 완료 (2026-09-22 보강)
 
-**현재 상태**: 프런트 52개 테스트 파일(340여 케이스). 훅(`useFileOperations`, `useFileAssociations`, `useUpdater`, `useZoomPan`), 컴포넌트(`ImageContainer`, `GifControls`, `RecentFileAttachment`, `button`, `ShortcutBadge` 등), 스토어(app/settings/archiveProgress/paletteMru/gif), 유틸 20여종이 있다. 이동 인덱스 계산은 `dirNavigation`으로 분리해 테스트한다. `npm run test:coverage`(v8, text+html)로 리포트를 만들고 CI에서 함께 돌린다. 남은 것은 아래 계획이다.
+**현재 상태**: 프런트 54개 테스트 파일(386 케이스). 컴포넌트(`Header` 7·`ImageNavBar` 7·`SettingsDialog` 6 + 기존 `ImageContainer`·`GifControls`·`ExifPanel` 등), 통합 플로우(`useDirectoryNavigation` 로드→표시→이동 7: 경계/루프/양면 2장/클램프/오프셋/아카이브 분기), Rust(`commands.rs` 23: `index_of_current`·`DirListOptions` 기본값·`resolve_dropped_path` 4·`trash_file`·`get_exif_data`·`get_archive_images` 3 추가, 전체 179 통과)가 있다. `npm run test:coverage`(v8, text+html)로 리포트를 만들고 CI에서 함께 돌린다.
 
-**개선 계획**:
+**개선 계획 (달성)**:
 
-- **컴포넌트 테스트**: `Header`, `ImageNavBar`, `SettingsDialog` 등 렌더링/상호작용 테스트
-- **통합 테스트**: 이미지 로드 → 표시 → 네비게이션 플로우 테스트
-- **Rust 테스트**: `commands.rs` 단위 테스트 추가
+- ~~**컴포넌트 테스트**: `Header`, `ImageNavBar`, `SettingsDialog` 등 렌더링/상호작용 테스트~~ ✅
+- ~~**통합 테스트**: 이미지 로드 → 표시 → 네비게이션 플로우 테스트~~ ✅ (스토어+네비게이션 훅 수준)
+- ~~**Rust 테스트**: `commands.rs` 단위 테스트 추가~~ ✅
 
 **관련 파일**:
 
