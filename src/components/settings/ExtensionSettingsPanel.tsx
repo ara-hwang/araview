@@ -123,31 +123,30 @@ export function ExtensionSettingsPanel({ active }: ExtensionSettingsPanelProps) 
         {t("settings.ext.openSettings")}
       </Button>
 
-      <div className="flex flex-col gap-2 border-t pt-4">
-        <h3 className="text-base font-medium">{t("settings.thumb.title")}</h3>
-        <p className="text-sm text-muted-foreground">{t("settings.thumb.desc")}</p>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={thumbBusy}
-            onClick={() => void setThumbnail(!(thumbStatus?.registered ?? false))}
-          >
-            {thumbPending ? <Spinner data-icon="inline-start" /> : null}
-            {thumbStatus?.registered ? t("settings.thumb.disable") : t("settings.thumb.enable")}
-          </Button>
-          <span className="text-sm text-muted-foreground" role="status">
-            {thumbLoading || thumbStatus === null
-              ? t("settings.thumb.checking")
-              : thumbStatus.registered
-                ? t("settings.thumb.enabled")
-                : t("settings.thumb.disabled")}
-          </span>
+      <div className="flex flex-col gap-3 border-t pt-4">
+        <div className="flex flex-col gap-1">
+          <h3 className="text-base font-medium">{t("settings.thumb.title")}</h3>
+          <p className="text-sm text-muted-foreground">{t("settings.thumb.desc")}</p>
         </div>
-        {thumbStatus !== null && !thumbStatus.dll_exists ? (
-          <p className="text-sm text-muted-foreground">{t("settings.thumb.dllMissing")}</p>
-        ) : null}
-        <p className="text-sm text-muted-foreground">{t("settings.thumb.note")}</p>
+        <Field orientation="horizontal" data-disabled={thumbBusy || undefined}>
+          <FieldContent>
+            <FieldLabel htmlFor="settings-thumb-psd">{t("settings.thumb.label")}</FieldLabel>
+            <FieldDescription role="status">
+              {thumbStatus !== null && !thumbStatus.dll_exists
+                ? t("settings.thumb.dllMissing")
+                : t("settings.thumb.note")}
+            </FieldDescription>
+          </FieldContent>
+          <Switch
+            id="settings-thumb-psd"
+            checked={thumbStatus?.registered ?? false}
+            disabled={thumbBusy}
+            aria-busy={thumbLoading || undefined}
+            onCheckedChange={(checked) => {
+              void setThumbnail(checked)
+            }}
+          />
+        </Field>
       </div>
     </div>
   )
