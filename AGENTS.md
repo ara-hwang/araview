@@ -182,18 +182,17 @@ Tauri Store (`settings.json`) is used for:
   4. `npm run lint:fix` (auto-fix; `npm run lint` is check-only)
   5. `npm run format` (write mode; `npm run format:check` is check-only)
   6. `cd src-tauri && cargo fmt` (only when Rust sources changed; `cargo fmt --check` is check-only)
-  7. Runtime verification with Tauri MCP (primary) or agent-browser
-     over WebView2 CDP (fallback, skill:
-     `.opencode/skills/agent-browser/SKILL.md`):
+  7. Runtime verification with Tauri MCP:
      1. `npm run dev:up` (idempotent launcher, waits for `:1420` + `:9223`)
-     2. Tauri MCP: `tauri-mcp driver-session start --port 9223`, then
+     2. `tauri-mcp driver-session start --port 9223`, then
         `webview-screenshot`, `webview-execute-js` (`open-file` event),
         `webview-keyboard`, `read-logs --source console`. See `/verify-ui`.
         (MCP client tools: `driver_session`, `webview_*`, `read_logs`.)
-     3. Fallback when the MCP server is unreachable: per-command
-        `agent-browser --cdp 9222` with
-        `$env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-port=9222"`
-        set in the launching shell. Never use stateful `connect`, it hangs.
+     3. If `driver-session start` fails, repair the bridge with
+        `get_setup_instructions` or restart the session (`npx -y` download
+        flake) before concluding anything is broken. There is no browser
+        automation fallback: report the exact failure instead of skipping
+        verification.
 - Tauri MCP "missing" reports are usually misdiagnoses. Check in this order:
   1. Names: repo `mcp-server-tauri` is not an npm name. MCP server is
      `@hypothesi/tauri-mcp-server` (stdio protocol, no `--help`/`--version`

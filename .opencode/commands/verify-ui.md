@@ -4,8 +4,9 @@ description: Dev 앱 기동 후 Tauri MCP로 UI 실기동 검증 (스크린샷�
 
 Tauri MCP를 이용한 UI 런타임 검증을 수행한다. `$ARGUMENTS`가 있으면
 해당 화면이나 조작에 집중하고, 없으면 아래 기본 체크리스트를 전부 수행한다.
-MCP 서버에 닿지 않을 때의 폴백 절차는
-`.opencode/skills/agent-browser/SKILL.md`(WebView2 CDP)를 따른다.
+폴백 경로는 없다. 2단계의 `driver-session start`가 실패하면
+`get_setup_instructions`로 브리지를 복구하거나 세션을 재시작하고, 그래도
+안 되면 검증을 조용히 건너뛰지 말고 실패 원인을 그대로 보고한다.
 
 1. 기동: `npm run dev:up`을 실행한다. 이미 실행 중이면 즉시 READY가 반환된다.
 2. 연결: `tauri-mcp driver-session start --port 9223`으로 세션을 시작한다

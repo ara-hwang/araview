@@ -20,6 +20,9 @@
       "*": "allow",
       "rm -rf *": "deny",
       "git push *": "ask"
+    },
+    "skill": {
+      "agent-browser": "deny"
     }
   },
   "mcp": {
