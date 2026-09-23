@@ -2,7 +2,7 @@
 
 maintainer용 안내입니다. 사용자용 업데이트 확인 방법은 `usage.md#업데이트-확인`을 봅니다. 배포 규격 진실은 `../SPEC.md` §20을 따릅니다.
 
-릴리스는 태그(`v*`) 푸시로 GitHub Releases에 발행되며, updater 아티팩트(`latest.json`, `.sig`)가 함께 첨부됩니다. 릴리스 본문은 이전 태그 이후 커밋 목록과 비교 링크로 자동 생성됩니다. 태그 푸시 시 릴리스 워크플로가 프런트/Rust 검사를 먼저 돌리고, 통과해야 빌드와 릴리스로 진행합니다. PR과 main 푸시에서는 `.github/workflows/ci.yml`이 같은 검사(린트, 커버리지 포함 테스트, 타입, 포맷, npm/cargo 보안 감사, cargo test/clippy)를 돌리므로 로컬 검사와 별개로 PR마다 자동 확인됩니다.
+릴리스는 태그(`v*`) 푸시로 GitHub Releases에 발행되며, updater 아티팩트(`latest.json`, `.sig`)가 함께 첨부됩니다. 릴리스 본문은 이전 태그 이후 커밋 목록과 비교 링크로 자동 생성됩니다. 태그 푸시 시 릴리스 워크플로가 프런트/Rust 검사를 먼저 돌리고, 통과해야 빌드와 릴리스로 진행합니다. `.github/workflows/ci.yml`은 PR과 main 푸시에서 자동으로 돌지 않습니다. 같은 검사(린트, 커버리지 포함 테스트, 타입, 포맷, npm/cargo 보안 감사, cargo test/clippy)는 Actions 탭에서 해당 워크플로를 수동 실행할 때만 돌아갑니다.
 
 릴리스 생성 권한은 `GITHUB_TOKEN`(`contents: write`)을 씁니다. 저장소 Settings → Actions → General의 워크플로 권한이 `Read and write`여야 하며, `read`로 유지하려면 `contents: write` 권한의 fine-grained PAT를 `RELEASE_TOKEN` 시크릿으로 등록하세요(워크플로가 자동으로 그것을 사용).
 

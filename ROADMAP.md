@@ -360,7 +360,7 @@
 
 ### 5.3 테스트 커버리지 확대 (P2) — ✅ 완료 (2026-09-22 보강)
 
-**현재 상태**: 프런트 54개 테스트 파일(386 케이스). 컴포넌트(`Header` 7·`ImageNavBar` 7·`SettingsDialog` 6 + 기존 `ImageContainer`·`GifControls`·`ExifPanel` 등), 통합 플로우(`useDirectoryNavigation` 로드→표시→이동 7: 경계/루프/양면 2장/클램프/오프셋/아카이브 분기), Rust(`commands.rs` 23: `index_of_current`·`DirListOptions` 기본값·`resolve_dropped_path` 4·`trash_file`·`get_exif_data`·`get_archive_images` 3 추가, 전체 179 통과)가 있다. `npm run test:coverage`(v8, text+html)로 리포트를 만들고 CI에서 함께 돌린다.
+**현재 상태**: 프런트 54개 테스트 파일(386 케이스). 컴포넌트(`Header` 7·`ImageNavBar` 7·`SettingsDialog` 6 + 기존 `ImageContainer`·`GifControls`·`ExifPanel` 등), 통합 플로우(`useDirectoryNavigation` 로드→표시→이동 7: 경계/루프/양면 2장/클램프/오프셋/아카이브 분기), Rust(`commands.rs` 23: `index_of_current`·`DirListOptions` 기본값·`resolve_dropped_path` 4·`trash_file`·`get_exif_data`·`get_archive_images` 3 추가, 전체 179 통과)가 있다. `npm run test:coverage`(v8, text+html)로 리포트를 만든다. 커버리지 포함 검사는 `ci.yml`을 수동 실행할 때 함께 돈다.
 
 **개선 계획 (달성)**:
 
@@ -379,7 +379,7 @@
 
 ### 5.4 CI/CD 파이프라인 강화 (P2) — ✅ 완료 (2026-09-22 보안 감사·릴리즈 노트 추가)
 
-**현재 상태**: `.github/workflows/ci.yml`이 PR과 main 푸시에서 프런트(린트, 커버리지 포함 테스트, 타입, 포맷, `npm audit --audit-level=moderate`)와 Rust(`cargo fmt --check`, `cargo test`, `clippy -D warnings`, `rustsec/audit-check` v2 핀)를 검사한다. `release.yml`은 태그 푸시에서 같은 검사를 게이트로 두고, 이전 태그 이후 커밋 목록과 비교 링크로 릴리스 본문을 자동 생성(`Generate release notes`, 전체 히스토리 checkout)한 뒤 릴리스를 빌드한다. 로컬 기준선: `npm audit` 0건, `cargo audit` 취약점 0건(비취약 경고 8건만, 게이트 통과).
+**현재 상태**: `.github/workflows/ci.yml`의 자동 실행은 꺼져 있다. PR과 main 푸시에서는 돌지 않고, Actions에서 수동 실행할 때만 프런트(린트, 커버리지 포함 테스트, 타입, 포맷, `npm audit --audit-level=moderate`)와 Rust(`cargo fmt --check`, `cargo test`, `clippy -D warnings`, `rustsec/audit-check` v2 핀)를 검사한다. `release.yml`은 태그 푸시에서 같은 검사를 게이트로 두고, 이전 태그 이후 커밋 목록과 비교 링크로 릴리스 본문을 자동 생성(`Generate release notes`, 전체 히스토리 checkout)한 뒤 릴리스를 빌드한다. 로컬 기준선: `npm audit` 0건, `cargo audit` 취약점 0건(비취약 경고 8건만, 게이트 통과).
 
 **관련 파일**:
 

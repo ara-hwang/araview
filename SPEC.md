@@ -560,7 +560,7 @@ Rust와 TypeScript는 같은 모양을 유지한다.
 - `window-state` 플러그인으로 창 상태를 유지한다.
 - Windows 11 Snap Layouts: 커스텀 최대화 버튼(`id=caption-maximize`) 위에 `WM_NCHITTEST`에 `HTMAXBUTTON`으로 응답하는 투명 네이티브 오버레이를 띄운다(`tauri-plugin-snap-layout`, 비-Windows no-op). 오버레이가 마우스를 가로채므로 버튼의 hover 배경/툴팁은 플러그인 이벤트(`tauri-snap://snap/mouseenter|mouseleave`)로 미러링하고, 클릭 최대화/복원은 네이티브가, 키보드(Enter/Space)는 기존 onClick이 담당한다. 헤더가 완전히 가려지는 동안(auto-hide, 메뉴바 숨김; peek 제외) 오버레이를 떼어낸다(`useSnapLayout` 훅).
 - 번들: `nsis`만 빌드한다. 결과물은 `src-tauri/target/release/bundle/` 아래에 생성된다.
-- 릴리스 파이프라인: 태그(`v*`) 푸시에서만 돌며 검사 실패 시 빌드와 릴리스로 진행하지 않는다. PR과 main 푸시에서는 `ci.yml`이 같은 검사(린트, 커버리지 포함 테스트, 타입, 포맷, cargo test/clippy)를 수행한다. 권한과 절차 상세는 `docs/releasing.md`를 따른다.
+- 릴리스 파이프라인: 태그(`v*`) 푸시에서만 돌며 검사 실패 시 빌드와 릴리스로 진행하지 않는다. `ci.yml`은 PR과 main 푸시에서 자동으로 돌지 않고, Actions에서 수동 실행할 때만 같은 검사(린트, 커버리지 포함 테스트, 타입, 포맷, cargo test/clippy)를 수행한다. 권한과 절차 상세는 `docs/releasing.md`를 따른다.
 - 파일 연결 3그룹:
   - Image 14종: png, jpg, jpeg, gif, bmp, webp, svg, ico, tiff, tif, avif, heic, heif, psd.
   - Comic 4종: cbz, cb7, cbr, cbt.
