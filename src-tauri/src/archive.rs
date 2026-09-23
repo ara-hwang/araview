@@ -99,7 +99,12 @@ fn check_entry_size(len: u64) -> Result<(), AppError> {
 
 /// `limit` 바이트를 넘기면 중단하는 bounded read (압축 폭탄 대비).
 /// 선언 크기와 실제 출력이 다를 수 있으므로 실제 읽기 경로에서 강제한다.
-fn read_bounded(reader: &mut dyn Read, limit: u64, context: &str) -> Result<Vec<u8>, AppError> {
+/// ComicInfo.xml(`comic_info.rs`)도 같은 가드를 쓰도록 `pub(crate)`다.
+pub(crate) fn read_bounded(
+    reader: &mut dyn Read,
+    limit: u64,
+    context: &str,
+) -> Result<Vec<u8>, AppError> {
     let mut buf = Vec::new();
     let mut limited = reader.take(limit.saturating_add(1));
     limited

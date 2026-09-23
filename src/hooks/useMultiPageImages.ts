@@ -4,6 +4,8 @@ import { useShallow } from "zustand/react/shallow"
 import { useAppStore } from "@/store/appStore"
 import { useSettingsStore } from "@/store/settingsStore"
 import type { ImageInfo } from "@/types"
+import { resolveCoverIndex } from "@/utils/comicCover"
+import { dualPageOffsets } from "@/utils/dirNavigation"
 
 // viewMode에 따라 현재 이미지 외에 주변 이미지를 로드해 반환한다.
 //   - single               : 빈 배열 (ImageContainer가 기본 단일 렌더를 사용)
@@ -21,13 +23,15 @@ export type MultiPage = {
 }
 
 export function useMultiPageImages(getOrLoadImage: GetOrLoadImage) {
-  const { viewMode, loopNavigation } = useSettingsStore(
+  const { viewMode, loopNavigation, showCoverAlone } = useSettingsStore(
     useShallow((s) => ({
       viewMode: s.viewMode,
-      loopNavigation: s.loopNavigation
+      loopNavigation: s.loopNavigation,
+      showCoverAlone: s.showCoverAlone
     }))
   )
   const dirImages = useAppStore((s) => s.dirImages)
+  const comicInfo = useAppStore((s) => s.comicInfo)
   const [pages, setPages] = useState<MultiPage[]>([])
 
   useEffect(() => {
@@ -47,8 +51,13 @@ export function useMultiPageImages(getOrLoadImage: GetOrLoadImage) {
     const normalize = (v: number) => ((v % count) + count) % count
 
     // 어떤 오프셋들을 로드할지 결정
-    // LTR / RTL: 현재 + 다음
-    const offsets = [0, 1]
+    // LTR / RTL: 현재 + 다음. 표지 단독이면 표지 장만 로드한다.
+    const offsets = dualPageOffsets(
+      index,
+      count,
+      showCoverAlone,
+      resolveCoverIndex(comicInfo, count)
+    )
 
     const targetIndices: number[] = []
     for (const off of offsets) {
@@ -77,7 +86,15 @@ export function useMultiPageImages(getOrLoadImage: GetOrLoadImage) {
     return () => {
       cancelled = true
     }
-  }, [viewMode, loopNavigation, dirImages.images, dirImages.current_index, getOrLoadImage])
+  }, [
+    viewMode,
+    loopNavigation,
+    showCoverAlone,
+    comicInfo,
+    dirImages.images,
+    dirImages.current_index,
+    getOrLoadImage
+  ])
 
   return { viewMode, pages }
 }

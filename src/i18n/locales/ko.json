@@ -178,8 +178,10 @@
     },
     "reading": {
       "title": "읽기",
-      "desc": "만화(CBZ 등)를 다시 열 때 마지막으로 본 페이지에서 이어봅니다",
-      "resume": "이어보기"
+      "desc": "만화(CBZ 등)를 다시 열 때 마지막으로 본 페이지에서 이어봅니다. 표지 단독은 양면 보기에서 첫 페이지를 혼자 보여줍니다.",
+      "resume": "이어보기",
+      "coverAlone": "양면 보기에서 표지 단독 표시",
+      "showComicInfo": "정보 패널에 만화 정보(ComicInfo.xml) 표시"
     },
     "dock": {
       "title": "이미지 목록 도크",
@@ -349,6 +351,25 @@
     "iccPresentNoName": "포함됨 ({{size}})",
     "iccAbsent": "없음",
     "iccUnchecked": "확인 불가"
+  },
+  "comic": {
+    "section": "만화 정보",
+    "title": "제목",
+    "series": "시리즈",
+    "number": "번호",
+    "volume": "볼륨",
+    "count": "총 권수",
+    "writer": "글",
+    "penciller": "그림",
+    "publisher": "출판사",
+    "genre": "장르",
+    "tags": "태그",
+    "language": "언어",
+    "pageCount": "페이지 수",
+    "ageRating": "연령 등급",
+    "rating": "평점",
+    "summary": "줄거리",
+    "loadFail": "만화 정보를 읽지 못했습니다."
   },
   "histogram": {
     "title": "히스토그램",

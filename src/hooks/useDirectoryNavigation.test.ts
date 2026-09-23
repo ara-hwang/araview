@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { useDirectoryNavigation } from "@/hooks/useDirectoryNavigation"
 import { closeImage, useAppStore } from "@/store/appStore"
 import { useSettingsStore } from "@/store/settingsStore"
+import type { ComicInfo } from "@/types"
 
 const IMAGES = ["/pics/a.jpg", "/pics/b.jpg", "/pics/c.jpg", "/pics/d.jpg"]
 
@@ -19,6 +20,28 @@ function imageInfoFor(path: string) {
   }
 }
 
+/** ComicInfo 표지 판정용 최소 메타데이터. */
+function comicInfoWithCover(image: number): ComicInfo {
+  return {
+    title: null,
+    series: null,
+    number: null,
+    count: null,
+    volume: null,
+    summary: null,
+    writer: null,
+    penciller: null,
+    publisher: null,
+    genre: null,
+    tags: null,
+    language_iso: null,
+    page_count: null,
+    age_rating: null,
+    community_rating: null,
+    pages: [{ image, page_type: "FrontCover" }]
+  }
+}
+
 function setup(index = 0, total: string[] = IMAGES) {
   closeImage()
   useAppStore.setState({
@@ -26,7 +49,7 @@ function setup(index = 0, total: string[] = IMAGES) {
     dirImages: { images: total, current_index: index, availability: [] },
     archivePath: null
   })
-  useSettingsStore.setState({ loopNavigation: false, viewMode: "single" })
+  useSettingsStore.setState({ loopNavigation: false, viewMode: "single", showCoverAlone: true })
 }
 
 beforeEach(() => {
@@ -79,9 +102,9 @@ describe("useDirectoryNavigation 로드-표시-이동 플로우", () => {
     expect(useAppStore.getState().dirImages.current_index).toBe(0)
   })
 
-  it("양면 모드는 2장씩 넘긴다", async () => {
+  it("양면 모드는 표지 단독이 꺼지면 2장씩 넘긴다", async () => {
     setup(0)
-    useSettingsStore.setState({ viewMode: "left-to-right" })
+    useSettingsStore.setState({ viewMode: "left-to-right", showCoverAlone: false })
     const loadImage = vi.fn()
     const { result } = renderHook(() => useDirectoryNavigation(loadImage))
 
@@ -90,6 +113,61 @@ describe("useDirectoryNavigation 로드-표시-이동 플로우", () => {
     })
 
     expect(loadImage).toHaveBeenCalledWith(IMAGES[2], { refreshDirectory: false })
+    expect(useAppStore.getState().dirImages.current_index).toBe(2)
+  })
+
+  it("양면 모드 표지 단독에서는 표지 다음이 2페이지다", async () => {
+    setup(0)
+    useSettingsStore.setState({ viewMode: "left-to-right", showCoverAlone: true })
+    const loadImage = vi.fn()
+    const { result } = renderHook(() => useDirectoryNavigation(loadImage))
+
+    await act(async () => {
+      await result.current.navigateImage("next")
+    })
+    expect(loadImage).toHaveBeenCalledWith(IMAGES[1], { refreshDirectory: false })
+    expect(useAppStore.getState().dirImages.current_index).toBe(1)
+
+    await act(async () => {
+      await result.current.navigateImage("next")
+    })
+    expect(loadImage).toHaveBeenCalledWith(IMAGES[3], { refreshDirectory: false })
+    expect(useAppStore.getState().dirImages.current_index).toBe(3)
+  })
+
+  it("양면 모드 표지 단독에서 2페이지의 이전은 표지다", async () => {
+    setup(1)
+    useSettingsStore.setState({ viewMode: "right-to-left", showCoverAlone: true })
+    const loadImage = vi.fn()
+    const { result } = renderHook(() => useDirectoryNavigation(loadImage))
+
+    await act(async () => {
+      await result.current.navigateImage("prev")
+    })
+
+    expect(loadImage).toHaveBeenCalledWith(IMAGES[0], { refreshDirectory: false })
+    expect(useAppStore.getState().dirImages.current_index).toBe(0)
+  })
+
+  it("양면 모드 점프는 쌍 시작으로 스냅한다", async () => {
+    setup(0)
+    useSettingsStore.setState({ viewMode: "left-to-right", showCoverAlone: true })
+    const loadImage = vi.fn()
+    const { result, rerender } = renderHook(() => useDirectoryNavigation(loadImage))
+
+    await act(async () => {
+      await result.current.navigateToIndex(2)
+    })
+    expect(loadImage).toHaveBeenCalledWith(IMAGES[1], { refreshDirectory: false })
+    expect(useAppStore.getState().dirImages.current_index).toBe(1)
+
+    act(() => {
+      useSettingsStore.setState({ showCoverAlone: false })
+    })
+    rerender()
+    await act(async () => {
+      await result.current.navigateToIndex(3)
+    })
     expect(useAppStore.getState().dirImages.current_index).toBe(2)
   })
 
@@ -124,6 +202,40 @@ describe("useDirectoryNavigation 로드-표시-이동 플로우", () => {
     await act(async () => {
       await result.current.navigateByOffset(-1)
     })
+    expect(useAppStore.getState().dirImages.current_index).toBe(2)
+  })
+
+  it("ComicInfo FrontCover가 0번이 아니면 표지 다음이 1페이지다", async () => {
+    setup(0)
+    useSettingsStore.setState({ viewMode: "left-to-right", showCoverAlone: true })
+    useAppStore.setState({ comicInfo: comicInfoWithCover(1) })
+    const loadImage = vi.fn()
+    const { result } = renderHook(() => useDirectoryNavigation(loadImage))
+
+    // 표지가 1번이면 0번은 혼자 보는 화면이 된다.
+    await act(async () => {
+      await result.current.navigateImage("next")
+    })
+    expect(loadImage).toHaveBeenCalledWith(IMAGES[1], { refreshDirectory: false })
+
+    await act(async () => {
+      await result.current.navigateImage("next")
+    })
+    expect(useAppStore.getState().dirImages.current_index).toBe(2)
+  })
+
+  it("ComicInfo 표지 기준으로 점프 스냅한다", async () => {
+    setup(0)
+    useSettingsStore.setState({ viewMode: "left-to-right", showCoverAlone: true })
+    useAppStore.setState({ comicInfo: comicInfoWithCover(1) })
+    const loadImage = vi.fn()
+    const { result } = renderHook(() => useDirectoryNavigation(loadImage))
+
+    // 표지 1 뒤 쌍은 (2,3), (4,5)다.
+    await act(async () => {
+      await result.current.navigateToIndex(3)
+    })
+    expect(loadImage).toHaveBeenCalledWith(IMAGES[2], { refreshDirectory: false })
     expect(useAppStore.getState().dirImages.current_index).toBe(2)
   })
 

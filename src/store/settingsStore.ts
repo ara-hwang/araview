@@ -53,6 +53,10 @@ export type SettingsState = {
   skipBrokenFiles: boolean
   /** 아카이브(만화) 재진입 시 마지막으로 본 페이지에서 이어본다 */
   resumeReading: boolean
+  /** 양면 보기에서 첫 페이지(표지)를 단독으로 표시한다 */
+  showCoverAlone: boolean
+  /** 정보 패널에 CBZ/ZIP ComicInfo 섹션을 표시한다 */
+  showComicInfo: boolean
   fitMode: FitMode
   dockPosition: DockPosition
   dockVisible: boolean
@@ -88,6 +92,8 @@ const initialSettings: SettingsState = {
   includeSubfolders: false,
   skipBrokenFiles: false,
   resumeReading: true,
+  showCoverAlone: true,
+  showComicInfo: true,
   fitMode: "auto",
   dockPosition: "bottom",
   dockVisible: true,
@@ -150,6 +156,14 @@ export function sanitizeSettings(value: unknown): SettingsState {
       record.resumeReading === undefined
         ? initialSettings.resumeReading
         : sanitizeBoolean(record.resumeReading),
+    showCoverAlone:
+      record.showCoverAlone === undefined
+        ? initialSettings.showCoverAlone
+        : sanitizeBoolean(record.showCoverAlone),
+    showComicInfo:
+      record.showComicInfo === undefined
+        ? initialSettings.showComicInfo
+        : sanitizeBoolean(record.showComicInfo),
     fitMode: sanitizeEnum(record.fitMode, FIT_MODES, initialSettings.fitMode),
     dockPosition: sanitizeEnum(record.dockPosition, DOCK_POSITIONS, initialSettings.dockPosition),
     dockVisible:

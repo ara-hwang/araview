@@ -1,7 +1,14 @@
 import { create } from "zustand"
 
 import { updateSettings, useSettingsStore } from "@/store/settingsStore"
-import { DirectoryImages, ExifData, ImageDetails, ImageHistogram, ImageInfo } from "@/types"
+import {
+  ComicInfo,
+  DirectoryImages,
+  ExifData,
+  ImageDetails,
+  ImageHistogram,
+  ImageInfo
+} from "@/types"
 import {
   clampPosition,
   getFitZoomFromSizes,
@@ -27,6 +34,10 @@ type AppState = {
   dragStart: { x: number; y: number }
   exifData: ExifData | null
   exifError: string | null
+  /** 아카이브(만화) 모드에서 읽은 ComicInfo.xml 메타데이터. 없으면 null */
+  comicInfo: ComicInfo | null
+  /** ComicInfo.xml 파싱 실패 메시지 (부재와 구분용) */
+  comicInfoError: string | null
   histogramData: ImageHistogram | null
   imageDetails: ImageDetails | null
   showExifPanel: boolean
@@ -98,6 +109,8 @@ const initialApp: AppState = {
   dragStart: { x: 0, y: 0 },
   exifData: null,
   exifError: null,
+  comicInfo: null,
+  comicInfoError: null,
   histogramData: null,
   imageDetails: null,
   showExifPanel: false,

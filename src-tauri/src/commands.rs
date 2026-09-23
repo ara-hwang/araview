@@ -204,6 +204,19 @@ pub fn get_image_details(file_path: String) -> Result<crate::image_info::ImageDe
     crate::image_info::details_for_path(Path::new(&file_path))
 }
 
+/// CBZ/ZIP 안의 ComicInfo.xml 메타데이터를 읽는다 (읽기 전용, 표시용).
+/// XML이 없거나 CBZ/ZIP이 아니면 `None`을 돌려주고, 깨진 XML은 에러다.
+#[tauri::command]
+pub fn get_comic_info(file_path: String) -> Result<Option<crate::comic_info::ComicInfo>, AppError> {
+    let path = Path::new(&file_path);
+
+    if !path.exists() {
+        return Err(AppError::not_found("File not found"));
+    }
+
+    crate::comic_info::read_comic_info(path)
+}
+
 /// 아카이브(CBZ/CB7) 파일 내부의 이미지 엔트리 목록을 반환
 #[tauri::command]
 pub fn get_archive_images(file_path: String) -> Result<DirectoryImages, AppError> {
@@ -857,6 +870,31 @@ mod tests {
             Err(e) => e,
         };
         assert_eq!(err.code, ErrorCode::NotFound);
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn get_comic_info_rejects_missing_file() {
+        let err = get_comic_info("D:\\no-such-dir-commands\\nope.cbz".to_string()).unwrap_err();
+        assert_eq!(err.code, ErrorCode::NotFound);
+    }
+
+    #[test]
+    fn get_comic_info_returns_none_without_xml() {
+        use std::io::Write as _;
+
+        let dir = unique_dir("comic-noinfo");
+        let archive_path = dir.join("plain.cbz");
+        let file = fs::File::create(&archive_path).expect("create cbz");
+        let mut writer = zip::ZipWriter::new(file);
+        let options = zip::write::SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Stored);
+        writer.start_file("001.png", options).expect("start entry");
+        writer.write_all(b"fake-png-bytes").expect("write entry");
+        writer.finish().expect("finish cbz");
+
+        let info = get_comic_info(archive_path.to_str().unwrap().to_string()).expect("read");
+        assert!(info.is_none());
         fs::remove_dir_all(&dir).ok();
     }
 }
