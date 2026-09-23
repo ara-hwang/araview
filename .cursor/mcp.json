@@ -7,14 +7,6 @@
         "@hypothesi/tauri-mcp-server"
       ]
     },
-    "filesystem": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@modelcontextprotocol/server-filesystem",
-        "C:\\Dev\\tauri-image-viewer"
-      ]
-    },
     "shadcn": {
       "command": "npx",
       "args": [
