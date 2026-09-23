@@ -7,9 +7,6 @@ type AppTooltipProps = {
   content: ReactNode
   side?: React.ComponentProps<typeof TooltipContent>["side"]
   align?: React.ComponentProps<typeof TooltipContent>["align"]
-  /** 외부에서 표시를 강제한다. 네이티브 오버레이가 마우스를 가로채
-   * 자체 호버 감지가 안 되는 요소(스냅 레이아웃 최대화 버튼 등)에 쓴다. */
-  forceOpen?: boolean
   children: ReactElement
 }
 
@@ -30,20 +27,19 @@ type AppTooltipProps = {
  * - 트리거는 ref를 받을 수 있어야 한다: `Button`, 네이티브 `button`,
  *   그리고 React 19 ref-as-prop 덕분에 props를 그대로 펼치는 `Toggle`,
  *   `ToggleGroupItem`, `ButtonGroupText`.
+ * - 윈도우 캡션 버튼(최소화/최대화/닫기)에는 OS 네이티브와 동일하게 툴팁을
+ *   붙이지 않는다. 네이티브 오버레이가 마우스를 가로채는 최대화 버튼은
+ *   호버 배경만 `useSnapLayout`의 `snapHover`로 미러링한다.
  */
 export function AppTooltip({
   content,
   side = "bottom",
   align = "center",
-  forceOpen = false,
   children
 }: AppTooltipProps) {
   if (content == null || content === "") return children
-  // forceOpen을 쓰는 경우만 제어 컴포넌트가 된다. 항상 boolean을 넘기면
-  // 제어/비제어 전환 경고가 없고, false는 호버 감지를 대체하는 강제 닫힘으로도 쓸 수 있다.
-  // forceOpen을 안 쓰면 기존처럼 완전 비제어로 둔다.
   return (
-    <Tooltip open={forceOpen ? true : undefined}>
+    <Tooltip>
       <TooltipTrigger render={children} />
       <TooltipContent side={side} align={align}>
         {content}

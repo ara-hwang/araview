@@ -12,7 +12,8 @@ import { detach } from "tauri-plugin-snap-layout"
  *
  * 오버레이가 버튼 위의 마우스를 가로채므로 CSS `:hover`와 React 이벤트가
  * 발생하지 않는다. 플러그인이 내보내는 `tauri-snap://snap/mouseenter|mouseleave`
- * 이벤트로 `snapHover`를 제공하니 이걸로 hover 스타일과 툴팁을 미러링한다.
+ * 이벤트로 `snapHover`를 제공하니 이걸로 hover 스타일을 미러링한다.
+ * 캡션 버튼에는 OS 네이티브와 동일하게 툴팁을 붙이지 않는다.
  * 클릭(최대화/복원)은 네이티브가 처리하며, 키보드는 버튼의 onClick이 그대로 담당한다.
  *
  * 비-Tauri 환경(jsdom/테스트)에서는 모든 호출이 조용히 무시된다.
