@@ -129,6 +129,25 @@
   --ease-motion-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-motion-in-out: cubic-bezier(0.77, 0, 0.175, 1);
   --ease-motion-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  /* 불확정 진행 바: 좌→우로 흐르는 막대. reduced-motion 폴백은 아래 미디어 쿼리. */
+  --animate-progress-indeterminate: progress-indeterminate 1.2s var(--ease-motion-in-out) infinite;
+
+  @keyframes progress-indeterminate {
+    from {
+      transform: translateX(-100%);
+    }
+    to {
+      transform: translateX(300%);
+    }
+  }
+}
+
+/* 불확정 진행 바는 reduced-motion에서 이동을 멈추고 중앙 정적 바로 대체한다. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-progress-indeterminate {
+    animation: none;
+    transform: translateX(100%);
+  }
 }
 
 @theme inline {

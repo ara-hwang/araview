@@ -1,9 +1,8 @@
 import { renderHook, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-const { mockCheck, mockRelaunch, mockGetVersion, mockToast } = vi.hoisted(() => ({
+const { mockCheck, mockGetVersion, mockToast } = vi.hoisted(() => ({
   mockCheck: vi.fn(),
-  mockRelaunch: vi.fn(),
   mockGetVersion: vi.fn(),
   mockToast: {
     add: vi.fn(),
@@ -16,7 +15,6 @@ const { mockCheck, mockRelaunch, mockGetVersion, mockToast } = vi.hoisted(() => 
 }))
 
 vi.mock("@tauri-apps/plugin-updater", () => ({ check: mockCheck }))
-vi.mock("@tauri-apps/plugin-process", () => ({ relaunch: mockRelaunch }))
 vi.mock("@tauri-apps/api/app", () => ({ getVersion: mockGetVersion }))
 vi.mock("@/components/ui/toast", () => ({ toast: mockToast }))
 vi.mock("@/i18n", () => ({
@@ -34,7 +32,6 @@ import {
   checkForUpdatesNow,
   computeDownloadPct,
   dismissUpdate,
-  relaunchAfterUpdate,
   requestUpdateCheck,
   startUpdateDownload,
   useAppVersion
@@ -138,7 +135,7 @@ describe("computeDownloadPct", () => {
 })
 
 describe("startUpdateDownload", () => {
-  it("다운로드 진행률을 저장하고 완료 시 ready가 된다", async () => {
+  it("다운로드 진행률과 누적 바이트를 저장하고 완료 시 installing이 된다", async () => {
     const downloadAndInstall = vi.fn((onEvent: (e: unknown) => void) => {
       onEvent({ event: "Started", data: { contentLength: 100 } })
       onEvent({ event: "Progress", data: { chunkLength: 50 } })
@@ -156,8 +153,10 @@ describe("startUpdateDownload", () => {
 
     expect(downloadAndInstall).toHaveBeenCalledTimes(1)
     const state = useUpdateStore.getState()
-    expect(state.stage).toBe("ready")
+    expect(state.stage).toBe("installing")
     expect(state.pct).toBe(100)
+    expect(state.downloadedBytes).toBe(50)
+    expect(state.totalBytes).toBe(100)
   })
 
   it("Finished에서 바를 100으로 마무리한다", async () => {
@@ -179,15 +178,21 @@ describe("startUpdateDownload", () => {
     await startUpdateDownload()
 
     expect(pctAtFinished).toBe(100)
-    expect(useUpdateStore.getState().stage).toBe("ready")
+    expect(useUpdateStore.getState().stage).toBe("installing")
   })
 
-  it("총 길이를 알 수 없으면 indeterminate를 유지한다", async () => {
+  it("총 길이를 알 수 없으면 pct는 null이고 바이트만 누적된다", async () => {
     let pctAfterProgress: number | null | undefined = -1
+    let bytesAfterProgress: number | undefined
+    let totalAfterProgress: number | null | undefined
     const downloadAndInstall = vi.fn((onEvent: (e: unknown) => void) => {
       onEvent({ event: "Started", data: { contentLength: null } })
       onEvent({ event: "Progress", data: { chunkLength: 30 } })
-      pctAfterProgress = useUpdateStore.getState().pct
+      onEvent({ event: "Progress", data: { chunkLength: 12 } })
+      const state = useUpdateStore.getState()
+      pctAfterProgress = state.pct
+      bytesAfterProgress = state.downloadedBytes
+      totalAfterProgress = state.totalBytes
       return Promise.resolve()
     })
     mockCheck.mockResolvedValueOnce({
@@ -200,14 +205,38 @@ describe("startUpdateDownload", () => {
     await startUpdateDownload()
 
     expect(pctAfterProgress).toBeNull()
+    expect(bytesAfterProgress).toBe(42)
+    expect(totalAfterProgress).toBeNull()
+  })
+
+  it("Started에서 누적 바이트를 초기화한다", async () => {
+    const downloadAndInstall = vi.fn((onEvent: (e: unknown) => void) => {
+      onEvent({ event: "Progress", data: { chunkLength: 50 } })
+      onEvent({ event: "Started", data: { contentLength: 100 } })
+      return Promise.resolve()
+    })
+    mockCheck.mockResolvedValueOnce({
+      version: "9.9.9",
+      body: null,
+      downloadAndInstall
+    })
+    await checkForUpdatesNow()
+
+    await startUpdateDownload()
+
+    const state = useUpdateStore.getState()
+    expect(state.downloadedBytes).toBe(0)
+    expect(state.pct).toBeNull()
   })
 
   it("비정상 chunk는 무시하고 유효한 chunk로 진행률을 계산한다", async () => {
     const seen: Array<number | null> = []
+    let bytesAfterInvalid: number | undefined
     const downloadAndInstall = vi.fn((onEvent: (e: unknown) => void) => {
       onEvent({ event: "Started", data: { contentLength: 100 } })
       onEvent({ event: "Progress", data: { chunkLength: Number.NaN } })
       onEvent({ event: "Progress", data: { chunkLength: -5 } })
+      bytesAfterInvalid = useUpdateStore.getState().downloadedBytes
       seen.push(useUpdateStore.getState().pct)
       onEvent({ event: "Progress", data: { chunkLength: 50 } })
       seen.push(useUpdateStore.getState().pct)
@@ -222,6 +251,7 @@ describe("startUpdateDownload", () => {
 
     await startUpdateDownload()
 
+    expect(bytesAfterInvalid).toBe(0)
     expect(seen).toEqual([null, 50])
   })
 
@@ -260,43 +290,53 @@ describe("dismissUpdate", () => {
     const pending = startUpdateDownload()
     await vi.waitFor(() => expect(useUpdateStore.getState().stage).toBe("downloading"))
 
-    dismissUpdate(false)
+    dismissUpdate()
     expect(useUpdateStore.getState().stage).toBe("downloading")
 
     resolveDownload()
     await pending
-    expect(useUpdateStore.getState().stage).toBe("ready")
+    // Finished 없이 resolve되는 경로는 Windows에서 도달하지 않으므로
+    // stage를 바꾸지 않는다(방어적 유지).
+    expect(useUpdateStore.getState().stage).toBe("downloading")
   })
 
-  it("deferred로 닫으면 다음 실행 적용 토스트를 표시한다", async () => {
-    mockCheck.mockResolvedValueOnce({ version: "9.9.9", body: null })
+  it("installing 단계에서도 닫기를 무시한다", async () => {
+    const downloadAndInstall = vi.fn((onEvent: (e: unknown) => void) => {
+      onEvent({ event: "Finished" })
+      return Promise.resolve()
+    })
+    mockCheck.mockResolvedValueOnce({
+      version: "9.9.9",
+      body: null,
+      downloadAndInstall
+    })
     await checkForUpdatesNow()
 
-    dismissUpdate(true)
+    await startUpdateDownload()
+    expect(useUpdateStore.getState().stage).toBe("installing")
 
+    dismissUpdate()
+    expect(useUpdateStore.getState().stage).toBe("installing")
+  })
+
+  it("installing 단계에서 에러가 나면 닫을 수 있다", async () => {
+    const downloadAndInstall = vi.fn((onEvent: (e: unknown) => void) => {
+      onEvent({ event: "Finished" })
+      return Promise.reject(new Error("denied"))
+    })
+    mockCheck.mockResolvedValueOnce({
+      version: "9.9.9",
+      body: null,
+      downloadAndInstall
+    })
+    await checkForUpdatesNow()
+
+    await startUpdateDownload()
+    expect(useUpdateStore.getState().stage).toBe("installing")
+    expect(useUpdateStore.getState().error).toBe("denied")
+
+    dismissUpdate()
     expect(useUpdateStore.getState().stage).toBe("idle")
-    expect(mockToast.success).toHaveBeenCalledWith("toast.update.deferred")
-  })
-})
-
-describe("relaunchAfterUpdate", () => {
-  it("relaunch를 호출한다", async () => {
-    mockRelaunch.mockResolvedValueOnce(undefined)
-
-    await relaunchAfterUpdate()
-
-    expect(mockRelaunch).toHaveBeenCalledTimes(1)
-  })
-
-  it("relaunch 실패 시 에러 토스트를 표시한다", async () => {
-    mockRelaunch.mockRejectedValueOnce(new Error("denied"))
-
-    await relaunchAfterUpdate()
-
-    expect(mockToast.error).toHaveBeenCalledWith(
-      "toast.update.restartFail",
-      expect.objectContaining({ description: "denied" })
-    )
   })
 })
 

@@ -547,7 +547,6 @@ r-efi is triple-licensed, permissive terms apply.
 | tauri-plugin-fs | 2.5.2 | Apache-2.0 OR MIT |
 | tauri-plugin-mcp-bridge | 0.13.0 | MIT |
 | tauri-plugin-opener | 2.5.5 | Apache-2.0 OR MIT |
-| tauri-plugin-process | 2.3.1 | Apache-2.0 OR MIT |
 | tauri-plugin-single-instance | 2.4.4 | Apache-2.0 OR MIT |
 | tauri-plugin-store | 2.4.4 | Apache-2.0 OR MIT |
 | tauri-plugin-updater | 2.11.0 | Apache-2.0 OR MIT |
@@ -752,7 +751,6 @@ Pretendard font (OFL-1.1): no license text file found in pretendard npm package.
 | @tauri-apps/api | 2.11.1 | Apache-2.0 OR MIT |
 | @tauri-apps/plugin-dialog | 2.7.3 | MIT OR Apache-2.0 |
 | @tauri-apps/plugin-opener | 2.5.5 | MIT OR Apache-2.0 |
-| @tauri-apps/plugin-process | 2.3.1 | MIT OR Apache-2.0 |
 | @tauri-apps/plugin-store | 2.4.4 | MIT OR Apache-2.0 |
 | @tauri-apps/plugin-updater | 2.11.0 | MIT OR Apache-2.0 |
 | class-variance-authority | 0.7.1 | Apache-2.0 |

@@ -18,6 +18,7 @@ npm run release:local
 
 - 피드(`latest.json`)와 설치본이 모두 `ara-hwang/araview-updates` 릴리스에 있고, `plugins.updater.endpoints`는 `https://github.com/ara-hwang/araview-updates/releases/latest/download/latest.json`을 가리킵니다.
 - 소스 저장소를 공개로 전환하면 기본값과 endpoint를 원래 릴리스 URL로 되돌립니다. 엔드포인트는 앱에 포함되므로 그다음 릴리스부터 적용됩니다.
+- 앱은 다운로드가 끝나면 NSIS 설치 관리자를 실행하고 종료됩니다(updater 플러그인의 Windows 동작). 설치 관리자 실행 이후의 실패(사용자 취소, 디스크 부족 등)는 앱이 이미 종료된 뒤라 앱에서 피드백할 수 없고 NSIS 창이 표시합니다.
 
 ## 서명키 발급과 등록 (maintainer 1회)
 

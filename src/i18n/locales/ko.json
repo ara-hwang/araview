@@ -415,13 +415,13 @@
       "downloadingTitle": "업데이트 다운로드 중",
       "downloadingDesc": "버전 {{version}}을(를) 다운로드하고 있습니다. 완료될 때까지 앱을 종료하지 마세요.",
       "downloading": "업데이트 다운로드 중",
-      "downloadingPct": "업데이트 다운로드 중 {{pct}}%",
+      "downloadedBytes": "{{size}} 다운로드됨",
+      "downloadedOfTotal": "{{downloaded}} / {{total}} ({{pct}}%)",
       "downloadFail": "다운로드에 실패했습니다. 다시 시도하거나 나중에 확인하세요.",
       "retry": "다시 시도",
-      "readyTitle": "설치 준비 완료",
-      "readyDesc": "지금 다시 시작하면 새 버전이 적용됩니다. 닫은 후 적용하면 앱을 종료한 뒤 다음 실행 시 적용됩니다.",
-      "restartNow": "지금 다시 시작",
-      "applyOnExit": "닫은 후 적용"
+      "installingTitle": "설치를 시작합니다",
+      "installingDesc": "다운로드가 완료되었습니다. 앱이 잠시 닫히고 설치가 진행된 뒤 새 버전이 자동으로 실행됩니다.",
+      "installFail": "설치를 시작하지 못했습니다. 다시 시도하거나 나중에 확인하세요."
     }
   },
   "status": {
@@ -590,17 +590,7 @@
     },
     "update": {
       "latest": "최신 버전을 사용 중입니다",
-      "checkFail": "업데이트 확인 실패",
-      "availableTitle": "새 버전 {{version}}을(를) 사용할 수 있습니다",
-      "availableDesc": "지금 다운로드하고 설치할 수 있습니다.",
-      "install": "다운로드 및 설치",
-      "downloading": "업데이트 다운로드 중",
-      "downloadingPct": "업데이트 다운로드 중 {{pct}}%",
-      "installed": "업데이트를 설치했습니다",
-      "restart": "다시 시작",
-      "restartFail": "다시 시작 실패",
-      "installFail": "업데이트 설치 실패",
-      "deferred": "앱을 닫은 뒤 다음 실행 시 업데이트가 적용됩니다"
+      "checkFail": "업데이트 확인 실패"
     },
     "load": {
       "archiveFail": "아카이브를 불러오지 못했습니다",

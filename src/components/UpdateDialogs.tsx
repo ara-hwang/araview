@@ -10,8 +10,9 @@ import {
   DialogTitle
 } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { dismissUpdate, relaunchAfterUpdate, startUpdateDownload } from "@/hooks/useUpdater"
+import { dismissUpdate, startUpdateDownload } from "@/hooks/useUpdater"
 import { useUpdateStore } from "@/store/updateStore"
+import { formatFileSize } from "@/utils/format"
 
 export function UpdateDialogs() {
   const { t } = useTranslation()
@@ -19,20 +20,38 @@ export function UpdateDialogs() {
   const version = useUpdateStore((s) => s.version)
   const body = useUpdateStore((s) => s.body)
   const pct = useUpdateStore((s) => s.pct)
+  const downloadedBytes = useUpdateStore((s) => s.downloadedBytes)
+  const totalBytes = useUpdateStore((s) => s.totalBytes)
   const error = useUpdateStore((s) => s.error)
 
   const open = stage !== "idle"
-  const downloading = stage === "downloading" && !error
+  const installing = stage === "installing"
+  const busy = stage === "downloading" || installing
+  // 다운로드/설치 인계 중에는 에러가 없으면 닫기를 막는다.
+  const dismissBlocked = busy && !error
 
   const handleOpenChange = (next: boolean) => {
     if (next) return
-    if (stage === "downloading" && !error) return
-    dismissUpdate(false)
+    if (dismissBlocked) return
+    dismissUpdate()
   }
+
+  const busyTitle = installing
+    ? t("dialog.update.installingTitle")
+    : t("dialog.update.downloadingTitle")
+
+  const bytesLine =
+    totalBytes === null || pct === null
+      ? t("dialog.update.downloadedBytes", { size: formatFileSize(downloadedBytes) })
+      : t("dialog.update.downloadedOfTotal", {
+          downloaded: formatFileSize(downloadedBytes),
+          total: formatFileSize(totalBytes),
+          pct
+        })
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent data-testid="update-dialog" showCloseButton={!downloading}>
+      <DialogContent data-testid="update-dialog" showCloseButton={!dismissBlocked}>
         {stage === "available" && (
           <>
             <DialogHeader>
@@ -49,11 +68,7 @@ export function UpdateDialogs() {
               </ScrollArea>
             </div>
             <DialogFooter>
-              <Button
-                variant="outline"
-                data-testid="update-later"
-                onClick={() => dismissUpdate(false)}
-              >
+              <Button variant="outline" data-testid="update-later" onClick={() => dismissUpdate()}>
                 {t("dialog.update.later")}
               </Button>
               <Button data-testid="update-download" onClick={() => void startUpdateDownload()}>
@@ -63,14 +78,16 @@ export function UpdateDialogs() {
           </>
         )}
 
-        {stage === "downloading" && (
+        {busy && (
           <>
             <DialogHeader>
-              <DialogTitle>{t("dialog.update.downloadingTitle")}</DialogTitle>
+              <DialogTitle>{busyTitle}</DialogTitle>
               <DialogDescription>
-                {t("dialog.update.downloadingDesc", {
-                  version: version ?? ""
-                })}
+                {installing
+                  ? t("dialog.update.installingDesc")
+                  : t("dialog.update.downloadingDesc", {
+                      version: version ?? ""
+                    })}
               </DialogDescription>
             </DialogHeader>
             <div className="flex flex-col gap-2">
@@ -79,35 +96,43 @@ export function UpdateDialogs() {
                 aria-valuemin={0}
                 aria-valuemax={100}
                 aria-valuenow={pct ?? undefined}
-                aria-label={t("dialog.update.downloadingTitle")}
+                aria-label={busyTitle}
                 data-testid="update-progress"
                 className="h-2 w-full overflow-hidden rounded-full bg-muted"
               >
                 <div
                   className={
                     pct === null
-                      ? "h-full w-1/3 animate-pulse rounded-full bg-primary"
+                      ? "h-full w-1/3 animate-progress-indeterminate rounded-full bg-primary"
                       : "h-full w-full origin-left rounded-full bg-primary transition-transform duration-200 ease-linear"
                   }
                   style={pct === null ? undefined : { transform: `scaleX(${pct / 100})` }}
                 />
               </div>
-              <p className="text-sm text-muted-foreground">
-                {error
-                  ? error
-                  : pct === null
-                    ? t("dialog.update.downloading")
-                    : t("dialog.update.downloadingPct", { pct })}
-              </p>
+              {error ? (
+                <p className="text-sm text-muted-foreground">{error}</p>
+              ) : (
+                !installing && (
+                  <p className="text-sm text-muted-foreground">{t("dialog.update.downloading")}</p>
+                )
+              )}
+              {!error && !installing && downloadedBytes > 0 && (
+                <p
+                  data-testid="update-bytes"
+                  className="text-sm text-muted-foreground tabular-nums"
+                >
+                  {bytesLine}
+                </p>
+              )}
               {error && (
                 <p role="alert" className="text-sm text-destructive">
-                  {t("dialog.update.downloadFail")}
+                  {installing ? t("dialog.update.installFail") : t("dialog.update.downloadFail")}
                 </p>
               )}
             </div>
             {error && (
               <DialogFooter>
-                <Button variant="outline" onClick={() => dismissUpdate(false)}>
+                <Button variant="outline" onClick={() => dismissUpdate()}>
                   {t("dialog.cancel")}
                 </Button>
                 <Button data-testid="update-retry" onClick={() => void startUpdateDownload()}>
@@ -115,27 +140,6 @@ export function UpdateDialogs() {
                 </Button>
               </DialogFooter>
             )}
-          </>
-        )}
-
-        {stage === "ready" && (
-          <>
-            <DialogHeader>
-              <DialogTitle>{t("dialog.update.readyTitle")}</DialogTitle>
-              <DialogDescription>{t("dialog.update.readyDesc")}</DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-              <Button
-                variant="outline"
-                data-testid="update-apply-on-exit"
-                onClick={() => dismissUpdate(true)}
-              >
-                {t("dialog.update.applyOnExit")}
-              </Button>
-              <Button data-testid="update-restart-now" onClick={() => void relaunchAfterUpdate()}>
-                {t("dialog.update.restartNow")}
-              </Button>
-            </DialogFooter>
           </>
         )}
       </DialogContent>
