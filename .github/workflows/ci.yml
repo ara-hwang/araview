@@ -1,13 +1,12 @@
 name: CI
 
-# PR과 main 푸시에서 검사만 돈다. 릴리스(태그)는 release.yml이 담당한다.
+# 자동 실행은 꺼 두었다. PR과 main 푸시에서는 돌지 않는다.
+# Actions 탭에서 이 워크플로를 직접 실행(workflow_dispatch)할 때만 검사한다.
+# 릴리스(태그)는 release.yml이 담당한다.
 # 검증 항목과 커맨드는 release.yml의 검증 단계와 같게 유지한다.
 # (린트, 커버리지 포함 테스트, 타입, 포맷, 의존성 감사, cargo test/clippy)
 on:
-  pull_request:
-  push:
-    branches:
-      - main
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}
