@@ -33,11 +33,6 @@
         "MCP_BRIDGE_PORT": "9323"
       },
       "enabled": true
-    },
-    "shadcn": {
-      "type": "local",
-      "command": ["npx", "shadcn@latest", "mcp"],
-      "enabled": true
     }
   }
 }

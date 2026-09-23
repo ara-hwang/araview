@@ -6,13 +6,6 @@
         "-y",
         "@hypothesi/tauri-mcp-server"
       ]
-    },
-    "shadcn": {
-      "command": "npx",
-      "args": [
-        "shadcn@latest",
-        "mcp"
-      ]
     }
   }
 }

@@ -39,6 +39,7 @@ coverage
 .cursor/*
 !.cursor/rules
 !.cursor/environment.json
+!.cursor/mcp.json
 
 # Rust / Cargo
 # (build artifacts and generated files are covered by src-tauri/.gitignore)
