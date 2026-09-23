@@ -1,5 +1,4 @@
 import { getVersion } from "@tauri-apps/api/app"
-import { relaunch } from "@tauri-apps/plugin-process"
 import { check, type Update } from "@tauri-apps/plugin-updater"
 import { useEffect, useState } from "react"
 
@@ -71,40 +70,34 @@ export async function startUpdateDownload(): Promise<void> {
   downloadInFlight = true
   useUpdateStore.getState().startDownload()
   try {
-    let total: number | undefined
+    let total: number | null = null
     let downloaded = 0
-    let lastPct: number | null = null
     await update.downloadAndInstall((event) => {
       if (event.event === "Started") {
         const contentLength = event.data.contentLength
         total =
           typeof contentLength === "number" && Number.isFinite(contentLength) && contentLength > 0
             ? contentLength
-            : undefined
+            : null
         downloaded = 0
-        lastPct = null
-        useUpdateStore.getState().setProgress(null)
+        useUpdateStore.getState().setProgress(null, 0, total)
       } else if (event.event === "Progress") {
         const chunkLength = event.data.chunkLength
         if (typeof chunkLength !== "number" || !Number.isFinite(chunkLength) || chunkLength < 0) {
           return
         }
         downloaded += chunkLength
-        const pct = computeDownloadPct(downloaded, total)
-        if (pct !== lastPct) {
-          lastPct = pct
-          useUpdateStore.getState().setProgress(pct)
-        }
+        useUpdateStore
+          .getState()
+          .setProgress(computeDownloadPct(downloaded, total), downloaded, total)
       } else if (event.event === "Finished") {
-        // 최종 누적값이 contentLength와 어긋나도 바가 100% 미만에서
-        // 멈추지 않도록 완료 시점에 마무리한다.
-        if (total !== undefined && lastPct !== 100) {
-          lastPct = 100
-          useUpdateStore.getState().setProgress(100)
-        }
+        // Windows에서는 이 시점 이후 서명 검증, zip 해제, NSIS 실행을 거쳐
+        // 플러그인이 프로세스를 종료한다. downloadAndInstall은 resolve되지
+        // 않으므로 installing 단계가 종료 전 마지막 화면이 된다.
+        useUpdateStore.getState().markInstalling()
       }
     })
-    useUpdateStore.getState().markReady()
+    // Windows에서는 설치 관리자 인계 시 프로세스가 종료되어 여기에 도달하지 않는다.
   } catch (e) {
     useUpdateStore.getState().setDownloadError(errorMessage(e))
   } finally {
@@ -113,29 +106,13 @@ export async function startUpdateDownload(): Promise<void> {
 }
 
 /**
- * Dialog를 닫는다. 다운로드 진행 중(에러 없음)에는 닫기를 무시한다.
- * ready 단계의 [닫은 후 적용]은 다음 실행 시 적용됨을 토스트로 알린다.
+ * Dialog를 닫는다. 다운로드/설치 인계 진행 중(에러 없음)에는 닫기를 무시한다.
  */
-export function dismissUpdate(deferred = false) {
+export function dismissUpdate() {
   const { stage, error } = useUpdateStore.getState()
-  if (stage === "downloading" && !error) return
+  if ((stage === "downloading" || stage === "installing") && !error) return
   pendingUpdate = null
   useUpdateStore.getState().dismiss()
-  if (deferred) {
-    toast.success(i18n.t("toast.update.deferred"))
-  }
-}
-
-/** 설치 준비 완료 Dialog에서 [지금 다시 시작]을 눌렀을 때 호출된다. */
-export async function relaunchAfterUpdate(): Promise<void> {
-  try {
-    await relaunch()
-  } catch (e) {
-    toast.error(i18n.t("toast.update.restartFail"), {
-      description: errorMessage(e),
-      details: errorCopyDetails(e)
-    })
-  }
 }
 
 /** 테스트에서 모듈 상태(진행 중 플래그, 보류 업데이트)를 초기화한다. */

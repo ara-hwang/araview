@@ -415,13 +415,13 @@
       "downloadingTitle": "Downloading update",
       "downloadingDesc": "Downloading version {{version}}. Keep the app open until it finishes.",
       "downloading": "Downloading update",
-      "downloadingPct": "Downloading update {{pct}}%",
+      "downloadedBytes": "{{size}} downloaded",
+      "downloadedOfTotal": "{{downloaded}} / {{total}} ({{pct}}%)",
       "downloadFail": "Download failed. Try again or check later.",
       "retry": "Retry",
-      "readyTitle": "Ready to install",
-      "readyDesc": "Restart now to apply the new version. If you apply on exit, it takes effect on the next launch after you close the app.",
-      "restartNow": "Restart now",
-      "applyOnExit": "Apply on exit"
+      "installingTitle": "Starting installation",
+      "installingDesc": "Download complete. The app will close briefly to install the update, then restart with the new version automatically.",
+      "installFail": "Could not start the installation. Try again or check later."
     }
   },
   "status": {
@@ -590,17 +590,7 @@
     },
     "update": {
       "latest": "You are on the latest version",
-      "checkFail": "Failed to check for updates",
-      "availableTitle": "Version {{version}} is available",
-      "availableDesc": "You can download and install it now.",
-      "install": "Download and install",
-      "downloading": "Downloading update",
-      "downloadingPct": "Downloading update {{pct}}%",
-      "installed": "Update installed",
-      "restart": "Restart now",
-      "restartFail": "Failed to restart",
-      "installFail": "Failed to install update",
-      "deferred": "The update will apply on the next launch after you close the app"
+      "checkFail": "Failed to check for updates"
     },
     "load": {
       "archiveFail": "Failed to load archive",

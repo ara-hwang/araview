@@ -98,7 +98,6 @@ pub fn run() {
                 .build(),
         )
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         // 두 번째 실행(파일 더블클릭 등)은 새 창 대신 기존 창에 파일을 연다.
