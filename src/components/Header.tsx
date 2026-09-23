@@ -60,7 +60,7 @@ import { ToggleGroup, ToggleGroupItem } from "./ui/toggle-group"
 // 윈도우 캡션 버튼: 네이티브처럼 타이틀바 높이를 꽉 채우고 모서리에 붙인다.
 // 드래그 영역 안에 있으므로 no-drag로 제외한다 (더블클릭 최대화 방지).
 // 최대화 버튼은 네이티브 오버레이가 마우스를 가로채므로 :hover가 발생하지 않는다.
-// 호버 상태는 useSnapLayout의 snapHover를 클래스/툴팁으로 미러링한다 (아래에서).
+// 호버 상태는 useSnapLayout의 snapHover를 클래스로 미러링한다 (아래에서).
 const captionButtonClassName = cn(
   "flex w-12 shrink-0 items-center justify-center text-foreground transition-colors no-drag [&_svg]:pointer-events-none [&_svg]:size-4",
   "hover:bg-foreground/10 active:bg-foreground/20 dark:hover:bg-white/15 dark:active:bg-white/25",
@@ -119,7 +119,7 @@ export default function Header({
   const { toggleExifPanel } = useExifLoader()
   const { alwaysOnTop, toggle: toggleAlwaysOnTop } = useAlwaysOnTop()
   // Snap Layouts 오버레이가 최대화 버튼 위의 마우스를 가로채므로 CSS :hover와
-  // React 이벤트가 발생하지 않는다. 호버 상태와 툴팁을 플러그인 이벤트로 미러링한다.
+  // React 이벤트가 발생하지 않는다. 호버 상태는 플러그인 이벤트로 미러링한다.
   const { snapHover } = useSnapLayout(snapOverlayEnabled)
 
   useEffect(() => {
@@ -487,40 +487,35 @@ export default function Header({
         </div>
       </div>
 
-      {/* 윈도우 캡션 버튼: 타이틀바 우측 끝을 꽉 채운다. 드래그/더블클릭 최대화 제외. */}
+      {/* 윈도우 캡션 버튼: 타이틀바 우측 끝을 꽉 채운다. 드래그/더블클릭 최대화 제외.
+          OS 네이티브 캡션 버튼과 동일하게 툴팁을 붙이지 않는다. */}
       <div className="flex shrink-0 items-stretch no-drag">
-        <AppTooltip content={t("header.minimize")}>
-          <button
-            type="button"
-            onClick={handleMinimize}
-            aria-label={t("header.minimize")}
-            className={captionButtonClassName}
-          >
-            <Minus />
-          </button>
-        </AppTooltip>
-        <AppTooltip content={t("header.maximize")} forceOpen={snapHover}>
-          <button
-            type="button"
-            id="caption-maximize"
-            onClick={handleMaximize}
-            aria-label={t("header.maximize")}
-            aria-pressed={isMaximized}
-            className={cn(captionButtonClassName, snapHover && "bg-foreground/10 dark:bg-white/15")}
-          >
-            {isMaximized ? <Copy /> : <Square />}
-          </button>
-        </AppTooltip>
-        <AppTooltip content={t("header.close")}>
-          <button
-            type="button"
-            onClick={handleClose}
-            aria-label={t("header.close")}
-            className={captionCloseButtonClassName}
-          >
-            <X />
-          </button>
-        </AppTooltip>
+        <button
+          type="button"
+          onClick={handleMinimize}
+          aria-label={t("header.minimize")}
+          className={captionButtonClassName}
+        >
+          <Minus />
+        </button>
+        <button
+          type="button"
+          id="caption-maximize"
+          onClick={handleMaximize}
+          aria-label={t("header.maximize")}
+          aria-pressed={isMaximized}
+          className={cn(captionButtonClassName, snapHover && "bg-foreground/10 dark:bg-white/15")}
+        >
+          {isMaximized ? <Copy /> : <Square />}
+        </button>
+        <button
+          type="button"
+          onClick={handleClose}
+          aria-label={t("header.close")}
+          className={captionCloseButtonClassName}
+        >
+          <X />
+        </button>
       </div>
     </div>
   )
