@@ -10,11 +10,13 @@ import { setImageInfoAndResetView, updateDirImagesIndex, useAppStore } from "@/s
 import { useArchiveProgressStore } from "@/store/archiveProgressStore"
 import { useRecentFilesStore } from "@/store/recentFilesStore"
 import { useSettingsStore } from "@/store/settingsStore"
-import type { DirectoryImages, ImageInfo, ThumbnailInfo } from "@/types"
+import type { ComicInfo, DirectoryImages, ImageInfo, ThumbnailInfo } from "@/types"
 import { errorCopyDetails, errorMessage } from "@/utils/appError"
 import { isArchiveFilePath } from "@/utils/archiveFile"
 import { resolveArchiveStartIndex } from "@/utils/archiveResume"
+import { resolveCoverIndex } from "@/utils/comicCover"
 import { buildDirListOptions } from "@/utils/directoryOptions"
+import { resolvePairStart } from "@/utils/dirNavigation"
 import { beginImageLoad, isCurrentImageLoad } from "@/utils/imageLoadSession"
 import { shouldUsePreviewThumbnail } from "@/utils/previewThumbnail"
 import { MAX_SKIP_ATTEMPTS, findSkipTarget } from "@/utils/skipBroken"
@@ -23,6 +25,19 @@ function endImageLoadIfCurrent(token: number): void {
   if (isCurrentImageLoad(token)) {
     useAppStore.setState({ loading: false })
   }
+}
+
+type ComicInfoResult = { info: ComicInfo | null; error: string | null }
+
+/**
+ * ComicInfo.xml 메타데이터를 조용히 읽는다. XML 부재는 에러가 아니고,
+ * 깨진 XML은 패널의 에러 상태로 보여주기 위해 메시지를 실어 돌려준다.
+ */
+function readComicInfoSilent(archivePath: string): Promise<ComicInfoResult> {
+  return invoke<ComicInfo | null>("get_comic_info", { filePath: archivePath }).then(
+    (info) => ({ info: info ?? null, error: null }),
+    (e) => ({ info: null, error: errorMessage(e) })
+  )
 }
 
 export type ArchiveOpenMode = "full" | "folderPreview"
@@ -148,18 +163,41 @@ export function useImageLoader() {
     async (archivePath: string, options?: { onAfterLoad?: () => void }) => {
       const loadToken = beginImageLoad()
       clearImageMetaCache()
-      useAppStore.setState({ loading: true, archivePath, archivePreviewPath: null })
+      // ComicInfo는 아카이브 경로만 필요하므로 목록 조회와 병행한다.
+      const comicPromise = readComicInfoSilent(archivePath)
+      useAppStore.setState({
+        loading: true,
+        archivePath,
+        archivePreviewPath: null,
+        comicInfo: null,
+        comicInfoError: null
+      })
       try {
         const archiveImages = await invoke<DirectoryImages>("get_archive_images", {
           filePath: archivePath
         })
 
+        // 표지 판정(ComicInfo FrontCover)에 필요해 추출 전에 먼저 확정한다.
+        const comic = await comicPromise
+
         // 이어보기 설정이 켜져 있고 저장된 엔트리가 목록에 있으면 거기서 시작
         const resumeEnabled = useSettingsStore.getState().resumeReading
         const saved = resumeEnabled ? useArchiveProgressStore.getState().get(archivePath) : null
-        const startIndex = resolveArchiveStartIndex(archiveImages.images, saved)
-        const firstEntry = archiveImages.images[startIndex]
         const total = archiveImages.images.length
+        const rawStartIndex = resolveArchiveStartIndex(archiveImages.images, saved)
+        // 양면 보기에서 쌍 중간에 착지하면 화면이 겹치므로 쌍 시작으로 맞춰 연다.
+        const settings = useSettingsStore.getState()
+        const isDualView =
+          settings.viewMode === "left-to-right" || settings.viewMode === "right-to-left"
+        const startIndex = isDualView
+          ? resolvePairStart(
+              rawStartIndex,
+              total,
+              settings.showCoverAlone,
+              resolveCoverIndex(comic.info, total)
+            )
+          : rawStartIndex
+        const firstEntry = archiveImages.images[startIndex]
         const imgInfo = await invoke<ImageInfo>("load_archive_image", {
           archivePath,
           entryName: firstEntry
@@ -174,6 +212,12 @@ export function useImageLoader() {
           }
         })
         setImageInfoAndResetView(imgInfo)
+
+        // 표시한 뒤 메타데이터를 반영한다 (이전 로드의 응답은 무시).
+        if (isCurrentImageLoad(loadToken)) {
+          useAppStore.setState({ comicInfo: comic.info, comicInfoError: comic.error })
+        }
+
         // 이어보기를 끈 상태에서는 열기만으로 저장 위치를 0페이지로 덮지 않는다.
         if (resumeEnabled) {
           void useArchiveProgressStore.getState().save(archivePath, firstEntry, {
@@ -206,7 +250,9 @@ export function useImageLoader() {
         useAppStore.setState({
           error: message,
           imageInfo: null,
-          archivePath: null
+          archivePath: null,
+          comicInfo: null,
+          comicInfoError: null
         })
         toast.error(i18n.t("toast.load.archiveFail"), {
           description: message,
@@ -227,7 +273,9 @@ export function useImageLoader() {
       useAppStore.setState({
         loading: true,
         archivePath: null,
-        archivePreviewPath: archivePath
+        archivePreviewPath: archivePath,
+        comicInfo: null,
+        comicInfoError: null
       })
       try {
         const archiveImages = await invoke<DirectoryImages>("get_archive_images", {
@@ -284,7 +332,12 @@ export function useImageLoader() {
       const loadToken = beginImageLoad()
       const prior = useAppStore.getState()
       const leavingArchive = prior.archivePath !== null || prior.archivePreviewPath !== null
-      useAppStore.setState({ archivePath: null, archivePreviewPath: null })
+      useAppStore.setState({
+        archivePath: null,
+        archivePreviewPath: null,
+        comicInfo: null,
+        comicInfoError: null
+      })
       if (leavingArchive) clearImageMetaCache()
 
       const refreshDirectory = options?.refreshDirectory ?? true

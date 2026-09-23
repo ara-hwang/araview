@@ -32,6 +32,8 @@ export function ViewTabPanel() {
       viewMode: state.viewMode,
       viewerBackground: state.viewerBackground,
       resumeReading: state.resumeReading,
+      showCoverAlone: state.showCoverAlone,
+      showComicInfo: state.showComicInfo,
       autoHideUI: state.autoHideUI,
       menuBarHidden: state.menuBarHidden,
       alwaysOnTop: state.alwaysOnTop,
@@ -91,6 +93,24 @@ export function ViewTabPanel() {
             onCheckedChange={(checked) => handleSettingsChange({ resumeReading: checked === true })}
           />
           <Label htmlFor="settings-reading-resume">{t("settings.reading.resume")}</Label>
+        </Field>
+        <Field orientation="horizontal">
+          <Switch
+            id="settings-reading-cover-alone"
+            checked={settings.showCoverAlone}
+            onCheckedChange={(checked) =>
+              handleSettingsChange({ showCoverAlone: checked === true })
+            }
+          />{" "}
+          <Label htmlFor="settings-reading-cover-alone">{t("settings.reading.coverAlone")}</Label>
+        </Field>
+        <Field orientation="horizontal">
+          <Switch
+            id="settings-reading-comic-info"
+            checked={settings.showComicInfo}
+            onCheckedChange={(checked) => handleSettingsChange({ showComicInfo: checked === true })}
+          />
+          <Label htmlFor="settings-reading-comic-info">{t("settings.reading.showComicInfo")}</Label>
         </Field>
       </SettingsFieldSet>
 

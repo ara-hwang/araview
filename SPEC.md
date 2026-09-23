@@ -49,6 +49,8 @@
 | `rar`  | `application/x-rar-compressed`  | 일반 RAR도 지원                       |
 | `cbt`  | `application/x-tar`             | TAR 기반 코믹                         |
 
+CBZ/ZIP의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한다(8절, 15절). CB7/CBR/CBT는 리더가 달라 읽지 않는다.
+
 백엔드 판별:
 
 - `is_image_file`: MIME이 `application/`으로 시작하지 않는 지원 파일.
@@ -142,6 +144,7 @@
 ### 5.3 이전/다음
 
 - `viewMode`가 `left-to-right`/`right-to-left`이면 2장씩, 나머지는 1장씩 이동한다.
+- `showCoverAlone`이 true인 양면 모드에서는 화면이 `[0], [1,2], [3,4], ...`가 되고 넘김도 화면 단위다. false면 `[0,1], [2,3], ...`다.
 - `loopNavigation=false`: 끝에서 멈춘다. 단, 마지막 장은 clamp로 볼 수 있게 한다.
 - `loopNavigation=true`: wrap한다.
 - 아카이브/일반 모드에 맞는 로더로 인덱스를 갱신한다.
@@ -152,6 +155,7 @@
 - `PageUp/PageDown`: 10장 점프.
 - `Home/End`: 처음/마지막.
 - 루프 설정에 따라 wrap/clamp한다.
+- 양면 모드에서 임의 인덱스로 점프하면 쌍 시작 인덱스로 스냅한다(예: 3번으로 점프하면 `[2,3]` 또는 표지 단독 모드에서 `[3,4]`). 두 화면이 페이지를 겹쳐 보여주지 않게 한다.
 - 웹툰 모드에서는 같은 동작이 연속 스크롤 이동으로 바뀐다.
 
 ### 5.5 손상 파일 건너뛰기
@@ -168,11 +172,14 @@
 | 모드            | 렌더                                | 넘김 단위   | 프리페치 성향 |
 | --------------- | ----------------------------------- | ----------- | ------------- |
 | `single`        | 현재 1장                            | 1장         | 기본 거리     |
-| `left-to-right` | 현재 + 다음, 좌에서 우              | 2장         | 기본 + 1      |
-| `right-to-left` | 현재 + 다음, 우에서 좌              | 2장         | 기본 + 1      |
+| `left-to-right` | 현재 + 다음, 좌에서 우              | 2장(화면)   | 기본 + 1      |
+| `right-to-left` | 현재 + 다음, 우에서 좌              | 2장(화면)   | 기본 + 1      |
 | `webtoon`       | 전 구간 연속 수직 스크롤, 지연 로드 | 스크롤 이동 | 기본 x 2      |
 
 - 양면 모드 페이지는 `[current, next]`이며 루프가 켜지면 wrap한다. 로드 실패 페이지는 제외한다.
+- 표지 단독(`showCoverAlone`, 기본 true): 표지를 혼자 보여주고 그 뒤부터 `[표지+1, 표지+2]` 쌍을 맞춘다. 표지 인덱스는 CBZ/ZIP ComicInfo의 `FrontCover`(8절)를 쓰고, 메타데이터가 없거나 범위를 벗어나면 0번이다. 표지가 0번이 아니면 표지 바로 앞에 남는 페이지도 단독 화면이 된다. 표지 화면에서는 다음 페이지를 로드하지 않는다. 마지막에 남은 한 장은 기존 단일 중앙 렌더를 재사용한다.
+- 표지 단독을 끄면 표지 인덱스를 무시하고 `[0,1], [2,3], ...`로 넘긴다.
+- 양면 모드의 점프(썸네일/도크/`Home`/`End`/`PageUp`/`PageDown`)와 아카이브 이어보기 진입은 쌍 시작으로 스냅한다(`src/utils/dirNavigation.ts`).
 - 웹툰 모드에서 `ArrowLeft/ArrowRight`는 이전/다음 이미지 스크롤 이동이다.
 - 웹툰 모드에서 `ArrowUp/ArrowDown`은 연속 스크롤 컨테이너를 일정량씩 스크롤한다.
 - 웹툰 중앙 이미지 변경은 전체 reload 없이 인덱스 동기화와 정보 교체로 처리한다.
@@ -226,7 +233,10 @@
 - `load_archive_image`: 임시 디렉터리에 추출 후 표시 가능한 경로로 반환한다.
 - `archive_prefetch`: 이웃 선추출용 fire-and-forget 명령이다.
 - 선추출 거리는 뷰 모드에 따라 보정되며 상한이 있다.
-- 이어보기: 아카이브 경로별 마지막 엔트리와 위치(엔트리명/인덱스/전체 페이지)를 최대 100개 LRU로 저장한다. `resumeReading`이 true이고 목록에 저장된 항목이 있으면 거기서 시작하며, 저장 위치에서 시작할 때 "이어보기" 토스트와 "처음부터" 동작을 함께 제공한다. 설정이 false면 항상 첫 페이지에서 열고 열기만으로 저장 위치를 0페이지로 덮지 않는다.
+- 이어보기: 아카이브 경로별 마지막 엔트리와 위치(엔트리명/인덱스/전체 페이지)를 최대 100개 LRU로 저장한다. `resumeReading`이 true이고 목록에 저장된 항목이 있으면 거기서 시작하며, 저장 위치에서 시작할 때 "이어보기" 토스트와 "처음부터" 동작을 함께 제공한다. 설정이 false면 항상 첫 페이지에서 열고 열기만으로 저장 위치를 0페이지로 덮지 않는다. 양면 모드에서는 저장 위치가 쌍 중간이면 쌍 시작으로 맞춰 연다.
+- `get_comic_info`: CBZ/ZIP의 `ComicInfo.xml`(ComicRack/Komga/Kavita 스키마)을 읽기 전용 메타데이터로 반환한다. 탐색은 엔트리 basename이 `comicinfo.xml`인 항목(대소문자 무시)이며 루트를 우선하고 없으면 첫 중첩 경로를 쓴다. 상한 1 MiB, UTF-8(BOM 허용)과 UTF-16 LE/BE BOM을 지원한다. XML 부재나 CBZ/ZIP 이외 확장자는 `null`, 깨진 XML/디코딩 실패는 `corrupt`, 크기 초과는 `too_large`다. 필드 누락과 빈 값은 `null`로 정규화하고, `pages`는 `image` 오름차순으로 최대 1000개까지 담는다.
+- 표지 판정: `pages`에서 `page_type`이 `FrontCover`(대소문자·공백 무시)인 첫 페이지를 양면 보기 표지 인덱스로 쓴다(`src/utils/comicCover.ts`). `image`가 목록 범위를 벗어나면(1 기반으로 적은 파일 등) 0번으로 폴백하고, 이어보기 진입도 표지 기준 쌍 시작으로 스냅한다.
+- 열기 흐름: 아카이브를 열 때 `get_archive_images`와 `get_comic_info`를 병행 호출한다. 폴더 미리보기에서는 메타데이터를 읽지 않고, 이전 로드의 응답은 최신 로드 토큰이 아니면 커밋하지 않는다. 파싱 실패는 로드를 막지 않고 패널의 Comic 섹션에 에러로 표시한다.
 - 아카이브 모드 제한: 휴지통 이동, 이름 변경, 편집 저장은 안내와 함께 차단된다.
 - 탐색/썸네일은 엔트리 목록 기준으로 동일하게 동작한다.
 
@@ -268,6 +278,7 @@
 - 표시 범주는 Camera, Exposure, Image, Lens, DateTime, GPS, Software 계열이다.
 - HEIC는 원본 경로 기준 EXIF를 읽으므로 비어 있는 경우가 많다.
 - JPEG/TIFF의 Orientation은 표시·썸네일·저장에 반영한다. 패널에는 EXIF 원문 설명을 그대로 보여준다.
+- Comic 섹션: 아카이브 모드이고 `showComicInfo`가 켜져 있고(기본 켜짐, 설정 보기 탭 읽기) `comicInfo`가 있으면 파일/히스토그램/EXIF보다 위에 표시한다. 설정을 끄면 읽은 메타데이터는 유지한 채 섹션만 숨긴다(표지 판정은 계속 동작한다, 6절). 첫 줄은 `Series #Number`(있는 것만), 둘째 줄은 `Title`, 이어서 Writer, Penciller, Publisher, Genre, Tags, Volume, Count, PageCount, LanguageISO, AgeRating, CommunityRating, 마지막에 Summary를 줄바꿈 그대로 표시한다. 값이 없는 필드는 행을 만들지 않는다. 파싱 실패면 재시도 버튼 없이 에러 문구만 남기고(복구 수단은 아카이브 다시 열기), 메타데이터가 없으면 섹션을 숨긴다.
 
 ### 10.1 히스토그램 `get_image_histogram`
 
@@ -366,6 +377,8 @@
 | `includeSubfolders` | 하위 폴더 포함(재귀)                                    | `false`                            |
 | `skipBrokenFiles`   | 손상 파일 자동 건너뛰기                                 | `false`                            |
 | `resumeReading`     | 아카이브 재진입 시 이어보기                             | `true`                             |
+| `showCoverAlone`    | 양면 보기에서 첫 페이지(표지)를 단독 표시               | `true`                             |
+| `showComicInfo`     | 정보 패널에 만화 정보(ComicInfo.xml) 섹션 표시          | `true`                             |
 | `fitMode`           | 맞춤 기억 `width \| height \| screen \| auto`           | `auto`                             |
 | `dockPosition`      | 이미지 목록 위치 `top \| bottom \| left \| right`       | `bottom`                           |
 | `dockVisible`       | 이미지 목록 표시                                        | `true`                             |
@@ -460,6 +473,7 @@
 | `get_image_histogram`             | `filePath`                             | `Histogram`                            |
 | `get_image_details`               | `filePath`                             | `ImageDetails`                         |
 | `get_archive_images`              | `filePath`                             | `DirectoryImages`(엔트리 목록)         |
+| `get_comic_info`                  | `filePath`                             | `ComicInfo \| null`(CBZ/ZIP 전용)      |
 | `load_archive_image`              | `archivePath`, `entryName`             | `ImageInfo`                            |
 | `archive_prefetch`                | `archivePath`, `entryNames`            | 추출 개수 `number`                     |
 | `generate_thumbnail`              | `filePath`, `maxSide?`                 | `ThumbnailInfo`                        |
@@ -507,6 +521,8 @@ Rust와 TypeScript는 같은 모양을 유지한다.
 - `Histogram`: `{ r: number[256], g: number[256], b: number[256], sampled_pixels: number }`.
 - `ImageDetails`: 16.2 모양 그대로. 색상 모드, 비트/채널, 생성/수정 시각, DPI, ICC 상태를 포함한다.
 - `ArchiveState`: `{ archivePath: string | null }`.
+- `ComicInfo`: CBZ/ZIP의 `ComicInfo.xml`(8절). `{ title, series, number, summary, writer, penciller, publisher, genre, tags, language_iso, age_rating, community_rating: string | null, count, volume, page_count: number | null, pages: ComicPage[] | null }`. `number`와 `community_rating`은 소수 값을 보존하려고 문자열이다.
+- `ComicPage`: `{ image: number, page_type: string | null }`. `image`는 ComicRack 스키마대로 0 기반 페이지 인덱스이고 `page_type`은 `FrontCover` 같은 값이다. 양면 표지 판정(6절)의 근거다.
 - `FileAssociation`: `{ extension, associated, current_prog_id, needs_os_confirmation }`.
 - `PsdThumbStatus`: 탐색기 썸네일 등록 상태(20.2절).
 - `SaveImageOptions`: camelCase `{ rotationCw, flipH, flipV, format?, overwrite, newFileName? }`.

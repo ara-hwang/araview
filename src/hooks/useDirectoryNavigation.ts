@@ -2,7 +2,13 @@ import { useCallback } from "react"
 
 import { updateDirImagesIndex, useAppStore } from "@/store/appStore"
 import { useSettingsStore } from "@/store/settingsStore"
-import { resolveOffsetIndex, resolveStepIndex } from "@/utils/dirNavigation"
+import { resolveCoverIndex } from "@/utils/comicCover"
+import {
+  resolveDualStepIndex,
+  resolveOffsetIndex,
+  resolvePairStart,
+  resolveStepIndex
+} from "@/utils/dirNavigation"
 
 type LoadImageFn = (filePath: string, options?: { refreshDirectory?: boolean }) => Promise<void>
 
@@ -16,21 +22,33 @@ export function useDirectoryNavigation(
   const archivePath = useAppStore((state) => state.archivePath)
   const loopNavigation = useSettingsStore((state) => state.loopNavigation)
   const viewMode = useSettingsStore((state) => state.viewMode)
+  const showCoverAlone = useSettingsStore((state) => state.showCoverAlone)
+  const comicInfo = useAppStore((state) => state.comicInfo)
+  const coverIndex = resolveCoverIndex(comicInfo, dirImages?.images.length ?? 0)
 
   // 양면 보기(ltr/rtl)는 2장씩 넘기고, 나머지는 1장씩 넘긴다.
-  const step = viewMode === "left-to-right" || viewMode === "right-to-left" ? 2 : 1
+  const isDualView = viewMode === "left-to-right" || viewMode === "right-to-left"
 
   const navigateImage = useCallback(
     async (direction: "prev" | "next") => {
       if (!dirImages || dirImages.images.length <= 1) return
 
-      const newIndex = resolveStepIndex(
-        dirImages.current_index,
-        dirImages.images.length,
-        step,
-        loopNavigation,
-        direction
-      )
+      const newIndex = isDualView
+        ? resolveDualStepIndex(
+            dirImages.current_index,
+            dirImages.images.length,
+            loopNavigation,
+            direction,
+            showCoverAlone,
+            coverIndex
+          )
+        : resolveStepIndex(
+            dirImages.current_index,
+            dirImages.images.length,
+            1,
+            loopNavigation,
+            direction
+          )
       if (newIndex === null) return
 
       if (archivePath && loadArchiveImageByIndex) {
@@ -42,14 +60,26 @@ export function useDirectoryNavigation(
       await loadImage(dirImages.images[newIndex], { refreshDirectory: false })
       updateDirImagesIndex(newIndex)
     },
-    [dirImages, loadImage, loopNavigation, archivePath, loadArchiveImageByIndex, step]
+    [
+      dirImages,
+      loadImage,
+      loopNavigation,
+      archivePath,
+      loadArchiveImageByIndex,
+      isDualView,
+      showCoverAlone,
+      coverIndex
+    ]
   )
 
   const navigateToIndex = useCallback(
     async (index: number) => {
       if (!dirImages || dirImages.images.length === 0) return
 
-      const clamped = Math.max(0, Math.min(index, dirImages.images.length - 1))
+      // 양면 모드는 쌍 중간에 착지해도 쌍 시작으로 스냅해 두 화면이 겹치지 않게 한다.
+      const clamped = isDualView
+        ? resolvePairStart(index, dirImages.images.length, showCoverAlone, coverIndex)
+        : Math.max(0, Math.min(index, dirImages.images.length - 1))
 
       if (archivePath && loadArchiveImageByIndex) {
         await loadArchiveImageByIndex(archivePath, dirImages.images[clamped])
@@ -60,7 +90,15 @@ export function useDirectoryNavigation(
       await loadImage(dirImages.images[clamped], { refreshDirectory: false })
       updateDirImagesIndex(clamped)
     },
-    [dirImages, loadImage, archivePath, loadArchiveImageByIndex]
+    [
+      dirImages,
+      loadImage,
+      archivePath,
+      loadArchiveImageByIndex,
+      isDualView,
+      showCoverAlone,
+      coverIndex
+    ]
   )
 
   /** 점프 이동: 오프셋만큼 이동하되 루프 설정에 따라 wrap/clamp */

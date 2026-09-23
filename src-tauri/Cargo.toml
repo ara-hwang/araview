@@ -51,6 +51,7 @@ trash = "3"
 image = "0.25"
 psd = "0.3"
 notify = "8"
+quick-xml = { version = "0.42", features = ["serialize"] }
 sevenz-rust2 = "0.22.2"
 rars = "0.9"
 tar = "0.4"

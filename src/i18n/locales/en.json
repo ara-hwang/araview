@@ -178,8 +178,10 @@
     },
     "reading": {
       "title": "Reading",
-      "desc": "Resume comics (CBZ and other archives) from the last page you viewed",
-      "resume": "Resume reading"
+      "desc": "Resume comics (CBZ and other archives) from the last page you viewed. Cover alone shows the first page by itself in dual view.",
+      "resume": "Resume reading",
+      "coverAlone": "Show cover alone in dual view",
+      "showComicInfo": "Show comic metadata (ComicInfo.xml) in the info panel"
     },
     "dock": {
       "title": "Image list dock",
@@ -349,6 +351,25 @@
     "iccPresentNoName": "Embedded ({{size}})",
     "iccAbsent": "None",
     "iccUnchecked": "Not checked"
+  },
+  "comic": {
+    "section": "Comic",
+    "title": "Title",
+    "series": "Series",
+    "number": "Number",
+    "volume": "Volume",
+    "count": "Count",
+    "writer": "Writer",
+    "penciller": "Penciller",
+    "publisher": "Publisher",
+    "genre": "Genre",
+    "tags": "Tags",
+    "language": "Language",
+    "pageCount": "Page count",
+    "ageRating": "Age rating",
+    "rating": "Rating",
+    "summary": "Summary",
+    "loadFail": "Could not read comic metadata."
   },
   "histogram": {
     "title": "Histogram",

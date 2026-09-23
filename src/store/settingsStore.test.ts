@@ -48,6 +48,18 @@ describe("sanitizeSettings", () => {
     expect(sanitizeSettings({ resumeReading: "no" }).resumeReading).toBe(false)
   })
 
+  it("표지 단독 표시는 기본 켜짐이고 저장된 값을 따른다", () => {
+    expect(sanitizeSettings({}).showCoverAlone).toBe(true)
+    expect(sanitizeSettings({ showCoverAlone: false }).showCoverAlone).toBe(false)
+    expect(sanitizeSettings({ showCoverAlone: "no" }).showCoverAlone).toBe(false)
+  })
+
+  it("만화 정보 표시는 기본 켜짐이고 저장된 값을 따른다", () => {
+    expect(sanitizeSettings({}).showComicInfo).toBe(true)
+    expect(sanitizeSettings({ showComicInfo: false }).showComicInfo).toBe(false)
+    expect(sanitizeSettings({ showComicInfo: "yes" }).showComicInfo).toBe(false)
+  })
+
   it("잘못된 union 값은 기본값으로 되돌린다", () => {
     const sane = sanitizeSettings({
       cacheMode: "turbo",

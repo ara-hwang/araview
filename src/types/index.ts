@@ -24,6 +24,32 @@ export type ThumbnailInfo = {
 
 export type ExifData = Record<string, string>
 
+/** ComicInfo.xml의 Page 요소. `image`는 ComicRack 스키마대로 0 기반이다. */
+export type ComicPage = {
+  image: number
+  page_type: string | null
+}
+
+/** CBZ/ZIP 안의 ComicInfo.xml 메타데이터 (읽기 전용, 표시용). */
+export type ComicInfo = {
+  title: string | null
+  series: string | null
+  number: string | null
+  count: number | null
+  volume: number | null
+  summary: string | null
+  writer: string | null
+  penciller: string | null
+  publisher: string | null
+  genre: string | null
+  tags: string | null
+  language_iso: string | null
+  page_count: number | null
+  age_rating: string | null
+  community_rating: string | null
+  pages: ComicPage[] | null
+}
+
 export type ImageHistogram = {
   r: number[]
   g: number[]

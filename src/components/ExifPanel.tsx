@@ -13,7 +13,8 @@ import {
 } from "@/components/ui/sheet"
 import { useExifLoader } from "@/hooks/useExifLoader"
 import { useAppStore } from "@/store/appStore"
-import type { ImageDetails } from "@/types"
+import { useSettingsStore } from "@/store/settingsStore"
+import type { ComicInfo, ImageDetails } from "@/types"
 import { formatDimensions, formatFileSize } from "@/utils/format"
 import { formatDpi, formatUnixDateTime } from "@/utils/imageDetails"
 
@@ -174,6 +175,37 @@ function DetailRows({ rows }: { rows: DetailRow[] }) {
   )
 }
 
+/** ComicInfo → 표시 행. 값이 있는 필드만 순서대로 담는다. */
+function buildComicRows(
+  comic: ComicInfo,
+  t: (key: string, vars?: Record<string, string | number>) => string
+): DetailRow[] {
+  const rows: DetailRow[] = []
+  const push = (key: string, labelKey: string, value: string | number | null) => {
+    if (value === null || value === "") return
+    rows.push({ key, label: t(labelKey), value: String(value) })
+  }
+  push("writer", "comic.writer", comic.writer)
+  push("penciller", "comic.penciller", comic.penciller)
+  push("publisher", "comic.publisher", comic.publisher)
+  push("genre", "comic.genre", comic.genre)
+  push("tags", "comic.tags", comic.tags)
+  push("volume", "comic.volume", comic.volume)
+  push("count", "comic.count", comic.count)
+  push("pageCount", "comic.pageCount", comic.page_count)
+  push("language", "comic.language", comic.language_iso)
+  push("ageRating", "comic.ageRating", comic.age_rating)
+  push("rating", "comic.rating", comic.community_rating)
+  return rows
+}
+
+/** `Series #Number` 조합. 없는 부분은 건너뛰고 둘 다 없으면 빈 문자열이다. */
+function comicHeadline(comic: ComicInfo): string {
+  return [comic.series, comic.number ? `#${comic.number}` : null]
+    .filter((part): part is string => Boolean(part))
+    .join(" ")
+}
+
 export function ExifPanel() {
   const { t, i18n } = useTranslation()
   const {
@@ -183,6 +215,8 @@ export function ExifPanel() {
     imageDetails,
     imageInfo,
     archivePath,
+    comicInfo,
+    comicInfoError,
     dirImages,
     showExifPanel
   } = useAppStore(
@@ -193,10 +227,13 @@ export function ExifPanel() {
       imageDetails: state.imageDetails,
       imageInfo: state.imageInfo,
       archivePath: state.archivePath,
+      comicInfo: state.comicInfo,
+      comicInfoError: state.comicInfoError,
       dirImages: state.dirImages,
       showExifPanel: state.showExifPanel
     }))
   )
+  const showComicInfo = useSettingsStore((state) => state.showComicInfo)
   const { reloadExif } = useExifLoader()
   const locale = i18n.language === "ko" ? "ko-KR" : "en-US"
   const translate = t as unknown as (key: string, vars?: Record<string, string | number>) => string
@@ -250,7 +287,13 @@ export function ExifPanel() {
           translate,
           locale
         )
-  const hasAnyContent = imageDetails !== null || histogramData !== null || sections.length > 0
+  // 아카이브 모드에서만, 설정이 켜져 있고, 읽은 메타데이터나 에러가 있을 때만 쓴다.
+  const showComicSection =
+    isArchivePanel && showComicInfo && (comicInfo !== null || comicInfoError !== null)
+  const comicRows = comicInfo === null ? [] : buildComicRows(comicInfo, translate)
+  const comicHeading = comicInfo === null ? "" : comicHeadline(comicInfo)
+  const hasAnyContent =
+    imageDetails !== null || histogramData !== null || sections.length > 0 || showComicSection
 
   return (
     <Sheet open={showExifPanel} onOpenChange={handleOpenChange}>
@@ -262,6 +305,42 @@ export function ExifPanel() {
 
         <ScrollArea className="flex-1 overflow-auto">
           <div className="space-y-4 p-4">
+            {showComicSection && (
+              <div>
+                <h3 className="mb-2 text-xs font-semibold tracking-wider text-muted-foreground uppercase">
+                  {t("comic.section")}
+                </h3>
+                {comicInfoError !== null ? (
+                  <div className="space-y-1">
+                    <p className="text-sm text-muted-foreground">{t("comic.loadFail")}</p>
+                    <p className="text-xs break-words text-muted-foreground">{comicInfoError}</p>
+                  </div>
+                ) : (
+                  comicInfo !== null && (
+                    <div className="space-y-3">
+                      {(comicHeading !== "" || comicInfo.title !== null) && (
+                        <div className="space-y-1">
+                          {comicHeading !== "" && (
+                            <p className="text-sm font-medium">{comicHeading}</p>
+                          )}
+                          {comicInfo.title !== null && (
+                            <p className="text-sm text-muted-foreground">{comicInfo.title}</p>
+                          )}
+                        </div>
+                      )}
+                      {comicRows.length > 0 && <DetailRows rows={comicRows} />}
+                      {comicInfo.summary !== null && (
+                        <div className="space-y-1">
+                          <p className="text-sm text-muted-foreground">{t("comic.summary")}</p>
+                          <p className="text-sm whitespace-pre-wrap">{comicInfo.summary}</p>
+                        </div>
+                      )}
+                    </div>
+                  )
+                )}
+              </div>
+            )}
+
             <div>
               <h3 className="mb-2 text-xs font-semibold tracking-wider text-muted-foreground uppercase">
                 {t("details.title")}
