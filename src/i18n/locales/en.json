@@ -259,12 +259,10 @@
     "ext": {
       "title": "File associations",
       "desc": "Changing an association opens the default app picker for that extension. Windows does not allow apps to set defaults directly.",
-      "connectAll": "Associate all",
-      "disconnectAll": "Disassociate all",
       "loading": "Checking association status",
       "blockedTitle": "Confirm the default app in Windows",
       "blockedDesc": "Windows 10/11 only allows default app changes in the system picker. Select {{appName}} in the opened window.",
-      "openSettings": "Open Windows default apps settings"
+      "openSettings": "Open default apps"
     },
     "thumb": {
       "title": "Explorer thumbnails (PSD)",
@@ -585,7 +583,6 @@
     "assoc": {
       "loadFail": "Failed to load associations",
       "openFail": "Failed to open default app picker",
-      "pickInfo": "Select the default app in Windows Settings",
       "settingsFail": "Failed to open Windows Settings"
     },
     "thumb": {

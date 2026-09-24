@@ -85,7 +85,6 @@ Frontend uses `invoke()` for these commands:
 - `load_archive_image(archive_path, entry_name)`
 - `get_file_associations()`
 - `set_file_association(extension, associate)`
-- `set_all_file_associations(associate)`
 - `open_default_apps_settings()`
 
 Full IPC contract (25 commands including thumbnails, archive prefetch, trash/rename/save, PSD thumbnail): see `SPEC.md` §15.

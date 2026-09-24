@@ -506,7 +506,6 @@ CBZ/ZIP의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한다(8
 | `generate_archive_file_thumbnail` | `archivePath`, `maxSide?`              | `ThumbnailInfo`(첫 이미지 엔트리 기준) |
 | `get_file_associations`           | 없음                                   | `FileAssociation[]`                    |
 | `set_file_association`            | `extension`, `associate`               | `FileAssociation`                      |
-| `set_all_file_associations`       | `associate`                            | `FileAssociation[]`                    |
 | `open_default_apps_settings`      | 없음                                   | 없음                                   |
 | `get_psd_thumbnail_status`        | 없음                                   | `PsdThumbStatus`                       |
 | `register_psd_thumbnail`          | 없음                                   | `PsdThumbStatus`                       |

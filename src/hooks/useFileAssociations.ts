@@ -15,7 +15,6 @@ export function useFileAssociations(enabled: boolean) {
   const [items, setItems] = useState<FileAssociation[]>([])
   const [loading, setLoading] = useState(false)
   const [pendingExtension, setPendingExtension] = useState<string | null>(null)
-  const [pendingAll, setPendingAll] = useState(false)
 
   const refresh = useCallback(async () => {
     setLoading(true)
@@ -74,24 +73,6 @@ export function useFileAssociations(enabled: boolean) {
     }
   }, [])
 
-  const setAllAssociations = useCallback(async (associate: boolean) => {
-    setPendingAll(true)
-    try {
-      const next = await invoke<FileAssociation[]>("set_all_file_associations", {
-        associate
-      })
-      setItems(next)
-      toast.info(i18n.t("toast.assoc.pickInfo"))
-    } catch (error) {
-      toast.error(i18n.t("toast.assoc.settingsFail"), {
-        description: errorMessage(error),
-        details: errorCopyDetails(error)
-      })
-    } finally {
-      setPendingAll(false)
-    }
-  }, [])
-
   const openDefaultAppsSettings = useCallback(async () => {
     try {
       await invoke("open_default_apps_settings")
@@ -107,9 +88,7 @@ export function useFileAssociations(enabled: boolean) {
     items,
     loading,
     pendingExtension,
-    pendingAll,
     setAssociation,
-    setAllAssociations,
     openDefaultAppsSettings
   }
 }

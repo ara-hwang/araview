@@ -333,13 +333,6 @@ fn window_hwnd(window: &tauri::WebviewWindow) -> isize {
 }
 
 #[tauri::command]
-pub fn set_all_file_associations(
-    associate: bool,
-) -> Result<Vec<crate::file_assoc::FileAssociation>, AppError> {
-    crate::file_assoc::set_all_associations(associate)
-}
-
-#[tauri::command]
 pub fn open_default_apps_settings() -> Result<(), AppError> {
     crate::file_assoc::open_default_apps_settings()
 }
