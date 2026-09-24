@@ -259,12 +259,10 @@
     "ext": {
       "title": "확장자 연결",
       "desc": "연결을 바꾸면 해당 확장자의 기본 앱 선택 창이 열립니다. Windows는 앱이 기본 프로그램을 직접 지정하는 것을 허용하지 않습니다.",
-      "connectAll": "모두 연결",
-      "disconnectAll": "모두 해제",
       "loading": "연결 상태를 확인하는 중",
       "blockedTitle": "Windows에서 기본 앱을 확인해야 합니다",
       "blockedDesc": "Windows 10/11은 기본 앱 변경을 시스템 선택 창에서만 허용합니다. 열린 창에서 {{appName}}를 선택하세요.",
-      "openSettings": "Windows 기본 앱 설정 열기"
+      "openSettings": "기본 앱 설정 열기"
     },
     "thumb": {
       "title": "탐색기 썸네일 (PSD)",
@@ -585,7 +583,6 @@
     "assoc": {
       "loadFail": "확장자 연결 상태를 불러오지 못했습니다",
       "openFail": "기본 앱 선택 창을 열지 못했습니다",
-      "pickInfo": "Windows 설정에서 기본 앱을 선택하세요",
       "settingsFail": "Windows 설정을 열지 못했습니다"
     },
     "thumb": {

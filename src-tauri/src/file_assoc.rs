@@ -65,19 +65,6 @@ pub fn set_association(
     status_after_picker(&ext, &exe)
 }
 
-/// 기본 앱 설정 화면을 열어 사용자가 직접 고르게 한다.
-///
-/// `associate`는 FE 호환용으로 유지되지만 무시된다 (위 `set_association` 참조).
-pub fn set_all_associations(_associate: bool) -> Result<Vec<FileAssociation>, AppError> {
-    let exe = current_exe()?;
-    ensure_application_registration(&exe)?;
-    open_settings_uri(&default_apps_settings_uri())?;
-    SUPPORTED_EXTENSIONS
-        .iter()
-        .map(|ext| status_for(ext, &exe))
-        .collect()
-}
-
 pub fn open_default_apps_settings() -> Result<(), AppError> {
     let exe = current_exe()?;
     ensure_application_registration(&exe)?;

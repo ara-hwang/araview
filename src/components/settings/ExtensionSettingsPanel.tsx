@@ -1,7 +1,7 @@
 import { WarningCircle } from "@phosphor-icons/react"
 import { useTranslation } from "react-i18next"
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Alert, AlertAction, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import {
   Field,
@@ -23,17 +23,10 @@ type ExtensionSettingsPanelProps = {
 
 export function ExtensionSettingsPanel({ active }: ExtensionSettingsPanelProps) {
   const { t } = useTranslation()
-  const {
-    items,
-    loading,
-    pendingExtension,
-    pendingAll,
-    setAssociation,
-    setAllAssociations,
-    openDefaultAppsSettings
-  } = useFileAssociations(active)
+  const { items, loading, pendingExtension, setAssociation, openDefaultAppsSettings } =
+    useFileAssociations(active)
 
-  const busy = loading || pendingAll || pendingExtension !== null
+  const busy = loading || pendingExtension !== null
   const blocked = hasBlockedAssociation(items)
   const {
     status: thumbStatus,
@@ -50,26 +43,6 @@ export function ExtensionSettingsPanel({ active }: ExtensionSettingsPanelProps) 
         <p className="text-sm text-muted-foreground">{t("settings.ext.desc")}</p>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={busy}
-          onClick={() => void setAllAssociations(true)}
-        >
-          {pendingAll ? <Spinner data-icon="inline-start" /> : null}
-          {t("settings.ext.connectAll")}
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={busy}
-          onClick={() => void setAllAssociations(false)}
-        >
-          {t("settings.ext.disconnectAll")}
-        </Button>
-      </div>
-
       {loading && items.length === 0 ? (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Spinner />
@@ -84,7 +57,7 @@ export function ExtensionSettingsPanel({ active }: ExtensionSettingsPanelProps) 
               <Field
                 key={item.extension}
                 orientation="horizontal"
-                data-disabled={pendingAll || pending || undefined}
+                data-disabled={pending || undefined}
               >
                 <FieldContent>
                   <FieldLabel htmlFor={fieldId}>.{item.extension}</FieldLabel>
@@ -93,7 +66,7 @@ export function ExtensionSettingsPanel({ active }: ExtensionSettingsPanelProps) 
                 <Switch
                   id={fieldId}
                   checked={item.associated}
-                  disabled={pendingAll || pending}
+                  disabled={pending}
                   onCheckedChange={(checked) => {
                     void setAssociation(item.extension, checked)
                   }}
@@ -111,17 +84,13 @@ export function ExtensionSettingsPanel({ active }: ExtensionSettingsPanelProps) 
           <AlertDescription>
             {t("settings.ext.blockedDesc", { appName: APP_DISPLAY_NAME })}
           </AlertDescription>
+          <AlertAction>
+            <Button variant="outline" size="sm" onClick={() => void openDefaultAppsSettings()}>
+              {t("settings.ext.openSettings")}
+            </Button>
+          </AlertAction>
         </Alert>
       ) : null}
-
-      <Button
-        variant="outline"
-        size="sm"
-        className="self-start"
-        onClick={() => void openDefaultAppsSettings()}
-      >
-        {t("settings.ext.openSettings")}
-      </Button>
 
       <div className="flex flex-col gap-3 border-t pt-4">
         <div className="flex flex-col gap-1">
