@@ -175,7 +175,7 @@ export function CacheManagementPanel() {
           </div>
         ) : null}
 
-        {stats && stats.total_bytes === 0 && !loading ? (
+        {stats && stats.total_bytes === 0 && !loading && !error ? (
           <Empty className="min-h-40">
             <EmptyHeader>
               <EmptyMedia variant="icon">
