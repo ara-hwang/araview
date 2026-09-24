@@ -4,7 +4,7 @@
 > 구현 메모: 미확정 항목은 모두 계획안을 따랐다(CBZ/ZIP-only, `ExifPanel` 상단 표시, 루트 우선 + 첫 중첩, A-3 필드 목록, 상태바 현행 유지). `quick-xml`은 구현 시점 최신 마이너인 0.42(기존 lock의 전이 의존성)로 고정했다.
 > B-6(ComicInfo `FrontCover` 표지 판정)도 구현되어 MVP 표지 인덱스는 0번 고정이 아니라 `FrontCover` 우선(범위 밖은 0번 폴백)이다. 표지가 0번이 아닌 파일에서는 표지 바로 앞에 남는 페이지도 단독 화면으로 둔다.
 > A-2.3(표시 위치)에 사용자 게이트를 하나 더 두었다: 설정 `showComicInfo`(기본 켜짐)를 끄면 정보 패널의 Comic 섹션만 숨기고 메타데이터 읽기와 표지 판정은 유지한다.
-> 관련 문서: `SPEC.md` §5(탐색), §6(뷰 모드), §8(아카이브), §15(IPC), §16(데이터 모델), `PRODUCT.md`, `ROADMAP.md`.
+> 관련 문서: `SPEC.md` §5(탐색), §6(뷰 모드), §8(아카이브), §15(IPC), §16(데이터 모델), `PRODUCT.md`.
 > 구성: Part A(ComicInfo 메타데이터)와 Part B(양면 보기 표지 단독 표시)는 독립 배포 가능하다. B의 Phase 2(ComicInfo 표지 판정)만 A의 `pages` 파싱에 의존한다.
 
 ## Part A. ComicInfo.xml 메타데이터
