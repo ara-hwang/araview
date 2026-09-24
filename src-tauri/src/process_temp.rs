@@ -156,11 +156,15 @@ fn collect_files(root: &Path, recursive: bool) -> Result<Vec<(u128, u64, PathBuf
             if !file_type.is_file() {
                 continue;
             }
-            // Skip in-flight temp files, never evict partial writes.
+            // Skip our own in-flight temp files, never evict partial writes.
+            // 패턴을 `.{stem}.tmp-{pid}-...` 형태로 좁혀, 이름에 우연히
+            // `.tmp-`가 들어간 정상 캐시/추출물(`x.tmp-1.jpg` 등)이 축출
+            // 면제를 받지 않게 한다.
+            let mine = format!(".tmp-{}-", std::process::id());
             if path
                 .file_name()
                 .and_then(|n| n.to_str())
-                .is_some_and(|n| n.contains(".tmp-"))
+                .is_some_and(|n| n.contains(&mine))
             {
                 continue;
             }
@@ -228,10 +232,34 @@ mod tests {
     #[test]
     fn enforce_cap_skips_inflight_tmp_files() {
         let dir = tempfile::tempdir().unwrap();
-        fs::write(dir.path().join("a.tmp-123-abc-0.jpg"), vec![0u8; 1000]).unwrap();
+        let inflight = format!("a.tmp-{}-abc-0.jpg", std::process::id());
+        fs::write(dir.path().join(&inflight), vec![0u8; 1000]).unwrap();
         fs::write(dir.path().join("b.jpg"), vec![0u8; 100]).unwrap();
         enforce_cap_in(dir.path(), 150).expect("evict");
-        assert!(dir.path().join("a.tmp-123-abc-0.jpg").exists());
+        // 진행 중 temp는 축출 대상에서 빠지고, 그 바이트도 상한 계산에
+        // 들어가지 않는다 (b.jpg 100B만 세므로 cap 이내).
+        assert!(dir.path().join(&inflight).exists());
+        assert!(dir.path().join("b.jpg").exists());
+    }
+
+    #[test]
+    fn enforce_cap_evicts_entry_like_tmp_names() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join("deadbeef_x.tmp-1.jpg"), vec![0u8; 1000]).unwrap();
+        fs::write(
+            dir.path().join("foreign.tmp-99999-abc-0.jpg"),
+            vec![0u8; 100],
+        )
+        .unwrap();
+        fs::write(dir.path().join("keep.jpg"), vec![0u8; 100]).unwrap();
+        // keep.jpg가 더 최신이라 남고, tmp처럼 보이는 캐시와 다른 pid의
+        // temp 잔재는 축출 면제가 아니므로 지워진다.
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        fs::write(dir.path().join("keep.jpg"), vec![0u8; 100]).unwrap();
+        enforce_cap_in(dir.path(), 150).expect("evict");
+        assert!(!dir.path().join("deadbeef_x.tmp-1.jpg").exists());
+        assert!(!dir.path().join("foreign.tmp-99999-abc-0.jpg").exists());
+        assert!(dir.path().join("keep.jpg").exists());
     }
 
     #[test]

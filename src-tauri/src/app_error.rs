@@ -81,6 +81,16 @@ impl AppError {
         Self::new(code, format!("{context}: {error}"))
     }
 
+    /// `image::ImageError` 매핑. Unsupported는 그대로, IO 실패(권한/잠금)는
+    /// `io()`로, 나머지 디코드 실패는 Corrupt로 분류한다.
+    pub fn image_error(context: &str, error: image::ImageError) -> Self {
+        match error {
+            image::ImageError::Unsupported(_) => Self::unsupported(format!("{context}: {error}")),
+            image::ImageError::IoError(io) => Self::io(context, io, ErrorCode::Corrupt),
+            _ => Self::corrupt(format!("{context}: {error}")),
+        }
+    }
+
     /// Mutex poison 등 내부 동기화 실패용.
     pub fn lock_poisoned(what: &str) -> Self {
         Self::unknown(format!("Failed to lock {what}"))
@@ -127,5 +137,19 @@ mod tests {
             ErrorCode::Corrupt,
         );
         assert_eq!(other.code, ErrorCode::Corrupt);
+    }
+
+    #[test]
+    fn image_error_maps_io_kinds() {
+        let denied = AppError::image_error(
+            "Cannot decode",
+            image::ImageError::IoError(io::Error::new(io::ErrorKind::PermissionDenied, "deny")),
+        );
+        assert_eq!(denied.code, ErrorCode::Permission);
+        let missing = AppError::image_error(
+            "Cannot decode",
+            image::ImageError::IoError(io::Error::new(io::ErrorKind::NotFound, "gone")),
+        );
+        assert_eq!(missing.code, ErrorCode::NotFound);
     }
 }

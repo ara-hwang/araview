@@ -4,7 +4,7 @@
 //! `IInitializeWithFile`) for `.psd` so Windows Explorer renders real
 //! thumbnails instead of the generic icon. PSD composites are decoded
 //! with the pure-Rust `psd` crate and flattened onto white, matching the
-//! main app's JPEG sidecar rule. PSB (`8BPB`) is rejected.
+//! main app's JPEG sidecar rule. PSB (`8BPS` version 2) is rejected.
 //!
 //! Registration is per-user (HKCU, no admin):
 //! `regsvr32 araview_thumb.dll` / `regsvr32 /u araview_thumb.dll`.

@@ -3,8 +3,13 @@
 //! WebView2는 PSD를 네이티브 렌더할 수 없어 HEIC/HEIF와 같은 전제로
 //! 합성(composite) 픽셀을 JPEG sidecar로 변환해 렌더한다 (`heif.rs` 패턴).
 //! - 디코더: `psd` 크레이트(순수 Rust, 네이티브 의존성 없음).
-//! - PSB(`8BPB`)는 미지원으로 명시 차단한다 (`psd` 크레이트도 PSB 미지원).
+//! - PSB(`8BPS` + version 2)는 미지원으로 명시 차단한다 (`psd` 크레이트도
+//!   PSB 미지원).
 //! - 편집 저장은 지원하지 않는다(읽기 전용). `save.rs`에서 진입 차단.
+//!
+//! `psd 0.3.5`의 합성 디코드에는 패닉 경로가 남아 있어(미구현 ZIP 압축,
+//! 16비트/꼬리 바이트 raw의 범위 초과 쓰기) `catch_unwind`로 감싸 손상
+//! 에러로 변환한다. 16비트는 파서 진입 전에 미지원으로 거른다.
 //!
 //! 파일 식별 해시, per-file 락, JPEG 원자적 발행, 다운스케일은
 //! 공용 `sidecar` 모듈을 사용한다.
@@ -18,6 +23,10 @@ use crate::sidecar::{paint_dir, Rgb8, MAX_PAINT_BYTES, PAINT_SUBDIR};
 /// 디코드 허용 픽셀 상한 (약 150MP, HEIC와 동일).
 /// PSD 명세상 최대(30000x30000)를 그대로 디코드하면 메모리 고갈이 난다.
 const MAX_DECODE_PIXELS: u64 = 150_000_000;
+
+/// 파일 전체를 메모리에 올리기 전에 거르는 크기 상한.
+/// 150MP를 8비트 RGBA raw로 저장한 값(600MB)에 헤더·레이어 여유를 더했다.
+const MAX_PSD_FILE_BYTES: u64 = 768 * 1024 * 1024;
 
 pub const PSD_MIME: &str = "image/vnd.adobe.photoshop";
 
@@ -60,16 +69,38 @@ pub fn ensure_jpeg_sidecar_thumb(source: &Path, max_side: u32) -> Result<PathBuf
 /// PSD 합성 픽셀을 RGB8로 디코드. 투명은 흰 배경에 합성한다
 /// (JPEG에 알파가 없어 `save.rs` flatten과 같은 규칙).
 pub(crate) fn decode_psd_rgb8(source: &Path) -> Result<Rgb8, AppError> {
+    let meta = fs::metadata(source)
+        .map_err(|e| AppError::io("Failed to read metadata", e, ErrorCode::Corrupt))?;
+    if meta.len() > MAX_PSD_FILE_BYTES {
+        return Err(AppError::too_large("PSD file is too large"));
+    }
     let bytes =
         fs::read(source).map_err(|e| AppError::io("Failed to read file", e, ErrorCode::Corrupt))?;
     reject_psb(&bytes)?;
-    let psd = psd::Psd::from_bytes(&bytes)
-        .map_err(|e| AppError::corrupt(format!("Failed to decode image: {e}")))?;
-    let (width, height) = (psd.width(), psd.height());
-    if u64::from(width).saturating_mul(u64::from(height)) > MAX_DECODE_PIXELS {
-        return Err(AppError::too_large("PSD image dimensions are too large"));
-    }
-    let rgba = psd.rgba();
+    // `psd` 크레이트 내부 패닉(미구현 ZIP composite, raw 채널 범위 초과)을
+    // 커맨드 스레드 밖으로 내보내지 않고 손상 에러로 바꾼다.
+    let decoded = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let psd = psd::Psd::from_bytes(&bytes)
+            .map_err(|e| AppError::corrupt(format!("Failed to decode image: {e}")))?;
+        // 16비트 raw는 red만 8비트로 줄이고 green/blue/alpha는 2바이트/픽셀
+        // 그대로 남겨 `rgba()`에서 범위를 넘는다. 진입 전에 거른다.
+        if psd.depth() != psd::PsdDepth::Eight {
+            return Err(AppError::unsupported("Only 8-bit PSD files are supported"));
+        }
+        let (width, height) = (psd.width(), psd.height());
+        if u64::from(width).saturating_mul(u64::from(height)) > MAX_DECODE_PIXELS {
+            return Err(AppError::too_large("PSD image dimensions are too large"));
+        }
+        Ok((width, height, psd.rgba()))
+    }));
+    let (width, height, rgba) = match decoded {
+        Ok(result) => result?,
+        Err(_) => {
+            return Err(AppError::corrupt(
+                "Failed to decode image: decoder panicked",
+            ))
+        }
+    };
     let expected = (width as usize)
         .checked_mul(height as usize)
         .and_then(|n| n.checked_mul(4));
@@ -89,10 +120,11 @@ pub(crate) fn decode_psd_rgb8(source: &Path) -> Result<Rgb8, AppError> {
     })
 }
 
-/// PSB(Large Document, `8BPB`)는 파서 진입 전에 차단한다.
-/// `psd` 크레이트도 PSB를 지원하지 않아 하위 호환 파싱 시도가 없다.
+/// PSB(Large Document)는 PSD와 같은 `8BPS` 시그니처에 version 2를 쓴다.
+/// `psd` 크레이트는 version 1만 파싱해 PSB를 "손상"으로 오보고하므로,
+/// 파서 진입 전에 미지원으로 차단한다.
 fn reject_psb(bytes: &[u8]) -> Result<(), AppError> {
-    if bytes.len() >= 4 && &bytes[..4] == b"8BPB" {
+    if bytes.len() >= 6 && &bytes[..4] == b"8BPS" && bytes[4..6] == [0, 2] {
         return Err(AppError::unsupported("PSB is not supported"));
     }
     Ok(())
@@ -151,8 +183,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn psb_signature_is_rejected_as_unsupported() {
-        let mut bytes = b"8BPB".to_vec();
+    fn psb_header_is_rejected_as_unsupported() {
+        // 실제 PSB는 `8BPS` 시그니처 + version 2다.
+        let mut bytes = b"8BPS".to_vec();
+        bytes.extend_from_slice(&2u16.to_be_bytes());
         bytes.extend_from_slice(&[0u8; 64]);
         let err = reject_psb(&bytes).unwrap_err();
         assert_eq!(err.code, crate::app_error::ErrorCode::Unsupported);
@@ -163,6 +197,43 @@ mod tests {
     fn psd_signature_passes_psb_guard() {
         let bytes = minimal_psd_bytes(2, 2, [10, 20, 30]);
         assert!(reject_psb(&bytes).is_ok());
+    }
+
+    #[test]
+    fn psb_file_reports_unsupported_not_corrupt() {
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("large.psd");
+        let mut bytes = b"8BPS".to_vec();
+        bytes.extend_from_slice(&2u16.to_be_bytes()); // version 2 = PSB
+        bytes.extend_from_slice(&[0u8; 64]);
+        fs::write(&source, bytes).unwrap();
+        let err = decode_psd_rgb8(&source).unwrap_err();
+        assert_eq!(err.code, crate::app_error::ErrorCode::Unsupported);
+    }
+
+    #[test]
+    fn sixteen_bit_psd_is_rejected_as_unsupported() {
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("deep.psd");
+        let mut bytes = minimal_psd_bytes(2, 1, [255, 0, 0]);
+        // 헤더의 depth 필드(오프셋 22..24)를 16비트로 바꾼다.
+        bytes[22..24].copy_from_slice(&16u16.to_be_bytes());
+        fs::write(&source, bytes).unwrap();
+        let err = decode_psd_rgb8(&source).unwrap_err();
+        assert_eq!(err.code, crate::app_error::ErrorCode::Unsupported);
+    }
+
+    #[test]
+    fn trailing_bytes_do_not_panic_the_decoder() {
+        // 8비트 raw에서 채널 길이가 w*h를 넘으면 `psd` 0.3.5가 범위 초과
+        // 쓰기로 패닉한다. catch_unwind가 Corrupt로 변환해야 한다.
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("trailing.psd");
+        let mut bytes = minimal_psd_bytes(2, 1, [255, 0, 0]);
+        bytes.extend_from_slice(&[0u8; 6]);
+        fs::write(&source, bytes).unwrap();
+        let err = decode_psd_rgb8(&source).unwrap_err();
+        assert_eq!(err.code, crate::app_error::ErrorCode::Corrupt);
     }
 
     #[test]

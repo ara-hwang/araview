@@ -7,7 +7,7 @@ so Explorer renders real PSD thumbnails instead.
 
 - Decoder: `psd` crate (pure Rust), composite pixels flattened onto white,
   matching the app's JPEG sidecar rule (`src-tauri/src/psd_sidecar.rs`).
-- PSB (`8BPB`) is rejected; Explorer falls back to the default icon.
+- PSB (`8BPS` version 2) is rejected; Explorer falls back to the default icon.
 - Registration is per-user (`HKCU\Software\Classes`), no admin rights.
 
 ## Layout

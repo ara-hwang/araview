@@ -174,7 +174,9 @@ fn delete_key_best_effort(key_path: &str) {
     }
 }
 
-fn notify_shell() {
+/// 셸에 연결 프로그램/아이콘 변경을 알린다. `file_assoc.rs`도 같은 알림을
+/// 쓰므로 `pub(crate)`다 (등록 후 Explorer가 즉시 다시 읽게 한다).
+pub(crate) fn notify_shell() {
     const SHCNE_ASSOCCHANGED: i32 = 0x0800_0000;
     const SHCNF_IDLIST: u32 = 0;
     // SAFETY: notification-only call with null item pointers, matching
@@ -219,8 +221,15 @@ pub fn register() -> Result<PsdThumbStatus, AppError> {
 }
 
 pub fn unregister() -> Result<PsdThumbStatus, AppError> {
-    delete_key_best_effort(&ext_shellex_key());
-    delete_key_best_effort(&prog_id_shellex_key());
+    // 셸 슬롯은 우리 CLSID를 가리킬 때만 지운다. 등록 이후 다른 앱이 그
+    // 슬롯을 덮어썼다면 AraView 해제가 그 앱의 등록까지 지워버린다.
+    if shellex_points_to_us(&ext_shellex_key()) {
+        delete_key_best_effort(&ext_shellex_key());
+    }
+    if shellex_points_to_us(&prog_id_shellex_key()) {
+        delete_key_best_effort(&prog_id_shellex_key());
+    }
+    // CLSID 키는 채널별로 고유한 우리 값이라 소유 확인 없이 지워도 안전하다.
     delete_key_best_effort(&clsid_root_key());
     notify_shell();
     status()

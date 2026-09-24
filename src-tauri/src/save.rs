@@ -107,20 +107,29 @@ fn save_image_edits_impl(
         return Err(AppError::unsupported("AVIF save is not supported"));
     }
 
-    let (dest, out_format) = resolve_save_target(source, options)?;
-    let decoded = decode_source(source)?;
-    // PNG/WebP는 알파를 보존한다. JPEG만 흰 배경에 합성한다.
-    let rgba = decoded.to_rgba8();
-    let transformed = apply_transform(&rgba, options)?;
-    encode_image(&transformed, out_format, &dest)?;
-
-    crate::image::load_viewable(&dest)
+    let (dest, out_format, reserved_new) = resolve_save_target(source, options)?;
+    let mut published = false;
+    let result = (|| {
+        let decoded = decode_source(source)?;
+        // PNG/WebP는 알파를 보존한다. JPEG만 흰 배경에 합성한다.
+        let rgba = decoded.to_rgba8();
+        let transformed = apply_transform(&rgba, options)?;
+        encode_image(&transformed, out_format, &dest, source)?;
+        published = true;
+        crate::image::load_viewable(&dest)
+    })();
+    if !published && reserved_new {
+        // 신규 파일명은 인코딩 전에 빈 파일로 예약해 두므로, 실패 시
+        // 자리만 잡은 빈 파일을 남기지 않는다.
+        let _ = fs::remove_file(&dest);
+    }
+    result
 }
 
 fn resolve_save_target(
     source: &Path,
     options: &SaveImageOptions,
-) -> Result<(PathBuf, OutFormat), AppError> {
+) -> Result<(PathBuf, OutFormat, bool), AppError> {
     let ext = source_ext(source);
 
     let requested: Option<OutFormat> = match &options.format {
@@ -142,7 +151,7 @@ fn resolve_save_target(
 
     let changed = Some(out_format) != source_format;
     if options.overwrite && !changed {
-        return Ok((source.to_path_buf(), out_format));
+        return Ok((source.to_path_buf(), out_format, false));
     }
 
     // 새 파일: 지정명 or "{stem}-edited.{ext}", 중복 시 -2, -3...
@@ -160,19 +169,34 @@ fn resolve_save_target(
     // 확장자는 선택 포맷으로 통일
     let mut candidate = parent.join(base_name);
     candidate.set_extension(out_format.extension());
-
-    if !candidate.exists() {
-        return Ok((candidate, out_format));
-    }
     let dedup_stem = candidate
         .file_stem()
         .and_then(|s| s.to_str())
         .unwrap_or("image")
         .to_string();
-    for n in 2.. {
-        let next = parent.join(format!("{dedup_stem}-{n}.{}", out_format.extension()));
-        if !next.exists() {
-            return Ok((next, out_format));
+
+    // exists() 확인과 rename 사이에 끼어든 다른 저장을 rename이 조용히
+    // 덮어쓰지 않도록, 이름을 `create_new`로 원자적으로 예약한다.
+    for n in 1u32.. {
+        let next = if n == 1 {
+            candidate.clone()
+        } else {
+            parent.join(format!("{dedup_stem}-{n}.{}", out_format.extension()))
+        };
+        match fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&next)
+        {
+            Ok(_) => return Ok((next, out_format, true)),
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(e) => {
+                return Err(AppError::io(
+                    "Failed to create output file",
+                    e,
+                    ErrorCode::Unknown,
+                ))
+            }
         }
     }
     unreachable!("dedup loop always terminates")
@@ -186,8 +210,7 @@ fn decode_source(source: &Path) -> Result<DynamicImage, AppError> {
             .map(DynamicImage::ImageRgb8)
             .ok_or_else(|| AppError::corrupt("HEIF decode produced invalid buffer"));
     }
-    let img =
-        image::open(source).map_err(|e| AppError::corrupt(format!("Cannot decode image: {e}")))?;
+    let img = image::open(source).map_err(|e| AppError::image_error("Cannot decode image", e))?;
     // 화면(WebView2)이 EXIF orientation을 적용해 보여주므로, 편집 저장도
     // 회전된 픽셀 기준으로 맞춰야 사용자가 보는 방향과 결과가 일치한다.
     Ok(crate::orientation::apply_to_image(
@@ -232,7 +255,12 @@ fn apply_transform(img: &RgbaImage, options: &SaveImageOptions) -> Result<RgbaIm
     Ok(img)
 }
 
-fn encode_image(img: &RgbaImage, format: OutFormat, dest: &Path) -> Result<(), AppError> {
+fn encode_image(
+    img: &RgbaImage,
+    format: OutFormat,
+    dest: &Path,
+    source: &Path,
+) -> Result<(), AppError> {
     if let Some(parent) = dest.parent() {
         if !parent.as_os_str().is_empty() {
             fs::create_dir_all(parent)
@@ -257,12 +285,20 @@ fn encode_image(img: &RgbaImage, format: OutFormat, dest: &Path) -> Result<(), A
         }
         OutFormat::Jpeg => {
             let rgb = flatten_rgba_to_rgb(img);
-            let file = fs::File::create(&tmp)
-                .map_err(|e| AppError::io("Failed to save image", e, ErrorCode::Unknown))?;
-            let mut encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(file, 90);
+            let mut encoded = Vec::new();
+            let mut encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut encoded, 90);
             encoder
                 .encode_image(&DynamicImage::ImageRgb8(rgb))
-                .map_err(|e| AppError::unknown(format!("Failed to save image: {e}")))
+                .map_err(|e| AppError::unknown(format!("Failed to save image: {e}")))?;
+            // JPEG→JPEG는 EXIF/ICC/XMP 세그먼트를 이식한다. 픽셀에 회전이
+            // 반영됐으므로 Orientation은 1로 패치된다 (`jpeg_meta`).
+            let encoded = if matches!(source_ext(source).as_str(), "jpg" | "jpeg") {
+                crate::jpeg_meta::with_metadata(source, encoded, (img.width(), img.height()))
+            } else {
+                encoded
+            };
+            fs::write(&tmp, &encoded)
+                .map_err(|e| AppError::io("Failed to save image", e, ErrorCode::Unknown))
         }
     };
     if let Err(e) = result {
@@ -490,6 +526,71 @@ mod tests {
         assert!(second.file_path.ends_with("a-edited-2.jpg"));
         // 원본 유지
         assert!(path.exists());
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn overwrite_jpeg_preserves_icc_and_resets_orientation() {
+        let dir = test_dir("jpeg-meta");
+        let path = dir.join("phone.jpg");
+        crate::orientation::write_test_jpeg_with_orientation(&path, 4, 2, 6);
+        // APP2 ICC_PROFILE 세그먼트를 SOI 뒤에 끼워 넣는다.
+        let bytes = fs::read(&path).unwrap();
+        let mut with_icc = bytes[..2].to_vec();
+        let mut seg = b"ICC_PROFILE\0".to_vec();
+        seg.extend_from_slice(&[1, 1, 0xDE, 0xAD, 0xBE, 0xEF]);
+        with_icc.extend_from_slice(&[0xFF, 0xE2]);
+        with_icc.extend_from_slice(&((seg.len() + 2) as u16).to_be_bytes());
+        with_icc.extend_from_slice(&seg);
+        with_icc.extend_from_slice(&bytes[2..]);
+        fs::write(&path, &with_icc).unwrap();
+
+        let info = save_image_edits_impl(
+            path.to_str().unwrap(),
+            &SaveImageOptions {
+                overwrite: true,
+                ..Default::default()
+            },
+        )
+        .expect("save ok");
+        // orientation 6이 픽셀에 반영돼 2x4가 된다.
+        assert_eq!((info.width, info.height), (Some(2), Some(4)));
+
+        let saved = fs::read(&path).unwrap();
+        assert!(
+            saved.windows(12).any(|w| w == b"ICC_PROFILE\0".as_slice()),
+            "ICC segment must survive re-encode"
+        );
+        assert!(
+            saved
+                .windows(4)
+                .any(|w| w == [0xDE, 0xAD, 0xBE, 0xEF].as_slice()),
+            "ICC payload must survive re-encode"
+        );
+        // 픽셀이 upright이므로 EXIF Orientation은 1이어야 한다 (이중 회전 방지).
+        assert_eq!(crate::orientation::read_orientation(&path), 1);
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn failed_save_does_not_leave_reserved_placeholder() {
+        let dir = test_dir("reserve-cleanup");
+        let path = dir.join("broken.jpg");
+        fs::write(&path, b"not a jpeg").unwrap();
+
+        let err = save_image_edits_impl(
+            path.to_str().unwrap(),
+            &SaveImageOptions {
+                format: Some("jpg".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap_err();
+        assert_eq!(err.code, crate::app_error::ErrorCode::Corrupt);
+        assert!(
+            !dir.join("broken-edited.jpg").exists(),
+            "reserved placeholder must be removed when encoding fails"
+        );
         fs::remove_dir_all(&dir).ok();
     }
 

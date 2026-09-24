@@ -129,8 +129,12 @@ pub(crate) fn get_sorted_images(
         Ok(images)
     } else {
         let key = cache_key(&canonical, opts);
-        let watching = WATCHER.lock().map(|guard| guard.is_some()).unwrap_or(false);
-        if watching {
+        // 재귀 목록은 부모 mtime으로 검증할 수 없어 워처가 살아 있을 때만
+        // 캐시를 신뢰한다. `ensure_watched`의 watch()가 실패했는데(네트워크
+        // 드라이브, 핸들 고갈 등) 캐시를 넣으면 그 폴더는 세션 동안
+        // stale해진다. 그래서 watch 성공 여부가 조회·저장을 함께 가른다.
+        let watched = ensure_watched(&canonical, true);
+        if watched {
             if let Ok(mut cache) = DIR_CACHE.lock() {
                 if let Some(entry) = cache.get_mut(&key) {
                     entry.last_access = Instant::now();
@@ -141,8 +145,9 @@ pub(crate) fn get_sorted_images(
         let mut images = Vec::new();
         collect_images(parent, true, &mut images)?;
         sort_images(&mut images, opts);
-        ensure_watched(&canonical, true);
-        insert_cache(canonical, opts, None, images.clone());
+        if watched {
+            insert_cache(canonical, opts, None, images.clone());
+        }
         Ok(images)
     }
 }
@@ -197,7 +202,11 @@ fn insert_entry(
     );
 }
 
-fn ensure_watched(canonical_parent: &Path, recursive: bool) {
+/// Watch `canonical_parent` (idempotent) and report whether it is now watched.
+/// The recursive cache only trusts itself while the watcher is live, so a
+/// failed registration must be visible to the caller instead of being logged
+/// and forgotten.
+fn ensure_watched(canonical_parent: &Path, recursive: bool) -> bool {
     use notify::{RecursiveMode, Watcher};
 
     let mode = if recursive {
@@ -211,12 +220,12 @@ fn ensure_watched(canonical_parent: &Path, recursive: bool) {
         // 갱신하지 않으면 가장 자주 쓰는 폴더가 먼저 해제된다.
         if let Some(seen) = watched.get_mut(canonical_parent) {
             *seen = Instant::now();
-            return;
+            return true;
         }
     }
 
     let Ok(mut guard) = WATCHER.lock() else {
-        return;
+        return false;
     };
     if guard.is_none() {
         match notify::RecommendedWatcher::new(
@@ -233,7 +242,7 @@ fn ensure_watched(canonical_parent: &Path, recursive: bool) {
             Ok(watcher) => *guard = Some(watcher),
             Err(e) => {
                 log::warn!("[dir-cache] failed to start watcher: {e}");
-                return;
+                return false;
             }
         }
     }
@@ -245,6 +254,7 @@ fn ensure_watched(canonical_parent: &Path, recursive: bool) {
                 if let Ok(mut watched) = WATCHED_DIRS.lock() {
                     watched.insert(canonical_parent.to_path_buf(), Instant::now());
                 }
+                return true;
             }
             Err(e) => log::warn!(
                 "[dir-cache] failed to watch {}: {e}",
@@ -252,6 +262,7 @@ fn ensure_watched(canonical_parent: &Path, recursive: bool) {
             ),
         }
     }
+    false
 }
 
 /// Keep watcher slots bounded. Called without holding the WATCHER lock.
@@ -341,16 +352,35 @@ fn invalidate_for_path(path: &Path) {
 
 fn collect_images(dir: &Path, recursive: bool, out: &mut Vec<ImageEntry>) -> Result<(), AppError> {
     let mut stack = vec![dir.to_path_buf()];
+    let mut is_root = true;
     while let Some(current) = stack.pop() {
-        let entries = fs::read_dir(&current)
-            .map_err(|e| AppError::io("Failed to read directory", e, ErrorCode::Corrupt))?;
+        let entries = match fs::read_dir(&current) {
+            Ok(entries) => entries,
+            // 루트 실패는 호출자가 알아야 하지만, 재귀 중 하위 폴더 하나의
+            // ACL/일시 오류가 전체 목록을 죽이면 안 된다 (`System Volume
+            // Information` 같은 폴더 하나로 폴더 전체가 안 보이던 문제).
+            Err(e) if is_root => {
+                return Err(AppError::io(
+                    "Failed to read directory",
+                    e,
+                    ErrorCode::Corrupt,
+                ))
+            }
+            Err(e) => {
+                log::warn!("[dir-cache] skip {}: {e}", current.display());
+                continue;
+            }
+        };
+        is_root = false;
         for entry in entries {
-            let entry =
-                entry.map_err(|e| AppError::corrupt(format!("Failed to read entry: {e}")))?;
+            // 스캔 중 삭제된 항목 등 개별 실패는 건너뛴다 (TOCTOU).
+            let Ok(entry) = entry else {
+                continue;
+            };
             let entry_path = entry.path();
-            let file_type = entry
-                .file_type()
-                .map_err(|e| AppError::corrupt(format!("Failed to read entry type: {e}")))?;
+            let Ok(file_type) = entry.file_type() else {
+                continue;
+            };
             if file_type.is_dir() {
                 // junction/symlink 같은 reparse point는 따라가지 않는다.
                 // 순환 링크로 인한 무한 순회와 범위 밖 스캔을 막는다.
@@ -403,18 +433,15 @@ fn is_reparse_point(entry: &fs::DirEntry) -> bool {
 }
 
 fn sort_images(images: &mut [ImageEntry], opts: &DirListOptions) {
+    // 비교마다 lowercase String을 새로 만들지 않도록 키를 한 번만 계산한다.
     match opts.sort_key {
-        DirSortKey::Name => images.sort_by_key(|e| e.path.to_lowercase()),
-        DirSortKey::Date => images.sort_by(|a, b| {
-            a.modified
-                .cmp(&b.modified)
-                .then_with(|| a.path.to_lowercase().cmp(&b.path.to_lowercase()))
-        }),
-        DirSortKey::Size => images.sort_by(|a, b| {
-            a.size
-                .cmp(&b.size)
-                .then_with(|| a.path.to_lowercase().cmp(&b.path.to_lowercase()))
-        }),
+        DirSortKey::Name => images.sort_by_cached_key(|e| e.path.to_lowercase()),
+        DirSortKey::Date => {
+            images.sort_by_cached_key(|e| (e.modified, e.path.to_lowercase()));
+        }
+        DirSortKey::Size => {
+            images.sort_by_cached_key(|e| (e.size, e.path.to_lowercase()));
+        }
     }
     if opts.descending {
         images.reverse();
@@ -613,6 +640,15 @@ mod tests {
         invalidate_for_path(&short.join("b.png"));
         assert!(contains_for_tests(&key));
         fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn failed_watch_reports_false() {
+        // 재귀 캐시는 이 값이 true일 때만 저장/조회된다. 존재하지 않는
+        // 경로에 대한 watch 실패가 true로 새어 나가면 캐시가 stale해진다.
+        let missing = unique_dir("watch-missing").join("nope");
+        assert!(!ensure_watched(&missing, true));
+        fs::remove_dir_all(missing.parent().unwrap()).ok();
     }
 
     #[test]
