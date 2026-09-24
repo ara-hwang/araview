@@ -2,7 +2,7 @@
 
 This document provides repository-specific guidance for AI coding assistants.
 
-Product truth lives in `PRODUCT.md`, visual system in `DESIGN.md`, full functional/technical spec in `SPEC.md`, plans in `ROADMAP.md`.
+Product truth lives in `PRODUCT.md`, visual system in `DESIGN.md`, full functional/technical spec in `SPEC.md`.
 
 ## Project Overview
 
@@ -58,7 +58,6 @@ cd src-tauri && cargo fmt
 - Functional/technical spec: `SPEC.md`
 - Product definition: `PRODUCT.md`
 - Visual system: `DESIGN.md`
-- Plans: `ROADMAP.md`
 - Frontend routes: `src/routes/`
 - Business logic hooks: `src/hooks/`
 - Stores: `src/store/`

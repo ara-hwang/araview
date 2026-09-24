@@ -1,7 +1,7 @@
 # SPEC.md - AraView 기능/기술 명세
 
 > 한국어 스펙 문서. 구현 진실(source of truth)은 코드이며, 본 문서는 현재 코드베이스의 동작을 요약한다.
-> 관련 문서: `PRODUCT.md`(제품 정의), `DESIGN.md`(비주얼 시스템), `ROADMAP.md`(단계 계획), `README.md`(소개/문서 허브), `docs/usage.md`(사용법), `docs/development.md`(개발 안내), `docs/releasing.md`(릴리스/업데이트), `AGENTS.md`(AI 작업 지침).
+> 관련 문서: `PRODUCT.md`(제품 정의), `DESIGN.md`(비주얼 시스템), `README.md`(소개/문서 허브), `docs/usage.md`(사용법), `docs/development.md`(개발 안내), `docs/releasing.md`(릴리스/업데이트), `AGENTS.md`(AI 작업 지침).
 
 ## 0. 문서 규약
 
@@ -59,7 +59,11 @@ CBZ/ZIP의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한다(8
 
 ### 2.3 제외 포맷
 
-- QOI, JXL, RAW(CR2/NEF/ARW 등), PSB는 제외 유지. 선정 이유와 후보 검토는 `ROADMAP.md` 4.4를 따른다. PSD는 읽기 전용 미리보기만 지원하며 PSB(`8BPB`)는 디코더가 없어 진입 차단한다.
+- QOI, JXL, RAW(CR2/NEF/ARW 등), PSB는 제외 유지.
+  - QOI: 백엔드(`image` 크레이트) 디코드는 가능하지만 WebView2가 네이티브 렌더를 못 해 JPEG sidecar 전제가 필요하다.
+  - JXL(`jxl-oxide`), RAW(`rawloader`): 디코더 크레이트는 있으나 같은 이유로 sidecar 파이프라인이 선행돼야 한다.
+  - PSB: 실제 PSB는 `8BPS` + version 2인데 디코더가 없어 진입 차단한다(`psd` 크레이트는 PSD만 지원).
+- PSD는 읽기 전용 미리보기(JPEG sidecar)만 지원하며 편집 저장은 불가하다.
 
 ## 3. 화면과 라우트
 
@@ -271,6 +275,17 @@ CBZ/ZIP의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한다(8
 - 그리드는 보이는 창의 경로만 썸네일을 요청한다.
 - `get_cached_thumbnail`: 생성 없이 캐시에 있는 썸네일(256/128/96/72/48/32)만 반환한다. 큰 이미지(2MP 또는 1.5MB 이상)를 열 때 풀사이즈 디코드와 병행 조회해 첫 페인트 프리뷰로 쓰고, 원본 `onLoad`에서 걷는다. GIF는 제외한다.
 
+### 9.3 표시 해상도 제한
+
+진실: `src-tauri/src/scaled.rs`, `src/hooks/useImageCache.ts`, `src/hooks/useImageLoader.ts`, `src/utils/resolutionLimit.ts`.
+
+- 설정 `maxResolution`(기본 `original`)이 켜져 있으면 긴 변이 상한(4k=3840px, 1080p=1920px)을 넘는 래스터를 `scaled/` sidecar로 한 번만 축소해 렌더한다. 원본 파일은 바뀌지 않는다.
+- 적용 대상은 `image` 크레이트가 디코드할 수 있는 래스터(PNG/JPEG/TIFF/BMP/ICO/정지 WebP)이며, EXIF Orientation(5~8)은 픽셀에 반영한 뒤 축소한다. 알파 채널이 있으면 투명도 보존을 위해 PNG로 저장한다.
+- GIF, 움직이는 WebP, SVG, 디코드 불가 포맷(AVIF 등)은 원본 바이트를 그대로 렌더한다.
+- sidecar는 프로세스 임시 디렉터리 `scaled/`에 캐시되며 상한(500MB)을 넘기면 오래된 것부터 제거한다. 캐시 경로는 원본 식별 해시 + 상한 기준이라 설정을 바꾸면 다른 사본을 만든다.
+- 새 상한으로 로드한 `ImageInfo.width/height`는 축소 사본 기준이고, `source_path`는 항상 원본 파일이다(11절). 히스토그램은 렌더 바이트(`file_path`), EXIF/파일 상세는 원본(`source_path`) 기준이다.
+- 설정을 바꾸면 프론트는 메타 캐시와 픽셀 예열을 비우고 현재 이미지를 새 상한으로 다시 로드한다.
+
 ## 10. EXIF/파일 정보
 
 진실: `src-tauri/src/commands.rs`, `src-tauri/src/image_info.rs`, `src/hooks/useExifLoader.ts`, `src/components/ExifPanel.tsx`, `src/components/HistogramChart.tsx`.
@@ -302,7 +317,7 @@ CBZ/ZIP의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한다(8
 
 진실: `src/hooks/useFileOperations.ts`, `src-tauri/src/commands.rs`, `src-tauri/src/save.rs`, `src/hooks/useCopyImage.ts`.
 
-공통: 아카이브 모드면 원본 아카이브 경로를 대상으로 삼는다. 단, 휴지통/이름 변경/편집 저장은 아카이브에서 차단된다.
+공통: 아카이브 모드(전체/미리보기)면 원본 아카이브 경로를 대상으로 삼는다. 단, 휴지통/이름 변경/편집 저장은 아카이브에서 차단된다. 파일 작업은 렌더 경로(`file_path`)가 아니라 사용자가 연 원본(`source_path`)을 대상으로 한다(9.3절).
 
 ### 11.1 휴지통 이동 `Delete`
 
@@ -372,6 +387,7 @@ CBZ/ZIP의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한다(8
 | `language`          | `ko \| en`                                              | `ko`(초기 로드는 시스템 감지 우선) |
 | `loopNavigation`    | 끝에서 루프 여부                                        | `false`                            |
 | `cacheMode`         | `off \| nearby \| extended \| memory-1gb \| memory-2gb` | `nearby`                           |
+| `maxResolution`     | `original \| 4k \| 1080p` (긴 변 상한, 9.3절)           | `original`                         |
 | `viewMode`          | `single \| left-to-right \| right-to-left \| webtoon`   | `single`                           |
 | `autoOpenLastFile`  | 시작 시 마지막 파일 자동 열기                           | `false`                            |
 | `recordRecentFiles` | 최근 기록 유지                                          | `true`                             |
@@ -473,7 +489,7 @@ CBZ/ZIP의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한다(8
 
 | 명령                              | 입력 (JS camelCase)                    | 반환                                   |
 | --------------------------------- | -------------------------------------- | -------------------------------------- |
-| `load_image`                      | `filePath`                             | `ImageInfo`                            |
+| `load_image`                      | `filePath`, `maxSide?`                 | `ImageInfo`                            |
 | `get_directory_images`            | `filePath`, `options?`                 | `DirectoryImages`                      |
 | `resolve_dropped_path`            | `path`                                 | 해석된 파일 경로 `string`              |
 | `get_exif_data`                   | `filePath`                             | `Record<string, string>`               |
@@ -481,7 +497,7 @@ CBZ/ZIP의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한다(8
 | `get_image_details`               | `filePath`                             | `ImageDetails`                         |
 | `get_archive_images`              | `filePath`                             | `DirectoryImages`(엔트리 목록)         |
 | `get_comic_info`                  | `filePath`                             | `ComicInfo \| null`(CBZ/ZIP 전용)      |
-| `load_archive_image`              | `archivePath`, `entryName`             | `ImageInfo`                            |
+| `load_archive_image`              | `archivePath`, `entryName`, `maxSide?` | `ImageInfo`                            |
 | `archive_prefetch`                | `archivePath`, `entryNames`            | 추출 개수 `number`                     |
 | `generate_thumbnail`              | `filePath`, `maxSide?`                 | `ThumbnailInfo`                        |
 | `generate_thumbnails_batch`       | `filePaths`, `maxSide?`                | `BatchThumb[]`                         |
@@ -496,7 +512,7 @@ CBZ/ZIP의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한다(8
 | `register_psd_thumbnail`          | 없음                                   | `PsdThumbStatus`                       |
 | `unregister_psd_thumbnail`        | 없음                                   | `PsdThumbStatus`                       |
 | `trash_file`                      | `filePath`                             | 없음                                   |
-| `rename_file`                     | `oldPath`, `newName`                   | `ImageInfo`                            |
+| `rename_file`                     | `oldPath`, `newName`, `maxSide?`       | `ImageInfo`                            |
 | `save_image_edits`                | `filePath`, `options`                  | `ImageInfo`                            |
 | `frontend_ready`                  | 없음                                   | 없음 (`PendingOpenFile` flush)         |
 
@@ -514,11 +530,12 @@ CBZ/ZIP의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한다(8
 
 Rust와 TypeScript는 같은 모양을 유지한다.
 
-- `file_path: string`: WebView가 디코드할 경로. HEIC/HEIF/PSD는 JPEG sidecar 경로일 수 있다.
+- `file_path: string`: WebView가 디코드할 경로. HEIC/HEIF/PSD는 JPEG sidecar 경로, 표시 해상도 제한이 걸린 큰 래스터는 `scaled/` 사본 경로일 수 있다(9.3절).
+- `source_path: string`: 사용자가 연 원본 파일 경로. sidecar가 아니며, 파일 작업·EXIF·파일 상세가 이 경로를 쓴다. 아카이브 엔트리는 추출된 임시 파일 경로다.
 - `mime_type: string`
 - `file_name: string`
 - `file_size: number`
-- `width: number | null`, `height: number | null`: 렌더 바이트 기준 치수. SVG는 헤더 파싱으로 복원하며 해석 불가분만 null.
+- `width: number | null`, `height: number | null`: 렌더 바이트 기준 치수(축소 사본이면 사본 치수). SVG는 헤더 파싱으로 복원하며 해석 불가분만 null.
 
 ### 16.2 기타
 
@@ -561,7 +578,7 @@ Rust와 TypeScript는 같은 모양을 유지한다.
 ## 18. 렌더링 경로
 
 - 백엔드는 디코드용 파일 경로를 돌려주고, 프론트는 `convertFileSrc(...)`로 변환해 `<img>`에 넣는다.
-- HEIC/HEIF/PSD만 JPEG sidecar를 만든다. sidecar와 아카이브 추출물, 썸네일 캐시는 프로세스 임시 디렉터리 아래에 둔다.
+- HEIC/HEIF/PSD는 JPEG sidecar를, 표시 해상도 제한이 걸린 큰 래스터는 `scaled/` 사본(9.3절)을 만든다. sidecar와 아카이브 추출물, 썸네일 캐시는 프로세스 임시 디렉터리 아래에 둔다.
 - JPEG/TIFF의 EXIF Orientation(1~8)은 WebView2 `<img>`가 자동 적용한다. 백엔드는 같은 기준을 따르도록 치수(`ImageInfo.width/height`, `get_image_details`), 썸네일, 편집 저장(`save_image_edits`)에 회전을 명시 적용한다(SVG/WebP/PNG/HEIC는 대상 아님).
 - 사용자가 여는 파일/폴더는 명령 실행 시 런타임에 asset scope로 허용한다.
 - CSP는 `default-src 'self'` 기반이며 `asset:`/`ipc:` 접근을 허용한다. dev 전용 설정은 `docs/development.md`를 따른다.
