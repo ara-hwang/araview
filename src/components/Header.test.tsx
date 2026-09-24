@@ -82,6 +82,7 @@ import { useSettingsStore } from "@/store/settingsStore"
 
 const demoImage = {
   file_path: "/pics/a.jpg",
+  source_path: "/pics/a.jpg",
   file_name: "a.jpg",
   file_size: 123,
   mime_type: "image/jpeg",

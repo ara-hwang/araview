@@ -17,6 +17,7 @@ afterEach(() => {
 
 const imgInfo = {
   file_path: "/pics/photo.png",
+  source_path: "/pics/photo.png",
   mime_type: "image/png",
   file_name: "photo.png",
   file_size: 2048,
@@ -26,6 +27,7 @@ const imgInfo = {
 
 const archiveInfo = {
   file_path: "C:/comics/m.cbz",
+  source_path: "C:/comics/m.cbz",
   mime_type: "application/vnd.comicbook+zip",
   file_name: "m.cbz",
   file_size: 1024,

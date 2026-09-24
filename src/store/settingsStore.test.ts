@@ -60,9 +60,17 @@ describe("sanitizeSettings", () => {
     expect(sanitizeSettings({ showComicInfo: "yes" }).showComicInfo).toBe(false)
   })
 
+  it("표시 해상도 상한은 기본 원본이고 저장된 값을 따른다", () => {
+    expect(sanitizeSettings({}).maxResolution).toBe("original")
+    expect(sanitizeSettings({ maxResolution: "4k" }).maxResolution).toBe("4k")
+    expect(sanitizeSettings({ maxResolution: "1080p" }).maxResolution).toBe("1080p")
+    expect(sanitizeSettings({ maxResolution: "8k" }).maxResolution).toBe("original")
+  })
+
   it("잘못된 union 값은 기본값으로 되돌린다", () => {
     const sane = sanitizeSettings({
       cacheMode: "turbo",
+      maxResolution: "8k",
       viewMode: "grid",
       viewerBackground: "neon",
       sortKey: "random",
@@ -72,6 +80,7 @@ describe("sanitizeSettings", () => {
       dockThumbSize: "xl"
     })
     expect(sane.cacheMode).toBe("nearby")
+    expect(sane.maxResolution).toBe("original")
     expect(sane.viewMode).toBe("single")
     expect(sane.viewerBackground).toBe("theme")
     expect(sane.sortKey).toBe("name")

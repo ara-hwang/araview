@@ -12,16 +12,17 @@ import { useSettingsStore } from "@/store/settingsStore"
 import type { ImageInfo } from "@/types"
 import { errorCopyDetails, errorMessage } from "@/utils/appError"
 import type { SaveEditsPayload } from "@/utils/imageEdits"
+import { maxSideForResolution } from "@/utils/resolutionLimit"
 
 type LoadImageFn = (filePath: string, options?: { refreshDirectory?: boolean }) => Promise<void>
 
-/** 아카이브 모드면 원본 아카이브 경로, 아니면 현재 이미지 경로 */
+/** 아카이브 모드(전체/미리보기)면 원본 아카이브 경로, 아니면 현재 이미지 원본 경로 */
 export function getEffectivePath(
-  imagePath: string | null,
+  sourcePath: string | null,
   archivePath: string | null
 ): string | null {
   if (archivePath) return archivePath
-  return imagePath
+  return sourcePath
 }
 
 /** PSD 미리보기 MIME. `file_path`는 JPEG sidecar일 수 있어 판정은 MIME/파일명 기준. */
@@ -87,8 +88,11 @@ export function useFileOperations({ loadImage }: { loadImage: LoadImageFn }) {
   const navigate = useNavigate()
 
   const revealCurrent = useCallback(async () => {
-    const { imageInfo, archivePath } = useAppStore.getState()
-    const target = getEffectivePath(imageInfo?.file_path ?? null, archivePath)
+    const { imageInfo, archivePath, archivePreviewPath } = useAppStore.getState()
+    const target = getEffectivePath(
+      imageInfo?.source_path ?? null,
+      archivePath ?? archivePreviewPath
+    )
     if (!target) {
       toast.error(i18n.t("toast.reveal.empty"))
       return
@@ -104,8 +108,11 @@ export function useFileOperations({ loadImage }: { loadImage: LoadImageFn }) {
   }, [])
 
   const openExternal = useCallback(async () => {
-    const { imageInfo, archivePath } = useAppStore.getState()
-    const target = getEffectivePath(imageInfo?.file_path ?? null, archivePath)
+    const { imageInfo, archivePath, archivePreviewPath } = useAppStore.getState()
+    const target = getEffectivePath(
+      imageInfo?.source_path ?? null,
+      archivePath ?? archivePreviewPath
+    )
     if (!target) {
       toast.error(i18n.t("toast.external.empty"))
       return
@@ -121,12 +128,12 @@ export function useFileOperations({ loadImage }: { loadImage: LoadImageFn }) {
   }, [])
 
   const trashCurrent = useCallback(async () => {
-    const { imageInfo, dirImages, archivePath } = useAppStore.getState()
+    const { imageInfo, dirImages, archivePath, archivePreviewPath } = useAppStore.getState()
     if (!imageInfo) {
       toast.error(i18n.t("toast.trash.empty"))
       return
     }
-    if (archivePath) {
+    if (archivePath || archivePreviewPath) {
       toast.info(i18n.t("toast.trash.noArchive"))
       return
     }
@@ -137,23 +144,20 @@ export function useFileOperations({ loadImage }: { loadImage: LoadImageFn }) {
     }).catch(() => false)
     if (!ok) return
 
+    const sourcePath = imageInfo.source_path
     try {
-      await invoke("trash_file", { filePath: imageInfo.file_path })
+      await invoke("trash_file", { filePath: sourcePath })
     } catch (e) {
       toast.error(i18n.t("toast.trash.fail"), {
         description: errorMessage(e),
-        details: errorCopyDetails(e, imageInfo.file_path)
+        details: errorCopyDetails(e, sourcePath)
       })
       return
     }
 
-    void useRecentFilesStore.getState().remove(imageInfo.file_path)
+    void useRecentFilesStore.getState().remove(sourcePath)
 
-    const next = getNextPathAfterTrash(
-      dirImages.images,
-      dirImages.current_index,
-      imageInfo.file_path
-    )
+    const next = getNextPathAfterTrash(dirImages.images, dirImages.current_index, sourcePath)
 
     if (!next) {
       closeImage()
@@ -170,8 +174,11 @@ export function useFileOperations({ loadImage }: { loadImage: LoadImageFn }) {
   }, [loadImage, navigate])
 
   const copyPathCurrent = useCallback(async () => {
-    const { imageInfo, archivePath } = useAppStore.getState()
-    const target = getEffectivePath(imageInfo?.file_path ?? null, archivePath)
+    const { imageInfo, archivePath, archivePreviewPath } = useAppStore.getState()
+    const target = getEffectivePath(
+      imageInfo?.source_path ?? null,
+      archivePath ?? archivePreviewPath
+    )
     if (!target) {
       toast.error(i18n.t("toast.path.empty"))
       return
@@ -192,12 +199,12 @@ export function useFileOperations({ loadImage }: { loadImage: LoadImageFn }) {
 
   /** 이름 변경. 성공 시 true (다이얼로그를 닫아도 됨) */
   const renameCurrent = useCallback(async (newName: string) => {
-    const { imageInfo, dirImages, archivePath } = useAppStore.getState()
+    const { imageInfo, dirImages, archivePath, archivePreviewPath } = useAppStore.getState()
     if (!imageInfo) {
       toast.error(i18n.t("toast.rename.empty"))
       return false
     }
-    if (archivePath) {
+    if (archivePath || archivePreviewPath) {
       toast.info(i18n.t("toast.rename.noArchive"))
       return false
     }
@@ -206,16 +213,18 @@ export function useFileOperations({ loadImage }: { loadImage: LoadImageFn }) {
       return false
     }
 
+    const sourcePath = imageInfo.source_path
     let nextInfo: ImageInfo
     try {
       nextInfo = await invoke<ImageInfo>("rename_file", {
-        oldPath: imageInfo.file_path,
-        newName: newName.trim()
+        oldPath: sourcePath,
+        newName: newName.trim(),
+        maxSide: maxSideForResolution(useSettingsStore.getState().maxResolution)
       })
     } catch (e) {
       toast.error(i18n.t("toast.rename.fail"), {
         description: errorMessage(e),
-        details: errorCopyDetails(e, imageInfo.file_path)
+        details: errorCopyDetails(e, sourcePath)
       })
       return false
     }
@@ -224,14 +233,14 @@ export function useFileOperations({ loadImage }: { loadImage: LoadImageFn }) {
       imageInfo: nextInfo,
       dirImages: {
         ...dirImages,
-        images: replacePathInList(dirImages.images, imageInfo.file_path, nextInfo.file_path)
+        images: replacePathInList(dirImages.images, sourcePath, nextInfo.source_path)
       },
       error: null
     })
     const recent = useRecentFilesStore.getState()
-    void recent.remove(imageInfo.file_path).then(() => {
+    void recent.remove(sourcePath).then(() => {
       if (useSettingsStore.getState().recordRecentFiles) {
-        return recent.add(nextInfo.file_path)
+        return recent.add(nextInfo.source_path)
       }
     })
 
@@ -245,12 +254,12 @@ export function useFileOperations({ loadImage }: { loadImage: LoadImageFn }) {
   /** 회전/반전 + 포맷 변환 저장. 성공 시 true (다이얼로그를 닫아도 됨) */
   const saveEdits = useCallback(
     async (payload: SaveEditsPayload) => {
-      const { imageInfo, archivePath } = useAppStore.getState()
+      const { imageInfo, archivePath, archivePreviewPath } = useAppStore.getState()
       if (!imageInfo) {
         toast.error(i18n.t("toast.save.empty"))
         return false
       }
-      if (archivePath) {
+      if (archivePath || archivePreviewPath) {
         toast.info(i18n.t("toast.save.noArchive"))
         return false
       }
@@ -282,19 +291,19 @@ export function useFileOperations({ loadImage }: { loadImage: LoadImageFn }) {
       let nextInfo: ImageInfo
       try {
         nextInfo = await invoke<ImageInfo>("save_image_edits", {
-          filePath: imageInfo.file_path,
+          filePath: imageInfo.source_path,
           options: payload
         })
       } catch (e) {
         toast.error(i18n.t("toast.save.fail"), {
           description: errorMessage(e),
-          details: errorCopyDetails(e, imageInfo.file_path)
+          details: errorCopyDetails(e, imageInfo.source_path)
         })
         return false
       }
 
       if (useSettingsStore.getState().recordRecentFiles) {
-        void useRecentFilesStore.getState().add(nextInfo.file_path)
+        void useRecentFilesStore.getState().add(nextInfo.source_path)
       }
       toast.success(i18n.t("toast.save.done"), {
         description: nextInfo.file_name,

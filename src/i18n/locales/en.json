@@ -237,6 +237,13 @@
       "gb1": "Memory limit (1 GB)",
       "gb2": "Memory limit (2 GB)"
     },
+    "resolution": {
+      "title": "Display resolution",
+      "desc": "Downscale large images to the long-edge limit for display. Original files are not changed.",
+      "original": "Original (no limit)",
+      "4k": "4K (long edge 3840px)",
+      "1080p": "Full HD (long edge 1920px)"
+    },
     "startup": {
       "title": "Startup",
       "desc": "Auto-open the last viewed image on launch",

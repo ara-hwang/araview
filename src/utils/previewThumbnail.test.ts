@@ -6,6 +6,7 @@ import { shouldUsePreviewThumbnail } from "@/utils/previewThumbnail"
 function info(partial: Partial<ImageInfo>): ImageInfo {
   return {
     file_path: "C:/pics/a.jpg",
+    source_path: "C:/pics/a.jpg",
     file_name: "a.jpg",
     file_size: 1000,
     mime_type: "image/jpeg",

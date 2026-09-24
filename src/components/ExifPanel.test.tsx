@@ -17,6 +17,7 @@ beforeEach(() => {
 
 const svgInfo = {
   file_path: "/pics/vector.svg",
+  source_path: "/pics/vector.svg",
   file_name: "vector.svg",
   file_size: 456,
   mime_type: "image/svg+xml",
@@ -61,6 +62,7 @@ describe("ExifPanel SVG", () => {
     useAppStore.setState({
       imageInfo: {
         file_path: "/pics/a.jpg",
+        source_path: "/pics/a.jpg",
         file_name: "a.jpg",
         file_size: 123,
         mime_type: "image/jpeg",

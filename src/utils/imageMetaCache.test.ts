@@ -10,6 +10,7 @@ import {
 
 const sample = (filePath: string): ImageInfo => ({
   file_path: filePath,
+  source_path: filePath,
   mime_type: "image/png",
   file_name: "a.png",
   file_size: 100,

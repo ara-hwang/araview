@@ -12,6 +12,7 @@ function imageInfoFor(path: string) {
   const file_name = path.split("/").pop() ?? path
   return {
     file_path: path,
+    source_path: path,
     file_name,
     file_size: 10,
     mime_type: "image/jpeg",

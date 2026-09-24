@@ -34,6 +34,7 @@ describe("closeImage", () => {
     useAppStore.setState({
       imageInfo: {
         file_path: "/pics/a.jpg",
+        source_path: "/pics/a.jpg",
         file_name: "a.jpg",
         file_size: 123,
         mime_type: "image/jpeg",
@@ -87,6 +88,7 @@ describe("panBy", () => {
     useAppStore.setState({
       imageInfo: {
         file_path: "/pics/a.jpg",
+        source_path: "/pics/a.jpg",
         file_name: "a.jpg",
         file_size: 123,
         mime_type: "image/jpeg",
@@ -119,6 +121,7 @@ describe("setImageInfoAndResetView", () => {
     })
     setImageInfoAndResetView({
       file_path: "/pics/b.jpg",
+      source_path: "/pics/b.jpg",
       file_name: "b.jpg",
       file_size: 456,
       mime_type: "image/jpeg",
@@ -145,6 +148,7 @@ describe("setImageInfoAndResetView", () => {
     })
     setImageInfoAndResetView({
       file_path: "/pics/small.png",
+      source_path: "/pics/small.png",
       file_name: "small.png",
       file_size: 10,
       mime_type: "image/png",
@@ -162,6 +166,7 @@ describe("setImageInfoAndResetView", () => {
     })
     setImageInfoAndResetView({
       file_path: "/pics/vector.svg",
+      source_path: "/pics/vector.svg",
       file_name: "vector.svg",
       file_size: 10,
       mime_type: "image/svg+xml",
@@ -180,6 +185,7 @@ describe("applyImageNaturalSize", () => {
     useAppStore.setState({ containerSize: { width: 1000, height: 700 } })
     setImageInfoAndResetView({
       file_path: "/pics/vector.svg",
+      source_path: "/pics/vector.svg",
       file_name: "vector.svg",
       file_size: 10,
       mime_type: "image/svg+xml",
@@ -199,6 +205,7 @@ describe("applyImageNaturalSize", () => {
     useAppStore.setState({ containerSize: { width: 1000, height: 700 } })
     setImageInfoAndResetView({
       file_path: "/pics/vector.svg",
+      source_path: "/pics/vector.svg",
       file_name: "vector.svg",
       file_size: 10,
       mime_type: "image/svg+xml",
@@ -213,6 +220,7 @@ describe("applyImageNaturalSize", () => {
     useAppStore.setState({ containerSize: { width: 1000, height: 700 } })
     setImageInfoAndResetView({
       file_path: "/pics/a.jpg",
+      source_path: "/pics/a.jpg",
       file_name: "a.jpg",
       file_size: 10,
       mime_type: "image/jpeg",
@@ -227,6 +235,7 @@ describe("applyImageNaturalSize", () => {
     useAppStore.setState({
       imageInfo: {
         file_path: "/pics/a.jpg",
+        source_path: "/pics/a.jpg",
         file_name: "a.jpg",
         file_size: 10,
         mime_type: "image/jpeg",
@@ -245,6 +254,7 @@ describe("applyImageNaturalSize", () => {
     useAppStore.setState({
       imageInfo: {
         file_path: "/pics/vector.svg",
+        source_path: "/pics/vector.svg",
         file_name: "vector.svg",
         file_size: 10,
         mime_type: "image/svg+xml",
@@ -358,6 +368,7 @@ describe("fitMode 기억", () => {
     useAppStore.setState({ containerSize: { width: 1000, height: 700 } })
     setImageInfoAndResetView({
       file_path: "/pics/b.jpg",
+      source_path: "/pics/b.jpg",
       file_name: "b.jpg",
       file_size: 456,
       mime_type: "image/jpeg",
@@ -373,6 +384,7 @@ describe("fitMode 기억", () => {
     useAppStore.setState({ containerSize: { width: 1000, height: 700 } })
     setImageInfoAndResetView({
       file_path: "/pics/c.jpg",
+      source_path: "/pics/c.jpg",
       file_name: "c.jpg",
       file_size: 456,
       mime_type: "image/jpeg",
@@ -388,6 +400,7 @@ describe("fitMode 기억", () => {
     useAppStore.setState({ containerSize: { width: 1000, height: 700 } })
     setImageInfoAndResetView({
       file_path: "/pics/d.jpg",
+      source_path: "/pics/d.jpg",
       file_name: "d.jpg",
       file_size: 456,
       mime_type: "image/jpeg",
@@ -402,6 +415,7 @@ describe("fitMode 기억", () => {
     useAppStore.setState({ containerSize: { width: 1000, height: 700 } })
     setImageInfoAndResetView({
       file_path: "/pics/small.png",
+      source_path: "/pics/small.png",
       file_name: "small.png",
       file_size: 10,
       mime_type: "image/png",
@@ -417,6 +431,7 @@ describe("fitMode 기억", () => {
     useAppStore.setState({ containerSize: { width: 1000, height: 700 } })
     setImageInfoAndResetView({
       file_path: "/pics/small.png",
+      source_path: "/pics/small.png",
       file_name: "small.png",
       file_size: 10,
       mime_type: "image/png",
@@ -516,6 +531,7 @@ describe("isFitLocked", () => {
     })
     setImageInfoAndResetView({
       file_path: "/pics/b.jpg",
+      source_path: "/pics/b.jpg",
       file_name: "b.jpg",
       file_size: 456,
       mime_type: "image/jpeg",
