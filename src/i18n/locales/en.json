@@ -229,13 +229,50 @@
       "alwaysOnTop": "Always on top"
     },
     "cache": {
-      "title": "Cache",
-      "desc": "Image preload range",
+      "title": "Image preloading",
+      "desc": "Image preload range and cache item limit",
       "off": "Off (current image only)",
       "nearby": "Nearby (preload prev/next)",
       "extended": "Extended (preload up to ±3)",
-      "gb1": "Memory limit (1 GB)",
-      "gb2": "Memory limit (2 GB)"
+      "gb1": "Cache item limit 1 GB",
+      "gb2": "Cache item limit 2 GB"
+    },
+    "cacheStorage": {
+      "title": "Cache retention",
+      "desc": "Choose whether thumbnails and converted images survive app exit.",
+      "persistent": "Use persistent cache",
+      "persistentDesc": "Reuse cache after reopening the app. This is the default.",
+      "temporaryDesc": "Keep cache only during this run and delete it on exit.",
+      "toggle": "Toggle persistent cache",
+      "pendingTitle": "Applies on the next run",
+      "pendingDesc": "The current cache stays unchanged until the storage mode changes on the next run."
+    },
+    "cacheManagement": {
+      "title": "Cache management",
+      "desc": "Review and delete image-derived cache files for the active storage mode.",
+      "refresh": "Refresh",
+      "loading": "Checking cache usage",
+      "errorTitle": "Could not load cache usage",
+      "retry": "Try again",
+      "emptyTitle": "No cache files",
+      "emptyDesc": "Opening an image creates thumbnails and converted cache files.",
+      "total": "Total usage",
+      "files": "{{count}} files",
+      "protected": "{{count}} in use",
+      "limit": "Automatic cleanup limit {{size}}",
+      "categorySize": "{{size}} · {{count}} files",
+      "clear": "Clear",
+      "clearAll": "Clear all cache",
+      "persistentActive": "Current persistent cache",
+      "temporaryActive": "Current session cache",
+      "persistentUnavailable": "Persistent cache is unavailable, so a session cache is being used.",
+      "categories": {
+        "thumbnails": "Thumbnails",
+        "converted": "Converted images",
+        "scaled": "Scaled copies",
+        "archives": "Archive extracts",
+        "other": "Other temporary files"
+      }
     },
     "resolution": {
       "title": "Display resolution",
@@ -596,6 +633,12 @@
       "latest": "You are on the latest version",
       "checkFail": "Failed to check for updates"
     },
+    "cache": {
+      "storagePending": "Cache retention saved. It applies on the next run.",
+      "cleared": "Cleared {{size}} of cache",
+      "protectedOnly": "Files currently in use were kept and could not be cleared.",
+      "partial": "Some in-use files were kept, so only part of the cache was cleared."
+    },
     "load": {
       "archiveFail": "Failed to load archive",
       "imageFail": "Failed to load image",
@@ -622,6 +665,18 @@
     "resetSettings": {
       "title": "Reset settings",
       "message": "Reset all settings to their defaults? Your language setting will be kept."
+    },
+    "cacheStorage": {
+      "disable": {
+        "title": "Turn off persistent cache",
+        "message": "Switching to a session cache deletes the existing persistent cache on the next run. Continue?"
+      }
+    },
+    "cache": {
+      "clearAll": {
+        "title": "Clear all cache",
+        "message": "Keep files currently in use and delete the remaining image cache?"
+      }
     }
   },
   "picker": {

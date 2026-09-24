@@ -9,6 +9,7 @@ describe("sanitizeSettings", () => {
       language: "en",
       loopNavigation: true,
       cacheMode: "extended",
+      cacheStorageMode: "temporary",
       viewMode: "webtoon",
       sortKey: "size",
       sortDescending: true,
@@ -22,6 +23,7 @@ describe("sanitizeSettings", () => {
     expect(sane.language).toBe("en")
     expect(sane.loopNavigation).toBe(true)
     expect(sane.cacheMode).toBe("extended")
+    expect(sane.cacheStorageMode).toBe("temporary")
     expect(sane.viewMode).toBe("webtoon")
     expect(sane.sortKey).toBe("size")
     expect(sane.sortDescending).toBe(true)
@@ -58,6 +60,12 @@ describe("sanitizeSettings", () => {
     expect(sanitizeSettings({}).showComicInfo).toBe(true)
     expect(sanitizeSettings({ showComicInfo: false }).showComicInfo).toBe(false)
     expect(sanitizeSettings({ showComicInfo: "yes" }).showComicInfo).toBe(false)
+  })
+
+  it("영구 캐시는 기본 켜짐이고 저장된 값을 따른다", () => {
+    expect(sanitizeSettings({}).cacheStorageMode).toBe("persistent")
+    expect(sanitizeSettings({ cacheStorageMode: "temporary" }).cacheStorageMode).toBe("temporary")
+    expect(sanitizeSettings({ cacheStorageMode: "forever" }).cacheStorageMode).toBe("persistent")
   })
 
   it("표시 해상도 상한은 기본 원본이고 저장된 값을 따른다", () => {

@@ -11,8 +11,8 @@ use crate::process_temp::process_temp_dir;
 use tauri::Manager;
 
 /// 이미 허용한 asset 디렉터리. 파일마다 scope를 추가하면 세션 내내 팽창하므로
-/// 부모 디렉터리 단위로 1회만 허용한다. 프로세스 temp는 시작 시 통째로
-/// 허용되므로 여기서 건너뛴다.
+/// 부모 디렉터리 단위로 1회만 허용한다. 활성 파생 이미지 캐시 루트는 시작 시
+/// 통째로 허용되므로 여기서 건너뛴다.
 static ALLOWED_ASSET_DIRS: LazyLock<Mutex<HashSet<PathBuf>>> =
     LazyLock::new(|| Mutex::new(HashSet::new()));
 
@@ -273,11 +273,13 @@ pub fn load_archive_image(
 
 fn archive_sub_dir(archive_path: &Path) -> Result<std::path::PathBuf, AppError> {
     let temp_dir = process_temp_dir()?;
-    // 같은 stem을 가진 다른 아카이브가 임시 캐시를 공유하지 않도록
-    // canonical 경로 + mtime + 크기로 하위 디렉터리를 구분한다.
-    // 영속 파일명에 쓰이므로 안정 해시를 사용한다.
+    // 같은 stem을 가진 다른 아카이브가 캐시를 공유하지 않도록 canonical 경로 +
+    // mtime + 크기로 하위 디렉터리를 구분한다. 영속 파일명에 쓰이므로 안정
+    // 해시와 캐시 포맷 revision을 사용한다.
     let hash = crate::sidecar::file_identity_hash(archive_path, &[])?;
-    let sub_dir = temp_dir.join(format!("archive-{hash:016x}"));
+    let sub_dir = temp_dir
+        .join(crate::cache::ARCHIVES_SUBDIR)
+        .join(format!("{hash:016x}"));
     // 새 아카이브를 처음 열 때만 전체 temp 상한을 강제한다. 재사용 시에는
     // 매번 전체를 훑지 않아 페이지 넘김/썸네일 비용을 늘리지 않는다.
     let is_new = !sub_dir.is_dir();
@@ -287,15 +289,11 @@ fn archive_sub_dir(archive_path: &Path) -> Result<std::path::PathBuf, AppError> 
         // 전체 트리 순회라 파일 수가 많으면 수 초가 걸린다. best-effort이므로
         // 첫 페이지 렌더를 막지 않도록 백그라운드로 돌린다.
         std::thread::spawn(|| {
-            crate::process_temp::enforce_total_cap(MAX_PROCESS_TEMP_BYTES).ok();
+            crate::process_temp::enforce_total_cap(crate::process_temp::MAX_TOTAL_CACHE_BYTES).ok();
         });
     }
     Ok(sub_dir)
 }
-
-/// 프로세스 temp 전체 상한. 썸네일/paint/아카이브별 상한에 더해 여러 아카이브를
-/// 연달아 열 때의 총량 팽창을 막는다.
-const MAX_PROCESS_TEMP_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 
 /// 이웃 페이지 선추출 (zip은 오픈 1회). FE fire-and-forget용으로 항상 Ok다.
 #[tauri::command]
@@ -353,6 +351,25 @@ pub fn generate_thumbnail(
 #[tauri::command]
 pub fn get_cached_thumbnail(file_path: String) -> Option<crate::thumbnail::ThumbnailInfo> {
     crate::thumbnail::cached_thumbnail(Path::new(&file_path))
+}
+
+/// 현재 활성 이미지 캐시의 종류별 사용량. 큰 트리 조회는 UI를 막지 않도록
+/// blocking task 안에서 실행한다.
+#[tauri::command]
+pub async fn get_cache_stats() -> Result<crate::cache::CacheStats, AppError> {
+    tauri::async_runtime::spawn_blocking(crate::cache::get_cache_stats)
+        .await
+        .map_err(|e| AppError::unknown(format!("Failed to join cache stats task: {e}")))?
+}
+
+/// 종류별 또는 전체 캐시 삭제. 화면에 전달된 in-use 파일은 보존한다.
+#[tauri::command]
+pub async fn clear_cache(
+    scope: crate::cache::CacheScope,
+) -> Result<crate::cache::CacheClearResult, AppError> {
+    tauri::async_runtime::spawn_blocking(move || crate::cache::clear_cache(scope))
+        .await
+        .map_err(|e| AppError::unknown(format!("Failed to join cache clear task: {e}")))?
 }
 
 /// 썸네일 윈도우 배치 처리. 항목별 성공/실패를 함께 반환한다.

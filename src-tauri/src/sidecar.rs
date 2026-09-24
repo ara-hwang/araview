@@ -90,6 +90,7 @@ pub fn file_identity_hash(source: &Path, extra: &[u8]) -> Result<u64, AppError> 
         .map(|d| d.as_nanos())
         .unwrap_or(0);
     let mut hasher = StableHasher::new();
+    hasher.write_u64_le(crate::process_temp::CACHE_FORMAT_REVISION);
     hasher.write(canonical.to_string_lossy().as_bytes());
     hasher.write(&[0xff]);
     hasher.write_u128_le(mtime);

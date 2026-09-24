@@ -1,6 +1,7 @@
 import { convertFileSrc, invoke } from "@tauri-apps/api/core"
 import { useCallback, useEffect, useRef, useState } from "react"
 
+import { useCacheInvalidationStore } from "@/store/cacheInvalidationStore"
 import type { ImageInfo, ThumbnailInfo } from "@/types"
 import { isArchiveFilePath } from "@/utils/archiveFile"
 
@@ -58,6 +59,8 @@ export function useThumbnailSrcs(
   const [urls, setUrls] = useState<Map<string, string>>(() => new Map())
   const [failed, setFailed] = useState<Set<string>>(() => new Set())
   const [retryNonce, setRetryNonce] = useState(0)
+  const cacheEpoch = useCacheInvalidationStore((state) => state.epoch)
+  const previousCacheEpochRef = useRef(cacheEpoch)
   const pathsKey = paths.join("\0")
   const priorityKey = (options.priorityPaths ?? []).join("\0")
   const [settledPriorityKey, setSettledPriorityKey] = useState(priorityKey)
@@ -72,6 +75,14 @@ export function useThumbnailSrcs(
   urlsRef.current = urls
   const failedRef = useRef(failed)
   failedRef.current = failed
+
+  useEffect(() => {
+    if (previousCacheEpochRef.current === cacheEpoch) return
+    previousCacheEpochRef.current = cacheEpoch
+    setUrls(new Map())
+    setFailed(new Set())
+    setRetryNonce((value) => value + 1)
+  }, [cacheEpoch])
 
   // 보이는 창이 잠깐 바뀌는 동안에는 큐를 다시 시작하지 않는다.
   useEffect(() => {

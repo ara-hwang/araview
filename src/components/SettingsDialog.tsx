@@ -91,7 +91,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="w-[840px] max-w-[calc(100%-2rem)] gap-0 overflow-hidden p-0 no-drag sm:max-w-[840px]">
+      <DialogContent className="w-[840px] max-w-[calc(100vw-2rem)] gap-0 overflow-hidden p-0 no-drag sm:max-w-[calc(100vw-2rem)]">
         <div className="flex h-[min(640px,86vh)] flex-col">
           <div className="border-b px-4 py-3 pr-12">
             <DialogTitle>{t("settings.title")}</DialogTitle>

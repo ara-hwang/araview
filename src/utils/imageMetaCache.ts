@@ -6,13 +6,15 @@ type CacheState = {
   bytes: Map<string, number>
   totalBytes: number
   inflight: Map<string, Promise<ImageInfo>>
+  generation: number
 }
 
 const state: CacheState = {
   entries: new Map(),
   bytes: new Map(),
   totalBytes: 0,
-  inflight: new Map()
+  inflight: new Map(),
+  generation: 0
 }
 
 export function getCachedImageInfo(
@@ -55,8 +57,10 @@ export function setCachedImage(
   byteSize: number,
   trim: (limitCount: number, limitBytes: number) => void,
   limitCount: number,
-  limitBytes: number
+  limitBytes: number,
+  expectedGeneration: number
 ): void {
+  if (state.generation !== expectedGeneration) return
   const key = imageCacheKey(archivePath, pathOrEntry)
   if (state.entries.has(key)) deleteCachedImage(key)
   state.entries.set(key, imgInfo)
@@ -73,8 +77,13 @@ export function trimImageMetaCache(limitCount: number, limitBytes: number): void
   }
 }
 
-/** 아카이브 전환·일반 파일 열기 시 엔트리명 충돌을 막기 위해 캐시를 비운다. */
+export function getImageMetaCacheGeneration(): number {
+  return state.generation
+}
+
+/** 아카이브 전환·캐시 삭제 시 캐시를 비우고 이전 비동기 결과의 재삽입을 막는다. */
 export function clearImageMetaCache(): void {
+  state.generation += 1
   state.entries.clear()
   state.bytes.clear()
   state.totalBytes = 0

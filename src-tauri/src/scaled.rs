@@ -18,9 +18,9 @@ use std::path::{Path, PathBuf};
 use crate::app_error::{AppError, ErrorCode};
 use crate::sidecar::Rgb8;
 
-const SCALED_SUBDIR: &str = "scaled";
+pub(crate) const SCALED_SUBDIR: &str = "scaled";
 /// Upper bound for the scaled directory; oldest files evicted past this.
-const MAX_SCALED_BYTES: u64 = 500 * 1024 * 1024;
+pub(crate) const MAX_SCALED_BYTES: u64 = 500 * 1024 * 1024;
 /// JPEG quality for the capped copy. Close to the HEIF paint sidecar (90).
 const JPEG_QUALITY: u8 = 88;
 /// Lower bound rejects accidental 1px requests; upper bound keeps the cap a
@@ -69,15 +69,22 @@ pub fn ensure_scaled_sidecar(
     let png_dest = dir.join(format!("{identity:016x}.png"));
     for dest in [&jpeg_dest, &png_dest] {
         if dest.exists() {
+            crate::process_temp::touch_cache_file(dest);
             crate::process_temp::mark_in_use(dest);
             return sidecar_info(dest);
         }
     }
 
     let lock_key = jpeg_dest.to_string_lossy().into_owned();
+    // Protect both possible destinations before writing. A cache clear can run
+    // concurrently with a large decode and must not remove a file after publish
+    // but before the WebView receives its asset URL.
+    crate::process_temp::mark_in_use(&jpeg_dest);
+    crate::process_temp::mark_in_use(&png_dest);
     let dest = crate::sidecar::with_file_lock(&lock_key, "scaled sidecar lock", || {
         for dest in [&jpeg_dest, &png_dest] {
             if dest.exists() {
+                crate::process_temp::touch_cache_file(dest);
                 return Ok(dest.clone());
             }
         }

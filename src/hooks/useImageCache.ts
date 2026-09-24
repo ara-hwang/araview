@@ -2,6 +2,7 @@ import { convertFileSrc, invoke } from "@tauri-apps/api/core"
 import { useCallback, useEffect, useMemo, useRef } from "react"
 
 import { useAppStore } from "@/store/appStore"
+import { useCacheInvalidationStore } from "@/store/cacheInvalidationStore"
 import { useSettingsStore } from "@/store/settingsStore"
 
 import type { ImageInfo } from "../types"
@@ -11,6 +12,7 @@ import {
   clearImageMetaCache,
   deleteInflightImageLoad,
   getCachedImageInfo,
+  getImageMetaCacheGeneration,
   getInflightImageLoad,
   setCachedImage,
   setInflightImageLoad,
@@ -27,6 +29,7 @@ const MAX_PAINT_PRELOADS = 12
 
 export function useImageCache() {
   const cacheMode = useSettingsStore((state) => state.cacheMode)
+  const cacheEpoch = useCacheInvalidationStore((state) => state.epoch)
   const maxResolution = useSettingsStore((state) => state.maxResolution)
   const paintPreloadsRef = useRef<Map<string, HTMLImageElement>>(new Map())
 
@@ -45,7 +48,12 @@ export function useImageCache() {
   }, [])
 
   const cacheImage = useCallback(
-    (archivePath: string | null, pathOrEntry: string, imgInfo: ImageInfo) => {
+    (
+      archivePath: string | null,
+      pathOrEntry: string,
+      imgInfo: ImageInfo,
+      expectedGeneration: number
+    ) => {
       setCachedImage(
         archivePath,
         pathOrEntry,
@@ -53,7 +61,8 @@ export function useImageCache() {
         estimateImageBytes(imgInfo),
         trimCacheToBudget,
         cacheLimit,
-        cacheByteLimit
+        cacheByteLimit,
+        expectedGeneration
       )
     },
     [cacheByteLimit, cacheLimit, estimateImageBytes, trimCacheToBudget]
@@ -91,6 +100,7 @@ export function useImageCache() {
   const getOrLoadImage = useCallback(
     async (pathOrEntry: string): Promise<ImageInfo> => {
       const scopeAtStart = useAppStore.getState().archivePath
+      const generationAtStart = getImageMetaCacheGeneration()
       const cached = getCachedImageInfo(scopeAtStart, pathOrEntry)
       if (cached) return cached
 
@@ -110,8 +120,11 @@ export function useImageCache() {
             })
       )
         .then((imgInfo) => {
-          if (useAppStore.getState().archivePath === scopeAtStart) {
-            cacheImage(scopeAtStart, pathOrEntry, imgInfo)
+          if (
+            useAppStore.getState().archivePath === scopeAtStart &&
+            getImageMetaCacheGeneration() === generationAtStart
+          ) {
+            cacheImage(scopeAtStart, pathOrEntry, imgInfo, generationAtStart)
           }
           return imgInfo
         })
@@ -129,6 +142,7 @@ export function useImageCache() {
     (images: string[], index: number, loopNavigation: boolean, prefetchDistance: number) => {
       if (!images.length || prefetchDistance <= 0) return
 
+      const generationAtStart = getImageMetaCacheGeneration()
       const archivePath = useAppStore.getState().archivePath
       const ordered = getPrefetchOrder(images.length, index, loopNavigation, prefetchDistance)
 
@@ -140,18 +154,30 @@ export function useImageCache() {
 
         const cached = getCachedImageInfo(archivePath, targetPath)
         if (cached) {
-          warmPaintImage(cached, paintKey)
+          if (getImageMetaCacheGeneration() === generationAtStart) {
+            warmPaintImage(cached, paintKey)
+          }
           continue
         }
 
         const inflight = getInflightImageLoad(archivePath, targetPath)
         if (inflight) {
-          void inflight.then((info) => warmPaintImage(info, paintKey)).catch(() => {})
+          void inflight
+            .then((info) => {
+              if (getImageMetaCacheGeneration() === generationAtStart) {
+                warmPaintImage(info, paintKey)
+              }
+            })
+            .catch(() => {})
           continue
         }
 
         void getOrLoadImage(targetPath)
-          .then((info) => warmPaintImage(info, paintKey))
+          .then((info) => {
+            if (getImageMetaCacheGeneration() === generationAtStart) {
+              warmPaintImage(info, paintKey)
+            }
+          })
           .catch(() => {})
       }
     },
@@ -171,6 +197,21 @@ export function useImageCache() {
       }
     }
   }, [cacheByteLimit, cacheLimit, cacheMode, trimCacheToBudget])
+
+  const previousCacheEpochRef = useRef(cacheEpoch)
+  useEffect(() => {
+    if (previousCacheEpochRef.current === cacheEpoch) return
+    previousCacheEpochRef.current = cacheEpoch
+    clearImageMetaCache()
+    for (const [key, img] of paintPreloadsRef.current) {
+      paintPreloadsRef.current.delete(key)
+      try {
+        img.removeAttribute("src")
+      } catch {
+        // 무시
+      }
+    }
+  }, [cacheEpoch])
 
   // 해상도 상한이 바뀌면 이전 기준으로 예열한 픽셀을 버린다. 새 기준의
   // 메타는 useImageLoader가 캐시를 비우고 현재 이미지를 다시 로드한다.

@@ -36,6 +36,7 @@ pub fn ensure_jpeg_sidecar(source: &Path) -> Result<PathBuf, AppError> {
     crate::sidecar::with_file_lock(&key, "PSD sidecar lock", || {
         crate::process_temp::mark_in_use(&dest);
         if dest.exists() {
+            crate::process_temp::touch_cache_file(&dest);
             return Ok(dest.clone());
         }
         let rgb = decode_psd_rgb8(source)?;
@@ -55,6 +56,7 @@ pub fn ensure_jpeg_sidecar_thumb(source: &Path, max_side: u32) -> Result<PathBuf
     crate::sidecar::with_file_lock(&key, "PSD sidecar lock", || {
         crate::process_temp::mark_in_use(&dest);
         if dest.exists() {
+            crate::process_temp::touch_cache_file(&dest);
             return Ok(dest.clone());
         }
         let rgb = decode_psd_rgb8(source)?;
@@ -139,7 +141,11 @@ fn thumb_sidecar_path(source: &Path, max_side: u32) -> Result<PathBuf, AppError>
 /// 캐시에 이미 있는 썸네일 sidecar 경로만 돌려준다(생성하지 않음).
 pub fn cached_jpeg_sidecar_thumb(source: &Path, max_side: u32) -> Option<PathBuf> {
     let dest = thumb_sidecar_path(source, max_side.clamp(32, 1024)).ok()?;
-    dest.exists().then_some(dest)
+    if !dest.exists() {
+        return None;
+    }
+    crate::process_temp::touch_cache_file(&dest);
+    Some(dest)
 }
 
 fn sidecar_path(source: &Path) -> Result<PathBuf, AppError> {
