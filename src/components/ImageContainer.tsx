@@ -39,6 +39,7 @@ type ImageContainerProps = {
   onRetry?: () => void
   onWebtoonIndexChange?: (index: number) => void
   webtoonScrollTarget?: WebtoonScrollTarget
+  onOpenThumbnailGrid?: (trigger?: HTMLButtonElement) => void
   onOpenArchiveFromPreview?: () => void
 }
 
@@ -60,6 +61,7 @@ export function ImageContainer({
   onRetry,
   onWebtoonIndexChange,
   webtoonScrollTarget,
+  onOpenThumbnailGrid,
   onOpenArchiveFromPreview
 }: ImageContainerProps) {
   const { t } = useTranslation()
@@ -81,7 +83,17 @@ export function ImageContainer({
     }))
   )
 
-  const viewerBackground = useSettingsStore((state) => state.viewerBackground)
+  const webtoonSettings = useSettingsStore(
+    useShallow((state) => ({
+      viewerBackground: state.viewerBackground,
+      webtoonImageGap: state.webtoonImageGap,
+      webtoonPageBoundaries: state.webtoonPageBoundaries,
+      webtoonFitWidth: state.webtoonFitWidth,
+      webtoonShowProgress: state.webtoonShowProgress,
+      webtoonThumbnailJump: state.webtoonThumbnailJump
+    }))
+  )
+  const viewerBackground = webtoonSettings.viewerBackground
   const isChecker = viewerBackground === "checker"
 
   const imageSrc = app.imageInfo ? toSrc(app.imageInfo) : null
@@ -299,6 +311,12 @@ export function ImageContainer({
           getOrLoadImage={getOrLoadImage}
           onCenterChange={(i) => onWebtoonIndexChange?.(i)}
           scrollTarget={webtoonScrollTarget ?? null}
+          imageGap={webtoonSettings.webtoonImageGap}
+          showPageBoundaries={webtoonSettings.webtoonPageBoundaries}
+          fitWidth={webtoonSettings.webtoonFitWidth}
+          showProgress={webtoonSettings.webtoonShowProgress}
+          thumbnailJump={webtoonSettings.webtoonThumbnailJump}
+          onOpenThumbnailGrid={onOpenThumbnailGrid}
           onImageDoubleClick={onDoubleClick}
         />
       )}

@@ -57,7 +57,7 @@ function isEditableTarget(target: EventTarget | null): boolean {
 /** 웹툰 연속 스크롤 컨테이너를 키보드로 스크롤한다. 포커스 위치와 무관하게 동작. */
 export function scrollWebtoonBy(dy: number): boolean {
   if (typeof document === "undefined") return false
-  const el = document.querySelector('[aria-label="webtoon-scroll"]')
+  const el = document.querySelector('[data-webtoon-scroll-region="true"]')
   if (!(el instanceof HTMLElement)) return false
   el.scrollBy({ top: dy, behavior: "auto" })
   return true

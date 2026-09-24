@@ -1,11 +1,18 @@
+import { SquaresFour } from "@phosphor-icons/react"
 import { convertFileSrc } from "@tauri-apps/api/core"
-import { useEffect, useRef, useState } from "react"
+import { memo, useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 
 import { Button } from "@/components/ui/button"
+import { Progress } from "@/components/ui/progress"
 import { cn } from "@/lib/utils"
 import type { ImageInfo } from "@/types"
 import { errorMessage } from "@/utils/appError"
+import {
+  calculateWebtoonScrollMetrics,
+  type WebtoonPageRect,
+  type WebtoonScrollMetrics
+} from "@/utils/webtoonProgress"
 
 type GetOrLoadImage = (filePath: string) => Promise<ImageInfo>
 
@@ -19,12 +26,20 @@ function WebtoonLazyPage({
   index,
   getOrLoadImage,
   registerRef,
+  fitWidth,
+  showPageBoundary,
+  priority,
+  isCurrent,
   onImageDoubleClick
 }: {
   path: string
   index: number
   getOrLoadImage: GetOrLoadImage
   registerRef: (index: number, el: HTMLDivElement | null) => void
+  fitWidth: boolean
+  showPageBoundary: boolean
+  priority: boolean
+  isCurrent: boolean
   onImageDoubleClick?: (e: React.MouseEvent) => void
 }) {
   const { t } = useTranslation()
@@ -85,14 +100,25 @@ function WebtoonLazyPage({
   }, [path, getOrLoadImage, nonce])
 
   return (
-    <div ref={wrapRef} data-webtoon-index={index} className="flex w-full justify-center">
+    <div
+      ref={wrapRef}
+      data-webtoon-index={index}
+      aria-current={isCurrent ? "page" : undefined}
+      className={cn(
+        "flex w-full shrink-0 justify-center",
+        showPageBoundary && "border-t border-border"
+      )}
+    >
       {info && !error ? (
         <img
           src={convertFileSrc(info.file_path)}
           alt={name}
-          className="max-w-full object-contain"
+          width={info.width ?? undefined}
+          height={info.height ?? undefined}
+          className={cn("h-auto max-w-full object-contain", fitWidth && "w-full")}
           draggable={false}
-          loading="lazy"
+          loading={priority ? "eager" : "lazy"}
+          fetchPriority={priority ? "high" : undefined}
           decoding="async"
           onError={() => {
             setInfo(null)
@@ -126,12 +152,86 @@ function WebtoonLazyPage({
   )
 }
 
+type WebtoonPageListProps = {
+  images: readonly string[]
+  currentIndex: number
+  getOrLoadImage: GetOrLoadImage
+  registerRef: (index: number, el: HTMLDivElement | null) => void
+  imageGap: number
+  showPageBoundaries: boolean
+  fitWidth: boolean
+  onImageDoubleClick?: (e: React.MouseEvent) => void
+}
+
+const WebtoonPageList = memo(function WebtoonPageList({
+  images,
+  currentIndex,
+  getOrLoadImage,
+  registerRef,
+  imageGap,
+  showPageBoundaries,
+  fitWidth,
+  onImageDoubleClick
+}: WebtoonPageListProps) {
+  return (
+    <div
+      className="flex flex-col items-center gap-(--webtoon-image-gap) py-2"
+      style={{ "--webtoon-image-gap": `${imageGap}px` } as React.CSSProperties}
+    >
+      {images.map((path, index) => (
+        <WebtoonLazyPage
+          key={path}
+          path={path}
+          index={index}
+          getOrLoadImage={getOrLoadImage}
+          registerRef={registerRef}
+          fitWidth={fitWidth}
+          showPageBoundary={showPageBoundaries && index > 0}
+          priority={index === currentIndex}
+          isCurrent={index === currentIndex}
+          onImageDoubleClick={onImageDoubleClick}
+        />
+      ))}
+    </div>
+  )
+})
+
+function WebtoonThumbnailButton({
+  label,
+  onClick,
+  className
+}: {
+  label: string
+  onClick: (trigger: HTMLButtonElement) => void
+  className?: string
+}) {
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon-sm"
+      className={cn("pointer-events-auto", className)}
+      onClick={(event) => onClick(event.currentTarget)}
+      title={label}
+      aria-label={label}
+    >
+      <SquaresFour />
+    </Button>
+  )
+}
+
 export function WebtoonContinuousView({
   images,
   currentIndex,
   getOrLoadImage,
   onCenterChange,
   scrollTarget,
+  imageGap,
+  showPageBoundaries,
+  fitWidth,
+  showProgress,
+  thumbnailJump,
+  onOpenThumbnailGrid,
   onImageDoubleClick
 }: {
   images: string[]
@@ -139,98 +239,192 @@ export function WebtoonContinuousView({
   getOrLoadImage: GetOrLoadImage
   onCenterChange: (index: number) => void
   scrollTarget: WebtoonScrollTarget
+  imageGap: number
+  showPageBoundaries: boolean
+  fitWidth: boolean
+  showProgress: boolean
+  thumbnailJump: boolean
+  onOpenThumbnailGrid?: (trigger?: HTMLButtonElement) => void
   onImageDoubleClick?: (e: React.MouseEvent) => void
 }) {
+  const { t } = useTranslation()
   const scrollRef = useRef<HTMLDivElement>(null)
   const itemRefs = useRef(new Map<number, HTMLDivElement>())
-  const centerRef = useRef(currentIndex)
-  centerRef.current = currentIndex
+  const resizeObserverRef = useRef<ResizeObserver | null>(null)
   const onCenterRef = useRef(onCenterChange)
   onCenterRef.current = onCenterChange
   const rafRef = useRef(0)
+  const initialIndex = Math.max(0, Math.min(currentIndex, images.length - 1))
+  const lastReportedIndexRef = useRef(initialIndex)
+  const [scrollMetrics, setScrollMetrics] = useState<WebtoonScrollMetrics>({
+    currentIndex: initialIndex,
+    percent: 0
+  })
+  const previousImagesRef = useRef(images)
+
+  useEffect(() => {
+    const datasetChanged = previousImagesRef.current !== images
+    previousImagesRef.current = images
+    const nextIndex = Math.max(0, Math.min(currentIndex, images.length - 1))
+    lastReportedIndexRef.current = nextIndex
+    setScrollMetrics((previous) => {
+      if (!datasetChanged && previous.currentIndex === nextIndex) return previous
+      return {
+        currentIndex: nextIndex,
+        percent: datasetChanged ? 0 : previous.percent
+      }
+    })
+  }, [currentIndex, images])
 
   const registerRef = useRef((index: number, el: HTMLDivElement | null) => {
-    if (el) itemRefs.current.set(index, el)
-    else itemRefs.current.delete(index)
+    const previous = itemRefs.current.get(index)
+    if (previous && previous !== el) resizeObserverRef.current?.unobserve(previous)
+    if (el) {
+      itemRefs.current.set(index, el)
+      resizeObserverRef.current?.observe(el)
+    } else {
+      itemRefs.current.delete(index)
+    }
   }).current
 
-  // 초기 진입과 외부 점프(슬라이더, 썸네일, 단축키) 시 해당 인덱스로 스크롤
+  // 초기 진입과 외부 점프(썸네일, 단축키) 시 해당 인덱스로 스크롤
   useEffect(() => {
     if (!scrollTarget) return
     const el = itemRefs.current.get(scrollTarget.index)
     el?.scrollIntoView({ block: "start", behavior: "auto" })
   }, [scrollTarget])
 
-  // viewMode 전환 직후 현재 위치로 스크롤
+  // 이미지 목록이 바뀌어도 현재 페이지부터 읽도록 맞춘다.
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
-      const el = itemRefs.current.get(centerRef.current)
+      const el = itemRefs.current.get(lastReportedIndexRef.current)
       el?.scrollIntoView({ block: "start", behavior: "auto" })
     })
     return () => cancelAnimationFrame(frame)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [images])
 
   useEffect(() => {
     const container = scrollRef.current
     if (!container) return
 
-    const findCenter = () => {
+    const measure = () => {
       rafRef.current = 0
-      const rect = container.getBoundingClientRect()
-      const midY = rect.top + rect.height / 2
-      let best = -1
-      let bestDist = Number.POSITIVE_INFINITY
-      for (const [idx, el] of itemRefs.current) {
-        const r = el.getBoundingClientRect()
-        if (r.bottom < rect.top || r.top > rect.bottom) continue
-        const dist = Math.abs(r.top + r.height / 2 - midY)
-        if (dist < bestDist) {
-          bestDist = dist
-          best = idx
-        }
+      const viewport = container.getBoundingClientRect()
+      const pages: WebtoonPageRect[] = []
+      for (const [index, element] of itemRefs.current) {
+        const rect = element.getBoundingClientRect()
+        pages.push({ index, top: rect.top, height: rect.height })
       }
-      if (best >= 0 && best !== centerRef.current) {
-        onCenterRef.current(best)
+
+      const metrics = calculateWebtoonScrollMetrics({
+        pages,
+        viewportTop: viewport.top,
+        viewportHeight: viewport.height,
+        scrollTop: container.scrollTop,
+        scrollHeight: container.scrollHeight,
+        fallbackIndex: lastReportedIndexRef.current
+      })
+
+      setScrollMetrics((previous) =>
+        previous.currentIndex === metrics.currentIndex && previous.percent === metrics.percent
+          ? previous
+          : metrics
+      )
+
+      if (metrics.currentIndex !== lastReportedIndexRef.current) {
+        lastReportedIndexRef.current = metrics.currentIndex
+        onCenterRef.current(metrics.currentIndex)
       }
     }
 
-    const onScroll = () => {
+    const scheduleMeasure = () => {
       if (rafRef.current !== 0) return
-      rafRef.current = requestAnimationFrame(findCenter)
+      rafRef.current = requestAnimationFrame(measure)
     }
 
-    container.addEventListener("scroll", onScroll, { passive: true })
+    const observer =
+      typeof ResizeObserver === "undefined" ? null : new ResizeObserver(scheduleMeasure)
+    resizeObserverRef.current = observer
+    observer?.observe(container)
+    for (const element of itemRefs.current.values()) observer?.observe(element)
+
+    container.addEventListener("scroll", scheduleMeasure, { passive: true })
+    container.addEventListener("load", scheduleMeasure, true)
+    window.addEventListener("resize", scheduleMeasure)
+    scheduleMeasure()
+
     return () => {
-      container.removeEventListener("scroll", onScroll)
+      container.removeEventListener("scroll", scheduleMeasure)
+      container.removeEventListener("load", scheduleMeasure, true)
+      window.removeEventListener("resize", scheduleMeasure)
+      observer?.disconnect()
+      resizeObserverRef.current = null
       if (rafRef.current !== 0) cancelAnimationFrame(rafRef.current)
+      rafRef.current = 0
     }
-  }, [])
+  }, [fitWidth, imageGap, images, showPageBoundaries])
 
   if (images.length === 0) return null
 
+  const displayIndex = Math.max(0, Math.min(scrollMetrics.currentIndex, images.length - 1))
+  const positionText = t("viewer.webtoon.position", {
+    current: displayIndex + 1,
+    total: images.length,
+    percent: scrollMetrics.percent
+  })
+  const progressLabel = t("viewer.webtoon.progressLabel", {
+    current: displayIndex + 1,
+    total: images.length,
+    percent: scrollMetrics.percent
+  })
+
   return (
-    <div
-      ref={scrollRef}
-      role="region"
-      tabIndex={0}
-      className={cn(
-        "absolute inset-0 overflow-x-hidden overflow-y-auto focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-      )}
-      aria-label="webtoon-scroll"
-    >
-      <div className="flex flex-col items-center gap-2 py-2">
-        {images.map((path, i) => (
-          <WebtoonLazyPage
-            key={path}
-            path={path}
-            index={i}
-            getOrLoadImage={getOrLoadImage}
-            registerRef={registerRef}
-            onImageDoubleClick={onImageDoubleClick}
-          />
-        ))}
+    <>
+      <div
+        ref={scrollRef}
+        role="region"
+        tabIndex={0}
+        data-webtoon-scroll-region="true"
+        className="absolute inset-0 overflow-x-hidden overflow-y-auto focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+        aria-label={t("viewer.webtoon.scrollRegion")}
+      >
+        <WebtoonPageList
+          images={images}
+          currentIndex={displayIndex}
+          getOrLoadImage={getOrLoadImage}
+          registerRef={registerRef}
+          imageGap={imageGap}
+          showPageBoundaries={showPageBoundaries}
+          fitWidth={fitWidth}
+          onImageDoubleClick={onImageDoubleClick}
+        />
       </div>
-    </div>
+
+      {showProgress && (
+        <div
+          data-testid="webtoon-progress"
+          className="pointer-events-none absolute top-1/2 right-3 flex -translate-y-1/2 items-center gap-2 rounded-lg border border-border bg-background p-1 shadow-lg"
+        >
+          <span aria-hidden="true" className="pl-1 text-sm font-medium tabular-nums">
+            {positionText}
+          </span>
+          <Progress value={scrollMetrics.percent} aria-label={progressLabel} className="w-10" />
+          {thumbnailJump && onOpenThumbnailGrid && (
+            <WebtoonThumbnailButton
+              label={t("viewer.webtoon.openThumbnails")}
+              onClick={onOpenThumbnailGrid}
+            />
+          )}
+        </div>
+      )}
+      {!showProgress && thumbnailJump && onOpenThumbnailGrid && (
+        <div className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 rounded-lg border border-border bg-background p-1 shadow-lg">
+          <WebtoonThumbnailButton
+            label={t("viewer.webtoon.openThumbnails")}
+            onClick={onOpenThumbnailGrid}
+          />
+        </div>
+      )}
+    </>
   )
 }

@@ -11,6 +11,11 @@ describe("sanitizeSettings", () => {
       cacheMode: "extended",
       cacheStorageMode: "temporary",
       viewMode: "webtoon",
+      webtoonImageGap: 16,
+      webtoonPageBoundaries: true,
+      webtoonFitWidth: true,
+      webtoonShowProgress: false,
+      webtoonThumbnailJump: false,
       sortKey: "size",
       sortDescending: true,
       fitMode: "width",
@@ -25,6 +30,11 @@ describe("sanitizeSettings", () => {
     expect(sane.cacheMode).toBe("extended")
     expect(sane.cacheStorageMode).toBe("temporary")
     expect(sane.viewMode).toBe("webtoon")
+    expect(sane.webtoonImageGap).toBe(16)
+    expect(sane.webtoonPageBoundaries).toBe(true)
+    expect(sane.webtoonFitWidth).toBe(true)
+    expect(sane.webtoonShowProgress).toBe(false)
+    expect(sane.webtoonThumbnailJump).toBe(false)
     expect(sane.sortKey).toBe("size")
     expect(sane.sortDescending).toBe(true)
     expect(sane.fitMode).toBe("width")
@@ -42,6 +52,19 @@ describe("sanitizeSettings", () => {
     expect(sane.dockThumbSize).toBe("s")
     expect(sane.dockShowName).toBe(false)
     expect(sane.dockShowIndex).toBe(false)
+  })
+
+  it("웹툰 세부 설정의 기본값과 범위를 복원한다", () => {
+    const defaults = sanitizeSettings({})
+    expect(defaults.webtoonImageGap).toBe(8)
+    expect(defaults.webtoonPageBoundaries).toBe(false)
+    expect(defaults.webtoonFitWidth).toBe(false)
+    expect(defaults.webtoonShowProgress).toBe(true)
+    expect(defaults.webtoonThumbnailJump).toBe(true)
+
+    expect(sanitizeSettings({ webtoonImageGap: -10 }).webtoonImageGap).toBe(0)
+    expect(sanitizeSettings({ webtoonImageGap: 100 }).webtoonImageGap).toBe(64)
+    expect(sanitizeSettings({ webtoonImageGap: "wide" }).webtoonImageGap).toBe(8)
   })
 
   it("이어보기는 기본 켜짐이고 저장된 값을 따른다", () => {

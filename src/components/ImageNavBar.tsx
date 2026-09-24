@@ -488,7 +488,8 @@ export function ImageNavBar({
         <Toggle
           variant="outline"
           pressed={gridActive}
-          onPressedChange={onToggleGrid}
+          data-grid-toggle="true"
+          onPressedChange={() => onToggleGrid()}
           title={t("viewer.nav.gridTitle")}
           aria-label={t("viewer.nav.grid")}
           className="shrink-0"

@@ -176,6 +176,15 @@
       "rtl": "Two pages right-to-left",
       "webtoon": "Webtoon scroll"
     },
+    "webtoon": {
+      "title": "Webtoon details",
+      "desc": "Set image spacing, page boundaries, Fit width, and the reading position display.",
+      "imageGap": "Image gap",
+      "pageBoundaries": "Show page boundaries",
+      "fitWidth": "Fit width",
+      "showProgress": "Show current position",
+      "thumbnailJump": "Show thumbnail jump button"
+    },
     "reading": {
       "title": "Reading",
       "desc": "Resume comics (CBZ and other archives) from the last page you viewed. Cover alone shows the first page by itself in dual view.",
@@ -346,6 +355,12 @@
       "dockHide": "Hide image list",
       "dockShow": "Show image list",
       "dockMenu": "Image list options"
+    },
+    "webtoon": {
+      "scrollRegion": "Webtoon reading area",
+      "position": "{{current}} / {{total}} · {{percent}}%",
+      "progressLabel": "Page {{current}} of {{total}}, {{percent}} percent read",
+      "openThumbnails": "Open thumbnail grid"
     },
     "archivePreview": {
       "hint": "\"{{name}}\" is a comic archive. Showing the first page only.",
