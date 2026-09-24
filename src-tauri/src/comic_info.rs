@@ -499,6 +499,24 @@ mod tests {
     }
 
     #[test]
+    fn truncated_utf16_is_corrupt() {
+        // BOM 뒤 홀수 바이트(반쪽 코드 유닛)는 거부한다. as_chunks 교체가
+        // 마지막 바이트를 조용히 버리고 성공하지 않는지 회귀 고정한다.
+        let dir = tempfile::tempdir().expect("tempdir");
+        let mut bytes: Vec<u8> = vec![0xFF, 0xFE];
+        bytes.extend_from_slice(b"<C");
+        bytes.push(0x00);
+        let archive = write_cbz(
+            dir.path(),
+            "comic.cbz",
+            &[("ComicInfo.xml", bytes.as_slice())],
+        );
+
+        let err = read_comic_info(&archive).expect_err("expected error");
+        assert_eq!(err.code, ErrorCode::Corrupt);
+    }
+
+    #[test]
     fn non_cbz_extensions_return_none() {
         let dir = tempfile::tempdir().expect("tempdir");
         for ext in ["cb7", "cbr", "cbt", "rar", "7z", "png"] {
