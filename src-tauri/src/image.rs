@@ -278,6 +278,14 @@ fn finite_pixels(w: f32, h: f32) -> Option<(u32, u32)> {
     Some((w, h))
 }
 
+/// Windows가 장치 이름으로 예약해 `File::create`가 원인 불명 에러로
+/// 실패하는 이름들(`CON`, `NUL`, `COM1`...). 확장자가 붙어도(`CON.txt`)
+/// 예약은 유지되므로 첫 점 앞부분으로 판정한다.
+const WINDOWS_RESERVED_NAMES: &[&str] = &[
+    "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8",
+    "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
+];
+
 /// 같은 폴더 내 새 파일명에 대한 공통 검증. trim된 이름을 반환
 pub fn validate_new_file_name(name: &str) -> Result<String, AppError> {
     let trimmed = name.trim();
@@ -298,6 +306,13 @@ pub fn validate_new_file_name(name: &str) -> Result<String, AppError> {
         return Err(AppError::invalid_input(
             "File name cannot end with a space or dot",
         ));
+    }
+    let stem = trimmed.split('.').next().unwrap_or(trimmed);
+    if WINDOWS_RESERVED_NAMES
+        .iter()
+        .any(|reserved| stem.eq_ignore_ascii_case(reserved))
+    {
+        return Err(AppError::invalid_input("File name is reserved by Windows"));
     }
     Ok(trimmed.to_string())
 }
@@ -737,7 +752,9 @@ mod tests {
     fn load_viewable_psb_content_in_psd_is_unsupported() {
         let dir = tempfile::tempdir().unwrap();
         let source = dir.path().join("fake.psd");
-        let mut bytes = b"8BPB".to_vec();
+        // 실제 PSB 헤더: `8BPS` + version 2.
+        let mut bytes = b"8BPS".to_vec();
+        bytes.extend_from_slice(&2u16.to_be_bytes());
         bytes.extend_from_slice(&[0u8; 64]);
         std::fs::write(&source, bytes).unwrap();
         let err = load_viewable(&source).unwrap_err();
@@ -768,6 +785,31 @@ mod tests {
         let path = dir.join(name);
         std::fs::write(&path, content).unwrap();
         path
+    }
+
+    #[test]
+    fn validate_new_file_name_rejects_reserved_device_names() {
+        for name in ["CON", "nul", "Com1", "LPT9.txt", "aux.png"] {
+            assert!(
+                validate_new_file_name(name).is_err(),
+                "{name} should be rejected"
+            );
+        }
+        // 예약명이 부분 문자열로만 들어간 정상 이름은 허용한다.
+        assert!(validate_new_file_name("CONX.png").is_ok());
+        assert!(validate_new_file_name("my-nul.png").is_ok());
+    }
+
+    #[test]
+    fn validate_new_file_name_rejects_invalid_shapes() {
+        assert!(validate_new_file_name("").is_err());
+        assert!(validate_new_file_name("a/b.png").is_err());
+        assert!(validate_new_file_name("a?.png").is_err());
+        assert!(validate_new_file_name("name.").is_err());
+        assert_eq!(
+            validate_new_file_name("  photo.png  ").unwrap(),
+            "photo.png"
+        );
     }
 
     #[test]

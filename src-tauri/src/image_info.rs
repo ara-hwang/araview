@@ -62,30 +62,29 @@ fn decode_rgb8(path: &Path) -> Result<image::RgbImage, AppError> {
     if crate::image::get_mime_type(path).is_none() {
         return Err(AppError::unsupported("Unsupported image format"));
     }
-    let dyn_img = image::open(path).map_err(|e| match e {
-        image::ImageError::Unsupported(_) => {
-            AppError::unsupported(format!("Cannot compute histogram: {e}"))
-        }
-        _ => AppError::corrupt(format!("Cannot compute histogram: {e}")),
-    })?;
+    let dyn_img =
+        image::open(path).map_err(|e| AppError::image_error("Cannot compute histogram", e))?;
     Ok(dyn_img.to_rgb8())
 }
 
 pub fn compute_histogram(rgb: &image::RgbImage) -> Histogram {
+    // 다운샘플은 `RgbImage`를 직접 받는 `thumbnail`을 쓴다. 예전에는
+    // DynamicImage/RGBA 왕복에 풀해상도 clone까지 겹쳐 150MP에서 수백 MB를
+    // 더 복사했다. 256px 이하 입력도 clone 없이 그대로 집계한다.
     let sampled = if rgb.width().max(rgb.height()) > HISTOGRAM_MAX_SIDE {
-        image::DynamicImage::ImageRgba8(image::imageops::thumbnail(
-            &image::DynamicImage::ImageRgb8(rgb.clone()),
+        Some(image::imageops::thumbnail(
+            rgb,
             HISTOGRAM_MAX_SIDE,
             HISTOGRAM_MAX_SIDE,
         ))
-        .to_rgb8()
     } else {
-        rgb.clone()
+        None
     };
+    let pixels = sampled.as_ref().unwrap_or(rgb);
     let mut r = vec![0u32; 256];
     let mut g = vec![0u32; 256];
     let mut b = vec![0u32; 256];
-    for pixel in sampled.pixels() {
+    for pixel in pixels.pixels() {
         r[pixel[0] as usize] += 1;
         g[pixel[1] as usize] += 1;
         b[pixel[2] as usize] += 1;
@@ -94,7 +93,7 @@ pub fn compute_histogram(rgb: &image::RgbImage) -> Histogram {
         r,
         g,
         b,
-        sampled_pixels: u64::from(sampled.width()) * u64::from(sampled.height()),
+        sampled_pixels: u64::from(pixels.width()) * u64::from(pixels.height()),
     }
 }
 
@@ -188,21 +187,24 @@ fn color_info(path: &Path, mime: &str) -> (String, Option<u8>) {
         // 렌더 출력은 흰 배경에 합성된 JPEG sidecar이므로 rgb로 보고한다.
         return ("rgb".to_string(), Some(8));
     }
-    let dyn_img = match image::open(path) {
-        Ok(img) => img,
-        Err(_) => return ("unknown".to_string(), None),
-    };
-    let (mode, bits) = match dyn_img.color() {
-        image::ColorType::L8 => ("grayscale", 8),
-        image::ColorType::La8 => ("grayscale-alpha", 8),
-        image::ColorType::Rgb8 => ("rgb", 8),
-        image::ColorType::Rgba8 => ("rgba", 8),
-        image::ColorType::L16 => ("grayscale", 16),
-        image::ColorType::La16 => ("grayscale-alpha", 16),
-        image::ColorType::Rgb16 => ("rgb", 16),
-        image::ColorType::Rgba16 => ("rgba", 16),
-        image::ColorType::Rgb32F => ("rgb", 32),
-        image::ColorType::Rgba32F => ("rgba", 32),
+    // 색상 모드 한 줄을 위해 픽셀을 전부 디코드하지 않는다. `image::open`이
+    // 반환하는 표현은 디코더의 `color_type()`과 1:1이라 헤더 파싱만으로 같다.
+    let color_type = image::ImageReader::open(path)
+        .ok()
+        .and_then(|reader| reader.with_guessed_format().ok())
+        .and_then(|reader| reader.into_decoder().ok())
+        .map(|decoder| image::ImageDecoder::color_type(&decoder));
+    let (mode, bits) = match color_type {
+        Some(image::ColorType::L8) => ("grayscale", 8),
+        Some(image::ColorType::La8) => ("grayscale-alpha", 8),
+        Some(image::ColorType::Rgb8) => ("rgb", 8),
+        Some(image::ColorType::Rgba8) => ("rgba", 8),
+        Some(image::ColorType::L16) => ("grayscale", 16),
+        Some(image::ColorType::La16) => ("grayscale-alpha", 16),
+        Some(image::ColorType::Rgb16) => ("rgb", 16),
+        Some(image::ColorType::Rgba16) => ("rgba", 16),
+        Some(image::ColorType::Rgb32F) => ("rgb", 32),
+        Some(image::ColorType::Rgba32F) => ("rgba", 32),
         _ => ("unknown", 0),
     };
     let bits = if mode == "unknown" { None } else { Some(bits) };
@@ -281,15 +283,25 @@ fn icc_info(path: &Path) -> (IccStatus, Option<String>, Option<u64>) {
 }
 
 /// JPEG APP2("ICC_PROFILE") 세그먼트 스캔. SOS 이후는 보지 않는다.
+/// 스캔 상한(1MiB) + 최대 세그먼트 길이(64KiB)만 읽어 파일 전체를
+/// 메모리에 올리지 않는다.
 fn icc_from_jpeg(path: &Path) -> Option<(Option<String>, u64)> {
-    let bytes = fs::read(path).ok()?;
+    use std::io::Read as _;
+
+    const SCAN_LIMIT: usize = 1_048_576;
+    const MAX_SEGMENT: usize = 65_535;
+    let file = fs::File::open(path).ok()?;
+    let mut bytes = Vec::new();
+    file.take((SCAN_LIMIT + MAX_SEGMENT) as u64)
+        .read_to_end(&mut bytes)
+        .ok()?;
     if bytes.len() < 4 || bytes[0..2] != [0xFF, 0xD8] {
         return None;
     }
     let mut pos = 2usize;
     let mut total: u64 = 0;
     let mut found = false;
-    while pos + 4 <= bytes.len() && pos < 1_048_576 {
+    while pos + 4 <= bytes.len() && pos < SCAN_LIMIT {
         if bytes[pos] != 0xFF {
             pos += 1;
             continue;
@@ -326,34 +338,44 @@ fn icc_from_jpeg(path: &Path) -> Option<(Option<String>, u64)> {
 }
 
 /// PNG iCCP 청크 스캔. 프로파일 이름과 압축 데이터 길이를 반환.
+/// 청크를 스트리밍으로 걸어 iCCP 데이터만 읽는다 (전체 파일 로드 없음).
 fn icc_from_png(path: &Path) -> Option<(Option<String>, u64)> {
+    use std::io::{Read as _, Seek as _, SeekFrom};
+
     const SIG: &[u8; 8] = b"\x89PNG\r\n\x1a\n";
-    let bytes = fs::read(path).ok()?;
-    if bytes.len() < 8 || bytes[0..8] != *SIG {
+    /// 실제 ICC 프로파일보다 훨씬 큰 상한. 넘는 길이 선언은 손상으로 본다.
+    const MAX_ICC_CHUNK: u64 = 64 * 1024 * 1024;
+    let mut file = fs::File::open(path).ok()?;
+    let mut sig = [0u8; 8];
+    file.read_exact(&mut sig).ok()?;
+    if sig != *SIG {
         return None;
     }
-    let mut pos = 8usize;
-    while pos + 8 <= bytes.len() {
-        let len = u32::from_be_bytes(bytes[pos..pos + 4].try_into().ok()?) as usize;
-        let chunk_end = pos.checked_add(8)?.checked_add(len)?.checked_add(4)?;
-        if chunk_end > bytes.len() {
-            break;
+    loop {
+        let mut header = [0u8; 8];
+        if file.read_exact(&mut header).is_err() {
+            return None;
         }
-        let typ = &bytes[pos + 4..pos + 8];
+        let len = u64::from(u32::from_be_bytes(header[..4].try_into().ok()?));
+        let typ = &header[4..8];
         if typ == b"IEND" {
-            break;
+            return None;
         }
         if typ == b"iCCP" {
-            let data = &bytes[pos + 8..pos + 8 + len];
+            if len > MAX_ICC_CHUNK {
+                return None;
+            }
+            let mut data = vec![0u8; len as usize];
+            file.read_exact(&mut data).ok()?;
             let nul = data.iter().position(|&b| b == 0)?;
             let name = String::from_utf8_lossy(&data[..nul]).into_owned();
             // 이름 NUL(1) + 압축 방식(1) 뒤가 압축 프로파일.
-            let profile_len = (len as u64).saturating_sub(nul as u64 + 2);
+            let profile_len = len.saturating_sub(nul as u64 + 2);
             return Some((Some(name), profile_len));
         }
-        pos = chunk_end;
+        // 청크 데이터 + CRC(4)를 건너뛴다.
+        file.seek(SeekFrom::Current(len as i64 + 4)).ok()?;
     }
-    None
 }
 
 #[cfg(test)]

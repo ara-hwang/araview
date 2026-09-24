@@ -98,7 +98,7 @@ pub fn generate_thumbnail(source: &Path, max_side: u32) -> Result<ThumbnailInfo,
                 return Ok(());
             }
             let img = image::open(source)
-                .map_err(|e| AppError::corrupt(format!("Failed to decode image: {e}")))?;
+                .map_err(|e| AppError::image_error("Failed to decode image", e))?;
             let img = crate::orientation::apply_to_image(
                 img,
                 crate::orientation::read_orientation(source),

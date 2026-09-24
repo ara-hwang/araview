@@ -217,6 +217,10 @@ fn ensure_application_registration(exe: &Path) -> Result<(), AppError> {
     registered
         .set_value(APP_NAME, &CAPABILITIES_PATH)
         .map_err(reg_err)?;
+    // ProgID/OpenWith/RegisteredApplications를 새로 썼으니 Explorer가 아이콘과
+    // 연결 프로그램 목록을 즉시 다시 읽게 한다. 없으면 셸 재시작 전까지
+    // 이전 상태가 보일 수 있다 (thumb_shell과 같은 알림).
+    crate::thumb_shell::notify_shell();
     if let Ok(mut guard) = REGISTERED_EXE.lock() {
         *guard = Some(exe.to_path_buf());
     }

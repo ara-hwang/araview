@@ -66,6 +66,7 @@ cd src-tauri && cargo fmt
 - Extension source of truth: `src/constants/imageExtensions.ts`
 - Rust commands: `src-tauri/src/commands.rs`
 - MIME/extension logic and tests: `src-tauri/src/image.rs`
+- JPEG save metadata preservation (EXIF/ICC/XMP segments): `src-tauri/src/jpeg_meta.rs`
 - Windows file association registry: `src-tauri/src/file_assoc.rs`
 - HEIC/HEIF JPEG sidecar decode: `src-tauri/src/heif.rs`
 - Tauri app setup and command registration: `src-tauri/src/lib.rs`

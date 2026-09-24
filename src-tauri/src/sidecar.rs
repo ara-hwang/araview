@@ -49,6 +49,8 @@ static TMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 /// Run `f` under a per-key mutex. The map entry is removed when no other
 /// thread holds a clone, so long sessions do not leak lock entries.
+/// A poisoned slot (previous holder panicked) is recovered instead of
+/// failing that key for the rest of the process.
 pub fn with_file_lock<T>(
     key: &str,
     context: &str,
@@ -62,7 +64,7 @@ pub fn with_file_lock<T>(
             .or_insert_with(|| std::sync::Arc::new(Mutex::new(())))
             .clone()
     };
-    let guard = slot.lock().map_err(|_| AppError::lock_poisoned(context))?;
+    let guard = slot.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
     let result = f();
     drop(guard);
     if std::sync::Arc::strong_count(&slot) <= 2 {
@@ -170,7 +172,12 @@ pub fn sweep_scratch_files(dir: &Path) {
 pub fn publish_atomic(tmp: &Path, dest: &Path, context: &str) -> Result<(), AppError> {
     match fs::rename(tmp, dest) {
         Ok(()) => Ok(()),
-        Err(_) if dest.exists() => {
+        Err(e) if dest.exists() => {
+            // 동시 발행이 이겼거나 rename이 공유 위반으로 막힌 경우다.
+            // 전자는 정상, 후자는 구 content가 남는다는 뜻이라 로그로 남긴다.
+            log::warn!(
+                "[sidecar] rename failed but dest exists, keeping existing file: {context}: {e}"
+            );
             let _ = fs::remove_file(tmp);
             Ok(())
         }
@@ -285,5 +292,16 @@ mod tests {
             .map(|map| map.contains_key("sidecar-test-key"))
             .unwrap_or(true);
         assert!(!still_there);
+    }
+
+    #[test]
+    fn poisoned_lock_slot_is_recovered() {
+        let key = "sidecar-test-poison";
+        let panicked = std::panic::catch_unwind(|| {
+            let _ = with_file_lock::<()>(key, "test", || panic!("boom"));
+        });
+        assert!(panicked.is_err());
+        // 이전 홀더가 패닉했어도 같은 키의 락은 다시 쓸 수 있어야 한다.
+        with_file_lock(key, "test", || Ok(())).expect("recovered lock");
     }
 }

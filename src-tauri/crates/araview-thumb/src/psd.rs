@@ -3,6 +3,10 @@
 //! Mirrors the main app's `psd_sidecar::decode_psd_rgb8` over in-memory
 //! bytes (the shell gives us an `IStream`, not a path). Transparent
 //! pixels are flattened onto white, matching the app's JPEG sidecar rule.
+//!
+//! `psd 0.3.5`의 합성 디코드에는 패닉 경로가 남아 있어(미구현 ZIP 압축,
+//! 16비트/꼬리 바이트 raw의 범위 초과 쓰기) `catch_unwind`로 감싼다.
+//! Explorer의 썸네일 호스트 안에서 FFI 경계를 넘어 패닉이 새면 안 된다.
 
 /// Decode budget (~150MP, same as the app). The PSD spec max
 /// (30000x30000) decoded naively would exhaust the surrogate.
@@ -17,7 +21,7 @@ pub struct Rgb8 {
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum PsdError {
-    /// PSB (`8BPB`) large documents: no decoder, entry blocked.
+    /// PSB (`8BPS` version 2) or a bit depth the decoder does not support.
     UnsupportedFile,
     /// Truncated header, unknown compression, short buffer, oversize, ...
     CorruptFile,
@@ -26,7 +30,7 @@ pub enum PsdError {
 impl std::fmt::Display for PsdError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            PsdError::UnsupportedFile => write!(f, "PSB is not supported"),
+            PsdError::UnsupportedFile => write!(f, "Unsupported PSD file"),
             PsdError::CorruptFile => write!(f, "Failed to decode image"),
         }
     }
@@ -34,15 +38,29 @@ impl std::fmt::Display for PsdError {
 
 /// Decode PSD composite pixels to RGB8, flattening alpha onto white.
 pub fn decode_psd_rgb8(bytes: &[u8]) -> Result<Rgb8, PsdError> {
-    if bytes.len() >= 4 && &bytes[..4] == b"8BPB" {
+    // PSB는 PSD와 같은 `8BPS` 시그니처에 version 2를 쓴다. `psd` 크레이트는
+    // version 1만 파싱해 PSB를 손상으로 오보고하므로 여기서 먼저 거른다.
+    if bytes.len() >= 6 && &bytes[..4] == b"8BPS" && bytes[4..6] == [0, 2] {
         return Err(PsdError::UnsupportedFile);
     }
-    let psd = psd::Psd::from_bytes(bytes).map_err(|_| PsdError::CorruptFile)?;
-    let (width, height) = (psd.width(), psd.height());
-    if u64::from(width).saturating_mul(u64::from(height)) > MAX_DECODE_PIXELS {
-        return Err(PsdError::CorruptFile);
-    }
-    let rgba = psd.rgba();
+    // 내부 패닉을 손상 에러로 바꿔 FFI 경계 밖으로 내보내지 않는다.
+    let decoded = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let psd = psd::Psd::from_bytes(bytes).map_err(|_| PsdError::CorruptFile)?;
+        // 16비트 raw는 red만 8비트로 줄고 green/blue/alpha는 2바이트/픽셀
+        // 그대로 남아 `rgba()`에서 범위를 넘는다.
+        if psd.depth() != psd::PsdDepth::Eight {
+            return Err(PsdError::UnsupportedFile);
+        }
+        let (width, height) = (psd.width(), psd.height());
+        if u64::from(width).saturating_mul(u64::from(height)) > MAX_DECODE_PIXELS {
+            return Err(PsdError::CorruptFile);
+        }
+        Ok((width, height, psd.rgba()))
+    }));
+    let (width, height, rgba) = match decoded {
+        Ok(result) => result?,
+        Err(_) => return Err(PsdError::CorruptFile),
+    };
     let expected = (width as usize)
         .checked_mul(height as usize)
         .and_then(|n| n.checked_mul(4));
@@ -143,10 +161,26 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn psb_signature_is_unsupported() {
-        let mut bytes = b"8BPB".to_vec();
+    fn psb_header_is_unsupported() {
+        // 실제 PSB: `8BPS` + version 2.
+        let mut bytes = b"8BPS".to_vec();
+        bytes.extend_from_slice(&2u16.to_be_bytes());
         bytes.extend_from_slice(&[0u8; 64]);
         assert_eq!(decode_psd_rgb8(&bytes), Err(PsdError::UnsupportedFile));
+    }
+
+    #[test]
+    fn sixteen_bit_psd_is_unsupported() {
+        let mut bytes = minimal_psd_bytes(2, 1, [255, 0, 0]);
+        bytes[22..24].copy_from_slice(&16u16.to_be_bytes());
+        assert_eq!(decode_psd_rgb8(&bytes), Err(PsdError::UnsupportedFile));
+    }
+
+    #[test]
+    fn trailing_bytes_do_not_panic() {
+        let mut bytes = minimal_psd_bytes(2, 1, [255, 0, 0]);
+        bytes.extend_from_slice(&[0u8; 6]);
+        assert_eq!(decode_psd_rgb8(&bytes), Err(PsdError::CorruptFile));
     }
 
     #[test]
