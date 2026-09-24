@@ -50,6 +50,16 @@ export type SettingsState = {
   /** 대용량 이미지를 긴 변 기준으로 축소해 표시한다 (렌더 메모리 절감) */
   maxResolution: MaxResolution
   viewMode: ViewMode
+  /** 웹툰 이미지 사이 간격(px) */
+  webtoonImageGap: number
+  /** 웹툰 이미지 사이에 페이지 경계선 표시 */
+  webtoonPageBoundaries: boolean
+  /** 웹툰 이미지를 읽기 영역 너비까지 확대 */
+  webtoonFitWidth: boolean
+  /** 웹툰 읽기 위치와 전체 진행률 표시 */
+  webtoonShowProgress: boolean
+  /** 웹툰 진행 표시에서 썸네인 그리드 바로가기 */
+  webtoonThumbnailJump: boolean
   autoOpenLastFile: boolean
   recordRecentFiles: boolean
   viewerBackground: ViewerBackground
@@ -92,6 +102,11 @@ const initialSettings: SettingsState = {
   cacheStorageMode: "persistent",
   maxResolution: "original",
   viewMode: "single",
+  webtoonImageGap: 8,
+  webtoonPageBoundaries: false,
+  webtoonFitWidth: false,
+  webtoonShowProgress: true,
+  webtoonThumbnailJump: true,
   autoOpenLastFile: false,
   recordRecentFiles: true,
   viewerBackground: "theme",
@@ -138,6 +153,15 @@ function sanitizeBoolean(value: unknown): boolean {
   return value === true
 }
 
+function sanitizeBooleanWithDefault(value: unknown, fallback: boolean): boolean {
+  return value === undefined ? fallback : sanitizeBoolean(value)
+}
+
+function sanitizeWebtoonImageGap(value: unknown): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) return initialSettings.webtoonImageGap
+  return Math.round(Math.min(Math.max(value, 0), 64))
+}
+
 /** 저장된 설정이 손상됐어도 유효한 SettingsState로 복원한다. */
 export function sanitizeSettings(value: unknown): SettingsState {
   const record =
@@ -158,6 +182,17 @@ export function sanitizeSettings(value: unknown): SettingsState {
       initialSettings.maxResolution
     ),
     viewMode: sanitizeEnum(record.viewMode, VIEW_MODES, initialSettings.viewMode),
+    webtoonImageGap: sanitizeWebtoonImageGap(record.webtoonImageGap),
+    webtoonPageBoundaries: sanitizeBoolean(record.webtoonPageBoundaries),
+    webtoonFitWidth: sanitizeBoolean(record.webtoonFitWidth),
+    webtoonShowProgress: sanitizeBooleanWithDefault(
+      record.webtoonShowProgress,
+      initialSettings.webtoonShowProgress
+    ),
+    webtoonThumbnailJump: sanitizeBooleanWithDefault(
+      record.webtoonThumbnailJump,
+      initialSettings.webtoonThumbnailJump
+    ),
     autoOpenLastFile: sanitizeBoolean(record.autoOpenLastFile),
     recordRecentFiles:
       record.recordRecentFiles === undefined

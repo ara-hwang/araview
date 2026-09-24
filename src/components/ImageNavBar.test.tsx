@@ -136,7 +136,7 @@ describe("ImageNavBar", () => {
     render(<ImageNavBar {...baseProps} onToggleGrid={onToggleGrid} onToggleDock={onToggleDock} />)
 
     fireEvent.click(screen.getByRole("button", { name: "viewer.nav.grid" }))
-    expect(onToggleGrid).toHaveBeenCalledTimes(1)
+    expect(onToggleGrid).toHaveBeenCalledWith()
     fireEvent.click(screen.getByRole("button", { name: "viewer.nav.dockHide" }))
     expect(onToggleDock).toHaveBeenCalledTimes(1)
   })

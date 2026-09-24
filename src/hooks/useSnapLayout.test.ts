@@ -1,5 +1,4 @@
-import { renderHook } from "@testing-library/react"
-import { act } from "react"
+import { act, renderHook } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { useSnapLayout } from "./useSnapLayout"

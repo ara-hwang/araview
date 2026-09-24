@@ -148,6 +148,10 @@
     animation: none;
     transform: translateX(100%);
   }
+
+  [data-slot="progress-indicator"] {
+    transition: none;
+  }
 }
 
 @theme inline {

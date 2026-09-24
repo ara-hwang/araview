@@ -176,6 +176,15 @@
       "rtl": "우→좌 두 페이지",
       "webtoon": "웹툰 스크롤"
     },
+    "webtoon": {
+      "title": "웹툰 모드 세부 설정",
+      "desc": "이미지 간격과 페이지 경계, Fit width, 읽기 위치 표시를 설정합니다.",
+      "imageGap": "이미지 간격",
+      "pageBoundaries": "페이지 경계 표시",
+      "fitWidth": "Fit width",
+      "showProgress": "현재 위치 표시",
+      "thumbnailJump": "썸네인 점프 버튼 표시"
+    },
     "reading": {
       "title": "읽기",
       "desc": "만화(CBZ 등)를 다시 열 때 마지막으로 본 페이지에서 이어봅니다. 표지 단독은 양면 보기에서 첫 페이지를 혼자 보여줍니다.",
@@ -346,6 +355,12 @@
       "dockHide": "이미지 목록 숨기기",
       "dockShow": "이미지 목록 보이기",
       "dockMenu": "이미지 목록 설정"
+    },
+    "webtoon": {
+      "scrollRegion": "웹툰 읽기 영역",
+      "position": "{{current}} / {{total}} · {{percent}}%",
+      "progressLabel": "{{current}}장 / {{total}}장, 전체 {{percent}}%",
+      "openThumbnails": "썸네인 그리드 열기"
     },
     "archivePreview": {
       "hint": "「{{name}}」은 만화 파일입니다. 첫 페이지만 미리 보고 있습니다.",

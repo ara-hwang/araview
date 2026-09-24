@@ -4,8 +4,10 @@ import {
   ListBullets,
   Palette,
   Presentation,
-  PushPin
+  PushPin,
+  Stack
 } from "@phosphor-icons/react"
+import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useShallow } from "zustand/react/shallow"
 
@@ -14,6 +16,7 @@ import { ShortcutBadge } from "@/components/settings/ShortcutBadge"
 import { Field, FieldGroup, FieldSeparator } from "@/components/ui/field"
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Slider } from "@/components/ui/slider"
 import { Switch } from "@/components/ui/switch"
 import {
   updateSettings,
@@ -25,11 +28,19 @@ import {
   type ViewMode
 } from "@/store/settingsStore"
 
+const firstSliderValue = (value: number | readonly number[]) =>
+  typeof value === "number" ? value : (value[0] ?? 0)
+
 export function ViewTabPanel() {
   const { t } = useTranslation()
   const settings = useSettingsStore(
     useShallow((state) => ({
       viewMode: state.viewMode,
+      webtoonImageGap: state.webtoonImageGap,
+      webtoonPageBoundaries: state.webtoonPageBoundaries,
+      webtoonFitWidth: state.webtoonFitWidth,
+      webtoonShowProgress: state.webtoonShowProgress,
+      webtoonThumbnailJump: state.webtoonThumbnailJump,
       viewerBackground: state.viewerBackground,
       resumeReading: state.resumeReading,
       showCoverAlone: state.showCoverAlone,
@@ -44,6 +55,11 @@ export function ViewTabPanel() {
       dockShowIndex: state.dockShowIndex
     }))
   )
+  const [webtoonImageGap, setWebtoonImageGap] = useState(settings.webtoonImageGap)
+
+  useEffect(() => {
+    setWebtoonImageGap(settings.webtoonImageGap)
+  }, [settings.webtoonImageGap])
 
   const handleSettingsChange = (next: Partial<SettingsState>) => {
     void updateSettings(next)
@@ -77,6 +93,81 @@ export function ViewTabPanel() {
             <Label htmlFor="settings-view-webtoon">{t("settings.view.webtoon")}</Label>
           </Field>
         </RadioGroup>
+      </SettingsFieldSet>
+
+      <FieldSeparator />
+
+      <SettingsFieldSet
+        icon={<Stack className="size-6" />}
+        title={t("settings.webtoon.title")}
+        description={t("settings.webtoon.desc")}
+      >
+        <Field>
+          <div className="flex items-center justify-between gap-4">
+            <Label id="settings-webtoon-gap-label">{t("settings.webtoon.imageGap")}</Label>
+            <span className="text-xs font-medium text-muted-foreground tabular-nums">
+              {webtoonImageGap} px
+            </span>
+          </div>
+          <Slider
+            id="settings-webtoon-gap"
+            aria-labelledby="settings-webtoon-gap-label"
+            value={[webtoonImageGap]}
+            min={0}
+            max={64}
+            step={2}
+            onValueChange={(value) => setWebtoonImageGap(firstSliderValue(value))}
+            onValueCommitted={(value) =>
+              handleSettingsChange({ webtoonImageGap: firstSliderValue(value) })
+            }
+          />
+        </Field>
+        <Field orientation="horizontal">
+          <Switch
+            id="settings-webtoon-boundaries"
+            checked={settings.webtoonPageBoundaries}
+            onCheckedChange={(checked) =>
+              handleSettingsChange({ webtoonPageBoundaries: checked === true })
+            }
+          />
+          <Label htmlFor="settings-webtoon-boundaries">
+            {t("settings.webtoon.pageBoundaries")}
+          </Label>
+        </Field>
+        <Field orientation="horizontal">
+          <Switch
+            id="settings-webtoon-fit-width"
+            checked={settings.webtoonFitWidth}
+            onCheckedChange={(checked) =>
+              handleSettingsChange({ webtoonFitWidth: checked === true })
+            }
+          />
+          <Label htmlFor="settings-webtoon-fit-width">{t("settings.webtoon.fitWidth")}</Label>
+        </Field>
+        <Field orientation="horizontal">
+          <Switch
+            id="settings-webtoon-show-progress"
+            checked={settings.webtoonShowProgress}
+            onCheckedChange={(checked) =>
+              handleSettingsChange({ webtoonShowProgress: checked === true })
+            }
+          />
+          <Label htmlFor="settings-webtoon-show-progress">
+            {t("settings.webtoon.showProgress")}
+          </Label>
+        </Field>
+        <Field orientation="horizontal">
+          <Switch
+            id="settings-webtoon-thumbnail-jump"
+            checked={settings.webtoonThumbnailJump}
+            onCheckedChange={(checked) =>
+              handleSettingsChange({ webtoonThumbnailJump: checked === true })
+            }
+          />
+          <Label htmlFor="settings-webtoon-thumbnail-jump">
+            {t("settings.webtoon.thumbnailJump")}
+          </Label>
+        </Field>
       </SettingsFieldSet>
 
       <FieldSeparator />

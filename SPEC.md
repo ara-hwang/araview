@@ -186,6 +186,10 @@ CBZ/ZIP의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한다(8
 - 양면 모드의 점프(썸네일/도크/`Home`/`End`/`PageUp`/`PageDown`)와 아카이브 이어보기 진입은 쌍 시작으로 스냅한다(`src/utils/dirNavigation.ts`).
 - 웹툰 모드에서 `ArrowLeft/ArrowRight`는 이전/다음 이미지 스크롤 이동이다.
 - 웹툰 모드에서 `ArrowUp/ArrowDown`은 연속 스크롤 컨테이너를 일정량씩 스크롤한다.
+- 웹툰 이미지 사이 간격(`webtoonImageGap`, 기본 8px)과 페이지 경계선(`webtoonPageBoundaries`)을 설정한다.
+- `webtoonFitWidth`를 켜면 작은 이미지도 읽기 영역 너비까지 확대하고, 끄면 원본 크기를 유지한 채 너비만 제한한다.
+- `webtoonShowProgress`를 켜면 읽기 영역에 현재 장 번호, 전체 장 수, 스크롤 진행률을 작은 표시로 보여준다.
+- `webtoonThumbnailJump`를 켜면 읽기 영역의 썸네인 버튼으로 그리드를 열어 원하는 장으로 바로 이동할 수 있다. 현재 위치 표시를 꺼도 이 버튼은 유지된다.
 - 웹툰 중앙 이미지 변경은 전체 reload 없이 인덱스 동기화와 정보 교체로 처리한다.
 
 ## 7. 뷰어 조작
@@ -404,36 +408,41 @@ CBZ/ZIP의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한다(8
 
 진실: `src/store/settingsStore.ts`.
 
-| 설정                | 값                                                      | 기본값                             |
-| ------------------- | ------------------------------------------------------- | ---------------------------------- |
-| `language`          | `ko \| en`                                              | `ko`(초기 로드는 시스템 감지 우선) |
-| `loopNavigation`    | 끝에서 루프 여부                                        | `false`                            |
-| `cacheMode`         | `off \| nearby \| extended \| memory-1gb \| memory-2gb` | `nearby`                           |
-| `cacheStorageMode`  | `temporary \| persistent`                               | `persistent`                       |
-| `maxResolution`     | `original \| 4k \| 1080p` (긴 변 상한, 9.4절)           | `original`                         |
-| `viewMode`          | `single \| left-to-right \| right-to-left \| webtoon`   | `single`                           |
-| `autoOpenLastFile`  | 시작 시 마지막 파일 자동 열기                           | `false`                            |
-| `recordRecentFiles` | 최근 기록 유지                                          | `true`                             |
-| `viewerBackground`  | `theme \| black \| white \| checker`                    | `theme`                            |
-| `autoHideUI`        | 읽기 중 크롬 자동 숨김                                  | `false`                            |
-| `menuBarHidden`     | 상단바 수동 숨김 (상단 호버 시 peek 오버레이로 표시)    | `false`                            |
-| `alwaysOnTop`       | 항상 위                                                 | `false`                            |
-| `sortKey`           | `name \| date \| size`                                  | `name`                             |
-| `sortDescending`    | 내림차순                                                | `false`                            |
-| `includeSubfolders` | 하위 폴더 포함(재귀)                                    | `false`                            |
-| `skipBrokenFiles`   | 손상 파일 자동 건너뛰기                                 | `false`                            |
-| `resumeReading`     | 아카이브 재진입 시 이어보기                             | `true`                             |
-| `showCoverAlone`    | 양면 보기에서 첫 페이지(표지)를 단독 표시               | `true`                             |
-| `showComicInfo`     | 정보 패널에 만화 정보(ComicInfo.xml) 섹션 표시          | `true`                             |
-| `fitMode`           | 맞춤 기억 `width \| height \| screen \| auto`           | `auto`                             |
-| `dockPosition`      | 이미지 목록 위치 `top \| bottom \| left \| right`       | `bottom`                           |
-| `dockVisible`       | 이미지 목록 표시                                        | `true`                             |
-| `dockThumbSize`     | 썸네일 크기 `s \| m \| l`                               | `s`                                |
-| `dockShowName`      | 썸네일 파일명 표시                                      | `false`                            |
-| `dockShowIndex`     | 썸네일 번호 표시                                        | `false`                            |
-| `shortcuts`         | 단축키 맵                                               | 아래 기본표                        |
-| `wheel`             | 휠 맵                                                   | 아래 기본표                        |
-| `mouse`             | 마우스 맵                                               | 아래 기본표                        |
+| 설정                    | 값                                                      | 기본값                             |
+| ----------------------- | ------------------------------------------------------- | ---------------------------------- |
+| `language`              | `ko \| en`                                              | `ko`(초기 로드는 시스템 감지 우선) |
+| `loopNavigation`        | 끝에서 루프 여부                                        | `false`                            |
+| `cacheMode`             | `off \| nearby \| extended \| memory-1gb \| memory-2gb` | `nearby`                           |
+| `cacheStorageMode`      | `temporary \| persistent`                               | `persistent`                       |
+| `maxResolution`         | `original \| 4k \| 1080p` (긴 변 상한, 9.4절)           | `original`                         |
+| `viewMode`              | `single \| left-to-right \| right-to-left \| webtoon`   | `single`                           |
+| `webtoonImageGap`       | 웹툰 이미지 사이 간격(px, 0~64)                         | `8`                                |
+| `webtoonPageBoundaries` | 웹툰 페이지 경계선 표시                                 | `false`                            |
+| `webtoonFitWidth`       | 웹툰 이미지를 읽기 영역 너비까지 확대                   | `false`                            |
+| `webtoonShowProgress`   | 웹툰 현재 장 번호와 스크롤 진행률 표시                  | `true`                             |
+| `webtoonThumbnailJump`  | 진행 표시에서 썸네인 그리드로 바로가기                  | `true`                             |
+| `autoOpenLastFile`      | 시작 시 마지막 파일 자동 열기                           | `false`                            |
+| `recordRecentFiles`     | 최근 기록 유지                                          | `true`                             |
+| `viewerBackground`      | `theme \| black \| white \| checker`                    | `theme`                            |
+| `autoHideUI`            | 읽기 중 크롬 자동 숨김                                  | `false`                            |
+| `menuBarHidden`         | 상단바 수동 숨김 (상단 호버 시 peek 오버레이로 표시)    | `false`                            |
+| `alwaysOnTop`           | 항상 위                                                 | `false`                            |
+| `sortKey`               | `name \| date \| size`                                  | `name`                             |
+| `sortDescending`        | 내림차순                                                | `false`                            |
+| `includeSubfolders`     | 하위 폴더 포함(재귀)                                    | `false`                            |
+| `skipBrokenFiles`       | 손상 파일 자동 건너뛰기                                 | `false`                            |
+| `resumeReading`         | 아카이브 재진입 시 이어보기                             | `true`                             |
+| `showCoverAlone`        | 양면 보기에서 첫 페이지(표지)를 단독 표시               | `true`                             |
+| `showComicInfo`         | 정보 패널에 만화 정보(ComicInfo.xml) 섹션 표시          | `true`                             |
+| `fitMode`               | 맞춤 기억 `width \| height \| screen \| auto`           | `auto`                             |
+| `dockPosition`          | 이미지 목록 위치 `top \| bottom \| left \| right`       | `bottom`                           |
+| `dockVisible`           | 이미지 목록 표시                                        | `true`                             |
+| `dockThumbSize`         | 썸네일 크기 `s \| m \| l`                               | `s`                                |
+| `dockShowName`          | 썸네일 파일명 표시                                      | `false`                            |
+| `dockShowIndex`         | 썸네일 번호 표시                                        | `false`                            |
+| `shortcuts`             | 단축키 맵                                               | 아래 기본표                        |
+| `wheel`                 | 휠 맵                                                   | 아래 기본표                        |
+| `mouse`                 | 마우스 맵                                               | 아래 기본표                        |
 
 설정 항목에 연결된 단축키가 있으면 항목 옆에 현재 할당된 단축키를 배지로 표시한다. 재할당하거나 해제하면 배지도 즉시 따라간다.
 

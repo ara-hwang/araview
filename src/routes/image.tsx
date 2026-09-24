@@ -1,6 +1,6 @@
 import { CaretDown, CaretLeft, CaretRight, CaretUp } from "@phosphor-icons/react"
 import { createFileRoute, redirect } from "@tanstack/react-router"
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 
 import { ImageContainer } from "@/components/ImageContainer"
@@ -200,23 +200,38 @@ function ImagePage() {
 
   const fullscreen = useFullscreen()
 
-  const toggleGrid = useCallback(() => {
-    if (gridOpen) {
-      setGridOpen(false)
-      return
-    }
-    setGridOpen(true)
-  }, [gridOpen])
+  const gridReturnFocusRef = useRef<HTMLElement | null>(null)
+  const handleGridClose = useCallback(() => {
+    const returnFocus = gridReturnFocusRef.current
+    gridReturnFocusRef.current = null
+    setGridOpen(false)
+    // 그리드를 열기 전의 컨트롤로 돌아가고, 그 컨트롤이 사라졌을 때만
+    // 도크의 현재 썸네일로 포커스를 돌려준다.
+    requestAnimationFrame(() => {
+      const target =
+        returnFocus?.isConnected &&
+        returnFocus.tabIndex >= 0 &&
+        returnFocus.getClientRects().length > 0
+          ? returnFocus
+          : (document.querySelector<HTMLElement>('[data-grid-toggle="true"]') ??
+            document.querySelector<HTMLElement>('[data-dock-current="true"]'))
+      target?.focus({ preventScroll: true })
+    })
+  }, [])
+  const toggleGrid = useCallback(
+    (trigger?: HTMLButtonElement) => {
+      if (gridOpen) {
+        handleGridClose()
+        return
+      }
+      const active = trigger ?? document.activeElement
+      gridReturnFocusRef.current = active instanceof HTMLElement ? active : null
+      setGridOpen(true)
+    },
+    [gridOpen, handleGridClose]
+  )
   const toggleDock = useCallback(() => {
     void updateSettings({ dockVisible: !useSettingsStore.getState().dockVisible })
-  }, [])
-  const handleGridClose = useCallback(() => {
-    setGridOpen(false)
-    // 그리드에서 돌아오면 도크 현재 썸네일로 포커스를 되돌린다.
-    requestAnimationFrame(() => {
-      const el = document.querySelector<HTMLElement>('[data-dock-current="true"]')
-      el?.focus({ preventScroll: true })
-    })
   }, [])
   const { toggle: toggleAlwaysOnTop } = useAlwaysOnTop()
   const { copy: copyImage } = useCopyImage()
@@ -288,7 +303,7 @@ function ImagePage() {
   /** Esc 닫기: 그리드/다이얼로그가 열려 있거나 입력 중일 때는 뷰어를 닫지 않는다 */
   const handleCloseImage = useCallback(() => {
     if (gridOpen) {
-      setGridOpen(false)
+      handleGridClose()
       return
     }
     if (renameOpen || saveOpen) return
@@ -302,7 +317,7 @@ function ImagePage() {
       return
     }
     closeAndGoHome()
-  }, [gridOpen, renameOpen, saveOpen, closeAndGoHome])
+  }, [gridOpen, handleGridClose, renameOpen, saveOpen, closeAndGoHome])
 
   const handleRenameSubmit = useCallback(
     async (newName: string) => {
@@ -529,6 +544,7 @@ function ImagePage() {
             onRetry={handleRetry}
             onWebtoonIndexChange={handleWebtoonIndexChange}
             webtoonScrollTarget={webtoonScrollTarget}
+            onOpenThumbnailGrid={toggleGrid}
             onOpenArchiveFromPreview={handleOpenArchiveFromPreview}
           />
         </div>
