@@ -1,6 +1,7 @@
 import { convertFileSrc } from "@tauri-apps/api/core"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 
+import { useCacheInvalidationStore } from "@/store/cacheInvalidationStore"
 import type { ImageInfo } from "@/types"
 
 export type RecentFileStatus = "loading" | "done" | "error"
@@ -24,9 +25,20 @@ export function useRecentFileDetails(
 ): Map<string, RecentFileDetail> {
   const [details, setDetails] = useState<Map<string, RecentFileDetail>>(() => new Map())
   const pathsKey = paths.join("\0")
+  const cacheEpoch = useCacheInvalidationStore((state) => state.epoch)
+  const previousCacheEpochRef = useRef(cacheEpoch)
+  const cacheEpochRef = useRef(cacheEpoch)
+  cacheEpochRef.current = cacheEpoch
+
+  useEffect(() => {
+    if (previousCacheEpochRef.current === cacheEpoch) return
+    previousCacheEpochRef.current = cacheEpoch
+    setDetails(new Map())
+  }, [cacheEpoch])
 
   useEffect(() => {
     const list = pathsKey === "" ? [] : pathsKey.split("\0")
+    const epoch = cacheEpoch
     let cancelled = false
     setDetails(new Map(list.map((path) => [path, { status: "loading" as const }])))
     if (list.length === 0) return
@@ -35,7 +47,7 @@ export function useRecentFileDetails(
       list.map(async (path) => {
         try {
           const info = await getOrLoadImage(path)
-          if (cancelled) return
+          if (cancelled || cacheEpochRef.current !== epoch) return
           const isArchive = info.mime_type.startsWith("application/")
           const src = isArchive ? undefined : convertFileSrc(info.file_path)
           setDetails((prev) => {
@@ -44,7 +56,7 @@ export function useRecentFileDetails(
             return next
           })
         } catch {
-          if (cancelled) return
+          if (cancelled || cacheEpochRef.current !== epoch) return
           setDetails((prev) => {
             const next = new Map(prev)
             next.set(path, { status: "error" })
@@ -57,7 +69,7 @@ export function useRecentFileDetails(
     return () => {
       cancelled = true
     }
-  }, [pathsKey, getOrLoadImage])
+  }, [pathsKey, getOrLoadImage, cacheEpoch])
 
   return details
 }

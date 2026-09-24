@@ -84,7 +84,7 @@ Frontend uses `invoke()` for these commands:
 - `resolve_dropped_path(path)`
 - `get_exif_data(file_path)`
 - `get_archive_images(file_path)`
-- `load_archive_image(archive_path, entry_name)`
+- `load_archive_image(archive_path, entry_name, max_side?, protect?)`
 - `get_cache_stats()`
 - `clear_cache(scope)`
 - `get_file_associations()`

@@ -16,13 +16,13 @@ import i18n, {
   setI18nLanguage,
   type AppLanguage
 } from "@/i18n"
+import type { CacheStorageMode } from "@/types"
 import { errorCopyDetails, errorMessage } from "@/utils/appError"
 
 export type { AppLanguage }
+export type { CacheStorageMode } from "@/types"
 
 export type CacheMode = "off" | "nearby" | "extended" | "memory-1gb" | "memory-2gb"
-
-export type CacheStorageMode = "temporary" | "persistent"
 
 /** 표시 해상도 상한. original=원본, 4k=3840px, 1080p=1920px (긴 변 기준) */
 export type MaxResolution = "original" | "4k" | "1080p"

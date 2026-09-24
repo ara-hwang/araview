@@ -61,6 +61,8 @@ export function useThumbnailSrcs(
   const [retryNonce, setRetryNonce] = useState(0)
   const cacheEpoch = useCacheInvalidationStore((state) => state.epoch)
   const previousCacheEpochRef = useRef(cacheEpoch)
+  const cacheEpochRef = useRef(cacheEpoch)
+  cacheEpochRef.current = cacheEpoch
   const pathsKey = paths.join("\0")
   const priorityKey = (options.priorityPaths ?? []).join("\0")
   const [settledPriorityKey, setSettledPriorityKey] = useState(priorityKey)
@@ -90,7 +92,8 @@ export function useThumbnailSrcs(
     return () => window.clearTimeout(id)
   }, [priorityKey])
 
-  const put = useCallback((path: string, filePath: string) => {
+  const put = useCallback((path: string, filePath: string, epoch = cacheEpochRef.current) => {
+    if (cacheEpochRef.current !== epoch) return
     const src = convertFileSrc(filePath)
     setUrls((prev) => {
       if (prev.get(path) === src) return prev
@@ -106,7 +109,8 @@ export function useThumbnailSrcs(
     })
   }, [])
 
-  const markFailed = useCallback((path: string) => {
+  const markFailed = useCallback((path: string, epoch = cacheEpochRef.current) => {
+    if (cacheEpochRef.current !== epoch) return
     setFailed((prev) => {
       if (prev.has(path)) return prev
       const next = new Set(prev)
@@ -117,14 +121,14 @@ export function useThumbnailSrcs(
 
   // 썸네일 생성 자체가 불가한 입력(SVG 등)만 원본 로드로 폴백한다.
   const loadFallbacks = useCallback(
-    async (fallback: Iterable<string>) => {
+    async (fallback: Iterable<string>, epoch = cacheEpochRef.current) => {
       await Promise.all(
         [...fallback].map(async (path) => {
           try {
             const info = await getOrLoadRef.current(path)
-            put(path, info.file_path)
+            put(path, info.file_path, epoch)
           } catch {
-            markFailed(path)
+            markFailed(path, epoch)
           }
         })
       )
@@ -134,15 +138,16 @@ export function useThumbnailSrcs(
 
   /** 주어진 목록을 로드한다. 아카이브는 동시 4개, 일반은 1회 배치 + 폴백. */
   const loadBatch = useCallback(
-    async (list: string[], isCancelled: () => boolean) => {
-      if (list.length === 0) return
+    async (list: string[], isCancelled: () => boolean, epoch = cacheEpochRef.current) => {
+      if (list.length === 0 || isCancelled() || cacheEpochRef.current !== epoch) return
+      const isStale = () => isCancelled() || cacheEpochRef.current !== epoch
 
       if (archivePath) {
         // 아카이브: 엔트리별 추출+리사이즈. 동시성을 제한하고 실패분만 폴백한다.
         const fallback: string[] = []
         let cursor = 0
         const worker = async () => {
-          while (!isCancelled()) {
+          while (!isStale()) {
             const index = cursor
             cursor += 1
             if (index >= list.length) return
@@ -153,7 +158,8 @@ export function useThumbnailSrcs(
                 entryName: path,
                 maxSide
               })
-              put(path, thumb.file_path)
+              if (isStale()) return
+              put(path, thumb.file_path, epoch)
             } catch {
               fallback.push(path)
             }
@@ -162,8 +168,8 @@ export function useThumbnailSrcs(
         await Promise.all(
           Array.from({ length: Math.min(ARCHIVE_THUMB_CONCURRENCY, list.length) }, worker)
         )
-        if (isCancelled() || fallback.length === 0) return
-        await loadFallbacks(fallback)
+        if (isStale() || fallback.length === 0) return
+        await loadFallbacks(fallback, epoch)
         return
       }
 
@@ -172,13 +178,14 @@ export function useThumbnailSrcs(
       const loaded = new Set<string>()
 
       for (const archiveFile of archiveFiles) {
-        if (isCancelled()) return
+        if (isStale()) return
         try {
           const thumb = await invoke<ThumbnailInfo>("generate_archive_file_thumbnail", {
             archivePath: archiveFile,
             maxSide
           })
-          put(archiveFile, thumb.file_path)
+          if (isStale()) return
+          put(archiveFile, thumb.file_path, epoch)
           loaded.add(archiveFile)
         } catch {
           // 아래 raster 폴백과 동일하게 load_image 시도
@@ -192,23 +199,24 @@ export function useThumbnailSrcs(
             filePaths: rasterPaths,
             maxSide
           })
-          if (isCancelled()) return
+          if (isStale()) return
           for (const r of results) {
             if (r.thumb) {
-              put(r.source, r.thumb.file_path)
+              if (isStale()) return
+              put(r.source, r.thumb.file_path, epoch)
               loaded.add(r.source)
             }
           }
         } catch {
-          if (isCancelled()) return
+          if (isStale()) return
         }
       }
 
       const stillMissing = list.filter(
         (p) => !loaded.has(p) && !urlsRef.current.has(p) && !failedRef.current.has(p)
       )
-      if (isCancelled() || stillMissing.length === 0) return
-      await loadFallbacks(stillMissing)
+      if (isStale() || stillMissing.length === 0) return
+      await loadFallbacks(stillMissing, epoch)
     },
     [archivePath, loadFallbacks, maxSide, put]
   )
@@ -216,6 +224,7 @@ export function useThumbnailSrcs(
   useEffect(() => {
     const list = pathsKey === "" ? [] : pathsKey.split("\0")
     const wanted = new Set(list)
+    const epoch = cacheEpoch
     let cancelled = false
     const isCancelled = () => cancelled
 
@@ -254,19 +263,19 @@ export function useThumbnailSrcs(
       // 보이는 창을 먼저 채운다.
       const priorityMissing = missing.filter((p) => prioritySet.has(p))
       if (priorityMissing.length > 0) {
-        await loadBatch(priorityMissing, isCancelled)
-        if (cancelled) return
+        await loadBatch(priorityMissing, isCancelled, epoch)
+        if (cancelled || cacheEpochRef.current !== epoch) return
       }
 
       // 나머지는 청크 단위로 천천히 이어서 채운다.
       const rest = missing.filter((p) => !prioritySet.has(p))
       for (let i = 0; i < rest.length; i += chunkSize) {
-        if (cancelled) return
+        if (cancelled || cacheEpochRef.current !== epoch) return
         const chunk = rest
           .slice(i, i + chunkSize)
           .filter((p) => !urlsRef.current.has(p) && !failedRef.current.has(p))
-        if (chunk.length > 0) await loadBatch(chunk, isCancelled)
-        if (cancelled) return
+        if (chunk.length > 0) await loadBatch(chunk, isCancelled, epoch)
+        if (cancelled || cacheEpochRef.current !== epoch) return
         if (chunkDelayMs > 0) await sleep(chunkDelayMs)
       }
     })()
@@ -283,7 +292,8 @@ export function useThumbnailSrcs(
     skipThumbnailPaths,
     chunkSize,
     chunkDelayMs,
-    loadBatch
+    loadBatch,
+    cacheEpoch
   ])
 
   const retry = useCallback((path: string) => {

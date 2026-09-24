@@ -3,14 +3,14 @@ import { useCallback, useEffect, useRef, useState } from "react"
 
 import { useCacheInvalidationStore } from "@/store/cacheInvalidationStore"
 import type { CacheClearResult, CacheScope, CacheStats } from "@/types"
-import { errorMessage } from "@/utils/appError"
+import { classifyError, type ClassifiedError } from "@/utils/appError"
 import { clearImageMetaCache } from "@/utils/imageMetaCache"
 
 export function useCacheManager() {
   const [stats, setStats] = useState<CacheStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [clearingScope, setClearingScope] = useState<CacheScope | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<ClassifiedError | null>(null)
   const requestIdRef = useRef(0)
   const mountedRef = useRef(true)
 
@@ -25,7 +25,7 @@ export function useCacheManager() {
       return next
     } catch (e) {
       if (mountedRef.current && requestId === requestIdRef.current) {
-        setError(errorMessage(e))
+        setError(classifyError(e))
       }
       return null
     } finally {
@@ -41,13 +41,13 @@ export function useCacheManager() {
     try {
       const result = await invoke<CacheClearResult>("clear_cache", { scope })
       clearImageMetaCache()
+      useCacheInvalidationStore.getState().invalidate()
       if (mountedRef.current) {
         setStats(result.stats)
-        useCacheInvalidationStore.getState().invalidate()
       }
       return result
     } catch (e) {
-      if (mountedRef.current) setError(errorMessage(e))
+      if (mountedRef.current) setError(classifyError(e))
       throw e
     } finally {
       if (mountedRef.current) setClearingScope(null)
