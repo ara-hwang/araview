@@ -174,15 +174,19 @@ Tauri Store (`settings.json`) is used for:
 
 - Frontend test files: `src/**/*.test.{ts,tsx}`
 - Rust tests are colocated with source modules
-- After every code change, run verification automatically without being asked
-- and auto-apply format/lint (check-only is not enough):
+- While developing, do not run the test suites (`npm test`, `cargo test`).
+  They wait for the completion pass so edits stay fast.
+- After every code change, auto-apply format/lint/typecheck without being asked
+  (check-only is not enough):
+  1. `npx tsc --noEmit`
+  2. `npm run lint:fix` (auto-fix; `npm run lint` is check-only)
+  3. `npm run format` (write mode; `npm run format:check` is check-only)
+  4. `cd src-tauri && cargo fmt` (only when Rust sources changed; `cargo fmt --check` is check-only)
+- Once the change is complete, run verification automatically without being
+  asked:
   1. `npm test`
   2. `cd src-tauri && cargo test` (only when Rust sources changed)
-  3. `npx tsc --noEmit`
-  4. `npm run lint:fix` (auto-fix; `npm run lint` is check-only)
-  5. `npm run format` (write mode; `npm run format:check` is check-only)
-  6. `cd src-tauri && cargo fmt` (only when Rust sources changed; `cargo fmt --check` is check-only)
-  7. Runtime verification with Tauri MCP:
+  3. Runtime verification with Tauri MCP:
      1. `npm run dev:up` (idempotent launcher, waits for `:1420` + `:9323`;
         the dev bridge port is pinned to 9323 in `src-tauri/src/lib.rs` so an
         installed build or another Tauri app cannot take it)
