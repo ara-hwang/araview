@@ -1,4 +1,4 @@
-import { cleanup, renderHook, waitFor } from "@testing-library/react"
+import { act, cleanup, renderHook, waitFor } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 vi.mock("@tauri-apps/api/core", () => ({
@@ -6,10 +6,12 @@ vi.mock("@tauri-apps/api/core", () => ({
 }))
 
 import { useRecentFileDetails } from "@/hooks/useRecentFileDetails"
+import { useCacheInvalidationStore } from "@/store/cacheInvalidationStore"
 import type { ImageInfo } from "@/types"
 
 afterEach(() => {
   cleanup()
+  useCacheInvalidationStore.setState({ epoch: 0 })
 })
 
 const imgInfo = (overrides: Partial<ImageInfo> = {}): ImageInfo => ({
@@ -64,5 +66,28 @@ describe("useRecentFileDetails", () => {
     await waitFor(() => {
       expect(result.current.get("/pics/gone.png")?.status).toBe("error")
     })
+  })
+
+  it("무효화 전에 시작한 결과는 다시 recent 상세에 넣지 않는다", async () => {
+    let resolveFirst: ((info: ImageInfo) => void) | undefined
+    const getOrLoadImage = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise<ImageInfo>((resolve) => {
+            resolveFirst = resolve
+          })
+      )
+      .mockResolvedValue(imgInfo({ file_path: "/pics/new.png" }))
+
+    const { result } = renderHook(() => useRecentFileDetails(["/pics/a.png"], getOrLoadImage))
+    expect(result.current.get("/pics/a.png")?.status).toBe("loading")
+
+    act(() => useCacheInvalidationStore.getState().invalidate())
+    await waitFor(() => expect(getOrLoadImage).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(result.current.get("/pics/a.png")?.status).toBe("done"))
+
+    act(() => resolveFirst?.(imgInfo({ file_path: "/pics/stale.png" })))
+    expect(result.current.get("/pics/a.png")?.info?.file_path).toBe("/pics/new.png")
   })
 })

@@ -103,8 +103,8 @@ src-tauri/
 ## 파생 이미지 캐시
 
 - `settings.json`의 `settings.cacheStorageMode`를 읽어 시작 시 저장 루트를 선택합니다. 값이 없으면 `persistent`입니다.
-- 영구 모드는 Tauri `app_cache_dir()` 아래 `cache-v1/`을 사용하고, 개발 빌드는 `tauri.dev.conf.json`의 identifier 때문에 별도 루트를 사용합니다.
-- `temporary` 모드는 프로세스 수명 `TempDir`를 사용합니다. 모드 설정 변경은 다음 실행부터 적용되며, 영구 캐시를 끄면 다음 시작 때 이전 버전 루트를 정리합니다.
+- 영구 모드는 Tauri `app_cache_dir()` 아래 `cache-v2/`을 사용하고, 개발 빌드는 `tauri.dev.conf.json`의 identifier 때문에 별도 루트를 사용합니다.
+- `temporary` 모드는 사용자 앱 캐시 디렉터리의 `session-v1/` 아래 프로세스별 `TempDir`를 사용합니다. 정상 종료 이벤트와 다음 시작 시 이전 세션 루트를 정리합니다. 모드 설정 변경은 다음 실행부터 적용되며, 영구 캐시를 끄면 다음 시작 때 이전 버전 루트를 정리합니다.
 - `cache.rs`의 `get_cache_stats`와 `clear_cache` 명령은 캐시 트리만 대상으로 합니다. 사용자 원본 파일 경로를 입력받아 삭제하지 않습니다.
 - `process_temp::mark_in_use`로 보호된 파일과 `*.tmp-<pid>-...` 작성 중 파일은 삭제하지 않습니다. 영구 캐시 hit은 mtime을 갱신해 LRU 순서를 유지합니다.
 

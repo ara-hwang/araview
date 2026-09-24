@@ -34,6 +34,11 @@ describe("classifyError", () => {
     expect(classifyError("Failed to read entry data: boom").kind).toBe("corrupt")
   })
 
+  it("classifies cache maintenance failures as unknown", () => {
+    expect(classifyError("Failed to list cache directory: denied").kind).toBe("unknown")
+    expect(classifyError("Failed to join cache stats task: stopped").kind).toBe("unknown")
+  })
+
   it("falls back to unknown", () => {
     expect(classifyError("something totally new").kind).toBe("unknown")
   })

@@ -51,12 +51,26 @@ pub fn extract_archive_image(
     entry_name: &str,
     temp_dir: &Path,
 ) -> Result<PathBuf, AppError> {
+    extract_archive_image_with_protection(archive_path, entry_name, temp_dir, true)
+}
+
+/// 보호 여부를 지정하는 아카이브 추출 진입점. 선확충/선로딩은 `false`로
+/// 호출해 화면에 표시되지 않은 페이지가 보호 슬롯을 소비하지 않게 한다.
+pub fn extract_archive_image_with_protection(
+    archive_path: &Path,
+    entry_name: &str,
+    temp_dir: &Path,
+    protect: bool,
+) -> Result<PathBuf, AppError> {
     let ext = archive_ext(archive_path);
     let out_path = extraction_out_path(temp_dir, entry_name);
-    // FE는 이 경로로 asset URL을 만들어 계속 참조한다. 발행 직후 다른
-    // 스레드의 축출이 지우지 못하도록 추출 전에 보호한다.
-    crate::process_temp::mark_in_use(&out_path);
+    // FE는 표시용으로 이 경로를 asset URL로 계속 참조한다. 선로딩은 보호하지
+    // 않지만, 두 경로 모두 LRU hit 시 modification time을 갱신한다.
+    if protect {
+        crate::process_temp::mark_in_use(&out_path);
+    }
     if out_path.is_file() {
+        crate::process_temp::touch_cache_file(&out_path);
         return Ok(out_path);
     }
 
@@ -67,6 +81,7 @@ pub fn extract_archive_image(
         "cbt" => extract_tar_image(archive_path, entry_name, &out_path),
         _ => Err(AppError::unsupported("Unsupported archive format")),
     }?;
+    crate::process_temp::touch_cache_file(&out_path);
     Ok(out_path)
 }
 
@@ -94,6 +109,7 @@ fn write_extracted(out_path: &Path, buf: &[u8]) -> Result<(), AppError> {
     fs::write(&tmp, buf)
         .map_err(|e| AppError::io("Failed to write temp file", e, ErrorCode::Unknown))?;
     crate::sidecar::publish_atomic(&tmp, out_path, "Failed to publish temp file")?;
+    crate::process_temp::touch_cache_file(out_path);
     // 엔트리마다 디렉터리를 다시 훑지 않도록 누적 바이트로 상한을 추적한다.
     if let Some(dir) = out_path.parent() {
         crate::process_temp::note_written(dir, buf.len() as u64, MAX_ARCHIVE_DIR_BYTES);
@@ -170,6 +186,7 @@ fn extract_zip_image(
 ) -> Result<(), AppError> {
     // 이미 추출됐으면 아카이브를 다시 열지 않는다 (페이지 넘김 가속).
     if out_path.is_file() {
+        crate::process_temp::touch_cache_file(out_path);
         return Ok(());
     }
     let file = open_archive_file(archive_path)?;
@@ -218,6 +235,7 @@ fn extract_7z_image(
     out_path: &Path,
 ) -> Result<(), AppError> {
     if out_path.is_file() {
+        crate::process_temp::touch_cache_file(out_path);
         return Ok(());
     }
     let mut reader =
@@ -282,6 +300,7 @@ fn extract_rar_image(
     out_path: &Path,
 ) -> Result<(), AppError> {
     if out_path.is_file() {
+        crate::process_temp::touch_cache_file(out_path);
         return Ok(());
     }
     let archive = open_rar(archive_path)?;
@@ -441,6 +460,7 @@ fn extract_tar_image(
     out_path: &Path,
 ) -> Result<(), AppError> {
     if out_path.is_file() {
+        crate::process_temp::touch_cache_file(out_path);
         return Ok(());
     }
     let file = open_archive_file(archive_path)?;
@@ -479,7 +499,15 @@ pub fn prefetch_archive_images(
     // 이미 있는 항목만 걸러낸다.
     let missing: Vec<&String> = entry_names
         .iter()
-        .filter(|n| !extraction_out_path(temp_dir, n).is_file())
+        .filter(|n| {
+            let out_path = extraction_out_path(temp_dir, n);
+            if out_path.is_file() {
+                crate::process_temp::touch_cache_file(&out_path);
+                false
+            } else {
+                true
+            }
+        })
         .collect();
     if missing.is_empty() {
         return 0;

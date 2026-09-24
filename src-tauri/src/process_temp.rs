@@ -10,10 +10,12 @@ use tauri::Manager;
 use crate::app_error::{AppError, ErrorCode};
 
 /// Bump when an on-disk cache key or encoding contract changes.
-pub const CACHE_FORMAT_REVISION: u64 = 1;
+pub const CACHE_FORMAT_REVISION: u64 = 2;
 /// Upper bound for the complete app cache tree.
 pub const MAX_TOTAL_CACHE_BYTES: u64 = 2 * 1024 * 1024 * 1024;
-const PERSISTENT_CACHE_DIR: &str = "cache-v1";
+const PERSISTENT_CACHE_DIR: &str = "cache-v2";
+const TEMP_SESSION_DIR: &str = "session-v1";
+const FALLBACK_TEMP_DIR: &str = "araview-cache-fallback-v1";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -33,6 +35,32 @@ struct ActiveCacheRoot {
 static ACTIVE_CACHE_ROOT: LazyLock<Mutex<Option<ActiveCacheRoot>>> =
     LazyLock::new(|| Mutex::new(None));
 
+fn reset_temporary_base(base: &Path) -> Result<(), AppError> {
+    match fs::remove_dir_all(base) {
+        Ok(()) => {}
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+        Err(e) => {
+            return Err(AppError::io(
+                "Failed to clean temporary cache base",
+                e,
+                ErrorCode::Unknown,
+            ))
+        }
+    }
+    fs::create_dir_all(base).map_err(|e| {
+        AppError::io(
+            "Failed to create temporary cache base",
+            e,
+            ErrorCode::Unknown,
+        )
+    })
+}
+
+fn create_temporary_root(base: &Path) -> Result<tempfile::TempDir, AppError> {
+    tempfile::TempDir::new_in(base)
+        .map_err(|e| AppError::unknown(format!("Failed to create temp dir: {e}")))
+}
+
 /// Initialize the cache root before any image command runs.
 ///
 /// Persistent mode uses Tauri's per-application cache directory. The cache is
@@ -49,8 +77,9 @@ pub fn initialize(app: &tauri::AppHandle, mode: CacheStorageMode) -> Result<Path
     match mode {
         CacheStorageMode::Temporary => {
             cleanup_old_versions(&app_cache, None)?;
-            let temp = tempfile::TempDir::new()
-                .map_err(|e| AppError::unknown(format!("Failed to create temp dir: {e}")))?;
+            let session_base = app_cache.join(TEMP_SESSION_DIR);
+            reset_temporary_base(&session_base)?;
+            let temp = create_temporary_root(&session_base)?;
             let path = temp.path().to_path_buf();
             set_active_root(ActiveCacheRoot {
                 path: path.clone(),
@@ -61,6 +90,7 @@ pub fn initialize(app: &tauri::AppHandle, mode: CacheStorageMode) -> Result<Path
             Ok(path)
         }
         CacheStorageMode::Persistent => {
+            reset_temporary_base(&app_cache.join(TEMP_SESSION_DIR))?;
             let root = app_cache.join(PERSISTENT_CACHE_DIR);
             cleanup_old_versions(&app_cache, Some(&root))?;
             fs::create_dir_all(&root).map_err(|e| {
@@ -85,8 +115,9 @@ pub fn initialize(app: &tauri::AppHandle, mode: CacheStorageMode) -> Result<Path
 
 /// Fallback used when Tauri's cache directory cannot be initialized.
 pub fn initialize_temporary_fallback() -> Result<PathBuf, AppError> {
-    let temp = tempfile::TempDir::new()
-        .map_err(|e| AppError::unknown(format!("Failed to create temp dir: {e}")))?;
+    let base = std::env::temp_dir().join(FALLBACK_TEMP_DIR);
+    reset_temporary_base(&base)?;
+    let temp = create_temporary_root(&base)?;
     let path = temp.path().to_path_buf();
     set_active_root(ActiveCacheRoot {
         path: path.clone(),
@@ -142,8 +173,9 @@ pub fn process_temp_dir() -> Result<PathBuf, AppError> {
             // Keep creation under the same lock as the read. Otherwise two
             // first callers can replace one another and drop a TempDir while
             // another thread is still using its path.
-            let temp = tempfile::TempDir::new()
-                .map_err(|e| AppError::unknown(format!("Failed to create temp dir: {e}")))?;
+            let base = std::env::temp_dir().join(FALLBACK_TEMP_DIR);
+            reset_temporary_base(&base)?;
+            let temp = create_temporary_root(&base)?;
             let path = temp.path().to_path_buf();
             *guard = Some(ActiveCacheRoot {
                 path: path.clone(),
@@ -157,6 +189,36 @@ pub fn process_temp_dir() -> Result<PathBuf, AppError> {
     fs::create_dir_all(&path)
         .map_err(|e| AppError::io("Failed to create cache dir", e, ErrorCode::Unknown))?;
     Ok(path)
+}
+
+/// Explicitly remove a session cache root on a normal Tauri exit. Static
+/// values are not dropped at process termination, so TempDir's destructor alone
+/// is not sufficient. A crash is handled by resetting the named session base
+/// during the next startup.
+pub fn cleanup_on_exit() {
+    let path = ACTIVE_CACHE_ROOT.lock().ok().and_then(|guard| {
+        guard.as_ref().and_then(|root| {
+            root._temporary
+                .as_ref()
+                .map(|temp| temp.path().to_path_buf())
+        })
+    });
+    if let Some(path) = path {
+        let _ = fs::remove_dir_all(path);
+    }
+}
+
+pub(crate) fn is_cache_path(path: &Path) -> bool {
+    let Some(root) = ACTIVE_CACHE_ROOT
+        .lock()
+        .ok()
+        .and_then(|guard| guard.as_ref().map(|root| root.path.clone()))
+    else {
+        return false;
+    };
+    let path = fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    let root = fs::canonicalize(&root).unwrap_or(root);
+    path.starts_with(root)
 }
 
 fn cleanup_old_versions(base: &Path, keep: Option<&Path>) -> Result<(), AppError> {
@@ -214,22 +276,39 @@ fn remove_stale_temp_files(root: &Path) {
     }
 }
 
-/// Detect the temp filename shape emitted by `sidecar::tmp_path_for` and
-/// archive extraction. Restricting the match to a numeric pid avoids treating
-/// legitimate names such as `photo.tmp-1.jpg` as in-flight files.
+/// Detect the exact temp filename shape emitted by `sidecar::tmp_path_for`:
+/// `<stem>.tmp-<pid>-ThreadId<n>-<counter>.<ext>`. Matching the complete
+/// suffix avoids treating a legitimate archive name such as
+/// `<hash>_photo.tmp-123-page.jpg` as an in-flight file.
 pub(crate) fn is_inflight_temp_path(path: &Path) -> bool {
     let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
         return false;
     };
-    let Some(start) = name.find(".tmp-") else {
+    let Some(start) = name.rfind(".tmp-") else {
         return false;
     };
     let rest = &name[start + ".tmp-".len()..];
-    let Some(end) = rest.find('-') else {
+    let Some((suffix, extension)) = rest.rsplit_once('.') else {
         return false;
     };
-    let pid = &rest[..end];
-    !pid.is_empty() && pid.bytes().all(|b| b.is_ascii_digit())
+    if extension.is_empty() {
+        return false;
+    }
+    let mut parts = suffix.split('-');
+    let (Some(pid), Some(thread), Some(counter), None) =
+        (parts.next(), parts.next(), parts.next(), parts.next())
+    else {
+        return false;
+    };
+    !pid.is_empty()
+        && pid.bytes().all(|b| b.is_ascii_digit())
+        && thread.starts_with("ThreadId")
+        && thread.len() > "ThreadId".len()
+        && thread["ThreadId".len()..]
+            .bytes()
+            .all(|b| b.is_ascii_digit())
+        && !counter.is_empty()
+        && counter.bytes().all(|b| b.is_ascii_digit())
 }
 
 /// Best-effort LRU touch for persistent cache hits. Reopening the file and
@@ -462,7 +541,7 @@ mod tests {
     #[test]
     fn enforce_cap_skips_inflight_tmp_files() {
         let dir = tempfile::tempdir().unwrap();
-        let inflight = format!("a.tmp-{}-abc-0.jpg", std::process::id());
+        let inflight = format!("a.tmp-{}-ThreadId4-0.jpg", std::process::id());
         fs::write(dir.path().join(&inflight), vec![0u8; 1000]).unwrap();
         fs::write(dir.path().join("b.jpg"), vec![0u8; 100]).unwrap();
         enforce_cap_in(dir.path(), 150).expect("evict");
@@ -563,8 +642,38 @@ mod tests {
     }
 
     #[test]
-    fn inflight_temp_detection_requires_numeric_pid() {
-        assert!(is_inflight_temp_path(Path::new("a.tmp-123-thread-4.jpg")));
+    fn session_base_reset_removes_crashed_roots() {
+        let owner = tempfile::tempdir().unwrap();
+        let base = owner.path().join("session-v1");
+        reset_temporary_base(&base).unwrap();
+        let temp = create_temporary_root(&base).unwrap();
+        let path = temp.path().to_path_buf();
+        assert!(path.is_dir());
+        reset_temporary_base(&base).unwrap();
+        assert!(!path.exists());
+    }
+
+    #[test]
+    fn cache_file_identity_ignores_lru_touch() {
+        let root = process_temp_dir().unwrap();
+        let file = root.join(format!("identity-{}.bin", std::process::id()));
+        fs::write(&file, b"cache").unwrap();
+        let first = crate::sidecar::file_identity_hash(&file, &[]).unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        touch_cache_file(&file);
+        let second = crate::sidecar::file_identity_hash(&file, &[]).unwrap();
+        assert_eq!(first, second);
+        let _ = fs::remove_file(file);
+    }
+
+    #[test]
+    fn inflight_temp_detection_requires_exact_generated_suffix() {
+        assert!(is_inflight_temp_path(Path::new(
+            "a.tmp-123-ThreadId4-0.jpg"
+        )));
+        assert!(!is_inflight_temp_path(Path::new(
+            "0123_photo.tmp-123-page.jpg"
+        )));
         assert!(!is_inflight_temp_path(Path::new("photo.tmp-1.jpg")));
         assert!(!is_inflight_temp_path(Path::new("photo.tmp-part.jpg")));
         assert!(!is_inflight_temp_path(Path::new("ordinary.jpg")));

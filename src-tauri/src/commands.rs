@@ -255,6 +255,7 @@ pub fn load_archive_image(
     archive_path: String,
     entry_name: String,
     max_side: Option<u32>,
+    protect: Option<bool>,
 ) -> Result<ImageInfo, AppError> {
     let arch_path = Path::new(&archive_path);
 
@@ -264,7 +265,12 @@ pub fn load_archive_image(
 
     let sub_dir = archive_sub_dir(arch_path)?;
 
-    let extracted_path = archive::extract_archive_image(arch_path, &entry_name, &sub_dir)?;
+    let extracted_path = archive::extract_archive_image_with_protection(
+        arch_path,
+        &entry_name,
+        &sub_dir,
+        protect.unwrap_or(true),
+    )?;
 
     let info = crate::image::load_viewable_with_limit(&extracted_path, max_side)?;
     allow_asset_path(&app, Path::new(&info.file_path))?;

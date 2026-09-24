@@ -17,7 +17,7 @@ describe("formatFileSize", () => {
     expect(formatFileSize(1024 * 1024 - 1)).toBe("1024.0 KB")
   })
 
-  it("returns MB for values 1 MB and above", () => {
+  it("returns MB below 1 GB and GB at 1 GB and above", () => {
     expect(formatFileSize(1024 * 1024)).toBe("1.0 MB")
     expect(formatFileSize(1024 * 1024 * 2.5)).toBe("2.5 MB")
     expect(formatFileSize(1024 * 1024 * 100)).toBe("100.0 MB")

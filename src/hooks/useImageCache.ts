@@ -27,6 +27,12 @@ import { maxSideForResolution } from "../utils/resolutionLimit"
 /** 픽셀 프리웜 보관 상한. 메타 캐시와 별개로 작게 유지해 메모리 팽창을 막는다. */
 const MAX_PAINT_PRELOADS = 12
 
+type ImageLoadOptions = {
+  protectArchive?: boolean
+  cacheResult?: boolean
+  shareInflight?: boolean
+}
+
 export function useImageCache() {
   const cacheMode = useSettingsStore((state) => state.cacheMode)
   const cacheEpoch = useCacheInvalidationStore((state) => state.epoch)
@@ -98,13 +104,16 @@ export function useImageCache() {
   }, [])
 
   const getOrLoadImage = useCallback(
-    async (pathOrEntry: string): Promise<ImageInfo> => {
+    async (pathOrEntry: string, options: ImageLoadOptions = {}): Promise<ImageInfo> => {
       const scopeAtStart = useAppStore.getState().archivePath
       const generationAtStart = getImageMetaCacheGeneration()
+      const protectArchive = options.protectArchive ?? true
+      const cacheResult = options.cacheResult ?? true
+      const shareInflight = options.shareInflight ?? true
       const cached = getCachedImageInfo(scopeAtStart, pathOrEntry)
       if (cached) return cached
 
-      const inflight = getInflightImageLoad(scopeAtStart, pathOrEntry)
+      const inflight = shareInflight ? getInflightImageLoad(scopeAtStart, pathOrEntry) : null
       if (inflight) return inflight
 
       const promise = (
@@ -112,7 +121,8 @@ export function useImageCache() {
           ? invoke<ImageInfo>("load_archive_image", {
               archivePath: scopeAtStart,
               entryName: pathOrEntry,
-              maxSide
+              maxSide,
+              protect: protectArchive
             })
           : invoke<ImageInfo>("load_image", {
               filePath: pathOrEntry,
@@ -121,6 +131,7 @@ export function useImageCache() {
       )
         .then((imgInfo) => {
           if (
+            cacheResult &&
             useAppStore.getState().archivePath === scopeAtStart &&
             getImageMetaCacheGeneration() === generationAtStart
           ) {
@@ -129,10 +140,14 @@ export function useImageCache() {
           return imgInfo
         })
         .finally(() => {
-          deleteInflightImageLoad(scopeAtStart, pathOrEntry)
+          if (shareInflight) {
+            deleteInflightImageLoad(scopeAtStart, pathOrEntry)
+          }
         })
 
-      setInflightImageLoad(scopeAtStart, pathOrEntry, promise)
+      if (shareInflight) {
+        setInflightImageLoad(scopeAtStart, pathOrEntry, promise)
+      }
       return promise
     },
     [cacheImage, maxSide]
@@ -172,7 +187,16 @@ export function useImageCache() {
           continue
         }
 
-        void getOrLoadImage(targetPath)
+        void getOrLoadImage(
+          targetPath,
+          archivePath
+            ? {
+                protectArchive: false,
+                cacheResult: false,
+                shareInflight: false
+              }
+            : undefined
+        )
           .then((info) => {
             if (getImageMetaCacheGeneration() === generationAtStart) {
               warmPaintImage(info, paintKey)
@@ -202,7 +226,6 @@ export function useImageCache() {
   useEffect(() => {
     if (previousCacheEpochRef.current === cacheEpoch) return
     previousCacheEpochRef.current = cacheEpoch
-    clearImageMetaCache()
     for (const [key, img] of paintPreloadsRef.current) {
       paintPreloadsRef.current.delete(key)
       try {

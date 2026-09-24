@@ -38,6 +38,7 @@ function CategoryIcon({ category }: { category: CacheCategoryKey }) {
 
 export function CacheManagementPanel() {
   const { t } = useTranslation()
+  const tx = t as unknown as (key: string) => string
   const { stats, loading, clearingScope, error, refresh, clear } = useCacheManager()
   const { cacheStorageMode, locale } = useSettingsStore(
     useShallow((state) => ({
@@ -143,7 +144,11 @@ export function CacheManagementPanel() {
             onClick={() => void refresh()}
             disabled={loading || clearingScope !== null}
           >
-            {loading ? <Spinner /> : <ArrowClockwise data-icon="inline-start" />}
+            {loading ? (
+              <Spinner data-icon="inline-start" />
+            ) : (
+              <ArrowClockwise data-icon="inline-start" />
+            )}
             {t("settings.cacheManagement.refresh")}
           </Button>
         </div>
@@ -159,7 +164,11 @@ export function CacheManagementPanel() {
           <Alert variant="destructive">
             <WarningCircle aria-hidden="true" />
             <AlertTitle>{t("settings.cacheManagement.errorTitle")}</AlertTitle>
-            <AlertDescription>{error}</AlertDescription>
+            <AlertDescription>
+              {error.kind === "unknown"
+                ? t("settings.cacheManagement.errorDescription")
+                : tx(error.hintKey)}
+            </AlertDescription>
             <div className="mt-2">
               <Button variant="outline" size="sm" onClick={() => void refresh()}>
                 {t("settings.cacheManagement.retry")}
@@ -194,7 +203,7 @@ export function CacheManagementPanel() {
                 <span className="text-sm text-muted-foreground">
                   {t("settings.cacheManagement.total")}
                 </span>
-                <span className="text-lg font-medium tabular-nums">
+                <span className="text-sm font-medium tabular-nums">
                   {formatFileSize(stats.total_bytes, locale)}
                 </span>
               </div>
@@ -246,12 +255,19 @@ export function CacheManagementPanel() {
                         </FieldDescription>
                       </FieldContent>
                       <Button
-                        variant="ghost"
+                        variant="destructive"
                         size="sm"
                         disabled={clearingScope !== null || category.file_count === 0}
+                        aria-label={t("settings.cacheManagement.clearCategory", {
+                          name: t(`settings.cacheManagement.categories.${category.key}`)
+                        })}
                         onClick={() => void handleClear(category.key)}
                       >
-                        {busy ? <Spinner /> : <Trash data-icon="inline-start" />}
+                        {busy ? (
+                          <Spinner data-icon="inline-start" />
+                        ) : (
+                          <Trash data-icon="inline-start" />
+                        )}
                         {t("settings.cacheManagement.clear")}
                       </Button>
                     </Field>
@@ -265,7 +281,11 @@ export function CacheManagementPanel() {
               onClick={() => void handleClear("all")}
               disabled={clearingScope !== null}
             >
-              {clearingScope === "all" ? <Spinner /> : <Trash data-icon="inline-start" />}
+              {clearingScope === "all" ? (
+                <Spinner data-icon="inline-start" />
+              ) : (
+                <Trash data-icon="inline-start" />
+              )}
               {t("settings.cacheManagement.clearAll")}
             </Button>
           </>

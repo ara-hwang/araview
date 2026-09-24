@@ -83,7 +83,12 @@ const PREFIX_KIND: ReadonlyArray<readonly [string, AppErrorKind]> = [
   ["failed to read 7z", "corrupt"],
   ["failed to read rar", "corrupt"],
   ["failed to read tar", "corrupt"],
-  ["failed to read entry data", "corrupt"]
+  ["failed to read entry data", "corrupt"],
+  ["failed to list cache", "unknown"],
+  ["failed to create cache", "unknown"],
+  ["failed to create persistent cache", "unknown"],
+  ["failed to resolve app cache", "unknown"],
+  ["failed to join cache", "unknown"]
 ]
 
 /** 백엔드 `app_error.rs`의 ErrorCode와 1:1 대응 (snake_case). */

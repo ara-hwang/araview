@@ -244,7 +244,7 @@ CBZ/ZIP의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한다(8
 - 아카이브 모드 제한: 휴지통 이동, 이름 변경, 편집 저장은 안내와 함께 차단된다.
 - 추출 가드: 엔트리 1개당 200MB, solid 7z 블록 총량 2GB, 아카이브별 추출 디렉터리 1GB를 넘으면 `too_large`로 중단한다. RAR은 스트리밍 디코드에 bounded writer를 붙여 선언 크기를 위조한 헤더도 실제 할당 전에 막는다.
 - 목록은 추출과 일치하도록 중복 엔트리 이름을 1회만 노출한다(zip `by_name`은 첫 항목만 돌려준다).
-- 표시용 추출 경로는 추출 전에 `mark_in_use`로 보호하고, 선추출(prefetch)은 보호 슬롯을 소비하지 않는다.
+- 표시용 추출 경로는 추출 전에 `mark_in_use`로 보호하고, 선추출(prefetch)은 보호 슬롯을 소비하지 않는다. `load_archive_image`의 `protect`는 기본 `true`이며 프론트 선로딩은 `false`를 전달한다.
 - 탐색/썸네일은 엔트리 목록 기준으로 동일하게 동작한다.
 
 ## 9. 캐시/썸네일/프리페치
@@ -270,8 +270,8 @@ CBZ/ZIP의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한다(8
 ### 9.2 저장 방식
 
 - `cacheStorageMode`는 `temporary | persistent`이며 기본값은 `persistent`다.
-- `persistent`는 Tauri `app.path().app_cache_dir()` 아래 `cache-v1/`을 사용하며 앱 재실행 뒤에도 썸네일, sidecar, 축소본, 아카이브 추출물을 재사용한다.
-- `temporary`는 프로세스 수명 `TempDir`를 사용하고 종료 시 삭제한다. 저장 방식 변경은 다음 실행부터 적용된다.
+- `persistent`는 Tauri `app.path().app_cache_dir()` 아래 `cache-v2/`을 사용하며 앱 재실행 뒤에도 썸네일, sidecar, 축소본, 아카이브 추출물을 재사용한다.
+- `temporary`는 사용자 앱 캐시 디렉터리의 버전된 `session-v1/` 아래 프로세스별 `TempDir`를 사용한다. 정상 종료 이벤트와 다음 시작 시 이전 세션 루트를 정리해 종료·충돌 후에도 임시 파일을 남기지 않는다. 저장 방식 변경은 다음 실행부터 적용된다.
 - 영구 캐시는 OS가 지울 수 있는 best-effort 데이터다. 원본이나 렌더 결과의 진실 원본은 아니다.
 - 일반 빌드와 개발 빌드는 Tauri identifier가 달라 캐시 루트가 분리된다.
 - 시작 시 이전 `cache-v*` 버전 디렉터리와 이전 프로세스의 orphan temp 파일을 정리한다.
@@ -398,7 +398,7 @@ CBZ/ZIP의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한다(8
 - 최근 파일 카드의 아카이브 항목은 읽기 진도(`index+1/total`)를 함께 표시한다.
 - `cacheStorageMode`는 `temporary | persistent` 중 하나를 저장하며 기본값은 `persistent`다. 값이 손상됐거나 없으면 `persistent`로 복원한다.
 - 설정 저장은 손상값도 복원한다. 언어는 저장값이 없으면 시스템 언어를 쓴다.
-- 저장 방식 변경은 현재 프로세스의 캐시 루트를 즉시 바꾸지 않고 다음 실행부터 적용한다. 영구 캐시를 끄는 경우 다음 시작 시 이전 `cache-v1`을 정리한다.
+- 저장 방식 변경은 현재 프로세스의 캐시 루트를 즉시 바꾸지 않고 다음 실행부터 적용한다. 영구 캐시를 끄는 경우 다음 시작 시 이전 `cache-v*`을 정리한다.
 
 ## 13. 설정
 
@@ -510,35 +510,35 @@ CBZ/ZIP의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한다(8
 
 진실: `src-tauri/src/lib.rs` `invoke_handler`, `src-tauri/src/commands.rs`, `src-tauri/src/save.rs`, `src-tauri/src/thumb_shell.rs`.
 
-| 명령                              | 입력 (JS camelCase)                    | 반환                                   |
-| --------------------------------- | -------------------------------------- | -------------------------------------- |
-| `load_image`                      | `filePath`, `maxSide?`                 | `ImageInfo`                            |
-| `get_directory_images`            | `filePath`, `options?`                 | `DirectoryImages`                      |
-| `resolve_dropped_path`            | `path`                                 | 해석된 파일 경로 `string`              |
-| `get_exif_data`                   | `filePath`                             | `Record<string, string>`               |
-| `get_image_histogram`             | `filePath`                             | `Histogram`                            |
-| `get_image_details`               | `filePath`                             | `ImageDetails`                         |
-| `get_archive_images`              | `filePath`                             | `DirectoryImages`(엔트리 목록)         |
-| `get_comic_info`                  | `filePath`                             | `ComicInfo \| null`(CBZ/ZIP 전용)      |
-| `load_archive_image`              | `archivePath`, `entryName`, `maxSide?` | `ImageInfo`                            |
-| `archive_prefetch`                | `archivePath`, `entryNames`            | 추출 개수 `number`                     |
-| `generate_thumbnail`              | `filePath`, `maxSide?`                 | `ThumbnailInfo`                        |
-| `generate_thumbnails_batch`       | `filePaths`, `maxSide?`                | `BatchThumb[]`                         |
-| `get_cached_thumbnail`            | `filePath`                             | `ThumbnailInfo \| null`(캐시 히트만)   |
-| `get_cache_stats`                 | 없음                                   | `CacheStats`                           |
-| `clear_cache`                     | `scope`                                | `CacheClearResult`                     |
-| `generate_archive_thumbnail`      | `archivePath`, `entryName`, `maxSide?` | `ThumbnailInfo`                        |
-| `generate_archive_file_thumbnail` | `archivePath`, `maxSide?`              | `ThumbnailInfo`(첫 이미지 엔트리 기준) |
-| `get_file_associations`           | 없음                                   | `FileAssociation[]`                    |
-| `set_file_association`            | `extension`, `associate`               | `FileAssociation`                      |
-| `open_default_apps_settings`      | 없음                                   | 없음                                   |
-| `get_psd_thumbnail_status`        | 없음                                   | `PsdThumbStatus`                       |
-| `register_psd_thumbnail`          | 없음                                   | `PsdThumbStatus`                       |
-| `unregister_psd_thumbnail`        | 없음                                   | `PsdThumbStatus`                       |
-| `trash_file`                      | `filePath`                             | 없음                                   |
-| `rename_file`                     | `oldPath`, `newName`, `maxSide?`       | `ImageInfo`                            |
-| `save_image_edits`                | `filePath`, `options`                  | `ImageInfo`                            |
-| `frontend_ready`                  | 없음                                   | 없음 (`PendingOpenFile` flush)         |
+| 명령                              | 입력 (JS camelCase)                                | 반환                                   |
+| --------------------------------- | -------------------------------------------------- | -------------------------------------- |
+| `load_image`                      | `filePath`, `maxSide?`                             | `ImageInfo`                            |
+| `get_directory_images`            | `filePath`, `options?`                             | `DirectoryImages`                      |
+| `resolve_dropped_path`            | `path`                                             | 해석된 파일 경로 `string`              |
+| `get_exif_data`                   | `filePath`                                         | `Record<string, string>`               |
+| `get_image_histogram`             | `filePath`                                         | `Histogram`                            |
+| `get_image_details`               | `filePath`                                         | `ImageDetails`                         |
+| `get_archive_images`              | `filePath`                                         | `DirectoryImages`(엔트리 목록)         |
+| `get_comic_info`                  | `filePath`                                         | `ComicInfo \| null`(CBZ/ZIP 전용)      |
+| `load_archive_image`              | `archivePath`, `entryName`, `maxSide?`, `protect?` | `ImageInfo`                            |
+| `archive_prefetch`                | `archivePath`, `entryNames`                        | 추출 개수 `number`                     |
+| `generate_thumbnail`              | `filePath`, `maxSide?`                             | `ThumbnailInfo`                        |
+| `generate_thumbnails_batch`       | `filePaths`, `maxSide?`                            | `BatchThumb[]`                         |
+| `get_cached_thumbnail`            | `filePath`                                         | `ThumbnailInfo \| null`(캐시 히트만)   |
+| `get_cache_stats`                 | 없음                                               | `CacheStats`                           |
+| `clear_cache`                     | `scope`                                            | `CacheClearResult`                     |
+| `generate_archive_thumbnail`      | `archivePath`, `entryName`, `maxSide?`             | `ThumbnailInfo`                        |
+| `generate_archive_file_thumbnail` | `archivePath`, `maxSide?`                          | `ThumbnailInfo`(첫 이미지 엔트리 기준) |
+| `get_file_associations`           | 없음                                               | `FileAssociation[]`                    |
+| `set_file_association`            | `extension`, `associate`                           | `FileAssociation`                      |
+| `open_default_apps_settings`      | 없음                                               | 없음                                   |
+| `get_psd_thumbnail_status`        | 없음                                               | `PsdThumbStatus`                       |
+| `register_psd_thumbnail`          | 없음                                               | `PsdThumbStatus`                       |
+| `unregister_psd_thumbnail`        | 없음                                               | `PsdThumbStatus`                       |
+| `trash_file`                      | `filePath`                                         | 없음                                   |
+| `rename_file`                     | `oldPath`, `newName`, `maxSide?`                   | `ImageInfo`                            |
+| `save_image_edits`                | `filePath`, `options`                              | `ImageInfo`                            |
+| `frontend_ready`                  | 없음                                               | 없음 (`PendingOpenFile` flush)         |
 
 인자 변환과 직렬화 규칙은 0절을 따른다. 응답은 snake_case이며 TypeScript 타입과 1:1 대응한다.
 

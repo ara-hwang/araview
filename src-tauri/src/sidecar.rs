@@ -89,11 +89,14 @@ pub fn file_identity_hash(source: &Path, extra: &[u8]) -> Result<u64, AppError> 
         .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
         .map(|d| d.as_nanos())
         .unwrap_or(0);
+    let is_cache_file = crate::process_temp::is_cache_path(source);
     let mut hasher = StableHasher::new();
     hasher.write_u64_le(crate::process_temp::CACHE_FORMAT_REVISION);
     hasher.write(canonical.to_string_lossy().as_bytes());
-    hasher.write(&[0xff]);
-    hasher.write_u128_le(mtime);
+    hasher.write(&[if is_cache_file { 0xfd } else { 0xfc }]);
+    if !is_cache_file {
+        hasher.write_u128_le(mtime);
+    }
     hasher.write_u64_le(meta.len());
     if !extra.is_empty() {
         hasher.write(&[0xfe]);
@@ -283,6 +286,8 @@ mod tests {
         assert_eq!(first.extension().and_then(|e| e.to_str()), Some("jpg"));
         assert_eq!(second.extension().and_then(|e| e.to_str()), Some("jpg"));
         assert_eq!(first.parent(), second.parent());
+        assert!(crate::process_temp::is_inflight_temp_path(&first));
+        assert!(crate::process_temp::is_inflight_temp_path(&second));
     }
 
     #[test]
