@@ -55,8 +55,12 @@ pub(crate) fn allow_asset_path(app: &tauri::AppHandle, path: &Path) -> Result<()
 }
 
 #[tauri::command]
-pub fn load_image(app: tauri::AppHandle, file_path: String) -> Result<ImageInfo, AppError> {
-    let info = crate::image::load_viewable(Path::new(&file_path))?;
+pub fn load_image(
+    app: tauri::AppHandle,
+    file_path: String,
+    max_side: Option<u32>,
+) -> Result<ImageInfo, AppError> {
+    let info = crate::image::load_viewable_with_limit(Path::new(&file_path), max_side)?;
     allow_asset_path(&app, Path::new(&info.file_path))?;
     Ok(info)
 }
@@ -250,6 +254,7 @@ pub fn load_archive_image(
     app: tauri::AppHandle,
     archive_path: String,
     entry_name: String,
+    max_side: Option<u32>,
 ) -> Result<ImageInfo, AppError> {
     let arch_path = Path::new(&archive_path);
 
@@ -261,7 +266,7 @@ pub fn load_archive_image(
 
     let extracted_path = archive::extract_archive_image(arch_path, &entry_name, &sub_dir)?;
 
-    let info = crate::image::load_viewable(&extracted_path)?;
+    let info = crate::image::load_viewable_with_limit(&extracted_path, max_side)?;
     allow_asset_path(&app, Path::new(&info.file_path))?;
     Ok(info)
 }
@@ -444,13 +449,18 @@ pub fn rename_file(
     app: tauri::AppHandle,
     old_path: String,
     new_name: String,
+    max_side: Option<u32>,
 ) -> Result<ImageInfo, AppError> {
-    let info = rename_file_impl(&old_path, &new_name)?;
+    let info = rename_file_impl(&old_path, &new_name, max_side)?;
     allow_asset_path(&app, Path::new(&info.file_path))?;
     Ok(info)
 }
 
-fn rename_file_impl(old_path: &str, new_name: &str) -> Result<ImageInfo, AppError> {
+fn rename_file_impl(
+    old_path: &str,
+    new_name: &str,
+    max_side: Option<u32>,
+) -> Result<ImageInfo, AppError> {
     use crate::image::is_supported_file;
 
     let old = Path::new(old_path);
@@ -480,7 +490,7 @@ fn rename_file_impl(old_path: &str, new_name: &str) -> Result<ImageInfo, AppErro
             .map_err(|e| AppError::io("Failed to rename", e, ErrorCode::Unknown))?;
     }
 
-    crate::image::load_viewable(&new_path)
+    crate::image::load_viewable_with_limit(&new_path, max_side)
 }
 
 #[cfg(test)]
@@ -504,7 +514,7 @@ mod tests {
 
     #[test]
     fn rename_rejects_missing_file() {
-        let err = rename_file_impl("D:\\no-such-dir\\nope.png", "new.png").unwrap_err();
+        let err = rename_file_impl("D:\\no-such-dir\\nope.png", "new.png", None).unwrap_err();
         assert_eq!(err.code, ErrorCode::NotFound);
         assert_eq!(err.message, "File not found");
     }
@@ -517,7 +527,7 @@ mod tests {
         let old_str = old.to_str().unwrap().to_string();
 
         for bad in ["", "   ", "sub/dir.png", "a<b.png", "trail."] {
-            let err = rename_file_impl(&old_str, bad).unwrap_err();
+            let err = rename_file_impl(&old_str, bad, None).unwrap_err();
             assert_eq!(
                 err.code,
                 ErrorCode::InvalidInput,
@@ -536,7 +546,7 @@ mod tests {
         let old = dir.join("a.png");
         fs::write(&old, []).expect("write dummy");
 
-        let err = rename_file_impl(old.to_str().unwrap(), "b.txt").unwrap_err();
+        let err = rename_file_impl(old.to_str().unwrap(), "b.txt", None).unwrap_err();
         assert_eq!(err.code, ErrorCode::Unsupported);
         assert_eq!(err.message, "Unsupported image format");
         // rename 전에 차단되므로 원본 유지
@@ -552,7 +562,7 @@ mod tests {
         fs::write(&old, []).expect("write dummy");
         fs::write(dir.join("b.png"), []).expect("write dummy");
 
-        let err = rename_file_impl(old.to_str().unwrap(), "b.png").unwrap_err();
+        let err = rename_file_impl(old.to_str().unwrap(), "b.png", None).unwrap_err();
         assert_eq!(err.code, ErrorCode::AlreadyExists);
         assert_eq!(err.message, "A file with that name already exists");
         fs::remove_dir_all(&dir).ok();
@@ -564,7 +574,7 @@ mod tests {
         let old = dir.join("a.png");
         fs::write(&old, [0u8; 16]).expect("write dummy");
 
-        let info = rename_file_impl(old.to_str().unwrap(), "b.png").expect("rename ok");
+        let info = rename_file_impl(old.to_str().unwrap(), "b.png", None).expect("rename ok");
         assert_eq!(info.file_name, "b.png");
         assert_eq!(info.file_size, 16);
         // 더미 바이트는 디코드 불가라 치수 생략

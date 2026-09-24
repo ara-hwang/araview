@@ -1,4 +1,4 @@
-import { act, cleanup, renderHook } from "@testing-library/react"
+import { act, cleanup, renderHook, waitFor } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 const h = vi.hoisted(() => ({
@@ -40,6 +40,7 @@ const ENTRIES = ["001.jpg", "002.jpg", "003.jpg", "004.jpg", "005.jpg"]
 
 const imgInfo = (entry: string): ImageInfo => ({
   file_path: `/temp/${entry}`,
+  source_path: `/temp/${entry}`,
   mime_type: "image/jpeg",
   file_name: entry,
   file_size: 100,
@@ -300,5 +301,38 @@ describe("useImageLoader 양면 이어보기", () => {
     })
 
     expect(useAppStore.getState().dirImages.current_index).toBe(2)
+  })
+})
+
+describe("useImageLoader 표시 해상도 상한", () => {
+  it("상한이 바뀌면 새 maxSide로 현재 이미지를 다시 로드한다", async () => {
+    useSettingsStore.setState({ maxResolution: "original" })
+    const maxSides: Array<number | null> = []
+    setupInvoke({
+      load_image: async (args) => {
+        maxSides.push((args?.maxSide as number | null | undefined) ?? null)
+        return { ...imgInfo(String(args?.filePath)), file_name: "a.jpg" }
+      },
+      get_directory_images: async () => ({
+        images: ["/pics/a.jpg"],
+        current_index: 0,
+        availability: []
+      })
+    })
+    const { result } = renderHook(() => useImageLoader())
+
+    await act(async () => {
+      await result.current.loadImage("/pics/a.jpg")
+    })
+    expect(maxSides).toEqual([null])
+
+    await act(async () => {
+      useSettingsStore.setState({ maxResolution: "4k" })
+    })
+
+    await waitFor(() => {
+      expect(maxSides).toEqual([null, 3840])
+    })
+    expect(useAppStore.getState().imageInfo?.file_name).toBe("a.jpg")
   })
 })

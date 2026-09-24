@@ -13,6 +13,7 @@ const gif: ImageInfo = {
   mime_type: "image/gif",
   file_name: "anim.gif",
   file_path: "C:/x/anim.gif",
+  source_path: "C:/x/anim.gif",
   file_size: 10,
   width: 4,
   height: 4
@@ -21,6 +22,7 @@ const png: ImageInfo = {
   mime_type: "image/png",
   file_name: "photo.png",
   file_path: "C:/x/photo.png",
+  source_path: "C:/x/photo.png",
   file_size: 10,
   width: 4,
   height: 4

@@ -6,8 +6,12 @@ use crate::file_availability::FileAvailability;
 
 #[derive(Serialize, Debug)]
 pub struct ImageInfo {
-    /// Bytes the WebView can decode. May be a JPEG sidecar, not the listing path.
+    /// Bytes the WebView can decode. May be a JPEG/PNG sidecar, not the listing path.
     pub file_path: String,
+    /// File the user opened. Never a sidecar; archive entries point at the
+    /// extracted file. File operations (trash/rename/save/reveal) use this,
+    /// not `file_path`.
+    pub source_path: String,
     pub mime_type: String,
     pub file_name: String,
     pub file_size: u64,
@@ -318,6 +322,16 @@ pub fn validate_new_file_name(name: &str) -> Result<String, AppError> {
 }
 
 pub fn image_info(source: &Path, paint_path: PathBuf) -> Result<ImageInfo, AppError> {
+    image_info_with_dims(source, paint_path, None)
+}
+
+/// `dims_override`: 표시 바이트가 원본과 다른 기준(축소 sidecar)일 때의 치수.
+/// None이면 렌더 경로에서 계산한다(EXIF orientation 반영).
+fn image_info_with_dims(
+    source: &Path,
+    paint_path: PathBuf,
+    dims_override: Option<(u32, u32)>,
+) -> Result<ImageInfo, AppError> {
     let mime_type = get_mime_type(source)
         .ok_or_else(|| AppError::unsupported("Unsupported image format"))?
         .to_string();
@@ -328,10 +342,14 @@ pub fn image_info(source: &Path, paint_path: PathBuf) -> Result<ImageInfo, AppEr
         .and_then(|n| n.to_str())
         .unwrap_or("unknown")
         .to_string();
-    // Rendered bytes 기준 치수. image 크레이트 미지원분(SVG)은 헤더 파싱으로 복원.
-    let (width, height) = render_dimensions(&mime_type, source, &paint_path);
+    let (width, height) = match dims_override {
+        Some((width, height)) => (Some(width), Some(height)),
+        // Rendered bytes 기준 치수. image 크레이트 미지원분(SVG)은 헤더 파싱으로 복원.
+        None => render_dimensions(&mime_type, source, &paint_path),
+    };
     Ok(ImageInfo {
         file_path: paint_path.to_string_lossy().to_string(),
+        source_path: source.to_string_lossy().to_string(),
         mime_type,
         file_name,
         file_size: metadata.len(),
@@ -341,19 +359,41 @@ pub fn image_info(source: &Path, paint_path: PathBuf) -> Result<ImageInfo, AppEr
 }
 
 pub fn load_viewable(source: &Path) -> Result<ImageInfo, AppError> {
+    load_viewable_with_limit(source, None)
+}
+
+/// `max_side`: 표시용 긴 변 상한(px). `None`이면 원본 바이트 그대로 렌더한다.
+/// 상한을 넘는 래스터는 `scaled/` sidecar로 한 번만 축소하고, 반환 치수는 그
+/// 사본 기준이다. `source_path`는 항상 원본 파일을 가리켜 파일 작업이 캐시
+/// 산출물을 건드리지 않게 한다.
+pub fn load_viewable_with_limit(
+    source: &Path,
+    max_side: Option<u32>,
+) -> Result<ImageInfo, AppError> {
     if !source.exists() {
         return Err(AppError::not_found("File not found"));
     }
     let mime =
         get_mime_type(source).ok_or_else(|| AppError::unsupported("Unsupported image format"))?;
-    let paint_path = match paint_strategy(mime) {
+    let base_path = match paint_strategy(mime) {
         PaintStrategy::Native => source.to_path_buf(),
         PaintStrategy::TranscodeJpeg if mime == crate::psd_sidecar::PSD_MIME => {
             crate::psd_sidecar::ensure_jpeg_sidecar(source)?
         }
         PaintStrategy::TranscodeJpeg => crate::heif::ensure_jpeg_sidecar(source)?,
     };
-    image_info(source, paint_path)
+    let mut dims_override = None;
+    let paint_path = match max_side {
+        Some(limit) => match crate::scaled::ensure_scaled_sidecar(&base_path, limit)? {
+            Some(scaled) => {
+                dims_override = Some((scaled.width, scaled.height));
+                scaled.path
+            }
+            None => base_path,
+        },
+        None => base_path,
+    };
+    image_info_with_dims(source, paint_path, dims_override)
 }
 
 pub fn is_image_file(path: &Path) -> bool {
@@ -634,6 +674,7 @@ mod tests {
         assert_eq!(info.file_name, "IMG_0001.heic");
         assert_eq!(info.file_size, 15);
         assert_eq!(info.file_path, paint.to_string_lossy());
+        assert_eq!(info.source_path, source.to_string_lossy());
         // 디코드 불가 paint 경로는 치수 생략
         assert_eq!(info.width, None);
         assert_eq!(info.height, None);
@@ -649,8 +690,48 @@ mod tests {
         assert_eq!(info.file_name, "photo.png");
         assert_eq!(info.file_size, MIN_PNG.len() as u64);
         assert_eq!(info.file_path, source.to_string_lossy());
+        assert_eq!(info.source_path, source.to_string_lossy());
         assert_eq!(info.width, Some(1));
         assert_eq!(info.height, Some(1));
+    }
+
+    #[test]
+    fn load_viewable_with_limit_scales_over_cap_and_keeps_source_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("huge.png");
+        let img = image::RgbImage::new(2000, 1000);
+        image::DynamicImage::ImageRgb8(img).save(&source).unwrap();
+
+        let info = load_viewable_with_limit(&source, Some(512)).unwrap();
+        assert_ne!(info.file_path, source.to_string_lossy());
+        assert!(info.file_path.ends_with(".jpg"));
+        assert_eq!(info.source_path, source.to_string_lossy());
+        assert_eq!((info.width, info.height), (Some(512), Some(256)));
+    }
+
+    #[test]
+    fn load_viewable_with_limit_keeps_original_when_within_cap() {
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("photo.png");
+        std::fs::write(&source, MIN_PNG).unwrap();
+
+        let info = load_viewable_with_limit(&source, Some(3840)).unwrap();
+        assert_eq!(info.file_path, source.to_string_lossy());
+        assert_eq!(info.source_path, source.to_string_lossy());
+        assert_eq!((info.width, info.height), (Some(1), Some(1)));
+    }
+
+    #[test]
+    fn load_viewable_with_limit_reports_oriented_scaled_dimensions() {
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("phone.jpg");
+        // 저장 2048x1024 + EXIF 6(시계 90도) → 표시 1024x2048, 상한 512 → 256x512
+        crate::orientation::write_test_jpeg_with_orientation(&source, 2048, 1024, 6);
+
+        let info = load_viewable_with_limit(&source, Some(512)).unwrap();
+        assert_ne!(info.file_path, source.to_string_lossy());
+        assert_eq!(info.source_path, source.to_string_lossy());
+        assert_eq!((info.width, info.height), (Some(256), Some(512)));
     }
 
     #[test]

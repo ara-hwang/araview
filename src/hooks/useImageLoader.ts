@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core"
 import { open } from "@tauri-apps/plugin-dialog"
-import { useCallback, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 
 import { toast } from "@/components/ui/toast"
 import { SUPPORTED_IMAGE_EXTENSIONS } from "@/constants/imageExtensions"
@@ -19,6 +19,7 @@ import { buildDirListOptions } from "@/utils/directoryOptions"
 import { resolvePairStart } from "@/utils/dirNavigation"
 import { beginImageLoad, isCurrentImageLoad } from "@/utils/imageLoadSession"
 import { shouldUsePreviewThumbnail } from "@/utils/previewThumbnail"
+import { maxSideForResolution } from "@/utils/resolutionLimit"
 import { MAX_SKIP_ATTEMPTS, findSkipTarget } from "@/utils/skipBroken"
 
 function endImageLoadIfCurrent(token: number): void {
@@ -107,7 +108,8 @@ export function useImageLoader() {
       try {
         const imgInfo = await invoke<ImageInfo>("load_archive_image", {
           archivePath,
-          entryName
+          entryName,
+          maxSide: maxSideForResolution(useSettingsStore.getState().maxResolution)
         })
         if (!isCurrentImageLoad(loadToken)) return
         setImageInfoAndResetView(imgInfo)
@@ -200,7 +202,8 @@ export function useImageLoader() {
         const firstEntry = archiveImages.images[startIndex]
         const imgInfo = await invoke<ImageInfo>("load_archive_image", {
           archivePath,
-          entryName: firstEntry
+          entryName: firstEntry,
+          maxSide: maxSideForResolution(useSettingsStore.getState().maxResolution)
         })
 
         if (!isCurrentImageLoad(loadToken)) return
@@ -287,7 +290,8 @@ export function useImageLoader() {
         }
         const imgInfo = await invoke<ImageInfo>("load_archive_image", {
           archivePath,
-          entryName: firstEntry
+          entryName: firstEntry,
+          maxSide: maxSideForResolution(useSettingsStore.getState().maxResolution)
         })
         if (!isCurrentImageLoad(loadToken)) return
         setImageInfoAndResetView(imgInfo)
@@ -439,6 +443,25 @@ export function useImageLoader() {
       loadArchivePreview
     ]
   )
+
+  // 표시 해상도 상한이 바뀌면 이전 기준으로 캐시된 메타를 버리고 현재
+  // 이미지를 새 기준으로 다시 로드한다. 폴더 목록 인덱스는 유지된다.
+  const maxResolution = useSettingsStore((state) => state.maxResolution)
+  const prevMaxResolutionRef = useRef(maxResolution)
+  useEffect(() => {
+    if (prevMaxResolutionRef.current === maxResolution) return
+    prevMaxResolutionRef.current = maxResolution
+    clearImageMetaCache()
+    const st = useAppStore.getState()
+    const current = st.dirImages.images[st.dirImages.current_index]
+    if (st.archivePreviewPath) {
+      void loadImage(st.archivePreviewPath, { refreshDirectory: false })
+    } else if (st.archivePath && current) {
+      void loadArchiveImageByIndex(st.archivePath, current)
+    } else if (current) {
+      void loadImage(current, { refreshDirectory: false })
+    }
+  }, [maxResolution, clearImageMetaCache, loadArchiveImageByIndex, loadImage])
 
   const handleOpenFile = useCallback(async () => {
     const selected = await open({

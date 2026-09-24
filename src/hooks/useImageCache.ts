@@ -17,6 +17,7 @@ import {
   trimImageMetaCache
 } from "../utils/imageMetaCache"
 import { getPrefetchOrder } from "../utils/prefetchOrder"
+import { maxSideForResolution } from "../utils/resolutionLimit"
 
 // Tauri 백엔드에서 불러온 이미지를 메모리 캐시에 저장하고,
 // 설정에 따라 캐시 용량/프리패치 범위를 제어하는 훅
@@ -26,10 +27,12 @@ const MAX_PAINT_PRELOADS = 12
 
 export function useImageCache() {
   const cacheMode = useSettingsStore((state) => state.cacheMode)
+  const maxResolution = useSettingsStore((state) => state.maxResolution)
   const paintPreloadsRef = useRef<Map<string, HTMLImageElement>>(new Map())
 
   const cacheLimit = useMemo(() => getCacheLimit(cacheMode), [cacheMode])
   const cacheByteLimit = useMemo(() => getCacheByteLimit(cacheMode), [cacheMode])
+  const maxSide = useMemo(() => maxSideForResolution(maxResolution), [maxResolution])
 
   const estimateImageBytes = useCallback((imgInfo: ImageInfo): number => {
     // Asset Protocol 전환 이후 이미지 데이터는 프론트 메모리에 상주하지 않는다.
@@ -98,9 +101,13 @@ export function useImageCache() {
         scopeAtStart
           ? invoke<ImageInfo>("load_archive_image", {
               archivePath: scopeAtStart,
-              entryName: pathOrEntry
+              entryName: pathOrEntry,
+              maxSide
             })
-          : invoke<ImageInfo>("load_image", { filePath: pathOrEntry })
+          : invoke<ImageInfo>("load_image", {
+              filePath: pathOrEntry,
+              maxSide
+            })
       )
         .then((imgInfo) => {
           if (useAppStore.getState().archivePath === scopeAtStart) {
@@ -115,7 +122,7 @@ export function useImageCache() {
       setInflightImageLoad(scopeAtStart, pathOrEntry, promise)
       return promise
     },
-    [cacheImage]
+    [cacheImage, maxSide]
   )
 
   const prefetchNearbyImages = useCallback(
@@ -164,6 +171,19 @@ export function useImageCache() {
       }
     }
   }, [cacheByteLimit, cacheLimit, cacheMode, trimCacheToBudget])
+
+  // 해상도 상한이 바뀌면 이전 기준으로 예열한 픽셀을 버린다. 새 기준의
+  // 메타는 useImageLoader가 캐시를 비우고 현재 이미지를 다시 로드한다.
+  useEffect(() => {
+    for (const [key, img] of paintPreloadsRef.current) {
+      paintPreloadsRef.current.delete(key)
+      try {
+        img.removeAttribute("src")
+      } catch {
+        // 무시
+      }
+    }
+  }, [maxResolution])
 
   return {
     getOrLoadImage,

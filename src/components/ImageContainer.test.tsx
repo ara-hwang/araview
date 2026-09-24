@@ -33,6 +33,7 @@ describe("ImageContainer single mode", () => {
     useAppStore.setState({
       imageInfo: {
         file_path: "/pics/a.jpg",
+        source_path: "/pics/a.jpg",
         file_name: "a.jpg",
         file_size: 123,
         mime_type: "image/jpeg",
@@ -81,6 +82,7 @@ describe("ImageContainer single mode", () => {
     useAppStore.setState({
       imageInfo: {
         file_path: "/pics/vector.svg",
+        source_path: "/pics/vector.svg",
         file_name: "vector.svg",
         file_size: 456,
         mime_type: "image/svg+xml",
@@ -119,6 +121,7 @@ describe("ImageContainer single mode", () => {
     useAppStore.setState({
       imageInfo: {
         file_path: "/pics/vector.svg",
+        source_path: "/pics/vector.svg",
         file_name: "vector.svg",
         file_size: 456,
         mime_type: "image/svg+xml",

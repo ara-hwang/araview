@@ -13,6 +13,7 @@ pub mod orientation;
 pub mod process_temp;
 pub mod psd_sidecar;
 pub mod save;
+pub mod scaled;
 pub mod sidecar;
 pub mod stable_hash;
 pub mod thumb_shell;

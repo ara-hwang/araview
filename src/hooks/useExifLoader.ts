@@ -29,14 +29,16 @@ async function loadDetailsSilent(filePath: string) {
 
 export function useExifLoader() {
   const loadExif = useCallback(async () => {
-    // imageInfo.file_path가 정답: 아카이브 모드에서는 추출된 임시 경로,
-    // 일반 모드에서는 실제 파일 경로. dirImages entry는 아카이브에서
-    // zip 내부 이름이라 get_exif_data에 그대로 쓸 수 없다.
-    const filePath = useAppStore.getState().imageInfo?.file_path
-    if (!filePath) return
+    // 아카이브 모드에서는 추출된 임시 경로, 일반 모드에서는 실제 파일 경로다.
+    // EXIF와 파일 상세는 원본(source_path)을 설명해야 하므로 축소 sidecar가
+    // 아닌 원본을 읽고, 히스토그램은 렌더 바이트(file_path)를 그대로 쓴다.
+    const { imageInfo } = useAppStore.getState()
+    const paintPath = imageInfo?.file_path
+    const sourcePath = imageInfo?.source_path ?? imageInfo?.file_path
+    if (!sourcePath || !paintPath) return
 
     try {
-      const data = await invoke<ExifData>("get_exif_data", { filePath })
+      const data = await invoke<ExifData>("get_exif_data", { filePath: sourcePath })
       useAppStore.setState({ exifData: data, exifError: null })
     } catch (e) {
       // EXIF 자체가 없는 파일은 실패가 아닌 빈 상태로 취급한다.
@@ -49,7 +51,7 @@ export function useExifLoader() {
       }
     }
     // 히스토그램/파일 상세는 EXIF 유무와 독립적으로 병렬 로드한다.
-    await Promise.all([loadHistogramSilent(filePath), loadDetailsSilent(filePath)])
+    await Promise.all([loadHistogramSilent(paintPath), loadDetailsSilent(sourcePath)])
   }, [])
 
   const toggleExifPanel = useCallback(async () => {

@@ -14,6 +14,7 @@ afterEach(() => {
 
 const imgInfo = (overrides: Partial<ImageInfo> = {}): ImageInfo => ({
   file_path: "/pics/a.png",
+  source_path: "/pics/a.png",
   mime_type: "image/png",
   file_name: "a.png",
   file_size: 2048,
@@ -39,6 +40,7 @@ describe("useRecentFileDetails", () => {
     const getOrLoadImage = vi.fn(async () =>
       imgInfo({
         file_path: "/docs/comic.cbz",
+        source_path: "/docs/comic.cbz",
         file_name: "comic.cbz",
         mime_type: "application/vnd.comicbook+zip",
         width: null,

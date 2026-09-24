@@ -67,6 +67,7 @@ const baseProps = {
   onNavigateToIndex: vi.fn(),
   getOrLoadImage: async () => ({
     file_path: "/pics/a.jpg",
+    source_path: "/pics/a.jpg",
     file_name: "a.jpg",
     file_size: 1,
     mime_type: "image/jpeg",

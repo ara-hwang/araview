@@ -1,5 +1,8 @@
 export type ImageInfo = {
+  /** WebView가 디코드할 경로. HEIC/PSD/축소본은 sidecar일 수 있다. */
   file_path: string
+  /** 사용자가 연 원본 파일 경로. 항상 sidecar가 아니다(파일 작업용). */
+  source_path: string
   mime_type: string
   file_name: string
   file_size: number

@@ -17,6 +17,7 @@ const IMAGES = [
 
 const imgInfo = (path: string): ImageInfo => ({
   file_path: path,
+  source_path: path,
   mime_type: "image/jpeg",
   file_name: path.split("/").pop() ?? path,
   file_size: 10,
