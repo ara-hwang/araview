@@ -56,6 +56,9 @@ pub fn extract_archive_image(
     // FE는 이 경로로 asset URL을 만들어 계속 참조한다. 발행 직후 다른
     // 스레드의 축출이 지우지 못하도록 추출 전에 보호한다.
     crate::process_temp::mark_in_use(&out_path);
+    if out_path.is_file() {
+        return Ok(out_path);
+    }
 
     match ext.as_str() {
         "cbz" | "zip" => extract_zip_image(archive_path, entry_name, &out_path),

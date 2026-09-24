@@ -28,7 +28,7 @@ pub struct ThumbnailInfo {
 
 const DEFAULT_MAX_SIDE: u32 = 256;
 /// Upper bound for the thumbs directory; oldest files evicted past this.
-const MAX_CACHE_BYTES: u64 = 500 * 1024 * 1024;
+pub(crate) const MAX_CACHE_BYTES: u64 = 500 * 1024 * 1024;
 
 pub fn default_max_side() -> u32 {
     DEFAULT_MAX_SIDE
@@ -56,11 +56,12 @@ pub fn cached_thumbnail(source: &Path) -> Option<ThumbnailInfo> {
             thumb_path(source, max_side).ok().filter(|p| p.exists())
         };
         let Some(path) = path else { continue };
+        // 화면에 띄우는 동안 캐시 축출로 사라지지 않게 보호한다.
+        crate::process_temp::mark_in_use(&path);
+        crate::process_temp::touch_cache_file(&path);
         let Ok((width, height)) = image::image_dimensions(&path) else {
             continue;
         };
-        // 화면에 띄우는 동안 캐시 축출로 사라지지 않게 보호한다.
-        crate::process_temp::mark_in_use(&path);
         return Some(ThumbnailInfo {
             file_path: path.to_string_lossy().to_string(),
             width,
@@ -91,10 +92,13 @@ pub fn generate_thumbnail(source: &Path, max_side: u32) -> Result<ThumbnailInfo,
     let dest = thumb_path(source, max_side)?;
     // 스트립이 이 경로로 asset URL을 유지하므로 캐시 축출에서 보호한다.
     crate::process_temp::mark_in_use(&dest);
-    if !dest.exists() {
+    if dest.exists() {
+        crate::process_temp::touch_cache_file(&dest);
+    } else {
         let key = dest.to_string_lossy().into_owned();
         crate::sidecar::with_file_lock(&key, "thumbnail lock", || {
             if dest.exists() {
+                crate::process_temp::touch_cache_file(&dest);
                 return Ok(());
             }
             let img = image::open(source)
@@ -171,7 +175,7 @@ pub fn generate_thumbnails_batch(sources: &[String], max_side: u32) -> Vec<Batch
         .collect()
 }
 
-const THUMBS_SUBDIR: &str = "thumbs";
+pub(crate) const THUMBS_SUBDIR: &str = "thumbs";
 
 fn thumbs_dir() -> Result<PathBuf, AppError> {
     let dir = process_temp_dir()?.join(THUMBS_SUBDIR);

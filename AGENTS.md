@@ -68,6 +68,8 @@ cd src-tauri && cargo fmt
 - JPEG save metadata preservation (EXIF/ICC/XMP segments): `src-tauri/src/jpeg_meta.rs`
 - Windows file association registry: `src-tauri/src/file_assoc.rs`
 - HEIC/HEIF JPEG sidecar decode: `src-tauri/src/heif.rs`
+- Derived-image cache root, protection, eviction, and startup cleanup: `src-tauri/src/process_temp.rs`
+- Cache statistics and scoped deletion: `src-tauri/src/cache.rs`
 - Tauri app setup and command registration: `src-tauri/src/lib.rs`
 - Tauri config and file associations: `src-tauri/tauri.conf.json`
 
@@ -83,11 +85,13 @@ Frontend uses `invoke()` for these commands:
 - `get_exif_data(file_path)`
 - `get_archive_images(file_path)`
 - `load_archive_image(archive_path, entry_name)`
+- `get_cache_stats()`
+- `clear_cache(scope)`
 - `get_file_associations()`
 - `set_file_association(extension, associate)`
 - `open_default_apps_settings()`
 
-Full IPC contract (25 commands including thumbnails, archive prefetch, trash/rename/save, PSD thumbnail): see `SPEC.md` §15.
+Full IPC contract (including thumbnails, cache management, archive prefetch, trash/rename/save, PSD thumbnail): see `SPEC.md` §15.
 
 When app is opened from file association, Windows passes the file path as a CLI argument. Backend buffers it in `PendingOpenFile` until the webview signals readiness (`frontend_ready`), then emits `open-file`; the root layout (`useOpenFileBridge`) bridges the event to the active route's loader.
 
@@ -114,15 +118,17 @@ Full data model: see `SPEC.md` §16.
 Image rendering is path-based:
 
 - Backend returns a filesystem path the WebView can decode (`ImageInfo.file_path`)
-- HEIC/HEIF/PSD are transcoded to JPEG sidecars under the process temp dir at load
+- HEIC/HEIF/PSD are transcoded to JPEG sidecars under the active derived-image cache root at load
+- Persistent cache is the default; temporary mode uses a session-only root. The active mode is managed from Settings and mode changes apply on the next launch
 - Frontend converts that path via `convertFileSrc(...)`
 
 ### Persistence
 
 Tauri Store (`settings.json`) is used for:
 
-- Viewer settings (`settingsStore`)
+- Viewer settings (`settingsStore`), including `cacheStorageMode` (`temporary | persistent`, default `persistent`)
 - Recent files (`recentFilesStore`)
+- Persistent derived-image cache is best-effort local data under the Tauri app cache directory; it is not a source of truth
 
 ## Code Conventions
 

@@ -22,6 +22,8 @@ export type { AppLanguage }
 
 export type CacheMode = "off" | "nearby" | "extended" | "memory-1gb" | "memory-2gb"
 
+export type CacheStorageMode = "temporary" | "persistent"
+
 /** 표시 해상도 상한. original=원본, 4k=3840px, 1080p=1920px (긴 변 기준) */
 export type MaxResolution = "original" | "4k" | "1080p"
 
@@ -43,6 +45,8 @@ export type SettingsState = {
   language: AppLanguage
   loopNavigation: boolean
   cacheMode: CacheMode
+  /** 이미지 파생 캐시를 실행 중에만 유지하거나 다음 실행에도 재사용한다. */
+  cacheStorageMode: CacheStorageMode
   /** 대용량 이미지를 긴 변 기준으로 축소해 표시한다 (렌더 메모리 절감) */
   maxResolution: MaxResolution
   viewMode: ViewMode
@@ -85,6 +89,7 @@ const initialSettings: SettingsState = {
   language: "ko",
   loopNavigation: false,
   cacheMode: "nearby",
+  cacheStorageMode: "persistent",
   maxResolution: "original",
   viewMode: "single",
   autoOpenLastFile: false,
@@ -114,6 +119,7 @@ const initialSettings: SettingsState = {
 export const DEFAULT_SETTINGS: SettingsState = { ...initialSettings }
 
 const CACHE_MODES: readonly CacheMode[] = ["off", "nearby", "extended", "memory-1gb", "memory-2gb"]
+const CACHE_STORAGE_MODES: readonly CacheStorageMode[] = ["temporary", "persistent"]
 const MAX_RESOLUTIONS: readonly MaxResolution[] = ["original", "4k", "1080p"]
 const VIEW_MODES: readonly ViewMode[] = ["single", "left-to-right", "right-to-left", "webtoon"]
 const VIEWER_BACKGROUNDS: readonly ViewerBackground[] = ["theme", "black", "white", "checker"]
@@ -141,6 +147,11 @@ export function sanitizeSettings(value: unknown): SettingsState {
     language,
     loopNavigation: sanitizeBoolean(record.loopNavigation),
     cacheMode: sanitizeEnum(record.cacheMode, CACHE_MODES, initialSettings.cacheMode),
+    cacheStorageMode: sanitizeEnum(
+      record.cacheStorageMode,
+      CACHE_STORAGE_MODES,
+      initialSettings.cacheStorageMode
+    ),
     maxResolution: sanitizeEnum(
       record.maxResolution,
       MAX_RESOLUTIONS,

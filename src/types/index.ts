@@ -25,6 +25,39 @@ export type ThumbnailInfo = {
   height: number
 }
 
+export type CacheStorageMode = "temporary" | "persistent"
+
+export type CacheCategoryKey = "thumbnails" | "converted" | "scaled" | "archives" | "other"
+
+export type CacheCategoryStats = {
+  key: CacheCategoryKey
+  bytes: number
+  file_count: number
+  protected_bytes: number
+  protected_file_count: number
+  limit_bytes: number | null
+}
+
+export type CacheStats = {
+  storage_mode: CacheStorageMode
+  persistent_available: boolean
+  total_bytes: number
+  file_count: number
+  protected_bytes: number
+  protected_file_count: number
+  total_limit_bytes: number
+  categories: CacheCategoryStats[]
+}
+
+export type CacheScope = CacheCategoryKey | "all"
+
+export type CacheClearResult = {
+  removed_bytes: number
+  removed_file_count: number
+  failed_file_count: number
+  stats: CacheStats
+}
+
 export type ExifData = Record<string, string>
 
 /** ComicInfo.xml의 Page 요소. `image`는 ComicRack 스키마대로 0 기반이다. */

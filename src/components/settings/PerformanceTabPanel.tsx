@@ -2,6 +2,7 @@ import { CornersOut, HardDrive } from "@phosphor-icons/react"
 import { useTranslation } from "react-i18next"
 import { useShallow } from "zustand/react/shallow"
 
+import { CacheManagementPanel } from "@/components/settings/CacheManagementPanel"
 import { SettingsFieldSet } from "@/components/settings/SettingsFieldSet"
 import { Field, FieldGroup, FieldSeparator } from "@/components/ui/field"
 import { Label } from "@/components/ui/label"
@@ -88,6 +89,8 @@ export function PerformanceTabPanel() {
           </Field>
         </RadioGroup>
       </SettingsFieldSet>
+
+      <CacheManagementPanel />
     </FieldGroup>
   )
 }

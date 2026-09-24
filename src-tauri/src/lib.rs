@@ -1,5 +1,6 @@
 pub mod app_error;
 pub mod archive;
+pub mod cache;
 pub mod comic_info;
 pub mod commands;
 pub mod dir_cache;
@@ -21,16 +22,18 @@ pub mod thumbnail;
 
 use app_error::AppError;
 use commands::{
-    archive_prefetch, generate_archive_file_thumbnail, generate_archive_thumbnail,
-    generate_thumbnail, generate_thumbnails_batch, get_archive_images, get_cached_thumbnail,
-    get_comic_info, get_directory_images, get_exif_data, get_file_associations, get_image_details,
-    get_image_histogram, load_archive_image, load_image, open_default_apps_settings, rename_file,
-    resolve_dropped_path, set_file_association, trash_file,
+    archive_prefetch, clear_cache, generate_archive_file_thumbnail, generate_archive_thumbnail,
+    generate_thumbnail, generate_thumbnails_batch, get_archive_images, get_cache_stats,
+    get_cached_thumbnail, get_comic_info, get_directory_images, get_exif_data,
+    get_file_associations, get_image_details, get_image_histogram, load_archive_image, load_image,
+    open_default_apps_settings, rename_file, resolve_dropped_path, set_file_association,
+    trash_file,
 };
 use save::save_image_edits;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use tauri::{Emitter, Manager};
+use tauri_plugin_store::StoreExt;
 use thumb_shell::{get_psd_thumbnail_status, register_psd_thumbnail, unregister_psd_thumbnail};
 
 /// 시작 시/두 번째 실행에서 받은 파일 경로를 프론트 준비 전까지 보관한다.
@@ -65,6 +68,23 @@ fn frontend_ready(app: tauri::AppHandle) -> Result<(), AppError> {
         app.emit("open-file", path).ok();
     }
     Ok(())
+}
+
+fn requested_cache_storage_mode(app: &tauri::AppHandle) -> process_temp::CacheStorageMode {
+    let mode = app
+        .store("settings.json")
+        .ok()
+        .and_then(|store| store.get("settings"))
+        .and_then(|settings| settings.get("cacheStorageMode").cloned())
+        .and_then(|value| value.as_str().map(str::to_owned));
+    match mode.as_deref() {
+        Some("temporary") => process_temp::CacheStorageMode::Temporary,
+        Some("persistent") | None => process_temp::CacheStorageMode::Persistent,
+        Some(other) => {
+            log::warn!("[cache] ignoring invalid cacheStorageMode {other:?}");
+            process_temp::CacheStorageMode::Persistent
+        }
+    }
 }
 
 pub fn run() {
@@ -119,6 +139,8 @@ pub fn run() {
             get_image_details,
             generate_thumbnail,
             generate_thumbnails_batch,
+            get_cache_stats,
+            clear_cache,
             get_cached_thumbnail,
             generate_archive_thumbnail,
             generate_archive_file_thumbnail,
@@ -140,16 +162,23 @@ pub fn run() {
         ])
         .setup(|app| {
             app.manage(PendingOpenFile::default());
-            // asset 프로토콜 scope는 설정에서 비워 두고, 렌더링이 필요한 경로만
-            // 런타임에 허용한다. 사이드카/썸네일/아카이브 추출물은 프로세스
-            // temp 아래에 생성되므로 여기서 통째로 허용한다.
-            // scope 매칭은 canonicalize된 요청 경로 기준이라 여기서도 canonicalize한다.
-            if let Ok(temp) = process_temp::process_temp_dir() {
-                let canonical = std::fs::canonicalize(&temp).unwrap_or(temp);
-                if let Err(e) = app.asset_protocol_scope().allow_directory(&canonical, true) {
-                    log::error!("[asset-scope] failed to allow process temp dir: {e}");
+            let requested_mode = requested_cache_storage_mode(app.handle());
+            let cache_root = match process_temp::initialize(app.handle(), requested_mode) {
+                Ok(root) => root,
+                Err(e) => {
+                    log::warn!("[cache] persistent cache unavailable, using session cache: {e}");
+                    process_temp::initialize_temporary_fallback()?
                 }
+            };
+            // 캐시 루트는 이미지/썸네일/아카이브 asset 경로로만 허용한다.
+            // scope 매칭은 canonicalize된 요청 경로 기준이라 여기서도 canonicalize한다.
+            let canonical = std::fs::canonicalize(&cache_root).unwrap_or(cache_root);
+            if let Err(e) = app.asset_protocol_scope().allow_directory(&canonical, true) {
+                log::error!("[asset-scope] failed to allow cache dir: {e}");
             }
+            std::thread::spawn(|| {
+                process_temp::enforce_total_cap(process_temp::MAX_TOTAL_CACHE_BYTES).ok();
+            });
             // Windows passes the file path as a CLI argument
             // when the app is launched via a file association.
             // 프론트 준비 전이면 보관했다가 frontend_ready에서 emit한다.

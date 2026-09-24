@@ -92,12 +92,21 @@ src-tauri/
   src/image.rs       # MIME/확장자 판별, load_viewable
   src/heif.rs        # HEIC/HEIF 디코드 및 JPEG sidecar
   src/psd_sidecar.rs # PSD 합성 디코드(`psd` 크레이트) 및 JPEG sidecar (읽기 전용)
-  src/process_temp.rs # 프로세스 수명 임시 디렉터리
-  src/archive.rs     # 아카이브 목록/추출 처리 (cbz/zip, cb7/7z, cbr/rar, cbt)
+  src/process_temp.rs # 임시/영구 파생 이미지 캐시 루트, 보호, 상한, 시작 정리
+  src/cache.rs        # 캐시 통계 및 종류별/전체 삭제
+  src/archive.rs      # 아카이브 목록/추출 처리 (cbz/zip, cb7/7z, cbr/rar, cbt)
   src/jpeg_meta.rs   # JPEG 저장 시 EXIF/ICC/XMP 세그먼트 이식 및 Orientation 패치
   src/orientation.rs # EXIF Orientation 읽기/적용 (JPEG/TIFF 표시·썸네일·저장 정합)
   src/lib.rs         # Tauri 앱 설정 및 command 등록
 ```
+
+## 파생 이미지 캐시
+
+- `settings.json`의 `settings.cacheStorageMode`를 읽어 시작 시 저장 루트를 선택합니다. 값이 없으면 `persistent`입니다.
+- 영구 모드는 Tauri `app_cache_dir()` 아래 `cache-v1/`을 사용하고, 개발 빌드는 `tauri.dev.conf.json`의 identifier 때문에 별도 루트를 사용합니다.
+- `temporary` 모드는 프로세스 수명 `TempDir`를 사용합니다. 모드 설정 변경은 다음 실행부터 적용되며, 영구 캐시를 끄면 다음 시작 때 이전 버전 루트를 정리합니다.
+- `cache.rs`의 `get_cache_stats`와 `clear_cache` 명령은 캐시 트리만 대상으로 합니다. 사용자 원본 파일 경로를 입력받아 삭제하지 않습니다.
+- `process_temp::mark_in_use`로 보호된 파일과 `*.tmp-<pid>-...` 작성 중 파일은 삭제하지 않습니다. 영구 캐시 hit은 mtime을 갱신해 LRU 순서를 유지합니다.
 
 ## PSD 탐색기 썸네일 구현 메모
 

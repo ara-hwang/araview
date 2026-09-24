@@ -4,23 +4,244 @@ use std::path::{Path, PathBuf};
 use std::sync::{LazyLock, Mutex};
 use std::time::UNIX_EPOCH;
 
+use serde::Serialize;
+use tauri::Manager;
+
 use crate::app_error::{AppError, ErrorCode};
 
-static PROCESS_TEMP_DIR: LazyLock<Mutex<Option<tempfile::TempDir>>> =
+/// Bump when an on-disk cache key or encoding contract changes.
+pub const CACHE_FORMAT_REVISION: u64 = 1;
+/// Upper bound for the complete app cache tree.
+pub const MAX_TOTAL_CACHE_BYTES: u64 = 2 * 1024 * 1024 * 1024;
+const PERSISTENT_CACHE_DIR: &str = "cache-v1";
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum CacheStorageMode {
+    Temporary,
+    Persistent,
+}
+
+struct ActiveCacheRoot {
+    path: PathBuf,
+    /// Keep the session directory alive for the lifetime of the process.
+    _temporary: Option<tempfile::TempDir>,
+    mode: CacheStorageMode,
+    persistent_available: bool,
+}
+
+static ACTIVE_CACHE_ROOT: LazyLock<Mutex<Option<ActiveCacheRoot>>> =
     LazyLock::new(|| Mutex::new(None));
 
-pub fn process_temp_dir() -> Result<PathBuf, AppError> {
-    let mut guard = PROCESS_TEMP_DIR
-        .lock()
-        .map_err(|_| AppError::lock_poisoned("temp dir"))?;
-    if let Some(ref td) = *guard {
-        return Ok(td.path().to_path_buf());
+/// Initialize the cache root before any image command runs.
+///
+/// Persistent mode uses Tauri's per-application cache directory. The cache is
+/// best-effort: the OS may remove it, so every loader must regenerate missing
+/// files. Development and release identifiers resolve to different roots.
+pub fn initialize(app: &tauri::AppHandle, mode: CacheStorageMode) -> Result<PathBuf, AppError> {
+    let app_cache = app
+        .path()
+        .app_cache_dir()
+        .map_err(|e| AppError::unknown(format!("Failed to resolve app cache dir: {e}")))?;
+    fs::create_dir_all(&app_cache)
+        .map_err(|e| AppError::io("Failed to create app cache dir", e, ErrorCode::Unknown))?;
+
+    match mode {
+        CacheStorageMode::Temporary => {
+            cleanup_old_versions(&app_cache, None)?;
+            let temp = tempfile::TempDir::new()
+                .map_err(|e| AppError::unknown(format!("Failed to create temp dir: {e}")))?;
+            let path = temp.path().to_path_buf();
+            set_active_root(ActiveCacheRoot {
+                path: path.clone(),
+                _temporary: Some(temp),
+                mode,
+                persistent_available: true,
+            })?;
+            Ok(path)
+        }
+        CacheStorageMode::Persistent => {
+            let root = app_cache.join(PERSISTENT_CACHE_DIR);
+            cleanup_old_versions(&app_cache, Some(&root))?;
+            fs::create_dir_all(&root).map_err(|e| {
+                AppError::io(
+                    "Failed to create persistent cache dir",
+                    e,
+                    ErrorCode::Unknown,
+                )
+            })?;
+            remove_stale_temp_files(&root);
+            let path = root.clone();
+            set_active_root(ActiveCacheRoot {
+                path,
+                _temporary: None,
+                mode,
+                persistent_available: true,
+            })?;
+            Ok(root)
+        }
     }
-    let td = tempfile::TempDir::new()
+}
+
+/// Fallback used when Tauri's cache directory cannot be initialized.
+pub fn initialize_temporary_fallback() -> Result<PathBuf, AppError> {
+    let temp = tempfile::TempDir::new()
         .map_err(|e| AppError::unknown(format!("Failed to create temp dir: {e}")))?;
-    let path = td.path().to_path_buf();
-    *guard = Some(td);
+    let path = temp.path().to_path_buf();
+    set_active_root(ActiveCacheRoot {
+        path: path.clone(),
+        _temporary: Some(temp),
+        mode: CacheStorageMode::Temporary,
+        persistent_available: false,
+    })?;
     Ok(path)
+}
+
+fn set_active_root(root: ActiveCacheRoot) -> Result<PathBuf, AppError> {
+    let path = root.path.clone();
+    let mut guard = ACTIVE_CACHE_ROOT
+        .lock()
+        .map_err(|_| AppError::lock_poisoned("cache root"))?;
+    *guard = Some(root);
+    drop(guard);
+    // A root switch invalidates every path protected by the previous root.
+    if let Ok(mut guard) = IN_USE.lock() {
+        guard.0.clear();
+        guard.1.clear();
+    }
+    if let Ok(mut totals) = DIR_TOTALS.lock() {
+        totals.clear();
+    }
+    Ok(path)
+}
+
+pub fn cache_storage_mode() -> CacheStorageMode {
+    ACTIVE_CACHE_ROOT
+        .lock()
+        .ok()
+        .and_then(|guard| guard.as_ref().map(|root| root.mode))
+        .unwrap_or(CacheStorageMode::Temporary)
+}
+
+pub fn persistent_cache_available() -> bool {
+    ACTIVE_CACHE_ROOT
+        .lock()
+        .ok()
+        .and_then(|guard| guard.as_ref().map(|root| root.persistent_available))
+        .unwrap_or(false)
+}
+
+pub fn process_temp_dir() -> Result<PathBuf, AppError> {
+    let path = {
+        let mut guard = ACTIVE_CACHE_ROOT
+            .lock()
+            .map_err(|_| AppError::lock_poisoned("cache root"))?;
+        if let Some(root) = guard.as_ref() {
+            root.path.clone()
+        } else {
+            // Keep creation under the same lock as the read. Otherwise two
+            // first callers can replace one another and drop a TempDir while
+            // another thread is still using its path.
+            let temp = tempfile::TempDir::new()
+                .map_err(|e| AppError::unknown(format!("Failed to create temp dir: {e}")))?;
+            let path = temp.path().to_path_buf();
+            *guard = Some(ActiveCacheRoot {
+                path: path.clone(),
+                _temporary: Some(temp),
+                mode: CacheStorageMode::Temporary,
+                persistent_available: false,
+            });
+            path
+        }
+    };
+    fs::create_dir_all(&path)
+        .map_err(|e| AppError::io("Failed to create cache dir", e, ErrorCode::Unknown))?;
+    Ok(path)
+}
+
+fn cleanup_old_versions(base: &Path, keep: Option<&Path>) -> Result<(), AppError> {
+    let entries = match fs::read_dir(base) {
+        Ok(entries) => entries,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(e) => {
+            return Err(AppError::io(
+                "Failed to list app cache dir",
+                e,
+                ErrorCode::Unknown,
+            ))
+        }
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let name = entry.file_name();
+        let name = name.to_string_lossy();
+        if !name.starts_with("cache-v") || keep.is_some_and(|keep| keep == path) {
+            continue;
+        }
+        let result = if entry.file_type().is_ok_and(|kind| kind.is_dir()) {
+            fs::remove_dir_all(&path)
+        } else {
+            fs::remove_file(&path)
+        };
+        if let Err(e) = result {
+            if e.kind() != std::io::ErrorKind::NotFound {
+                log::warn!("[cache] failed to remove old cache {:?}: {e}", path);
+            }
+        }
+    }
+    Ok(())
+}
+
+fn remove_stale_temp_files(root: &Path) {
+    fn visit(dir: &Path) {
+        let Ok(entries) = fs::read_dir(dir) else {
+            return;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let Ok(file_type) = entry.file_type() else {
+                continue;
+            };
+            if file_type.is_dir() {
+                visit(&path);
+            } else if file_type.is_file() && is_inflight_temp_path(&path) {
+                let _ = fs::remove_file(path);
+            }
+        }
+    }
+    if root.is_dir() {
+        visit(root);
+    }
+}
+
+/// Detect the temp filename shape emitted by `sidecar::tmp_path_for` and
+/// archive extraction. Restricting the match to a numeric pid avoids treating
+/// legitimate names such as `photo.tmp-1.jpg` as in-flight files.
+pub(crate) fn is_inflight_temp_path(path: &Path) -> bool {
+    let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
+        return false;
+    };
+    let Some(start) = name.find(".tmp-") else {
+        return false;
+    };
+    let rest = &name[start + ".tmp-".len()..];
+    let Some(end) = rest.find('-') else {
+        return false;
+    };
+    let pid = &rest[..end];
+    !pid.is_empty() && pid.bytes().all(|b| b.is_ascii_digit())
+}
+
+/// Best-effort LRU touch for persistent cache hits. Reopening the file and
+/// setting its current length updates its modification time without adding a
+/// platform-specific timestamp dependency.
+pub(crate) fn touch_cache_file(path: &Path) {
+    let Ok(metadata) = fs::metadata(path) else {
+        return;
+    };
+    if let Ok(file) = fs::OpenOptions::new().write(true).open(path) {
+        let _ = file.set_len(metadata.len());
+    }
 }
 
 /// Cache paths recently handed to the frontend. The webview holds an
@@ -63,11 +284,24 @@ fn in_use_snapshot() -> HashSet<PathBuf> {
         .unwrap_or_default()
 }
 
+pub(crate) fn is_in_use(path: &Path) -> bool {
+    IN_USE
+        .lock()
+        .map(|guard| guard.1.contains(path))
+        .unwrap_or(false)
+}
+
 /// Known byte total per capped directory. Writers add what they just wrote and
 /// only rescan when the running total says the cap may be exceeded, so paging
 /// through a large archive does not restat the whole directory per entry.
 static DIR_TOTALS: LazyLock<Mutex<HashMap<PathBuf, u64>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
+
+pub(crate) fn reset_dir_totals() {
+    if let Ok(mut totals) = DIR_TOTALS.lock() {
+        totals.clear();
+    }
+}
 
 /// Record `bytes` written into `dir` and enforce `max_bytes` only when the
 /// running total suggests the cap is exceeded. Best effort.
@@ -108,7 +342,7 @@ pub(crate) fn enforce_cap_in(dir: &Path, max_bytes: u64) -> Result<u64, AppError
     Ok(evict_oldest(files, max_bytes))
 }
 
-/// Delete oldest files anywhere under the process temp dir until the whole
+/// Delete oldest files anywhere under the active cache root until the whole
 /// tree is under `max_bytes`. Best-effort companion for archive extracts,
 /// which live in per-archive subdirectories without their own cap.
 pub(crate) fn enforce_total_cap(max_bytes: u64) -> Result<(), AppError> {
@@ -125,7 +359,10 @@ pub(crate) fn enforce_total_cap(max_bytes: u64) -> Result<(), AppError> {
 /// Collect `(mtime, size, path)` for evictable files. In-flight temp files
 /// (`*.tmp-*`) are skipped so partial writes are never deleted. `root` must
 /// exist; nested directories are best effort.
-fn collect_files(root: &Path, recursive: bool) -> Result<Vec<(u128, u64, PathBuf)>, AppError> {
+pub(crate) fn collect_files(
+    root: &Path,
+    recursive: bool,
+) -> Result<Vec<(u128, u64, PathBuf)>, AppError> {
     let mut stack = vec![root.to_path_buf()];
     let mut files: Vec<(u128, u64, PathBuf)> = Vec::new();
     let mut is_root = true;
@@ -156,16 +393,9 @@ fn collect_files(root: &Path, recursive: bool) -> Result<Vec<(u128, u64, PathBuf
             if !file_type.is_file() {
                 continue;
             }
-            // Skip our own in-flight temp files, never evict partial writes.
-            // 패턴을 `.{stem}.tmp-{pid}-...` 형태로 좁혀, 이름에 우연히
-            // `.tmp-`가 들어간 정상 캐시/추출물(`x.tmp-1.jpg` 등)이 축출
-            // 면제를 받지 않게 한다.
-            let mine = format!(".tmp-{}-", std::process::id());
-            if path
-                .file_name()
-                .and_then(|n| n.to_str())
-                .is_some_and(|n| n.contains(&mine))
-            {
+            // Skip in-flight temp files so eviction and statistics never expose
+            // a partial write. Restrict the match to the numeric pid shape.
+            if is_inflight_temp_path(&path) {
                 continue;
             }
             let (mtime, size) = entry
@@ -247,18 +477,18 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         fs::write(dir.path().join("deadbeef_x.tmp-1.jpg"), vec![0u8; 1000]).unwrap();
         fs::write(
-            dir.path().join("foreign.tmp-99999-abc-0.jpg"),
+            dir.path().join("foreign.tmp-part-abc-0.jpg"),
             vec![0u8; 100],
         )
         .unwrap();
         fs::write(dir.path().join("keep.jpg"), vec![0u8; 100]).unwrap();
-        // keep.jpg가 더 최신이라 남고, tmp처럼 보이는 캐시와 다른 pid의
-        // temp 잔재는 축출 면제가 아니므로 지워진다.
+        // `.tmp-<숫자 pid>-...`만 진행 중 파일로 간주한다. 숫자가 없는 일반
+        // 파일명은 임시 파일 exemption을 받지 못하므로 오래된 것부터 축출된다.
         std::thread::sleep(std::time::Duration::from_millis(5));
         fs::write(dir.path().join("keep.jpg"), vec![0u8; 100]).unwrap();
         enforce_cap_in(dir.path(), 150).expect("evict");
         assert!(!dir.path().join("deadbeef_x.tmp-1.jpg").exists());
-        assert!(!dir.path().join("foreign.tmp-99999-abc-0.jpg").exists());
+        assert!(!dir.path().join("foreign.tmp-part-abc-0.jpg").exists());
         assert!(dir.path().join("keep.jpg").exists());
     }
 
@@ -330,5 +560,13 @@ mod tests {
         note_written(dir.path(), 5000, 1000);
         assert!(!small.exists());
         assert!(!big.exists());
+    }
+
+    #[test]
+    fn inflight_temp_detection_requires_numeric_pid() {
+        assert!(is_inflight_temp_path(Path::new("a.tmp-123-thread-4.jpg")));
+        assert!(!is_inflight_temp_path(Path::new("photo.tmp-1.jpg")));
+        assert!(!is_inflight_temp_path(Path::new("photo.tmp-part.jpg")));
+        assert!(!is_inflight_temp_path(Path::new("ordinary.jpg")));
     }
 }

@@ -17,7 +17,10 @@ export function formatFileSize(bytes: number, locale?: string): string {
     useGrouping: false
   })
   if (bytes < 1024 * 1024) return `${oneDecimal.format(bytes / 1024)} KB`
-  return `${oneDecimal.format(bytes / (1024 * 1024))} MB`
+  if (bytes < 1024 * 1024 * 1024) {
+    return `${oneDecimal.format(bytes / (1024 * 1024))} MB`
+  }
+  return `${oneDecimal.format(bytes / (1024 * 1024 * 1024))} GB`
 }
 
 export function formatDimensions(

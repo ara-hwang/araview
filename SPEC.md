@@ -234,7 +234,7 @@ CBZ/ZIP의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한다(8
 진실: `src-tauri/src/archive.rs`, `src-tauri/src/commands.rs`, `src/hooks/useImageLoader.ts`, `src/store/archiveProgressStore.ts`.
 
 - `get_archive_images`: 내부 이미지 엔트리 목록 + `current_index: 0`. 비어 있으면 `not_found`.
-- `load_archive_image`: 임시 디렉터리에 추출 후 표시 가능한 경로로 반환한다.
+- `load_archive_image`: 활성 파생 이미지 캐시 루트의 `archives/` 아래에 추출 후 표시 가능한 경로로 반환한다.
 - `archive_prefetch`: 이웃 선추출용 fire-and-forget 명령이다.
 - 선추출 거리는 뷰 모드에 따라 보정되며 상한이 있다.
 - 이어보기: 아카이브 경로별 마지막 엔트리와 위치(엔트리명/인덱스/전체 페이지)를 최대 100개 LRU로 저장한다. `resumeReading`이 true이고 목록에 저장된 항목이 있으면 거기서 시작하며, 저장 위치에서 시작할 때 "이어보기" 토스트와 "처음부터" 동작을 함께 제공한다. 설정이 false면 항상 첫 페이지에서 열고 열기만으로 저장 위치를 0페이지로 덮지 않는다. 양면 모드에서는 저장 위치가 쌍 중간이면 쌍 시작으로 맞춰 연다.
@@ -249,11 +249,11 @@ CBZ/ZIP의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한다(8
 
 ## 9. 캐시/썸네일/프리페치
 
-진실: `src/utils/cacheConfig.ts`, `src/hooks/useImageCache.ts`, `src-tauri/src/thumbnail.rs`.
+진실: `src/utils/cacheConfig.ts`, `src/hooks/useImageCache.ts`, `src/store/cacheInvalidationStore.ts`, `src-tauri/src/process_temp.rs`, `src-tauri/src/cache.rs`, `src-tauri/src/thumbnail.rs`.
 
-### 9.1 캐시 모드
+### 9.1 이미지 캐시 모드
 
-기본 `nearby`.
+기본 `nearby`. 이 설정은 이미지 미리 로드 범위와 프론트 메타데이터 캐시의 항목 한도를 설정한다.
 
 | 모드         | 항목 상한 | 바이트 상한 | 프리페치 거리 |
 | ------------ | --------- | ----------- | ------------- |
@@ -265,8 +265,18 @@ CBZ/ZIP의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한다(8
 
 - 일반 파일 프리페치 거리 보정: 웹툰은 기본 x 2, 양면은 기본 + 1, single은 기본.
 - 캐시 키는 파일 경로 기준이며, 픽셀 데이터를 메모리에 오래 두지 않고 브라우저 이미지 캐시에 위임한다.
+- `memory-*`는 실제 프로세스 RAM 전체 사용량이 아니라 프론트 이미지 메타데이터 예산이다.
 
-### 9.2 썸네일
+### 9.2 저장 방식
+
+- `cacheStorageMode`는 `temporary | persistent`이며 기본값은 `persistent`다.
+- `persistent`는 Tauri `app.path().app_cache_dir()` 아래 `cache-v1/`을 사용하며 앱 재실행 뒤에도 썸네일, sidecar, 축소본, 아카이브 추출물을 재사용한다.
+- `temporary`는 프로세스 수명 `TempDir`를 사용하고 종료 시 삭제한다. 저장 방식 변경은 다음 실행부터 적용된다.
+- 영구 캐시는 OS가 지울 수 있는 best-effort 데이터다. 원본이나 렌더 결과의 진실 원본은 아니다.
+- 일반 빌드와 개발 빌드는 Tauri identifier가 달라 캐시 루트가 분리된다.
+- 시작 시 이전 `cache-v*` 버전 디렉터리와 이전 프로세스의 orphan temp 파일을 정리한다.
+
+### 9.3 썸네일
 
 - `generate_thumbnail`: 기본 256px, JPEG 캐시 후 재사용한다. 상한(500MB)을 넘기면 오래된 것부터 제거한다.
 - HEIC/HEIF/PSD는 썸네일용 JPEG sidecar 경로를 쓴다.
@@ -274,17 +284,27 @@ CBZ/ZIP의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한다(8
 - 배치 조회와 아카이브 엔트리용 썸네일 API를 별도로 제공한다. 아카이브 썸네일은 추출물과 캐시를 재사용해 풀사이즈 로드를 피한다.
 - 그리드는 보이는 창의 경로만 썸네일을 요청한다.
 - `get_cached_thumbnail`: 생성 없이 캐시에 있는 썸네일(256/128/96/72/48/32)만 반환한다. 큰 이미지(2MP 또는 1.5MB 이상)를 열 때 풀사이즈 디코드와 병행 조회해 첫 페인트 프리뷰로 쓰고, 원본 `onLoad`에서 걷는다. GIF는 제외한다.
+- 생성된 썸네일·sidecar·축소본 캐시 hit은 파일 modification time을 갱신해 이후 LRU 정리에서 최근 사용 파일이 먼저 삭제되지 않게 한다.
 
-### 9.3 표시 해상도 제한
+### 9.4 표시 해상도 제한
 
 진실: `src-tauri/src/scaled.rs`, `src/hooks/useImageCache.ts`, `src/hooks/useImageLoader.ts`, `src/utils/resolutionLimit.ts`.
 
 - 설정 `maxResolution`(기본 `original`)이 켜져 있으면 긴 변이 상한(4k=3840px, 1080p=1920px)을 넘는 래스터를 `scaled/` sidecar로 한 번만 축소해 렌더한다. 원본 파일은 바뀌지 않는다.
 - 적용 대상은 `image` 크레이트가 디코드할 수 있는 래스터(PNG/JPEG/TIFF/BMP/ICO/정지 WebP)이며, EXIF Orientation(5~8)은 픽셀에 반영한 뒤 축소한다. 알파 채널이 있으면 투명도 보존을 위해 PNG로 저장한다.
 - GIF, 움직이는 WebP, SVG, 디코드 불가 포맷(AVIF 등)은 원본 바이트를 그대로 렌더한다.
-- sidecar는 프로세스 임시 디렉터리 `scaled/`에 캐시되며 상한(500MB)을 넘기면 오래된 것부터 제거한다. 캐시 경로는 원본 식별 해시 + 상한 기준이라 설정을 바꾸면 다른 사본을 만든다.
+- sidecar는 활성 캐시 루트의 `scaled/`에 캐시되며 상한(500MB)을 넘기면 오래된 것부터 제거한다. 캐시 경로는 원본 식별 해시 + 상한 기준이라 설정을 바꾸면 다른 사본을 만든다.
 - 새 상한으로 로드한 `ImageInfo.width/height`는 축소 사본 기준이고, `source_path`는 항상 원본 파일이다(11절). 히스토그램은 렌더 바이트(`file_path`), EXIF/파일 상세는 원본(`source_path`) 기준이다.
 - 설정을 바꾸면 프론트는 메타 캐시와 픽셀 예열을 비우고 현재 이미지를 새 상한으로 다시 로드한다.
+
+### 9.5 캐시 관리 화면
+
+- 설정 > 성능 탭에서 현재 활성 저장 방식, 전체 사용량, 종류별 사용량, 파일 수, 보호된 파일 수를 확인한다.
+- `get_cache_stats`는 썸네일, 변환 이미지, 축소본, 아카이브 추출물, 기타 임시 파일을 분류한다.
+- `clear_cache(scope)`는 `all`, `thumbnails`, `converted`, `scaled`, `archives`, `other`를 지원한다.
+- 현재 WebView에 전달되어 사용 중인 파일과 `mark_in_use` 보호 파일은 삭제하지 않는다. 보호된 용량은 결과 통계에 남는다.
+- 진행 중인 `*.tmp-<pid>-...` 파일은 통계와 삭제 대상에서 제외한다.
+- 삭제 성공 후 프론트는 이미지 메타데이터, 픽셀 preload, 썸네일 URL을 무효화한다. 다음 탐색에서 필요한 캐시를 다시 만든다.
 
 ## 10. EXIF/파일 정보
 
@@ -317,7 +337,7 @@ CBZ/ZIP의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한다(8
 
 진실: `src/hooks/useFileOperations.ts`, `src-tauri/src/commands.rs`, `src-tauri/src/save.rs`, `src/hooks/useCopyImage.ts`.
 
-공통: 아카이브 모드(전체/미리보기)면 원본 아카이브 경로를 대상으로 삼는다. 단, 휴지통/이름 변경/편집 저장은 아카이브에서 차단된다. 파일 작업은 렌더 경로(`file_path`)가 아니라 사용자가 연 원본(`source_path`)을 대상으로 한다(9.3절).
+공통: 아카이브 모드(전체/미리보기)면 원본 아카이브 경로를 대상으로 삼는다. 단, 휴지통/이름 변경/편집 저장은 아카이브에서 차단된다. 파일 작업은 렌더 경로(`file_path`)가 아니라 사용자가 연 원본(`source_path`)을 대상으로 한다(9.4절).
 
 ### 11.1 휴지통 이동 `Delete`
 
@@ -376,7 +396,9 @@ CBZ/ZIP의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한다(8
 
 - 최근 파일은 중복 제거 후 맨 앞에 넣고 자른다. `recordRecentFiles=false`면 목록을 숨기고 자동 열기도 막는다.
 - 최근 파일 카드의 아카이브 항목은 읽기 진도(`index+1/total`)를 함께 표시한다.
+- `cacheStorageMode`는 `temporary | persistent` 중 하나를 저장하며 기본값은 `persistent`다. 값이 손상됐거나 없으면 `persistent`로 복원한다.
 - 설정 저장은 손상값도 복원한다. 언어는 저장값이 없으면 시스템 언어를 쓴다.
+- 저장 방식 변경은 현재 프로세스의 캐시 루트를 즉시 바꾸지 않고 다음 실행부터 적용한다. 영구 캐시를 끄는 경우 다음 시작 시 이전 `cache-v1`을 정리한다.
 
 ## 13. 설정
 
@@ -387,7 +409,8 @@ CBZ/ZIP의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한다(8
 | `language`          | `ko \| en`                                              | `ko`(초기 로드는 시스템 감지 우선) |
 | `loopNavigation`    | 끝에서 루프 여부                                        | `false`                            |
 | `cacheMode`         | `off \| nearby \| extended \| memory-1gb \| memory-2gb` | `nearby`                           |
-| `maxResolution`     | `original \| 4k \| 1080p` (긴 변 상한, 9.3절)           | `original`                         |
+| `cacheStorageMode`  | `temporary \| persistent`                               | `persistent`                       |
+| `maxResolution`     | `original \| 4k \| 1080p` (긴 변 상한, 9.4절)           | `original`                         |
 | `viewMode`          | `single \| left-to-right \| right-to-left \| webtoon`   | `single`                           |
 | `autoOpenLastFile`  | 시작 시 마지막 파일 자동 열기                           | `false`                            |
 | `recordRecentFiles` | 최근 기록 유지                                          | `true`                             |
@@ -502,6 +525,8 @@ CBZ/ZIP의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한다(8
 | `generate_thumbnail`              | `filePath`, `maxSide?`                 | `ThumbnailInfo`                        |
 | `generate_thumbnails_batch`       | `filePaths`, `maxSide?`                | `BatchThumb[]`                         |
 | `get_cached_thumbnail`            | `filePath`                             | `ThumbnailInfo \| null`(캐시 히트만)   |
+| `get_cache_stats`                 | 없음                                   | `CacheStats`                           |
+| `clear_cache`                     | `scope`                                | `CacheClearResult`                     |
 | `generate_archive_thumbnail`      | `archivePath`, `entryName`, `maxSide?` | `ThumbnailInfo`                        |
 | `generate_archive_file_thumbnail` | `archivePath`, `maxSide?`              | `ThumbnailInfo`(첫 이미지 엔트리 기준) |
 | `get_file_associations`           | 없음                                   | `FileAssociation[]`                    |
@@ -529,8 +554,8 @@ CBZ/ZIP의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한다(8
 
 Rust와 TypeScript는 같은 모양을 유지한다.
 
-- `file_path: string`: WebView가 디코드할 경로. HEIC/HEIF/PSD는 JPEG sidecar 경로, 표시 해상도 제한이 걸린 큰 래스터는 `scaled/` 사본 경로일 수 있다(9.3절).
-- `source_path: string`: 사용자가 연 원본 파일 경로. sidecar가 아니며, 파일 작업·EXIF·파일 상세가 이 경로를 쓴다. 아카이브 엔트리는 추출된 임시 파일 경로다.
+- `file_path: string`: WebView가 디코드할 경로. HEIC/HEIF/PSD는 JPEG sidecar 경로, 표시 해상도 제한이 걸린 큰 래스터는 `scaled/` 사본 경로일 수 있다(9.4절).
+- `source_path: string`: 사용자가 연 원본 파일 경로. sidecar가 아니며, 파일 작업·EXIF·파일 상세가 이 경로를 쓴다. 아카이브 엔트리는 활성 파생 이미지 캐시에서 추출된 경로다.
 - `mime_type: string`
 - `file_name: string`
 - `file_size: number`
@@ -550,6 +575,9 @@ Rust와 TypeScript는 같은 모양을 유지한다.
 - `PsdThumbStatus`: 탐색기 썸네일 등록 상태(20.2절).
 - `SaveImageOptions`: camelCase `{ rotationCw, flipH, flipV, format?, overwrite, newFileName? }`.
 - `DirListOptions`: camelCase `{ sortKey, descending, recursive }`.
+- `CacheStats`: `{ storage_mode: "temporary"|"persistent", persistent_available, total_bytes, file_count, protected_bytes, protected_file_count, total_limit_bytes, categories }`.
+- `CacheCategoryStats`: `{ key: "thumbnails"|"converted"|"scaled"|"archives"|"other", bytes, file_count, protected_bytes, protected_file_count, limit_bytes }`.
+- `CacheClearResult`: `{ removed_bytes, removed_file_count, failed_file_count, stats }`.
 
 ## 17. 에러 모델
 
@@ -577,7 +605,7 @@ Rust와 TypeScript는 같은 모양을 유지한다.
 ## 18. 렌더링 경로
 
 - 백엔드는 디코드용 파일 경로를 돌려주고, 프론트는 `convertFileSrc(...)`로 변환해 `<img>`에 넣는다.
-- HEIC/HEIF/PSD는 JPEG sidecar를, 표시 해상도 제한이 걸린 큰 래스터는 `scaled/` 사본(9.3절)을 만든다. sidecar와 아카이브 추출물, 썸네일 캐시는 프로세스 임시 디렉터리 아래에 둔다.
+- HEIC/HEIF/PSD는 JPEG sidecar를, 표시 해상도 제한이 걸린 큰 래스터는 `scaled/` 사본(9.4절)을 만든다. sidecar와 아카이브 추출물, 썸네일 캐시는 `cacheStorageMode`가 `persistent`면 Tauri 사용자 캐시 디렉터리의 버전된 루트에, `temporary`면 프로세스 수명 TempDir에 둔다.
 - JPEG/TIFF의 EXIF Orientation(1~8)은 WebView2 `<img>`가 자동 적용한다. 백엔드는 같은 기준을 따르도록 치수(`ImageInfo.width/height`, `get_image_details`), 썸네일, 편집 저장(`save_image_edits`)에 회전을 명시 적용한다(SVG/WebP/PNG/HEIC는 대상 아님).
 - 사용자가 여는 파일/폴더는 명령 실행 시 런타임에 asset scope로 허용한다.
 - CSP는 `default-src 'self'` 기반이며 `asset:`/`ipc:` 접근을 허용한다. dev 전용 설정은 `docs/development.md`를 따른다.
@@ -638,3 +666,4 @@ Windows 파일 탐색기에서 `.psd` 축소판을 표시한다. 미리보기 �
 - 포맷 추가: 2절 + 필요 시 15/16절.
 - 백엔드 명령 추가: 15절 IPC 표 + 16절 데이터 모델.
 - 설정/단축키 추가: 12~14절.
+- 파생 이미지 캐시 변경: 9절 + 12~16절 + `docs/development.md`.
