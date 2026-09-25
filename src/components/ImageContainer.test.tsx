@@ -3,7 +3,13 @@ import { createRef } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 vi.mock("@tauri-apps/api/core", () => ({
-  convertFileSrc: (p: string) => p
+  convertFileSrc: (p: string) => p,
+  invoke: async () => ({
+    classification: "continuous",
+    confidence: 0,
+    pixel_scale: null,
+    method: "unsupported"
+  })
 }))
 
 vi.mock("@tanstack/react-router", () => ({
@@ -20,12 +26,14 @@ vi.mock("@/components/ui/toast", () => ({
 
 import { ImageContainer } from "@/components/ImageContainer"
 import { closeImage, useAppStore } from "@/store/appStore"
+import { DEFAULT_SETTINGS, useSettingsStore } from "@/store/settingsStore"
 
 const noop = () => {}
 
 beforeEach(() => {
   cleanup()
   closeImage()
+  useSettingsStore.setState({ ...DEFAULT_SETTINGS })
 })
 
 describe("ImageContainer single mode", () => {
@@ -76,6 +84,44 @@ describe("ImageContainer single mode", () => {
     expect(img.style.width).toBe("2000px")
     expect(img.style.height).toBe("1000px")
     expect(img.style.transform).toContain("scale(0.5")
+  })
+
+  it("픽셀 보존 모드는 레이아웃 크기로 확대하고 픽셀 클래스를 적용한다", () => {
+    useSettingsStore.setState({ imageScalingMode: "pixelated", autoDetectPixelArt: false })
+    useAppStore.setState({
+      imageInfo: {
+        file_path: "/pics/sprite.png",
+        source_path: "/pics/sprite.png",
+        file_name: "sprite.png",
+        file_size: 123,
+        mime_type: "image/png",
+        width: 800,
+        height: 600
+      },
+      imageSize: { width: 800, height: 600 },
+      zoom: 2,
+      position: { x: 0, y: 0 },
+      rotation: 0,
+      flipH: false,
+      flipV: false
+    })
+
+    render(
+      <ImageContainer
+        containerRef={createRef<HTMLDivElement>()}
+        imageRef={createRef<HTMLImageElement>()}
+        onWheel={noop}
+        onMouseDown={noop}
+        onMouseMove={noop}
+        onMouseUp={noop}
+      />
+    )
+
+    const img = screen.getByAltText("sprite.png")
+    expect(img.className).toContain("image-rendering-pixelated")
+    expect(img.style.width).toBe("1600px")
+    expect(img.style.height).toBe("1200px")
+    expect(img.style.transform).toContain("scale(1, 1)")
   })
 
   it("SVG는 레이아웃 크기로 줌하고 transform에는 반전/회전만 남긴다", () => {

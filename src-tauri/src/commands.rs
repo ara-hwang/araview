@@ -59,10 +59,36 @@ pub fn load_image(
     app: tauri::AppHandle,
     file_path: String,
     max_side: Option<u32>,
+    image_scaling_mode: Option<String>,
+    auto_detect_pixel_art: Option<bool>,
 ) -> Result<ImageInfo, AppError> {
-    let info = crate::image::load_viewable_with_limit(Path::new(&file_path), max_side)?;
+    let mode = parse_image_scaling_mode(image_scaling_mode, auto_detect_pixel_art);
+    let info = crate::image::load_viewable_with_limit_mode(Path::new(&file_path), max_side, mode)?;
     allow_asset_path(&app, Path::new(&info.file_path))?;
     Ok(info)
+}
+
+fn parse_image_scaling_mode(
+    image_scaling_mode: Option<String>,
+    auto_detect_pixel_art: Option<bool>,
+) -> crate::scaled::ImageScalingMode {
+    crate::scaled::ImageScalingMode::from_command(
+        image_scaling_mode.as_deref(),
+        auto_detect_pixel_art.unwrap_or(false),
+    )
+}
+
+/// 이미지 표시에 사용할 픽셀 아트 힌트를 비동기로 분석한다.
+/// 분석 실패는 이미지 열기 흐름에 영향을 주지 않도록 `uncertain`으로 안전하게 반환한다.
+#[tauri::command]
+pub async fn detect_pixel_art(
+    file_path: String,
+) -> Result<crate::pixel_art::PixelArtDetection, AppError> {
+    tauri::async_runtime::spawn_blocking(move || {
+        crate::pixel_art::detect_file(Path::new(&file_path))
+    })
+    .await
+    .map_err(|e| AppError::unknown(format!("Failed to join pixel-art detection task: {e}")))
 }
 
 #[tauri::command]
@@ -256,6 +282,8 @@ pub fn load_archive_image(
     entry_name: String,
     max_side: Option<u32>,
     protect: Option<bool>,
+    image_scaling_mode: Option<String>,
+    auto_detect_pixel_art: Option<bool>,
 ) -> Result<ImageInfo, AppError> {
     let arch_path = Path::new(&archive_path);
 
@@ -272,7 +300,8 @@ pub fn load_archive_image(
         protect.unwrap_or(true),
     )?;
 
-    let info = crate::image::load_viewable_with_limit(&extracted_path, max_side)?;
+    let mode = parse_image_scaling_mode(image_scaling_mode, auto_detect_pixel_art);
+    let info = crate::image::load_viewable_with_limit_mode(&extracted_path, max_side, mode)?;
     allow_asset_path(&app, Path::new(&info.file_path))?;
     Ok(info)
 }
@@ -466,16 +495,34 @@ pub fn rename_file(
     old_path: String,
     new_name: String,
     max_side: Option<u32>,
+    image_scaling_mode: Option<String>,
+    auto_detect_pixel_art: Option<bool>,
 ) -> Result<ImageInfo, AppError> {
-    let info = rename_file_impl(&old_path, &new_name, max_side)?;
+    let mode = parse_image_scaling_mode(image_scaling_mode, auto_detect_pixel_art);
+    let info = rename_file_impl_with_mode(&old_path, &new_name, max_side, mode)?;
     allow_asset_path(&app, Path::new(&info.file_path))?;
     Ok(info)
 }
 
+#[cfg(test)]
 fn rename_file_impl(
     old_path: &str,
     new_name: &str,
     max_side: Option<u32>,
+) -> Result<ImageInfo, AppError> {
+    rename_file_impl_with_mode(
+        old_path,
+        new_name,
+        max_side,
+        crate::scaled::ImageScalingMode::Smooth,
+    )
+}
+
+fn rename_file_impl_with_mode(
+    old_path: &str,
+    new_name: &str,
+    max_side: Option<u32>,
+    mode: crate::scaled::ImageScalingMode,
 ) -> Result<ImageInfo, AppError> {
     use crate::image::is_supported_file;
 
@@ -506,7 +553,7 @@ fn rename_file_impl(
             .map_err(|e| AppError::io("Failed to rename", e, ErrorCode::Unknown))?;
     }
 
-    crate::image::load_viewable_with_limit(&new_path, max_side)
+    crate::image::load_viewable_with_limit_mode(&new_path, max_side, mode)
 }
 
 #[cfg(test)]

@@ -11,6 +11,7 @@ pub mod image;
 pub mod image_info;
 pub mod jpeg_meta;
 pub mod orientation;
+pub mod pixel_art;
 pub mod process_temp;
 pub mod psd_sidecar;
 pub mod save;
@@ -22,9 +23,9 @@ pub mod thumbnail;
 
 use app_error::AppError;
 use commands::{
-    archive_prefetch, clear_cache, generate_archive_file_thumbnail, generate_archive_thumbnail,
-    generate_thumbnail, generate_thumbnails_batch, get_archive_images, get_cache_stats,
-    get_cached_thumbnail, get_comic_info, get_directory_images, get_exif_data,
+    archive_prefetch, clear_cache, detect_pixel_art, generate_archive_file_thumbnail,
+    generate_archive_thumbnail, generate_thumbnail, generate_thumbnails_batch, get_archive_images,
+    get_cache_stats, get_cached_thumbnail, get_comic_info, get_directory_images, get_exif_data,
     get_file_associations, get_image_details, get_image_histogram, load_archive_image, load_image,
     open_default_apps_settings, rename_file, resolve_dropped_path, set_file_association,
     trash_file,
@@ -133,6 +134,7 @@ pub fn run() {
         }))
         .invoke_handler(tauri::generate_handler![
             load_image,
+            detect_pixel_art,
             get_directory_images,
             get_exif_data,
             get_image_histogram,

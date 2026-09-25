@@ -37,6 +37,8 @@ export function useImageCache() {
   const cacheMode = useSettingsStore((state) => state.cacheMode)
   const cacheEpoch = useCacheInvalidationStore((state) => state.epoch)
   const maxResolution = useSettingsStore((state) => state.maxResolution)
+  const imageScalingMode = useSettingsStore((state) => state.imageScalingMode)
+  const autoDetectPixelArt = useSettingsStore((state) => state.autoDetectPixelArt)
   const paintPreloadsRef = useRef<Map<string, HTMLImageElement>>(new Map())
 
   const cacheLimit = useMemo(() => getCacheLimit(cacheMode), [cacheMode])
@@ -122,11 +124,15 @@ export function useImageCache() {
               archivePath: scopeAtStart,
               entryName: pathOrEntry,
               maxSide,
-              protect: protectArchive
+              protect: protectArchive,
+              imageScalingMode,
+              autoDetectPixelArt
             })
           : invoke<ImageInfo>("load_image", {
               filePath: pathOrEntry,
-              maxSide
+              maxSide,
+              imageScalingMode,
+              autoDetectPixelArt
             })
       )
         .then((imgInfo) => {
@@ -150,7 +156,7 @@ export function useImageCache() {
       }
       return promise
     },
-    [cacheImage, maxSide]
+    [autoDetectPixelArt, cacheImage, imageScalingMode, maxSide]
   )
 
   const prefetchNearbyImages = useCallback(
@@ -247,7 +253,7 @@ export function useImageCache() {
         // 무시
       }
     }
-  }, [maxResolution])
+  }, [autoDetectPixelArt, imageScalingMode, maxResolution])
 
   return {
     getOrLoadImage,

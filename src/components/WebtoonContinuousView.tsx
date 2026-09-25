@@ -3,11 +3,14 @@ import { convertFileSrc } from "@tauri-apps/api/core"
 import { memo, useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 
+import { PixelArtImage } from "@/components/PixelArtImage"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { cn } from "@/lib/utils"
+import type { ImageScalingMode } from "@/store/settingsStore"
 import type { ImageInfo } from "@/types"
 import { errorMessage } from "@/utils/appError"
+import { getPixelArtDetectionPath } from "@/utils/imageRendering"
 import {
   calculateWebtoonScrollMetrics,
   type WebtoonPageRect,
@@ -27,6 +30,8 @@ function WebtoonLazyPage({
   getOrLoadImage,
   registerRef,
   fitWidth,
+  imageScalingMode,
+  autoDetectPixelArt,
   showPageBoundary,
   priority,
   isCurrent,
@@ -37,6 +42,8 @@ function WebtoonLazyPage({
   getOrLoadImage: GetOrLoadImage
   registerRef: (index: number, el: HTMLDivElement | null) => void
   fitWidth: boolean
+  imageScalingMode: ImageScalingMode
+  autoDetectPixelArt: boolean
   showPageBoundary: boolean
   priority: boolean
   isCurrent: boolean
@@ -46,6 +53,7 @@ function WebtoonLazyPage({
   const wrapRef = useRef<HTMLDivElement>(null)
   const [info, setInfo] = useState<ImageInfo | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [isNearViewport, setIsNearViewport] = useState(false)
   const [nonce, setNonce] = useState(0)
   const name = path.split(/[\\/]/).pop() ?? path
 
@@ -78,6 +86,7 @@ function WebtoonLazyPage({
     }
 
     if (typeof IntersectionObserver === "undefined") {
+      setIsNearViewport(priority)
       void load()
       return () => {
         cancelled = true
@@ -86,7 +95,9 @@ function WebtoonLazyPage({
 
     const io = new IntersectionObserver(
       (entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) {
+        const near = entries.some((entry) => entry.isIntersecting)
+        setIsNearViewport(near)
+        if (near) {
           void load()
         }
       },
@@ -97,7 +108,7 @@ function WebtoonLazyPage({
       cancelled = true
       io.disconnect()
     }
-  }, [path, getOrLoadImage, nonce])
+  }, [path, getOrLoadImage, nonce, priority])
 
   return (
     <div
@@ -110,7 +121,14 @@ function WebtoonLazyPage({
       )}
     >
       {info && !error ? (
-        <img
+        <PixelArtImage
+          filePath={info.file_path}
+          detectionPath={getPixelArtDetectionPath(info)}
+          fileSize={info.file_size}
+          scalingMode={imageScalingMode}
+          autoDetectPixelArt={autoDetectPixelArt}
+          detectionEnabled={isNearViewport || priority}
+          detectionPriority={priority}
           src={convertFileSrc(info.file_path)}
           alt={name}
           width={info.width ?? undefined}
@@ -160,6 +178,8 @@ type WebtoonPageListProps = {
   imageGap: number
   showPageBoundaries: boolean
   fitWidth: boolean
+  imageScalingMode: ImageScalingMode
+  autoDetectPixelArt: boolean
   onImageDoubleClick?: (e: React.MouseEvent) => void
 }
 
@@ -171,6 +191,8 @@ const WebtoonPageList = memo(function WebtoonPageList({
   imageGap,
   showPageBoundaries,
   fitWidth,
+  imageScalingMode,
+  autoDetectPixelArt,
   onImageDoubleClick
 }: WebtoonPageListProps) {
   return (
@@ -186,6 +208,8 @@ const WebtoonPageList = memo(function WebtoonPageList({
           getOrLoadImage={getOrLoadImage}
           registerRef={registerRef}
           fitWidth={fitWidth}
+          imageScalingMode={imageScalingMode}
+          autoDetectPixelArt={autoDetectPixelArt}
           showPageBoundary={showPageBoundaries && index > 0}
           priority={index === currentIndex}
           isCurrent={index === currentIndex}
@@ -229,6 +253,8 @@ export function WebtoonContinuousView({
   imageGap,
   showPageBoundaries,
   fitWidth,
+  imageScalingMode = "auto",
+  autoDetectPixelArt = true,
   showProgress,
   thumbnailJump,
   onOpenThumbnailGrid,
@@ -242,6 +268,8 @@ export function WebtoonContinuousView({
   imageGap: number
   showPageBoundaries: boolean
   fitWidth: boolean
+  imageScalingMode?: ImageScalingMode
+  autoDetectPixelArt?: boolean
   showProgress: boolean
   thumbnailJump: boolean
   onOpenThumbnailGrid?: (trigger?: HTMLButtonElement) => void
@@ -396,6 +424,8 @@ export function WebtoonContinuousView({
           imageGap={imageGap}
           showPageBoundaries={showPageBoundaries}
           fitWidth={fitWidth}
+          imageScalingMode={imageScalingMode}
+          autoDetectPixelArt={autoDetectPixelArt}
           onImageDoubleClick={onImageDoubleClick}
         />
       </div>

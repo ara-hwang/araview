@@ -4,11 +4,13 @@ import { useLayoutEffect, useRef, useState, type RefObject } from "react"
 import { useTranslation } from "react-i18next"
 import { useShallow } from "zustand/react/shallow"
 
+import { PixelArtImage } from "@/components/PixelArtImage"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
 import { toast } from "@/components/ui/toast"
 import { useGifPlayer } from "@/hooks/useGifPlayer"
 import type { MultiPage } from "@/hooks/useMultiPageImages"
+import { usePixelArtDetection } from "@/hooks/usePixelArtDetection"
 import i18n from "@/i18n"
 import { cn } from "@/lib/utils"
 import { applyImageNaturalSize, closeImage, useAppStore } from "@/store/appStore"
@@ -18,6 +20,7 @@ import type { ViewMode } from "@/store/settingsStore"
 import type { ImageInfo } from "@/types"
 import { classifyError } from "@/utils/appError"
 import { canControlGif } from "@/utils/gifPlayback"
+import { getPixelArtDetectionPath, resolveImageRenderingMode } from "@/utils/imageRendering"
 import { MAX_SKIP_ATTEMPTS, findSkipTarget } from "@/utils/skipBroken"
 
 import { ArchivePreviewCallout } from "./ArchivePreviewCallout"
@@ -90,7 +93,9 @@ export function ImageContainer({
       webtoonPageBoundaries: state.webtoonPageBoundaries,
       webtoonFitWidth: state.webtoonFitWidth,
       webtoonShowProgress: state.webtoonShowProgress,
-      webtoonThumbnailJump: state.webtoonThumbnailJump
+      webtoonThumbnailJump: state.webtoonThumbnailJump,
+      imageScalingMode: state.imageScalingMode,
+      autoDetectPixelArt: state.autoDetectPixelArt
     }))
   )
   const viewerBackground = webtoonSettings.viewerBackground
@@ -152,6 +157,18 @@ export function ImageContainer({
   const isDual = (viewMode === "left-to-right" || viewMode === "right-to-left") && pages.length > 0
   const isWebtoon = viewMode === "webtoon" && app.dirImages.images.length > 0 && !!getOrLoadImage
   const isMulti = isDual || isWebtoon
+  const currentPixelArtDetection = usePixelArtDetection(
+    app.imageInfo ? getPixelArtDetectionPath(app.imageInfo) : null,
+    app.imageInfo?.file_size,
+    !isMulti && webtoonSettings.imageScalingMode === "auto" && webtoonSettings.autoDetectPixelArt,
+    !isMulti
+  )
+  const imageRendering = resolveImageRenderingMode(
+    webtoonSettings.imageScalingMode,
+    webtoonSettings.autoDetectPixelArt,
+    currentPixelArtDetection
+  )
+  const isPixelated = imageRendering === "pixelated"
 
   // GIF는 단일 보기에서만 캔버스로 제어한다(재생/정지/프레임 이동).
   const gifCanvasRef = useRef<HTMLCanvasElement>(null)
@@ -160,7 +177,8 @@ export function ImageContainer({
   const { failed: gifFailed } = useGifPlayer(
     gifCanvasRef,
     gifControllable ? imageSrc : null,
-    gifControllable
+    gifControllable,
+    !isPixelated
   )
   // 디코더가 다중 프레임을 확인해 active가 되기 전에는 기존 <img>로 보여준다
   // (정지 GIF가 빈 캔버스가 되는 것을 막는다).
@@ -173,13 +191,16 @@ export function ImageContainer({
   // scale(zoom) 확대는 래스터를 늘려 흐릿해지지만, 레이아웃 크기면
   // 브라우저가 표시 크기에서 재래스터해 선명도가 유지된다.
   const svgSharpZoom = isSvgImage && app.imageSize.width > 0 && app.imageSize.height > 0
-  const singleImgWidth = svgSharpZoom
+  // 픽셀 보존 모드는 transform 합성에서 다시 보간되지 않도록 레이아웃 크기로 확대한다.
+  const layoutZoom =
+    (svgSharpZoom || isPixelated) && app.imageSize.width > 0 && app.imageSize.height > 0
+  const singleImgWidth = layoutZoom
     ? app.imageSize.width * app.zoom
     : app.imageSize.width || undefined
-  const singleImgHeight = svgSharpZoom
+  const singleImgHeight = layoutZoom
     ? app.imageSize.height * app.zoom
     : app.imageSize.height || undefined
-  const singleImgTransform = svgSharpZoom
+  const singleImgTransform = layoutZoom
     ? `translate3d(${app.position.x}px, ${app.position.y}px, 0) scale(${app.flipH ? -1 : 1}, ${app.flipV ? -1 : 1}) rotate(${app.rotation}deg)`
     : `translate3d(${app.position.x}px, ${app.position.y}px, 0) scale(${app.zoom * (app.flipH ? -1 : 1)}, ${app.zoom * (app.flipV ? -1 : 1)}) rotate(${app.rotation}deg)`
 
@@ -210,7 +231,12 @@ export function ImageContainer({
             src={previewSrc}
             alt=""
             aria-hidden="true"
-            className="block max-h-none max-w-none shrink-0 origin-center"
+            className={cn(
+              "block max-h-none max-w-none shrink-0 origin-center",
+              imageRendering === "pixelated"
+                ? "image-rendering-pixelated"
+                : "image-rendering-smooth"
+            )}
             style={{
               width: singleImgWidth,
               height: singleImgHeight,
@@ -233,7 +259,10 @@ export function ImageContainer({
             alt={app.imageInfo?.file_name}
             className={cn(
               "pointer-events-auto block max-h-none max-w-none shrink-0 origin-center transition-opacity duration-150 ease-motion-out will-change-transform motion-reduce:transition-none",
-              fullLoaded ? "opacity-100" : "opacity-0"
+              fullLoaded ? "opacity-100" : "opacity-0",
+              imageRendering === "pixelated"
+                ? "image-rendering-pixelated"
+                : "image-rendering-smooth"
             )}
             style={{
               width: singleImgWidth,
@@ -264,7 +293,12 @@ export function ImageContainer({
             ref={gifCanvasRef}
             role="img"
             aria-label={app.imageInfo?.file_name}
-            className="pointer-events-auto block max-h-none max-w-none shrink-0 origin-center will-change-transform"
+            className={cn(
+              "pointer-events-auto block max-h-none max-w-none shrink-0 origin-center will-change-transform",
+              imageRendering === "pixelated"
+                ? "image-rendering-pixelated"
+                : "image-rendering-smooth"
+            )}
             style={{
               width: singleImgWidth,
               height: singleImgHeight,
@@ -286,9 +320,15 @@ export function ImageContainer({
             viewMode === "right-to-left" && "flex-row-reverse"
           )}
         >
-          {pages.map((page) => (
-            <img
+          {pages.map((page, index) => (
+            <PixelArtImage
               key={page.path}
+              filePath={page.info.file_path}
+              detectionPath={getPixelArtDetectionPath(page.info)}
+              fileSize={page.info.file_size}
+              scalingMode={webtoonSettings.imageScalingMode}
+              autoDetectPixelArt={webtoonSettings.autoDetectPixelArt}
+              detectionPriority={index === 0}
               src={toSrc(page.info)}
               alt={page.info.file_name}
               className={
@@ -314,6 +354,8 @@ export function ImageContainer({
           imageGap={webtoonSettings.webtoonImageGap}
           showPageBoundaries={webtoonSettings.webtoonPageBoundaries}
           fitWidth={webtoonSettings.webtoonFitWidth}
+          imageScalingMode={webtoonSettings.imageScalingMode}
+          autoDetectPixelArt={webtoonSettings.autoDetectPixelArt}
           showProgress={webtoonSettings.webtoonShowProgress}
           thumbnailJump={webtoonSettings.webtoonThumbnailJump}
           onOpenThumbnailGrid={onOpenThumbnailGrid}

@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 
 use crate::app_error::{AppError, ErrorCode};
 use crate::file_availability::FileAvailability;
+use crate::scaled::ImageScalingMode;
 
 #[derive(Serialize, Debug)]
 pub struct ImageInfo {
@@ -370,6 +371,15 @@ pub fn load_viewable_with_limit(
     source: &Path,
     max_side: Option<u32>,
 ) -> Result<ImageInfo, AppError> {
+    load_viewable_with_limit_mode(source, max_side, ImageScalingMode::Smooth)
+}
+
+/// 이미지 표시 정책까지 반영해 viewable ImageInfo를 만든다.
+pub fn load_viewable_with_limit_mode(
+    source: &Path,
+    max_side: Option<u32>,
+    mode: ImageScalingMode,
+) -> Result<ImageInfo, AppError> {
     if !source.exists() {
         return Err(AppError::not_found("File not found"));
     }
@@ -384,13 +394,15 @@ pub fn load_viewable_with_limit(
     };
     let mut dims_override = None;
     let paint_path = match max_side {
-        Some(limit) => match crate::scaled::ensure_scaled_sidecar(&base_path, limit)? {
-            Some(scaled) => {
-                dims_override = Some((scaled.width, scaled.height));
-                scaled.path
+        Some(limit) => {
+            match crate::scaled::ensure_scaled_sidecar_with_mode(&base_path, limit, mode)? {
+                Some(scaled) => {
+                    dims_override = Some((scaled.width, scaled.height));
+                    scaled.path
+                }
+                None => base_path,
             }
-            None => base_path,
-        },
+        }
         None => base_path,
     };
     image_info_with_dims(source, paint_path, dims_override)

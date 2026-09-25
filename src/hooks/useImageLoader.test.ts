@@ -112,7 +112,9 @@ beforeEach(() => {
     loopNavigation: false,
     resumeReading: true,
     showCoverAlone: true,
-    recordRecentFiles: false
+    recordRecentFiles: false,
+    imageScalingMode: "auto",
+    autoDetectPixelArt: true
   })
   setupInvoke()
 })
@@ -305,6 +307,42 @@ describe("useImageLoader 양면 이어보기", () => {
 })
 
 describe("useImageLoader 표시 해상도 상한", () => {
+  it("표시 정책을 바꾸면 sidecar에 새 보간 정책을 전달하고 현재 이미지를 다시 로드한다", async () => {
+    useSettingsStore.setState({
+      maxResolution: "original",
+      imageScalingMode: "auto",
+      autoDetectPixelArt: true
+    })
+    const policies: Array<[unknown, unknown]> = []
+    setupInvoke({
+      load_image: async (args) => {
+        policies.push([args?.imageScalingMode, args?.autoDetectPixelArt])
+        return { ...imgInfo(String(args?.filePath)), file_name: "policy.jpg" }
+      },
+      get_directory_images: async () => ({
+        images: ["/pics/policy.jpg"],
+        current_index: 0,
+        availability: []
+      })
+    })
+    const { result } = renderHook(() => useImageLoader())
+
+    await act(async () => {
+      await result.current.loadImage("/pics/policy.jpg")
+    })
+    expect(policies).toEqual([["auto", true]])
+
+    await act(async () => {
+      useSettingsStore.setState({ imageScalingMode: "smooth", autoDetectPixelArt: false })
+    })
+    await waitFor(() => {
+      expect(policies).toEqual([
+        ["auto", true],
+        ["smooth", false]
+      ])
+    })
+  })
+
   it("상한이 바뀌면 새 maxSide로 현재 이미지를 다시 로드한다", async () => {
     useSettingsStore.setState({ maxResolution: "original" })
     const maxSides: Array<number | null> = []

@@ -10,6 +10,15 @@ export type ImageInfo = {
   height: number | null
 }
 
+export type PixelArtClassification = "pixel_art" | "continuous" | "uncertain"
+
+export type PixelArtDetection = {
+  classification: PixelArtClassification
+  confidence: number
+  pixel_scale: number | null
+  method: "runs" | "edges" | "hybrid" | "unsupported"
+}
+
 export type FileAvailability = "local" | "cloud_only" | "unknown"
 
 export type DirectoryImages = {

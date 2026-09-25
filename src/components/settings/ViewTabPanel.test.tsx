@@ -46,6 +46,22 @@ describe("ViewTabPanel webtoon settings", () => {
     )
   })
 
+  it("이미지 표시 모드와 픽셀 아트 자동 감지 스위치를 설정에 반영한다", async () => {
+    render(<ViewTabPanel />)
+
+    fireEvent.click(screen.getByRole("radio", { name: "settings.imageRendering.pixelated" }))
+    await waitFor(() => {
+      expect(useSettingsStore.getState().imageScalingMode).toBe("pixelated")
+    })
+
+    fireEvent.click(screen.getByRole("radio", { name: "settings.imageRendering.auto" }))
+    fireEvent.click(screen.getByRole("switch", { name: "settings.imageRendering.autoDetect" }))
+    await waitFor(() => {
+      expect(useSettingsStore.getState().imageScalingMode).toBe("auto")
+      expect(useSettingsStore.getState().autoDetectPixelArt).toBe(false)
+    })
+  })
+
   it("페이지 경계와 Fit width 스위치를 설정에 반영한다", async () => {
     render(<ViewTabPanel />)
 

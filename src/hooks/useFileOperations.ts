@@ -214,12 +214,15 @@ export function useFileOperations({ loadImage }: { loadImage: LoadImageFn }) {
     }
 
     const sourcePath = imageInfo.source_path
+    const settings = useSettingsStore.getState()
     let nextInfo: ImageInfo
     try {
       nextInfo = await invoke<ImageInfo>("rename_file", {
         oldPath: sourcePath,
         newName: newName.trim(),
-        maxSide: maxSideForResolution(useSettingsStore.getState().maxResolution)
+        maxSide: maxSideForResolution(settings.maxResolution),
+        imageScalingMode: settings.imageScalingMode,
+        autoDetectPixelArt: settings.autoDetectPixelArt
       })
     } catch (e) {
       toast.error(i18n.t("toast.rename.fail"), {

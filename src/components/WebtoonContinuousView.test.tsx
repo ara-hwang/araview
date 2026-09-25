@@ -2,7 +2,13 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 vi.mock("@tauri-apps/api/core", () => ({
-  convertFileSrc: (path: string) => path
+  convertFileSrc: (path: string) => path,
+  invoke: async () => ({
+    classification: "continuous",
+    confidence: 0,
+    pixel_scale: null,
+    method: "unsupported"
+  })
 }))
 
 vi.mock("react-i18next", () => ({

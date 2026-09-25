@@ -176,6 +176,14 @@
       "rtl": "Two pages right-to-left",
       "webtoon": "Webtoon scroll"
     },
+    "imageRendering": {
+      "title": "Image rendering",
+      "desc": "Choose smooth scaling or crisp pixel preservation when enlarging the main image.",
+      "auto": "Automatic",
+      "smooth": "Smooth",
+      "pixelated": "Preserve pixels",
+      "autoDetect": "Automatically detect pixel art"
+    },
     "webtoon": {
       "title": "Webtoon details",
       "desc": "Set image spacing, page boundaries, Fit width, and the reading position display.",

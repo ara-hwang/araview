@@ -27,6 +27,9 @@ export type CacheMode = "off" | "nearby" | "extended" | "memory-1gb" | "memory-2
 /** 표시 해상도 상한. original=원본, 4k=3840px, 1080p=1920px (긴 변 기준) */
 export type MaxResolution = "original" | "4k" | "1080p"
 
+/** 이미지 표시 스케일링. auto는 픽셀 아트 자동 감지 결과를 따른다. */
+export type ImageScalingMode = "auto" | "smooth" | "pixelated"
+
 export type ViewMode = "single" | "left-to-right" | "right-to-left" | "webtoon"
 
 export type ViewerBackground = "theme" | "black" | "white" | "checker"
@@ -49,6 +52,10 @@ export type SettingsState = {
   cacheStorageMode: CacheStorageMode
   /** 대용량 이미지를 긴 변 기준으로 축소해 표시한다 (렌더 메모리 절감) */
   maxResolution: MaxResolution
+  /** 이미지 확대 시 보간 방식. auto는 픽셀 아트 자동 감지를 사용한다. */
+  imageScalingMode: ImageScalingMode
+  /** 자동 모드에서 픽셀 아트 감지를 적용한다. */
+  autoDetectPixelArt: boolean
   viewMode: ViewMode
   /** 웹툰 이미지 사이 간격(px) */
   webtoonImageGap: number
@@ -101,6 +108,8 @@ const initialSettings: SettingsState = {
   cacheMode: "nearby",
   cacheStorageMode: "persistent",
   maxResolution: "original",
+  imageScalingMode: "auto",
+  autoDetectPixelArt: true,
   viewMode: "single",
   webtoonImageGap: 8,
   webtoonPageBoundaries: false,
@@ -136,6 +145,7 @@ export const DEFAULT_SETTINGS: SettingsState = { ...initialSettings }
 const CACHE_MODES: readonly CacheMode[] = ["off", "nearby", "extended", "memory-1gb", "memory-2gb"]
 const CACHE_STORAGE_MODES: readonly CacheStorageMode[] = ["temporary", "persistent"]
 const MAX_RESOLUTIONS: readonly MaxResolution[] = ["original", "4k", "1080p"]
+const IMAGE_SCALING_MODES: readonly ImageScalingMode[] = ["auto", "smooth", "pixelated"]
 const VIEW_MODES: readonly ViewMode[] = ["single", "left-to-right", "right-to-left", "webtoon"]
 const VIEWER_BACKGROUNDS: readonly ViewerBackground[] = ["theme", "black", "white", "checker"]
 const SORT_KEYS: readonly DirSortKey[] = ["name", "date", "size"]
@@ -180,6 +190,15 @@ export function sanitizeSettings(value: unknown): SettingsState {
       record.maxResolution,
       MAX_RESOLUTIONS,
       initialSettings.maxResolution
+    ),
+    imageScalingMode: sanitizeEnum(
+      record.imageScalingMode,
+      IMAGE_SCALING_MODES,
+      initialSettings.imageScalingMode
+    ),
+    autoDetectPixelArt: sanitizeBooleanWithDefault(
+      record.autoDetectPixelArt,
+      initialSettings.autoDetectPixelArt
     ),
     viewMode: sanitizeEnum(record.viewMode, VIEW_MODES, initialSettings.viewMode),
     webtoonImageGap: sanitizeWebtoonImageGap(record.webtoonImageGap),
