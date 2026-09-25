@@ -98,6 +98,15 @@ describe("sanitizeSettings", () => {
     expect(sanitizeSettings({ maxResolution: "8k" }).maxResolution).toBe("original")
   })
 
+  it("이미지 표시 방식과 픽셀 아트 자동 감지를 복원한다", () => {
+    expect(sanitizeSettings({}).imageScalingMode).toBe("auto")
+    expect(sanitizeSettings({}).autoDetectPixelArt).toBe(true)
+    expect(sanitizeSettings({ imageScalingMode: "pixelated" }).imageScalingMode).toBe("pixelated")
+    expect(sanitizeSettings({ imageScalingMode: "cubic" }).imageScalingMode).toBe("auto")
+    expect(sanitizeSettings({ autoDetectPixelArt: false }).autoDetectPixelArt).toBe(false)
+    expect(sanitizeSettings({ autoDetectPixelArt: "yes" }).autoDetectPixelArt).toBe(false)
+  })
+
   it("잘못된 union 값은 기본값으로 되돌린다", () => {
     const sane = sanitizeSettings({
       cacheMode: "turbo",

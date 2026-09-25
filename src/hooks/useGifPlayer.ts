@@ -19,7 +19,8 @@ const DEFAULT_FRAME_MS = 100
 export function useGifPlayer(
   canvasRef: RefObject<HTMLCanvasElement | null>,
   src: string | null,
-  enabled: boolean
+  enabled: boolean,
+  smoothingEnabled = true
 ): { failed: boolean } {
   const [failed, setFailed] = useState(false)
   const [decoderReady, setDecoderReady] = useState(0)
@@ -140,6 +141,7 @@ export function useGifPlayer(
           canvas.width = image.displayWidth
           canvas.height = image.displayHeight
         }
+        ctx.imageSmoothingEnabled = smoothingEnabled
         ctx.clearRect(0, 0, canvas.width, canvas.height)
         ctx.drawImage(image, 0, 0)
         const durationMs = Math.max(
@@ -177,7 +179,7 @@ export function useGifPlayer(
       cancelled = true
       if (timer !== undefined) window.clearTimeout(timer)
     }
-  }, [canvasRef, decoderReady, enabled, frame, frameCount, playing])
+  }, [canvasRef, decoderReady, enabled, frame, frameCount, playing, smoothingEnabled])
 
   return { failed }
 }

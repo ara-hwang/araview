@@ -90,6 +90,9 @@ CBZ/ZIP의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한다(8
 - 그리드: 뷰포트 기반 가상화, 클릭/`Enter`로 점프 후 닫기, `Esc`/`G`로 닫기, 파일명 필터, 실패 셀 배지와 재시도. 그리드가 열려 있는 동안 뷰어 단축키는 비활성이다.
 - 우클릭은 설정(`mouse.rightClick`)에 따라 컨텍스트 메뉴 또는 다른 동작이다. 홈에서는 우클릭을 막는다.
 - `Esc` 닫기: 이름 변경/저장 다이얼로그가 열려 있거나 입력 포커스 중이면 닫지 않는다.
+- 이미지 표시 설정은 `auto | smooth | pixelated`를 제공한다. `auto`는 픽셀 아트 자동 감지가 켜져 있고 분석 결과가 `pixel_art`로 분류되면 `pixelated`, 그 외에는 `smooth`를 사용한다. 수동 모드는 자동 감지보다 우선한다.
+- 픽셀 아트 자동 감지는 현재 이미지를 렌더한 뒤 별도 백그라운드 IPC로 분석한다. 분석 전/실패/불확실은 `smooth`로 대체하며 원본과 파생 이미지는 변경하지 않는다. 감지는 동시 2개로 제한하고 웹툰에서는 화면에서 벗어난 대기 요청을 취소한다.
+- 단일 이미지의 픽셀 보존 모드는 transform 확대 대신 레이아웃 크기 확대를 사용해 Chromium 합성 단계의 재보간을 줄인다. GIF Canvas는 `imageSmoothingEnabled=false`를 사용한다. 양면/웹툰의 각 이미지는 같은 설정을 공유하되 판정은 이미지별이다.
 - `autoHideUI`가 true일 때만 읽기 중 크롬(상단바, 이미지 목록 도크, 상태바)을 숨기고 읽기 영역을 확장한다. 도크 상태(스크롤 위치, 로드한 썸네일)는 유지된다.
 - `menuBarHidden`이 true이면 상단바를 숨기고, 상단 호버 영역에서 peek 오버레이로 표시한다. 헤더 숨기기 버튼과 보기 설정 스위치로 토글한다. peek 시에는 읽기 영역 위로 겹쳐 내려오며, 포커스 이탈 시에는 즉시 닫힌다. 모션 토큰과 timing은 `DESIGN.md`를 따른다. `Esc`로는 닫히지 않는다(뷰어의 이미지 닫기와 충돌 방지).
 - 로드 실패 시 에러 카드에 재시도/홈 복구 경로를 제공한다. 실패한 적은 토스트로 알린다.
@@ -297,9 +300,10 @@ CBZ/ZIP의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한다(8
 - 설정 `maxResolution`(기본 `original`)이 켜져 있으면 긴 변이 상한(4k=3840px, 1080p=1920px)을 넘는 래스터를 `scaled/` sidecar로 한 번만 축소해 렌더한다. 원본 파일은 바뀌지 않는다.
 - 적용 대상은 `image` 크레이트가 디코드할 수 있는 래스터(PNG/JPEG/TIFF/BMP/ICO/정지 WebP)이며, EXIF Orientation(5~8)은 픽셀에 반영한 뒤 축소한다. 알파 채널이 있으면 투명도 보존을 위해 PNG로 저장한다.
 - GIF, 움직이는 WebP, SVG, 디코드 불가 포맷(AVIF 등)은 원본 바이트를 그대로 렌더한다.
-- sidecar는 활성 캐시 루트의 `scaled/`에 캐시되며 상한(500MB)을 넘기면 오래된 것부터 제거한다. 캐시 경로는 원본 식별 해시 + 상한 기준이라 설정을 바꾸면 다른 사본을 만든다.
+- sidecar는 활성 캐시 루트의 `scaled/`에 캐시되며 상한(500MB)을 넘기면 오래된 것부터 제거한다. 캐시 경로는 원본 식별 해시 + 상한 + 픽셀 아트 필터 알고리즘 revision 기준이라 설정이나 필터 알고리즘이 바뀌면 다른 사본을 만든다.
+- sidecar 축소 시 `smooth`는 기존 `Triangle`/JPEG를 사용하고, `pixelated`는 `Nearest`/lossless PNG를 사용한다. `auto`는 휴리스틱 분석 결과가 `pixel_art`일 때만 `Nearest`/PNG를 사용한다. 분석 결과는 원본을 바꾸지 않으며, 이후 메인 이미지 표시 힌트와 동일한 분류를 사용한다. sidecar 생성 중 얻은 자동 분석 결과는 같은 프로세스의 후속 `detect_pixel_art` IPC가 재사용한다.
 - 새 상한으로 로드한 `ImageInfo.width/height`는 축소 사본 기준이고, `source_path`는 항상 원본 파일이다(11절). 히스토그램은 렌더 바이트(`file_path`), EXIF/파일 상세는 원본(`source_path`) 기준이다.
-- 설정을 바꾸면 프론트는 메타 캐시와 픽셀 예열을 비우고 현재 이미지를 새 상한으로 다시 로드한다.
+- 해상도 상한이나 이미지 표시 정책을 바꾸면 프론트는 메타 캐시와 픽셀 예열을 비우고 현재 이미지를 새 기준으로 다시 로드한다.
 
 ### 9.5 캐시 관리 화면
 
@@ -415,6 +419,8 @@ CBZ/ZIP의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한다(8
 | `cacheMode`             | `off \| nearby \| extended \| memory-1gb \| memory-2gb` | `nearby`                           |
 | `cacheStorageMode`      | `temporary \| persistent`                               | `persistent`                       |
 | `maxResolution`         | `original \| 4k \| 1080p` (긴 변 상한, 9.4절)           | `original`                         |
+| `imageScalingMode`      | `auto \| smooth \| pixelated` 이미지 보간 방식          | `auto`                             |
+| `autoDetectPixelArt`    | 자동 모드에서 픽셀 아트 감지 사용                       | `true`                             |
 | `viewMode`              | `single \| left-to-right \| right-to-left \| webtoon`   | `single`                           |
 | `webtoonImageGap`       | 웹툰 이미지 사이 간격(px, 0~64)                         | `8`                                |
 | `webtoonPageBoundaries` | 웹툰 페이지 경계선 표시                                 | `false`                            |
@@ -522,6 +528,7 @@ CBZ/ZIP의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한다(8
 | 명령                              | 입력 (JS camelCase)                                | 반환                                   |
 | --------------------------------- | -------------------------------------------------- | -------------------------------------- |
 | `load_image`                      | `filePath`, `maxSide?`                             | `ImageInfo`                            |
+| `detect_pixel_art`                | `filePath`                                         | `PixelArtDetection`                    |
 | `get_directory_images`            | `filePath`, `options?`                             | `DirectoryImages`                      |
 | `resolve_dropped_path`            | `path`                                             | 해석된 파일 경로 `string`              |
 | `get_exif_data`                   | `filePath`                                         | `Record<string, string>`               |
@@ -549,6 +556,8 @@ CBZ/ZIP의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한다(8
 | `save_image_edits`                | `filePath`, `options`                              | `ImageInfo`                            |
 | `frontend_ready`                  | 없음                                               | 없음 (`PendingOpenFile` flush)         |
 
+`load_image`, `load_archive_image`, `rename_file`은 표시 정책에 따라 선택적으로 `imageScalingMode`(`auto | smooth | pixelated`)와 `autoDetectPixelArt`를 받는다.
+
 인자 변환과 직렬화 규칙은 0절을 따른다. 응답은 snake_case이며 TypeScript 타입과 1:1 대응한다.
 
 파일 연결 주의: 설정에서 연결 변경은 해당 확장자의 Windows 기본 앱 선택 창을 연다. 조용한 UserChoice 레지스트리 쓰기는 할 수 없다.
@@ -569,6 +578,8 @@ Rust와 TypeScript는 같은 모양을 유지한다.
 - `file_name: string`
 - `file_size: number`
 - `width: number | null`, `height: number | null`: 렌더 바이트 기준 치수(축소 사본이면 사본 치수). SVG는 헤더 파싱으로 복원하며 해석 불가분만 null.
+
+- `PixelArtDetection`: `{ classification: "pixel_art" | "continuous" | "uncertain", confidence: number, pixel_scale: number | null, method: "runs" | "edges" | "hybrid" | "unsupported" }`. `pixel_scale`은 픽셀 아트로 분류된 경우의 추정 격자 주기이며, 분석은 표시 힌트일 뿐 원본 파일을 변경하지 않는다.
 
 ### 16.2 기타
 
@@ -616,6 +627,9 @@ Rust와 TypeScript는 같은 모양을 유지한다.
 - 백엔드는 디코드용 파일 경로를 돌려주고, 프론트는 `convertFileSrc(...)`로 변환해 `<img>`에 넣는다.
 - HEIC/HEIF/PSD는 JPEG sidecar를, 표시 해상도 제한이 걸린 큰 래스터는 `scaled/` 사본(9.4절)을 만든다. sidecar와 아카이브 추출물, 썸네일 캐시는 `cacheStorageMode`가 `persistent`면 Tauri 사용자 캐시 디렉터리의 버전된 루트에, `temporary`면 프로세스 수명 TempDir에 둔다.
 - JPEG/TIFF의 EXIF Orientation(1~8)은 WebView2 `<img>`가 자동 적용한다. 백엔드는 같은 기준을 따르도록 치수(`ImageInfo.width/height`, `get_image_details`), 썸네일, 편집 저장(`save_image_edits`)에 회전을 명시 적용한다(SVG/WebP/PNG/HEIC는 대상 아님).
+- `detect_pixel_art`는 표시 바이트 경로를 제한된 분석 이미지로 읽고, 작은 색상 팔레트·평탄도·동일 색상 run·주기적 경계 신호를 결합한다. ML 모델이나 네트워크를 사용하지 않으며, 분석 제한 초과·디코드 실패·불확실 결과는 안전하게 부드러운 표시로 대체한다.
+- `image-rendering`은 `smooth`와 `pixelated` 값을 사용한다. `smooth`는 브라우저의 고품질 보간 선호이며 특정 Bilinear 구현을 보장하지 않는다. `pixelated`는 확대 시 최근접 계열 보간을 요청한다.
+- 사용자 원본 파일은 필터링하지 않는다. 표시 해상도 상한 sidecar와 썸네일은 기존 파생 이미지 파이프라인을 유지하며, 픽셀 보존 판정은 메인 이미지 표시 힌트로만 사용한다.
 - 사용자가 여는 파일/폴더는 명령 실행 시 런타임에 asset scope로 허용한다.
 - CSP는 `default-src 'self'` 기반이며 `asset:`/`ipc:` 접근을 허용한다. dev 전용 설정은 `docs/development.md`를 따른다.
 

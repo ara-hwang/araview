@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { toast } from "@/components/ui/toast"
 import { SUPPORTED_IMAGE_EXTENSIONS } from "@/constants/imageExtensions"
 import { useImageCache } from "@/hooks/useImageCache"
+import { clearPixelArtDetectionCache } from "@/hooks/usePixelArtDetection"
 import i18n from "@/i18n"
 import { setImageInfoAndResetView, updateDirImagesIndex, useAppStore } from "@/store/appStore"
 import { useArchiveProgressStore } from "@/store/archiveProgressStore"
@@ -25,6 +26,14 @@ import { MAX_SKIP_ATTEMPTS, findSkipTarget } from "@/utils/skipBroken"
 function endImageLoadIfCurrent(token: number): void {
   if (isCurrentImageLoad(token)) {
     useAppStore.setState({ loading: false })
+  }
+}
+
+function imageRenderArgs() {
+  const settings = useSettingsStore.getState()
+  return {
+    imageScalingMode: settings.imageScalingMode,
+    autoDetectPixelArt: settings.autoDetectPixelArt
   }
 }
 
@@ -103,13 +112,15 @@ export function useImageLoader() {
   /** 아카이브 내부 특정 엔트리의 이미지를 로드 */
   const loadArchiveImageByIndex = useCallback(
     async (archivePath: string, entryName: string, skipDepth = 0) => {
+      clearPixelArtDetectionCache()
       const loadToken = beginImageLoad()
       useAppStore.setState({ loading: true })
       try {
         const imgInfo = await invoke<ImageInfo>("load_archive_image", {
           archivePath,
           entryName,
-          maxSide: maxSideForResolution(useSettingsStore.getState().maxResolution)
+          maxSide: maxSideForResolution(useSettingsStore.getState().maxResolution),
+          ...imageRenderArgs()
         })
         if (!isCurrentImageLoad(loadToken)) return
         setImageInfoAndResetView(imgInfo)
@@ -163,6 +174,7 @@ export function useImageLoader() {
   /** 아카이브 파일을 열어 내부 첫 이미지(또는 이어보기 위치)를 표시 */
   const loadArchive = useCallback(
     async (archivePath: string, options?: { onAfterLoad?: () => void }) => {
+      clearPixelArtDetectionCache()
       const loadToken = beginImageLoad()
       clearImageMetaCache()
       // ComicInfo는 아카이브 경로만 필요하므로 목록 조회와 병행한다.
@@ -203,7 +215,8 @@ export function useImageLoader() {
         const imgInfo = await invoke<ImageInfo>("load_archive_image", {
           archivePath,
           entryName: firstEntry,
-          maxSide: maxSideForResolution(useSettingsStore.getState().maxResolution)
+          maxSide: maxSideForResolution(useSettingsStore.getState().maxResolution),
+          ...imageRenderArgs()
         })
 
         if (!isCurrentImageLoad(loadToken)) return
@@ -271,6 +284,7 @@ export function useImageLoader() {
   /** 폴더 목록을 유지하고 아카이브 첫 페이지만 미리본다 (이어보기·내부 목록 미적용). */
   const loadArchivePreview = useCallback(
     async (archivePath: string, options?: LoadImageOptions) => {
+      clearPixelArtDetectionCache()
       const loadToken = beginImageLoad()
       clearImageMetaCache()
       useAppStore.setState({
@@ -291,7 +305,8 @@ export function useImageLoader() {
         const imgInfo = await invoke<ImageInfo>("load_archive_image", {
           archivePath,
           entryName: firstEntry,
-          maxSide: maxSideForResolution(useSettingsStore.getState().maxResolution)
+          maxSide: maxSideForResolution(useSettingsStore.getState().maxResolution),
+          ...imageRenderArgs()
         })
         if (!isCurrentImageLoad(loadToken)) return
         setImageInfoAndResetView(imgInfo)
@@ -333,6 +348,7 @@ export function useImageLoader() {
         return
       }
 
+      clearPixelArtDetectionCache()
       const loadToken = beginImageLoad()
       const prior = useAppStore.getState()
       const leavingArchive = prior.archivePath !== null || prior.archivePreviewPath !== null
@@ -444,13 +460,16 @@ export function useImageLoader() {
     ]
   )
 
-  // 표시 해상도 상한이 바뀌면 이전 기준으로 캐시된 메타를 버리고 현재
+  // 표시 해상도나 보간 정책이 바뀌면 이전 기준으로 캐시된 메타를 버리고 현재
   // 이미지를 새 기준으로 다시 로드한다. 폴더 목록 인덱스는 유지된다.
   const maxResolution = useSettingsStore((state) => state.maxResolution)
-  const prevMaxResolutionRef = useRef(maxResolution)
+  const imageScalingMode = useSettingsStore((state) => state.imageScalingMode)
+  const autoDetectPixelArt = useSettingsStore((state) => state.autoDetectPixelArt)
+  const displaySettingsKey = `${maxResolution}:${imageScalingMode}:${autoDetectPixelArt}`
+  const prevDisplaySettingsKeyRef = useRef(displaySettingsKey)
   useEffect(() => {
-    if (prevMaxResolutionRef.current === maxResolution) return
-    prevMaxResolutionRef.current = maxResolution
+    if (prevDisplaySettingsKeyRef.current === displaySettingsKey) return
+    prevDisplaySettingsKeyRef.current = displaySettingsKey
     clearImageMetaCache()
     const st = useAppStore.getState()
     const current = st.dirImages.images[st.dirImages.current_index]
@@ -461,7 +480,15 @@ export function useImageLoader() {
     } else if (current) {
       void loadImage(current, { refreshDirectory: false })
     }
-  }, [maxResolution, clearImageMetaCache, loadArchiveImageByIndex, loadImage])
+  }, [
+    autoDetectPixelArt,
+    clearImageMetaCache,
+    displaySettingsKey,
+    imageScalingMode,
+    loadArchiveImageByIndex,
+    loadImage,
+    maxResolution
+  ])
 
   const handleOpenFile = useCallback(async () => {
     const selected = await open({

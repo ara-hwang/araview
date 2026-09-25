@@ -97,6 +97,7 @@ src-tauri/
   src/archive.rs      # 아카이브 목록/추출 처리 (cbz/zip, cb7/7z, cbr/rar, cbt)
   src/jpeg_meta.rs   # JPEG 저장 시 EXIF/ICC/XMP 세그먼트 이식 및 Orientation 패치
   src/orientation.rs # EXIF Orientation 읽기/적용 (JPEG/TIFF 표시·썸네일·저장 정합)
+  src/pixel_art.rs   # 표시용 픽셀 아트 휴리스틱 감지
   src/lib.rs         # Tauri 앱 설정 및 command 등록
 ```
 
@@ -107,6 +108,16 @@ src-tauri/
 - `temporary` 모드는 사용자 앱 캐시 디렉터리의 `session-v1/` 아래 프로세스별 `TempDir`를 사용합니다. 정상 종료 이벤트와 다음 시작 시 이전 세션 루트를 정리합니다. 모드 설정 변경은 다음 실행부터 적용되며, 영구 캐시를 끄면 다음 시작 때 이전 버전 루트를 정리합니다.
 - `cache.rs`의 `get_cache_stats`와 `clear_cache` 명령은 캐시 트리만 대상으로 합니다. 사용자 원본 파일 경로를 입력받아 삭제하지 않습니다.
 - `process_temp::mark_in_use`로 보호된 파일과 `*.tmp-<pid>-...` 작성 중 파일은 삭제하지 않습니다. 영구 캐시 hit은 mtime을 갱신해 LRU 순서를 유지합니다.
+
+## 픽셀 아트 감지 참고 자료
+
+`src-tauri/src/pixel_art.rs`의 감지는 AraView에서 작성한 경량 휴리스틱이다. 외부 모델이나 네트워크를 사용하지 않으며, 다음 공개 자료의 개념을 참고했다.
+
+- [unfake.js](https://github.com/jenissimo/unfake.js), MIT License: 동일 색상 run과 반복 길이 기반 스케일 탐지, Sobel 경계 프로파일과 주기성 분석의 실용적인 조합
+- Johannes Kopf and Dani Lischinski, [Depixelizing Pixel Art](https://johanneskopf.de/publications/pixelart/paper/pixel.pdf): 작은 팔레트, 픽셀 단위 경계, 평탄한 색상 영역의 특징
+- [MDN image-rendering](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/image-rendering): `smooth`와 `pixelated` 표시 의미 및 브라우저 지원
+
+AraView는 참고 자료의 코드를 복사하거나 런타임 의존성으로 포함하지 않는다. 외부 코드나 모델을 추가할 때는 이 절과 `THIRD_PARTY_LICENSES.md`를 함께 갱신한다.
 
 ## PSD 탐색기 썸네일 구현 메모
 

@@ -2,7 +2,8 @@
 //!
 //! When the user caps the display resolution, raster sources whose long edge
 //! exceeds the cap are decoded once, downscaled, and published as a JPEG
-//! (PNG when the source has an alpha channel) under `process_temp/scaled/`.
+//! (PNG when the source has an alpha channel or is detected pixel art) under
+//! `process_temp/scaled/`.
 //! The WebView then decodes the smaller copy, keeping peak memory bounded for
 //! huge images.
 //!
@@ -23,10 +24,40 @@ pub(crate) const SCALED_SUBDIR: &str = "scaled";
 pub(crate) const MAX_SCALED_BYTES: u64 = 500 * 1024 * 1024;
 /// JPEG quality for the capped copy. Close to the HEIF paint sidecar (90).
 const JPEG_QUALITY: u8 = 88;
+/// Changing the pixel-art downscale heuristic must not reuse older scaled copies.
+const PIXEL_ART_FILTER_REVISION: &[u8] = b"pixel-art-filter-v1";
 /// Lower bound rejects accidental 1px requests; upper bound keeps the cap a
 /// memory optimization, not a general preview downsizer.
 const MIN_MAX_SIDE: u32 = 512;
 const MAX_MAX_SIDE: u32 = 8192;
+
+/// 표시 설정에 따라 sidecar를 만들 때 사용할 보간 정책이다.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum ImageScalingMode {
+    #[default]
+    Smooth,
+    Pixelated,
+    Auto,
+}
+
+impl ImageScalingMode {
+    /// Tauri command의 문자열 인자를 정규화한다. 알 수 없는 값은 안전한 smooth다.
+    pub fn from_command(value: Option<&str>, auto_detect: bool) -> Self {
+        match value {
+            Some("pixelated") => Self::Pixelated,
+            Some("auto") if auto_detect => Self::Auto,
+            _ => Self::Smooth,
+        }
+    }
+
+    fn cache_discriminator(self) -> u8 {
+        match self {
+            Self::Smooth => b's',
+            Self::Pixelated => b'p',
+            Self::Auto => b'a',
+        }
+    }
+}
 
 #[derive(Debug)]
 pub struct ScaledSidecar {
@@ -44,6 +75,15 @@ pub fn clamp_max_side(max_side: u32) -> u32 {
 pub fn ensure_scaled_sidecar(
     source: &Path,
     max_side: u32,
+) -> Result<Option<ScaledSidecar>, AppError> {
+    ensure_scaled_sidecar_with_mode(source, max_side, ImageScalingMode::Smooth)
+}
+
+/// 표시 정책을 반영한 축소 sidecar를 만든다.
+pub fn ensure_scaled_sidecar_with_mode(
+    source: &Path,
+    max_side: u32,
+    mode: ImageScalingMode,
 ) -> Result<Option<ScaledSidecar>, AppError> {
     if !source.is_file() {
         return Ok(None);
@@ -63,7 +103,10 @@ pub fn ensure_scaled_sidecar(
         return Ok(None);
     }
 
-    let identity = crate::sidecar::file_identity_hash(source, &max_side.to_le_bytes())?;
+    let mut identity_extra = max_side.to_le_bytes().to_vec();
+    identity_extra.push(mode.cache_discriminator());
+    identity_extra.extend_from_slice(PIXEL_ART_FILTER_REVISION);
+    let identity = crate::sidecar::file_identity_hash(source, &identity_extra)?;
     let dir = scaled_dir()?;
     let jpeg_dest = dir.join(format!("{identity:016x}.jpg"));
     let png_dest = dir.join(format!("{identity:016x}.png"));
@@ -99,14 +142,34 @@ pub fn ensure_scaled_sidecar(
         let img =
             crate::orientation::apply_to_image(img, crate::orientation::read_orientation(source));
         let has_alpha = img.color().has_alpha();
-        let scaled = img.resize(max_side, max_side, image::imageops::FilterType::Triangle);
-        if has_alpha {
-            // 투명도를 보존하려면 JPEG로 재인코딩할 수 없다.
+        let detection = match mode {
+            ImageScalingMode::Smooth | ImageScalingMode::Pixelated => None,
+            ImageScalingMode::Auto => Some(crate::pixel_art::detect_decoded_image(&img)),
+        };
+        let is_pixel_art = match mode {
+            ImageScalingMode::Smooth => false,
+            ImageScalingMode::Pixelated => true,
+            ImageScalingMode::Auto => detection.as_ref().is_some_and(|value| {
+                value.classification == crate::pixel_art::PixelArtClassification::PixelArt
+            }),
+        };
+        let filter = if is_pixel_art {
+            image::imageops::FilterType::Nearest
+        } else {
+            image::imageops::FilterType::Triangle
+        };
+        let scaled = img.resize(max_side, max_side, filter);
+        if has_alpha || is_pixel_art {
+            // JPEG는 픽셀 경계에 다시 아티팩트를 만들 수 있으므로 픽셀 아트는
+            // 알파 여부와 무관하게 lossless PNG sidecar로 보존한다.
             let tmp = crate::sidecar::tmp_path_for(&png_dest);
             scaled
                 .save_with_format(&tmp, image::ImageFormat::Png)
                 .map_err(|e| AppError::unknown(format!("Failed to encode scaled PNG: {e}")))?;
             crate::sidecar::publish_atomic(&tmp, &png_dest, "Failed to publish scaled sidecar")?;
+            if let Some(detection) = &detection {
+                crate::pixel_art::cache_detection(&png_dest, detection);
+            }
             Ok(png_dest.clone())
         } else {
             let rgb = Rgb8 {
@@ -115,6 +178,9 @@ pub fn ensure_scaled_sidecar(
                 bytes: scaled.to_rgb8().into_raw(),
             };
             crate::sidecar::write_rgb8_jpeg_atomic(&jpeg_dest, &rgb, JPEG_QUALITY)?;
+            if let Some(detection) = &detection {
+                crate::pixel_art::cache_detection(&jpeg_dest, detection);
+            }
             Ok(jpeg_dest.clone())
         }
     })?;
@@ -208,6 +274,54 @@ mod tests {
     }
 
     #[test]
+    fn pixel_art_uses_lossless_png_sidecar() {
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("pixel-art.png");
+        let img = image::RgbImage::from_fn(2000, 1000, |x, y| {
+            if (x / 8 + y / 8) % 2 == 0 {
+                image::Rgb([240, 30, 30])
+            } else {
+                image::Rgb([20, 40, 220])
+            }
+        });
+        image::DynamicImage::ImageRgb8(img).save(&source).unwrap();
+
+        let scaled = ensure_scaled_sidecar_with_mode(&source, 512, ImageScalingMode::Pixelated)
+            .unwrap()
+            .expect("scaled sidecar");
+        assert_eq!(
+            scaled.path.extension().and_then(|e| e.to_str()),
+            Some("png")
+        );
+        assert_eq!(
+            &fs::read(&scaled.path).unwrap()[..8],
+            &[0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A]
+        );
+    }
+
+    #[test]
+    fn smooth_mode_keeps_jpeg_for_pixel_art_source() {
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("pixel-art-smooth.png");
+        let img = image::RgbImage::from_fn(2000, 1000, |x, y| {
+            if (x / 8 + y / 8) % 2 == 0 {
+                image::Rgb([240, 30, 30])
+            } else {
+                image::Rgb([20, 40, 220])
+            }
+        });
+        image::DynamicImage::ImageRgb8(img).save(&source).unwrap();
+
+        let scaled = ensure_scaled_sidecar_with_mode(&source, 512, ImageScalingMode::Smooth)
+            .unwrap()
+            .expect("scaled sidecar");
+        assert_eq!(
+            scaled.path.extension().and_then(|e| e.to_str()),
+            Some("jpg")
+        );
+    }
+
+    #[test]
     fn alpha_sources_keep_transparency_as_png() {
         let dir = tempfile::tempdir().unwrap();
         let source = dir.path().join("logo.png");
@@ -285,6 +399,26 @@ mod tests {
         assert!(ensure_scaled_sidecar(Path::new("missing.png"), 512)
             .unwrap()
             .is_none());
+    }
+
+    #[test]
+    fn command_mode_defaults_to_safe_smooth() {
+        assert_eq!(
+            ImageScalingMode::from_command(Some("auto"), false),
+            ImageScalingMode::Smooth
+        );
+        assert_eq!(
+            ImageScalingMode::from_command(Some("auto"), true),
+            ImageScalingMode::Auto
+        );
+        assert_eq!(
+            ImageScalingMode::from_command(Some("pixelated"), false),
+            ImageScalingMode::Pixelated
+        );
+        assert_eq!(
+            ImageScalingMode::from_command(Some("unknown"), true),
+            ImageScalingMode::Smooth
+        );
     }
 
     #[test]

@@ -235,6 +235,15 @@
   app-region: no-drag;
 }
 
+/* 이미지 보간 모드. 동적 값은 유틸리티 클래스로 적용해 인라인 스타일을 피한다. */
+@utility image-rendering-smooth {
+  image-rendering: smooth;
+}
+
+@utility image-rendering-pixelated {
+  image-rendering: pixelated;
+}
+
 /* 투명 배경 체커보드 (뷰어 배경 옵션용) */
 @utility checkerboard {
   background-image: conic-gradient(#c7c7c7 25%, #ffffff 0 50%, #c7c7c7 0 75%, #ffffff 0);

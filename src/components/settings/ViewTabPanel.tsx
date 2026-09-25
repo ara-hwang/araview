@@ -1,6 +1,7 @@
 import {
   BookOpenText,
   Images,
+  ImageSquare,
   ListBullets,
   Palette,
   Presentation,
@@ -23,6 +24,7 @@ import {
   useSettingsStore,
   type DockPosition,
   type DockThumbSize,
+  type ImageScalingMode,
   type SettingsState,
   type ViewerBackground,
   type ViewMode
@@ -52,7 +54,9 @@ export function ViewTabPanel() {
       dockVisible: state.dockVisible,
       dockThumbSize: state.dockThumbSize,
       dockShowName: state.dockShowName,
-      dockShowIndex: state.dockShowIndex
+      dockShowIndex: state.dockShowIndex,
+      imageScalingMode: state.imageScalingMode,
+      autoDetectPixelArt: state.autoDetectPixelArt
     }))
   )
   const [webtoonImageGap, setWebtoonImageGap] = useState(settings.webtoonImageGap)
@@ -93,6 +97,56 @@ export function ViewTabPanel() {
             <Label htmlFor="settings-view-webtoon">{t("settings.view.webtoon")}</Label>
           </Field>
         </RadioGroup>
+      </SettingsFieldSet>
+
+      <FieldSeparator />
+
+      <SettingsFieldSet
+        icon={<ImageSquare className="size-6" />}
+        title={t("settings.imageRendering.title")}
+        description={t("settings.imageRendering.desc")}
+      >
+        <RadioGroup
+          value={settings.imageScalingMode}
+          onValueChange={(value) =>
+            handleSettingsChange({ imageScalingMode: value as ImageScalingMode })
+          }
+        >
+          <Field orientation="horizontal">
+            <RadioGroupItem value="auto" id="settings-image-rendering-auto" />
+            <Label htmlFor="settings-image-rendering-auto">
+              {t("settings.imageRendering.auto")}
+            </Label>
+          </Field>
+          <Field orientation="horizontal">
+            <RadioGroupItem value="smooth" id="settings-image-rendering-smooth" />
+            <Label htmlFor="settings-image-rendering-smooth">
+              {t("settings.imageRendering.smooth")}
+            </Label>
+          </Field>
+          <Field orientation="horizontal">
+            <RadioGroupItem value="pixelated" id="settings-image-rendering-pixelated" />
+            <Label htmlFor="settings-image-rendering-pixelated">
+              {t("settings.imageRendering.pixelated")}
+            </Label>
+          </Field>
+        </RadioGroup>
+        <Field
+          orientation="horizontal"
+          data-disabled={settings.imageScalingMode !== "auto" ? true : undefined}
+        >
+          <Switch
+            id="settings-image-rendering-auto-detect"
+            checked={settings.autoDetectPixelArt}
+            disabled={settings.imageScalingMode !== "auto"}
+            onCheckedChange={(checked) =>
+              handleSettingsChange({ autoDetectPixelArt: checked === true })
+            }
+          />
+          <Label htmlFor="settings-image-rendering-auto-detect">
+            {t("settings.imageRendering.autoDetect")}
+          </Label>
+        </Field>
       </SettingsFieldSet>
 
       <FieldSeparator />

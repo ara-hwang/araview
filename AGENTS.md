@@ -79,7 +79,10 @@ cd src-tauri && cargo fmt
 
 Frontend uses `invoke()` for these commands:
 
-- `load_image(file_path)`
+- `load_image(file_path, max_side?, image_scaling_mode?, auto_detect_pixel_art?)`
+- `load_archive_image(archive_path, entry_name, max_side?, protect?, image_scaling_mode?, auto_detect_pixel_art?)`
+- `rename_file(old_path, new_name, max_side?, image_scaling_mode?, auto_detect_pixel_art?)`
+- `detect_pixel_art(file_path)`
 - `get_directory_images(file_path)`
 - `resolve_dropped_path(path)`
 - `get_exif_data(file_path)`
@@ -121,6 +124,7 @@ Image rendering is path-based:
 - HEIC/HEIF/PSD are transcoded to JPEG sidecars under the active derived-image cache root at load
 - Persistent cache is the default; temporary mode uses a session-only root. The active mode is managed from Settings and mode changes apply on the next launch
 - Frontend converts that path via `convertFileSrc(...)`
+- `src-tauri/src/pixel_art.rs` provides conservative display-only detection; the frontend resolves `auto | smooth | pixelated` through `src/utils/imageRendering.ts`
 
 ### Persistence
 
