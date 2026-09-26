@@ -19,6 +19,15 @@ vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
+// 설정 스토어가 실제 i18n 체인(i18next + 로케일 JSON)을 끌어오면 이 파일의 import가
+// 수 초씩 걸린다. 다른 설정 테스트와 동일하게 가볍게 대체한다.
+vi.mock("@/i18n", () => ({
+  default: { t: (key: string) => key, language: "ko" },
+  detectSystemLanguage: () => "ko",
+  normalizeLanguage: (value: unknown) => (value === "ko" || value === "en" ? value : null),
+  setI18nLanguage: async () => {}
+}))
+
 import { ViewTabPanel } from "@/components/settings/ViewTabPanel"
 import { DEFAULT_SETTINGS, useSettingsStore } from "@/store/settingsStore"
 
