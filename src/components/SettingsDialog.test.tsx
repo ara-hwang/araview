@@ -96,6 +96,17 @@ describe("SettingsDialog", () => {
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
+  it("열려 있어도 타이틀바를 덮는 투명 전체화면 쉴드가 없다", () => {
+    // Base UI는 modal=true일 때 position:fixed inset:0 쉴드(role=presentation,
+    // data-slot 없음)를 렌더한다. 이 쉴드가 창 제어(최소화/최대화/닫기) 클릭을
+    // 가로채므로 trap-focus로 렌더되지 않아야 한다. 보이는 오버레이는 그대로다.
+    const { container } = render(<SettingsDialog open onClose={() => {}} />)
+    const doc = container.ownerDocument
+
+    expect(doc.querySelector('[role="presentation"]:not([data-slot])')).toBeNull()
+    expect(doc.querySelector('[data-slot="dialog-overlay"]')).not.toBeNull()
+  })
+
   it("초기화 버튼이 확인 후 테마를 system으로 되돌린다", async () => {
     render(<SettingsDialog open onClose={() => {}} />)
 

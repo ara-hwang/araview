@@ -247,6 +247,7 @@ Tauri Store (`settings.json`) is used for:
 - Window state persistence uses `tauri-plugin-window-state`
 - Windows 11 Snap Layouts comes from `tauri-plugin-snap-layout`: it floats a transparent native hit-test overlay (`WM_NCHITTEST` → `HTMAXBUTTON`) over the maximize caption button (`id=caption-maximize`). The overlay owns the mouse, so that button's hover wash/tooltip are mirrored from `tauri-snap://snap/mouseenter|mouseleave` events via `src/hooks/useSnapLayout.ts`; keep the Rust `button_id` and the DOM id in sync. Non-Windows and jsdom are no-ops.
 - App starts hidden (`visible: false`) and appears after webview startup
+- Dialogs/Sheets pass `modal="trap-focus"` so the caption buttons stay clickable. `modal={true}` makes Base UI render a transparent `position: fixed; inset: 0` `InternalBackdrop` that swallows every click outside the popup (including the titlebar) and dismisses on press, so minimize/maximize/close would do nothing while a dialog is open. `trap-focus` keeps the focus trap, `Esc`, outside `aria-hidden`, and backdrop-click dismissal; only the invisible shield and the body scroll lock go away (the shell is `h-screen overflow-hidden`, so the body never scrolls). Overlays start at `--header-height`, so the header strip is the only clickable area outside the popup. Do not "fix" this by re-adding a header `pointer-events: none` rule in `src/App.css`; pass the prop at each call site instead, since `src/components/ui/*` primitives are generated.
 
 ## Browser Support
 

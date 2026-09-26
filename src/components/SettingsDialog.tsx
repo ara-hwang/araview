@@ -90,7 +90,10 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
   }
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    // modal="trap-focus": Base UI의 투명 전체화면 백드롭이 타이틀바까지 덮어
+    // 창 제어(최소화/최대화/닫기)를 가로채는 것을 막는다. 포커스 트랩과 dimmed
+    // 영역 클릭 닫기는 유지된다 (App.css 하단 주석 참고).
+    <Dialog open={open} onOpenChange={handleOpenChange} modal="trap-focus">
       <DialogContent className="w-[840px] max-w-[calc(100vw-2rem)] gap-0 overflow-hidden p-0 no-drag sm:max-w-[calc(100vw-2rem)]">
         <div className="flex h-[min(640px,86vh)] flex-col">
           <div className="border-b px-4 py-3 pr-12">

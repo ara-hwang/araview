@@ -183,7 +183,12 @@ export function CommandPalette() {
   }
 
   return (
-    <Dialog open={open} onOpenChange={(isOpen) => usePaletteStore.getState().setOpen(isOpen)}>
+    // modal="trap-focus": 타이틀바를 덮는 투명 전체화면 백드롭을 없앤다 (App.css 주석 참고)
+    <Dialog
+      open={open}
+      modal="trap-focus"
+      onOpenChange={(isOpen) => usePaletteStore.getState().setOpen(isOpen)}
+    >
       <DialogContent
         showCloseButton={false}
         className="gap-0 overflow-hidden p-0 no-drag sm:max-w-lg"
