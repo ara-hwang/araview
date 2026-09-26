@@ -296,7 +296,8 @@ export function ExifPanel() {
     imageDetails !== null || histogramData !== null || sections.length > 0 || showComicSection
 
   return (
-    <Sheet open={showExifPanel} onOpenChange={handleOpenChange}>
+    // modal="trap-focus": 타이틀바를 덮는 투명 전체화면 백드롭을 없앤다 (App.css 주석 참고)
+    <Sheet open={showExifPanel} onOpenChange={handleOpenChange} modal="trap-focus">
       <SheetContent side="right" data-exif-panel className="flex flex-col p-0">
         <SheetHeader className="border-b px-4 py-3">
           <SheetTitle>{t("exif.title")}</SheetTitle>

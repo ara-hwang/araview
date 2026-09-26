@@ -50,7 +50,8 @@ export function UpdateDialogs() {
         })
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    // modal="trap-focus": 타이틀바를 덮는 투명 전체화면 백드롭을 없앤다 (App.css 주석 참고)
+    <Dialog open={open} onOpenChange={handleOpenChange} modal="trap-focus">
       <DialogContent data-testid="update-dialog" showCloseButton={!dismissBlocked}>
         {stage === "available" && (
           <>

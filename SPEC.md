@@ -14,6 +14,7 @@
 
 - Windows 10/11 x64 전용 오프라인 데스크톱 이미지/코믹 뷰어. 로컬 파일만 다루며 라이브러리 가져오기, 계정, 네트워크를 쓰지 않는다(수동 업데이트 확인 제외).
 - 창은 프레임리스(`decorations: false`)이며 커스텀 타이틀바/툴바(`src/components/Header.tsx`)를 쓴다. Windows 11에서는 최대화 버튼 호버로 OS Snap Layouts 플라이아웃이 뜬다(§20).
+- 다이얼로그/시트가 열려 있어도 타이틀바(최소화/최대화/닫기)는 계속 동작한다. Dialog/Sheet는 `modal="trap-focus"`로 포커스만 가두고, 오버레이는 헤더 아래(`--header-height`)에서 시작한다. Base UI의 투명 전체화면 백드롭(`modal=true`일 때만 렌더)이 창 제어를 가로채는 것을 막기 위한 선택이다. dimmed 영역 클릭과 `Esc`로 닫히고, 키보드 포커스는 다이얼로그 안에 갇힌다.
 - 기술 스택과 플러그인 목록은 `docs/development.md`와 `AGENTS.md`를 따른다.
 
 ## 2. 지원 포맷

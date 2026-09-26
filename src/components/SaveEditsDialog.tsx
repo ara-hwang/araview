@@ -59,6 +59,8 @@ export function SaveEditsDialog({ open, onSubmit, onClose }: SaveEditsDialogProp
   return (
     <Dialog
       open={open}
+      // modal="trap-focus": 타이틀바를 덮는 투명 전체화면 백드롭을 없앤다 (App.css 주석 참고)
+      modal="trap-focus"
       onOpenChange={(isOpen) => {
         if (!isOpen) onClose()
       }}
