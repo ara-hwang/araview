@@ -83,7 +83,7 @@ A calm, paper-neutral room built for looking, not for clicking. The viewer chrom
 
 ## Colors
 
-One ink, one paper, warm-gray washes between. No accent hue exists; emphasis comes from ink weight and placement.
+One ink, one paper, warm-gray washes between. No accent hue exists; emphasis comes from ink weight and placement. Token values here mirror `src/App.css` (`@theme`, `:root`, `.dark`); the CSS is the runtime truth.
 
 ### Primary
 
@@ -98,10 +98,21 @@ One ink, one paper, warm-gray washes between. No accent hue exists; emphasis com
 - **Rule** (oklch(0.922 0 0)): borders, dividers, input strokes.
 - **Focus Ring** (oklch(0.708 0 0)): visible focus outlines on every control.
 
+### Dark Theme
+
+Dark mode inverts the room: surfaces go ink, text goes paper (`src/App.css` `.dark`).
+
+- **Paper** (oklch(0.145 0 0)): app background, chrome surfaces.
+- **Paper Ink** (oklch(0.985 0 0)): body text on paper.
+- **Room Ink** becomes the light structure color (oklch(0.922 0 0)) with ink text on it, so primary buttons keep paper-on-ink contrast by flipping.
+- **Muted Wash** (oklch(0.269 0 0)), **Muted Ink** (oklch(0.708 0 0)), **Rule** (white at 10%), **Focus Ring** (oklch(0.556 0 0)).
+- **Alarm** lightens to (oklch(0.704 0.191 22.216)) so red on dark keeps its weight.
+
 ### Named Rules
 
 - **The One Ink Rule.** A second hue appears only for alarm states. If a screen needs more color than ink plus wash, the layout is wrong, not the palette.
-- **The Alarm Rule.** Alarm red (oklch(0.577 0.245 27.325)) is reserved for destructive actions and load failures, always at low fill (10-20%) with ink-weight text. One exception: the close caption button fills with alarm red on hover, following the Windows titlebar convention.
+- **The Alarm Rule.** Alarm red (oklch(0.577 0.245 27.325)) is reserved for destructive actions and load failures, always at low fill (10-20%) with ink-weight text. One exception: the close caption button fills with alarm on hover, following the Windows titlebar convention.
+- **The Contrast Rule.** Body text meets WCAG AA against its surface in both themes. High contrast follows the OS (`prefers-contrast: more`, `forced-colors: active`); there is no in-app toggle. Under forced colors the checkerboard falls back to system Canvas and focus uses the system Highlight outline.
 
 ## Typography
 
@@ -122,10 +133,15 @@ One ink, one paper, warm-gray washes between. No accent hue exists; emphasis com
 
 - **The Small Type Rule.** Chrome text never exceeds 0.875rem except dialog titles; the image is always the largest thing on screen.
 - **The Uppercase Rule.** Uppercase plus wide tracking is allowed only for short section heads (EXIF groups), never for sentences or buttons.
+- **The Full-Name Rule.** Long names truncate to one line with the full string in the `title` tooltip; the layout never wraps a filename to make it fit.
 
 ## Layout
 
 Single-window app shell: a thin top toolbar (8px padding, grouped controls separated by vertical rules), a content well that owns all remaining space, and optional side/bottom layers (EXIF panel, thumbnail strip, nav bar). The toolbar sheds controls in priority order instead of overlapping the caption buttons: text labels below 1440px, then the view-mode cluster below 1024px, then the rotate/flip cluster below 840px; wide text labels inside those clusters appear only on very wide windows (1950px and up). Even at the 600px minimum window width the remaining controls fit. The reading well never scrolls the page itself except in webtoon mode, where vertical scroll is the content. Spacing rhythm is 8px in chrome, 16px in dialogs and panels.
+
+### Layer Stack
+
+Lowest to highest: reading content with in-canvas overlays (`z-10`), floating callouts (`z-20`), the thumbnail grid overlay (`z-40`), popovers, tooltips, dialogs, and sheets (`z-50`), toasts (`z-100`). Dialog and sheet scrims start at `--header-height` so the caption buttons stay clickable; the Windows Snap hit-test overlay is OS-owned and sits above the maximize button outside this scale.
 
 ## Elevation & Depth
 
@@ -143,6 +159,21 @@ Flat by default. Depth is conveyed by tonal layering (paper over muted wash) and
 ## Shapes
 
 Softly squared geometry: 10px radius on buttons and toolbar groups, 8px on inputs and small cards, 6px on the smallest controls. Borders are 1px rules, never pill shapes; icon buttons are squares, never circles. The reading well itself is square-cornered so images meet a clean edge.
+
+## Motion
+
+Motion confirms state; it never decorates. Curves live in `src/App.css` (`@theme`) and are the runtime truth; this section states their intent.
+
+- **Entrances and exits** (`ease-motion-out`): dialogs, popovers, toasts, grid overlay.
+- **On-screen movement** (`ease-motion-in-out`): drawer slides, the indeterminate progress sweep.
+- **Sheets and drawers** (`ease-motion-drawer`): side sheets and bottom sheets. The built-in `ease-out`/`ease-in-out` stay untouched so existing components keep their feel.
+- **Durations:** press 100-160ms, tooltips 125-200ms, dropdowns 150-250ms, modals and drawers 200-500ms (code uses `duration-100/150/200` steps).
+- **Indeterminate progress** is a left-to-right sweep on a 1.2s loop; under `prefers-reduced-motion` it becomes a static centered bar.
+
+### Named Rules
+
+- **The Feedback-Only Rule.** If removing the motion removes no information, remove the motion.
+- **The Same-Change Gating Rule.** Every motion ships with its `prefers-reduced-motion` fallback and `@media (hover: hover) and (pointer: fine)` gating in the same change, not after.
 
 ## App Icon
 
@@ -182,9 +213,17 @@ Toolbar buttons with a quiet, tactile press (1px downward shift on active, excep
 - **Thumbnail strip:** edge-docked (top/bottom/left/right, movable), single row with inline prev/next, collapsible as a whole; the strip keeps every image in the folder and loads thumbnails progressively. Its `⋯` menu (dropdown) carries the same dock options as the View settings. There is no slider control; index jumps use keyboard, grid, or strip selection.
 - **Settings dialog:** tabbed (general, view, list, performance, shortcuts, extensions), field-group rhythm, 16px panel padding.
 
+### Overlays
+
+- **Thumbnail grid:** full reading-well overlay (`z-40`), viewport-virtualized, filename filter, `Enter` to jump, `Esc`/`G` to close. Viewer shortcuts are suspended while it is open.
+- **Command palette (`Ctrl+K`):** grouped commands (`file → navigate → view → display → system`), token AND matching, English aliases searchable in Korean UI.
+- **Peek overlay:** hidden-menu-bar mode reveals the header over the reading well on top-edge hover; it closes on focus loss, never on `Esc` (`Esc` is reserved for closing the image).
+- **Dialogs and sheets:** scrims start at `--header-height`, focus is trapped (`modal="trap-focus"`), backdrop click and `Esc` dismiss. No invisible shield may cover the caption buttons.
+- **Toasts:** bottom-right stack (`z-100`), popover surface with floating shadow, destructive icon for failures. A toast never carries a failed load alone; the error card owns that.
+
 ### Viewer Layers (signature)
 
-- **Reading well:** square, borderless, background follows the viewer-background setting; empty state names a real next action (open a file or folder).
+- **Reading well:** square, borderless, background follows the viewer-background setting (`theme | black | white | checker`); the checker is fixed 20px tiles (`#c7c7c7` on `#ffffff`) in both themes and falls back to system Canvas under forced colors; empty state names a real next action (open a file or folder).
 - **Error card:** floating, hairline alarm-tinted border, alarm-ink message, retry or open action. Never a bare toast for a failed load.
 
 ## Do's and Don'ts
