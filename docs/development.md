@@ -6,7 +6,7 @@
 
 - **Frontend**: React 19, TypeScript, Vite 6, Tailwind CSS 4, TanStack Router v1, Zustand 5
 - **Backend**: Rust, Tauri 2
-- **Tauri Plugins**: `dialog`, `fs`, `opener`, `store`, `window-state`, `single-instance`, `updater`, `process`
+- **Tauri Plugins**: `dialog`, `opener`, `store`, `window-state`, `single-instance`, `updater`, `snap-layout` (+ dev 전용 `mcp-bridge`)
 
 ## 요구 사항
 
@@ -24,7 +24,7 @@ $env:Path += ";$env:VCPKG_ROOT\installed\x64-windows\bin"
 
 `[core]`는 HEVC 디코더 `libde265`만 넣고, 인코더 `x265`는 빼는 설치입니다. 앱은 HEIC를 인코드하지 않습니다.
 
-앱은 `libheif`를 동적 링크합니다. `embedded-libheif` Cargo 기능은 켜지 마세요. 설치본은 vcpkg DLL이 실행 파일 옆에 있어야 합니다. `VCPKG_ROOT`가 있으면 `src-tauri/build.rs`가 `heif.dll`과 `libde265.dll`을 복사합니다.
+앱은 `libheif`를 동적 링크합니다(`libheif-rs`, `default-features = false`, 정적 포함 없음). 번들용 DLL은 `src-tauri/build.rs`가 `VCPKG_ROOT`(또는 `VCPKG_INSTALLATION_ROOT`) 아래 `installed/x64-windows/bin`에서 `heif.dll`과 `libde265.dll`을 모아 `generated/libheif-dlls/`에 넣고, `src-tauri/tauri.windows.conf.json` 경유로 번들에 실립니다. CI에서는 `VCPKGRS_DYNAMIC=1`과 `PKG_CONFIG_PATH`를 함께 둡니다(워크플로 참조).
 
 ## 시작하기
 
@@ -53,9 +53,22 @@ npm run build
 # 데스크톱 앱 빌드
 npm run tauri build
 
+# PSD 탐색기 썸네일 DLL 빌드
+npm run build:thumb
+
+# Tauri MCP 검증용 dev 실행 (Vite :1420 + 브리지 :9323 대기)
+npm run dev:up
+
+# 로컬 릴리스 (서명 빌드와 GitHub 릴리스 발행)
+npm run release:local
+
 # 테스트
 npm test
 npm run test:watch
+
+# 린트
+npm run lint
+npm run lint:fix
 
 # 타입 체크 / 포맷
 npx tsc --noEmit
@@ -95,6 +108,17 @@ src-tauri/
   src/process_temp.rs # 임시/영구 파생 이미지 캐시 루트, 보호, 상한, 시작 정리
   src/cache.rs        # 캐시 통계 및 종류별/전체 삭제
   src/archive.rs      # 아카이브 목록/추출 처리 (cbz/zip, cb7/7z, cbr/rar, cbt)
+  src/comic_info.rs  # CBZ/ZIP ComicInfo.xml 읽기 전용 파싱
+  src/thumbnail.rs   # 썸네일 생성/캐시
+  src/sidecar.rs     # sidecar/썸네일/추출물 공용 헬퍼(해시, 락, 원자 발행)
+  src/scaled.rs      # 표시 해상도 제한 축소본
+  src/save.rs        # 편집 저장
+  src/thumb_shell.rs # PSD 탐색기 썸네일 셸 연동 명령
+  src/app_error.rs   # 구조화 에러 코드 매핑
+  src/dir_cache.rs    # 디렉토리 목록 캐시
+  src/file_availability.rs # Files On-Demand availability 판별
+  src/image_info.rs  # 이미지 상세/파일 정보 조회
+  src/stable_hash.rs # 영속 캐시 파일명용 안정 해시
   src/jpeg_meta.rs   # JPEG 저장 시 EXIF/ICC/XMP 세그먼트 이식 및 Orientation 패치
   src/orientation.rs # EXIF Orientation 읽기/적용 (JPEG/TIFF 표시·썸네일·저장 정합)
   src/pixel_art.rs   # 표시용 픽셀 아트 휴리스틱 감지
@@ -124,6 +148,6 @@ AraView는 참고 자료의 코드를 복사하거나 런타임 의존성으로 
 사용자 동작 계약은 `SPEC.md` §20.2를 따릅니다. 아래는 개발용 구현 메모입니다.
 
 - 핸들러는 `src-tauri/crates/araview-thumb/`의 In-Proc COM DLL(`araview_thumb.dll`)이며 `IThumbnailProvider` + `IInitializeWithStream`/`IInitializeWithFile`을 구현합니다. PSB(`8BPS` version 2)는 거부합니다.
-- CLSID(발행 후 변경 금지): 릴리스 `{FD6BD976-2DF4-4656-94F2-1D166163EC59}`, 개발 `{BD277595-1702-4AC5-AA7C-A67965C3D570}`. `registry.rs`와 `thumb_shell.rs`에 중복 정의되어 함께 바꿔야 합니다.
+- CLSID(발행 후 변경 금지): 릴리스 `{FD6BD976-2DF4-4656-94F2-1D166163EC59}`, 개발 `{BD277595-1702-4AC5-AA7C-A67965C3D570}`. `registry.rs`와 `thumb_shell.rs`, `com.rs` 세 곳(`crates/araview-thumb/src/registry.rs`, `src/thumb_shell.rs`, `crates/araview-thumb/src/com.rs`)에 중복 정의되어 함께 바꿔야 합니다.
 - 등록은 전부 HKCU(`Software\Classes`)입니다: `CLSID\{CLSID}\InprocServer32`(DLL 경로 + `ThreadingModel=Apartment`), `.psd`와 채널 ProgID의 `ShellEx\{E357FCCD-A995-4576-B01F-234630154E96}` 슬롯, `.psd`의 `PerceivedType`/`Content Type` 채우기. 등록/해제 후 `SHChangeNotify`를 보냅니다.
 - DLL 전달: 워크스페이스 멤버로 함께 빌드합니다. 릴리스는 `scripts/Build-ThumbDll.ps1`(`npm run build:thumb`)로 빌드해 `src-tauri/resources/`에 스테이징하면 NSIS 번들에 실립니다. Windows 리소스는 `src-tauri/tauri.windows.conf.json`에 반복해야 합니다(플랫폼 설정이 `bundle.resources`를 통째로 교체). 이 파일은 strict JSON이라 주석을 넣으면 빌드가 실패합니다. 앱은 exe 옆, `resources/` 순으로 DLL을 찾습니다.

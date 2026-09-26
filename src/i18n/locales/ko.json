@@ -19,7 +19,7 @@
     "zoomOut": "축소",
     "zoomOutTitle": "축소 (-)",
     "zoomIn": "확대",
-    "zoomInTitle": "확대 (+)",
+    "zoomInTitle": "확대 (=)",
     "rotateCcwTitle": "반시계 회전 (Shift+R)",
     "rotateCwTitle": "시계 회전 (R)",
     "flipHTitle": "좌우 반전 (H)",

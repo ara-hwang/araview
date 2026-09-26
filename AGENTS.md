@@ -77,7 +77,7 @@ cd src-tauri && cargo fmt
 
 ### Frontend <-> Backend contract
 
-Frontend uses `invoke()` for these commands:
+Frontend uses `invoke()` for these commands (full table: `SPEC.md` §15):
 
 - `load_image(file_path, max_side?, image_scaling_mode?, auto_detect_pixel_art?)`
 - `load_archive_image(archive_path, entry_name, max_side?, protect?, image_scaling_mode?, auto_detect_pixel_art?)`
@@ -86,15 +86,25 @@ Frontend uses `invoke()` for these commands:
 - `get_directory_images(file_path)`
 - `resolve_dropped_path(path)`
 - `get_exif_data(file_path)`
+- `get_image_histogram(file_path)`
+- `get_image_details(file_path)`
 - `get_archive_images(file_path)`
-- `load_archive_image(archive_path, entry_name, max_side?, protect?)`
+- `get_comic_info(file_path)`
+- `archive_prefetch(archive_path, entry_names)`
+- `generate_thumbnail(file_path, max_side?)`
+- `generate_thumbnails_batch(file_paths, max_side?)`
+- `get_cached_thumbnail(file_path)`
+- `generate_archive_thumbnail(archive_path, entry_name, max_side?)`
+- `generate_archive_file_thumbnail(archive_path, max_side?)`
 - `get_cache_stats()`
 - `clear_cache(scope)`
 - `get_file_associations()`
 - `set_file_association(extension, associate)`
 - `open_default_apps_settings()`
-
-Full IPC contract (including thumbnails, cache management, archive prefetch, trash/rename/save, PSD thumbnail): see `SPEC.md` §15.
+- `get_psd_thumbnail_status()`, `register_psd_thumbnail()`, `unregister_psd_thumbnail()`
+- `trash_file(file_path)`
+- `save_image_edits(file_path, options)`
+- `frontend_ready()`
 
 When app is opened from file association, Windows passes the file path as a CLI argument. Backend buffers it in `PendingOpenFile` until the webview signals readiness (`frontend_ready`), then emits `open-file`; the root layout (`useOpenFileBridge`) bridges the event to the active route's loader.
 
@@ -107,6 +117,7 @@ Keep Rust `serde` output aligned with TypeScript types.
 `ImageInfo` currently contains file metadata only:
 
 - `file_path`
+- `source_path`
 - `mime_type`
 - `file_name`
 - `file_size`

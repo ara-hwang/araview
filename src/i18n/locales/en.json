@@ -19,7 +19,7 @@
     "zoomOut": "Zoom out",
     "zoomOutTitle": "Zoom out (-)",
     "zoomIn": "Zoom in",
-    "zoomInTitle": "Zoom in (+)",
+    "zoomInTitle": "Zoom in (=)",
     "rotateCcwTitle": "Rotate counterclockwise (Shift+R)",
     "rotateCwTitle": "Rotate clockwise (R)",
     "flipHTitle": "Flip horizontal (H)",
