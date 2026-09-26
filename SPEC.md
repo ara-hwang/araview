@@ -526,36 +526,36 @@ CBZ/ZIP의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한다(8
 
 진실: `src-tauri/src/lib.rs` `invoke_handler`, `src-tauri/src/commands.rs`, `src-tauri/src/save.rs`, `src-tauri/src/thumb_shell.rs`.
 
-| 명령                              | 입력 (JS camelCase)                                | 반환                                   |
-| --------------------------------- | -------------------------------------------------- | -------------------------------------- |
-| `load_image`                      | `filePath`, `maxSide?`                             | `ImageInfo`                            |
-| `detect_pixel_art`                | `filePath`                                         | `PixelArtDetection`                    |
-| `get_directory_images`            | `filePath`, `options?`                             | `DirectoryImages`                      |
-| `resolve_dropped_path`            | `path`                                             | 해석된 파일 경로 `string`              |
-| `get_exif_data`                   | `filePath`                                         | `Record<string, string>`               |
-| `get_image_histogram`             | `filePath`                                         | `Histogram`                            |
-| `get_image_details`               | `filePath`                                         | `ImageDetails`                         |
-| `get_archive_images`              | `filePath`                                         | `DirectoryImages`(엔트리 목록)         |
-| `get_comic_info`                  | `filePath`                                         | `ComicInfo \| null`(CBZ/ZIP 전용)      |
-| `load_archive_image`              | `archivePath`, `entryName`, `maxSide?`, `protect?` | `ImageInfo`                            |
-| `archive_prefetch`                | `archivePath`, `entryNames`                        | 추출 개수 `number`                     |
-| `generate_thumbnail`              | `filePath`, `maxSide?`                             | `ThumbnailInfo`                        |
-| `generate_thumbnails_batch`       | `filePaths`, `maxSide?`                            | `BatchThumb[]`                         |
-| `get_cached_thumbnail`            | `filePath`                                         | `ThumbnailInfo \| null`(캐시 히트만)   |
-| `get_cache_stats`                 | 없음                                               | `CacheStats`                           |
-| `clear_cache`                     | `scope`                                            | `CacheClearResult`                     |
-| `generate_archive_thumbnail`      | `archivePath`, `entryName`, `maxSide?`             | `ThumbnailInfo`                        |
-| `generate_archive_file_thumbnail` | `archivePath`, `maxSide?`                          | `ThumbnailInfo`(첫 이미지 엔트리 기준) |
-| `get_file_associations`           | 없음                                               | `FileAssociation[]`                    |
-| `set_file_association`            | `extension`, `associate`                           | `FileAssociation`                      |
-| `open_default_apps_settings`      | 없음                                               | 없음                                   |
-| `get_psd_thumbnail_status`        | 없음                                               | `PsdThumbStatus`                       |
-| `register_psd_thumbnail`          | 없음                                               | `PsdThumbStatus`                       |
-| `unregister_psd_thumbnail`        | 없음                                               | `PsdThumbStatus`                       |
-| `trash_file`                      | `filePath`                                         | 없음                                   |
-| `rename_file`                     | `oldPath`, `newName`, `maxSide?`                   | `ImageInfo`                            |
-| `save_image_edits`                | `filePath`, `options`                              | `ImageInfo`                            |
-| `frontend_ready`                  | 없음                                               | 없음 (`PendingOpenFile` flush)         |
+| 명령                              | 입력 (JS camelCase)                                                                            | 반환                                   |
+| --------------------------------- | ---------------------------------------------------------------------------------------------- | -------------------------------------- |
+| `load_image`                      | `filePath`, `maxSide?`, `imageScalingMode?`, `autoDetectPixelArt?`                             | `ImageInfo`                            |
+| `detect_pixel_art`                | `filePath`                                                                                     | `PixelArtDetection`                    |
+| `get_directory_images`            | `filePath`, `options?`                                                                         | `DirectoryImages`                      |
+| `resolve_dropped_path`            | `path`                                                                                         | 해석된 파일 경로 `string`              |
+| `get_exif_data`                   | `filePath`                                                                                     | `Record<string, string>`               |
+| `get_image_histogram`             | `filePath`                                                                                     | `Histogram`                            |
+| `get_image_details`               | `filePath`                                                                                     | `ImageDetails`                         |
+| `get_archive_images`              | `filePath`                                                                                     | `DirectoryImages`(엔트리 목록)         |
+| `get_comic_info`                  | `filePath`                                                                                     | `ComicInfo \| null`(CBZ/ZIP 전용)      |
+| `load_archive_image`              | `archivePath`, `entryName`, `maxSide?`, `protect?`, `imageScalingMode?`, `autoDetectPixelArt?` | `ImageInfo`                            |
+| `archive_prefetch`                | `archivePath`, `entryNames`                                                                    | 추출 개수 `number`                     |
+| `generate_thumbnail`              | `filePath`, `maxSide?`                                                                         | `ThumbnailInfo`                        |
+| `generate_thumbnails_batch`       | `filePaths`, `maxSide?`                                                                        | `BatchThumb[]`                         |
+| `get_cached_thumbnail`            | `filePath`                                                                                     | `ThumbnailInfo \| null`(캐시 히트만)   |
+| `get_cache_stats`                 | 없음                                                                                           | `CacheStats`                           |
+| `clear_cache`                     | `scope`                                                                                        | `CacheClearResult`                     |
+| `generate_archive_thumbnail`      | `archivePath`, `entryName`, `maxSide?`                                                         | `ThumbnailInfo`                        |
+| `generate_archive_file_thumbnail` | `archivePath`, `maxSide?`                                                                      | `ThumbnailInfo`(첫 이미지 엔트리 기준) |
+| `get_file_associations`           | 없음                                                                                           | `FileAssociation[]`                    |
+| `set_file_association`            | `extension`, `associate`                                                                       | `FileAssociation`                      |
+| `open_default_apps_settings`      | 없음                                                                                           | 없음                                   |
+| `get_psd_thumbnail_status`        | 없음                                                                                           | `PsdThumbStatus`                       |
+| `register_psd_thumbnail`          | 없음                                                                                           | `PsdThumbStatus`                       |
+| `unregister_psd_thumbnail`        | 없음                                                                                           | `PsdThumbStatus`                       |
+| `trash_file`                      | `filePath`                                                                                     | 없음                                   |
+| `rename_file`                     | `oldPath`, `newName`, `maxSide?`, `imageScalingMode?`, `autoDetectPixelArt?`                   | `ImageInfo`                            |
+| `save_image_edits`                | `filePath`, `options`                                                                          | `ImageInfo`                            |
+| `frontend_ready`                  | 없음                                                                                           | 없음 (`PendingOpenFile` flush)         |
 
 `load_image`, `load_archive_image`, `rename_file`은 표시 정책에 따라 선택적으로 `imageScalingMode`(`auto | smooth | pixelated`)와 `autoDetectPixelArt`를 받는다.
 
@@ -687,7 +687,7 @@ Windows 파일 탐색기에서 `.psd` 축소판을 표시한다. 미리보기 �
 
 작업 절차는 `AGENTS.md`를 따른다. 변경 후 아래 SPEC 절을 갱신한다.
 
-- 포맷 추가: 2절 + 필요 시 15/16절.
+- 포맷 추가: 2절 + 필요 시 15/16절, `src-tauri/tauri.conf.json` 파일 연결, `samples/` 검증.
 - 백엔드 명령 추가: 15절 IPC 표 + 16절 데이터 모델.
 - 설정/단축키 추가: 12~14절.
 - 파생 이미지 캐시 변경: 9절 + 12~16절 + `docs/development.md`.

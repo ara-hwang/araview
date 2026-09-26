@@ -9,7 +9,7 @@ name: Release
 on:
   workflow_dispatch:
 
-# 태그를 다시 푸시하면 진행 중이던 이전 릴리스 빌드를 취소하고 최신 빌드만 남긴다.
+# 수동 실행이 겹치면 같은 ref의 이전 실행을 취소하고 최신 실행만 남긴다.
 # 릴리스 생성은 빌드 마지막 단계라 중간 취소 시 남는 산출물이 없다.
 concurrency:
   group: release-${{ github.ref }}
