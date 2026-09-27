@@ -4,7 +4,7 @@ name: CI
 # Actions 탭에서 이 워크플로를 직접 실행(workflow_dispatch)할 때만 검사한다.
 # 릴리스(태그)는 release.yml이 담당한다.
 # 검증 항목과 커맨드는 release.yml의 검증 단계와 같게 유지한다.
-# (린트, 커버리지 포함 테스트, 타입, 포맷, 의존성 감사, cargo test/clippy)
+# (린트, 커버리지 포함 테스트, 타입, 포맷, 문서 정합성, 의존성 감사, cargo test/clippy)
 on:
   workflow_dispatch:
 
@@ -42,6 +42,10 @@ jobs:
 
       - name: Format check
         run: npm run format:check
+
+      # 문서-코드 정합성 (확장자, IPC, 설정, 플러그인, 버전, plan, i18n 잔재).
+      - name: Docs consistency
+        run: npm run docs:check
 
       # moderate 이상 취약점이 있으면 실패한다. 로컬 기준선: 0건.
       - name: Frontend dependency audit
