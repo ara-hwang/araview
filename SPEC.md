@@ -302,7 +302,7 @@ CBZ/ZIP의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한다(8
 - 적용 대상은 `image` 크레이트가 디코드할 수 있는 래스터(PNG/JPEG/TIFF/BMP/ICO/정지 WebP)이며, EXIF Orientation(5~8)은 픽셀에 반영한 뒤 축소한다. 알파 채널이 있으면 투명도 보존을 위해 PNG로 저장한다.
 - GIF, 움직이는 WebP, SVG, 디코드 불가 포맷(AVIF 등)은 원본 바이트를 그대로 렌더한다.
 - sidecar는 활성 캐시 루트의 `scaled/`에 캐시되며 상한(500MB)을 넘기면 오래된 것부터 제거한다. 캐시 경로는 원본 식별 해시 + 상한 + 픽셀 아트 필터 알고리즘 revision 기준이라 설정이나 필터 알고리즘이 바뀌면 다른 사본을 만든다.
-- sidecar 축소 시 `smooth`는 기존 `Triangle`/JPEG를 사용하고, `pixelated`는 `Nearest`/lossless PNG를 사용한다. `auto`는 휴리스틱 분석 결과가 `pixel_art`일 때만 `Nearest`/PNG를 사용한다. 분석 결과는 원본을 바꾸지 않으며, 이후 메인 이미지 표시 힌트와 동일한 분류를 사용한다. sidecar 생성 중 얻은 자동 분석 결과는 같은 프로세스의 후속 `detect_pixel_art` IPC가 재사용한다.
+- sidecar 축소는 표시 정책과 무관하게 항상 보간 필터(`Triangle`)를 사용한다. Nearest 축소는 스크린톤 같은 주기 패턴을 계단·무아레로 깨뜨린다. `smooth`/`auto`는 JPEG로, `pixelated`는 lossless PNG로 저장한다. `auto`는 휴리스틱 분석을 실행해 결과를 후속 `detect_pixel_art` IPC가 재사용하지만, 분류가 `pixel_art`여도 축소 필터에는 영향을 주지 않는다(픽셀 보존 표시는 확대 배율에서만 적용되기 때문). 분석은 원본을 바꾸지 않는다.
 - 새 상한으로 로드한 `ImageInfo.width/height`는 축소 사본 기준이고, `source_path`는 항상 원본 파일이다(11절). 히스토그램은 렌더 바이트(`file_path`), EXIF/파일 상세는 원본(`source_path`) 기준이다.
 - 해상도 상한이나 이미지 표시 정책을 바꾸면 프론트는 메타 캐시와 픽셀 예열을 비우고 현재 이미지를 새 기준으로 다시 로드한다.
 
@@ -629,7 +629,7 @@ Rust와 TypeScript는 같은 모양을 유지한다.
 - HEIC/HEIF/PSD는 JPEG sidecar를, 표시 해상도 제한이 걸린 큰 래스터는 `scaled/` 사본(9.4절)을 만든다. sidecar와 아카이브 추출물, 썸네일 캐시는 `cacheStorageMode`가 `persistent`면 Tauri 사용자 캐시 디렉터리의 버전된 루트에, `temporary`면 프로세스 수명 TempDir에 둔다.
 - JPEG/TIFF의 EXIF Orientation(1~8)은 WebView2 `<img>`가 자동 적용한다. 백엔드는 같은 기준을 따르도록 치수(`ImageInfo.width/height`, `get_image_details`), 썸네일, 편집 저장(`save_image_edits`)에 회전을 명시 적용한다(SVG/WebP/PNG/HEIC는 대상 아님).
 - `detect_pixel_art`는 표시 바이트 경로를 제한된 분석 이미지로 읽고, 작은 색상 팔레트·평탄도·동일 색상 run·주기적 경계 신호를 결합한다. ML 모델이나 네트워크를 사용하지 않으며, 분석 제한 초과·디코드 실패·불확실 결과는 안전하게 부드러운 표시로 대체한다.
-- `image-rendering`은 `smooth`와 `pixelated` 값을 사용한다. `smooth`는 브라우저의 고품질 보간 선호이며 특정 Bilinear 구현을 보장하지 않는다. `pixelated`는 확대 시 최근접 계열 보간을 요청한다.
+- `image-rendering`은 `smooth`와 `pixelated` 값을 사용한다. `smooth`는 브라우저의 고품질 보간 선호이며 특정 Bilinear 구현을 보장하지 않는다. `pixelated`는 확대 시 최근접 계열 보간을 요청한다. 픽셀 보존 판정(pixelated 모드와 확신 있는 자동 감지 포함)은 표시 배율이 1x 이상(확대)일 때만 적용되며, 축소 배율에서는 설정·감지와 무관하게 항상 `smooth`로 강제된다. nearest 축소는 스크린톤 같은 주기 패턴을 계단·무아레로 깨뜨린다. 단일 보기 배율은 `imageSize`에 대한 `zoom`이고, 웹툰/양면 보기는 렌더된 `<img>`에서 실측한다(측정 전에는 기존 판정 유지).
 - 사용자 원본 파일은 필터링하지 않는다. 표시 해상도 상한 sidecar와 썸네일은 기존 파생 이미지 파이프라인을 유지하며, 픽셀 보존 판정은 메인 이미지 표시 힌트로만 사용한다.
 - 사용자가 여는 파일/폴더는 명령 실행 시 런타임에 asset scope로 허용한다.
 - CSP는 `default-src 'self'` 기반이며 `asset:`/`ipc:` 접근을 허용한다. dev 전용 설정은 `docs/development.md`를 따른다.

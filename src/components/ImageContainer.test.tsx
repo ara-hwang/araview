@@ -86,6 +86,43 @@ describe("ImageContainer single mode", () => {
     expect(img.style.transform).toContain("scale(0.5")
   })
 
+  it("축소 배율에서는 설정과 무관하게 부드러운 표시 클래스를 적용한다", () => {
+    useSettingsStore.setState({ imageScalingMode: "pixelated", autoDetectPixelArt: false })
+    useAppStore.setState({
+      imageInfo: {
+        file_path: "/pics/manga.jpg",
+        source_path: "/pics/manga.jpg",
+        file_name: "manga.jpg",
+        file_size: 123,
+        mime_type: "image/jpeg",
+        width: 1600,
+        height: 2400
+      },
+      imageSize: { width: 1600, height: 2400 },
+      zoom: 0.35,
+      position: { x: 0, y: 0 },
+      rotation: 0,
+      flipH: false,
+      flipV: false
+    })
+
+    render(
+      <ImageContainer
+        containerRef={createRef<HTMLDivElement>()}
+        imageRef={createRef<HTMLImageElement>()}
+        onWheel={noop}
+        onMouseDown={noop}
+        onMouseMove={noop}
+        onMouseUp={noop}
+      />
+    )
+
+    const img = screen.getByAltText("manga.jpg")
+    // nearest 축소는 스크린톤을 계단·무아레로 깨뜨리므로 smooth가 강제된다.
+    expect(img.className).toContain("image-rendering-smooth")
+    expect(img.className).not.toContain("image-rendering-pixelated")
+  })
+
   it("픽셀 보존 모드는 레이아웃 크기로 확대하고 픽셀 클래스를 적용한다", () => {
     useSettingsStore.setState({ imageScalingMode: "pixelated", autoDetectPixelArt: false })
     useAppStore.setState({

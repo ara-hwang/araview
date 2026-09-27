@@ -136,6 +136,11 @@ src-tauri/
 - `cache.rs`의 `get_cache_stats`와 `clear_cache` 명령은 캐시 트리만 대상으로 합니다. 사용자 원본 파일 경로를 입력받아 삭제하지 않습니다.
 - `process_temp::mark_in_use`로 보호된 파일과 `*.tmp-<pid>-...` 작성 중 파일은 삭제하지 않습니다. 영구 캐시 hit은 mtime을 갱신해 LRU 순서를 유지합니다.
 
+## 픽셀 보존 표시와 축소
+
+- 픽셀 보존(`pixelated`)은 확대 배율에서만 적용된다. 축소 배율에서는 nearest 계열 보간이 스크린톤 같은 주기 패턴을 계단·무아레로 깨뜨리므로 설정과 감지 결과와 무관하게 항상 smooth로 렌더한다(`src/utils/imageRendering.ts`의 배율 게이트).
+- 표시 해상도 상한 축소 sidecar(`src-tauri/src/scaled.rs`)도 감지 결과와 무관하게 항상 보간 필터(`Triangle`)를 사용한다. 축소는 픽셀을 버리는 연산이므로 픽셀 보존 판정이 의미가 없다.
+
 ## 픽셀 아트 감지 참고 자료
 
 `src-tauri/src/pixel_art.rs`의 감지는 AraView에서 작성한 경량 휴리스틱이다. 외부 모델이나 네트워크를 사용하지 않으며, 다음 공개 자료의 개념을 참고했다.

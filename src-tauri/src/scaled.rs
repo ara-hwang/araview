@@ -1,8 +1,10 @@
 //! Resolution-cap sidecars for very large images.
 //!
 //! When the user caps the display resolution, raster sources whose long edge
-//! exceeds the cap are decoded once, downscaled, and published as a JPEG
-//! (PNG when the source has an alpha channel or is detected pixel art) under
+//! exceeds the cap are decoded once, downscaled with an interpolation filter
+//! (nearest shrink breaks periodic tones like screentone), and published as a
+//! JPEG (PNG when the source has an alpha channel or the mode is pixelated)
+//! under `process_temp/scaled/`.
 //! `process_temp/scaled/`.
 //! The WebView then decodes the smaller copy, keeping peak memory bounded for
 //! huge images.
@@ -25,7 +27,9 @@ pub(crate) const MAX_SCALED_BYTES: u64 = 500 * 1024 * 1024;
 /// JPEG quality for the capped copy. Close to the HEIF paint sidecar (90).
 const JPEG_QUALITY: u8 = 88;
 /// Changing the pixel-art downscale heuristic must not reuse older scaled copies.
-const PIXEL_ART_FILTER_REVISION: &[u8] = b"pixel-art-filter-v1";
+/// v2: 축소 sidecar는 감지 결과와 무관하게 항상 보간 필터를 쓴다(nearest 축소는
+/// 스크린톤 같은 주기 패턴을 깨뜨린다).
+const PIXEL_ART_FILTER_REVISION: &[u8] = b"pixel-art-filter-v2";
 /// Lower bound rejects accidental 1px requests; upper bound keeps the cap a
 /// memory optimization, not a general preview downsizer.
 const MIN_MAX_SIDE: u32 = 512;
@@ -142,25 +146,19 @@ pub fn ensure_scaled_sidecar_with_mode(
         let img =
             crate::orientation::apply_to_image(img, crate::orientation::read_orientation(source));
         let has_alpha = img.color().has_alpha();
+        // 축소(sidecar 생성)는 감지 결과와 무관하게 항상 보간 필터를 쓴다.
+        // Nearest 축소는 스크린톤 같은 주기 패턴을 계단·무아레로 깨뜨린다. 픽셀
+        // 아트 감지는 확대 표시 힌트로만 쓰인다(스무딩 여부는 프론트가 배율로 결정).
+        // Auto 모드에서만 감지를 돌려 분석 결과를 후속 IPC 캐시에 남긴다.
         let detection = match mode {
             ImageScalingMode::Smooth | ImageScalingMode::Pixelated => None,
             ImageScalingMode::Auto => Some(crate::pixel_art::detect_decoded_image(&img)),
         };
-        let is_pixel_art = match mode {
-            ImageScalingMode::Smooth => false,
-            ImageScalingMode::Pixelated => true,
-            ImageScalingMode::Auto => detection.as_ref().is_some_and(|value| {
-                value.classification == crate::pixel_art::PixelArtClassification::PixelArt
-            }),
-        };
-        let filter = if is_pixel_art {
-            image::imageops::FilterType::Nearest
-        } else {
-            image::imageops::FilterType::Triangle
-        };
+        let is_pixel_art = matches!(mode, ImageScalingMode::Pixelated);
+        let filter = image::imageops::FilterType::Triangle;
         let scaled = img.resize(max_side, max_side, filter);
         if has_alpha || is_pixel_art {
-            // JPEG는 픽셀 경계에 다시 아티팩트를 만들 수 있으므로 픽셀 아트는
+            // JPEG는 픽셀 경계에 다시 아티팩트를 만들 수 있으므로 픽셀 보존 모드는
             // 알파 여부와 무관하게 lossless PNG sidecar로 보존한다.
             let tmp = crate::sidecar::tmp_path_for(&png_dest);
             scaled
@@ -297,6 +295,32 @@ mod tests {
             &fs::read(&scaled.path).unwrap()[..8],
             &[0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A]
         );
+    }
+
+    #[test]
+    fn auto_mode_scales_with_interpolation_for_screen_tone_source() {
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("tone.png");
+        // 스크린톤처럼 주기 패턴(픽셀 아트로 오감지될 수 있는) 소스.
+        let img = image::RgbImage::from_fn(2000, 1000, |x, y| {
+            if (x / 8 + y / 8) % 2 == 0 {
+                image::Rgb([240, 30, 30])
+            } else {
+                image::Rgb([20, 40, 220])
+            }
+        });
+        image::DynamicImage::ImageRgb8(img).save(&source).unwrap();
+
+        let scaled = ensure_scaled_sidecar_with_mode(&source, 512, ImageScalingMode::Auto)
+            .unwrap()
+            .expect("scaled sidecar");
+        // 축소 sidecar는 감지 결과와 무관하게 보간 필터를 쓰고 JPEG로 저장된다.
+        // Nearest 축소는 주기 패턴을 계단·무아레로 깨뜨린다.
+        assert_eq!(
+            scaled.path.extension().and_then(|e| e.to_str()),
+            Some("jpg")
+        );
+        assert_eq!((scaled.width, scaled.height), (512, 256));
     }
 
     #[test]
