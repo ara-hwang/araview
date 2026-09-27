@@ -89,6 +89,7 @@ npm run release:local -- -Publish:$false  # 초안으로 남기기
 
 - `release_preflight`: 실행 전 조건을 읽기 전용으로 검사해 READY/BLOCKED를 냅니다. 버전 4곳 일치, 작업 트리, 원격 동기화, 태그와 HEAD 관계, `gh` 로그인, 서명키 존재(경로만), 비밀번호 설정, updater endpoint가 가리키는 저장소, 기존 빌드 산출물을 봅니다. 서명키와 비밀번호 내용은 절대 출력하지 않습니다.
 - `release_bump`: `level`(patch/minor/major) 또는 `version`으로 `package.json`, `src-tauri/Cargo.toml`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.lock`의 `araview` 항목을 한 번에 올립니다. 네 곳이 이미 어긋나 있거나 태그가 있으면 거부하고, downgrade도 막습니다. 커밋은 하지 않습니다.
+- `docs_preflight`(`.opencode/plugins/araview-docs.ts`, `docs` 네임스페이스): `npm run docs:check`와 같은 문서 정합성 검사를 읽기 전용으로 실행해 출력을 그대로 돌려줍니다. 수정은 하지 않습니다.
 
 ```text
 릴리즈 준비:
