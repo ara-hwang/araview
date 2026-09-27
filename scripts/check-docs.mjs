@@ -205,7 +205,12 @@ function srcFiles(dir) {
     (key) => !sources.some((path) => readFileSync(path, "utf8").includes(`header.${key}`))
   )
   if (dead.length === 0)
-    pass("i18n 잔재 키", `header.*Title ${candidates.length}개 모두 코드 참조됨`)
+    pass(
+      "i18n 잔재 키",
+      candidates.length === 0
+        ? "header.*Title 잔재 없음"
+        : `header.*Title ${candidates.length}개 모두 코드 참조됨`
+    )
   else fail("i18n 잔재 키", `미참조: ${dead.map((key) => `header.${key}`).join(", ")}`)
 }
 
