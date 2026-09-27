@@ -75,6 +75,9 @@ npx tsc --noEmit
 npm run format:check
 npm run format
 
+# 문서-코드 정합성 (확장자, IPC, 설정, 플러그인, 버전, plan, i18n 잔재)
+npm run docs:check
+
 # 러스트 테스트 / 린트
 cd src-tauri && cargo test
 cd src-tauri && cargo clippy
