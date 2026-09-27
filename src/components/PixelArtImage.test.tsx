@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const { invoke } = vi.hoisted(() => ({ invoke: vi.fn() }))
@@ -69,5 +69,57 @@ describe("PixelArtImage", () => {
       method: "hybrid"
     })
     await waitFor(() => expect(image.className).toContain("image-rendering-pixelated"))
+  })
+
+  it("실측 배율이 축소면 픽셀 보존 모드도 부드럽게 표시하고, 확대면 복원한다", () => {
+    const proto = HTMLImageElement.prototype as unknown as Record<string, unknown>
+    Object.defineProperty(proto, "complete", { configurable: true, get: () => true })
+    Object.defineProperty(proto, "naturalWidth", { configurable: true, get: () => 800 })
+    const rectSpy = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
+      width: 200,
+      height: 300,
+      top: 0,
+      left: 0,
+      right: 200,
+      bottom: 300,
+      x: 0,
+      y: 0,
+      toJSON: () => ({})
+    } as DOMRect)
+
+    try {
+      render(
+        <PixelArtImage
+          filePath="/manga.jpg"
+          scalingMode="pixelated"
+          autoDetectPixelArt={false}
+          src="/manga.jpg"
+          alt="manga"
+        />
+      )
+      const image = screen.getByAltText("manga")
+      // 200px 표시 / 800px 원본 = 0.25x 축소: nearest 보간은 스크린톤을 깨뜨린다.
+      fireEvent.load(image)
+      expect(image.className).toContain("image-rendering-smooth")
+
+      // 1600px 표시 = 2x 확대: 픽셀 보존 판정이 다시 적용된다.
+      rectSpy.mockReturnValue({
+        width: 1600,
+        height: 2400,
+        top: 0,
+        left: 0,
+        right: 1600,
+        bottom: 2400,
+        x: 0,
+        y: 0,
+        toJSON: () => ({})
+      } as DOMRect)
+      fireEvent(window, new Event("resize"))
+      expect(image.className).toContain("image-rendering-pixelated")
+    } finally {
+      rectSpy.mockRestore()
+      delete proto.complete
+      delete proto.naturalWidth
+    }
   })
 })

@@ -163,10 +163,14 @@ export function ImageContainer({
     !isMulti && webtoonSettings.imageScalingMode === "auto" && webtoonSettings.autoDetectPixelArt,
     !isMulti
   )
+  // 단일 보기 배율은 imageSize(표시 바이트 기준 크기)에 대한 zoom이다.
+  // 축소 표시에서는 pixelated 판정을 끄고 항상 부드럽게 보간한다.
+  const displayScale = app.imageSize.width > 0 ? app.zoom : null
   const imageRendering = resolveImageRenderingMode(
     webtoonSettings.imageScalingMode,
     webtoonSettings.autoDetectPixelArt,
-    currentPixelArtDetection
+    currentPixelArtDetection,
+    displayScale
   )
   const isPixelated = imageRendering === "pixelated"
 
@@ -191,9 +195,13 @@ export function ImageContainer({
   // scale(zoom) 확대는 래스터를 늘려 흐릿해지지만, 레이아웃 크기면
   // 브라우저가 표시 크기에서 재래스터해 선명도가 유지된다.
   const svgSharpZoom = isSvgImage && app.imageSize.width > 0 && app.imageSize.height > 0
-  // 픽셀 보존 모드는 transform 합성에서 다시 보간되지 않도록 레이아웃 크기로 확대한다.
+  // 픽셀 보존 모드(확대 시)는 transform 합성에서 다시 보간되지 않도록
+  // 레이아웃 크기로 확대한다. 축소 배율에서는 transform scale(zoom)로
+  // 부드럽게 줄인다.
   const layoutZoom =
-    (svgSharpZoom || isPixelated) && app.imageSize.width > 0 && app.imageSize.height > 0
+    (svgSharpZoom || (isPixelated && displayScale !== null && displayScale >= 1)) &&
+    app.imageSize.width > 0 &&
+    app.imageSize.height > 0
   const singleImgWidth = layoutZoom
     ? app.imageSize.width * app.zoom
     : app.imageSize.width || undefined

@@ -9,11 +9,22 @@ export function getPixelArtDetectionPath(info: ImageInfo): string {
   return info.file_path !== info.source_path ? info.file_path : info.source_path
 }
 
+/**
+ * 픽셀 보존 표시는 확대(1x 이상)에서만 의미가 있다. 축소에서 nearest 계열
+ * 보간은 픽셀을 버리므로 스크린톤 같은 주기 패턴이 계단·무아레로 깨진다.
+ * 배율을 못 재면(null) 기존 판정을 유지한다.
+ */
+export function isMagnifiedDisplay(displayScale: number | null): boolean {
+  return displayScale === null || displayScale >= 1
+}
+
 export function resolveImageRenderingMode(
   mode: ImageScalingMode,
   autoDetectPixelArt: boolean,
-  detection: PixelArtDetection | null
+  detection: PixelArtDetection | null,
+  displayScale: number | null = null
 ): ImageRenderingMode {
+  if (!isMagnifiedDisplay(displayScale)) return "smooth"
   if (mode === "pixelated") return "pixelated"
   if (mode === "smooth") return "smooth"
   if (
