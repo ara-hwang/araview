@@ -61,27 +61,25 @@ pub fn list_archive_images(archive_path: &Path) -> Result<Vec<String>, AppError>
 pub fn list_archive_entries(archive_path: &Path) -> Result<ArchiveEntries, AppError> {
     let ext = archive_ext(archive_path);
 
-    let (images, all) = match ext.as_str() {
-        "cbz" | "zip" => collect_zip_entries(archive_path)?,
-        "cb7" | "7z" => collect_7z_entries(archive_path)?,
-        "cbr" | "rar" => collect_rar_entries(archive_path)?,
-        "cbt" => collect_tar_entries(archive_path)?,
-        _ => return Err(AppError::unsupported("Unsupported archive format")),
-    };
-
-    Ok(ArchiveEntries { images, all })
+    match ext.as_str() {
+        "cbz" | "zip" => collect_zip_entries(archive_path),
+        "cb7" | "7z" => collect_7z_entries(archive_path),
+        "cbr" | "rar" => collect_rar_entries(archive_path),
+        "cbt" => collect_tar_entries(archive_path),
+        _ => Err(AppError::unsupported("Unsupported archive format")),
+    }
 }
 
 /// 수집된 (이미지, 전체) 엔트리 쌍을 공통 뒤처리한다: 정렬 + dedup + Arc.
-fn finish_entries(
-    mut images: Vec<String>,
-    mut all: Vec<String>,
-) -> (Arc<Vec<String>>, Arc<Vec<String>>) {
+fn finish_entries(mut images: Vec<String>, mut all: Vec<String>) -> ArchiveEntries {
     images.sort_by_cached_key(|n| n.to_lowercase());
     images.dedup();
     all.sort_by_cached_key(|n| n.to_lowercase());
     all.dedup();
-    (Arc::new(images), Arc::new(all))
+    ArchiveEntries {
+        images: Arc::new(images),
+        all: Arc::new(all),
+    }
 }
 
 /// 아카이브에서 특정 엔트리를 임시 파일로 추출하고 경로를 반환
@@ -183,11 +181,13 @@ pub(crate) fn read_bounded(
 }
 
 fn list_zip_images(archive_path: &Path) -> Result<Vec<String>, AppError> {
-    Ok(Arc::unwrap_or_clone(collect_zip_entries(archive_path)?.images))
+    Ok(Arc::unwrap_or_clone(
+        collect_zip_entries(archive_path)?.images,
+    ))
 }
 
 /// ZIP/CBZ: 디렉터리·숨김 파일을 건너뛰고 이미지/전체 엔트리를 분류한다.
-fn collect_zip_entries(archive_path: &Path) -> Result<(Arc<Vec<String>>, Arc<Vec<String>>), AppError> {
+fn collect_zip_entries(archive_path: &Path) -> Result<ArchiveEntries, AppError> {
     let file = open_archive_file(archive_path)?;
     let mut archive = zip::ZipArchive::new(file)
         .map_err(|e| AppError::corrupt(format!("Failed to read ZIP: {e}")))?;
@@ -251,10 +251,12 @@ fn extract_zip_image(
 }
 
 fn list_7z_images(archive_path: &Path) -> Result<Vec<String>, AppError> {
-    Ok(Arc::unwrap_or_clone(collect_7z_entries(archive_path)?.images))
+    Ok(Arc::unwrap_or_clone(
+        collect_7z_entries(archive_path)?.images,
+    ))
 }
 
-fn collect_7z_entries(archive_path: &Path) -> Result<(Arc<Vec<String>>, Arc<Vec<String>>), AppError> {
+fn collect_7z_entries(archive_path: &Path) -> Result<ArchiveEntries, AppError> {
     let reader = sevenz_rust2::ArchiveReader::open(archive_path, sevenz_rust2::Password::empty())
         .map_err(|e| AppError::corrupt(format!("Failed to read 7z: {e}")))?;
 
@@ -321,10 +323,12 @@ fn extract_7z_image(
 }
 
 fn list_rar_images(archive_path: &Path) -> Result<Vec<String>, AppError> {
-    Ok(Arc::unwrap_or_clone(collect_rar_entries(archive_path)?.images))
+    Ok(Arc::unwrap_or_clone(
+        collect_rar_entries(archive_path)?.images,
+    ))
 }
 
-fn collect_rar_entries(archive_path: &Path) -> Result<(Arc<Vec<String>>, Arc<Vec<String>>), AppError> {
+fn collect_rar_entries(archive_path: &Path) -> Result<ArchiveEntries, AppError> {
     let archive = open_rar(archive_path)?;
 
     let mut images: Vec<String> = Vec::new();
@@ -477,10 +481,12 @@ fn rar_display_name(meta: &rars::ArchiveMemberMeta) -> String {
 }
 
 fn list_tar_images(archive_path: &Path) -> Result<Vec<String>, AppError> {
-    Ok(Arc::unwrap_or_clone(collect_tar_entries(archive_path)?.images))
+    Ok(Arc::unwrap_or_clone(
+        collect_tar_entries(archive_path)?.images,
+    ))
 }
 
-fn collect_tar_entries(archive_path: &Path) -> Result<(Arc<Vec<String>>, Arc<Vec<String>>), AppError> {
+fn collect_tar_entries(archive_path: &Path) -> Result<ArchiveEntries, AppError> {
     let file = open_archive_file(archive_path)?;
     let mut archive = tar::Archive::new(file);
 

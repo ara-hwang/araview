@@ -245,7 +245,9 @@ pub async fn get_comic_info(
         .map_err(|e| AppError::unknown(format!("Failed to join comic info task: {e}")))?
 }
 
-fn get_comic_info_blocking(file_path: &str) -> Result<Option<crate::comic_info::ComicInfo>, AppError> {
+fn get_comic_info_blocking(
+    file_path: &str,
+) -> Result<Option<crate::comic_info::ComicInfo>, AppError> {
     let path = Path::new(file_path);
 
     if !path.exists() {
@@ -333,7 +335,7 @@ fn load_archive_image_blocking(
 
     let extracted_path = archive::extract_archive_image_with_protection(
         arch_path,
-        &entry_name,
+        entry_name,
         &sub_dir,
         protect.unwrap_or(true),
     )?;
@@ -375,9 +377,10 @@ pub async fn archive_prefetch(
     archive_path: String,
     entry_names: Vec<String>,
 ) -> Result<usize, AppError> {
-    let result =
-        tauri::async_runtime::spawn_blocking(move || archive_prefetch_blocking(&archive_path, &entry_names))
-            .await;
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        archive_prefetch_blocking(&archive_path, &entry_names)
+    })
+    .await;
     match result {
         Ok(value) => value,
         Err(e) => {
@@ -387,7 +390,10 @@ pub async fn archive_prefetch(
     }
 }
 
-fn archive_prefetch_blocking(archive_path: &str, entry_names: &[String]) -> Result<usize, AppError> {
+fn archive_prefetch_blocking(
+    archive_path: &str,
+    entry_names: &[String],
+) -> Result<usize, AppError> {
     let arch_path = Path::new(archive_path);
     if !arch_path.exists() {
         return Err(AppError::not_found("Archive not found"));
@@ -539,9 +545,7 @@ pub async fn generate_archive_file_thumbnail(
         )
     })
     .await
-    .map_err(|e| {
-        AppError::unknown(format!("Failed to join archive file thumbnail task: {e}"))
-    })?
+    .map_err(|e| AppError::unknown(format!("Failed to join archive file thumbnail task: {e}")))?
 }
 
 fn generate_archive_file_thumbnail_blocking(
@@ -591,9 +595,7 @@ pub async fn generate_archive_file_thumbnails_batch(
             .collect())
     })
     .await
-    .map_err(|e| {
-        AppError::unknown(format!("Failed to join archive cover batch task: {e}"))
-    })?
+    .map_err(|e| AppError::unknown(format!("Failed to join archive cover batch task: {e}")))?
 }
 
 /// 현재 이미지를 OS 휴지통으로 이동 (영구 삭제 아님)
@@ -1030,9 +1032,7 @@ mod tests {
 
     #[test]
     fn get_archive_images_rejects_missing_and_non_archive() {
-        let err = match get_archive_images_impl(Path::new(
-            "D:\\no-such-dir-commands\\nope.cbz",
-        )) {
+        let err = match get_archive_images_impl(Path::new("D:\\no-such-dir-commands\\nope.cbz")) {
             Ok(_) => panic!("expected error"),
             Err(e) => e,
         };
@@ -1074,8 +1074,7 @@ mod tests {
 
     #[test]
     fn get_comic_info_rejects_missing_file() {
-        let err =
-            get_comic_info_blocking("D:\\no-such-dir-commands\\nope.cbz").unwrap_err();
+        let err = get_comic_info_blocking("D:\\no-such-dir-commands\\nope.cbz").unwrap_err();
         assert_eq!(err.code, ErrorCode::NotFound);
     }
 
@@ -1093,8 +1092,7 @@ mod tests {
         writer.write_all(b"fake-png-bytes").expect("write entry");
         writer.finish().expect("finish cbz");
 
-        let info =
-            get_comic_info_blocking(archive_path.to_str().unwrap()).expect("read");
+        let info = get_comic_info_blocking(archive_path.to_str().unwrap()).expect("read");
         assert!(info.is_none());
         fs::remove_dir_all(&dir).ok();
     }

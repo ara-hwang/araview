@@ -19,7 +19,7 @@ use std::sync::{Arc, LazyLock, Mutex};
 use std::time::{Instant, SystemTime};
 
 use crate::app_error::{AppError, ErrorCode};
-use crate::archive::{ArchiveEntries, list_archive_entries};
+use crate::archive::{list_archive_entries, ArchiveEntries};
 
 /// Upper bound for cached archive indexes; oldest entry evicted past this.
 /// Folder-cover batches walk dozens of archives at once, so this must exceed
@@ -182,7 +182,11 @@ mod tests {
 
         // Rewrite with one more page (mtime + size both change).
         std::thread::sleep(std::time::Duration::from_millis(20));
-        let rewritten = write_cbz(&dir, "comic.cbz", &[("001.png", PNG_MAGIC), ("002.png", PNG_MAGIC)]);
+        let rewritten = write_cbz(
+            &dir,
+            "comic.cbz",
+            &[("001.png", PNG_MAGIC), ("002.png", PNG_MAGIC)],
+        );
 
         let second = get_archive_entries(&rewritten).expect("rescan");
         assert_eq!(second.images.len(), 2);
