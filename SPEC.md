@@ -239,8 +239,10 @@ CBZ/ZIP의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한다(8
 
 ## 8. 아카이브
 
-진실: `src-tauri/src/archive.rs`, `src-tauri/src/commands.rs`, `src/hooks/useImageLoader.ts`, `src/store/archiveProgressStore.ts`.
+진실: `src-tauri/src/archive.rs`, `src-tauri/src/archive_index.rs`, `src-tauri/src/commands.rs`, `src/hooks/useImageLoader.ts`, `src/store/archiveProgressStore.ts`.
 
+- 아카이브 커맨드(`get_archive_images`, `load_archive_image`, `archive_prefetch`, `get_comic_info`, `generate_archive_thumbnail`, `generate_archive_file_thumbnail(s)_batch`)는 모두 비동기 커맨드로 `spawn_blocking`에서 실행되어 메인 스레드를 막지 않는다. `archive_prefetch`는 fire-and-forget 성격에 맞게 조인 실패도 흡수해 `Ok(0)`을 반환한다.
+- 엔트리 인덱스 캐시(`archive_index.rs`): 아카이브별 이미지/전체 엔트리 목록을 canonical 경로 + mtime + size 검증으로 캐시한다(최대 64개 LRU). `get_archive_images`, `get_comic_info`, `generate_archive_file_thumbnail(s)_batch`가 공유해 아카이브당 전체 스캔이 1회로 수렴한다. `clear_cache` 시 함께 비워진다.
 - `get_archive_images`: 내부 이미지 엔트리 목록 + `current_index: 0`. 비어 있으면 `not_found`.
 - `load_archive_image`: 활성 파생 이미지 캐시 루트의 `archives/` 아래에 추출 후 표시 가능한 경로로 반환한다.
 - `archive_prefetch`: 이웃 선추출용 fire-and-forget 명령이다.
@@ -526,36 +528,37 @@ CBZ/ZIP의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한다(8
 
 진실: `src-tauri/src/lib.rs` `invoke_handler`, `src-tauri/src/commands.rs`, `src-tauri/src/save.rs`, `src-tauri/src/thumb_shell.rs`.
 
-| 명령                              | 입력 (JS camelCase)                                                                            | 반환                                   |
-| --------------------------------- | ---------------------------------------------------------------------------------------------- | -------------------------------------- |
-| `load_image`                      | `filePath`, `maxSide?`, `imageScalingMode?`, `autoDetectPixelArt?`                             | `ImageInfo`                            |
-| `detect_pixel_art`                | `filePath`                                                                                     | `PixelArtDetection`                    |
-| `get_directory_images`            | `filePath`, `options?`                                                                         | `DirectoryImages`                      |
-| `resolve_dropped_path`            | `path`                                                                                         | 해석된 파일 경로 `string`              |
-| `get_exif_data`                   | `filePath`                                                                                     | `Record<string, string>`               |
-| `get_image_histogram`             | `filePath`                                                                                     | `Histogram`                            |
-| `get_image_details`               | `filePath`                                                                                     | `ImageDetails`                         |
-| `get_archive_images`              | `filePath`                                                                                     | `DirectoryImages`(엔트리 목록)         |
-| `get_comic_info`                  | `filePath`                                                                                     | `ComicInfo \| null`(CBZ/ZIP 전용)      |
-| `load_archive_image`              | `archivePath`, `entryName`, `maxSide?`, `protect?`, `imageScalingMode?`, `autoDetectPixelArt?` | `ImageInfo`                            |
-| `archive_prefetch`                | `archivePath`, `entryNames`                                                                    | 추출 개수 `number`                     |
-| `generate_thumbnail`              | `filePath`, `maxSide?`                                                                         | `ThumbnailInfo`                        |
-| `generate_thumbnails_batch`       | `filePaths`, `maxSide?`                                                                        | `BatchThumb[]`                         |
-| `get_cached_thumbnail`            | `filePath`                                                                                     | `ThumbnailInfo \| null`(캐시 히트만)   |
-| `get_cache_stats`                 | 없음                                                                                           | `CacheStats`                           |
-| `clear_cache`                     | `scope`                                                                                        | `CacheClearResult`                     |
-| `generate_archive_thumbnail`      | `archivePath`, `entryName`, `maxSide?`                                                         | `ThumbnailInfo`                        |
-| `generate_archive_file_thumbnail` | `archivePath`, `maxSide?`                                                                      | `ThumbnailInfo`(첫 이미지 엔트리 기준) |
-| `get_file_associations`           | 없음                                                                                           | `FileAssociation[]`                    |
-| `set_file_association`            | `extension`, `associate`                                                                       | `FileAssociation`                      |
-| `open_default_apps_settings`      | 없음                                                                                           | 없음                                   |
-| `get_psd_thumbnail_status`        | 없음                                                                                           | `PsdThumbStatus`                       |
-| `register_psd_thumbnail`          | 없음                                                                                           | `PsdThumbStatus`                       |
-| `unregister_psd_thumbnail`        | 없음                                                                                           | `PsdThumbStatus`                       |
-| `trash_file`                      | `filePath`                                                                                     | 없음                                   |
-| `rename_file`                     | `oldPath`, `newName`, `maxSide?`, `imageScalingMode?`, `autoDetectPixelArt?`                   | `ImageInfo`                            |
-| `save_image_edits`                | `filePath`, `options`                                                                          | `ImageInfo`                            |
-| `frontend_ready`                  | 없음                                                                                           | 없음 (`PendingOpenFile` flush)         |
+| 명령                                     | 입력 (JS camelCase)                                                                            | 반환                                   |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------------- | -------------------------------------- |
+| `load_image`                             | `filePath`, `maxSide?`, `imageScalingMode?`, `autoDetectPixelArt?`                             | `ImageInfo`                            |
+| `detect_pixel_art`                       | `filePath`                                                                                     | `PixelArtDetection`                    |
+| `get_directory_images`                   | `filePath`, `options?`                                                                         | `DirectoryImages`                      |
+| `resolve_dropped_path`                   | `path`                                                                                         | 해석된 파일 경로 `string`              |
+| `get_exif_data`                          | `filePath`                                                                                     | `Record<string, string>`               |
+| `get_image_histogram`                    | `filePath`                                                                                     | `Histogram`                            |
+| `get_image_details`                      | `filePath`                                                                                     | `ImageDetails`                         |
+| `get_archive_images`                     | `filePath`                                                                                     | `DirectoryImages`(엔트리 목록)         |
+| `get_comic_info`                         | `filePath`                                                                                     | `ComicInfo \| null`(CBZ/ZIP 전용)      |
+| `load_archive_image`                     | `archivePath`, `entryName`, `maxSide?`, `protect?`, `imageScalingMode?`, `autoDetectPixelArt?` | `ImageInfo`                            |
+| `archive_prefetch`                       | `archivePath`, `entryNames`                                                                    | 추출 개수 `number`                     |
+| `generate_thumbnail`                     | `filePath`, `maxSide?`                                                                         | `ThumbnailInfo`                        |
+| `generate_thumbnails_batch`              | `filePaths`, `maxSide?`                                                                        | `BatchThumb[]`                         |
+| `get_cached_thumbnail`                   | `filePath`                                                                                     | `ThumbnailInfo \| null`(캐시 히트만)   |
+| `get_cache_stats`                        | 없음                                                                                           | `CacheStats`                           |
+| `clear_cache`                            | `scope`                                                                                        | `CacheClearResult`                     |
+| `generate_archive_thumbnail`             | `archivePath`, `entryName`, `maxSide?`                                                         | `ThumbnailInfo`                        |
+| `generate_archive_file_thumbnail`        | `archivePath`, `maxSide?`                                                                      | `ThumbnailInfo`(첫 이미지 엔트리 기준) |
+| `generate_archive_file_thumbnails_batch` | `archivePaths`, `maxSide?`                                                                     | `BatchThumb[]`(source=아카이브 경로)   |
+| `get_file_associations`                  | 없음                                                                                           | `FileAssociation[]`                    |
+| `set_file_association`                   | `extension`, `associate`                                                                       | `FileAssociation`                      |
+| `open_default_apps_settings`             | 없음                                                                                           | 없음                                   |
+| `get_psd_thumbnail_status`               | 없음                                                                                           | `PsdThumbStatus`                       |
+| `register_psd_thumbnail`                 | 없음                                                                                           | `PsdThumbStatus`                       |
+| `unregister_psd_thumbnail`               | 없음                                                                                           | `PsdThumbStatus`                       |
+| `trash_file`                             | `filePath`                                                                                     | 없음                                   |
+| `rename_file`                            | `oldPath`, `newName`, `maxSide?`, `imageScalingMode?`, `autoDetectPixelArt?`                   | `ImageInfo`                            |
+| `save_image_edits`                       | `filePath`, `options`                                                                          | `ImageInfo`                            |
+| `frontend_ready`                         | 없음                                                                                           | 없음 (`PendingOpenFile` flush)         |
 
 `load_image`, `load_archive_image`, `rename_file`은 표시 정책에 따라 선택적으로 `imageScalingMode`(`auto | smooth | pixelated`)와 `autoDetectPixelArt`를 받는다.
 

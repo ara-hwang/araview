@@ -111,20 +111,22 @@ pub fn read_comic_info(archive_path: &Path) -> Result<Option<ComicInfo>, AppErro
         .and_then(|e| e.to_str())
         .map(|e| e.to_lowercase())
         .unwrap_or_default();
-    // CB7/CBR/CBT는 리더가 달라 Phase 2. 프론트 분기를 단순하게 두려고
-    // 에러 대신 None을 돌려준다.
+    // CB7/CBR/CBT는 리더가 달라 지원하지 않으며 확장자가 다르면 `Ok(None)`이다.
     if ext != "cbz" && ext != "zip" {
         return Ok(None);
     }
+
+    // 목록은 인덱스 캐시로 조회한다. 아카이브 오픈 흐름에서 `get_archive_images`
+    // 가 먼저 캐시를 채우므로 여기서는 두 번째 전체 스캔이 아니라 히트다.
+    let entries = crate::archive_index::get_archive_entries(archive_path)?;
+    let Some(entry_name) = find_comic_info_in_entries(&entries.all) else {
+        return Ok(None);
+    };
 
     let file = fs::File::open(archive_path)
         .map_err(|e| AppError::io("Failed to open archive", e, ErrorCode::Corrupt))?;
     let mut archive = zip::ZipArchive::new(file)
         .map_err(|e| AppError::corrupt(format!("Failed to read ZIP: {e}")))?;
-
-    let Some(entry_name) = find_comic_info_entry(&mut archive) else {
-        return Ok(None);
-    };
 
     let mut entry = archive
         .by_name(&entry_name)
@@ -138,20 +140,13 @@ pub fn read_comic_info(archive_path: &Path) -> Result<Option<ComicInfo>, AppErro
     Ok(Some(parse_comic_info(&bytes)?))
 }
 
-/// basename이 `comicinfo.xml`인 엔트리를 루트 우선으로 찾는다.
+/// 캐시된 전체 엔트리 목록에서 ComicInfo.xml 후보를 루트 우선으로 찾는다.
 /// 챕터별로 여러 개가 들어 있으면 루트 다음 첫 중첩 하나만 쓴다.
-fn find_comic_info_entry(archive: &mut zip::ZipArchive<fs::File>) -> Option<String> {
-    let mut root: Option<String> = None;
-    let mut nested: Option<String> = None;
-    for i in 0..archive.len() {
-        let Ok(entry) = archive.by_index(i) else {
-            continue;
-        };
-        if entry.is_dir() {
-            continue;
-        }
-        let name = entry.name().to_string();
-        let base = Path::new(&name)
+fn find_comic_info_in_entries(entries: &[String]) -> Option<String> {
+    let mut root: Option<&String> = None;
+    let mut nested: Option<&String> = None;
+    for name in entries {
+        let base = Path::new(name)
             .file_name()
             .and_then(|n| n.to_str())
             .unwrap_or_default();
@@ -167,7 +162,7 @@ fn find_comic_info_entry(archive: &mut zip::ZipArchive<fs::File>) -> Option<Stri
             nested = Some(name);
         }
     }
-    root.or(nested)
+    root.or(nested).cloned()
 }
 
 /// 바이트 → UTF-8 문자열. UTF-16 BOM이면 std만으로 디코딩한다.

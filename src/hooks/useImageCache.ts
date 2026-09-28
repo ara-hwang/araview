@@ -198,8 +198,11 @@ export function useImageCache() {
           archivePath
             ? {
                 protectArchive: false,
-                cacheResult: false,
-                shareInflight: false
+                // 메타 캐시에 적재해 화면 전환 시 같은 엔트리가 캐시 히트로
+                // 끝나게 한다. in-flight 맵이 load_archive_image 경로와의
+                // 프론트 레벨 중복 호출을 직렬화한다.
+                cacheResult: true,
+                shareInflight: true
               }
             : undefined
         )

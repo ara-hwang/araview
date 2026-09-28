@@ -96,6 +96,7 @@ Frontend uses `invoke()` for these commands (full table: `SPEC.md` §15):
 - `get_cached_thumbnail(file_path)`
 - `generate_archive_thumbnail(archive_path, entry_name, max_side?)`
 - `generate_archive_file_thumbnail(archive_path, max_side?)`
+- `generate_archive_file_thumbnails_batch(archive_paths, max_side?)`
 - `get_cache_stats()`
 - `clear_cache(scope)`
 - `get_file_associations()`

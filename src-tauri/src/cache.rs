@@ -85,6 +85,9 @@ pub fn clear_cache(scope: CacheScope) -> Result<CacheClearResult, AppError> {
     let root = process_temp::process_temp_dir()?;
     let cleared = clear_in_root(&root, scope)?;
     process_temp::reset_dir_totals();
+    // 인덱스도 같이 비워 재검증되게 한다. 추출물이 지워진 뒤 stale 인덱스가
+    // 남으면 페이지 수와 실제 캐시 내용이 어긋난다.
+    crate::archive_index::reset();
     remove_empty_dirs(&root)?;
     let stats = stats_for_root(&root)?;
     Ok(CacheClearResult {

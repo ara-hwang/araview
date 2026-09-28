@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::io::BufReader;
 use std::path::{Path, PathBuf};
-use std::sync::{LazyLock, Mutex};
+use std::sync::{Arc, LazyLock, Mutex};
 
 use crate::app_error::{AppError, ErrorCode};
 use crate::archive;
@@ -237,8 +237,16 @@ pub fn get_image_details(file_path: String) -> Result<crate::image_info::ImageDe
 /// CBZ/ZIP 안의 ComicInfo.xml 메타데이터를 읽는다 (읽기 전용, 표시용).
 /// XML이 없거나 CBZ/ZIP이 아니면 `None`을 돌려주고, 깨진 XML은 에러다.
 #[tauri::command]
-pub fn get_comic_info(file_path: String) -> Result<Option<crate::comic_info::ComicInfo>, AppError> {
-    let path = Path::new(&file_path);
+pub async fn get_comic_info(
+    file_path: String,
+) -> Result<Option<crate::comic_info::ComicInfo>, AppError> {
+    tauri::async_runtime::spawn_blocking(move || get_comic_info_blocking(&file_path))
+        .await
+        .map_err(|e| AppError::unknown(format!("Failed to join comic info task: {e}")))?
+}
+
+fn get_comic_info_blocking(file_path: &str) -> Result<Option<crate::comic_info::ComicInfo>, AppError> {
+    let path = Path::new(file_path);
 
     if !path.exists() {
         return Err(AppError::not_found("File not found"));
@@ -249,9 +257,13 @@ pub fn get_comic_info(file_path: String) -> Result<Option<crate::comic_info::Com
 
 /// 아카이브(CBZ/CB7) 파일 내부의 이미지 엔트리 목록을 반환
 #[tauri::command]
-pub fn get_archive_images(file_path: String) -> Result<DirectoryImages, AppError> {
-    let path = Path::new(&file_path);
+pub async fn get_archive_images(file_path: String) -> Result<DirectoryImages, AppError> {
+    tauri::async_runtime::spawn_blocking(move || get_archive_images_impl(Path::new(&file_path)))
+        .await
+        .map_err(|e| AppError::unknown(format!("Failed to join archive listing task: {e}")))?
+}
 
+fn get_archive_images_impl(path: &Path) -> Result<DirectoryImages, AppError> {
     if !path.exists() {
         return Err(AppError::not_found("File not found"));
     }
@@ -260,14 +272,16 @@ pub fn get_archive_images(file_path: String) -> Result<DirectoryImages, AppError
         return Err(AppError::unsupported("Not an archive file"));
     }
 
-    let images = archive::list_archive_images(path)?;
+    // 인덱스 캐시로 조회한다. 오픈 흐름에서 comic_info·표지 커맨드가
+    // 같은 스캔을 재사용하므로 아카이브당 파싱은 1회로 수렴한다.
+    let entries = crate::archive_index::get_archive_entries(path)?;
 
-    if images.is_empty() {
+    if entries.images.is_empty() {
         return Err(AppError::not_found("No images found in archive"));
     }
 
     Ok(DirectoryImages {
-        images,
+        images: Arc::unwrap_or_clone(entries.images),
         current_index: 0,
         availability: Vec::new(),
     })
@@ -276,7 +290,7 @@ pub fn get_archive_images(file_path: String) -> Result<DirectoryImages, AppError
 /// 아카이브에서 특정 엔트리를 추출하여 ImageInfo를 반환
 /// entry_name은 get_archive_images에서 반환된 엔트리 이름
 #[tauri::command]
-pub fn load_archive_image(
+pub async fn load_archive_image(
     app: tauri::AppHandle,
     archive_path: String,
     entry_name: String,
@@ -285,7 +299,31 @@ pub fn load_archive_image(
     image_scaling_mode: Option<String>,
     auto_detect_pixel_art: Option<bool>,
 ) -> Result<ImageInfo, AppError> {
-    let arch_path = Path::new(&archive_path);
+    tauri::async_runtime::spawn_blocking(move || {
+        load_archive_image_blocking(
+            &app,
+            &archive_path,
+            &entry_name,
+            max_side,
+            protect,
+            image_scaling_mode,
+            auto_detect_pixel_art,
+        )
+    })
+    .await
+    .map_err(|e| AppError::unknown(format!("Failed to join archive load: {e}")))?
+}
+
+fn load_archive_image_blocking(
+    app: &tauri::AppHandle,
+    archive_path: &str,
+    entry_name: &str,
+    max_side: Option<u32>,
+    protect: Option<bool>,
+    image_scaling_mode: Option<String>,
+    auto_detect_pixel_art: Option<bool>,
+) -> Result<ImageInfo, AppError> {
+    let arch_path = Path::new(archive_path);
 
     if !arch_path.exists() {
         return Err(AppError::not_found("Archive not found"));
@@ -302,7 +340,7 @@ pub fn load_archive_image(
 
     let mode = parse_image_scaling_mode(image_scaling_mode, auto_detect_pixel_art);
     let info = crate::image::load_viewable_with_limit_mode(&extracted_path, max_side, mode)?;
-    allow_asset_path(&app, Path::new(&info.file_path))?;
+    allow_asset_path(app, Path::new(&info.file_path))?;
     Ok(info)
 }
 
@@ -331,16 +369,33 @@ fn archive_sub_dir(archive_path: &Path) -> Result<std::path::PathBuf, AppError> 
 }
 
 /// 이웃 페이지 선추출 (zip은 오픈 1회). FE fire-and-forget용으로 항상 Ok다.
+/// 조인 실패까지 흡수해 시크 지연을 만들지 않는다.
 #[tauri::command]
-pub fn archive_prefetch(archive_path: String, entry_names: Vec<String>) -> Result<usize, AppError> {
-    let arch_path = Path::new(&archive_path);
+pub async fn archive_prefetch(
+    archive_path: String,
+    entry_names: Vec<String>,
+) -> Result<usize, AppError> {
+    let result =
+        tauri::async_runtime::spawn_blocking(move || archive_prefetch_blocking(&archive_path, &entry_names))
+            .await;
+    match result {
+        Ok(value) => value,
+        Err(e) => {
+            log::warn!("[archive] prefetch join failed: {e}");
+            Ok(0)
+        }
+    }
+}
+
+fn archive_prefetch_blocking(archive_path: &str, entry_names: &[String]) -> Result<usize, AppError> {
+    let arch_path = Path::new(archive_path);
     if !arch_path.exists() {
         return Err(AppError::not_found("Archive not found"));
     }
     let sub_dir = archive_sub_dir(arch_path)?;
     Ok(archive::prefetch_archive_images(
         arch_path,
-        &entry_names,
+        entry_names,
         &sub_dir,
     ))
 }
@@ -409,14 +464,18 @@ pub async fn clear_cache(
 
 /// 썸네일 윈도우 배치 처리. 항목별 성공/실패를 함께 반환한다.
 #[tauri::command]
-pub fn generate_thumbnails_batch(
+pub async fn generate_thumbnails_batch(
     file_paths: Vec<String>,
     max_side: Option<u32>,
 ) -> Result<Vec<crate::thumbnail::BatchThumb>, AppError> {
-    Ok(crate::thumbnail::generate_thumbnails_batch(
-        &file_paths,
-        max_side.unwrap_or_else(crate::thumbnail::default_max_side),
-    ))
+    tauri::async_runtime::spawn_blocking(move || {
+        Ok(crate::thumbnail::generate_thumbnails_batch(
+            &file_paths,
+            max_side.unwrap_or_else(crate::thumbnail::default_max_side),
+        ))
+    })
+    .await
+    .map_err(|e| AppError::unknown(format!("Failed to join thumbnail batch task: {e}")))?
 }
 
 /// 아카이브 엔트리 썸네일 생성 코어. AppHandle 없이 테스트 가능하다.
@@ -436,40 +495,105 @@ pub(crate) fn generate_archive_thumbnail_impl(
 /// 아카이브 엔트리용 축소 JPEG 경로 반환. 추출물과 썸네일 캐시를 재사용하므로
 /// 썸네일 그리드처럼 여러 엔트리를 동시에 볼 때 원본 풀사이즈 로드를 피한다.
 #[tauri::command]
-pub fn generate_archive_thumbnail(
+pub async fn generate_archive_thumbnail(
     app: tauri::AppHandle,
     archive_path: String,
     entry_name: String,
     max_side: Option<u32>,
 ) -> Result<crate::thumbnail::ThumbnailInfo, AppError> {
-    let thumb = generate_archive_thumbnail_impl(
-        Path::new(&archive_path),
-        &entry_name,
-        max_side.unwrap_or_else(crate::thumbnail::default_max_side),
-    )?;
-    allow_asset_path(&app, Path::new(&thumb.file_path))?;
+    tauri::async_runtime::spawn_blocking(move || {
+        generate_archive_thumbnail_blocking(
+            &app,
+            Path::new(&archive_path),
+            &entry_name,
+            max_side.unwrap_or_else(crate::thumbnail::default_max_side),
+        )
+    })
+    .await
+    .map_err(|e| AppError::unknown(format!("Failed to join archive thumbnail task: {e}")))?
+}
+
+fn generate_archive_thumbnail_blocking(
+    app: &tauri::AppHandle,
+    archive_path: &Path,
+    entry_name: &str,
+    max_side: u32,
+) -> Result<crate::thumbnail::ThumbnailInfo, AppError> {
+    let thumb = generate_archive_thumbnail_impl(archive_path, entry_name, max_side)?;
+    allow_asset_path(app, Path::new(&thumb.file_path))?;
     Ok(thumb)
 }
 
 /// 폴더 목록에 있는 아카이브 파일(.cbz 등)의 표지 썸네일. 첫 이미지 엔트리를 사용한다.
 #[tauri::command]
-pub fn generate_archive_file_thumbnail(
+pub async fn generate_archive_file_thumbnail(
     app: tauri::AppHandle,
     archive_path: String,
     max_side: Option<u32>,
 ) -> Result<crate::thumbnail::ThumbnailInfo, AppError> {
-    let path = Path::new(&archive_path);
-    let entries = archive::list_archive_images(path)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        generate_archive_file_thumbnail_blocking(
+            &app,
+            Path::new(&archive_path),
+            max_side.unwrap_or_else(crate::thumbnail::default_max_side),
+        )
+    })
+    .await
+    .map_err(|e| {
+        AppError::unknown(format!("Failed to join archive file thumbnail task: {e}"))
+    })?
+}
+
+fn generate_archive_file_thumbnail_blocking(
+    app: &tauri::AppHandle,
+    archive_path: &Path,
+    max_side: u32,
+) -> Result<crate::thumbnail::ThumbnailInfo, AppError> {
+    // 인덱스 캐시로 조회한다. 폴더 표지 배치는 같은 아카이브를 여러 커맨드
+    // (목록+표지)에서 건드리므로 파싱이 1회로 수렴한다.
+    let entries = crate::archive_index::get_archive_entries(archive_path)?;
     let first = entries
+        .images
         .first()
         .ok_or_else(|| AppError::not_found("No images in archive"))?;
-    let thumb = generate_archive_thumbnail_impl(
-        path,
-        first,
-        max_side.unwrap_or_else(crate::thumbnail::default_max_side),
-    )?;
-    allow_asset_path(&app, Path::new(&thumb.file_path))?;
+    let thumb = generate_archive_thumbnail_impl(archive_path, first, max_side)?;
+    allow_asset_path(app, Path::new(&thumb.file_path))?;
     Ok(thumb)
+}
+
+/// 폴더 목록의 아카이브 표지 썸네일 일괄 처리. 항목별 성공/실패를 함께 반환한다.
+#[tauri::command]
+pub async fn generate_archive_file_thumbnails_batch(
+    app: tauri::AppHandle,
+    archive_paths: Vec<String>,
+    max_side: Option<u32>,
+) -> Result<Vec<crate::thumbnail::BatchThumb>, AppError> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let max_side = max_side.unwrap_or_else(crate::thumbnail::default_max_side);
+        Ok(archive_paths
+            .iter()
+            .map(|path| {
+                let result =
+                    generate_archive_file_thumbnail_blocking(&app, Path::new(path), max_side);
+                match result {
+                    Ok(thumb) => crate::thumbnail::BatchThumb {
+                        source: path.clone(),
+                        thumb: Some(thumb),
+                        error: None,
+                    },
+                    Err(e) => crate::thumbnail::BatchThumb {
+                        source: path.clone(),
+                        thumb: None,
+                        error: Some(e.message),
+                    },
+                }
+            })
+            .collect())
+    })
+    .await
+    .map_err(|e| {
+        AppError::unknown(format!("Failed to join archive cover batch task: {e}"))
+    })?
 }
 
 /// 현재 이미지를 OS 휴지통으로 이동 (영구 삭제 아님)
@@ -906,7 +1030,9 @@ mod tests {
 
     #[test]
     fn get_archive_images_rejects_missing_and_non_archive() {
-        let err = match get_archive_images("D:\\no-such-dir-commands\\nope.cbz".to_string()) {
+        let err = match get_archive_images_impl(Path::new(
+            "D:\\no-such-dir-commands\\nope.cbz",
+        )) {
             Ok(_) => panic!("expected error"),
             Err(e) => e,
         };
@@ -914,7 +1040,7 @@ mod tests {
 
         let dir = unique_dir("archive-not");
         let png = write_sized(&dir, "a.png", 16);
-        let err = match get_archive_images(png) {
+        let err = match get_archive_images_impl(Path::new(&png)) {
             Ok(_) => panic!("expected error"),
             Err(e) => e,
         };
@@ -938,7 +1064,7 @@ mod tests {
         writer.write_all(b"hello").expect("write entry");
         writer.finish().expect("finish cbz");
 
-        let err = match get_archive_images(archive_path.to_str().unwrap().to_string()) {
+        let err = match get_archive_images_impl(Path::new(archive_path.to_str().unwrap())) {
             Ok(_) => panic!("expected error"),
             Err(e) => e,
         };
@@ -948,7 +1074,8 @@ mod tests {
 
     #[test]
     fn get_comic_info_rejects_missing_file() {
-        let err = get_comic_info("D:\\no-such-dir-commands\\nope.cbz".to_string()).unwrap_err();
+        let err =
+            get_comic_info_blocking("D:\\no-such-dir-commands\\nope.cbz").unwrap_err();
         assert_eq!(err.code, ErrorCode::NotFound);
     }
 
@@ -966,7 +1093,8 @@ mod tests {
         writer.write_all(b"fake-png-bytes").expect("write entry");
         writer.finish().expect("finish cbz");
 
-        let info = get_comic_info(archive_path.to_str().unwrap().to_string()).expect("read");
+        let info =
+            get_comic_info_blocking(archive_path.to_str().unwrap()).expect("read");
         assert!(info.is_none());
         fs::remove_dir_all(&dir).ok();
     }

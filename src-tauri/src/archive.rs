@@ -1,9 +1,20 @@
 use std::fs;
 use std::io::Read;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use crate::app_error::{AppError, ErrorCode};
 use crate::image::is_image_file;
+
+/// 이미지 엔트리 + 전체 엔트리(ComicInfo 탐색용)를 한 번의 스캔으로 모은다.
+#[derive(Debug, Clone)]
+pub struct ArchiveEntries {
+    /// 뷰어가 페이지로 넘기는 이미지 엔트리(정렬됨).
+    pub images: Arc<Vec<String>>,
+    /// 디렉터리·숨김 파일을 제외한 모든 엔트리(정렬됨). ComicInfo.xml 같은
+    /// 비-이미지 파일을 포함한다.
+    pub all: Arc<Vec<String>>,
+}
 
 /// 엔트리 전체 경로를 해시한 prefix로 임시 추출 경로를 고유화한다.
 /// 하위 폴더가 다른 동명 엔트리(a/001.jpg, b/001.jpg)가 같은 basename으로
@@ -43,6 +54,34 @@ pub fn list_archive_images(archive_path: &Path) -> Result<Vec<String>, AppError>
         "cbt" => list_tar_images(archive_path),
         _ => Err(AppError::unsupported("Unsupported archive format")),
     }
+}
+
+/// 한 번의 스캔으로 이미지 + 전체 엔트리를 모두 수집한다.
+/// `archive_index` 캐시가 이 함수의 결과를 저장해 재스캔을 피한다.
+pub fn list_archive_entries(archive_path: &Path) -> Result<ArchiveEntries, AppError> {
+    let ext = archive_ext(archive_path);
+
+    let (images, all) = match ext.as_str() {
+        "cbz" | "zip" => collect_zip_entries(archive_path)?,
+        "cb7" | "7z" => collect_7z_entries(archive_path)?,
+        "cbr" | "rar" => collect_rar_entries(archive_path)?,
+        "cbt" => collect_tar_entries(archive_path)?,
+        _ => return Err(AppError::unsupported("Unsupported archive format")),
+    };
+
+    Ok(ArchiveEntries { images, all })
+}
+
+/// 수집된 (이미지, 전체) 엔트리 쌍을 공통 뒤처리한다: 정렬 + dedup + Arc.
+fn finish_entries(
+    mut images: Vec<String>,
+    mut all: Vec<String>,
+) -> (Arc<Vec<String>>, Arc<Vec<String>>) {
+    images.sort_by_cached_key(|n| n.to_lowercase());
+    images.dedup();
+    all.sort_by_cached_key(|n| n.to_lowercase());
+    all.dedup();
+    (Arc::new(images), Arc::new(all))
 }
 
 /// 아카이브에서 특정 엔트리를 임시 파일로 추출하고 경로를 반환
@@ -144,11 +183,17 @@ pub(crate) fn read_bounded(
 }
 
 fn list_zip_images(archive_path: &Path) -> Result<Vec<String>, AppError> {
+    Ok(Arc::unwrap_or_clone(collect_zip_entries(archive_path)?.images))
+}
+
+/// ZIP/CBZ: 디렉터리·숨김 파일을 건너뛰고 이미지/전체 엔트리를 분류한다.
+fn collect_zip_entries(archive_path: &Path) -> Result<(Arc<Vec<String>>, Arc<Vec<String>>), AppError> {
     let file = open_archive_file(archive_path)?;
     let mut archive = zip::ZipArchive::new(file)
         .map_err(|e| AppError::corrupt(format!("Failed to read ZIP: {e}")))?;
 
     let mut images: Vec<String> = Vec::new();
+    let mut all: Vec<String> = Vec::new();
     for i in 0..archive.len() {
         let entry = archive
             .by_index(i)
@@ -164,6 +209,7 @@ fn list_zip_images(archive_path: &Path) -> Result<Vec<String>, AppError> {
         {
             continue;
         }
+        all.push(name.clone());
 
         // 엔트리 이름을 Path로 변환하여 이미지 확장자 확인
         let entry_path = Path::new(&name);
@@ -172,11 +218,9 @@ fn list_zip_images(archive_path: &Path) -> Result<Vec<String>, AppError> {
         }
     }
 
-    images.sort_by_cached_key(|n| n.to_lowercase());
     // 같은 이름의 엔트리가 여러 번 들어 있으면 추출(`by_name`)은 항상 첫
     // 번째만 돌려준다. 목록에도 한 번만 노출해 페이지 수와 실제 내용을 맞춘다.
-    images.dedup();
-    Ok(images)
+    Ok(finish_entries(images, all))
 }
 
 fn extract_zip_image(
@@ -207,10 +251,15 @@ fn extract_zip_image(
 }
 
 fn list_7z_images(archive_path: &Path) -> Result<Vec<String>, AppError> {
+    Ok(Arc::unwrap_or_clone(collect_7z_entries(archive_path)?.images))
+}
+
+fn collect_7z_entries(archive_path: &Path) -> Result<(Arc<Vec<String>>, Arc<Vec<String>>), AppError> {
     let reader = sevenz_rust2::ArchiveReader::open(archive_path, sevenz_rust2::Password::empty())
         .map_err(|e| AppError::corrupt(format!("Failed to read 7z: {e}")))?;
 
     let mut images: Vec<String> = Vec::new();
+    let mut all: Vec<String> = Vec::new();
     for entry in reader.archive().files.iter() {
         if entry.is_directory() {
             continue;
@@ -219,14 +268,13 @@ fn list_7z_images(archive_path: &Path) -> Result<Vec<String>, AppError> {
         if name.starts_with("__") || name.starts_with('.') {
             continue;
         }
+        all.push(name.clone());
         if is_image_file(Path::new(&name)) {
             images.push(name);
         }
     }
 
-    images.sort_by_cached_key(|n| n.to_lowercase());
-    images.dedup();
-    Ok(images)
+    Ok(finish_entries(images, all))
 }
 
 fn extract_7z_image(
@@ -273,9 +321,14 @@ fn extract_7z_image(
 }
 
 fn list_rar_images(archive_path: &Path) -> Result<Vec<String>, AppError> {
+    Ok(Arc::unwrap_or_clone(collect_rar_entries(archive_path)?.images))
+}
+
+fn collect_rar_entries(archive_path: &Path) -> Result<(Arc<Vec<String>>, Arc<Vec<String>>), AppError> {
     let archive = open_rar(archive_path)?;
 
     let mut images: Vec<String> = Vec::new();
+    let mut all: Vec<String> = Vec::new();
     for member in archive.members() {
         if member.meta.is_directory {
             continue;
@@ -284,14 +337,13 @@ fn list_rar_images(archive_path: &Path) -> Result<Vec<String>, AppError> {
         if name.starts_with("__") || name.starts_with('.') {
             continue;
         }
+        all.push(name.clone());
         if is_image_file(Path::new(&name)) {
             images.push(name);
         }
     }
 
-    images.sort_by_cached_key(|n| n.to_lowercase());
-    images.dedup();
-    Ok(images)
+    Ok(finish_entries(images, all))
 }
 
 fn extract_rar_image(
@@ -425,10 +477,15 @@ fn rar_display_name(meta: &rars::ArchiveMemberMeta) -> String {
 }
 
 fn list_tar_images(archive_path: &Path) -> Result<Vec<String>, AppError> {
+    Ok(Arc::unwrap_or_clone(collect_tar_entries(archive_path)?.images))
+}
+
+fn collect_tar_entries(archive_path: &Path) -> Result<(Arc<Vec<String>>, Arc<Vec<String>>), AppError> {
     let file = open_archive_file(archive_path)?;
     let mut archive = tar::Archive::new(file);
 
     let mut images: Vec<String> = Vec::new();
+    let mut all: Vec<String> = Vec::new();
     let entries = archive
         .entries()
         .map_err(|e| AppError::corrupt(format!("Failed to read TAR: {e}")))?;
@@ -444,14 +501,13 @@ fn list_tar_images(archive_path: &Path) -> Result<Vec<String>, AppError> {
         if name.starts_with("__") || name.starts_with('.') {
             continue;
         }
+        all.push(name.clone());
         if is_image_file(Path::new(&name)) {
             images.push(name);
         }
     }
 
-    images.sort_by_cached_key(|n| n.to_lowercase());
-    images.dedup();
-    Ok(images)
+    Ok(finish_entries(images, all))
 }
 
 fn extract_tar_image(
