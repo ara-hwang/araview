@@ -112,16 +112,20 @@ export function useImageLoader() {
   /** 아카이브 내부 특정 엔트리의 이미지를 로드 */
   const loadArchiveImageByIndex = useCallback(
     async (archivePath: string, entryName: string, skipDepth = 0) => {
-      clearPixelArtDetectionCache()
       const loadToken = beginImageLoad()
       useAppStore.setState({ loading: true })
       try {
-        const imgInfo = await invoke<ImageInfo>("load_archive_image", {
-          archivePath,
-          entryName,
-          maxSide: maxSideForResolution(useSettingsStore.getState().maxResolution),
-          ...imageRenderArgs()
-        })
+        // 메타 캐시/in-flight 맵을 경유한다. 선축충·웹툰 예열이 이미 같은
+        // 엔트리를 로드 중이면 추출 중복 없이 캐시 히트로 끝난다.
+        const scopeMatches = useAppStore.getState().archivePath === archivePath
+        const imgInfo = scopeMatches
+          ? await getOrLoadImage(entryName, { protectArchive: true })
+          : await invoke<ImageInfo>("load_archive_image", {
+              archivePath,
+              entryName,
+              maxSide: maxSideForResolution(useSettingsStore.getState().maxResolution),
+              ...imageRenderArgs()
+            })
         if (!isCurrentImageLoad(loadToken)) return
         setImageInfoAndResetView(imgInfo)
         useAppStore.getState().removeFailedPath(entryName)
@@ -168,7 +172,7 @@ export function useImageLoader() {
         endImageLoadIfCurrent(loadToken)
       }
     },
-    [prefetchArchiveNeighbors]
+    [getOrLoadImage, prefetchArchiveNeighbors]
   )
 
   /** 아카이브 파일을 열어 내부 첫 이미지(또는 이어보기 위치)를 표시 */

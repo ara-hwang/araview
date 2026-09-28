@@ -85,6 +85,27 @@ const persist = async (progress: Record<string, ArchiveReadingProgress>) => {
   }
 }
 
+/**
+ * 디스크 쓰기 trailing 디바운스. 웹툰 연속 스크롤은 중앙 페이지가 바뀔 때마다
+ * save를 발화하므로, 상태는 즉시 반영하되 persist는 아카이브별로 마지막 호출
+ * 뒤 DEBOUNCE_MS가 지나면 한 번만 실행한다.
+ */
+const DEBOUNCE_MS = 600
+const persistTimers = new Map<string, number>()
+
+const persistDebounced = (
+  archivePath: string,
+  progress: Record<string, ArchiveReadingProgress>
+) => {
+  const existing = persistTimers.get(archivePath)
+  if (existing !== undefined) window.clearTimeout(existing)
+  const timer = window.setTimeout(() => {
+    persistTimers.delete(archivePath)
+    void persist(progress)
+  }, DEBOUNCE_MS)
+  persistTimers.set(archivePath, timer)
+}
+
 /** LRU 비슷하게: 갱신된 항목을 맨 뒤로 보내고 상한을 넘기면 앞에서 제거 */
 function upsert(
   progress: Record<string, ArchiveReadingProgress>,
@@ -114,9 +135,14 @@ export const useArchiveProgressStore = create<ArchiveProgressState>((set, get) =
     const total = toCount(meta?.total, 1) ?? previous?.total ?? 0
     const next = upsert(get().progress, archivePath, { entry: entryName, index, total })
     set({ progress: next })
-    await persist(next)
+    persistDebounced(archivePath, next)
   },
   remove: async (archivePath) => {
+    const pending = persistTimers.get(archivePath)
+    if (pending !== undefined) {
+      window.clearTimeout(pending)
+      persistTimers.delete(archivePath)
+    }
     if (!(archivePath in get().progress)) return
     const next = { ...get().progress }
     delete next[archivePath]

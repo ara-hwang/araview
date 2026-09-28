@@ -177,18 +177,23 @@ export function useThumbnailSrcs(
       const rasterPaths = list.filter((p) => !isArchiveFilePath(p))
       const loaded = new Set<string>()
 
-      for (const archiveFile of archiveFiles) {
-        if (isStale()) return
+      // 표지는 1회 배치 호출. 백엔드의 인덱스 캐시가 아카이브당 재스캔을 막는다.
+      if (archiveFiles.length > 0) {
         try {
-          const thumb = await invoke<ThumbnailInfo>("generate_archive_file_thumbnail", {
-            archivePath: archiveFile,
+          const results = await invoke<BatchThumb[]>("generate_archive_file_thumbnails_batch", {
+            archivePaths: archiveFiles,
             maxSide
           })
           if (isStale()) return
-          put(archiveFile, thumb.file_path, epoch)
-          loaded.add(archiveFile)
+          for (const r of results) {
+            if (r.thumb) {
+              if (isStale()) return
+              put(r.source, r.thumb.file_path, epoch)
+              loaded.add(r.source)
+            }
+          }
         } catch {
-          // 아래 raster 폴백과 동일하게 load_image 시도
+          // 배치 자체 실패 시 아래 raster 폴백과 동일하게 load_image 시도
         }
       }
 

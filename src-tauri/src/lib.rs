@@ -1,5 +1,6 @@
 pub mod app_error;
 pub mod archive;
+pub mod archive_index;
 pub mod cache;
 pub mod comic_info;
 pub mod commands;
@@ -24,9 +25,10 @@ pub mod thumbnail;
 use app_error::AppError;
 use commands::{
     archive_prefetch, clear_cache, detect_pixel_art, generate_archive_file_thumbnail,
-    generate_archive_thumbnail, generate_thumbnail, generate_thumbnails_batch, get_archive_images,
-    get_cache_stats, get_cached_thumbnail, get_comic_info, get_directory_images, get_exif_data,
-    get_file_associations, get_image_details, get_image_histogram, load_archive_image, load_image,
+    generate_archive_file_thumbnails_batch, generate_archive_thumbnail, generate_thumbnail,
+    generate_thumbnails_batch, get_archive_images, get_cache_stats, get_cached_thumbnail,
+    get_comic_info, get_directory_images, get_exif_data, get_file_associations,
+    get_image_details, get_image_histogram, load_archive_image, load_image,
     open_default_apps_settings, rename_file, resolve_dropped_path, set_file_association,
     trash_file,
 };
@@ -146,6 +148,7 @@ pub fn run() {
             get_cached_thumbnail,
             generate_archive_thumbnail,
             generate_archive_file_thumbnail,
+            generate_archive_file_thumbnails_batch,
             resolve_dropped_path,
             get_comic_info,
             get_archive_images,
