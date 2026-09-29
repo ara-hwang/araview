@@ -10,12 +10,17 @@ import { cn } from "@/lib/utils"
 import type { ImageScalingMode } from "@/store/settingsStore"
 import type { ImageInfo } from "@/types"
 import { errorMessage } from "@/utils/appError"
+import { runLimitedImageLoad } from "@/utils/concurrencyLimit"
 import { getPixelArtDetectionPath } from "@/utils/imageRendering"
 import {
   calculateWebtoonScrollMetrics,
   type WebtoonPageRect,
   type WebtoonScrollMetrics
 } from "@/utils/webtoonProgress"
+
+// 큐에 대기하다 화면 밖으로 나간 지연 로드의 취소 신호. 실패 UI로
+// 보이면 안 되므로 Error가 아닌 심볼로 구분한다.
+const STALE = Symbol("webtoon-stale-load")
 
 type GetOrLoadImage = (filePath: string) => Promise<ImageInfo>
 
@@ -51,6 +56,7 @@ function WebtoonLazyPage({
 }) {
   const { t } = useTranslation()
   const wrapRef = useRef<HTMLDivElement>(null)
+  const nearRef = useRef(false)
   const [info, setInfo] = useState<ImageInfo | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isNearViewport, setIsNearViewport] = useState(false)
@@ -72,20 +78,28 @@ function WebtoonLazyPage({
       if (loaded) return
       loaded = true
       try {
-        const data = await getOrLoadImage(path)
+        // 연속 뷰의 동시 디코드 상한을 둔다. 대기 중 화면 밖으로 나간
+        // 페이지는 실행 직전에 다시 확인해 백엔드 호출을 생략한다.
+        const data = await runLimitedImageLoad(() => {
+          if (cancelled || !nearRef.current) {
+            return Promise.reject(STALE)
+          }
+          return getOrLoadImage(path)
+        })
         if (!cancelled) {
           setInfo(data)
           setError(null)
         }
       } catch (e) {
-        if (!cancelled) {
+        loaded = false
+        if (!cancelled && e !== STALE) {
           setError(errorMessage(e))
-          loaded = false
         }
       }
     }
 
     if (typeof IntersectionObserver === "undefined") {
+      nearRef.current = true
       setIsNearViewport(priority)
       void load()
       return () => {
@@ -96,6 +110,7 @@ function WebtoonLazyPage({
     const io = new IntersectionObserver(
       (entries) => {
         const near = entries.some((entry) => entry.isIntersecting)
+        nearRef.current = near
         setIsNearViewport(near)
         if (near) {
           void load()

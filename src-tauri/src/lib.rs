@@ -47,11 +47,17 @@ struct PendingOpenFile {
 
 /// 프론트가 준비됐으면 바로 emit하고, 아니면 보관했다가 `frontend_ready`에서 보낸다.
 /// (앱 시작 직후에는 프론트 리스너가 아직 등록되기 전이라 고정 지연 emit은 유실될 수 있다.)
+/// `ready` 확인은 `path` 락 안에서만 한다: 바깥에서 읽으면 ready 전환과 보관 사이에
+/// 끼어든 이벤트가 emit도 저장도 못 하고 유실된다.
 fn deliver_open_file(app: &tauri::AppHandle, path: String) {
     let state = app.state::<PendingOpenFile>();
+    let Ok(mut pending) = state.path.lock() else {
+        return;
+    };
     if state.ready.load(Ordering::SeqCst) {
+        drop(pending);
         app.emit("open-file", path).ok();
-    } else if let Ok(mut pending) = state.path.lock() {
+    } else {
         *pending = Some(path);
     }
 }
@@ -60,12 +66,14 @@ fn deliver_open_file(app: &tauri::AppHandle, path: String) {
 #[tauri::command]
 fn frontend_ready(app: tauri::AppHandle) -> Result<(), AppError> {
     let state = app.state::<PendingOpenFile>();
-    state.ready.store(true, Ordering::SeqCst);
-    let pending = state
-        .path
-        .lock()
-        .map_err(|_| AppError::lock_poisoned("pending open file"))?
-        .take();
+    let pending = {
+        let mut guard = state
+            .path
+            .lock()
+            .map_err(|_| AppError::lock_poisoned("pending open file"))?;
+        state.ready.store(true, Ordering::SeqCst);
+        guard.take()
+    };
     if let Some(path) = pending {
         app.emit("open-file", path).ok();
     }
@@ -180,9 +188,7 @@ pub fn run() {
             if let Err(e) = app.asset_protocol_scope().allow_directory(&canonical, true) {
                 log::error!("[asset-scope] failed to allow cache dir: {e}");
             }
-            std::thread::spawn(|| {
-                process_temp::enforce_total_cap(process_temp::MAX_TOTAL_CACHE_BYTES).ok();
-            });
+            process_temp::request_total_cap_scan();
             // Windows passes the file path as a CLI argument
             // when the app is launched via a file association.
             // 프론트 준비 전이면 보관했다가 frontend_ready에서 emit한다.

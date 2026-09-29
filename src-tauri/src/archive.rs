@@ -1,7 +1,8 @@
+use std::collections::HashMap;
 use std::fs;
 use std::io::Read;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use crate::app_error::{AppError, ErrorCode};
 use crate::image::is_image_file;
@@ -111,13 +112,22 @@ pub fn extract_archive_image_with_protection(
         return Ok(out_path);
     }
 
-    match ext.as_str() {
-        "cbz" | "zip" => extract_zip_image(archive_path, entry_name, &out_path),
-        "cb7" | "7z" => extract_7z_image(archive_path, entry_name, &out_path),
-        "cbr" | "rar" => extract_rar_image(archive_path, entry_name, &out_path),
-        "cbt" => extract_tar_image(archive_path, entry_name, &out_path),
-        _ => Err(AppError::unsupported("Unsupported archive format")),
-    }?;
+    // 표시 로드와 선추출이 같은 엔트리를 동시에 요청하면 둘 다 디코드+쓰기를
+    // 한다. 결과는 tmp+rename으로 안전하지만 solid 아카이브의 중복 디코드는
+    // 크므로, 파일별 락 아래에서 존재를 다시 확인해 한 쪽만 추출하게 한다.
+    let key = out_path.to_string_lossy().into_owned();
+    crate::sidecar::with_file_lock(&key, "archive extraction lock", || {
+        if out_path.is_file() {
+            return Ok(());
+        }
+        match ext.as_str() {
+            "cbz" | "zip" => extract_zip_image(archive_path, entry_name, &out_path),
+            "cb7" | "7z" => extract_7z_image(archive_path, entry_name, &out_path),
+            "cbr" | "rar" => extract_rar_image(archive_path, entry_name, &out_path),
+            "cbt" => extract_tar_image(archive_path, entry_name, &out_path),
+            _ => Err(AppError::unsupported("Unsupported archive format")),
+        }
+    })?;
     crate::process_temp::touch_cache_file(&out_path);
     Ok(out_path)
 }
@@ -292,25 +302,7 @@ fn extract_7z_image(
         sevenz_rust2::ArchiveReader::open(archive_path, sevenz_rust2::Password::empty())
             .map_err(|e| AppError::corrupt(format!("Failed to read 7z: {e}")))?;
 
-    // 디코드 전에 선언 크기를 검사한다. solid 아카이브는 대상 앞 엔트리까지
-    // 순서대로 디코드해야 하므로, 개별 엔트리 상한과 함께 블록 총량도
-    // 제한해 수십 GB짜리 디코드 작업을 막는다.
-    {
-        let archive = reader.archive();
-        if let Some(target_idx) = archive.files.iter().position(|f| f.name() == entry_name) {
-            let target_block = archive.stream_map.file_block_index[target_idx];
-            let mut block_bytes: u64 = 0;
-            for (i, file) in archive.files.iter().enumerate() {
-                if archive.stream_map.file_block_index[i] == target_block {
-                    check_entry_size(file.size())?;
-                    block_bytes = block_bytes.saturating_add(file.size());
-                }
-            }
-            if block_bytes > MAX_SOLID_BLOCK_BYTES {
-                return Err(AppError::too_large("Archive block too large"));
-            }
-        }
-    }
+    check_7z_entry_block(reader.archive(), entry_name)?;
 
     let buf = reader
         .read_file(entry_name)
@@ -319,6 +311,26 @@ fn extract_7z_image(
 
     write_extracted(out_path, &buf)?;
 
+    Ok(())
+}
+
+/// 디코드 전에 선언 크기를 검사한다. solid 아카이브는 대상 앞 엔트리까지
+/// 순서대로 디코드해야 하므로, 개별 엔트리 상한과 함께 블록 총량도
+/// 제한해 수십 GB짜리 디코드 작업을 막는다.
+fn check_7z_entry_block(archive: &sevenz_rust2::Archive, entry_name: &str) -> Result<(), AppError> {
+    if let Some(target_idx) = archive.files.iter().position(|f| f.name() == entry_name) {
+        let target_block = archive.stream_map.file_block_index[target_idx];
+        let mut block_bytes: u64 = 0;
+        for (i, file) in archive.files.iter().enumerate() {
+            if archive.stream_map.file_block_index[i] == target_block {
+                check_entry_size(file.size())?;
+                block_bytes = block_bytes.saturating_add(file.size());
+            }
+        }
+        if block_bytes > MAX_SOLID_BLOCK_BYTES {
+            return Err(AppError::too_large("Archive block too large"));
+        }
+    }
     Ok(())
 }
 
@@ -386,6 +398,56 @@ fn extract_rar_image(
     Ok(())
 }
 
+/// 스트리밍 추출 버퍼. `limit` 바이트를 넘는 순간 쓰기를 거부해 디코드를
+/// 중단하므로, 선언 크기를 위조한 헤더도 실제 메모리 할당 전에 막힌다.
+struct BoundedBuffer {
+    bytes: Vec<u8>,
+    limit: u64,
+    exceeded: bool,
+}
+
+impl BoundedBuffer {
+    fn new(limit: u64) -> Self {
+        Self {
+            bytes: Vec::new(),
+            limit,
+            exceeded: false,
+        }
+    }
+}
+
+impl std::io::Write for BoundedBuffer {
+    fn write(&mut self, data: &[u8]) -> std::io::Result<usize> {
+        if self.bytes.len() as u64 + data.len() as u64 > self.limit {
+            self.exceeded = true;
+            return Err(std::io::Error::other("archive entry too large"));
+        }
+        self.bytes.extend_from_slice(data);
+        Ok(data.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+/// rars의 추출 콜백에 넘기는 공유 버퍼 핸들.
+struct SharedBoundedBuffer(Arc<Mutex<BoundedBuffer>>);
+
+impl std::io::Write for SharedBoundedBuffer {
+    fn write(&mut self, data: &[u8]) -> std::io::Result<usize> {
+        let mut guard = self
+            .0
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        std::io::Write::write(&mut *guard, data)
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
 /// 스트리밍 추출로 RAR 멤버 하나를 `limit` 바이트까지만 모은다.
 /// 한도를 넘는 순간 쓰기를 거부해 디코드를 중단하므로, 선언 크기를
 /// 위조한 헤더도 실제 메모리 할당 전에 막힌다.
@@ -394,48 +456,7 @@ fn read_rar_member_bounded(
     raw_name: &[u8],
     limit: u64,
 ) -> Result<Option<Vec<u8>>, AppError> {
-    struct BoundedBuffer {
-        bytes: Vec<u8>,
-        limit: u64,
-        exceeded: bool,
-    }
-
-    impl std::io::Write for BoundedBuffer {
-        fn write(&mut self, data: &[u8]) -> std::io::Result<usize> {
-            if self.bytes.len() as u64 + data.len() as u64 > self.limit {
-                self.exceeded = true;
-                return Err(std::io::Error::other("archive entry too large"));
-            }
-            self.bytes.extend_from_slice(data);
-            Ok(data.len())
-        }
-
-        fn flush(&mut self) -> std::io::Result<()> {
-            Ok(())
-        }
-    }
-
-    struct SharedBoundedBuffer(std::sync::Arc<std::sync::Mutex<BoundedBuffer>>);
-
-    impl std::io::Write for SharedBoundedBuffer {
-        fn write(&mut self, data: &[u8]) -> std::io::Result<usize> {
-            let mut guard = self
-                .0
-                .lock()
-                .unwrap_or_else(|poisoned| poisoned.into_inner());
-            std::io::Write::write(&mut *guard, data)
-        }
-
-        fn flush(&mut self) -> std::io::Result<()> {
-            Ok(())
-        }
-    }
-
-    let slot = std::sync::Arc::new(std::sync::Mutex::new(BoundedBuffer {
-        bytes: Vec::new(),
-        limit,
-        exceeded: false,
-    }));
+    let slot = Arc::new(Mutex::new(BoundedBuffer::new(limit)));
     let writer_slot = std::sync::Arc::clone(&slot);
     let mut found = false;
     // 200MB 초과 멤버는 rars가 버퍼 대신 스트리밍 경로로 디코드하게 한다.
@@ -576,42 +597,219 @@ pub fn prefetch_archive_images(
     }
     match ext.as_str() {
         "cbz" | "zip" => prefetch_zip_images(archive_path, &missing, temp_dir),
-        "cb7" | "7z" => {
-            // 7z는 리더 재사용이 까다로워 개별 추출(내부 exists 스킵)에 맡긴다.
-            let mut done = 0;
-            for name in missing {
-                let out_path = extraction_out_path(temp_dir, name);
-                if extract_7z_image(archive_path, name, &out_path).is_ok() {
-                    done += 1;
-                }
-            }
-            done
-        }
-        "cbr" | "rar" => {
-            // 표시 경로(extract_archive_image)와 달리 in-use 링을 소비하지
-            // 않도록 추출 함수를 직접 부른다. 아직 화면에 없는 페이지가
-            // 보호 슬롯을 차지하면 정작 표시 중인 페이지가 밀려난다.
-            let mut done = 0;
-            for name in missing {
-                let out_path = extraction_out_path(temp_dir, name);
-                if extract_rar_image(archive_path, name, &out_path).is_ok() {
-                    done += 1;
-                }
-            }
-            done
-        }
-        "cbt" => {
-            let mut done = 0;
-            for name in missing {
-                let out_path = extraction_out_path(temp_dir, name);
-                if extract_tar_image(archive_path, name, &out_path).is_ok() {
-                    done += 1;
-                }
-            }
-            done
-        }
+        "cb7" | "7z" => prefetch_7z_images(archive_path, &missing, temp_dir),
+        "cbr" | "rar" => prefetch_rar_images(archive_path, &missing, temp_dir),
+        "cbt" => prefetch_tar_images(archive_path, &missing, temp_dir),
         _ => 0,
     }
+}
+
+/// 선추출 쓰기 단계를 표시 로드와 같은 파일별 락으로 직렬화한다. 락 안에서
+/// 존재를 재확인하므로 표시 로드가 먼저 발행한 엔트리는 디코드도 건너뛴다.
+fn prefetch_write_entry(reader: &mut dyn Read, out_path: &Path) -> bool {
+    let key = out_path.to_string_lossy().into_owned();
+    crate::sidecar::with_file_lock(&key, "archive extraction lock", || {
+        if out_path.is_file() {
+            return Ok(false);
+        }
+        let buf = read_bounded(reader, MAX_ENTRY_BYTES, "Failed to read entry data")?;
+        write_extracted(out_path, &buf).map(|_| true)
+    })
+    .unwrap_or(false)
+}
+
+/// [`prefetch_write_entry`]의 디코드 결과가 이미 모인 버전 (rar는 디코드와
+/// 쓰기가 추출 패스 안팎으로 갈리므로 바이트를 받는다).
+fn prefetch_write_bytes(buf: &[u8], out_path: &Path) -> bool {
+    let key = out_path.to_string_lossy().into_owned();
+    crate::sidecar::with_file_lock(&key, "archive extraction lock", || {
+        if out_path.is_file() {
+            return Ok(false);
+        }
+        write_extracted(out_path, buf).map(|_| true)
+    })
+    .unwrap_or(false)
+}
+
+/// 7z는 블록 단위로 디코드되므로 엔트리별 재오픈이 같은 블록을 반복해서
+/// 푼다(solid면 매번 전체). 대상이 있는 블록만 오름차순으로 1회씩 연다.
+fn prefetch_7z_images(archive_path: &Path, entry_names: &[&String], temp_dir: &Path) -> usize {
+    let mut source = match open_archive_file(archive_path) {
+        Ok(file) => file,
+        Err(_) => return 0,
+    };
+    let password = sevenz_rust2::Password::empty();
+    let archive = match sevenz_rust2::Archive::read(&mut source, &password) {
+        Ok(archive) => archive,
+        Err(_) => return 0,
+    };
+
+    let mut wanted: HashMap<&str, PathBuf> = entry_names
+        .iter()
+        .map(|name| (name.as_str(), extraction_out_path(temp_dir, name)))
+        .collect();
+    let mut block_indexes: Vec<usize> = Vec::new();
+    for (index, file) in archive.files.iter().enumerate() {
+        if !wanted.contains_key(file.name()) {
+            continue;
+        }
+        // 개별 로드와 같은 크기 가드를 먼저 적용한다.
+        if check_7z_entry_block(&archive, file.name()).is_err() {
+            wanted.remove(file.name());
+            continue;
+        }
+        if let Some(block_index) = archive.stream_map.file_block_index[index] {
+            block_indexes.push(block_index);
+        }
+    }
+    block_indexes.sort_unstable();
+    block_indexes.dedup();
+
+    let thread_count = std::thread::available_parallelism()
+        .map(|n| n.get() as u32)
+        .unwrap_or(1);
+    let mut done = 0;
+    for block_index in block_indexes {
+        if wanted.is_empty() {
+            break;
+        }
+        let decoder = sevenz_rust2::BlockDecoder::new(
+            thread_count,
+            block_index,
+            &archive,
+            &password,
+            &mut source,
+        );
+        let mut each = |entry: &sevenz_rust2::ArchiveEntry, reader: &mut dyn Read| {
+            let Some(out_path) = wanted.remove(entry.name()) else {
+                return Ok(true);
+            };
+            if prefetch_write_entry(reader, &out_path) {
+                done += 1;
+            }
+            Ok(!wanted.is_empty())
+        };
+        if decoder.for_each_entries(&mut each).is_err() {
+            break;
+        }
+    }
+    done
+}
+
+/// RAR도 한 번의 디코드 패스로 모든 대상을 모은다. 표시 경로(extract
+/// 함수)와 달리 in-use 링을 소비하지 않는다: 아직 화면에 없는 페이지가
+/// 보호 슬롯을 차지하면 정작 표시 중인 페이지가 밀려난다.
+fn prefetch_rar_images(archive_path: &Path, entry_names: &[&String], temp_dir: &Path) -> usize {
+    let archive = match open_rar(archive_path) {
+        Ok(archive) => archive,
+        Err(_) => return 0,
+    };
+    let wanted: HashMap<&str, PathBuf> = entry_names
+        .iter()
+        .map(|name| (name.as_str(), extraction_out_path(temp_dir, name)))
+        .collect();
+    // 표시 이름은 lossy 정규화 결과라 디코드 대상은 raw 이름 바이트로 잡는다.
+    let mut targets: HashMap<Vec<u8>, PathBuf> = HashMap::new();
+    for member in archive.members() {
+        if member.meta.is_directory {
+            continue;
+        }
+        let display = rar_display_name(&member.meta);
+        let Some(out_path) = wanted.get(display.as_str()) else {
+            continue;
+        };
+        if member.meta.unpacked_size > MAX_ENTRY_BYTES {
+            continue;
+        }
+        targets.insert(member.meta.name_bytes().to_vec(), out_path.clone());
+    }
+    if targets.is_empty() {
+        return 0;
+    }
+
+    // 멤버별 버퍼는 상한을 넘는 순간 쓰기를 거부해 디코드를 중단한다.
+    let slots = Mutex::new(HashMap::<Vec<u8>, Arc<Mutex<BoundedBuffer>>>::new());
+    let options =
+        rars::ArchiveReadOptions::default().with_rar50_buffered_decode_limit(MAX_ENTRY_BYTES);
+    let _ = archive.extract_to_with_options(options, |meta| {
+        if meta.is_directory || !targets.contains_key(&meta.name) {
+            return Ok(Box::new(std::io::sink()) as Box<dyn std::io::Write>);
+        }
+        let slot = slots
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .entry(meta.name.clone())
+            .or_insert_with(|| Arc::new(Mutex::new(BoundedBuffer::new(MAX_ENTRY_BYTES))))
+            .clone();
+        Ok(Box::new(SharedBoundedBuffer(slot)) as Box<dyn std::io::Write>)
+    });
+
+    let mut done = 0;
+    let slots = slots
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    for (raw_name, slot) in slots.iter() {
+        let Some(out_path) = targets.get(raw_name) else {
+            continue;
+        };
+        let bytes = match slot.lock() {
+            Ok(mut buffer) if !buffer.exceeded => std::mem::take(&mut buffer.bytes),
+            _ => continue,
+        };
+        if prefetch_write_bytes(&bytes, out_path) {
+            done += 1;
+        }
+    }
+    done
+}
+
+/// TAR은 비압축이라 1회 순회로 모든 대상을 쓴다.
+fn prefetch_tar_images(archive_path: &Path, entry_names: &[&String], temp_dir: &Path) -> usize {
+    let file = match open_archive_file(archive_path) {
+        Ok(file) => file,
+        Err(_) => return 0,
+    };
+    let mut archive = tar::Archive::new(file);
+    let mut wanted: HashMap<&str, PathBuf> = entry_names
+        .iter()
+        .map(|name| (name.as_str(), extraction_out_path(temp_dir, name)))
+        .collect();
+    let mut done = 0;
+    let entries = match archive.entries() {
+        Ok(entries) => entries,
+        Err(_) => return 0,
+    };
+    for entry in entries {
+        if wanted.is_empty() {
+            break;
+        }
+        let Ok(mut entry) = entry else {
+            continue;
+        };
+        let name = {
+            let Ok(path) = entry.path() else {
+                continue;
+            };
+            path.to_string_lossy().replace('\\', "/")
+        };
+        let Some(out_path) = wanted.remove(name.as_str()) else {
+            continue;
+        };
+        let key = out_path.to_string_lossy().into_owned();
+        let wrote = crate::sidecar::with_file_lock(&key, "archive extraction lock", || {
+            if out_path.is_file() {
+                return Ok(false);
+            }
+            check_entry_size(entry.header().size().unwrap_or(0))?;
+            let buf = read_bounded(&mut entry, MAX_ENTRY_BYTES, "Failed to read entry data")?;
+            write_extracted(&out_path, &buf).map(|_| true)
+        })
+        .unwrap_or(false);
+        if wrote {
+            done += 1;
+        }
+    }
+    done
 }
 
 fn prefetch_zip_images(archive_path: &Path, entry_names: &[&String], temp_dir: &Path) -> usize {
@@ -640,7 +838,7 @@ fn prefetch_zip_images(archive_path: &Path, entry_names: &[&String], temp_dir: &
             Ok(buf) => buf,
             Err(_) => continue,
         };
-        if write_extracted(&out_path, &buf).is_ok() {
+        if prefetch_write_bytes(&buf, &out_path) {
             done += 1;
         }
     }
