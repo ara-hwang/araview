@@ -356,13 +356,6 @@ pub(crate) fn mark_in_use(path: &Path) {
     }
 }
 
-fn in_use_snapshot() -> HashSet<PathBuf> {
-    IN_USE
-        .lock()
-        .map(|guard| guard.1.clone())
-        .unwrap_or_default()
-}
-
 pub(crate) fn is_in_use(path: &Path) -> bool {
     IN_USE
         .lock()
@@ -435,6 +428,49 @@ pub(crate) fn enforce_total_cap(max_bytes: u64) -> Result<(), AppError> {
     Ok(())
 }
 
+/// Tree-wide cap sweeps are expensive, so concurrent requesters (new archive,
+/// startup) coalesce onto one worker. A request arriving while a sweep runs
+/// only sets `pending`, and the worker runs one extra pass so the cap is
+/// enforced over writes that raced the sweep.
+struct TotalCapSweep {
+    running: bool,
+    pending: bool,
+}
+
+static TOTAL_CAP_SWEEP: LazyLock<Mutex<TotalCapSweep>> = LazyLock::new(|| {
+    Mutex::new(TotalCapSweep {
+        running: false,
+        pending: false,
+    })
+});
+
+/// Request a tree-wide cap sweep. Returns immediately; at most one sweep
+/// thread runs at a time and overlapping requests collapse into it.
+pub(crate) fn request_total_cap_scan() {
+    {
+        let Ok(mut sweep) = TOTAL_CAP_SWEEP.lock() else {
+            return;
+        };
+        if sweep.running {
+            sweep.pending = true;
+            return;
+        }
+        sweep.running = true;
+    }
+    std::thread::spawn(|| loop {
+        enforce_total_cap(MAX_TOTAL_CACHE_BYTES).ok();
+        let Ok(mut sweep) = TOTAL_CAP_SWEEP.lock() else {
+            break;
+        };
+        if sweep.pending {
+            sweep.pending = false;
+            continue;
+        }
+        sweep.running = false;
+        break;
+    });
+}
+
 /// Collect `(mtime, size, path)` for evictable files. In-flight temp files
 /// (`*.tmp-*`) are skipped so partial writes are never deleted. `root` must
 /// exist; nested directories are best effort.
@@ -505,13 +541,14 @@ fn evict_oldest(mut files: Vec<(u128, u64, PathBuf)>, max_bytes: u64) -> u64 {
     if total <= max_bytes {
         return total;
     }
-    let protected = in_use_snapshot();
     files.sort_by_key(|(mtime, _, _)| *mtime);
     for (_, size, path) in files {
         if total <= max_bytes {
             break;
         }
-        if protected.contains(&path) {
+        // 스냅샷이 아니라 삭제 직전에 확인한다. 수집 이후 mark_in_use된 파일은
+        // FE가 이미 asset URL로 들고 있어 지우면 깨진 화면으로 남는다.
+        if is_in_use(&path) {
             continue;
         }
         if fs::remove_file(&path).is_ok() {

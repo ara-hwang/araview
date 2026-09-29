@@ -13,6 +13,7 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 
 use serde::Serialize;
 
@@ -156,11 +157,43 @@ pub struct BatchThumb {
     pub error: Option<String>,
 }
 
+/// 썸네일 배치 내부 병렬 워커 수. FE의 ARCHIVE_THUMB_CONCURRENCY와 같은 상한.
+const BATCH_WORKERS: usize = 4;
+
+/// 항목별 독립 작업을 bounded 워커에 나눠 입력 순서대로 모은다.
+/// 생성 경로는 `with_file_lock`이 파일별로 직렬화하므로 디코드만 병렬화된다.
+/// 워커가 패닉하면 scope가 그대로 전파해 호출자(join)가 에러로 받는다.
+pub(crate) fn map_with_workers<I, T, F>(items: &[I], f: F) -> Vec<T>
+where
+    I: Sync,
+    T: Send,
+    F: Fn(&I) -> T + Sync,
+{
+    let next = std::sync::atomic::AtomicUsize::new(0);
+    let results = Mutex::new(Vec::<(usize, T)>::with_capacity(items.len()));
+    std::thread::scope(|scope| {
+        for _ in 0..BATCH_WORKERS.min(items.len()) {
+            scope.spawn(|| loop {
+                let index = next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                if index >= items.len() {
+                    break;
+                }
+                let value = f(&items[index]);
+                if let Ok(mut guard) = results.lock() {
+                    guard.push((index, value));
+                }
+            });
+        }
+    });
+    let mut results = results.into_inner().unwrap_or_default();
+    results.sort_by_key(|(index, _)| *index);
+    results.into_iter().map(|(_, value)| value).collect()
+}
+
 /// 썸네일 스트립 윈도우를 1회 invoke으로 처리. 실패 항목은 FE가 원본 폴백한다.
 pub fn generate_thumbnails_batch(sources: &[String], max_side: u32) -> Vec<BatchThumb> {
-    sources
-        .iter()
-        .map(|s| match generate_thumbnail(Path::new(s), max_side) {
+    map_with_workers(sources, |s| {
+        match generate_thumbnail(Path::new(s), max_side) {
             Ok(thumb) => BatchThumb {
                 source: s.clone(),
                 thumb: Some(thumb),
@@ -171,8 +204,8 @@ pub fn generate_thumbnails_batch(sources: &[String], max_side: u32) -> Vec<Batch
                 thumb: None,
                 error: Some(e.message),
             },
-        })
-        .collect()
+        }
+    })
 }
 
 pub(crate) const THUMBS_SUBDIR: &str = "thumbs";
