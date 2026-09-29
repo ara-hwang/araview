@@ -98,7 +98,9 @@ export function RecentFileAttachment({
       </AttachmentMedia>
       <AttachmentContent>
         <AttachmentTitle title={path}>{name}</AttachmentTitle>
-        <AttachmentDescription>{meta}</AttachmentDescription>
+        <AttachmentDescription>
+          <span className="tabular-nums">{meta}</span>
+        </AttachmentDescription>
         <AttachmentDescription className="text-muted-foreground/70">
           <span title={path} className="block truncate">
             {parentDir(path)}

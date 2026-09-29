@@ -118,7 +118,7 @@ Dark mode inverts the room: surfaces go ink, text goes paper (`src/App.css` `.da
 
 **Display Font:** none. This product has no marketing surfaces; there is no display role.
 **Body Font:** Pretendard Variable (with Pretendard, system fallbacks). Reason in one line: the only typeface in the product must read Korean and Latin equally well at small UI sizes while staying quiet behind images.
-**Label/Mono Font:** same family; numerals use tabular figures (`tnum`) for the zoom and page readouts.
+**Label/Mono Font:** same family; numerals use tabular figures (`tnum`) for readouts (zoom, page position, dimensions, file sizes, counts, slider values).
 
 **Character:** Restrained grotesk, small sizes, medium weights. Labels earn their place by being scannable, never by being loud.
 
@@ -127,7 +127,7 @@ Dark mode inverts the room: surfaces go ink, text goes paper (`src/App.css` `.da
 - **Title** (500, 1rem, 1.5): dialog titles only.
 - **Body** (400, 0.875rem, 1.5): settings copy, empty/error messages, panel text.
 - **Label** (600, 0.75rem, 1.33, 0.05em tracking, uppercase for section heads): EXIF groups, toolbar button labels beside icons.
-- **Readout** (500, 0.875rem, tabular numerals): zoom percentage, page position.
+- **Readout** (500, 0.875rem, tabular numerals): zoom percentage, page position, dimensions, file sizes, counts, slider values.
 
 ### Named Rules
 
@@ -232,7 +232,7 @@ Toolbar buttons with a quiet, tactile press (1px downward shift on active, excep
 
 - **Do** let the image be the largest, most saturated thing on every screen.
 - **Do** give every icon button a real accessible label and a keyboard path.
-- **Do** use tabular numerals for zoom and page readouts.
+- **Do** use tabular numerals for readouts (zoom, page position, dimensions, file sizes, counts, slider values).
 - **Do** keep destructive actions at low-fill alarm with ink-weight text.
 
 ### Don't:
