@@ -166,7 +166,7 @@ function DetailRows({ rows }: { rows: DetailRow[] }) {
       {rows.map((row) => (
         <div key={row.key} className="flex items-baseline justify-between gap-2 text-sm">
           <span className="shrink-0 text-muted-foreground">{row.label}</span>
-          <span className="truncate text-right font-medium" title={row.value}>
+          <span className="truncate text-right font-medium tabular-nums" title={row.value}>
             {row.value}
           </span>
         </div>
@@ -394,7 +394,9 @@ export function ExifPanel() {
                           <span className="shrink-0 text-muted-foreground">
                             {formatTagName(key)}
                           </span>
-                          <span className="truncate text-right font-medium">{value}</span>
+                          <span className="truncate text-right font-medium tabular-nums">
+                            {value}
+                          </span>
                         </div>
                       ))}
                     </div>

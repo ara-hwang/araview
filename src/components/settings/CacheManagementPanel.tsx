@@ -214,7 +214,7 @@ export function CacheManagementPanel() {
                     : "settings.cacheManagement.temporaryActive"
                 )}
               </div>
-              <div className="mt-1 text-xs text-muted-foreground">
+              <div className="mt-1 text-xs text-muted-foreground tabular-nums">
                 {t("settings.cacheManagement.files", { count: stats.file_count })}
                 {stats.protected_file_count > 0
                   ? ` · ${t("settings.cacheManagement.protected", {
@@ -222,7 +222,7 @@ export function CacheManagementPanel() {
                     })}`
                   : ""}
               </div>
-              <div className="mt-1 text-xs text-muted-foreground">
+              <div className="mt-1 text-xs text-muted-foreground tabular-nums">
                 {t("settings.cacheManagement.limit", {
                   size: formatFileSize(stats.total_limit_bytes, locale)
                 })}
@@ -243,15 +243,17 @@ export function CacheManagementPanel() {
                           </span>
                         </FieldTitle>
                         <FieldDescription>
-                          {t("settings.cacheManagement.categorySize", {
-                            size: formatFileSize(category.bytes, locale),
-                            count: category.file_count
-                          })}
-                          {category.protected_file_count > 0
-                            ? ` · ${t("settings.cacheManagement.protected", {
-                                count: category.protected_file_count
-                              })}`
-                            : ""}
+                          <span className="tabular-nums">
+                            {t("settings.cacheManagement.categorySize", {
+                              size: formatFileSize(category.bytes, locale),
+                              count: category.file_count
+                            })}
+                            {category.protected_file_count > 0
+                              ? ` · ${t("settings.cacheManagement.protected", {
+                                  count: category.protected_file_count
+                                })}`
+                              : ""}
+                          </span>
                         </FieldDescription>
                       </FieldContent>
                       <Button
