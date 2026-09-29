@@ -73,14 +73,19 @@ fn source_ext(source: &Path) -> String {
 }
 
 #[tauri::command]
-pub fn save_image_edits(
+pub async fn save_image_edits(
     app: tauri::AppHandle,
     file_path: String,
     options: SaveImageOptions,
 ) -> Result<ImageInfo, AppError> {
-    let info = save_image_edits_impl(&file_path, &options)?;
-    crate::commands::allow_asset_path(&app, Path::new(&info.file_path))?;
-    Ok(info)
+    // 디코드+인코드가 무거워 메인 스레드를 막지 않도록 blocking 풀에서 돌린다.
+    tauri::async_runtime::spawn_blocking(move || {
+        let info = save_image_edits_impl(&file_path, &options)?;
+        crate::commands::allow_asset_path(&app, Path::new(&info.file_path))?;
+        Ok(info)
+    })
+    .await
+    .map_err(|e| AppError::unknown(format!("Failed to join save task: {e}")))?
 }
 
 fn save_image_edits_impl(

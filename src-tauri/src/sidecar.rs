@@ -11,7 +11,7 @@ use std::sync::{
     atomic::{AtomicU64, Ordering},
     LazyLock, Mutex,
 };
-use std::time::UNIX_EPOCH;
+use std::time::{Duration, UNIX_EPOCH};
 
 use crate::app_error::{AppError, ErrorCode};
 use crate::process_temp::process_temp_dir;
@@ -146,6 +146,11 @@ pub fn scratch_path_for(dest: &Path) -> PathBuf {
     dest.with_file_name(format!(".{stem}.tmp-{}.{SCRATCH_EXT}", tmp_suffix()))
 }
 
+/// 다른 pid의 잔재라도 mtime이 이 값보다 최근이면 살려둔다. 설치본/개발본
+/// 같은 다른 실행 중인 인스턴스의 진행 중 저장을 pid만으로 구분할 수 없으므로
+/// 방금 시작된 쓰기는 건드리지 않는다.
+const SCRATCH_MIN_AGE: Duration = Duration::from_secs(5 * 60);
+
 /// Remove leftovers of [`scratch_path_for`] in `dir`. Only files carrying our
 /// own extension are touched, so nothing the user owns can be deleted, and
 /// only ones from other processes, so a concurrent save is never disturbed.
@@ -163,9 +168,19 @@ pub fn sweep_scratch_files(dir: &Path) {
             .file_name()
             .and_then(|n| n.to_str())
             .is_some_and(|n| n.contains(&mine));
-        if !is_mine {
-            let _ = fs::remove_file(&path);
+        if is_mine {
+            continue;
         }
+        let too_recent = entry
+            .metadata()
+            .and_then(|m| m.modified())
+            .ok()
+            .and_then(|t| t.elapsed().ok())
+            .is_some_and(|age| age < SCRATCH_MIN_AGE);
+        if too_recent {
+            continue;
+        }
+        let _ = fs::remove_file(&path);
     }
 }
 

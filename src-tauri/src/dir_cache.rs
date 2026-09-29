@@ -235,7 +235,15 @@ fn ensure_watched(canonical_parent: &Path, recursive: bool) -> bool {
                         invalidate_for_path(&path);
                     }
                 }
-                Err(e) => log::warn!("[dir-cache] watch error: {e}"),
+                Err(e) => {
+                    log::warn!("[dir-cache] watch error: {e}");
+                    // 이벤트가 유실됐을 수 있다. 재귀 목록은 mtime 검증 없이
+                    // 워처만 신뢰하므로, 유실을 그대로 두면 캐시가 세션 내내
+                    // stale해진다. 보수적으로 전체를 지우고 재스캔에 맡긴다.
+                    if let Ok(mut cache) = DIR_CACHE.lock() {
+                        cache.clear();
+                    }
+                }
             },
             notify::Config::default(),
         ) {
