@@ -22,7 +22,7 @@ npm run tauri dev
 
 ## 주요 기능
 
-- **지원 포맷**: `png`, `jpg`, `jpeg`, `gif`, `bmp`, `webp`, `svg`, `ico`, `tiff`, `tif`, `avif`, `heic`, `heif`, `psd`(읽기 전용 미리보기), `cbz`, `cb7`, `cbr`, `rar`, `zip`, `7z`, `cbt`
+- **지원 포맷**: `png`, `jpg`, `jpeg`, `gif`, `bmp`, `webp`, `svg`, `ico`, `avif`, `heic`, `heif`, `psd`(읽기 전용 미리보기), `cbz`, `cb7`, `cbr`, `rar`, `zip`, `7z`, `cbt`
 - **파일 열기**: 파일 선택, 드래그 앤 드롭(파일/폴더), OS 파일 연동 실행
 - **탐색/보기**: 이전/다음과 썸네일 점프, 확대/축소와 화면 맞춤, 회전/반전, `single`/`left-to-right`/`right-to-left`/`webtoon` 모드. 웹툰에서는 이미지 간격, 페이지 경계, Fit width, 현재 위치와 읽기 진행률을 설정할 수 있습니다.
 - **이미지 표시**: 매끄러운 보간, 픽셀 보존, 픽셀 아트 자동 감지 모드를 제공합니다.

@@ -9,8 +9,6 @@ export const SUPPORTED_IMAGE_EXTENSIONS = [
   "webp",
   "svg",
   "ico",
-  "tiff",
-  "tif",
   "avif",
   "heic",
   "heif",

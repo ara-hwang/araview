@@ -123,7 +123,7 @@ src-tauri/
   src/image_info.rs  # 이미지 상세/파일 정보 조회
   src/stable_hash.rs # 영속 캐시 파일명용 안정 해시
   src/jpeg_meta.rs   # JPEG 저장 시 EXIF/ICC/XMP 세그먼트 이식 및 Orientation 패치
-  src/orientation.rs # EXIF Orientation 읽기/적용 (JPEG/TIFF 표시·썸네일·저장 정합)
+  src/orientation.rs # EXIF Orientation 읽기/적용 (JPEG 표시·썸네일·저장 정합)
   src/pixel_art.rs   # 표시용 픽셀 아트 휴리스틱 감지
   src/lib.rs         # Tauri 앱 설정 및 command 등록
 ```

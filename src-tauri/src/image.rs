@@ -29,8 +29,8 @@ pub enum PaintStrategy {
 const TRANSCODE_MIMES: &[&str] = &["image/heic", "image/heif", crate::psd_sidecar::PSD_MIME];
 
 pub const SUPPORTED_EXTENSIONS: &[&str] = &[
-    "png", "jpg", "jpeg", "gif", "bmp", "webp", "svg", "ico", "tiff", "tif", "avif", "heic",
-    "heif", "psd", "cbz", "cb7", "cbr", "rar", "zip", "7z", "cbt",
+    "png", "jpg", "jpeg", "gif", "bmp", "webp", "svg", "ico", "avif", "heic", "heif", "psd", "cbz",
+    "cb7", "cbr", "rar", "zip", "7z", "cbt",
 ];
 
 #[derive(Serialize)]
@@ -50,7 +50,6 @@ pub fn get_mime_type(path: &Path) -> Option<&'static str> {
         "webp" => Some("image/webp"),
         "svg" => Some("image/svg+xml"),
         "ico" => Some("image/x-icon"),
-        "tiff" | "tif" => Some("image/tiff"),
         "avif" => Some("image/avif"),
         "heic" => Some("image/heic"),
         "heif" => Some("image/heif"),
@@ -102,7 +101,7 @@ pub(crate) fn render_dimensions(
 /// EXIF orientation을 적용하는 표시 포맷. HEIC/HEIF/PSD는 sidecar 디코더가
 /// 변환을 반영하므로 여기서 다루지 않는다.
 fn is_exif_orientation_format(mime: &str) -> bool {
-    matches!(mime, "image/jpeg" | "image/tiff")
+    matches!(mime, "image/jpeg")
 }
 
 /// SVG `<svg>` 루트 태그의 width/height/viewBox에서 픽셀 치수를 구한다.
@@ -482,13 +481,9 @@ mod tests {
     }
 
     #[test]
-    fn test_get_mime_type_tiff() {
-        assert_eq!(get_mime_type(Path::new("scan.tiff")), Some("image/tiff"));
-    }
-
-    #[test]
-    fn test_get_mime_type_tif() {
-        assert_eq!(get_mime_type(Path::new("scan.tif")), Some("image/tiff"));
+    fn tiff_is_not_supported() {
+        assert_eq!(get_mime_type(Path::new("scan.tiff")), None);
+        assert_eq!(get_mime_type(Path::new("scan.tif")), None);
     }
 
     #[test]
@@ -649,7 +644,7 @@ mod tests {
                 "missing MIME mapping for .{ext}"
             );
         }
-        assert_eq!(SUPPORTED_EXTENSIONS.len(), 21);
+        assert_eq!(SUPPORTED_EXTENSIONS.len(), 19);
     }
 
     #[test]

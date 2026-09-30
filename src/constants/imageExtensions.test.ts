@@ -13,8 +13,6 @@ describe("SUPPORTED_IMAGE_EXTENSIONS", () => {
       "webp",
       "svg",
       "ico",
-      "tiff",
-      "tif",
       "avif",
       "heic",
       "heif",
@@ -30,8 +28,8 @@ describe("SUPPORTED_IMAGE_EXTENSIONS", () => {
     expect([...SUPPORTED_IMAGE_EXTENSIONS]).toEqual(expected)
   })
 
-  it("has 21 supported extensions", () => {
-    expect(SUPPORTED_IMAGE_EXTENSIONS).toHaveLength(21)
+  it("has 19 supported extensions", () => {
+    expect(SUPPORTED_IMAGE_EXTENSIONS).toHaveLength(19)
   })
 
   it("includes common web image formats", () => {

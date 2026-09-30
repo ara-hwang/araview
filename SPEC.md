@@ -19,9 +19,9 @@
 
 ## 2. 지원 포맷
 
-총 21개 확장자. 프론트 진실은 `src/constants/imageExtensions.ts`, 백엔드 진실은 `src-tauri/src/image.rs` (`SUPPORTED_EXTENSIONS`, `get_mime_type`).
+총 19개 확장자. 프론트 진실은 `src/constants/imageExtensions.ts`, 백엔드 진실은 `src-tauri/src/image.rs` (`SUPPORTED_EXTENSIONS`, `get_mime_type`).
 
-### 2.1 순수 이미지 14종
+### 2.1 순수 이미지 12종
 
 | 확장자        | MIME                        | 비고                                                                                                                    |
 | ------------- | --------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
@@ -32,7 +32,6 @@
 | `webp`        | `image/webp`                | 네이티브 렌더                                                                                                           |
 | `svg`         | `image/svg+xml`             | 네이티브 렌더. 치수는 `<svg>` 헤더(width/height/viewBox, 절대 단위) 파싱으로 복원하며 해석 불가분만 `width/height` 생략 |
 | `ico`         | `image/x-icon`              | 네이티브 렌더                                                                                                           |
-| `tiff`, `tif` | `image/tiff`                | 네이티브 렌더. EXIF Orientation을 JPEG와 동일하게 반영                                                                  |
 | `avif`        | `image/avif`                | 네이티브 렌더                                                                                                           |
 | `heic`        | `image/heic`                | JPEG sidecar 트랜스코드 후 렌더                                                                                         |
 | `heif`        | `image/heif`                | JPEG sidecar 트랜스코드 후 렌더                                                                                         |
@@ -303,7 +302,7 @@ CBZ/ZIP의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한다(8
 진실: `src-tauri/src/scaled.rs`, `src/hooks/useImageCache.ts`, `src/hooks/useImageLoader.ts`, `src/utils/resolutionLimit.ts`.
 
 - 설정 `maxResolution`(기본 `original`)이 켜져 있으면 긴 변이 상한(4k=3840px, 1080p=1920px)을 넘는 래스터를 `scaled/` sidecar로 한 번만 축소해 렌더한다. 원본 파일은 바뀌지 않는다.
-- 적용 대상은 `image` 크레이트가 디코드할 수 있는 래스터(PNG/JPEG/TIFF/BMP/ICO/정지 WebP)이며, EXIF Orientation(5~8)은 픽셀에 반영한 뒤 축소한다. 알파 채널이 있으면 투명도 보존을 위해 PNG로 저장한다.
+- 적용 대상은 `image` 크레이트가 디코드할 수 있는 래스터(PNG/JPEG/BMP/ICO/정지 WebP)이며, EXIF Orientation(5~8)은 픽셀에 반영한 뒤 축소한다. 알파 채널이 있으면 투명도 보존을 위해 PNG로 저장한다.
 - GIF, 움직이는 WebP, SVG, 디코드 불가 포맷(AVIF 등)은 원본 바이트를 그대로 렌더한다.
 - sidecar는 활성 캐시 루트의 `scaled/`에 캐시되며 상한(500MB)을 넘기면 오래된 것부터 제거한다. 캐시 경로는 원본 식별 해시 + 상한 + 픽셀 아트 필터 알고리즘 revision 기준이라 설정이나 필터 알고리즘이 바뀌면 다른 사본을 만든다.
 - sidecar 축소는 표시 정책과 무관하게 항상 보간 필터(`Triangle`)를 사용한다. Nearest 축소는 스크린톤 같은 주기 패턴을 계단·무아레로 깨뜨린다. `smooth`/`auto`는 JPEG로, `pixelated`는 lossless PNG로 저장한다. `auto`는 휴리스틱 분석을 실행해 결과를 후속 `detect_pixel_art` IPC가 재사용하지만, 분류가 `pixel_art`여도 축소 필터에는 영향을 주지 않는다(픽셀 보존 표시는 확대 배율에서만 적용되기 때문). 분석은 원본을 바꾸지 않는다.
@@ -328,7 +327,7 @@ CBZ/ZIP의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한다(8
 - `I`로 패널 토글. 패널 내부 포커스에서는 `I` 닫기를 허용한다.
 - 표시 범주는 Camera, Exposure, Image, Lens, DateTime, GPS, Software 계열이다.
 - HEIC는 원본 경로 기준 EXIF를 읽으므로 비어 있는 경우가 많다.
-- JPEG/TIFF의 Orientation은 표시·썸네일·저장에 반영한다. 패널에는 EXIF 원문 설명을 그대로 보여준다.
+- JPEG의 Orientation은 표시·썸네일·저장에 반영한다. 패널에는 EXIF 원문 설명을 그대로 보여준다.
 - Comic 섹션: 아카이브 모드이고 `showComicInfo`가 켜져 있고(기본 켜짐, 설정 보기 탭 읽기) `comicInfo`가 있으면 파일/히스토그램/EXIF보다 위에 표시한다. 설정을 끄면 읽은 메타데이터는 유지한 채 섹션만 숨긴다(표지 판정은 계속 동작한다, 6절). 첫 줄은 `Series #Number`(있는 것만), 둘째 줄은 `Title`, 이어서 Writer, Penciller, Publisher, Genre, Tags, Volume, Count, PageCount, LanguageISO, AgeRating, CommunityRating, 마지막에 Summary를 줄바꿈 그대로 표시한다. 값이 없는 필드는 행을 만들지 않는다. 파싱 실패면 재시도 버튼 없이 에러 문구만 남기고(복구 수단은 아카이브 다시 열기), 메타데이터가 없으면 섹션을 숨긴다.
 
 ### 10.1 히스토그램 `get_image_histogram`
@@ -632,7 +631,7 @@ Rust와 TypeScript는 같은 모양을 유지한다.
 
 - 백엔드는 디코드용 파일 경로를 돌려주고, 프론트는 `convertFileSrc(...)`로 변환해 `<img>`에 넣는다.
 - HEIC/HEIF/PSD는 JPEG sidecar를, 표시 해상도 제한이 걸린 큰 래스터는 `scaled/` 사본(9.4절)을 만든다. sidecar와 아카이브 추출물, 썸네일 캐시는 `cacheStorageMode`가 `persistent`면 Tauri 사용자 캐시 디렉터리의 버전된 루트에, `temporary`면 프로세스 수명 TempDir에 둔다.
-- JPEG/TIFF의 EXIF Orientation(1~8)은 WebView2 `<img>`가 자동 적용한다. 백엔드는 같은 기준을 따르도록 치수(`ImageInfo.width/height`, `get_image_details`), 썸네일, 편집 저장(`save_image_edits`)에 회전을 명시 적용한다(SVG/WebP/PNG/HEIC는 대상 아님).
+- JPEG의 EXIF Orientation(1~8)은 WebView2 `<img>`가 자동 적용한다. 백엔드는 같은 기준을 따르도록 치수(`ImageInfo.width/height`, `get_image_details`), 썸네일, 편집 저장(`save_image_edits`)에 회전을 명시 적용한다(SVG/WebP/PNG/HEIC는 대상 아님).
 - `detect_pixel_art`는 표시 바이트 경로를 제한된 분석 이미지로 읽고, 작은 색상 팔레트·평탄도·동일 색상 run·주기적 경계 신호를 결합한다. ML 모델이나 네트워크를 사용하지 않으며, 분석 제한 초과·디코드 실패·불확실 결과는 안전하게 부드러운 표시로 대체한다.
 - `image-rendering`은 `smooth`와 `pixelated` 값을 사용한다. `smooth`는 브라우저의 고품질 보간 선호이며 특정 Bilinear 구현을 보장하지 않는다. `pixelated`는 확대 시 최근접 계열 보간을 요청한다. 픽셀 보존 판정(pixelated 모드와 확신 있는 자동 감지 포함)은 표시 배율이 1x 이상(확대)일 때만 적용되며, 축소 배율에서는 설정·감지와 무관하게 항상 `smooth`로 강제된다. nearest 축소는 스크린톤 같은 주기 패턴을 계단·무아레로 깨뜨린다. 단일 보기 배율은 `imageSize`에 대한 `zoom`이고, 웹툰/양쪽 보기는 렌더된 `<img>`에서 실측한다(측정 전에는 기존 판정 유지).
 - 사용자 원본 파일은 필터링하지 않는다. 표시 해상도 상한 sidecar와 썸네일은 기존 파생 이미지 파이프라인을 유지하며, 픽셀 보존 판정은 메인 이미지 표시 힌트로만 사용한다.
@@ -658,7 +657,7 @@ Rust와 TypeScript는 같은 모양을 유지한다.
 - 번들: `nsis`만 빌드한다. 결과물은 `src-tauri/target/release/bundle/` 아래에 생성된다.
 - 릴리스 파이프라인: 발행 경로는 이 PC의 `npm run release:local`(`scripts/Publish-LocalRelease.ps1`) 하나뿐이다. 서명 빌드와 `latest.json`, `gh release create`까지 이 스크립트가 수행하고 자산은 공개 피드 저장소 `ara-hwang/araview-updates`에 게시된다. `release.yml`은 태그 푸시 트리거를 제거했고 Actions 탭에서 수동 실행할 때만 돈다(수동 실행은 원본 저장소에 릴리스를 만든다). `ci.yml`은 PR과 main 푸시에서 자동으로 돌지 않고, Actions에서 수동 실행할 때만 같은 검사(린트, 커버리지 포함 테스트, 타입, 포맷, cargo test/clippy)를 수행한다. 권한과 절차 상세는 `docs/releasing.md`를 따른다.
 - 파일 연결 3그룹:
-  - Image 14종: png, jpg, jpeg, gif, bmp, webp, svg, ico, tiff, tif, avif, heic, heif, psd.
+  - Image 12종: png, jpg, jpeg, gif, bmp, webp, svg, ico, avif, heic, heif, psd.
   - Comic 4종: cbz, cb7, cbr, cbt.
   - Archive 3종: rar, zip, 7z.
 - HEIC/HEIF는 vcpkg `libheif[core]` 동적 링크 + `libde265`만 사용한다. 설치와 DLL 복사는 `docs/development.md`를 따른다.

@@ -146,7 +146,7 @@ fn resolve_save_target(
     };
     let source_format = OutFormat::from_source_ext(&ext);
     let out_format = requested.or(source_format).unwrap_or_else(|| {
-        // HEIC/HEIF 사진은 JPG, 그 외(GIF/BMP/TIFF 등)는 PNG로
+        // HEIC/HEIF 사진은 JPG, 그 외(GIF/BMP 등)는 PNG로
         if ext == "heic" || ext == "heif" {
             OutFormat::Jpeg
         } else {

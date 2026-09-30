@@ -15,7 +15,7 @@ Product truth lives in `PRODUCT.md`, visual system in `DESIGN.md`, full function
 
 ## Current Feature Scope
 
-- Supported file extensions: `png`, `jpg`, `jpeg`, `gif`, `bmp`, `webp`, `svg`, `ico`, `tiff`, `tif`, `avif`, `heic`, `heif`, `psd` (read-only preview via JPEG sidecar, no edit-save), `cbz`, `cb7`, `cbr`, `rar`, `zip`, `7z`, `cbt` (PSB excluded, no decoder)
+- Supported file extensions: `png`, `jpg`, `jpeg`, `gif`, `bmp`, `webp`, `svg`, `ico`, `avif`, `heic`, `heif`, `psd` (read-only preview via JPEG sidecar, no edit-save), `cbz`, `cb7`, `cbr`, `rar`, `zip`, `7z`, `cbt` (PSB excluded, no decoder)
 - Input flows: file picker, drag-and-drop (file/folder), OS file association open
 - Viewer controls: zoom, fit-to-width/height/screen, pan, rotate, flip
 - Navigation: previous/next, index jump, thumbnail strip/grid, optional loop navigation

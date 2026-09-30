@@ -13,8 +13,6 @@ type ExtensionLabelKey =
   | "webp"
   | "svg"
   | "ico"
-  | "tiff"
-  | "tif"
   | "avif"
   | "heic"
   | "heif"
@@ -36,8 +34,6 @@ const EXTENSION_I18N_KEYS: Record<ExtensionLabelKey, string> = {
   webp: "ext.webp",
   svg: "ext.svg",
   ico: "ext.ico",
-  tiff: "ext.tiff",
-  tif: "ext.tif",
   avif: "ext.avif",
   heic: "ext.heic",
   heif: "ext.heif",
@@ -61,8 +57,6 @@ export const EXTENSION_LABELS: Record<SupportedImageExtension, string> = {
   webp: "WebP 이미지",
   svg: "SVG 이미지",
   ico: "아이콘",
-  tiff: "TIFF 이미지",
-  tif: "TIFF 이미지",
   avif: "AVIF 이미지",
   heic: "HEIC 이미지",
   heif: "HEIF 이미지",

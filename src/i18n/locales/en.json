@@ -703,8 +703,6 @@
     "webp": "WebP image",
     "svg": "SVG image",
     "ico": "Icon",
-    "tiff": "TIFF image",
-    "tif": "TIFF image",
     "avif": "AVIF image",
     "heic": "HEIC image",
     "heif": "HEIF image",

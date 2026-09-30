@@ -141,7 +141,7 @@ pub fn ensure_scaled_sidecar_with_mode(
             .map_err(|e| AppError::io("Failed to guess image format", e, ErrorCode::Corrupt))?
             .decode()
             .map_err(|e| AppError::image_error("Failed to decode image", e))?;
-        // JPEG/TIFF EXIF orientation을 픽셀에 반영한다. sidecar JPEG에는 EXIF가
+        // JPEG EXIF orientation을 픽셀에 반영한다. sidecar JPEG에는 EXIF가
         // 없으므로 WebView는 회전을 적용하지 않고, 반환 치수도 이 기준과 맞춘다.
         let img =
             crate::orientation::apply_to_image(img, crate::orientation::read_orientation(source));
