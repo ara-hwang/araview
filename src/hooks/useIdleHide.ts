@@ -2,7 +2,7 @@ import { useEffect, useState } from "react"
 
 const IDLE_DELAY_MS = 3000
 
-/** 입력이 일정 시간 없으면 true (프레젠테이션용 UI 자동 숨김) */
+/** 입력이 일정 시간 없으면 true (읽기 중 UI 자동 숨김) */
 export function useIdleHide(enabled: boolean, delayMs = IDLE_DELAY_MS) {
   const [idle, setIdle] = useState(false)
 

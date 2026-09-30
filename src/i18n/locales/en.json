@@ -222,10 +222,10 @@
       "checker": "Checkerboard (for transparent images)"
     },
     "present": {
-      "title": "Presentation",
-      "desc": "Auto-hide top/image list/status bars after 3s idle (move to show)",
-      "autohide": "Auto-hide UI",
-      "hideMenuBar": "Hide menu bar (hover top to show)"
+      "title": "UI visibility",
+      "desc": "Hiding options that apply only while viewing an image",
+      "autohide": "Auto-hide UI (hides top bar, image list, and status bar after 3s idle)",
+      "hideMenuBar": "Hide top bar (hover the very top edge to show it)"
     },
     "window": {
       "title": "Window",

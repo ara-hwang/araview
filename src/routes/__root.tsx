@@ -54,10 +54,13 @@ function RootLayout() {
   const autoHideUI = useSettingsStore((state) => state.autoHideUI)
   const menuBarHidden = useSettingsStore((state) => state.menuBarHidden)
   const chromeHidden = useIdleHide(autoHideUI && hasImage)
+  // 상단바 수동 숨김도 이미지를 볼 때만 적용한다. 빈 화면에서까지 숨기면
+  // 헤더가 파일 열기/드래그 앤 드롭 동선 자체를 가려 버린다.
+  const menuBarHiddenActive = menuBarHidden && hasImage
   // Snap Layouts 네이티브 오버레이는 최대화 버튼 위에만 존재한다. 헤더가
   // opacity로만 가려지는 동안은 버튼 rect가 유효해 오버레이가 남으므로,
   // 헤더가 완전히 보이지 않는 동안은 명시적으로 떼어낸다 (peek 중에는 다시 붙인다).
-  const snapOverlayEnabled = !menuBarHidden && !chromeHidden
+  const snapOverlayEnabled = !menuBarHiddenActive && !chromeHidden
 
   // 상단바 수동 숨김: 접힌 상태에서는 상단 호버 영역에서만 peek으로 표시
   const [menuBarPeek, setMenuBarPeek] = useState(false)
@@ -98,16 +101,16 @@ function RootLayout() {
     }
   }, [])
   useEffect(() => {
-    if (!menuBarHidden) {
+    if (!menuBarHiddenActive) {
       if (peekCloseTimer.current) {
         clearTimeout(peekCloseTimer.current)
         peekCloseTimer.current = null
       }
       setMenuBarPeek(false)
     }
-  }, [menuBarHidden])
-  const menuBarCollapsed = menuBarHidden && !menuBarPeek
-  const menuBarOverlay = menuBarHidden && menuBarPeek
+  }, [menuBarHiddenActive])
+  const menuBarCollapsed = menuBarHiddenActive && !menuBarPeek
+  const menuBarOverlay = menuBarHiddenActive && menuBarPeek
 
   // 다이얼로그/Sheet 오버레이가 헤더를 가리지 않도록 헤더 높이를 CSS
   // 변수로 노출한다. Portal이 body에 렌더되므로 셸이 아닌 documentElement에
@@ -144,7 +147,7 @@ function RootLayout() {
         {/* 앱 셸은 절대 문서 스크롤되지 않는다. 스크롤은 각 라우트 안에서 처리. */}
         <div className="relative flex h-screen w-full flex-col overflow-hidden">
           {/* 상단바 수동 숨김: 접힘 상태에서는 상단 가장자리 호버 영역만 남긴다 */}
-          {menuBarHidden ? (
+          {menuBarHiddenActive ? (
             <div
               data-tauri-drag-region
               onMouseEnter={openPeek}
@@ -170,7 +173,7 @@ function RootLayout() {
             data-header-root
             className={cn(
               "grid shrink-0 transition-[grid-template-rows] duration-200 ease-motion-out motion-reduce:transition-none",
-              menuBarHidden ? "grid-rows-[0fr]" : "grid-rows-[1fr]"
+              menuBarHiddenActive ? "grid-rows-[0fr]" : "grid-rows-[1fr]"
             )}
           >
             {/* min-h-0: 0fr 트랙에서도 내용 높이가 트랙을 밀어내지 않게 한다 */}
@@ -192,7 +195,7 @@ function RootLayout() {
                   "transition-[translate,opacity] duration-200 ease-motion-out motion-reduce:transition-none",
                   menuBarCollapsed && "pointer-events-none -translate-y-full opacity-0",
                   menuBarOverlay && "relative z-40 shadow-md",
-                  !menuBarHidden && chromeHidden && "pointer-events-none opacity-0"
+                  !menuBarHiddenActive && chromeHidden && "pointer-events-none opacity-0"
                 )}
               >
                 <Header

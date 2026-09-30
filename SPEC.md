@@ -96,6 +96,7 @@ CBZ/ZIP의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한다(8
 - 단일 이미지의 픽셀 보존 모드는 transform 확대 대신 레이아웃 크기 확대를 사용해 Chromium 합성 단계의 재보간을 줄인다. GIF Canvas는 `imageSmoothingEnabled=false`를 사용한다. 양면/웹툰의 각 이미지는 같은 설정을 공유하되 판정은 이미지별이다.
 - `autoHideUI`가 true일 때만 읽기 중 크롬(상단바, 이미지 목록 도크, 상태바)을 숨기고 읽기 영역을 확장한다. 도크 상태(스크롤 위치, 로드한 썸네일)는 유지된다.
 - `menuBarHidden`이 true이면 상단바를 숨기고, 상단 호버 영역에서 peek 오버레이로 표시한다. 헤더 숨기기 버튼과 보기 설정 스위치로 토글한다. peek 시에는 읽기 영역 위로 겹쳐 내려오며, 포커스 이탈 시에는 즉시 닫힌다. 모션 토큰과 timing은 `DESIGN.md`를 따른다. `Esc`로는 닫히지 않는다(뷰어의 이미지 닫기와 충돌 방지).
+- `menuBarHidden`은 이미지를 보고 있을 때만 적용한다. 이미지 없이 빈 화면(홈)에서는 설정값을 유지한 채 상단바를 항상 표시한다(열기/드래그 동선 유지). `autoHideUI`와 동일한 조건을 쓴다.
 - 로드 실패 시 에러 카드에 재시도/홈 복구 경로를 제공한다. 실패한 적은 토스트로 알린다.
 
 ### 3.3 상태 규칙
@@ -434,7 +435,7 @@ CBZ/ZIP의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한다(8
 | `recordRecentFiles`     | 최근 기록 유지                                          | `true`                             |
 | `viewerBackground`      | `theme \| black \| white \| checker`                    | `theme`                            |
 | `autoHideUI`            | 읽기 중 크롬 자동 숨김                                  | `false`                            |
-| `menuBarHidden`         | 상단바 수동 숨김 (상단 호버 시 peek 오버레이로 표시)    | `false`                            |
+| `menuBarHidden`         | 상단바 수동 숨김 (이미지 보기 중만, 상단 호버 시 peek)  | `false`                            |
 | `alwaysOnTop`           | 항상 위                                                 | `false`                            |
 | `sortKey`               | `name \| date \| size`                                  | `name`                             |
 | `sortDescending`        | 내림차순                                                | `false`                            |
