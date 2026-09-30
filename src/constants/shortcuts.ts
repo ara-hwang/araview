@@ -132,8 +132,8 @@ export const DEFAULT_SHORTCUTS: ShortcutMap = {
   navigateNext: "ArrowRight",
   panLeft: "Ctrl+ArrowLeft",
   panRight: "Ctrl+ArrowRight",
-  panUp: "Ctrl+ArrowUp",
-  panDown: "Ctrl+ArrowDown",
+  panUp: "ArrowUp",
+  panDown: "ArrowDown",
   zoomIn: "=",
   zoomOut: "-",
   resetView: "0",
@@ -308,7 +308,7 @@ export function sanitizeShortcutMap(value: unknown): ShortcutMap {
   const result: ShortcutMap = { ...DEFAULT_SHORTCUTS }
   if (typeof value !== "object" || value === null) return result
   const record = value as Record<string, unknown>
-  // 구버전 저장값에는 pan* 키가 없거나, 이전 기본값(Arrow=팬, Ctrl+Arrow=탐색)
+  // 구버전 저장값에는 pan* 키가 없거나, 이전 기본값(좌우 Arrow=팬, Ctrl+좌우=탐색)
   // 그대로다. 두 경우 모두 탐색/팬 6종은 새 기본값으로 이전한다.
   const isLegacy =
     (record["panLeft"] === undefined &&

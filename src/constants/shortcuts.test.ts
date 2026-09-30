@@ -85,8 +85,8 @@ describe("defaults", () => {
     expect(DEFAULT_SHORTCUTS.navigateNext).toBe("ArrowRight")
     expect(DEFAULT_SHORTCUTS.panLeft).toBe("Ctrl+ArrowLeft")
     expect(DEFAULT_SHORTCUTS.panRight).toBe("Ctrl+ArrowRight")
-    expect(DEFAULT_SHORTCUTS.panUp).toBe("Ctrl+ArrowUp")
-    expect(DEFAULT_SHORTCUTS.panDown).toBe("Ctrl+ArrowDown")
+    expect(DEFAULT_SHORTCUTS.panUp).toBe("ArrowUp")
+    expect(DEFAULT_SHORTCUTS.panDown).toBe("ArrowDown")
   })
 
   it("구버전 저장값은 새 탐색/팬 기본값으로 이전된다", () => {
@@ -110,7 +110,8 @@ describe("defaults", () => {
     })
     expect(sanitized.navigatePrev).toBe("ArrowLeft")
     expect(sanitized.navigateNext).toBe("ArrowRight")
-    expect(sanitized.panUp).toBe("Ctrl+ArrowUp")
+    expect(sanitized.panLeft).toBe("Ctrl+ArrowLeft")
+    expect(sanitized.panUp).toBe("ArrowUp")
   })
 
   it("유효하지 않은 저장값은 기본값으로 되돌린다", () => {
