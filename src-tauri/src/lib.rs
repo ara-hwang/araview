@@ -29,8 +29,9 @@ use commands::{
     generate_archive_file_thumbnails_batch, generate_archive_thumbnail, generate_thumbnail,
     generate_thumbnails_batch, get_archive_images, get_cache_stats, get_cached_thumbnail,
     get_comic_info, get_directory_images, get_exif_data, get_file_associations, get_image_details,
-    get_image_histogram, load_archive_image, load_image, open_default_apps_settings, rename_file,
-    resolve_dropped_path, set_file_association, trash_file,
+    get_image_histogram, get_license_bundle, load_archive_image, load_image,
+    open_default_apps_settings, rename_file, resolve_dropped_path, set_file_association,
+    trash_file,
 };
 use save::save_image_edits;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -165,6 +166,7 @@ pub fn run() {
             get_file_associations,
             set_file_association,
             open_default_apps_settings,
+            get_license_bundle,
             get_psd_thumbnail_status,
             register_psd_thumbnail,
             unregister_psd_thumbnail,

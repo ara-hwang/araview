@@ -102,6 +102,7 @@ Frontend uses `invoke()` for these commands (full table: `SPEC.md` §15):
 - `get_file_associations()`
 - `set_file_association(extension, associate)`
 - `open_default_apps_settings()`
+- `get_license_bundle()`
 - `get_psd_thumbnail_status()`, `register_psd_thumbnail()`, `unregister_psd_thumbnail()`
 - `trash_file(file_path)`
 - `save_image_edits(file_path, options)`

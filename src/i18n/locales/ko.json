@@ -155,6 +155,21 @@
       "check": "새 버전 확인",
       "checking": "확인 중"
     },
+    "licenses": {
+      "title": "오픈소스 라이선스",
+      "desc": "AraView가 사용하는 오픈소스 구성요소의 고지와 라이선스 원문을 앱 안에서 봅니다.",
+      "open": "라이선스 보기",
+      "notice": "고지 문서",
+      "loading": "불러오는 중",
+      "loadFail": "라이선스를 불러오지 못했습니다",
+      "retry": "다시 시도",
+      "listLabel": "패키지 목록",
+      "tablePointer": "{{count}}개 패키지는 왼쪽 목록에서 선택하면 라이선스 전문을 볼 수 있습니다.",
+      "templatedNote": "이 패키지는 라이선스 파일이 없어 표준 문구로 대체했습니다. 저작권자는 패키지 저장소에서 확인하세요.",
+      "noLicenseFile": "이 패키지는 라이선스 파일을 동봉하지 않습니다.",
+      "declared": "선언된 라이선스",
+      "documentsGroup": "문서"
+    },
     "view": {
       "title": "보기 모드",
       "desc": "단일 / 양쪽 / 세로 스크롤 표시 방식",

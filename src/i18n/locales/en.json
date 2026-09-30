@@ -155,6 +155,21 @@
       "check": "Check for new version",
       "checking": "Checking"
     },
+    "licenses": {
+      "title": "Open source licenses",
+      "desc": "View notices and license texts for the open source components AraView uses.",
+      "open": "View licenses",
+      "notice": "Notices",
+      "loading": "Loading",
+      "loadFail": "Failed to load licenses",
+      "retry": "Retry",
+      "listLabel": "Packages",
+      "tablePointer": "For these {{count}} packages, select one in the list on the left to read its full license text.",
+      "templatedNote": "This package ships no license file, so a standard template is shown. Check the package repository for the copyright holder.",
+      "noLicenseFile": "This package does not ship a license file.",
+      "declared": "Declared license",
+      "documentsGroup": "Documents"
+    },
     "view": {
       "title": "View mode",
       "desc": "Single / dual / vertical scroll layout",

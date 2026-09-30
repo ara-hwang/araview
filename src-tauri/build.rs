@@ -86,16 +86,18 @@ fn is_libheif_runtime_dll(name: &str) -> bool {
 }
 
 /// 설치 프로그램에 동봉할 라이선스 원문을 `generated/licenses/`로 모은다.
-/// vcpkg의 `copyright`(libheif, libde265, aom)와 저장소의 서드파티 고지 문서를 넣는다.
+/// vcpkg의 `copyright`(libheif, libde265, aom)와 저장소의 서드파티 고지 문서,
+/// 패키지별 라이선스 데이터(JSON)를 넣는다.
 fn collect_license_files() {
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
     let dest_dir = manifest_dir.join("generated").join("licenses");
     let _ = fs::create_dir_all(&dest_dir);
 
-    let mut sources = vec![(
-        manifest_dir.join("..").join("THIRD_PARTY_LICENSES.md"),
-        "THIRD_PARTY_LICENSES.md".to_string(),
-    )];
+    let mut sources: Vec<(PathBuf, String)> =
+        ["THIRD_PARTY_LICENSES.md", "THIRD_PARTY_LICENSES.json"]
+            .iter()
+            .map(|name| (manifest_dir.join("..").join(name), name.to_string()))
+            .collect();
     if let Some(root) = env::var_os("VCPKG_ROOT").or_else(|| env::var_os("VCPKG_INSTALLATION_ROOT"))
     {
         let share = Path::new(&root)

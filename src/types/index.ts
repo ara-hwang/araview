@@ -125,6 +125,33 @@ export type ArchiveState = {
   archivePath: string | null
 }
 
+export type LicenseDocument = {
+  name: string
+  content: string
+}
+
+export type LicenseFile = {
+  name: string
+  /** `LicenseBundle.texts`의 키 */
+  id: string
+}
+
+export type LicensePackage = {
+  ecosystem: "rust" | "npm"
+  name: string
+  version: string
+  license: string
+  files: LicenseFile[]
+  /** 저작권자가 비어 있는 표준 템플릿 본문만 있는 패키지 */
+  templated?: boolean
+}
+
+export type LicenseBundle = {
+  documents: LicenseDocument[]
+  packages: LicensePackage[]
+  texts: Record<string, string>
+}
+
 export type FileAssociation = {
   extension: string
   associated: boolean

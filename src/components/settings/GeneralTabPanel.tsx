@@ -4,6 +4,7 @@ import {
   House,
   Moon,
   NavigationArrow,
+  Scales,
   SkipForward,
   Translate
 } from "@phosphor-icons/react"
@@ -11,6 +12,7 @@ import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useShallow } from "zustand/react/shallow"
 
+import { LicensesDialog } from "@/components/settings/LicensesDialog"
 import { SettingsFieldSet } from "@/components/settings/SettingsFieldSet"
 import { useTheme, type Theme } from "@/components/theme-provider"
 import { Button } from "@/components/ui/button"
@@ -54,6 +56,7 @@ export function GeneralTabPanel() {
     void useRecentFilesStore.getState().clear()
   }
 
+  const [licensesOpen, setLicensesOpen] = useState(false)
   const appVersion = useAppVersion()
   const [checkingUpdate, setCheckingUpdate] = useState(false)
   const handleCheckUpdate = () => {
@@ -211,6 +214,21 @@ export function GeneralTabPanel() {
               version: appVersion ?? t("settings.update.unknown")
             })}
           </span>
+        </div>
+      </SettingsFieldSet>
+
+      <FieldSeparator />
+
+      <SettingsFieldSet
+        icon={<Scales className="size-6" />}
+        title={t("settings.licenses.title")}
+        description={t("settings.licenses.desc")}
+      >
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" onClick={() => setLicensesOpen(true)}>
+            {t("settings.licenses.open")}
+          </Button>
+          <LicensesDialog open={licensesOpen} onOpenChange={setLicensesOpen} />
         </div>
       </SettingsFieldSet>
     </FieldGroup>
