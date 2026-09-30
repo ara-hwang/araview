@@ -1,19 +1,20 @@
 name: Release
 
-# 릴리스는 더 이상 태그 푸시로 돌지 않는다. 이 PC에서 `npm run release:local`
-# (scripts/Publish-LocalRelease.ps1)이 유일한 발행 경로라, 태그 푸시로 이 워크플로가
-# 다시 돌면 같은 태그의 릴리스가 두 곳(원본 저장소와 레거시 피드 ara-hwang/araview-updates)에
-# 만들어진다. 문서도 "CI와 로컬 중 한쪽만 쓸 것"을 지키므로 태그 트리거를 제거했다.
-# 워크플로 문법상 트리거가 하나는 필요해 수동 실행만 남긴다. 필요할 때 Actions 탭에서
-# 직접 실행하면 CI 러너에서 빌드하고 원본 저장소에 릴리스를 만든다.
+# `vX.Y.Z` 태그를 푸시하면 검증, 서명 빌드, GitHub 릴리스 생성까지 자동으로 돈다.
+#   git tag v1.0.1 && git push origin v1.0.1
+# 태그는 버전을 올린 커밋(package.json, Cargo.toml, Cargo.lock, tauri.conf.json 4곳
+# 일치)에 붙여야 하며, 어긋나면 첫 단계에서 실패한다. 실패하면 Actions에서 재실행하거나
+# 태그를 지우고 다시 푸시한다. 릴리스 자산은 이 저장소에 게시되고 updater endpoint가
+# 그 `latest.json`을 가리킨다. 서명 키는 Secrets TAURI_SIGNING_PRIVATE_KEY(_PASSWORD).
 on:
-  workflow_dispatch:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
 
-# 수동 실행이 겹치면 같은 ref의 이전 실행을 취소하고 최신 실행만 남긴다.
-# 릴리스 생성은 빌드 마지막 단계라 중간 취소 시 남는 산출물이 없다.
+# 같은 태그의 실행이 겹치면 이전 실행을 취소하지 않고 줄 세운다(릴리스 도중 취소 방지).
 concurrency:
   group: release-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 env:
   VCPKG_BINARY_SOURCES: clear;x-gha,readwrite
@@ -29,6 +30,27 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
+
+      # 태그와 버전 파일이 어긋난 채 릴리스되면 updater가 잘못된 버전을 안내한다.
+      # 서명 키가 없으면 빌드는 통과하지만 .sig와 latest.json이 빠져 업데이트가 깨진다.
+      - name: Verify tag matches version files and signing key
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          $tag = "${{ github.ref_name }}".TrimStart("v")
+          $pkg = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          $tauri = (Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version
+          $cargo = (Select-String -Path src-tauri/Cargo.toml -Pattern '^version = "(.+)"' | Select-Object -First 1).Matches.Groups[1].Value
+          $lock = (Select-String -Path src-tauri/Cargo.lock -Pattern 'name = "araview"' -Context 0,1 | Select-Object -First 1).Context.PostContext[0] -replace '.*"(.+)".*','$1'
+          Write-Host "tag=$tag package.json=$pkg tauri.conf.json=$tauri Cargo.toml=$cargo Cargo.lock=$lock"
+          if (($pkg, $tauri, $cargo, $lock | Where-Object { $_ -ne $tag }).Count -gt 0) {
+            Write-Error "태그 v$tag 와 버전 파일이 일치하지 않는다."
+            exit 1
+          }
+          if ([string]::IsNullOrWhiteSpace($env:TAURI_SIGNING_PRIVATE_KEY)) {
+            Write-Error "Secrets TAURI_SIGNING_PRIVATE_KEY 가 비어 있다."
+            exit 1
+          }
 
       - name: Setup Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
@@ -166,7 +188,7 @@ jobs:
       #   npm run tauri signer generate -- -w ~/.tauri/araview.key
       # 공개키는 src-tauri/tauri.conf.json plugins.updater.pubkey에,
       # 비밀키와 비밀번호는 repo Secrets TAURI_SIGNING_PRIVATE_KEY(_PASSWORD)에 넣는다.
-      # 키가 없으면 빌드는 되지만 updater 아티팩트 서명이 생략된다.
+      # 키가 없으면 위 검증 단계에서 먼저 실패한다.
       - name: Build and release
         uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0
         env:
