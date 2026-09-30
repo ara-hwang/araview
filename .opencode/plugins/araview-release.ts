@@ -92,7 +92,7 @@ type BumpReport = {
 }
 
 const EXEC_TIMEOUT_MS = 20_000
-const DEFAULT_UPDATES_REPO = "ara-hwang/araview-updates"
+const DEFAULT_UPDATES_REPO = "ara-hwang/araview"
 const VERSION_FILES = {
   packageJson: "package.json",
   tauriConfig: "src-tauri/tauri.conf.json",

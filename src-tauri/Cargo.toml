@@ -1,8 +1,9 @@
 [package]
 name = "araview"
 version = "0.2.9"
-description = "A Tauri App"
-authors = ["you"]
+description = "Windows desktop image viewer"
+authors = ["Ara"]
+license = "EUPL-1.2"
 edition = "2021"
 rust-version = "1.97"
 publish = false

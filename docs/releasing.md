@@ -2,22 +2,20 @@
 
 maintainer용 안내입니다. 사용자용 업데이트 확인 방법은 `usage.md#업데이트-확인`을 봅니다. 배포 규격 진실은 `../SPEC.md` §20을 따릅니다.
 
-릴리스 발행 경로는 이 PC의 `npm run release:local` 하나뿐이다. 서명 빌드와 `latest.json` 생성, 태그 푸시, `gh release create`까지 이 스크립트가 수행하며, updater 아티팩트(`latest.json`, `.sig`)와 설치본이 공개 피드 저장소 `ara-hwang/araview-updates`의 릴리스에 첨부된다. `.github/workflows/release.yml`은 태그 푸시 트리거를 제거했다(같은 태그의 릴리스가 두 곳에 생기는 것을 막기 위함). Actions 탭에서 수동 실행하면 CI 러너에서 빌드해 원본 저장소에 릴리스를 만들므로, 평소에는 이 스크립트만 쓴다. `.github/workflows/ci.yml`은 PR과 main 푸시에서 자동으로 돌지 않습니다. 같은 검사(린트, 커버리지 포함 테스트, 타입, 포맷, npm/cargo 보안 감사, cargo test/clippy)는 Actions 탭에서 해당 워크플로를 수동 실행할 때만 돌아갑니다.
+릴리스 발행 경로는 이 PC의 `npm run release:local` 하나뿐이다. 서명 빌드와 `latest.json` 생성, 태그 푸시, `gh release create`까지 이 스크립트가 수행하며, updater 아티팩트(`latest.json`, `.sig`)와 설치본이 원본 저장소 `ara-hwang/araview`의 릴리스에 첨부된다. `.github/workflows/release.yml`은 태그 푸시 트리거를 제거했다(같은 태그의 릴리스가 두 곳에 생기는 것을 막기 위함). Actions 탭에서 수동 실행하면 CI 러너에서 빌드해 같은 원본 저장소에 릴리스를 만들지만, 평소에는 이 스크립트만 쓴다. `.github/workflows/ci.yml`은 PR과 main 푸시에서 자동으로 돌지 않습니다. 같은 검사(린트, 커버리지 포함 테스트, 타입, 포맷, npm/cargo 보안 감사, cargo test/clippy)는 Actions 탭에서 해당 워크플로를 수동 실행할 때만 돌아갑니다.
 
 릴리스 생성 권한은 이 PC의 `gh` CLI 로그인에 있다(`gh auth status`로 확인). `release.yml`을 수동 실행할 때만 쓰이는 `GITHUB_TOKEN`(`contents: write`) 권한과 `RELEASE_TOKEN` 시크릿은 그 경로용으로 남아 있다.
 
-## 업데이트 피드 (소스 저장소가 비공개인 동안)
+## 업데이트 피드
 
-앱의 updater는 인증 없이 엔드포인트를 받아야 하므로, 소스가 비공개인 동안에는 공개 저장소의 릴리스에 자산을 게시합니다.
+앱의 updater는 인증 없이 엔드포인트를 받아야 하므로 공개 저장소 릴리스의 자산을 씁니다. 소스 저장소가 공개이므로 원본 저장소가 곧 피드입니다.
 
 ```powershell
 npm run release:local
 ```
 
-- 릴리스 자산은 기본으로 공개 피드 저장소 `ara-hwang/araview-updates`에 게시됩니다. 소스 저장소에만 올리려면 `-UpdatesRepo ara-hwang/araview`을 넘기세요.
-
-- 피드(`latest.json`)와 설치본이 모두 `ara-hwang/araview-updates` 릴리스에 있고, `plugins.updater.endpoints`는 `https://github.com/ara-hwang/araview-updates/releases/latest/download/latest.json`을 가리킵니다.
-- 소스 저장소를 공개로 전환하면 기본값과 endpoint를 원래 릴리스 URL로 되돌립니다. 엔드포인트는 앱에 포함되므로 그다음 릴리스부터 적용됩니다.
+- 릴리스 자산은 기본으로 `ara-hwang/araview`에 게시되고, `plugins.updater.endpoints`는 `https://github.com/ara-hwang/araview/releases/latest/download/latest.json`을 가리킵니다.
+- **레거시 피드 이전 (1회)**: 0.2.9 이하 설치본은 `ara-hwang/araview-updates`의 `latest.json`만 봅니다. 새 endpoint가 들어간 첫 버전은 브릿지 릴리스로 `npm run release:local -- -UpdatesRepo ara-hwang/araview-updates`를 실행해 그 피드에 올립니다. 브릿지를 설치한 사용자는 이후 `ara-hwang/araview`에서 업데이트를 받습니다. 그다음 버전부터는 인자 없이 `npm run release:local`만 씁니다. `araview-updates`는 구버전 사용자가 사라질 때까지 지우지 않습니다. 브릿지 릴리스 중에는 preflight의 endpoint 불일치 경고가 나오지만 의도된 동작입니다.
 - 앱은 다운로드가 끝나면 NSIS 설치 관리자를 실행하고 종료됩니다(updater 플러그인의 Windows 동작). 설치 관리자 실행 이후의 실패(사용자 취소, 디스크 부족 등)는 앱이 이미 종료된 뒤라 앱에서 피드백할 수 없고 NSIS 창이 표시합니다.
 
 ## 서명키 발급과 등록 (maintainer 1회)

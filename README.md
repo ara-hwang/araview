@@ -36,3 +36,7 @@ npm run tauri dev
 - 제품 정의: `PRODUCT.md`
 - 기능/기술 명세: `SPEC.md`
 - 비주얼 시스템: `DESIGN.md`
+
+## 라이선스
+
+Copyright (c) 2026 Ara. [EUPL-1.2](LICENSE)로 배포합니다(Licensed under the EUPL). 서드파티 구성요소의 라이선스는 `THIRD_PARTY_LICENSES.md`를 봅니다.
