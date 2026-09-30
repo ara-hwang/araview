@@ -20,6 +20,7 @@
     "src/components/ui",
     "**/routeTree.gen.ts",
     "THIRD_PARTY_LICENSES.md",
+    "THIRD_PARTY_LICENSES.json",
     ".DS_Store",
     "node_modules",
     "/build",
