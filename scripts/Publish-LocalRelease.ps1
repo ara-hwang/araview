@@ -36,8 +36,8 @@
   pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/Publish-LocalRelease.ps1 -KeyPath D:\keys\araview.key -DryRun -SkipBuild
 .EXAMPLE
   # Release assets go to ara-hwang/araview by default. Pass -UpdatesRepo to
-  # publish elsewhere (e.g. the legacy feed repo for the one-off bridge release).
-  npm run release:local -- -UpdatesRepo ara-hwang/araview-updates
+  # publish to a different repo.
+  npm run release:local -- -UpdatesRepo <owner>/<repo>
 .EXAMPLE
   # Reuse the last build (publishes immediately by default).
   npm run release:local -- -SkipBuild

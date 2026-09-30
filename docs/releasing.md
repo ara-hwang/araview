@@ -2,7 +2,7 @@
 
 maintainer용 안내입니다. 사용자용 업데이트 확인 방법은 `usage.md#업데이트-확인`을 봅니다. 배포 규격 진실은 `../SPEC.md` §20을 따릅니다.
 
-릴리스 기본 경로는 태그 푸시다. 버전을 올린 커밋에 `vX.Y.Z` 태그를 푸시하면 `.github/workflows/release.yml`이 검증(테스트, 타입, 포맷, cargo test/clippy, 보안 감사, 라이선스 검사), 서명 빌드, `latest.json` 생성, GitHub 릴리스 생성까지 자동으로 수행한다. 공개 저장소라 GitHub 호스팅 표준 러너는 무료다. `npm run release:local`은 CI를 못 쓸 때의 대체 경로이자 레거시 피드 브릿지 릴리스용이다. `.github/workflows/ci.yml`은 PR과 main 푸시에서 자동으로 돌지 않고, Actions 탭에서 수동 실행할 때만 같은 검사를 돌린다.
+릴리스 기본 경로는 태그 푸시다. 버전을 올린 커밋에 `vX.Y.Z` 태그를 푸시하면 `.github/workflows/release.yml`이 검증(테스트, 타입, 포맷, cargo test/clippy, 보안 감사, 라이선스 검사), 서명 빌드, `latest.json` 생성, GitHub 릴리스 생성까지 자동으로 수행한다. 공개 저장소라 GitHub 호스팅 표준 러너는 무료다. `npm run release:local`은 CI를 못 쓸 때의 대체 경로다. `.github/workflows/ci.yml`은 PR과 main 푸시에서 자동으로 돌지 않고, Actions 탭에서 수동 실행할 때만 같은 검사를 돌린다.
 
 ## 태그로 자동 릴리스
 
@@ -29,7 +29,7 @@ npm run release:local
 ```
 
 - 릴리스 자산은 기본으로 `ara-hwang/araview`에 게시되고, `plugins.updater.endpoints`는 `https://github.com/ara-hwang/araview/releases/latest/download/latest.json`을 가리킵니다.
-- **레거시 피드 이전 (1회)**: 0.2.9 이하 설치본은 `ara-hwang/araview-updates`의 `latest.json`만 봅니다. 새 endpoint가 들어간 첫 버전(1.0.0)은 브릿지 릴리스로 `npm run release:local -- -UpdatesRepo ara-hwang/araview-updates`를 실행해 그 피드에 올립니다. 브릿지를 설치한 사용자는 이후 `ara-hwang/araview`에서 업데이트를 받습니다. 그다음 버전부터는 인자 없이 `npm run release:local`만 씁니다. `araview-updates`는 구버전 사용자가 사라질 때까지 지우지 않습니다. 브릿지 릴리스 중에는 preflight의 endpoint 불일치 경고가 나오지만 의도된 동작입니다.
+- 예전 별도 피드 저장소(`araview-updates`)는 삭제했다. 0.2.9 이하 설치본은 그 피드를 보므로 자동 업데이트를 받지 못하고, 1.0.0 이상 설치본을 직접 받아 설치해야 한다.
 - 앱은 다운로드가 끝나면 NSIS 설치 관리자를 실행하고 종료됩니다(updater 플러그인의 Windows 동작). 설치 관리자 실행 이후의 실패(사용자 취소, 디스크 부족 등)는 앱이 이미 종료된 뒤라 앱에서 피드백할 수 없고 NSIS 창이 표시합니다.
 
 ## 서명키 발급과 등록 (maintainer 1회)
@@ -73,7 +73,7 @@ updater 서명을 건너뜁니다. `.sig`가 없으므로 릴리스 배포에는
 
 ## 로컬에서 릴리스 (대체 경로)
 
-CI를 쓸 수 없을 때, 그리고 레거시 피드 브릿지 릴리스에 쓴다. 서명 빌드와 태그 푸시, GitHub 릴리스 생성까지 이 PC에서 수행한다. 이 스크립트가 태그를 푸시하면 `release.yml`도 같은 태그로 돌아 원본 저장소에 같은 버전의 릴리스를 함께 만든다. 원본 저장소에는 CI 산출물만 남기려면 로컬 대체 경로를 쓰지 말고 태그 푸시를 쓴다.
+CI를 쓸 수 없을 때 쓴다. 서명 빌드와 태그 푸시, GitHub 릴리스 생성까지 이 PC에서 수행한다. 이 스크립트가 태그를 푸시하면 `release.yml`도 같은 태그로 돌아 원본 저장소에 같은 버전의 릴리스를 함께 만든다. 원본 저장소에는 CI 산출물만 남기려면 로컬 대체 경로를 쓰지 말고 태그 푸시를 쓴다.
 
 ```powershell
 # .env.example을 .env.local로 복사해 키와 비밀번호를 채우면 환경변수 없이 동작합니다.
