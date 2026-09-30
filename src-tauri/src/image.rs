@@ -95,6 +95,11 @@ pub(crate) fn render_dimensions(
             return (Some(w), Some(h));
         }
     }
+    if mime == "image/avif" {
+        if let Some((w, h)) = crate::heif::primary_dimensions(paint_path) {
+            return (Some(w), Some(h));
+        }
+    }
     (width, height)
 }
 
@@ -898,6 +903,13 @@ mod tests {
             validate_new_file_name("  photo.png  ").unwrap(),
             "photo.png"
         );
+    }
+
+    #[test]
+    fn avif_dimensions_come_from_heif_header() {
+        let sample = Path::new(env!("CARGO_MANIFEST_DIR")).join("../samples/sample.avif");
+        let (w, h) = render_dimensions("image/avif", &sample, &sample);
+        assert_eq!((w, h), (Some(800), Some(600)));
     }
 
     #[test]

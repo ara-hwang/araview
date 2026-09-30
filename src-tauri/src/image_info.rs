@@ -62,6 +62,9 @@ fn decode_rgb8(path: &Path) -> Result<image::RgbImage, AppError> {
     if crate::image::get_mime_type(path).is_none() {
         return Err(AppError::unsupported("Unsupported image format"));
     }
+    if crate::image::get_mime_type(path) == Some("image/svg+xml") {
+        return crate::svg_raster::rasterize(path, HISTOGRAM_MAX_SIDE);
+    }
     let dyn_img =
         image::open(path).map_err(|e| AppError::image_error("Cannot compute histogram", e))?;
     Ok(dyn_img.to_rgb8())

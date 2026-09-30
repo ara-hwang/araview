@@ -102,13 +102,17 @@ pub fn generate_thumbnail(source: &Path, max_side: u32) -> Result<ThumbnailInfo,
                 crate::process_temp::touch_cache_file(&dest);
                 return Ok(());
             }
-            let img = image::open(source)
-                .map_err(|e| AppError::image_error("Failed to decode image", e))?;
-            let img = crate::orientation::apply_to_image(
-                img,
-                crate::orientation::read_orientation(source),
-            );
-            let thumb = img.thumbnail(max_side, max_side);
+            let thumb = if is_svg_source(source) {
+                image::DynamicImage::ImageRgb8(crate::svg_raster::rasterize(source, max_side)?)
+            } else {
+                let img = image::open(source)
+                    .map_err(|e| AppError::image_error("Failed to decode image", e))?;
+                let img = crate::orientation::apply_to_image(
+                    img,
+                    crate::orientation::read_orientation(source),
+                );
+                img.thumbnail(max_side, max_side)
+            };
             write_jpeg_atomic(&dest, &thumb)?;
             // Best effort: eviction failures must not fail thumbnail delivery.
             crate::process_temp::enforce_cap(THUMBS_SUBDIR, MAX_CACHE_BYTES).ok();
@@ -137,6 +141,13 @@ fn is_heif_source(source: &Path) -> bool {
             .as_deref(),
         Some("heic" | "heif")
     )
+}
+
+fn is_svg_source(source: &Path) -> bool {
+    source
+        .extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|e| e.eq_ignore_ascii_case("svg"))
 }
 
 fn is_psd_source(source: &Path) -> bool {
@@ -270,6 +281,19 @@ mod tests {
         let first = generate_thumbnail(&source, 64).expect("first");
         let second = generate_thumbnail(&source, 64).expect("second");
         assert_eq!(first.file_path, second.file_path);
+    }
+
+    #[test]
+    fn svg_generates_bounded_jpeg_thumbnail() {
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("vector.svg");
+        fs::write(
+            &source,
+            r##"<svg width="800" height="600" xmlns="http://www.w3.org/2000/svg"><circle cx="400" cy="300" r="200" fill="#0a0"/></svg>"##,
+        )
+        .unwrap();
+        let info = generate_thumbnail(&source, 128).unwrap();
+        assert_eq!((info.width, info.height), (128, 96));
     }
 
     #[test]

@@ -19,6 +19,7 @@ pub mod save;
 pub mod scaled;
 pub mod sidecar;
 pub mod stable_hash;
+pub mod svg_raster;
 pub mod thumb_shell;
 pub mod thumbnail;
 

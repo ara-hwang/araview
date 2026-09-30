@@ -67,6 +67,13 @@ fn sidecar_path(source: &Path) -> Result<PathBuf, AppError> {
 /// 메모리 고갈과 연산 폭주를 막는다.
 const MAX_DECODE_PIXELS: u64 = 150_000_000;
 
+/// 헤더만 읽어 기본 이미지 치수를 구한다. 픽셀 디코더가 없는 AVIF도 치수는 얻는다.
+pub(crate) fn primary_dimensions(source: &Path) -> Option<(u32, u32)> {
+    let ctx = libheif_rs::HeifContext::read_from_file(source.to_str()?).ok()?;
+    let handle = ctx.primary_image_handle().ok()?;
+    Some((handle.width(), handle.height()))
+}
+
 pub(crate) fn decode_primary_rgb8(source: &Path) -> Result<Rgb8, AppError> {
     use libheif_rs::{ColorSpace, HeifContext, LibHeif, RgbChroma};
 
