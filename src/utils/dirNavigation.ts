@@ -125,3 +125,29 @@ export function dualPageOffsets(
   if (cover % 2 === 1 && clamped === cover - 1) return [0]
   return [0, 1]
 }
+
+/**
+ * 양쪽 보기에서 현재 화면에 실제로 보이는 인덱스 목록.
+ * `dualPageOffsets`의 오프셋을 인덱스로 옮기고, 목록 밖이면 루프 설정에 따라
+ * wrap하거나 버린다(단독 화면이면 한 장만).
+ * 뷰어가 로드하는 대상(`useMultiPageImages`)과 도크 하이라이트가 같은 목록을
+ * 쓰도록 한 곳에 모아 둔다.
+ */
+export function dualPageIndices(
+  index: number,
+  total: number,
+  coverAlone: boolean,
+  coverIndex = 0,
+  loop = false
+): number[] {
+  if (total <= 0) return []
+  const clamped = Math.max(0, Math.min(index, total - 1))
+  const indices: number[] = []
+  for (const offset of dualPageOffsets(clamped, total, coverAlone, coverIndex)) {
+    const raw = clamped + offset
+    const target =
+      raw >= 0 && raw < total ? raw : loop && total > 1 ? ((raw % total) + total) % total : -1
+    if (target >= 0 && !indices.includes(target)) indices.push(target)
+  }
+  return indices
+}

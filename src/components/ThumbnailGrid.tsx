@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next"
 import { AppIcon } from "@/components/AppIcon"
 import { Button } from "@/components/ui/button"
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
+import { useCurrentPageIndices } from "@/hooks/useCurrentPageIndices"
 import { useThumbnailSrcs } from "@/hooks/useThumbnailSrcs"
 import { cn } from "@/lib/utils"
 import type { DirectoryImages, ImageInfo } from "@/types"
@@ -51,6 +52,8 @@ export function ThumbnailGrid({
   const [query, setQuery] = useState("")
   const [scrollTop, setScrollTop] = useState(0)
   const [viewport, setViewport] = useState({ width: 0, height: 0 })
+  // 화면에 떠 있는 페이지들. 양쪽 보기는 쌍 두 장이 함께 떠 있어 둘 다 강조한다.
+  const currentIndices = useCurrentPageIndices()
 
   const items = useMemo(
     () => dirImages.images.map((path, index) => ({ path, index })),
@@ -383,7 +386,7 @@ export function ThumbnailGrid({
           <div className="relative" style={{ height: gridWindow.totalHeight }}>
             {filtered.slice(gridWindow.startIndex, gridWindow.endIndex).map((item, offset) => {
               const position = gridWindow.startIndex + offset
-              const isCurrent = item.index === dirImages.current_index
+              const isCurrent = currentIndices.has(item.index)
               const isSelected = position === selectedPos
               const src = urls.get(item.path)
               const isCloudOnly = cloudOnlySet.has(item.path)

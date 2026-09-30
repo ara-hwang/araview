@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  dualPageIndices,
   dualPageOffsets,
   resolveDualStepIndex,
   resolveOffsetIndex,
@@ -91,6 +92,43 @@ describe("dualPageOffsets", () => {
 
   it("총 장수가 없으면 빈 배열이다", () => {
     expect(dualPageOffsets(0, 0, true)).toEqual([])
+  })
+})
+
+describe("dualPageIndices", () => {
+  it("표지 단독이 꺼지면 현재와 다음 인덱스를 돌려준다", () => {
+    expect(dualPageIndices(0, 6, false)).toEqual([0, 1])
+    expect(dualPageIndices(4, 6, false)).toEqual([4, 5])
+  })
+
+  it("표지 단독이 켜진 단독 화면은 한 장만 돌려준다", () => {
+    expect(dualPageIndices(0, 6, true)).toEqual([0])
+    expect(dualPageIndices(2, 6, true)).toEqual([2, 3])
+  })
+
+  it("마지막 장에서 다음 장이 없으면 한 장만 남긴다", () => {
+    expect(dualPageIndices(5, 6, false)).toEqual([5])
+    expect(dualPageIndices(4, 5, false)).toEqual([4])
+  })
+
+  it("루프면 목록 밖 오프셋을 wrap하고 중복은 한 번만 넣는다", () => {
+    expect(dualPageIndices(5, 6, false, 0, true)).toEqual([5, 0])
+    // 1장짜리 목록에서 wrap하면 같은 인덱스만 남는다.
+    expect(dualPageIndices(0, 1, false, 0, true)).toEqual([0])
+  })
+
+  it("범위를 벗어난 현재 인덱스는 clamp한다", () => {
+    expect(dualPageIndices(99, 6, false)).toEqual([5])
+    expect(dualPageIndices(-3, 6, false)).toEqual([0, 1])
+    expect(dualPageIndices(0, 0, false)).toEqual([])
+  })
+
+  it("표지가 0번이 아니면 표지 화면과 표지 앞 페이지는 단독이다", () => {
+    const TOTAL = 8
+    const COVER = 3
+    expect(dualPageIndices(COVER, TOTAL, true, COVER)).toEqual([COVER])
+    expect(dualPageIndices(2, TOTAL, true, COVER)).toEqual([2])
+    expect(dualPageIndices(4, TOTAL, true, COVER)).toEqual([4, 5])
   })
 })
 

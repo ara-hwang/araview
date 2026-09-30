@@ -5,7 +5,7 @@ import { useAppStore } from "@/store/appStore"
 import { useSettingsStore } from "@/store/settingsStore"
 import type { ImageInfo } from "@/types"
 import { resolveCoverIndex } from "@/utils/comicCover"
-import { dualPageOffsets } from "@/utils/dirNavigation"
+import { dualPageIndices } from "@/utils/dirNavigation"
 
 // viewMode에 따라 현재 이미지 외에 주변 이미지를 로드해 반환한다.
 //   - single               : 빈 배열 (ImageContainer가 기본 단일 렌더를 사용)
@@ -48,23 +48,15 @@ export function useMultiPageImages(getOrLoadImage: GetOrLoadImage) {
 
     const index = dirImages.current_index
     const count = images.length
-    const normalize = (v: number) => ((v % count) + count) % count
 
-    // 어떤 오프셋들을 로드할지 결정
-    // LTR / RTL: 현재 + 다음. 표지 단독이면 표지 장만 로드한다.
-    const offsets = dualPageOffsets(
+    // 어떤 인덱스를 화면에 띄울지 결정 (도크 하이라이트와 같은 목록을 쓴다)
+    const targetIndices = dualPageIndices(
       index,
       count,
       showCoverAlone,
-      resolveCoverIndex(comicInfo, count)
+      resolveCoverIndex(comicInfo, count),
+      loopNavigation
     )
-
-    const targetIndices: number[] = []
-    for (const off of offsets) {
-      const raw = index + off
-      if (raw >= 0 && raw < count) targetIndices.push(raw)
-      else if (loopNavigation && count > 1) targetIndices.push(normalize(raw))
-    }
 
     const paths = targetIndices.map((i) => images[i]).filter(Boolean)
     let cancelled = false

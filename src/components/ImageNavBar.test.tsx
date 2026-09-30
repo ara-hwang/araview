@@ -57,9 +57,10 @@ function setup(dirImages?: { images: string[]; current_index: number; availabili
       ? { availability: [], ...dirImages }
       : { images: IMAGES, current_index: 0, availability: [] },
     failedPaths: [],
-    archivePath: null
+    archivePath: null,
+    comicInfo: null
   })
-  useSettingsStore.setState({ loopNavigation: false })
+  useSettingsStore.setState({ loopNavigation: false, viewMode: "single", showCoverAlone: true })
 }
 
 const baseProps = {
@@ -153,5 +154,67 @@ describe("ImageNavBar", () => {
     const { container } = render(<ImageNavBar {...baseProps} hidden />)
     expect(container.firstChild).toHaveProperty("className")
     expect((container.firstChild as HTMLElement).className).toContain("hidden")
+  })
+
+  describe("현재 썸네일 하이라이트", () => {
+    const currentLabels = (container: HTMLElement) =>
+      [...container.querySelectorAll('[aria-current="true"]')].map((el) =>
+        el.getAttribute("aria-label")
+      )
+
+    it("단일 보기에서는 현재 장만 하이라이트한다", () => {
+      setup({ images: IMAGES, current_index: 1 })
+      const { container } = render(<ImageNavBar {...baseProps} />)
+
+      expect(currentLabels(container)).toEqual(["viewer.nav.thumb 2 pics/b.jpg"])
+    })
+
+    it("양쪽 보기에서는 화면에 보이는 두 장을 모두 하이라이트한다", () => {
+      setup({ images: IMAGES, current_index: 0 })
+      useSettingsStore.setState({ viewMode: "left-to-right", showCoverAlone: false })
+      const { container } = render(<ImageNavBar {...baseProps} />)
+
+      expect(currentLabels(container)).toEqual([
+        "viewer.nav.thumb 1 pics/a.jpg",
+        "viewer.nav.thumb 2 pics/b.jpg"
+      ])
+    })
+
+    it("오른쪽부터 보기에서도 같은 두 장을 하이라이트한다", () => {
+      setup({ images: [...IMAGES, "/pics/d.jpg"], current_index: 2 })
+      useSettingsStore.setState({ viewMode: "right-to-left", showCoverAlone: false })
+      const { container } = render(<ImageNavBar {...baseProps} />)
+
+      expect(currentLabels(container)).toEqual([
+        "viewer.nav.thumb 3 pics/c.jpg",
+        "viewer.nav.thumb 4 pics/d.jpg"
+      ])
+    })
+
+    it("표지 단독 화면에서는 표지만 하이라이트한다", () => {
+      setup({ images: IMAGES, current_index: 0 })
+      useSettingsStore.setState({ viewMode: "left-to-right", showCoverAlone: true })
+      const { container } = render(<ImageNavBar {...baseProps} />)
+
+      expect(currentLabels(container)).toEqual(["viewer.nav.thumb 1 pics/a.jpg"])
+    })
+
+    it("양쪽 보기의 마지막 홀수 장은 혼자 보므로 한 장만 하이라이트한다", () => {
+      setup({ images: IMAGES, current_index: 2 })
+      useSettingsStore.setState({ viewMode: "left-to-right", showCoverAlone: false })
+      const { container } = render(<ImageNavBar {...baseProps} />)
+
+      expect(currentLabels(container)).toEqual(["viewer.nav.thumb 3 pics/c.jpg"])
+    })
+
+    it("포커스 복귀 기준(data-dock-current)은 쌍의 기준 장 하나만 가리킨다", () => {
+      setup({ images: IMAGES, current_index: 0 })
+      useSettingsStore.setState({ viewMode: "left-to-right", showCoverAlone: false })
+      const { container } = render(<ImageNavBar {...baseProps} />)
+
+      const anchors = container.querySelectorAll('[data-dock-current="true"]')
+      expect(anchors).toHaveLength(1)
+      expect(anchors[0].getAttribute("aria-label")).toBe("viewer.nav.thumb 1 pics/a.jpg")
+    })
   })
 })

@@ -24,6 +24,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu"
+import { useCurrentPageIndices } from "@/hooks/useCurrentPageIndices"
 import { useThumbnailSrcs } from "@/hooks/useThumbnailSrcs"
 import { useWheelNavigation } from "@/hooks/useWheelNavigation"
 import { cn } from "@/lib/utils"
@@ -92,6 +93,10 @@ export function ImageNavBar({
   const failedSet = useMemo(() => new Set(failedPaths), [failedPaths])
   const isVertical = position === "left" || position === "right"
   const side = THUMB_SIDE[thumbSize]
+
+  // 현재 화면에 보이는 인덱스들. 양쪽 보기는 두 장이 함께 떠 있으므로 둘 다
+  // 하이라이트한다.
+  const currentIndices = useCurrentPageIndices()
 
   // 맨 앞·맨 뒤 이미지 여부와 설정에 따른 이전/다음 비활성화 상태 계산
   const isFirst = dirImages.current_index === 0
@@ -320,14 +325,16 @@ export function ImageNavBar({
     const shortName = archivePath ? name : basenameOf(path)
     const isCloudOnly = cloudOnlySet.has(path)
     const failed = !isCloudOnly && (failedSet.has(path) || thumbFailed.has(path))
-    const isCurrent = index === dirImages.current_index
+    const isCurrent = currentIndices.has(index)
+    /** 쌍의 기준 장(포커스 복귀와 화면 이동의 기준) */
+    const isAnchor = index === dirImages.current_index
     const labelHeight = showName ? 18 : 0
     const left = stripOffsetForIndex(index, side, STRIP_GAP, STRIP_PADDING)
     return (
       <button
         key={path}
         type="button"
-        data-dock-current={isCurrent ? "true" : undefined}
+        data-dock-current={isAnchor ? "true" : undefined}
         aria-current={isCurrent ? "true" : undefined}
         onClick={() => {
           if (failed && !src) retry(path)
