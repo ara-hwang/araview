@@ -23,6 +23,8 @@ jobs:
   publish-tauri:
     permissions:
       contents: write
+      # rustsec/audit-check가 결과를 check run으로 기록하는 데 필요하다.
+      checks: write
     runs-on: windows-latest
 
     steps:
