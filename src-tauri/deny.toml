@@ -1,0 +1,41 @@
+# cargo-deny 설정. 실행: cd src-tauri && cargo deny check licenses bans sources
+# 취약점 자문은 CI의 rustsec/audit-check가 맡는다.
+[graph]
+targets = ["x86_64-pc-windows-msvc"]
+
+[licenses]
+confidence-threshold = 0.8
+# 허용 목록은 about.toml의 accepted와 같게 유지한다.
+# GPL/AGPL/LGPL은 넣지 않는다. `OR` 표현식은 허용 라이선스가 하나라도 있으면 통과한다.
+allow = [
+    "0BSD",
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "bzip2-1.0.6",
+    "CC0-1.0",
+    "CDLA-Permissive-2.0",
+    "IJG",
+    "ISC",
+    "Apache-2.0 WITH LLVM-exception",
+    "MIT",
+    "MIT-0",
+    "MPL-2.0",
+    "NCSA",
+    "Unicode-3.0",
+    "Unlicense",
+    "Zlib",
+]
+
+[licenses.private]
+ignore = true
+
+[bans]
+# 전이 의존성의 중복 버전이 많아 경고만 한다.
+multiple-versions = "warn"
+wildcards = "allow"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]

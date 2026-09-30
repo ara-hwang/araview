@@ -26,7 +26,7 @@ $env:Path += ";$env:VCPKG_ROOT\installed\x64-windows\bin"
 
 앱은 `libheif`를 동적 링크합니다(`libheif-rs`, `default-features = false`, 정적 포함 없음). 번들용 DLL은 `src-tauri/build.rs`가 `VCPKG_ROOT`(또는 `VCPKG_INSTALLATION_ROOT`) 아래 `installed/x64-windows/bin`에서 `heif.dll`, `libde265.dll`, `aom.dll`을 모아 `generated/libheif-dlls/`에 넣고, `src-tauri/tauri.windows.conf.json` 경유로 번들에 실립니다. CI에서는 `VCPKGRS_DYNAMIC=1`과 `PKG_CONFIG_PATH`를 함께 둡니다(워크플로 참조).
 
-라이선스 원문도 같은 빌드 스크립트가 `generated/licenses/`에 모아 설치 프로그램의 `licenses/` 폴더로 동봉합니다. vcpkg의 `libheif`, `libde265`, `aom` `copyright`와 저장소의 `THIRD_PARTY_LICENSES.md`가 들어갑니다. 의존성을 바꾸면 `THIRD_PARTY_LICENSES.md`를 같이 갱신합니다.
+라이선스 원문도 같은 빌드 스크립트가 `generated/licenses/`에 모아 설치 프로그램의 `licenses/` 폴더로 동봉합니다. vcpkg의 `libheif`, `libde265`, `aom` `copyright`와 저장소의 `THIRD_PARTY_LICENSES.md`, 패키지별 라이선스 전문 `THIRD_PARTY_LICENSES.json`이 들어갑니다. 환경설정의 라이선스 화면은 이 자료를 읽어 보여줍니다. 의존성을 바꾸면 `cargo install cargo-about --locked --features cli`를 한 번 설치한 뒤 `node scripts/generate-license-data.mjs`를 실행합니다. Rust 본문은 `src-tauri/about.toml` 설정의 cargo-about이 모으고(네트워크 사용), 스크립트가 `THIRD_PARTY_LICENSES.json`과 `THIRD_PARTY_LICENSES.md`의 2, 3절 표를 다시 씁니다. 1절(네이티브 라이브러리)은 직접 고칩니다. 허용하지 않은 라이선스는 `cd src-tauri && cargo deny check licenses bans sources`(설정 `src-tauri/deny.toml`, `cargo install cargo-deny --locked`)로 검사하며 CI와 릴리스 워크플로도 같은 검사를 합니다. 패키지에 LICENSE 파일이 없어 표준 템플릿("Copyright (c) <year> <owner>")이 나오는 크레이트는 스크립트가 경고로 알려 주며, 업스트림 LICENSE를 `src-tauri/licenses-extra/`에 복사하고 스크립트의 `EXTRA_LICENSES`에 추가합니다. 새 라이선스가 나오면 `about.toml`의 `accepted`와 `deny.toml`의 `allow`를 같이 고칩니다.
 
 ## 시작하기
 
