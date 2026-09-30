@@ -1,17 +1,16 @@
 # AraView
 
-Tauri 2 + React 19 + TypeScript 기반의 Windows 데스크톱 이미지 뷰어입니다.
+Tauri 2 + React 19 + TypeScript 기반의 Windows 데스크톱 이미지 뷰어
 
-- 일반 이미지 포맷과 만화 아카이브(`.cbz`, `.cb7`, `.cbr`, `.cbt`) 및 일반 아카이브(`.zip`, `.7z`, `.rar`)를 지원합니다.
-- 폴더 내 이미지 탐색, EXIF 표시, 멀티 페이지 보기 모드를 제공합니다.
-- CBZ/ZIP의 `ComicInfo.xml` 메타데이터(시리즈, 권 번호, 작가, 줄거리)를 정보 패널에서 읽기 전용으로 보여줍니다.
-- 로컬 파일 경로 기반 렌더링(Asset Protocol)으로 동작합니다.
+- 일반 이미지 포맷과 만화 아카이브 포맷 지원
+- 양쪽 보기, 웹툰 보기 모드 지원
+- `ComicInfo.xml` 지원
 
 ## 요구 사항
 
-- Windows 10/11 (x64), Node.js `>= 22`, Rust stable
+- Windows 11 (x64), Node.js `>= 22`, Rust stable
 
-## 빠른 시작
+## 로컬 개발
 
 ```bash
 git clone https://github.com/ara-hwang/araview.git
@@ -19,14 +18,6 @@ cd araview
 npm install
 npm run tauri dev
 ```
-
-## 주요 기능
-
-- **지원 포맷**: `png`, `jpg`, `jpeg`, `gif`, `bmp`, `webp`, `svg`, `ico`, `avif`, `heic`, `heif`, `psd`(읽기 전용 미리보기), `cbz`, `cb7`, `cbr`, `rar`, `zip`, `7z`, `cbt`
-- **파일 열기**: 파일 선택, 드래그 앤 드롭(파일/폴더), OS 파일 연동 실행
-- **탐색/보기**: 이전/다음과 썸네일 점프, 확대/축소와 화면 맞춤, 회전/반전, `single`/`left-to-right`/`right-to-left`/`webtoon` 모드. 웹툰에서는 이미지 간격, 페이지 경계, Fit width, 현재 위치와 읽기 진행률을 설정할 수 있습니다.
-- **이미지 표시**: 매끄러운 보간, 픽셀 보존, 픽셀 아트 자동 감지 모드를 제공합니다.
-- **부가 기능**: EXIF 패널, 최근 파일, 전체화면, 이미지 클립보드 복사, 명령 팔레트(`Ctrl+K`), 대용량 이미지 표시 해상도 제한(4K/FHD, 선택), 탐색기 PSD 썸네일(선택, `SPEC.md` §20.2)
 
 ## 문서
 
@@ -39,4 +30,6 @@ npm run tauri dev
 
 ## 라이선스
 
-Copyright (c) 2026 Ara. [EUPL-1.2](LICENSE)로 배포합니다(Licensed under the EUPL). 서드파티 구성요소의 라이선스는 `THIRD_PARTY_LICENSES.md`를 봅니다.
+EUPL-1.2
+
+외부 의존성 라이선스는 `THIRD_PARTY_LICENSES.md` 참고
