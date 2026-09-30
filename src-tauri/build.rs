@@ -80,6 +80,6 @@ fn copy_libheif_dlls() {
 fn is_libheif_runtime_dll(name: &str) -> bool {
     matches!(
         name.to_ascii_lowercase().as_str(),
-        "heif.dll" | "libde265.dll"
+        "heif.dll" | "libde265.dll" | "aom.dll"
     )
 }

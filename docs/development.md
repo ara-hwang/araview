@@ -17,14 +17,14 @@
 HEIC/HEIF를 쓰려면 [vcpkg](https://vcpkg.io/)로 `libheif`를 설치합니다.
 
 ```powershell
-vcpkg install "libheif[core]:x64-windows"
+vcpkg install "libheif[core,aom]:x64-windows"
 $env:VCPKG_ROOT = "<vcpkg root>"
 $env:Path += ";$env:VCPKG_ROOT\installed\x64-windows\bin"
 ```
 
-`[core]`는 HEVC 디코더 `libde265`만 넣고, 인코더 `x265`는 빼는 설치입니다. 앱은 HEIC를 인코드하지 않습니다.
+`[core]`는 HEVC 디코더 `libde265`만 넣고, 인코더 `x265`는 빼는 설치입니다. `aom` feature는 AVIF(AV1) 디코드용이며, 없으면 AVIF 썸네일과 히스토그램이 실패합니다. 앱은 HEIC/AVIF를 인코드하지 않습니다.
 
-앱은 `libheif`를 동적 링크합니다(`libheif-rs`, `default-features = false`, 정적 포함 없음). 번들용 DLL은 `src-tauri/build.rs`가 `VCPKG_ROOT`(또는 `VCPKG_INSTALLATION_ROOT`) 아래 `installed/x64-windows/bin`에서 `heif.dll`과 `libde265.dll`을 모아 `generated/libheif-dlls/`에 넣고, `src-tauri/tauri.windows.conf.json` 경유로 번들에 실립니다. CI에서는 `VCPKGRS_DYNAMIC=1`과 `PKG_CONFIG_PATH`를 함께 둡니다(워크플로 참조).
+앱은 `libheif`를 동적 링크합니다(`libheif-rs`, `default-features = false`, 정적 포함 없음). 번들용 DLL은 `src-tauri/build.rs`가 `VCPKG_ROOT`(또는 `VCPKG_INSTALLATION_ROOT`) 아래 `installed/x64-windows/bin`에서 `heif.dll`, `libde265.dll`, `aom.dll`을 모아 `generated/libheif-dlls/`에 넣고, `src-tauri/tauri.windows.conf.json` 경유로 번들에 실립니다. CI에서는 `VCPKGRS_DYNAMIC=1`과 `PKG_CONFIG_PATH`를 함께 둡니다(워크플로 참조).
 
 ## 시작하기
 

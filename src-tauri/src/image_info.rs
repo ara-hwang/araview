@@ -35,7 +35,7 @@ fn is_transcoded_source(path: &Path) -> bool {
             .and_then(|e| e.to_str())
             .map(|e| e.to_lowercase())
             .as_deref(),
-        Some("heic" | "heif" | "psd")
+        Some("heic" | "heif" | "avif" | "psd")
     )
 }
 
@@ -392,6 +392,13 @@ mod tests {
                 image::Rgb(px)
             }));
         img.save(path).expect("write png fixture");
+    }
+
+    #[test]
+    fn avif_histogram_decodes_via_heif() {
+        let sample = Path::new(env!("CARGO_MANIFEST_DIR")).join("../samples/sample.avif");
+        let rgb = decode_rgb8(&sample).unwrap();
+        assert_eq!((rgb.width(), rgb.height()), (800, 600));
     }
 
     #[test]

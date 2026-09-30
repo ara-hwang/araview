@@ -139,7 +139,7 @@ fn is_heif_source(source: &Path) -> bool {
             .and_then(|e| e.to_str())
             .map(|e| e.to_lowercase())
             .as_deref(),
-        Some("heic" | "heif")
+        Some("heic" | "heif" | "avif")
     )
 }
 
@@ -293,6 +293,13 @@ mod tests {
         )
         .unwrap();
         let info = generate_thumbnail(&source, 128).unwrap();
+        assert_eq!((info.width, info.height), (128, 96));
+    }
+
+    #[test]
+    fn avif_uses_jpeg_sidecar_thumb() {
+        let sample = Path::new(env!("CARGO_MANIFEST_DIR")).join("../samples/sample.avif");
+        let info = generate_thumbnail(&sample, 128).unwrap();
         assert_eq!((info.width, info.height), (128, 96));
     }
 

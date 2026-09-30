@@ -66,10 +66,10 @@ undocumented_unsafe_blocks = "warn"
 
 [package.metadata.vcpkg]
 git = "https://github.com/microsoft/vcpkg"
-dependencies = ["libheif[core]"]
+dependencies = ["libheif[core,aom]"]
 
 [package.metadata.vcpkg.target]
-x86_64-pc-windows-msvc = { triplet = "x64-windows", dependencies = ["libheif[core]"] }
+x86_64-pc-windows-msvc = { triplet = "x64-windows", dependencies = ["libheif[core,aom]"] }
 
 [workspace]
 members = ["crates/araview-thumb"]

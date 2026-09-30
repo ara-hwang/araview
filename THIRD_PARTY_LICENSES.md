@@ -28,8 +28,9 @@ crates.io sources. Pre-existing, unrelated to the RAR change.
 
 | Library | License (upstream) | Shipped files | Note |
 | ------- | ------------------ | ------------- | ---- |
-| libheif (vcpkg libheif[core]) | GNU LGPL | heif.dll | stays dynamically linked, never static |
+| libheif (vcpkg libheif[core,aom]) | GNU LGPL | heif.dll | stays dynamically linked, never static |
 | libde265 | GNU LGPL | libde265.dll | HEVC decode only, x265 excluded |
+| aom | BSD-2-Clause + AOM patent license | aom.dll | AV1 decode for AVIF thumbnails/histogram |
 
 ## 2. Rust dependencies (full Cargo.lock closure, over-inclusive by design)
 

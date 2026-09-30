@@ -660,7 +660,7 @@ Rust와 TypeScript는 같은 모양을 유지한다.
   - Image 12종: png, jpg, jpeg, gif, bmp, webp, svg, ico, avif, heic, heif, psd.
   - Comic 4종: cbz, cb7, cbr, cbt.
   - Archive 3종: rar, zip, 7z.
-- HEIC/HEIF는 vcpkg `libheif[core]` 동적 링크 + `libde265`만 사용한다. 설치와 DLL 복사는 `docs/development.md`를 따른다.
+- HEIC/HEIF는 vcpkg `libheif[core,aom]` 동적 링크 + `libde265`(HEVC), `aom`(AV1, AVIF 썸네일/히스토그램)만 사용한다. 설치와 DLL 복사는 `docs/development.md`를 따른다.
 
 ### 20.1 자동 업데이트 (tauri-plugin-updater)
 
