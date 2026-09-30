@@ -1,6 +1,6 @@
 [package]
 name = "araview"
-version = "0.2.9"
+version = "1.0.0"
 description = "Windows desktop image viewer"
 authors = ["Ara"]
 license = "EUPL-1.2"
