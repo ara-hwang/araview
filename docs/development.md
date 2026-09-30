@@ -26,6 +26,8 @@ $env:Path += ";$env:VCPKG_ROOT\installed\x64-windows\bin"
 
 앱은 `libheif`를 동적 링크합니다(`libheif-rs`, `default-features = false`, 정적 포함 없음). 번들용 DLL은 `src-tauri/build.rs`가 `VCPKG_ROOT`(또는 `VCPKG_INSTALLATION_ROOT`) 아래 `installed/x64-windows/bin`에서 `heif.dll`, `libde265.dll`, `aom.dll`을 모아 `generated/libheif-dlls/`에 넣고, `src-tauri/tauri.windows.conf.json` 경유로 번들에 실립니다. CI에서는 `VCPKGRS_DYNAMIC=1`과 `PKG_CONFIG_PATH`를 함께 둡니다(워크플로 참조).
 
+라이선스 원문도 같은 빌드 스크립트가 `generated/licenses/`에 모아 설치 프로그램의 `licenses/` 폴더로 동봉합니다. vcpkg의 `libheif`, `libde265`, `aom` `copyright`와 저장소의 `THIRD_PARTY_LICENSES.md`가 들어갑니다. 의존성을 바꾸면 `THIRD_PARTY_LICENSES.md`를 같이 갱신합니다.
+
 ## 시작하기
 
 ```bash

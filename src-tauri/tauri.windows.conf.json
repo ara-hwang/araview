@@ -2,7 +2,8 @@
   "bundle": {
     "resources": {
       "resources/araview_thumb.dll": "resources/araview_thumb.dll",
-      "generated/libheif-dlls/*.dll": ""
+      "generated/libheif-dlls/*.dll": "",
+      "generated/licenses/*": "licenses/"
     }
   }
 }
