@@ -464,12 +464,12 @@ CBZ/ZIP의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한다(8
 
 | 동작             | 기본값            |
 | ---------------- | ----------------- |
-| 이전             | `Ctrl+ArrowLeft`  |
-| 다음             | `Ctrl+ArrowRight` |
-| 왼쪽 팬          | `ArrowLeft`       |
-| 오른쪽 팬        | `ArrowRight`      |
-| 위 팬            | `ArrowUp`         |
-| 아래 팬          | `ArrowDown`       |
+| 이전             | `ArrowLeft`       |
+| 다음             | `ArrowRight`      |
+| 왼쪽 팬          | `Ctrl+ArrowLeft`  |
+| 오른쪽 팬        | `Ctrl+ArrowRight` |
+| 위 팬            | `Ctrl+ArrowUp`    |
+| 아래 팬          | `Ctrl+ArrowDown`  |
 | 확대             | `=`               |
 | 축소             | `-`               |
 | 보기 초기화      | `0`               |

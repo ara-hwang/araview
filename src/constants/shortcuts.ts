@@ -128,12 +128,12 @@ export const MOUSE_TRIGGERS: MouseTrigger[] = [
 ]
 
 export const DEFAULT_SHORTCUTS: ShortcutMap = {
-  navigatePrev: "Ctrl+ArrowLeft",
-  navigateNext: "Ctrl+ArrowRight",
-  panLeft: "ArrowLeft",
-  panRight: "ArrowRight",
-  panUp: "ArrowUp",
-  panDown: "ArrowDown",
+  navigatePrev: "ArrowLeft",
+  navigateNext: "ArrowRight",
+  panLeft: "Ctrl+ArrowLeft",
+  panRight: "Ctrl+ArrowRight",
+  panUp: "Ctrl+ArrowUp",
+  panDown: "Ctrl+ArrowDown",
   zoomIn: "=",
   zoomOut: "-",
   resetView: "0",
@@ -308,13 +308,19 @@ export function sanitizeShortcutMap(value: unknown): ShortcutMap {
   const result: ShortcutMap = { ...DEFAULT_SHORTCUTS }
   if (typeof value !== "object" || value === null) return result
   const record = value as Record<string, unknown>
-  // 구버전 저장값에는 pan* 키가 없다. 그때는 Arrow가 탐색에 묶여 있어
-  // 새 기본값과 중복되므로 탐색/팬 6종은 새 기본값으로 이전한다.
+  // 구버전 저장값에는 pan* 키가 없거나, 이전 기본값(Arrow=팬, Ctrl+Arrow=탐색)
+  // 그대로다. 두 경우 모두 탐색/팬 6종은 새 기본값으로 이전한다.
   const isLegacy =
-    record["panLeft"] === undefined &&
-    record["panRight"] === undefined &&
-    record["panUp"] === undefined &&
-    record["panDown"] === undefined
+    (record["panLeft"] === undefined &&
+      record["panRight"] === undefined &&
+      record["panUp"] === undefined &&
+      record["panDown"] === undefined) ||
+    (record["navigatePrev"] === "Ctrl+ArrowLeft" &&
+      record["navigateNext"] === "Ctrl+ArrowRight" &&
+      record["panLeft"] === "ArrowLeft" &&
+      record["panRight"] === "ArrowRight" &&
+      record["panUp"] === "ArrowUp" &&
+      record["panDown"] === "ArrowDown")
   for (const id of SHORTCUT_ACTION_IDS) {
     if (
       isLegacy &&
