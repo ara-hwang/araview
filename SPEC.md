@@ -93,7 +93,7 @@ CBZ/ZIP의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한다(8
 - `Esc` 닫기: 이름 변경/저장 다이얼로그가 열려 있거나 입력 포커스 중이면 닫지 않는다.
 - 이미지 표시 설정은 `auto | smooth | pixelated`를 제공한다. `auto`는 픽셀 아트 자동 감지가 켜져 있고 분석 결과가 `pixel_art`로 분류되면 `pixelated`, 그 외에는 `smooth`를 사용한다. 수동 모드는 자동 감지보다 우선한다.
 - 픽셀 아트 자동 감지는 현재 이미지를 렌더한 뒤 별도 백그라운드 IPC로 분석한다. 분석 전/실패/불확실은 `smooth`로 대체하며 원본과 파생 이미지는 변경하지 않는다. 감지는 동시 2개로 제한하고 웹툰에서는 화면에서 벗어난 대기 요청을 취소한다.
-- 단일 이미지의 픽셀 보존 모드는 transform 확대 대신 레이아웃 크기 확대를 사용해 Chromium 합성 단계의 재보간을 줄인다. GIF Canvas는 `imageSmoothingEnabled=false`를 사용한다. 양면/웹툰의 각 이미지는 같은 설정을 공유하되 판정은 이미지별이다.
+- 단일 이미지의 픽셀 보존 모드는 transform 확대 대신 레이아웃 크기 확대를 사용해 Chromium 합성 단계의 재보간을 줄인다. GIF Canvas는 `imageSmoothingEnabled=false`를 사용한다. 양쪽/웹툰의 각 이미지는 같은 설정을 공유하되 판정은 이미지별이다.
 - `autoHideUI`가 true일 때만 읽기 중 크롬(상단바, 이미지 목록 도크, 상태바)을 숨기고 읽기 영역을 확장한다. 도크 상태(스크롤 위치, 로드한 썸네일)는 유지된다.
 - `menuBarHidden`이 true이면 상단바를 숨기고, 상단 호버 영역에서 peek 오버레이로 표시한다. 헤더 숨기기 버튼과 보기 설정 스위치로 토글한다. peek 시에는 읽기 영역 위로 겹쳐 내려오며, 포커스 이탈 시에는 즉시 닫힌다. 모션 토큰과 timing은 `DESIGN.md`를 따른다. `Esc`로는 닫히지 않는다(뷰어의 이미지 닫기와 충돌 방지).
 - `menuBarHidden`은 이미지를 보고 있을 때만 적용한다. 이미지 없이 빈 화면(홈)에서는 설정값을 유지한 채 상단바를 항상 표시한다(열기/드래그 동선 유지). `autoHideUI`와 동일한 조건을 쓴다.
@@ -153,7 +153,7 @@ CBZ/ZIP의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한다(8
 ### 5.3 이전/다음
 
 - `viewMode`가 `left-to-right`/`right-to-left`이면 2장씩, 나머지는 1장씩 이동한다.
-- `showCoverAlone`이 true인 양면 모드에서는 화면이 `[0], [1,2], [3,4], ...`가 되고 넘김도 화면 단위다. false면 `[0,1], [2,3], ...`다.
+- `showCoverAlone`이 true인 양쪽 모드에서는 화면이 `[0], [1,2], [3,4], ...`가 되고 넘김도 화면 단위다. false면 `[0,1], [2,3], ...`다.
 - `loopNavigation=false`: 끝에서 멈춘다. 단, 마지막 장은 clamp로 볼 수 있게 한다.
 - `loopNavigation=true`: wrap한다.
 - 아카이브/일반 모드에 맞는 로더로 인덱스를 갱신한다.
@@ -164,7 +164,7 @@ CBZ/ZIP의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한다(8
 - `PageUp/PageDown`: 10장 점프.
 - `Home/End`: 처음/마지막.
 - 루프 설정에 따라 wrap/clamp한다.
-- 양면 모드에서 임의 인덱스로 점프하면 쌍 시작 인덱스로 스냅한다(예: 3번으로 점프하면 `[2,3]` 또는 표지 단독 모드에서 `[3,4]`). 두 화면이 페이지를 겹쳐 보여주지 않게 한다.
+- 양쪽 모드에서 임의 인덱스로 점프하면 쌍 시작 인덱스로 스냅한다(예: 3번으로 점프하면 `[2,3]` 또는 표지 단독 모드에서 `[3,4]`). 두 화면이 페이지를 겹쳐 보여주지 않게 한다.
 - 웹툰 모드에서는 같은 동작이 연속 스크롤 이동으로 바뀐다.
 
 ### 5.5 손상 파일 건너뛰기
@@ -185,10 +185,10 @@ CBZ/ZIP의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한다(8
 | `right-to-left` | 현재 + 다음, 우에서 좌              | 2장(화면)   | 기본 + 1      |
 | `webtoon`       | 전 구간 연속 수직 스크롤, 지연 로드 | 스크롤 이동 | 기본 x 2      |
 
-- 양면 모드 페이지는 `[current, next]`이며 루프가 켜지면 wrap한다. 로드 실패 페이지는 제외한다.
+- 양쪽 모드 페이지는 `[current, next]`이며 루프가 켜지면 wrap한다. 로드 실패 페이지는 제외한다.
 - 표지 단독(`showCoverAlone`, 기본 true): 표지를 혼자 보여주고 그 뒤부터 `[표지+1, 표지+2]` 쌍을 맞춘다. 표지 인덱스는 CBZ/ZIP ComicInfo의 `FrontCover`(8절)를 쓰고, 메타데이터가 없거나 범위를 벗어나면 0번이다. 표지가 0번이 아니면 표지 바로 앞에 남는 페이지도 단독 화면이 된다. 표지 화면에서는 다음 페이지를 로드하지 않는다. 마지막에 남은 한 장은 기존 단일 중앙 렌더를 재사용한다.
 - 표지 단독을 끄면 표지 인덱스를 무시하고 `[0,1], [2,3], ...`로 넘긴다.
-- 양면 모드의 점프(썸네일/도크/`Home`/`End`/`PageUp`/`PageDown`)와 아카이브 이어보기 진입은 쌍 시작으로 스냅한다(`src/utils/dirNavigation.ts`).
+- 양쪽 모드의 점프(썸네일/도크/`Home`/`End`/`PageUp`/`PageDown`)와 아카이브 이어보기 진입은 쌍 시작으로 스냅한다(`src/utils/dirNavigation.ts`).
 - 웹툰 모드에서 `ArrowLeft/ArrowRight`는 이전/다음 이미지 스크롤 이동이다.
 - 웹툰 모드에서 `ArrowUp/ArrowDown`은 연속 스크롤 컨테이너를 일정량씩 스크롤한다.
 - 웹툰 이미지 사이 간격(`webtoonImageGap`, 기본 8px)과 페이지 경계선(`webtoonPageBoundaries`)을 설정한다.
@@ -233,7 +233,7 @@ CBZ/ZIP의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한다(8
 
 ### 7.5 GIF 재생 제어
 
-- 단일 보기에서 GIF는 캔버스로 그리며 재생/정지(`P`), 프레임 이동(`,`/`.`), 프레임 카운터를 제공한다. WebCodecs `ImageDecoder` 미지원 환경이나 정지 GIF, 양면/웹툰 보기에서는 네이티브 `<img>` 애니메이션으로 폴백한다.
+- 단일 보기에서 GIF는 캔버스로 그리며 재생/정지(`P`), 프레임 이동(`,`/`.`), 프레임 카운터를 제공한다. WebCodecs `ImageDecoder` 미지원 환경이나 정지 GIF, 양쪽/웹툰 보기에서는 네이티브 `<img>` 애니메이션으로 폴백한다.
 - 재생은 이미지 진입 시 자동 시작하며, OS 모션 최소화(`prefers-reduced-motion: reduce`)면 정지 상태로 시작한다.
 - 단일/다중 프레임 판정과 반복 횟수는 디코더 트랙 정보를 따르고, 유한 반복 GIF는 마지막 회차에서 멈춘다.
 - 헤더 컨트롤은 좁은 창(1024px 미만)에서 숨는다. 단축키와 명령 팔레트는 항상 쓸 수 있다.
@@ -248,9 +248,9 @@ CBZ/ZIP의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한다(8
 - `load_archive_image`: 활성 파생 이미지 캐시 루트의 `archives/` 아래에 추출 후 표시 가능한 경로로 반환한다.
 - `archive_prefetch`: 이웃 선추출용 fire-and-forget 명령이다.
 - 선추출 거리는 뷰 모드에 따라 보정되며 상한이 있다.
-- 이어보기: 아카이브 경로별 마지막 엔트리와 위치(엔트리명/인덱스/전체 페이지)를 최대 100개 LRU로 저장한다. `resumeReading`이 true이고 목록에 저장된 항목이 있으면 거기서 시작하며, 저장 위치에서 시작할 때 "이어보기" 토스트와 "처음부터" 동작을 함께 제공한다. 설정이 false면 항상 첫 페이지에서 열고 열기만으로 저장 위치를 0페이지로 덮지 않는다. 양면 모드에서는 저장 위치가 쌍 중간이면 쌍 시작으로 맞춰 연다.
+- 이어보기: 아카이브 경로별 마지막 엔트리와 위치(엔트리명/인덱스/전체 페이지)를 최대 100개 LRU로 저장한다. `resumeReading`이 true이고 목록에 저장된 항목이 있으면 거기서 시작하며, 저장 위치에서 시작할 때 "이어보기" 토스트와 "처음부터" 동작을 함께 제공한다. 설정이 false면 항상 첫 페이지에서 열고 열기만으로 저장 위치를 0페이지로 덮지 않는다. 양쪽 모드에서는 저장 위치가 쌍 중간이면 쌍 시작으로 맞춰 연다.
 - `get_comic_info`: CBZ/ZIP의 `ComicInfo.xml`(ComicRack/Komga/Kavita 스키마)을 읽기 전용 메타데이터로 반환한다. 탐색은 엔트리 basename이 `comicinfo.xml`인 항목(대소문자 무시)이며 루트를 우선하고 없으면 첫 중첩 경로를 쓴다. 상한 1 MiB, UTF-8(BOM 허용)과 UTF-16 LE/BE BOM을 지원한다. XML 부재나 CBZ/ZIP 이외 확장자는 `null`, 깨진 XML/디코딩 실패는 `corrupt`, 크기 초과는 `too_large`다. 필드 누락과 빈 값은 `null`로 정규화하고, `pages`는 `image` 오름차순으로 최대 1000개까지 담는다.
-- 표지 판정: `pages`에서 `page_type`이 `FrontCover`(대소문자·공백 무시)인 첫 페이지를 양면 보기 표지 인덱스로 쓴다(`src/utils/comicCover.ts`). `image`가 목록 범위를 벗어나면(1 기반으로 적은 파일 등) 0번으로 폴백하고, 이어보기 진입도 표지 기준 쌍 시작으로 스냅한다.
+- 표지 판정: `pages`에서 `page_type`이 `FrontCover`(대소문자·공백 무시)인 첫 페이지를 양쪽 보기 표지 인덱스로 쓴다(`src/utils/comicCover.ts`). `image`가 목록 범위를 벗어나면(1 기반으로 적은 파일 등) 0번으로 폴백하고, 이어보기 진입도 표지 기준 쌍 시작으로 스냅한다.
 - 열기 흐름: 아카이브를 열 때 `get_archive_images`와 `get_comic_info`를 병행 호출한다. 폴더 미리보기에서는 메타데이터를 읽지 않고, 이전 로드의 응답은 최신 로드 토큰이 아니면 커밋하지 않는다. 파싱 실패는 로드를 막지 않고 패널의 Comic 섹션에 에러로 표시한다.
 - 아카이브 모드 제한: 휴지통 이동, 이름 변경, 편집 저장은 안내와 함께 차단된다.
 - 추출 가드: 엔트리 1개당 200MB, solid 7z 블록 총량 2GB, 아카이브별 추출 디렉터리 1GB를 넘으면 `too_large`로 중단한다. RAR은 스트리밍 디코드에 bounded writer를 붙여 선언 크기를 위조한 헤더도 실제 할당 전에 막는다.
@@ -274,7 +274,7 @@ CBZ/ZIP의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한다(8
 | `memory-1gb` | 매우 큼   | 1GB         | 2             |
 | `memory-2gb` | 매우 큼   | 2GB         | 3             |
 
-- 일반 파일 프리페치 거리 보정: 웹툰은 기본 x 2, 양면은 기본 + 1, single은 기본.
+- 일반 파일 프리페치 거리 보정: 웹툰은 기본 x 2, 양쪽은 기본 + 1, single은 기본.
 - 캐시 키는 파일 경로 기준이며, 픽셀 데이터를 메모리에 오래 두지 않고 브라우저 이미지 캐시에 위임한다.
 - `memory-*`는 실제 프로세스 RAM 전체 사용량이 아니라 프론트 이미지 메타데이터 예산이다.
 
@@ -442,7 +442,7 @@ CBZ/ZIP의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한다(8
 | `includeSubfolders`     | 하위 폴더 포함(재귀)                                    | `false`                            |
 | `skipBrokenFiles`       | 손상 파일 자동 건너뛰기                                 | `false`                            |
 | `resumeReading`         | 아카이브 재진입 시 이어보기                             | `true`                             |
-| `showCoverAlone`        | 양면 보기에서 첫 페이지(표지)를 단독 표시               | `true`                             |
+| `showCoverAlone`        | 양쪽 보기에서 첫 페이지(표지)를 단독 표시               | `true`                             |
 | `showComicInfo`         | 정보 패널에 만화 정보(ComicInfo.xml) 섹션 표시          | `true`                             |
 | `fitMode`               | 맞춤 기억 `width \| height \| screen \| auto`           | `auto`                             |
 | `dockPosition`          | 이미지 목록 위치 `top \| bottom \| left \| right`       | `bottom`                           |
@@ -595,7 +595,7 @@ Rust와 TypeScript는 같은 모양을 유지한다.
 - `ImageDetails`: 16.2 모양 그대로. 색상 모드, 비트/채널, 생성/수정 시각, DPI, ICC 상태를 포함한다.
 - `ArchiveState`: `{ archivePath: string | null }`.
 - `ComicInfo`: CBZ/ZIP의 `ComicInfo.xml`(8절). `{ title, series, number, summary, writer, penciller, publisher, genre, tags, language_iso, age_rating, community_rating: string | null, count, volume, page_count: number | null, pages: ComicPage[] | null }`. `number`와 `community_rating`은 소수 값을 보존하려고 문자열이다.
-- `ComicPage`: `{ image: number, page_type: string | null }`. `image`는 ComicRack 스키마대로 0 기반 페이지 인덱스이고 `page_type`은 `FrontCover` 같은 값이다. 양면 표지 판정(6절)의 근거다.
+- `ComicPage`: `{ image: number, page_type: string | null }`. `image`는 ComicRack 스키마대로 0 기반 페이지 인덱스이고 `page_type`은 `FrontCover` 같은 값이다. 양쪽 표지 판정(6절)의 근거다.
 - `FileAssociation`: `{ extension, associated, current_prog_id, needs_os_confirmation }`.
 - `PsdThumbStatus`: 탐색기 썸네일 등록 상태(20.2절).
 - `SaveImageOptions`: camelCase `{ rotationCw, flipH, flipV, format?, overwrite, newFileName? }`.
@@ -633,7 +633,7 @@ Rust와 TypeScript는 같은 모양을 유지한다.
 - HEIC/HEIF/PSD는 JPEG sidecar를, 표시 해상도 제한이 걸린 큰 래스터는 `scaled/` 사본(9.4절)을 만든다. sidecar와 아카이브 추출물, 썸네일 캐시는 `cacheStorageMode`가 `persistent`면 Tauri 사용자 캐시 디렉터리의 버전된 루트에, `temporary`면 프로세스 수명 TempDir에 둔다.
 - JPEG/TIFF의 EXIF Orientation(1~8)은 WebView2 `<img>`가 자동 적용한다. 백엔드는 같은 기준을 따르도록 치수(`ImageInfo.width/height`, `get_image_details`), 썸네일, 편집 저장(`save_image_edits`)에 회전을 명시 적용한다(SVG/WebP/PNG/HEIC는 대상 아님).
 - `detect_pixel_art`는 표시 바이트 경로를 제한된 분석 이미지로 읽고, 작은 색상 팔레트·평탄도·동일 색상 run·주기적 경계 신호를 결합한다. ML 모델이나 네트워크를 사용하지 않으며, 분석 제한 초과·디코드 실패·불확실 결과는 안전하게 부드러운 표시로 대체한다.
-- `image-rendering`은 `smooth`와 `pixelated` 값을 사용한다. `smooth`는 브라우저의 고품질 보간 선호이며 특정 Bilinear 구현을 보장하지 않는다. `pixelated`는 확대 시 최근접 계열 보간을 요청한다. 픽셀 보존 판정(pixelated 모드와 확신 있는 자동 감지 포함)은 표시 배율이 1x 이상(확대)일 때만 적용되며, 축소 배율에서는 설정·감지와 무관하게 항상 `smooth`로 강제된다. nearest 축소는 스크린톤 같은 주기 패턴을 계단·무아레로 깨뜨린다. 단일 보기 배율은 `imageSize`에 대한 `zoom`이고, 웹툰/양면 보기는 렌더된 `<img>`에서 실측한다(측정 전에는 기존 판정 유지).
+- `image-rendering`은 `smooth`와 `pixelated` 값을 사용한다. `smooth`는 브라우저의 고품질 보간 선호이며 특정 Bilinear 구현을 보장하지 않는다. `pixelated`는 확대 시 최근접 계열 보간을 요청한다. 픽셀 보존 판정(pixelated 모드와 확신 있는 자동 감지 포함)은 표시 배율이 1x 이상(확대)일 때만 적용되며, 축소 배율에서는 설정·감지와 무관하게 항상 `smooth`로 강제된다. nearest 축소는 스크린톤 같은 주기 패턴을 계단·무아레로 깨뜨린다. 단일 보기 배율은 `imageSize`에 대한 `zoom`이고, 웹툰/양쪽 보기는 렌더된 `<img>`에서 실측한다(측정 전에는 기존 판정 유지).
 - 사용자 원본 파일은 필터링하지 않는다. 표시 해상도 상한 sidecar와 썸네일은 기존 파생 이미지 파이프라인을 유지하며, 픽셀 보존 판정은 메인 이미지 표시 힌트로만 사용한다.
 - 사용자가 여는 파일/폴더는 명령 실행 시 런타임에 asset scope로 허용한다.
 - CSP는 `default-src 'self'` 기반이며 `asset:`/`ipc:` 접근을 허용한다. dev 전용 설정은 `docs/development.md`를 따른다.

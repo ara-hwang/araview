@@ -26,7 +26,7 @@ export function useDirectoryNavigation(
   const comicInfo = useAppStore((state) => state.comicInfo)
   const coverIndex = resolveCoverIndex(comicInfo, dirImages?.images.length ?? 0)
 
-  // 양면 보기(ltr/rtl)는 2장씩 넘기고, 나머지는 1장씩 넘긴다.
+  // 양쪽 보기(ltr/rtl)는 2장씩 넘기고, 나머지는 1장씩 넘긴다.
   const isDualView = viewMode === "left-to-right" || viewMode === "right-to-left"
 
   const navigateImage = useCallback(
@@ -76,7 +76,7 @@ export function useDirectoryNavigation(
     async (index: number) => {
       if (!dirImages || dirImages.images.length === 0) return
 
-      // 양면 모드는 쌍 중간에 착지해도 쌍 시작으로 스냅해 두 화면이 겹치지 않게 한다.
+      // 양쪽 모드는 쌍 중간에 착지해도 쌍 시작으로 스냅해 두 화면이 겹치지 않게 한다.
       const clamped = isDualView
         ? resolvePairStart(index, dirImages.images.length, showCoverAlone, coverIndex)
         : Math.max(0, Math.min(index, dirImages.images.length - 1))

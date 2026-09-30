@@ -208,8 +208,8 @@ describe("useImageLoader ComicInfo", () => {
   })
 })
 
-describe("useImageLoader 양면 이어보기", () => {
-  it("표지 단독 양면 모드에서 쌍 중간 위치는 쌍 시작으로 연다", async () => {
+describe("useImageLoader 양쪽 이어보기", () => {
+  it("표지 단독 양쪽 모드에서 쌍 중간 위치는 쌍 시작으로 연다", async () => {
     useSettingsStore.setState({ viewMode: "left-to-right", showCoverAlone: true })
     useArchiveProgressStore.setState({
       progress: {

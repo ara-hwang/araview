@@ -79,7 +79,7 @@ export type SettingsState = {
   skipBrokenFiles: boolean
   /** 아카이브(만화) 재진입 시 마지막으로 본 페이지에서 이어본다 */
   resumeReading: boolean
-  /** 양면 보기에서 첫 페이지(표지)를 단독으로 표시한다 */
+  /** 양쪽 보기에서 첫 페이지(표지)를 단독으로 표시한다 */
   showCoverAlone: boolean
   /** 정보 패널에 CBZ/ZIP ComicInfo 섹션을 표시한다 */
   showComicInfo: boolean

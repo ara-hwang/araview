@@ -103,7 +103,7 @@ describe("useDirectoryNavigation 로드-표시-이동 플로우", () => {
     expect(useAppStore.getState().dirImages.current_index).toBe(0)
   })
 
-  it("양면 모드는 표지 단독이 꺼지면 2장씩 넘긴다", async () => {
+  it("양쪽 모드는 표지 단독이 꺼지면 2장씩 넘긴다", async () => {
     setup(0)
     useSettingsStore.setState({ viewMode: "left-to-right", showCoverAlone: false })
     const loadImage = vi.fn()
@@ -117,7 +117,7 @@ describe("useDirectoryNavigation 로드-표시-이동 플로우", () => {
     expect(useAppStore.getState().dirImages.current_index).toBe(2)
   })
 
-  it("양면 모드 표지 단독에서는 표지 다음이 2페이지다", async () => {
+  it("양쪽 모드 표지 단독에서는 표지 다음이 2페이지다", async () => {
     setup(0)
     useSettingsStore.setState({ viewMode: "left-to-right", showCoverAlone: true })
     const loadImage = vi.fn()
@@ -136,7 +136,7 @@ describe("useDirectoryNavigation 로드-표시-이동 플로우", () => {
     expect(useAppStore.getState().dirImages.current_index).toBe(3)
   })
 
-  it("양면 모드 표지 단독에서 2페이지의 이전은 표지다", async () => {
+  it("양쪽 모드 표지 단독에서 2페이지의 이전은 표지다", async () => {
     setup(1)
     useSettingsStore.setState({ viewMode: "right-to-left", showCoverAlone: true })
     const loadImage = vi.fn()
@@ -150,7 +150,7 @@ describe("useDirectoryNavigation 로드-표시-이동 플로우", () => {
     expect(useAppStore.getState().dirImages.current_index).toBe(0)
   })
 
-  it("양면 모드 점프는 쌍 시작으로 스냅한다", async () => {
+  it("양쪽 모드 점프는 쌍 시작으로 스냅한다", async () => {
     setup(0)
     useSettingsStore.setState({ viewMode: "left-to-right", showCoverAlone: true })
     const loadImage = vi.fn()

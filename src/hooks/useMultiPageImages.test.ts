@@ -68,7 +68,7 @@ afterEach(() => {
   cleanup()
 })
 
-describe("useMultiPageImages 양면 오프셋", () => {
+describe("useMultiPageImages 양쪽 오프셋", () => {
   it("표지 단독이 켜지면 첫 장만 로드한다", async () => {
     setup(0)
     const getOrLoadImage = vi.fn(async (path: string) => imgInfo(path))

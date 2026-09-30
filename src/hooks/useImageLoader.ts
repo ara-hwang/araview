@@ -203,7 +203,7 @@ export function useImageLoader() {
         const saved = resumeEnabled ? useArchiveProgressStore.getState().get(archivePath) : null
         const total = archiveImages.images.length
         const rawStartIndex = resolveArchiveStartIndex(archiveImages.images, saved)
-        // 양면 보기에서 쌍 중간에 착지하면 화면이 겹치므로 쌍 시작으로 맞춰 연다.
+        // 양쪽 보기에서 쌍 중간에 착지하면 화면이 겹치므로 쌍 시작으로 맞춰 연다.
         const settings = useSettingsStore.getState()
         const isDualView =
           settings.viewMode === "left-to-right" || settings.viewMode === "right-to-left"
@@ -399,7 +399,7 @@ export function useImageLoader() {
         if (resolvedDirInfo) {
           const resolvedIndex = resolvedDirInfo.images.indexOf(filePath)
           const nextIndex = resolvedIndex >= 0 ? resolvedIndex : resolvedDirInfo.current_index
-          // 보기 모드별 프리페치: 양면은 짝 페이지를, webtoon은 스크롤 앞쪽을 더 넓게.
+          // 보기 모드별 프리페치: 양쪽은 짝 페이지를, webtoon은 스크롤 앞쪽을 더 넓게.
           const baseDistance = getPrefetchDistance()
           const prefetchDistance =
             viewMode === "webtoon"

@@ -14,7 +14,7 @@ describe("resolveStepIndex", () => {
     expect(resolveStepIndex(1, 5, 1, false, "prev")).toBe(0)
   })
 
-  it("양면 보기(step 2)는 두 칸씩 이동한다", () => {
+  it("양쪽 보기(step 2)는 두 칸씩 이동한다", () => {
     expect(resolveStepIndex(0, 6, 2, false, "next")).toBe(2)
     expect(resolveStepIndex(4, 6, 2, false, "prev")).toBe(2)
   })

@@ -37,7 +37,7 @@ export function resolveOffsetIndex(
 }
 
 /**
- * 양면 보기(LTR/RTL)의 쌍 시작 인덱스.
+ * 양쪽 보기(LTR/RTL)의 쌍 시작 인덱스.
  * `coverAlone = false`면 `[0,1], [2,3], ...`, `true`면 `[0], [1,2], [3,4], ...`.
  * `coverIndex`는 단독으로 보여줄 표지 인덱스다(기본 0번, ComicInfo FrontCover).
  */
@@ -60,7 +60,7 @@ export function resolvePairStart(
 }
 
 /**
- * 양면 보기의 화면(쌍) 시작 인덱스 목록.
+ * 양쪽 보기의 화면(쌍) 시작 인덱스 목록.
  * 표지 단독이면 표지를 먼저 두고 그 뒤부터 홀수 시작으로 맞춘다.
  */
 function dualViewStarts(total: number, coverAlone: boolean, coverIndex: number): number[] {
@@ -81,7 +81,7 @@ function dualViewStarts(total: number, coverAlone: boolean, coverIndex: number):
 }
 
 /**
- * 양면 보기의 다음/이전 쌍 시작. 이동할 수 없으면 null(비루프 경계).
+ * 양쪽 보기의 다음/이전 쌍 시작. 이동할 수 없으면 null(비루프 경계).
  * `coverAlone = false`면 `resolveStepIndex(step = 2)`와 같은 결과를 낸다.
  */
 export function resolveDualStepIndex(
@@ -107,7 +107,7 @@ export function resolveDualStepIndex(
 }
 
 /**
- * 양면 보기에서 현재 인덱스 기준으로 함께 표시할 오프셋.
+ * 양쪽 보기에서 현재 인덱스 기준으로 함께 표시할 오프셋.
  * 단독 화면(표지, 표지 바로 앞에 남는 페이지)에서는 `[0]`만 반환해 다음 페이지를
  * 디코드하지 않는다.
  */
