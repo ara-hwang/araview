@@ -224,7 +224,7 @@ export function ImageContainer({
         app.isDragging && viewMode === "single" && "[&]:cursor-grabbing"
       )}
       onWheel={onWheel}
-      onMouseDown={viewMode === "single" ? onMouseDown : undefined}
+      onMouseDown={viewMode === "single" || isDual ? onMouseDown : undefined}
       onMouseMove={viewMode === "single" ? onMouseMove : undefined}
       onMouseUp={viewMode === "single" ? onMouseUp : undefined}
       onMouseLeave={viewMode === "single" ? onMouseUp : undefined}

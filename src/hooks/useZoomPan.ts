@@ -1,3 +1,4 @@
+import { getCurrentWindow } from "@tauri-apps/api/window"
 import { useCallback, useEffect, useLayoutEffect, useRef } from "react"
 import { useShallow } from "zustand/react/shallow"
 
@@ -62,11 +63,38 @@ export function useZoomPan() {
     (e: React.MouseEvent) => {
       if (e.button !== 0) return
       if (getMouseSettings().leftDrag !== "pan") return
-      if (app.imageInfo) {
-        startDrag(e.clientX, e.clientY)
+      if (!app.imageInfo) return
+      // 양쪽 보기는 팬이 없으므로 항상 창을 끌어 이동한다.
+      if (viewMode === "left-to-right" || viewMode === "right-to-left") {
+        void getCurrentWindow()
+          .startDragging()
+          .catch(() => {})
+        return
       }
+      // 이미지가 컨테이너에 모두 들어와 팬할 여지가 없으면 창을 끌어 이동한다.
+      const { containerSize, imageSize, rotation, zoom } = useAppStore.getState()
+      const oriented = getOrientedImageSize(imageSize.width, imageSize.height, rotation)
+      if (
+        containerSize.width > 0 &&
+        containerSize.height > 0 &&
+        oriented.width > 0 &&
+        oriented.height > 0 &&
+        isFullyContained(
+          containerSize.width,
+          containerSize.height,
+          oriented.width,
+          oriented.height,
+          zoom
+        )
+      ) {
+        void getCurrentWindow()
+          .startDragging()
+          .catch(() => {})
+        return
+      }
+      startDrag(e.clientX, e.clientY)
     },
-    [app.imageInfo]
+    [app.imageInfo, viewMode]
   )
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
