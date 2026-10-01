@@ -324,7 +324,7 @@ export function ImageContainer({
       {isDual && (
         <div
           className={cn(
-            "absolute inset-0 flex items-center justify-center gap-1 p-2",
+            "absolute inset-0 flex items-center justify-center",
             viewMode === "right-to-left" && "flex-row-reverse"
           )}
         >
