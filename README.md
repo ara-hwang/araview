@@ -24,6 +24,7 @@ npm run tauri dev
 - 사용법(단축키, 설정, 업데이트 확인): `docs/usage.md`
 - 개발 안내(환경, 실행, 스크립트, 구조): `docs/development.md`
 - 릴리스와 업데이트(maintainer): `docs/releasing.md`
+- 기여 안내: `CONTRIBUTING.md`
 - 제품 정의: `PRODUCT.md`
 - 기능/기술 명세: `SPEC.md`
 - 비주얼 시스템: `DESIGN.md`
