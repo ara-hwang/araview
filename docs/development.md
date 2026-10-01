@@ -140,18 +140,18 @@ src-tauri/
 
 ## 픽셀 보존 표시와 축소
 
-- 픽셀 보존(`pixelated`)은 확대 배율에서만 적용된다. 축소 배율에서는 nearest 계열 보간이 스크린톤 같은 주기 패턴을 계단·무아레로 깨뜨리므로 설정과 감지 결과와 무관하게 항상 smooth로 렌더한다(`src/utils/imageRendering.ts`의 배율 게이트).
-- 표시 해상도 상한 축소 sidecar(`src-tauri/src/scaled.rs`)도 감지 결과와 무관하게 항상 보간 필터(`Triangle`)를 사용한다. 축소는 픽셀을 버리는 연산이므로 픽셀 보존 판정이 의미가 없다.
+- 픽셀 보존(`pixelated`)은 확대 배율에서만 적용됩니다. 축소 배율에서는 nearest 계열 보간이 스크린톤 같은 주기 패턴을 계단·무아레로 깨뜨리므로 설정과 감지 결과와 무관하게 항상 smooth로 렌더합니다(`src/utils/imageRendering.ts`의 배율 게이트).
+- 표시 해상도 상한 축소 sidecar(`src-tauri/src/scaled.rs`)도 감지 결과와 무관하게 항상 보간 필터(`Triangle`)를 사용합니다. 축소는 픽셀을 버리는 연산이므로 픽셀 보존 판정이 의미가 없습니다.
 
 ## 픽셀 아트 감지 참고 자료
 
-`src-tauri/src/pixel_art.rs`의 감지는 AraView에서 작성한 경량 휴리스틱이다. 외부 모델이나 네트워크를 사용하지 않으며, 다음 공개 자료의 개념을 참고했다.
+`src-tauri/src/pixel_art.rs`의 감지는 AraView에서 작성한 경량 휴리스틱입니다. 외부 모델이나 네트워크를 사용하지 않으며, 다음 공개 자료의 개념을 참고했습니다.
 
 - [unfake.js](https://github.com/jenissimo/unfake.js), MIT License: 동일 색상 run과 반복 길이 기반 스케일 탐지, Sobel 경계 프로파일과 주기성 분석의 실용적인 조합
 - Johannes Kopf and Dani Lischinski, [Depixelizing Pixel Art](https://johanneskopf.de/publications/pixelart/paper/pixel.pdf): 작은 팔레트, 픽셀 단위 경계, 평탄한 색상 영역의 특징
 - [MDN image-rendering](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/image-rendering): `smooth`와 `pixelated` 표시 의미 및 브라우저 지원
 
-AraView는 참고 자료의 코드를 복사하거나 런타임 의존성으로 포함하지 않는다. 외부 코드나 모델을 추가할 때는 이 절과 `THIRD_PARTY_LICENSES.md`를 함께 갱신한다.
+AraView는 참고 자료의 코드를 복사하거나 런타임 의존성으로 포함하지 않습니다. 외부 코드나 모델을 추가할 때는 이 절과 `THIRD_PARTY_LICENSES.md`를 함께 갱신합니다.
 
 ## PSD 탐색기 썸네일 구현 메모
 

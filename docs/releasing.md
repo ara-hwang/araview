@@ -2,24 +2,24 @@
 
 maintainer용 안내입니다. 사용자용 업데이트 확인 방법은 `usage.md#업데이트-확인`을 봅니다. 배포 규격 진실은 `../SPEC.md` §20을 따릅니다.
 
-릴리스 기본 경로는 태그 푸시다. 버전을 올린 커밋에 `vX.Y.Z` 태그를 푸시하면 `.github/workflows/release.yml`이 검증(테스트, 타입, 포맷, cargo test/clippy, 보안 감사, 라이선스 검사), 서명 빌드, `latest.json` 생성, GitHub 릴리스 생성까지 자동으로 수행한다. 공개 저장소라 GitHub 호스팅 표준 러너는 무료다. `npm run release:local`은 CI를 못 쓸 때의 대체 경로다. `.github/workflows/ci.yml`은 PR과 main 푸시에서 자동으로 돌지 않고, Actions 탭에서 수동 실행할 때만 같은 검사를 돌린다.
+릴리스 기본 경로는 태그 푸시다. 버전을 올린 커밋에 `vX.Y.Z` 태그를 푸시하면 `.github/workflows/release.yml`이 검증(테스트, 타입, 포맷, cargo test/clippy, 보안 감사, 라이선스 검사), 서명 빌드, `latest.json` 생성, GitHub 릴리스 생성까지 자동으로 수행합니다. 공개 저장소라 GitHub 호스팅 표준 러너는 무료입니다. `npm run release:local`은 CI를 못 쓸 때의 대체 경로입니다. `.github/workflows/ci.yml`은 PR과 main 푸시에서 자동으로 돌지 않고, Actions 탭에서 수동 실행할 때만 같은 검사를 돌립니다.
 
 ## 태그로 자동 릴리스
 
 ```powershell
-# 1. 버전을 올리고 커밋한다(release_bump 도구 또는 4개 파일 직접 수정).
-# 2. 푸시한 뒤 태그를 만든다.
+# 1. 버전을 올리고 커밋합니다(release_bump 도구 또는 4개 파일 직접 수정).
+# 2. 푸시한 뒤 태그를 만듭니다.
 git push origin main
 git tag v1.0.1
 git push origin v1.0.1
 ```
 
-- 트리거는 `v숫자.숫자.숫자` 형식의 태그 푸시뿐이다(프리릴리스 접미사는 트리거하지 않는다).
-- 첫 단계에서 태그와 `package.json`, `Cargo.toml`, `Cargo.lock`, `tauri.conf.json`의 버전이 모두 같은지, `TAURI_SIGNING_PRIVATE_KEY` Secrets가 있는지 확인하고, 어긋나면 빌드 전에 실패한다.
-- 릴리스 본문은 `.github/RELEASE_TEMPLATE.md`를 채워 만든다. `{{CHANGES}}`(이전 태그 이후 커밋 목록), `{{COMPARE}}`(비교 링크) 자리표시자를 워크플로가 치환하므로, 문구를 바꾸려면 이 파일만 고친다.
-- 저장소 Secrets에 `TAURI_SIGNING_PRIVATE_KEY`와 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`를 등록해야 한다(아래 "서명키 발급과 등록"). 두 값은 저장소 Settings의 Secrets and variables에서 넣는다.
-- 실패하면 Actions에서 해당 실행을 재실행한다. 코드를 고쳐야 하면 태그를 지우고(`git push --delete origin vX.Y.Z`, `git tag -d vX.Y.Z`) 고친 커밋에 다시 붙인다. 이미 만들어진 릴리스가 있으면 함께 지운다.
-- 저장소 기본 워크플로 권한이 read여도 `contents: write`를 job에서 직접 선언하므로 별도 토큰 없이 동작한다. `RELEASE_TOKEN` 시크릿이 있으면 그것을 우선 쓴다.
+- 트리거는 `v숫자.숫자.숫자` 형식의 태그 푸시뿐입니다(프리릴리스 접미사는 트리거하지 않습니다).
+- 첫 단계에서 태그와 `package.json`, `Cargo.toml`, `Cargo.lock`, `tauri.conf.json`의 버전이 모두 같은지, `TAURI_SIGNING_PRIVATE_KEY` Secrets가 있는지 확인하고, 어긋나면 빌드 전에 실패합니다.
+- 릴리스 본문은 `.github/RELEASE_TEMPLATE.md`를 채워 만듭니다. `{{CHANGES}}`(이전 태그 이후 커밋 목록), `{{COMPARE}}`(비교 링크) 자리표시자를 워크플로가 치환하므로, 문구를 바꾸려면 이 파일만 고치면 됩니다.
+- 저장소 Secrets에 `TAURI_SIGNING_PRIVATE_KEY`와 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`를 등록해야 합니다(아래 "서명키 발급과 등록"). 두 값은 저장소 Settings의 Secrets and variables에서 넣습니다.
+- 실패하면 Actions에서 해당 실행을 재실행합니다. 코드를 고쳐야 하면 태그를 지우고(`git push --delete origin vX.Y.Z`, `git tag -d vX.Y.Z`) 고친 커밋에 다시 붙입니다. 이미 만들어진 릴리스가 있으면 함께 지웁니다.
+- 저장소 기본 워크플로 권한이 read여도 `contents: write`를 job에서 직접 선언하므로 별도 토큰 없이 동작합니다. `RELEASE_TOKEN` 시크릿이 있으면 그것을 우선 씁니다.
 
 ## 업데이트 피드
 
@@ -30,7 +30,7 @@ npm run release:local
 ```
 
 - 릴리스 자산은 기본으로 `ara-hwang/araview`에 게시되고, `plugins.updater.endpoints`는 `https://github.com/ara-hwang/araview/releases/latest/download/latest.json`을 가리킵니다.
-- 예전 별도 피드 저장소(`araview-updates`)는 삭제했다. 0.2.9 이하 설치본은 그 피드를 보므로 자동 업데이트를 받지 못하고, 1.0.0 이상 설치본을 직접 받아 설치해야 한다.
+- 예전 별도 피드 저장소(`araview-updates`)는 삭제했습니다. 0.2.9 이하 설치본은 그 피드를 보므로 자동 업데이트를 받지 못하고, 1.0.0 이상 설치본을 직접 받아 설치해야 합니다.
 - 앱은 다운로드가 끝나면 NSIS 설치 관리자를 실행하고 종료됩니다(updater 플러그인의 Windows 동작). 설치 관리자 실행 이후의 실패(사용자 취소, 디스크 부족 등)는 앱이 이미 종료된 뒤라 앱에서 피드백할 수 없고 NSIS 창이 표시합니다.
 
 ## 서명키 발급과 등록 (maintainer 1회)
@@ -74,7 +74,7 @@ updater 서명을 건너뜁니다. `.sig`가 없으므로 릴리스 배포에는
 
 ## 로컬에서 릴리스 (대체 경로)
 
-CI를 쓸 수 없을 때 쓴다. 서명 빌드와 태그 푸시, GitHub 릴리스 생성까지 이 PC에서 수행한다. 이 스크립트가 태그를 푸시하면 `release.yml`도 같은 태그로 돌아 원본 저장소에 같은 버전의 릴리스를 함께 만든다. 원본 저장소에는 CI 산출물만 남기려면 로컬 대체 경로를 쓰지 말고 태그 푸시를 쓴다.
+CI를 쓸 수 없을 때 씁니다. 서명 빌드와 태그 푸시, GitHub 릴리스 생성까지 이 PC에서 수행합니다. 이 스크립트가 태그를 푸시하면 `release.yml`도 같은 태그로 돌아 원본 저장소에 같은 버전의 릴리스를 함께 만듭니다. 원본 저장소에 CI 산출물만 남기려면 로컬 대체 경로를 쓰지 말고 태그 푸시를 쓰세요.
 
 ```powershell
 # .env.example을 .env.local로 복사해 키와 비밀번호를 채우면 환경변수 없이 동작합니다.
@@ -94,11 +94,11 @@ npm run release:local -- -Publish:$false  # 초안으로 남기기
 - 빌드를 건너뛰고 이미 만든 산출물을 올리려면 `-SkipBuild`, GitHub를 건드리지 않고 결과만 확인하려면 `-DryRun`을 씁니다.
 - 빌드가 코어를 모두 점유해 PC가 버벅이면 `-Jobs 4`처럼 cargo 병렬도를 낮춥니다(`CARGO_BUILD_JOBS`). 값이 클수록 빠르지만 부하가 커집니다.
 - `release:local`은 `--no-default-features`로 빌드해 MCP 브리지(dev-mcp)를 산출물에서 제외합니다. 설치본으로 MCP UI 검증을 하는 경로는 없고, 그 목적은 dev 빌드(`npm run dev:up`, 브리지 `127.0.0.1:9323`)가 담당합니다.
-- 같은 태그에 릴리스가 이미 있으면 그 릴리스의 자산을 덮어씁니다(`--clobber`). 같은 태그를 CI도 처리하므로 원본 저장소로 올릴 때는 둘 중 하나만 쓴다.
+- 같은 태그에 릴리스가 이미 있으면 그 릴리스의 자산을 덮어씁니다(`--clobber`). 같은 태그를 CI도 처리하므로 원본 저장소로 올릴 때는 둘 중 하나만 쓰세요.
 
 ## opencode 플러그인 도구
 
-`.opencode/plugins/araview-release.ts`가 `release` 네임스페이스로 두 툴을 등록합니다. 둘 다 릴리지를 실행하지 않습니다.
+`.opencode/plugins/araview-release.ts`가 `release` 네임스페이스로 두 툴을 등록합니다. 둘 다 릴리스를 실행하지 않습니다.
 
 - `release_preflight`: 실행 전 조건을 읽기 전용으로 검사해 READY/BLOCKED를 냅니다. 버전 4곳 일치, 작업 트리, 원격 동기화, 태그와 HEAD 관계, `gh` 로그인, 서명키 존재(경로만), 비밀번호 설정, updater endpoint가 가리키는 저장소, 기존 빌드 산출물을 봅니다. 서명키와 비밀번호 내용은 절대 출력하지 않습니다.
 - `release_bump`: `level`(patch/minor/major) 또는 `version`으로 `package.json`, `src-tauri/Cargo.toml`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.lock`의 `araview` 항목을 한 번에 올립니다. 네 곳이 이미 어긋나 있거나 태그가 있으면 거부하고, downgrade도 막습니다. 커밋은 하지 않습니다.
@@ -106,9 +106,9 @@ npm run release:local -- -Publish:$false  # 초안으로 남기기
 
 ```text
 릴리즈 준비:
-1. release_preflight 로 BLOCKED 항목부터 해결한다.
-2. 버전이 올려야 하면 release_bump 로 올리고 커밋한다(태그 vX.Y.Z는 아직 없음).
-3. 프리플라이트가 READY면 커밋을 푸시하고 `vX.Y.Z` 태그를 푸시한다(CI가 릴리스). CI를 못 쓸 때만 npm run release:local 을 실행한다.
+1. release_preflight로 BLOCKED 항목부터 해결합니다.
+2. 버전을 올려야 하면 release_bump로 올리고 커밋합니다(태그 vX.Y.Z는 아직 없음).
+3. 프리플라이트가 READY면 커밋을 푸시하고 `vX.Y.Z` 태그를 푸시합니다(CI가 릴리스). CI를 못 쓸 때만 npm run release:local을 실행합니다.
 ```
 
 - 플러그인 로드는 `.opencode/plugin/`과 `.opencode/plugins/` 양쪽 디렉터리에서 이루어지며, 파일은 default export에 `id`와 `setup`을 두어야 합니다. `setup`이 주는 `ctx.tool`은 런타임에만 있고 설치된 `@opencode-ai/plugin` 타입에는 아직 없어, 툴 도메인을 파일 안에서 좁게 선언해 캐스팅합니다.
