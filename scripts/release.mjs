@@ -140,12 +140,7 @@ const updated = files.map((file) => {
 for (const file of updated) writeFileSync(join(ROOT, file.path), file.text)
 
 function run(command, commandArgs, options = {}) {
-  const result = spawnSync(command, commandArgs, {
-    cwd: ROOT,
-    stdio: "inherit",
-    shell: true,
-    ...options
-  })
+  const result = spawnSync(command, commandArgs, { cwd: ROOT, stdio: "inherit", ...options })
   if (result.status !== 0) {
     git("checkout", "--", ...files.map((f) => f.path))
     fail(`${command} ${commandArgs.join(" ")} 실패. 버전 파일을 되돌렸다.`)
@@ -157,7 +152,7 @@ run("cargo", ["metadata", "--locked", "--no-deps", "--format-version", "1"], {
   cwd: join(ROOT, "src-tauri"),
   stdio: "ignore"
 })
-run("npm", ["run", "docs:check"], { stdio: "ignore" })
+run(process.execPath, [join(ROOT, "scripts", "check-docs.mjs")], { stdio: "ignore" })
 
 git("add", ...files.map((f) => f.path))
 git("commit", "-m", `chore: 버전 ${next}`)
