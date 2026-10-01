@@ -121,7 +121,7 @@ pub fn details_for_path(path: &Path) -> Result<ImageDetails, AppError> {
     if !path.is_file() {
         return Err(AppError::not_found("File not found"));
     }
-    let mime = crate::image::get_mime_type(path)
+    let mime = crate::image::resolve_mime(path)
         .ok_or_else(|| AppError::unsupported("Unsupported image format"))?;
     let meta = fs::metadata(path)
         .map_err(|e| AppError::io("Failed to read metadata", e, ErrorCode::Corrupt))?;

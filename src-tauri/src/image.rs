@@ -70,6 +70,17 @@ pub fn get_mime_type(path: &Path) -> Option<&'static str> {
     }
 }
 
+/// 확장자 판별에 파일 내용(매직 바이트) 판별을 겹친 MIME.
+/// 이름이 바뀐 파일(HEIC를 .jpg로 저장 등)도 올바른 렌더 경로를 타게 한다.
+/// 아카이브와 SVG는 시그니처가 불확실해 확장자를 따른다.
+pub fn resolve_mime(path: &Path) -> Option<&'static str> {
+    let by_ext = get_mime_type(path);
+    if by_ext.is_some_and(|m| m.starts_with("application/") || m == "image/svg+xml") {
+        return by_ext;
+    }
+    crate::sniff::sniff_file(path).or(by_ext)
+}
+
 pub fn paint_strategy(mime: &str) -> PaintStrategy {
     if TRANSCODE_MIMES.contains(&mime) {
         PaintStrategy::TranscodeJpeg
@@ -343,7 +354,7 @@ fn image_info_with_dims(
     paint_path: PathBuf,
     dims_override: Option<(u32, u32)>,
 ) -> Result<ImageInfo, AppError> {
-    let mime_type = get_mime_type(source)
+    let mime_type = resolve_mime(source)
         .ok_or_else(|| AppError::unsupported("Unsupported image format"))?
         .to_string();
     let metadata = std::fs::metadata(source)
@@ -394,7 +405,7 @@ pub fn load_viewable_with_limit_mode(
         return Err(AppError::not_found("File not found"));
     }
     let mime =
-        get_mime_type(source).ok_or_else(|| AppError::unsupported("Unsupported image format"))?;
+        resolve_mime(source).ok_or_else(|| AppError::unsupported("Unsupported image format"))?;
     let base_path = match paint_strategy(mime) {
         PaintStrategy::Native => source.to_path_buf(),
         PaintStrategy::TranscodeJpeg => crate::transcode::ensure_paint(source, mime)?,
@@ -631,6 +642,53 @@ mod tests {
             );
         }
         assert_eq!(SUPPORTED_EXTENSIONS.len(), 17);
+    }
+
+    #[test]
+    fn resolve_mime_prefers_content_over_extension() {
+        let dir = tempfile::tempdir().unwrap();
+        // 확장자가 틀린 PSD는 PSD 경로를 탄다.
+        let renamed = dir.path().join("design.jpg");
+        std::fs::write(
+            &renamed,
+            crate::psd_sidecar::minimal_psd_bytes(2, 2, [1, 2, 3]),
+        )
+        .unwrap();
+        assert_eq!(resolve_mime(&renamed), Some(crate::psd_sidecar::PSD_MIME));
+        assert_eq!(
+            paint_strategy(resolve_mime(&renamed).unwrap()),
+            PaintStrategy::TranscodeJpeg
+        );
+        // 확장자 없는 파일도 내용으로 판별한다.
+        let bare = dir.path().join("download");
+        std::fs::write(&bare, MIN_PNG).unwrap();
+        assert_eq!(resolve_mime(&bare), Some("image/png"));
+        // 시그니처가 불확실하면 확장자를 따른다.
+        let svg = dir.path().join("a.svg");
+        std::fs::write(&svg, b"<svg/>").unwrap();
+        assert_eq!(resolve_mime(&svg), Some("image/svg+xml"));
+        let fake = dir.path().join("fake.heic");
+        std::fs::write(&fake, b"not-a-real-heic").unwrap();
+        assert_eq!(resolve_mime(&fake), Some("image/heic"));
+        // 내용도 확장자도 모르면 None.
+        let junk = dir.path().join("notes");
+        std::fs::write(&junk, b"hello").unwrap();
+        assert_eq!(resolve_mime(&junk), None);
+    }
+
+    #[test]
+    fn mislabeled_psd_loads_through_the_psd_decoder() {
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("really-psd.png");
+        std::fs::write(
+            &source,
+            crate::psd_sidecar::minimal_psd_bytes(4, 2, [9, 9, 9]),
+        )
+        .unwrap();
+        let info = load_viewable(&source).expect("sniffed as PSD");
+        assert_eq!(info.mime_type, crate::psd_sidecar::PSD_MIME);
+        assert_ne!(info.file_path, info.source_path);
+        assert_eq!((info.width, info.height), (Some(4), Some(2)));
     }
 
     #[test]

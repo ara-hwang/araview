@@ -51,6 +51,8 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한�
 
 백엔드 판별:
 
+- MIME은 확장자를 1차로 보되, 렌더 경로를 정하는 `resolve_mime`(`image.rs`)이 파일 선두 32바이트 시그니처(`sniff.rs`)로 보정한다. 이름이 바뀐 파일(HEIC를 `.jpg`로 저장 등)이나 확장자 없는 파일도 올바른 경로를 탄다. 시그니처가 불확실한 SVG, 아카이브, TGA, HEIF/AVIF 공용 브랜드(`mif1`)는 확장자를 따른다. 폴더 목록은 확장자 기준 그대로다.
+
 - `is_image_file`: MIME이 `application/`으로 시작하지 않는 지원 파일.
 - `is_archive_file`: 위 2종 MIME 해당.
 - `is_supported_file`: 둘 중 하나.

@@ -19,7 +19,7 @@ pub enum Decoder {
 /// Decoder for the file, by MIME. AVIF is decoded through libheif for
 /// thumbnails and histograms even though WebView2 paints it natively.
 pub fn decoder_for(path: &Path) -> Option<Decoder> {
-    match crate::image::get_mime_type(path)? {
+    match crate::image::resolve_mime(path)? {
         "image/heic" | "image/heif" | "image/avif" => Some(Decoder::Heif),
         crate::psd_sidecar::PSD_MIME => Some(Decoder::Psd),
         mime if is_raster_mime(mime) => Some(Decoder::Raster),

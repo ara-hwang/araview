@@ -1,0 +1,149 @@
+//! Content-based format detection.
+//!
+//! The extension is the first guess everywhere (listings, associations), but a
+//! renamed file (`photo.jpg` that is really HEIC, an extensionless download)
+//! would otherwise be painted with the wrong strategy. The magic bytes decide
+//! when they recognise the file; formats without a reliable signature (TGA,
+//! SVG, ZIP-based archives) are left to the extension.
+
+use std::io::Read;
+use std::path::Path;
+
+/// Bytes needed to recognise every signature below.
+const HEAD_LEN: usize = 32;
+
+/// MIME for a recognised signature, `None` when the bytes say nothing certain.
+pub fn sniff_mime(head: &[u8]) -> Option<&'static str> {
+    if head.starts_with(&[0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A]) {
+        return Some("image/png");
+    }
+    if head.starts_with(&[0xFF, 0xD8, 0xFF]) {
+        return Some("image/jpeg");
+    }
+    if head.starts_with(b"GIF87a") || head.starts_with(b"GIF89a") {
+        return Some("image/gif");
+    }
+    if head.len() >= 12 && &head[..4] == b"RIFF" && &head[8..12] == b"WEBP" {
+        return Some("image/webp");
+    }
+    // "BM" alone is too weak; the reserved fields at 6..10 are always zero.
+    if head.len() >= 14 && head.starts_with(b"BM") && head[6..10] == [0, 0, 0, 0] {
+        return Some("image/bmp");
+    }
+    if head.starts_with(&[0, 0, 1, 0]) {
+        return Some("image/x-icon");
+    }
+    if head.starts_with(b"8BPS") {
+        return Some(crate::psd_sidecar::PSD_MIME);
+    }
+    if head.starts_with(b"DDS ") {
+        return Some("image/vnd.ms-dds");
+    }
+    if head.starts_with(&[0x76, 0x2F, 0x31, 0x01]) {
+        return Some("image/x-exr");
+    }
+    sniff_bmff(head)
+}
+
+/// ISO-BMFF `ftyp` major brand. `mif1`/`msf1` are shared by HEIF and AVIF, so
+/// they stay undecided and the extension breaks the tie.
+fn sniff_bmff(head: &[u8]) -> Option<&'static str> {
+    if head.len() < 12 || &head[4..8] != b"ftyp" {
+        return None;
+    }
+    match &head[8..12] {
+        b"avif" | b"avis" => Some("image/avif"),
+        b"heic" | b"heix" | b"hevc" | b"hevx" | b"heim" | b"heis" | b"hevm" | b"hevs" => {
+            Some("image/heic")
+        }
+        _ => None,
+    }
+}
+
+/// Read the first bytes of `path` and sniff them. I/O failures are `None` so
+/// callers fall back to the extension.
+pub fn sniff_file(path: &Path) -> Option<&'static str> {
+    let mut head = [0u8; HEAD_LEN];
+    let mut file = std::fs::File::open(path).ok()?;
+    let mut filled = 0;
+    while filled < HEAD_LEN {
+        match file.read(&mut head[filled..]) {
+            Ok(0) => break,
+            Ok(n) => filled += n,
+            Err(_) => return None,
+        }
+    }
+    sniff_mime(&head[..filled])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn bmff(brand: &[u8; 4]) -> Vec<u8> {
+        let mut v = vec![0, 0, 0, 24];
+        v.extend_from_slice(b"ftyp");
+        v.extend_from_slice(brand);
+        v.extend_from_slice(&[0; 12]);
+        v
+    }
+
+    #[test]
+    fn recognises_common_signatures() {
+        assert_eq!(
+            sniff_mime(&[0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A, 0]),
+            Some("image/png")
+        );
+        assert_eq!(sniff_mime(&[0xFF, 0xD8, 0xFF, 0xE0]), Some("image/jpeg"));
+        assert_eq!(sniff_mime(b"GIF89a\x01\x00"), Some("image/gif"));
+        assert_eq!(
+            sniff_mime(b"RIFF\x00\x00\x00\x00WEBPVP8 "),
+            Some("image/webp")
+        );
+        assert_eq!(sniff_mime(&[0, 0, 1, 0, 1, 0]), Some("image/x-icon"));
+        assert_eq!(
+            sniff_mime(b"8BPS\x00\x01"),
+            Some(crate::psd_sidecar::PSD_MIME)
+        );
+        assert_eq!(sniff_mime(b"DDS \x7c\x00"), Some("image/vnd.ms-dds"));
+        assert_eq!(
+            sniff_mime(&[0x76, 0x2F, 0x31, 0x01, 2, 0]),
+            Some("image/x-exr")
+        );
+    }
+
+    #[test]
+    fn bmp_needs_zero_reserved_fields() {
+        let mut bmp = b"BM".to_vec();
+        bmp.extend_from_slice(&[0x36, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x36, 0, 0, 0]);
+        assert_eq!(sniff_mime(&bmp), Some("image/bmp"));
+        assert_eq!(sniff_mime(b"BM is the start of this text file"), None);
+    }
+
+    #[test]
+    fn bmff_brands_split_heic_and_avif() {
+        assert_eq!(sniff_mime(&bmff(b"avif")), Some("image/avif"));
+        assert_eq!(sniff_mime(&bmff(b"heic")), Some("image/heic"));
+        // mif1 is shared by HEIF and AVIF; leave it to the extension.
+        assert_eq!(sniff_mime(&bmff(b"mif1")), None);
+    }
+
+    #[test]
+    fn unknown_and_short_input_is_undecided() {
+        assert_eq!(sniff_mime(b""), None);
+        assert_eq!(
+            sniff_mime(b"<svg xmlns=\"http://www.w3.org/2000/svg\">"),
+            None
+        );
+        assert_eq!(sniff_mime(b"PK\x03\x04"), None);
+    }
+
+    #[test]
+    fn sniff_file_reads_head_and_tolerates_missing_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("noext");
+        std::fs::write(&path, [0xFF, 0xD8, 0xFF, 0xE0, 0, 0]).unwrap();
+        assert_eq!(sniff_file(&path), Some("image/jpeg"));
+        assert_eq!(sniff_file(&dir.path().join("missing")), None);
+    }
+}
