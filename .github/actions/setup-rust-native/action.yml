@@ -1,0 +1,67 @@
+name: Setup Rust and native dependencies
+description: Rust 툴체인, 캐시, vcpkg libheif, PSD 썸네일 DLL 스테이징을 한 번에 준비한다.
+
+inputs:
+  cache-key:
+    description: Rust 캐시를 나누는 키. 검증과 릴리스 빌드가 서로 덮어쓰지 않게 다르게 준다.
+    required: true
+  sccache:
+    description: sccache를 켠다.
+    required: false
+    default: "false"
+
+runs:
+  using: composite
+  steps:
+    - name: Install Rust stable
+      uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+      with:
+        toolchain: 1.97
+        components: clippy, rustfmt
+
+    - name: Setup sccache
+      if: inputs.sccache == 'true'
+      uses: Mozilla-Actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
+
+    - name: Rust cache
+      uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      with:
+        workspaces: "./src-tauri -> target"
+        shared-key: ${{ inputs.cache-key }}
+
+    - name: Cache vcpkg
+      id: vcpkg-cache
+      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      with:
+        path: |
+          ${{ env.VCPKG_INSTALLATION_ROOT }}/installed
+          ${{ env.VCPKG_INSTALLATION_ROOT }}/packages
+          ${{ env.VCPKG_INSTALLATION_ROOT }}/buildtrees
+        key: vcpkg-libheif-x64-${{ hashFiles('src-tauri/Cargo.toml', 'src-tauri/Cargo.lock') }}
+        restore-keys: |
+          vcpkg-libheif-x64-
+
+    - name: Install libheif via vcpkg
+      if: steps.vcpkg-cache.outputs.cache-hit != 'true'
+      shell: pwsh
+      run: vcpkg install "libheif[core,aom]:x64-windows"
+
+    - name: Configure libheif environment
+      shell: pwsh
+      run: |
+        echo "VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT" | Out-File -FilePath $env:GITHUB_ENV -Append
+        echo "VCPKGRS_DYNAMIC=1" | Out-File -FilePath $env:GITHUB_ENV -Append
+        echo "PKG_CONFIG_PATH=$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\lib\pkgconfig" | Out-File -FilePath $env:GITHUB_ENV -Append
+        echo "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
+
+    # PSD 탐색기 썸네일 DLL을 먼저 빌드해 번들 resources에 스테이징한다.
+    # tauri.windows.conf.json bundle.resources가 src-tauri/resources/를 참조한다.
+    # DLL은 gitignored라 신규 체크아웃에 없으며, 스테이징 없이 cargo test/clippy를
+    # 돌리면 tauri 빌드 스크립트가 "resource path doesn't exist"로 실패한다.
+    - name: Build PSD thumbnail DLL
+      shell: pwsh
+      run: |
+        cd src-tauri
+        cargo build --release -p araview-thumb --no-default-features
+        New-Item -ItemType Directory -Force -Path resources | Out-Null
+        Copy-Item target/release/araview_thumb.dll resources/araview_thumb.dll -Force

@@ -19,19 +19,17 @@ concurrency:
 env:
   VCPKG_BINARY_SOURCES: clear;x-gha,readwrite
 
+permissions:
+  contents: read
+
 jobs:
-  publish-tauri:
-    permissions:
-      contents: write
-      # rustsec/audit-check가 결과를 check run으로 기록하는 데 필요하다.
-      checks: write
+  # 태그와 서명 키를 먼저 확인한다. 어긋나면 긴 검증을 돌리기 전에 바로 실패한다.
+  preflight:
     runs-on: windows-latest
+    timeout-minutes: 5
 
     steps:
-      # 릴리스 노트가 이전 태그 이후 커밋 목록을 쓰므로 전체 히스토리가 필요하다.
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          fetch-depth: 0
 
       # 태그와 버전 파일이 어긋난 채 릴리스되면 updater가 잘못된 버전을 안내한다.
       # 서명 키가 없으면 빌드는 통과하지만 .sig와 latest.json이 빠져 업데이트가 깨진다.
@@ -54,109 +52,46 @@ jobs:
             exit 1
           }
 
+  # 검증은 ci.yml을 그대로 재사용한다. 실패하면 publish-tauri는 시작하지 않는다.
+  verify:
+    needs: preflight
+    permissions:
+      contents: read
+      # rustsec/audit-check가 결과를 check run으로 기록하는 데 필요하다.
+      checks: write
+    uses: ./.github/workflows/ci.yml
+
+  publish-tauri:
+    needs: verify
+    permissions:
+      contents: write
+    runs-on: windows-latest
+    timeout-minutes: 90
+
+    steps:
+      # 릴리스 노트가 이전 태그 이후 커밋 목록을 쓰므로 전체 히스토리가 필요하다.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
       - name: Setup Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: lts/*
+          node-version: 22
           cache: npm
 
       - name: Install frontend dependencies
         run: npm ci
 
-      # ------------------------------------------------------------------
-      # 검증. 하나라도 실패하면 아래 빌드/릴리스 단계로 진행하지 않는다.
-      # ------------------------------------------------------------------
-      - name: Frontend tests
-        run: npm test
-
-      - name: Type check
-        run: npx tsc --noEmit
-
-      - name: Format check
-        run: npm run format:check
-
-      - name: Frontend dependency audit
-        run: npm audit --audit-level=moderate
-
-      - name: Install Rust stable
-        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+      # PSD 썸네일 DLL도 이 단계에서 스테이징된다.
+      - name: Setup Rust and native dependencies
+        uses: ./.github/actions/setup-rust-native
         with:
-          toolchain: 1.97
-          components: clippy, rustfmt
-
-      - name: Cargo fmt
-        run: cd src-tauri && cargo fmt --check
-
-      - name: Setup sccache
-        uses: Mozilla-Actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
-
-      - name: Rust cache
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
-        with:
-          workspaces: "./src-tauri -> target"
-
-      - name: Cache vcpkg
-        id: vcpkg-cache
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        with:
-          path: |
-            ${{ env.VCPKG_INSTALLATION_ROOT }}/installed
-            ${{ env.VCPKG_INSTALLATION_ROOT }}/packages
-            ${{ env.VCPKG_INSTALLATION_ROOT }}/buildtrees
-          key: vcpkg-libheif-x64-${{ hashFiles('src-tauri/Cargo.toml', 'src-tauri/Cargo.lock') }}
-          restore-keys: |
-            vcpkg-libheif-x64-
-
-      - name: Install libheif via vcpkg
-        if: steps.vcpkg-cache.outputs.cache-hit != 'true'
-        run: |
-          vcpkg install "libheif[core,aom]:x64-windows"
-          echo "VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT" | Out-File -FilePath $env:GITHUB_ENV -Append
-          echo "VCPKGRS_DYNAMIC=1" | Out-File -FilePath $env:GITHUB_ENV -Append
-          echo "PKG_CONFIG_PATH=$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\lib\pkgconfig" | Out-File -FilePath $env:GITHUB_ENV -Append
-          echo "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
-
-      - name: Configure libheif environment
-        if: steps.vcpkg-cache.outputs.cache-hit == 'true'
-        run: |
-          echo "VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT" | Out-File -FilePath $env:GITHUB_ENV -Append
-          echo "VCPKGRS_DYNAMIC=1" | Out-File -FilePath $env:GITHUB_ENV -Append
-          echo "PKG_CONFIG_PATH=$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\lib\pkgconfig" | Out-File -FilePath $env:GITHUB_ENV -Append
-          echo "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
-
-      # PSD 탐색기 썸네일 DLL을 먼저 빌드해 번들 resources에 스테이징한다.
-      # tauri.windows.conf.json bundle.resources가 src-tauri/resources/를 참조한다.
-      # DLL은 gitignored라 신규 체크아웃에 없으며, 스테이징 없이 cargo test/clippy를
-      # 돌리면 tauri 빌드 스크립트가 "resource path doesn't exist"로 실패한다.
-      - name: Build PSD thumbnail DLL
-        run: |
-          cd src-tauri
-          cargo build --release -p araview-thumb --no-default-features
-          New-Item -ItemType Directory -Force -Path resources | Out-Null
-          Copy-Item target/release/araview_thumb.dll resources/araview_thumb.dll -Force
-
-      - name: Cargo test
-        run: cd src-tauri && cargo test --workspace --no-default-features
-
-      - name: Cargo clippy
-        run: cd src-tauri && cargo clippy --workspace --no-default-features --all-targets -- -D warnings
-
-      - name: Rust dependency audit
-        uses: rustsec/audit-check@69366f33c96575abad1ee0dba8212993eecbe998 # v2
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          working-directory: src-tauri
-
-      # 허용 목록 밖의 라이선스(GPL 등), 알 수 없는 레지스트리/git 소스가 들어오면 실패한다.
-      # 설정: src-tauri/deny.toml. 설치 바이너리는 rust-cache가 함께 캐시한다.
-      - name: Rust license and source check
-        run: |
-          cargo install cargo-deny --version 0.20.2 --locked
-          cd src-tauri && cargo deny check licenses bans sources
+          cache-key: release
+          sccache: "true"
 
       # ------------------------------------------------------------------
-      # 릴리스. 검증을 모두 통과한 뒤에만 실행된다.
-      # PSD 썸네일 DLL은 위 검증 단계에서 이미 스테이징되어 있다.
+      # 릴리스. verify 잡을 통과한 뒤에만 실행된다.
       # ------------------------------------------------------------------
       # 릴리스 노트: 이전 태그 이후 커밋 목록으로 본문을 만든다.
       # tauri-action은 파일을 읽지 못하므로 multiline output으로 전달한다.
