@@ -344,19 +344,22 @@ pub fn validate_new_file_name(name: &str) -> Result<String, AppError> {
 }
 
 pub fn image_info(source: &Path, paint_path: PathBuf) -> Result<ImageInfo, AppError> {
-    image_info_with_dims(source, paint_path, None)
+    let mime =
+        resolve_mime(source).ok_or_else(|| AppError::unsupported("Unsupported image format"))?;
+    image_info_with_dims(source, mime, paint_path, None)
 }
 
 /// `dims_override`: 표시 바이트가 원본과 다른 기준(축소 sidecar)일 때의 치수.
 /// None이면 렌더 경로에서 계산한다(EXIF orientation 반영).
+/// `mime`은 호출자가 이미 판별한 값이다. 여기서 다시 판별하면 파일 선두를
+/// 한 번 더 읽게 된다.
 fn image_info_with_dims(
     source: &Path,
+    mime: &'static str,
     paint_path: PathBuf,
     dims_override: Option<(u32, u32)>,
 ) -> Result<ImageInfo, AppError> {
-    let mime_type = resolve_mime(source)
-        .ok_or_else(|| AppError::unsupported("Unsupported image format"))?
-        .to_string();
+    let mime_type = mime.to_string();
     let metadata = std::fs::metadata(source)
         .map_err(|e| AppError::io("Failed to read metadata", e, ErrorCode::Corrupt))?;
     let file_name = source
@@ -423,7 +426,7 @@ pub fn load_viewable_with_limit_mode(
         }
         None => base_path,
     };
-    image_info_with_dims(source, paint_path, dims_override)
+    image_info_with_dims(source, mime, paint_path, dims_override)
 }
 
 pub fn is_image_file(path: &Path) -> bool {
