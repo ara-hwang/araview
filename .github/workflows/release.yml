@@ -29,7 +29,7 @@ jobs:
     timeout-minutes: 5
 
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # 태그와 버전 파일이 어긋난 채 릴리스되면 updater가 잘못된 버전을 안내한다.
       # 서명 키가 없으면 빌드는 통과하지만 .sig와 latest.json이 빠져 업데이트가 깨진다.
@@ -70,12 +70,12 @@ jobs:
 
     steps:
       # 릴리스 노트가 이전 태그 이후 커밋 목록을 쓰므로 전체 히스토리가 필요하다.
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
       - name: Setup Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
           cache: npm
