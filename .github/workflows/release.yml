@@ -176,12 +176,15 @@ jobs:
             $compare = "$prev...$tag"
           }
           $log = git log $range --pretty=format:'- %s (%h)'
-          $lines = @("## 변경 사항", "") + $log
+          $changes = $log -join "`n"
+          $compareLine = ""
           if ($compare -ne "") {
-            $lines += ""
-            $lines += "전체 비교: https://github.com/${{ github.repository }}/compare/$compare"
+            $compareLine = "`n전체 비교: https://github.com/${{ github.repository }}/compare/$compare`n"
           }
-          $body = $lines -join "`n"
+          # 본문 형식은 .github/RELEASE_TEMPLATE.md에서 고친다.
+          $body = (Get-Content .github/RELEASE_TEMPLATE.md -Raw -Encoding utf8).TrimEnd()
+          $body = $body.Replace("{{VERSION}}", $tag.TrimStart("v")).Replace("{{TAG}}", $tag).Replace("{{REPO}}", "${{ github.repository }}")
+          $body = $body.Replace("{{CHANGES}}", $changes).Replace("{{COMPARE}}", $compareLine)
           "body<<EOF" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           $body | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           "EOF" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
