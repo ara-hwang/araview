@@ -1,5 +1,7 @@
 import { useTranslation } from "react-i18next"
 
+import { ExternalLink } from "@/components/ExternalLink"
+import { ReleaseNotes } from "@/components/ReleaseNotes"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -12,6 +14,8 @@ import {
 import { dismissUpdate, startUpdateDownload } from "@/hooks/useUpdater"
 import { useUpdateStore } from "@/store/updateStore"
 import { formatFileSize } from "@/utils/format"
+
+const RELEASES_URL = "https://github.com/ara-hwang/araview/releases"
 
 export function UpdateDialogs() {
   const { t } = useTranslation()
@@ -67,10 +71,19 @@ export function UpdateDialogs() {
               data-testid="update-notes"
               className="max-h-40 min-w-0 overflow-y-auto rounded-md border focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
             >
-              <p className="p-3 text-sm [overflow-wrap:anywhere] whitespace-pre-wrap text-muted-foreground">
-                {body?.trim() ? body : t("dialog.update.noNotes")}
-              </p>
+              {body?.trim() ? (
+                <ReleaseNotes markdown={body} />
+              ) : (
+                <p className="p-3 text-sm text-muted-foreground">{t("dialog.update.noNotes")}</p>
+              )}
             </div>
+            {version && (
+              <p className="text-xs text-muted-foreground">
+                <ExternalLink href={`${RELEASES_URL}/tag/v${version}`}>
+                  {t("dialog.update.releasePage")}
+                </ExternalLink>
+              </p>
+            )}
             <DialogFooter>
               <Button variant="outline" data-testid="update-later" onClick={() => dismissUpdate()}>
                 {t("dialog.update.later")}

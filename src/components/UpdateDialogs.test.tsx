@@ -43,6 +43,15 @@ describe("UpdateDialogs", () => {
     expect(mockDismiss).toHaveBeenCalledTimes(1)
   })
 
+  it("available 단계에서 해당 버전의 GitHub 릴리스 페이지 링크를 제공한다", () => {
+    useUpdateStore.getState().showAvailable("9.9.9", "notes")
+    render(<UpdateDialogs />)
+    const link = screen.getByRole("link", { name: "dialog.update.releasePage" })
+    expect(link.getAttribute("href")).toBe(
+      "https://github.com/ara-hwang/araview/releases/tag/v9.9.9"
+    )
+  })
+
   it("downloading 단계에서 진행률과 누적 바이트를 표시한다", () => {
     useUpdateStore.getState().showAvailable("9.9.9", null)
     useUpdateStore.getState().startDownload()

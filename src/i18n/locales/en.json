@@ -480,6 +480,7 @@
       "availableTitle": "Version {{version}} is available",
       "availableDesc": "Review the changes and choose whether to download.",
       "noNotes": "No release notes.",
+      "releasePage": "GitHub release page",
       "download": "Download",
       "later": "Later",
       "downloadingTitle": "Downloading update",
