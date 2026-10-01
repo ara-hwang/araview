@@ -192,7 +192,7 @@ Tauri Store (`settings.json`) is used for:
 3. Call from frontend using `invoke(...)` (usually from a hook)
 4. Update TypeScript types if payload/response shape changes
 
-### Prepare a local release
+### Prepare a release
 
 1. Run the `release_preflight` tool (`.opencode/plugins/araview-release.ts`).
    It is read-only and reports READY/BLOCKED for version consistency across the
@@ -202,10 +202,12 @@ Tauri Store (`settings.json`) is used for:
 2. Bump the version with the `release_bump` tool when the tag has to be new. It
    refuses when the four version files disagree or the target tag exists, and it
    does not commit.
-3. Commit the bump, then run `npm run release:local` from the shell. The plugin
-   deliberately has no tool that publishes; `git push` and `gh release create`
-   stay explicit shell steps.
-4. Full flow and plugin API notes: `docs/releasing.md`.
+3. Commit the bump, push `main`, then push the `vX.Y.Z` tag. The release
+   workflow (`.github/workflows/release.yml`) verifies the tag against the four
+   version files and the signing secret, then builds and publishes. The plugin
+   deliberately has no tool that pushes; `git push` and tagging stay explicit
+   shell steps. `npm run release:local` is only the fallback when CI is unusable.
+4. Full flow: `docs/releasing.md`.
 
 ## Testing Guidance
 

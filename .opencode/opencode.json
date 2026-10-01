@@ -17,7 +17,6 @@
     "external_directory": "ask",
     "doom_loop": "ask",
     "bash": {
-      "*": "allow",
       "rm -rf *": "deny",
       "git push *": "ask"
     },

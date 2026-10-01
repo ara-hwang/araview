@@ -7,7 +7,7 @@ maintainer용 안내입니다. 사용자용 업데이트 확인 방법은 `usage
 ## 태그로 자동 릴리스
 
 ```powershell
-# 1. 버전을 올리고 커밋합니다(release_bump 도구 또는 4개 파일 직접 수정).
+# 1. 버전을 올리고 커밋합니다(`package.json`, `Cargo.toml`, `Cargo.lock`, `tauri.conf.json` 4곳).
 # 2. 푸시한 뒤 태그를 만듭니다.
 git push origin main
 git tag v1.0.1
@@ -95,23 +95,3 @@ npm run release:local -- -Publish:$false  # 초안으로 남기기
 - 빌드가 코어를 모두 점유해 PC가 버벅이면 `-Jobs 4`처럼 cargo 병렬도를 낮춥니다(`CARGO_BUILD_JOBS`). 값이 클수록 빠르지만 부하가 커집니다.
 - `release:local`은 `--no-default-features`로 빌드해 MCP 브리지(dev-mcp)를 산출물에서 제외합니다. 설치본으로 MCP UI 검증을 하는 경로는 없고, 그 목적은 dev 빌드(`npm run dev:up`, 브리지 `127.0.0.1:9323`)가 담당합니다.
 - 같은 태그에 릴리스가 이미 있으면 그 릴리스의 자산을 덮어씁니다(`--clobber`). 같은 태그를 CI도 처리하므로 원본 저장소로 올릴 때는 둘 중 하나만 쓰세요.
-
-## opencode 플러그인 도구
-
-`.opencode/plugins/araview-release.ts`가 `release` 네임스페이스로 두 툴을 등록합니다. 둘 다 릴리스를 실행하지 않습니다.
-
-- `release_preflight`: 실행 전 조건을 읽기 전용으로 검사해 READY/BLOCKED를 냅니다. 버전 4곳 일치, 작업 트리, 원격 동기화, 태그와 HEAD 관계, `gh` 로그인, 서명키 존재(경로만), 비밀번호 설정, updater endpoint가 가리키는 저장소, 기존 빌드 산출물을 봅니다. 서명키와 비밀번호 내용은 절대 출력하지 않습니다.
-- `release_bump`: `level`(patch/minor/major) 또는 `version`으로 `package.json`, `src-tauri/Cargo.toml`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.lock`의 `araview` 항목을 한 번에 올립니다. 네 곳이 이미 어긋나 있거나 태그가 있으면 거부하고, downgrade도 막습니다. 커밋은 하지 않습니다.
-- `docs_preflight`(`.opencode/plugins/araview-docs.ts`, `docs` 네임스페이스): `npm run docs:check`와 같은 문서 정합성 검사를 읽기 전용으로 실행해 출력을 그대로 돌려줍니다. 수정은 하지 않습니다.
-
-```text
-릴리즈 준비:
-1. release_preflight로 BLOCKED 항목부터 해결합니다.
-2. 버전을 올려야 하면 release_bump로 올리고 커밋합니다(태그 vX.Y.Z는 아직 없음).
-3. 프리플라이트가 READY면 커밋을 푸시하고 `vX.Y.Z` 태그를 푸시합니다(CI가 릴리스). CI를 못 쓸 때만 npm run release:local을 실행합니다.
-```
-
-- 플러그인 로드는 `.opencode/plugin/`과 `.opencode/plugins/` 양쪽 디렉터리에서 이루어지며, 파일은 default export에 `id`와 `setup`을 두어야 합니다. `setup`이 주는 `ctx.tool`은 런타임에만 있고 설치된 `@opencode-ai/plugin` 타입에는 아직 없어, 툴 도메인을 파일 안에서 좁게 선언해 캐스팅합니다.
-- `editor.add`의 `name`은 필수입니다. 빠지면 등록이 조용히 버려지고 툴이 카탈로그에 뜨지 않습니다.
-- 툴 실행 결과는 `{ content: string }`로 돌려야 합니다. 문자열이나 `{ output }`은 브리지에서 거부됩니다(`output`은 출력 스키마 선언이 있을 때만 허용).
-- `.opencode/plugins/*.ts`는 `tsconfig.json`의 `include`가 `src`뿐이고 `.oxlintrc.json`/`.oxfmtrc.json`이 `.opencode`를 제외하므로 저장소 검사 대상이 아닙니다. opencode 자체 포맷터가 이 파일에 걸리면 `formatter exited unsuccessfully`가 로그에 남는데(oxfmt이 `.opencode`를 무시해서), 무해합니다.
