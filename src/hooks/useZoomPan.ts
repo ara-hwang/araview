@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef } from "react"
 import { useShallow } from "zustand/react/shallow"
 
+import { useEffectiveViewMode } from "@/hooks/useEffectiveViewMode"
 import {
   applyRememberedFit,
   useAppStore,
@@ -40,7 +41,7 @@ export function useZoomPan() {
   )
   const setIsDragging = useAppStore((state) => state.setIsDragging)
   const isFitLocked = useAppStore((state) => state.isFitLocked)
-  const viewMode = useSettingsStore((state) => state.viewMode)
+  const viewMode = useEffectiveViewMode()
   const fitMode = useSettingsStore((state) => state.fitMode)
 
   const prevZoomRef = useRef(1)

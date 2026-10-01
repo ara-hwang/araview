@@ -92,6 +92,8 @@ export type ComicInfo = {
   page_count: number | null
   age_rating: string | null
   community_rating: string | null
+  /** `Unknown` | `No` | `Yes` | `YesAndRightToLeft` 원문 (읽기 방향 판정용) */
+  manga: string | null
   pages: ComicPage[] | null
 }
 

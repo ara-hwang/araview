@@ -39,6 +39,7 @@ function comicInfoWithCover(image: number): ComicInfo {
     page_count: null,
     age_rating: null,
     community_rating: null,
+    manga: null,
     pages: [{ image, page_type: "FrontCover" }]
   }
 }

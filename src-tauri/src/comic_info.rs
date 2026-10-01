@@ -39,6 +39,8 @@ pub struct ComicInfo {
     pub age_rating: Option<String>,
     /// 소수 등급(`8.5`)을 보존하기 위해 문자열로 둔다.
     pub community_rating: Option<String>,
+    /// `Unknown` / `No` / `Yes` / `YesAndRightToLeft` 원문. 읽기 방향 판정용.
+    pub manga: Option<String>,
     /// 표지 판정용 페이지 목록. `image`는 ComicRack 스키마대로 0 기반이다.
     pub pages: Option<Vec<ComicPage>>,
 }
@@ -85,6 +87,8 @@ struct RawComicInfo {
     age_rating: Option<String>,
     #[serde(rename = "CommunityRating")]
     community_rating: Option<String>,
+    #[serde(rename = "Manga")]
+    manga: Option<String>,
     #[serde(rename = "Pages")]
     pages: Option<RawPages>,
 }
@@ -221,6 +225,7 @@ pub fn parse_comic_info(bytes: &[u8]) -> Result<ComicInfo, AppError> {
         page_count: normalize_number(raw.page_count),
         age_rating: normalize(raw.age_rating),
         community_rating: normalize(raw.community_rating),
+        manga: normalize(raw.manga),
         pages: normalize_pages(raw.pages),
     })
 }
@@ -341,6 +346,21 @@ mod tests {
         assert_eq!(pages[1].image, 1);
         assert_eq!(pages[1].page_type, None);
         assert_eq!(pages[2].image, 3);
+    }
+
+    #[test]
+    fn parses_manga_direction() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let archive = write_cbz(
+            dir.path(),
+            "comic.cbz",
+            &[(
+                "ComicInfo.xml",
+                b"<ComicInfo><Manga> YesAndRightToLeft </Manga></ComicInfo>",
+            )],
+        );
+        let info = read_comic_info(&archive).expect("read").expect("present");
+        assert_eq!(info.manga.as_deref(), Some("YesAndRightToLeft"));
     }
 
     #[test]

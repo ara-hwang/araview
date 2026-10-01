@@ -19,6 +19,7 @@ import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Slider } from "@/components/ui/slider"
 import { Switch } from "@/components/ui/switch"
+import { applyManualViewMode } from "@/store/appStore"
 import {
   updateSettings,
   useSettingsStore,
@@ -47,6 +48,7 @@ export function ViewTabPanel() {
       resumeReading: state.resumeReading,
       showCoverAlone: state.showCoverAlone,
       showComicInfo: state.showComicInfo,
+      comicAutoDualView: state.comicAutoDualView,
       autoHideUI: state.autoHideUI,
       menuBarHidden: state.menuBarHidden,
       alwaysOnTop: state.alwaysOnTop,
@@ -78,7 +80,7 @@ export function ViewTabPanel() {
       >
         <RadioGroup
           value={settings.viewMode}
-          onValueChange={(value) => handleSettingsChange({ viewMode: value as ViewMode })}
+          onValueChange={(value) => applyManualViewMode(value as ViewMode)}
         >
           <Field orientation="horizontal">
             <RadioGroupItem value="single" id="settings-view-single" />
@@ -238,6 +240,18 @@ export function ViewTabPanel() {
             onCheckedChange={(checked) => handleSettingsChange({ resumeReading: checked === true })}
           />
           <Label htmlFor="settings-reading-resume">{t("settings.reading.resume")}</Label>
+        </Field>
+        <Field orientation="horizontal">
+          <Switch
+            id="settings-reading-comic-auto-dual"
+            checked={settings.comicAutoDualView}
+            onCheckedChange={(checked) =>
+              handleSettingsChange({ comicAutoDualView: checked === true })
+            }
+          />
+          <Label htmlFor="settings-reading-comic-auto-dual">
+            {t("settings.reading.comicAutoDual")}
+          </Label>
         </Field>
         <Field orientation="horizontal">
           <Switch

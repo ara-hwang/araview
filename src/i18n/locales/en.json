@@ -199,6 +199,7 @@
       "title": "Reading",
       "desc": "Resume comics (CBZ and other archives) from the last page you viewed. Cover alone shows the first page by itself in dual view.",
       "resume": "Resume reading",
+      "comicAutoDual": "Open comic archives in dual view automatically (follows ComicInfo reading direction)",
       "coverAlone": "Show cover alone in dual view",
       "showComicInfo": "Show comic metadata (ComicInfo.xml) in the info panel"
     },

@@ -1,6 +1,6 @@
 import { create } from "zustand"
 
-import { updateSettings, useSettingsStore } from "@/store/settingsStore"
+import { updateSettings, useSettingsStore, type ViewMode } from "@/store/settingsStore"
 import {
   ComicInfo,
   DirectoryImages,
@@ -38,6 +38,11 @@ type AppState = {
   comicInfo: ComicInfo | null
   /** ComicInfo.xml 파싱 실패 메시지 (부재와 구분용) */
   comicInfoError: string | null
+  /**
+   * 만화 자동 양쪽 보기가 정한 보기 모드. null이면 `settings.viewMode`를 그대로 쓴다.
+   * 보기 모드를 직접 바꾸면 null로 돌아간다. 영속화하지 않음.
+   */
+  comicViewMode: ViewMode | null
   histogramData: ImageHistogram | null
   imageDetails: ImageDetails | null
   showExifPanel: boolean
@@ -111,6 +116,7 @@ const initialApp: AppState = {
   exifError: null,
   comicInfo: null,
   comicInfoError: null,
+  comicViewMode: null,
   histogramData: null,
   imageDetails: null,
   showExifPanel: false,
@@ -449,3 +455,9 @@ export const panLeft = () => panBy(PAN_STEP_PX, 0)
 export const panRight = () => panBy(-PAN_STEP_PX, 0)
 export const panUp = () => panBy(0, PAN_STEP_PX)
 export const panDown = () => panBy(0, -PAN_STEP_PX)
+
+/** 사용자가 보기 모드를 직접 고른다. 만화 자동 양쪽 보기 결정은 해제된다. */
+export const applyManualViewMode = (viewMode: ViewMode) => {
+  useAppStore.setState({ comicViewMode: null })
+  void updateSettings({ viewMode })
+}

@@ -29,8 +29,9 @@ vi.mock("@tauri-apps/plugin-store", () => ({
   }
 }))
 
+import { getEffectiveViewMode } from "@/hooks/useEffectiveViewMode"
 import { useImageLoader } from "@/hooks/useImageLoader"
-import { closeImage, useAppStore } from "@/store/appStore"
+import { applyManualViewMode, closeImage, useAppStore } from "@/store/appStore"
 import { useArchiveProgressStore } from "@/store/archiveProgressStore"
 import { useSettingsStore } from "@/store/settingsStore"
 import type { ComicInfo, DirectoryImages, ImageInfo } from "@/types"
@@ -64,6 +65,7 @@ const comicInfo = (series: string, pages: ComicInfo["pages"] = null): ComicInfo 
   page_count: null,
   age_rating: null,
   community_rating: null,
+  manga: null,
   pages
 })
 
@@ -112,6 +114,7 @@ beforeEach(() => {
     loopNavigation: false,
     resumeReading: true,
     showCoverAlone: true,
+    comicAutoDualView: false,
     recordRecentFiles: false,
     imageScalingMode: "auto",
     autoDetectPixelArt: true
@@ -303,6 +306,52 @@ describe("useImageLoader 양쪽 이어보기", () => {
     })
 
     expect(useAppStore.getState().dirImages.current_index).toBe(2)
+  })
+})
+
+describe("useImageLoader 만화 자동 양쪽 보기", () => {
+  async function openArchive() {
+    const { result } = renderHook(() => useImageLoader())
+    await act(async () => {
+      await result.current.loadImage(ARCHIVE_PATH, { archiveOpen: "full" })
+    })
+  }
+
+  it("옵션이 켜져 있으면 ComicInfo 없이도 좌→우 양쪽 보기로 연다", async () => {
+    useSettingsStore.setState({ comicAutoDualView: true })
+
+    await openArchive()
+
+    expect(useAppStore.getState().comicViewMode).toBe("left-to-right")
+    expect(getEffectiveViewMode()).toBe("left-to-right")
+  })
+
+  it("ComicInfo Manga가 YesAndRightToLeft면 우→좌로 연다", async () => {
+    useSettingsStore.setState({ comicAutoDualView: true })
+    setupInvoke({
+      get_comic_info: async () => ({ ...comicInfo("만화"), manga: "YesAndRightToLeft" })
+    })
+
+    await openArchive()
+
+    expect(useAppStore.getState().comicViewMode).toBe("right-to-left")
+  })
+
+  it("옵션이 꺼져 있으면 설정된 보기 모드를 그대로 쓴다", async () => {
+    await openArchive()
+
+    expect(useAppStore.getState().comicViewMode).toBeNull()
+    expect(getEffectiveViewMode()).toBe("single")
+  })
+
+  it("보기 모드를 직접 고르면 자동 결정이 해제된다", async () => {
+    useSettingsStore.setState({ comicAutoDualView: true })
+    await openArchive()
+
+    applyManualViewMode("single")
+
+    expect(useAppStore.getState().comicViewMode).toBeNull()
+    expect(getEffectiveViewMode()).toBe("single")
   })
 })
 

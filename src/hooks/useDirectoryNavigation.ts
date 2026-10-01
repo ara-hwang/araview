@@ -1,5 +1,6 @@
 import { useCallback } from "react"
 
+import { useEffectiveViewMode } from "@/hooks/useEffectiveViewMode"
 import { updateDirImagesIndex, useAppStore } from "@/store/appStore"
 import { useSettingsStore } from "@/store/settingsStore"
 import { resolveCoverIndex } from "@/utils/comicCover"
@@ -21,7 +22,7 @@ export function useDirectoryNavigation(
   const dirImages = useAppStore((state) => state.dirImages)
   const archivePath = useAppStore((state) => state.archivePath)
   const loopNavigation = useSettingsStore((state) => state.loopNavigation)
-  const viewMode = useSettingsStore((state) => state.viewMode)
+  const viewMode = useEffectiveViewMode()
   const showCoverAlone = useSettingsStore((state) => state.showCoverAlone)
   const comicInfo = useAppStore((state) => state.comicInfo)
   const coverIndex = resolveCoverIndex(comicInfo, dirImages?.images.length ?? 0)

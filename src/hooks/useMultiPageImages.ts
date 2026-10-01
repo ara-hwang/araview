@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { useShallow } from "zustand/react/shallow"
 
+import { useEffectiveViewMode } from "@/hooks/useEffectiveViewMode"
 import { useAppStore } from "@/store/appStore"
 import { useSettingsStore } from "@/store/settingsStore"
 import type { ImageInfo } from "@/types"
@@ -23,9 +24,9 @@ export type MultiPage = {
 }
 
 export function useMultiPageImages(getOrLoadImage: GetOrLoadImage) {
-  const { viewMode, loopNavigation, showCoverAlone } = useSettingsStore(
+  const viewMode = useEffectiveViewMode()
+  const { loopNavigation, showCoverAlone } = useSettingsStore(
     useShallow((s) => ({
-      viewMode: s.viewMode,
       loopNavigation: s.loopNavigation,
       showCoverAlone: s.showCoverAlone
     }))

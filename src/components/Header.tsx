@@ -35,6 +35,7 @@ import { formatShortcutDisplay } from "@/constants/shortcuts"
 import { useAlwaysOnTop } from "@/hooks/useAlwaysOnTop"
 import { useCloseImage } from "@/hooks/useCloseImage"
 import { requestOpenSettings, usePaletteStore } from "@/hooks/useCommandPalette"
+import { useEffectiveViewMode } from "@/hooks/useEffectiveViewMode"
 import { useExifLoader } from "@/hooks/useExifLoader"
 import { useImageLoader } from "@/hooks/useImageLoader"
 import { useSnapLayout } from "@/hooks/useSnapLayout"
@@ -48,6 +49,7 @@ import {
   setZoomToFit,
   zoomIn,
   zoomOut,
+  applyManualViewMode,
   useAppStore
 } from "@/store/appStore"
 import { updateSettings, useSettingsStore, type ViewMode } from "@/store/settingsStore"
@@ -88,7 +90,7 @@ export default function Header({
   const shortcuts = useSettingsStore((state) => state.shortcuts)
   const menuBarHidden = useSettingsStore((state) => state.menuBarHidden)
   const fitMode = useSettingsStore((state) => state.fitMode)
-  const viewMode = useSettingsStore((state) => state.viewMode)
+  const viewMode = useEffectiveViewMode()
   const withShortcut = (label: string, binding: string) =>
     binding ? `${label} (${formatShortcutDisplay(binding)})` : label
   // ToggleGroup(single)은 값 배열로 동작한다. auto는 선택 없음(빈 배열)으로 둔다.
@@ -109,7 +111,7 @@ export default function Header({
       next === "right-to-left" ||
       next === "webtoon"
     ) {
-      void updateSettings({ viewMode: next })
+      applyManualViewMode(next)
     }
   }
   const [isMaximized, setIsMaximized] = useState(false)

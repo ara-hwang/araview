@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 
 import { toast } from "@/components/ui/toast"
 import { SUPPORTED_IMAGE_EXTENSIONS } from "@/constants/imageExtensions"
+import { getEffectiveViewMode, useEffectiveViewMode } from "@/hooks/useEffectiveViewMode"
 import { useImageCache } from "@/hooks/useImageCache"
 import { clearPixelArtDetectionCache } from "@/hooks/usePixelArtDetection"
 import i18n from "@/i18n"
@@ -16,6 +17,7 @@ import { errorCopyDetails, errorMessage } from "@/utils/appError"
 import { isArchiveFilePath } from "@/utils/archiveFile"
 import { resolveArchiveStartIndex } from "@/utils/archiveResume"
 import { resolveCoverIndex } from "@/utils/comicCover"
+import { resolveComicViewMode } from "@/utils/comicViewMode"
 import { buildDirListOptions } from "@/utils/directoryOptions"
 import { resolvePairStart } from "@/utils/dirNavigation"
 import { beginImageLoad, isCurrentImageLoad } from "@/utils/imageLoadSession"
@@ -64,7 +66,7 @@ export type LoadImageOptions = {
 export function useImageLoader() {
   const dirImages = useAppStore((state) => state.dirImages)
   const loopNavigation = useSettingsStore((state) => state.loopNavigation)
-  const viewMode = useSettingsStore((state) => state.viewMode)
+  const viewMode = useEffectiveViewMode()
 
   const { getOrLoadImage, prefetchNearbyImages, getPrefetchDistance, clearImageMetaCache } =
     useImageCache()
@@ -81,8 +83,9 @@ export function useImageLoader() {
       if (settings.cacheMode === "off") return
       const baseDistance = getPrefetchDistance()
       if (baseDistance <= 0) return
+      const effectiveViewMode = getEffectiveViewMode()
       const bonus =
-        settings.viewMode === "webtoon" ? baseDistance : settings.viewMode === "single" ? 0 : 1
+        effectiveViewMode === "webtoon" ? baseDistance : effectiveViewMode === "single" ? 0 : 1
       const distance = Math.min(Math.max(baseDistance + bonus, 1), 2)
       // 디스크 선추출은 오픈 1회 배치로, 픽셀 예열은 기존 경로로.
       const total = images.length
@@ -188,7 +191,8 @@ export function useImageLoader() {
         archivePath,
         archivePreviewPath: null,
         comicInfo: null,
-        comicInfoError: null
+        comicInfoError: null,
+        comicViewMode: null
       })
       try {
         const archiveImages = await invoke<DirectoryImages>("get_archive_images", {
@@ -205,8 +209,14 @@ export function useImageLoader() {
         const rawStartIndex = resolveArchiveStartIndex(archiveImages.images, saved)
         // 양쪽 보기에서 쌍 중간에 착지하면 화면이 겹치므로 쌍 시작으로 맞춰 연다.
         const settings = useSettingsStore.getState()
-        const isDualView =
-          settings.viewMode === "left-to-right" || settings.viewMode === "right-to-left"
+        // 만화 자동 양쪽 보기: 방향은 ComicInfo(Manga)를 우선한다.
+        const comicViewMode = resolveComicViewMode(
+          settings.viewMode,
+          settings.comicAutoDualView,
+          comic.info
+        )
+        const openViewMode = comicViewMode ?? settings.viewMode
+        const isDualView = openViewMode === "left-to-right" || openViewMode === "right-to-left"
         const startIndex = isDualView
           ? resolvePairStart(
               rawStartIndex,
@@ -229,7 +239,8 @@ export function useImageLoader() {
           dirImages: {
             ...archiveImages,
             current_index: startIndex
-          }
+          },
+          comicViewMode
         })
         setImageInfoAndResetView(imgInfo)
 

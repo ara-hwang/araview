@@ -83,6 +83,8 @@ export type SettingsState = {
   showCoverAlone: boolean
   /** 정보 패널에 CBZ/ZIP ComicInfo 섹션을 표시한다 */
   showComicInfo: boolean
+  /** 아카이브(만화)를 열면 자동으로 양쪽 보기로 본다. ComicInfo의 Manga 방향을 따른다 */
+  comicAutoDualView: boolean
   fitMode: FitMode
   dockPosition: DockPosition
   dockVisible: boolean
@@ -129,6 +131,7 @@ const initialSettings: SettingsState = {
   resumeReading: true,
   showCoverAlone: true,
   showComicInfo: true,
+  comicAutoDualView: true,
   fitMode: "auto",
   dockPosition: "bottom",
   dockVisible: true,
@@ -241,6 +244,10 @@ export function sanitizeSettings(value: unknown): SettingsState {
       record.showComicInfo === undefined
         ? initialSettings.showComicInfo
         : sanitizeBoolean(record.showComicInfo),
+    comicAutoDualView:
+      record.comicAutoDualView === undefined
+        ? initialSettings.comicAutoDualView
+        : sanitizeBoolean(record.comicAutoDualView),
     fitMode: sanitizeEnum(record.fitMode, FIT_MODES, initialSettings.fitMode),
     dockPosition: sanitizeEnum(record.dockPosition, DOCK_POSITIONS, initialSettings.dockPosition),
     dockVisible:

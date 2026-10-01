@@ -98,6 +98,7 @@ const comicInfo: ComicInfo = {
   page_count: 20,
   age_rating: null,
   community_rating: "8.5",
+  manga: null,
   pages: [{ image: 0, page_type: "FrontCover" }]
 }
 

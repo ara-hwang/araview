@@ -1,5 +1,6 @@
 import { useMemo } from "react"
 
+import { useEffectiveViewMode } from "@/hooks/useEffectiveViewMode"
 import { useAppStore } from "@/store/appStore"
 import { useSettingsStore } from "@/store/settingsStore"
 import { resolveCoverIndex } from "@/utils/comicCover"
@@ -15,7 +16,7 @@ export function useCurrentPageIndices(): Set<number> {
   const currentIndex = useAppStore((state) => state.dirImages.current_index)
   const total = useAppStore((state) => state.dirImages.images.length)
   const comicInfo = useAppStore((state) => state.comicInfo)
-  const viewMode = useSettingsStore((state) => state.viewMode)
+  const viewMode = useEffectiveViewMode()
   const showCoverAlone = useSettingsStore((state) => state.showCoverAlone)
   const loopNavigation = useSettingsStore((state) => state.loopNavigation)
 

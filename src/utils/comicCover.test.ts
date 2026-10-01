@@ -20,6 +20,7 @@ function comic(pages: ComicPage[] | null): ComicInfo {
     page_count: null,
     age_rating: null,
     community_rating: null,
+    manga: null,
     pages
   }
 }
