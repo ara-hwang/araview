@@ -26,11 +26,18 @@ pub enum PaintStrategy {
     TranscodeJpeg,
 }
 
-const TRANSCODE_MIMES: &[&str] = &["image/heic", "image/heif", crate::psd_sidecar::PSD_MIME];
+const TRANSCODE_MIMES: &[&str] = &[
+    "image/heic",
+    "image/heif",
+    crate::psd_sidecar::PSD_MIME,
+    "image/x-tga",
+    "image/vnd.ms-dds",
+    "image/x-exr",
+];
 
 pub const SUPPORTED_EXTENSIONS: &[&str] = &[
-    "png", "jpg", "jpeg", "gif", "bmp", "webp", "svg", "ico", "avif", "heic", "heif", "psd", "cbz",
-    "zip",
+    "png", "jpg", "jpeg", "gif", "bmp", "webp", "svg", "ico", "avif", "heic", "heif", "psd", "tga",
+    "dds", "exr", "cbz", "zip",
 ];
 
 #[derive(Serialize)]
@@ -54,6 +61,9 @@ pub fn get_mime_type(path: &Path) -> Option<&'static str> {
         "heic" => Some("image/heic"),
         "heif" => Some("image/heif"),
         "psd" => Some(crate::psd_sidecar::PSD_MIME),
+        "tga" => Some("image/x-tga"),
+        "dds" => Some("image/vnd.ms-dds"),
+        "exr" => Some("image/x-exr"),
         "cbz" => Some("application/vnd.comicbook+zip"),
         "zip" => Some("application/zip"),
         _ => None,
@@ -620,7 +630,7 @@ mod tests {
                 "missing MIME mapping for .{ext}"
             );
         }
-        assert_eq!(SUPPORTED_EXTENSIONS.len(), 14);
+        assert_eq!(SUPPORTED_EXTENSIONS.len(), 17);
     }
 
     #[test]
@@ -630,13 +640,16 @@ mod tests {
     }
 
     #[test]
-    fn paint_strategy_transcodes_heic_heif_psd_only() {
+    fn paint_strategy_transcodes_only_formats_webview_cannot_paint() {
         assert_eq!(paint_strategy("image/heic"), PaintStrategy::TranscodeJpeg);
         assert_eq!(paint_strategy("image/heif"), PaintStrategy::TranscodeJpeg);
         assert_eq!(
             paint_strategy("image/vnd.adobe.photoshop"),
             PaintStrategy::TranscodeJpeg
         );
+        for mime in ["image/x-tga", "image/vnd.ms-dds", "image/x-exr"] {
+            assert_eq!(paint_strategy(mime), PaintStrategy::TranscodeJpeg, "{mime}");
+        }
         assert_eq!(paint_strategy("image/png"), PaintStrategy::Native);
         assert_eq!(paint_strategy("image/jpeg"), PaintStrategy::Native);
         assert_eq!(paint_strategy("image/avif"), PaintStrategy::Native);

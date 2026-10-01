@@ -28,6 +28,10 @@ export function getEffectivePath(
 /** PSD 미리보기 MIME. `file_path`는 JPEG sidecar일 수 있어 판정은 MIME/파일명 기준. */
 export const PSD_MIME_TYPE = "image/vnd.adobe.photoshop"
 
+/** JPEG sidecar로만 미리보는 TGA/DDS/EXR MIME. 저장은 진입 차단된다. */
+const READ_ONLY_PREVIEW_MIMES = ["image/x-tga", "image/vnd.ms-dds", "image/x-exr"]
+const READ_ONLY_PREVIEW_EXTENSIONS = [".tga", ".dds", ".exr"]
+
 /** SVG MIME. 래스터 편집 파이프라인으로 저장할 수 없어 진입 차단된다. */
 export const SVG_MIME_TYPE = "image/svg+xml"
 
@@ -39,6 +43,16 @@ export function isPsdImage(imageInfo: Pick<ImageInfo, "mime_type" | "file_name">
   if (!imageInfo) return false
   if (imageInfo.mime_type === PSD_MIME_TYPE) return true
   return imageInfo.file_name.toLowerCase().endsWith(".psd")
+}
+
+/** 읽기 전용 TGA/DDS/EXR 미리보기인지. */
+export function isReadOnlyPreviewImage(
+  imageInfo: Pick<ImageInfo, "mime_type" | "file_name"> | null
+): boolean {
+  if (!imageInfo) return false
+  if (READ_ONLY_PREVIEW_MIMES.includes(imageInfo.mime_type)) return true
+  const name = imageInfo.file_name.toLowerCase()
+  return READ_ONLY_PREVIEW_EXTENSIONS.some((ext) => name.endsWith(ext))
 }
 
 /** 저장 불가 SVG인지. 저장은 진입 차단된다. */
@@ -55,13 +69,14 @@ export function isAvifImage(imageInfo: Pick<ImageInfo, "mime_type" | "file_name"
   return imageInfo.file_name.toLowerCase().endsWith(".avif")
 }
 
-export type SaveBlockedReason = "noPsd" | "noSvg" | "noAvif"
+export type SaveBlockedReason = "noPsd" | "noReadOnly" | "noSvg" | "noAvif"
 
 /** 저장 진입 차단 사유. null이면 저장 가능. */
 export function saveBlockedReason(
   imageInfo: Pick<ImageInfo, "mime_type" | "file_name"> | null
 ): SaveBlockedReason | null {
   if (isPsdImage(imageInfo)) return "noPsd"
+  if (isReadOnlyPreviewImage(imageInfo)) return "noReadOnly"
   if (isSvgImage(imageInfo)) return "noSvg"
   if (isAvifImage(imageInfo)) return "noAvif"
   return null

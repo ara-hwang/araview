@@ -102,6 +102,11 @@ fn save_image_edits_impl(
         return Err(AppError::unsupported("PSD files are read-only"));
     }
 
+    // TGA/DDS/EXR도 PSD처럼 JPEG sidecar 미리보기 전용이다.
+    if crate::image::get_mime_type(source).is_some_and(crate::transcode::is_raster_mime) {
+        return Err(AppError::unsupported("Read-only format"));
+    }
+
     // SVG는 벡터라 래스터 편집 파이프라인으로 저장할 수 없다.
     if source_ext(source) == "svg" {
         return Err(AppError::unsupported("SVG save is not supported"));
@@ -640,6 +645,29 @@ mod tests {
         .unwrap_err();
         assert_eq!(err.code, crate::app_error::ErrorCode::Unsupported);
         assert_eq!(err.message, "PSD files are read-only");
+        assert_eq!(fs::read(&path).unwrap(), before);
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn raster_preview_formats_are_blocked_as_read_only() {
+        let dir = test_dir("raster-blocked");
+        let path = dir.join("a.tga");
+        image::DynamicImage::ImageRgb8(image::RgbImage::new(2, 2))
+            .save_with_format(&path, image::ImageFormat::Tga)
+            .unwrap();
+        let before = fs::read(&path).unwrap();
+
+        let err = save_image_edits_impl(
+            path.to_str().unwrap(),
+            &SaveImageOptions {
+                overwrite: true,
+                ..Default::default()
+            },
+        )
+        .unwrap_err();
+        assert_eq!(err.code, crate::app_error::ErrorCode::Unsupported);
+        assert_eq!(err.message, "Read-only format");
         assert_eq!(fs::read(&path).unwrap(), before);
         fs::remove_dir_all(&dir).ok();
     }

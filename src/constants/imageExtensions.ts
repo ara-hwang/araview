@@ -13,6 +13,9 @@ export const SUPPORTED_IMAGE_EXTENSIONS = [
   "heic",
   "heif",
   "psd",
+  "tga",
+  "dds",
+  "exr",
   "cbz",
   "zip"
 ] as const

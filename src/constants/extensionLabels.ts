@@ -17,6 +17,9 @@ type ExtensionLabelKey =
   | "heic"
   | "heif"
   | "psd"
+  | "tga"
+  | "dds"
+  | "exr"
   | "cbz"
   | "zip"
 
@@ -33,6 +36,9 @@ const EXTENSION_I18N_KEYS: Record<ExtensionLabelKey, string> = {
   heic: "ext.heic",
   heif: "ext.heif",
   psd: "ext.psd",
+  tga: "ext.tga",
+  dds: "ext.dds",
+  exr: "ext.exr",
   cbz: "ext.cbz",
   zip: "ext.zip"
 }
@@ -51,6 +57,9 @@ export const EXTENSION_LABELS: Record<SupportedImageExtension, string> = {
   heic: "HEIC 이미지",
   heif: "HEIF 이미지",
   psd: "PSD 이미지",
+  tga: "TGA 이미지",
+  dds: "DDS 텍스처",
+  exr: "OpenEXR 이미지",
   cbz: "만화 아카이브",
   zip: "ZIP 아카이브"
 }

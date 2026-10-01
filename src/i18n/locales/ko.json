@@ -642,6 +642,7 @@
       "empty": "저장할 이미지가 없습니다",
       "noArchive": "아카이브 모드에서는 저장할 수 없습니다",
       "noPsd": "PSD 파일은 읽기 전용이라 저장할 수 없습니다",
+      "noReadOnly": "이 형식은 읽기 전용이라 저장할 수 없습니다",
       "noSvg": "SVG 파일은 저장할 수 없습니다",
       "noAvif": "AVIF 파일은 저장할 수 없습니다",
       "noChange": "적용할 변경 사항이 없습니다",
@@ -733,6 +734,9 @@
     "heic": "HEIC 이미지",
     "heif": "HEIF 이미지",
     "psd": "PSD 이미지",
+    "tga": "TGA 이미지",
+    "dds": "DDS 텍스처",
+    "exr": "OpenEXR 이미지",
     "cbz": "만화 아카이브",
     "zip": "ZIP 아카이브"
   }

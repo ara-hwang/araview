@@ -66,6 +66,7 @@ const EXACT_KIND: ReadonlyMap<string, AppErrorKind> = new Map([
   ["Unsupported image format", "unsupported"],
   ["Unsupported archive format", "unsupported"],
   ["PSD files are read-only", "unsupported"],
+  ["Read-only format", "unsupported"],
   ["SVG save is not supported", "unsupported"],
   ["AVIF save is not supported", "unsupported"],
   ["PSB is not supported", "unsupported"],

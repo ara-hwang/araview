@@ -133,6 +133,12 @@ describe("saveBlockedReason", () => {
     ).toBe("noPsd")
   })
 
+  it("TGA/DDS/EXR은 noReadOnly", () => {
+    expect(saveBlockedReason({ mime_type: "image/x-tga", file_name: "a.tga" })).toBe("noReadOnly")
+    expect(saveBlockedReason({ mime_type: "image/jpeg", file_name: "B.DDS" })).toBe("noReadOnly")
+    expect(saveBlockedReason({ mime_type: "image/x-exr", file_name: "c.exr" })).toBe("noReadOnly")
+  })
+
   it("SVG는 noSvg", () => {
     expect(saveBlockedReason({ mime_type: "image/svg+xml", file_name: "a.svg" })).toBe("noSvg")
   })

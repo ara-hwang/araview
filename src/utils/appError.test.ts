@@ -21,6 +21,7 @@ describe("classifyError", () => {
     expect(classifyError("Not an archive file").kind).toBe("unsupported")
     expect(classifyError("Unsupported archive format").kind).toBe("unsupported")
     expect(classifyError("PSD files are read-only").kind).toBe("unsupported")
+    expect(classifyError("Read-only format").kind).toBe("unsupported")
     expect(classifyError("SVG save is not supported").kind).toBe("unsupported")
     expect(classifyError("AVIF save is not supported").kind).toBe("unsupported")
     expect(classifyError("PSB is not supported").kind).toBe("unsupported")

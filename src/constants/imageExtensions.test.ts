@@ -17,14 +17,17 @@ describe("SUPPORTED_IMAGE_EXTENSIONS", () => {
       "heic",
       "heif",
       "psd",
+      "tga",
+      "dds",
+      "exr",
       "cbz",
       "zip"
     ]
     expect([...SUPPORTED_IMAGE_EXTENSIONS]).toEqual(expected)
   })
 
-  it("has 14 supported extensions", () => {
-    expect(SUPPORTED_IMAGE_EXTENSIONS).toHaveLength(14)
+  it("has 17 supported extensions", () => {
+    expect(SUPPORTED_IMAGE_EXTENSIONS).toHaveLength(17)
   })
 
   it("includes common web image formats", () => {
@@ -40,6 +43,12 @@ describe("SUPPORTED_IMAGE_EXTENSIONS", () => {
     expect(SUPPORTED_IMAGE_EXTENSIONS).toContain("heic")
     expect(SUPPORTED_IMAGE_EXTENSIONS).toContain("heif")
     expect(SUPPORTED_IMAGE_EXTENSIONS).toContain("psd")
+  })
+
+  it("includes game and HDR texture formats", () => {
+    expect(SUPPORTED_IMAGE_EXTENSIONS).toContain("tga")
+    expect(SUPPORTED_IMAGE_EXTENSIONS).toContain("dds")
+    expect(SUPPORTED_IMAGE_EXTENSIONS).toContain("exr")
   })
 
   it("does not include unsupported formats", () => {

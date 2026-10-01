@@ -642,6 +642,7 @@
       "empty": "No image to save",
       "noArchive": "Cannot save in archive mode",
       "noPsd": "PSD files are read-only and cannot be saved",
+      "noReadOnly": "This format is read-only and cannot be saved",
       "noSvg": "SVG files cannot be saved",
       "noAvif": "AVIF files cannot be saved",
       "noChange": "No changes to apply",
@@ -733,6 +734,9 @@
     "heic": "HEIC image",
     "heif": "HEIF image",
     "psd": "PSD image",
+    "tga": "TGA image",
+    "dds": "DDS texture",
+    "exr": "OpenEXR image",
     "cbz": "Comic archive",
     "zip": "ZIP archive"
   }

@@ -57,7 +57,10 @@
           "avif",
           "heic",
           "heif",
-          "psd"
+          "psd",
+          "tga",
+          "dds",
+          "exr"
         ]
       },
       {
