@@ -572,6 +572,121 @@ fn extract_tar_image(
     )))
 }
 
+/// 아카이브 엔트리 하나를 `limit` 바이트까지 메모리로 읽는다.
+/// ComicInfo.xml 같은 작은 메타데이터용이다. 임시 파일을 만들지 않고, 선언 크기와
+/// 실제 출력 양쪽을 `limit`로 막아 압축 폭탄을 거른다. 형식별 가드(solid 7z 블록
+/// 상한, RAR 스트리밍 상한)는 이미지 추출과 같다.
+pub(crate) fn read_archive_entry_bounded(
+    archive_path: &Path,
+    entry_name: &str,
+    limit: u64,
+) -> Result<Vec<u8>, AppError> {
+    match archive_ext(archive_path).as_str() {
+        "cbz" | "zip" => read_zip_entry_bounded(archive_path, entry_name, limit),
+        "cb7" | "7z" => read_7z_entry_bounded(archive_path, entry_name, limit),
+        "cbr" | "rar" => read_rar_entry_bounded(archive_path, entry_name, limit),
+        "cbt" => read_tar_entry_bounded(archive_path, entry_name, limit),
+        _ => Err(AppError::unsupported("Unsupported archive format")),
+    }
+}
+
+fn read_zip_entry_bounded(
+    archive_path: &Path,
+    entry_name: &str,
+    limit: u64,
+) -> Result<Vec<u8>, AppError> {
+    let file = open_archive_file(archive_path)?;
+    let mut archive = zip::ZipArchive::new(file)
+        .map_err(|e| AppError::corrupt(format!("Failed to read ZIP: {e}")))?;
+    let mut entry = archive
+        .by_name(entry_name)
+        .map_err(|e| AppError::not_found(format!("Entry not found: {e}")))?;
+    if entry.size() > limit {
+        return Err(AppError::too_large("Archive entry too large"));
+    }
+    read_bounded(&mut entry, limit, "Failed to read entry data")
+}
+
+fn read_7z_entry_bounded(
+    archive_path: &Path,
+    entry_name: &str,
+    limit: u64,
+) -> Result<Vec<u8>, AppError> {
+    let mut reader =
+        sevenz_rust2::ArchiveReader::open(archive_path, sevenz_rust2::Password::empty())
+            .map_err(|e| AppError::corrupt(format!("Failed to read 7z: {e}")))?;
+    let declared = reader
+        .archive()
+        .files
+        .iter()
+        .find(|f| f.name() == entry_name)
+        .map(|f| f.size())
+        .ok_or_else(|| AppError::not_found(format!("Entry not found: {entry_name}")))?;
+    if declared > limit {
+        return Err(AppError::too_large("Archive entry too large"));
+    }
+    check_7z_entry_block(reader.archive(), entry_name)?;
+    let buf = reader
+        .read_file(entry_name)
+        .map_err(|e| AppError::not_found(format!("Entry not found: {e}")))?;
+    if buf.len() as u64 > limit {
+        return Err(AppError::too_large("Archive entry too large"));
+    }
+    Ok(buf)
+}
+
+fn read_rar_entry_bounded(
+    archive_path: &Path,
+    entry_name: &str,
+    limit: u64,
+) -> Result<Vec<u8>, AppError> {
+    let archive = open_rar(archive_path)?;
+    // 표시 이름을 추출용 정확한 바이트로 되돌린다 (`extract_rar_image`와 같은 규칙).
+    let mut target: Option<(Vec<u8>, u64)> = None;
+    for member in archive.members() {
+        if rar_display_name(&member.meta) == entry_name {
+            target = Some((member.meta.name_bytes().to_vec(), member.meta.unpacked_size));
+            break;
+        }
+    }
+    let (raw_name, declared) =
+        target.ok_or_else(|| AppError::not_found(format!("Entry not found: {entry_name}")))?;
+    if declared > limit {
+        return Err(AppError::too_large("Archive entry too large"));
+    }
+    read_rar_member_bounded(&archive, &raw_name, limit)?
+        .ok_or_else(|| AppError::not_found(format!("Entry not found: {entry_name}")))
+}
+
+fn read_tar_entry_bounded(
+    archive_path: &Path,
+    entry_name: &str,
+    limit: u64,
+) -> Result<Vec<u8>, AppError> {
+    let file = open_archive_file(archive_path)?;
+    let mut archive = tar::Archive::new(file);
+    let entries = archive
+        .entries()
+        .map_err(|e| AppError::corrupt(format!("Failed to read TAR: {e}")))?;
+    for entry in entries {
+        let mut entry =
+            entry.map_err(|e| AppError::corrupt(format!("Failed to read entry: {e}")))?;
+        let path = entry
+            .path()
+            .map_err(|e| AppError::corrupt(format!("Failed to read entry: {e}")))?;
+        if path.to_string_lossy().replace('\\', "/") != entry_name {
+            continue;
+        }
+        if entry.header().size().unwrap_or(0) > limit {
+            return Err(AppError::too_large("Archive entry too large"));
+        }
+        return read_bounded(&mut entry, limit, "Failed to read entry data");
+    }
+    Err(AppError::not_found(format!(
+        "Entry not found: {entry_name}"
+    )))
+}
+
 /// 이웃 페이지를 아카이브 오픈 1회로 선추출. FE 프리패치용 fire-and-forget.
 pub fn prefetch_archive_images(
     archive_path: &Path,
