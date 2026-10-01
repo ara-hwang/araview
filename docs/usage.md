@@ -7,7 +7,7 @@
 기본값 진실은 `src/constants/shortcuts.ts`(`DEFAULT_SHORTCUTS`)이며, 설정에서 재할당할 수 있습니다. 규격 표는 `SPEC.md` §14를 따릅니다.
 
 - **파일/탐색**: `Ctrl+O`(열기), `ArrowLeft`/`ArrowRight`(이전/다음)
-- **이동**: `ArrowLeft`/`ArrowRight`/`ArrowUp`/`ArrowDown`(팬; 웹툰 모드에서는 이전/다음·스크롤 이동으로 바뀌고 다이얼로그/입력 포커스·그리드 표시 중에는 동작하지 않음)
+- **이동**: `Ctrl+ArrowLeft`/`Ctrl+ArrowRight`/`ArrowUp`/`ArrowDown`(팬; 웹툰 모드에서는 이전/다음·스크롤 이동으로 바뀌고 다이얼로그/입력 포커스·그리드 표시 중에는 동작하지 않음)
 - **점프**: `PageUp`/`PageDown`(10장), `Home`/`End`(처음/마지막)
 - **줌**: `=`, `-`, `0`(초기화), `1`(가로 맞춤), `2`(세로 맞춤), `3`(화면 맞춤)
 - **이미지 조작**: `R`(시계 회전), `Shift+R`(반시계 회전), `H`(좌우 반전), `V`(상하 반전)

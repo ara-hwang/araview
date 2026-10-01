@@ -10,7 +10,7 @@
 
 ## 요구 사항
 
-- **OS**: Windows 10/11 (x64)
+- **OS**: Windows 11 (x64)
 - **Node.js**: `>= 22`
 - **Rust**: stable (`1.97` 이상 권장, 릴리스 워크플로 기준)
 
@@ -107,16 +107,19 @@ src/
 src-tauri/
   src/commands.rs    # Tauri command
   src/file_assoc.rs  # Windows 확장자 연결(레지스트리)
-  src/image.rs       # MIME/확장자 판별, load_viewable
+  src/image.rs       # MIME/확장자 판별(resolve_mime), load_viewable
+  src/sniff.rs       # 파일 선두 시그니처 기반 포맷 판별
   src/heif.rs        # HEIC/HEIF 디코드 및 JPEG sidecar
   src/psd_sidecar.rs # PSD 합성 디코드(`psd` 크레이트) 및 JPEG sidecar (읽기 전용)
   src/raster_sidecar.rs # TGA/DDS/EXR 디코드(`image` 크레이트) 및 JPEG sidecar (읽기 전용)
-  src/transcode.rs # 확장자별 sidecar 디코더 디스패치
+  src/transcode.rs # 포맷(resolve_mime)별 sidecar 디코더 디스패치
   src/process_temp.rs # 임시/영구 파생 이미지 캐시 루트, 보호, 상한, 시작 정리
   src/cache.rs        # 캐시 통계 및 종류별/전체 삭제
   src/archive.rs      # 아카이브 목록/추출 처리 (cbz/zip)
+  src/archive_index.rs # 아카이브 엔트리 목록 캐시 (mtime+size 검증 LRU)
   src/comic_info.rs  # CBZ/ZIP ComicInfo.xml 읽기 전용 파싱
   src/thumbnail.rs   # 썸네일 생성/캐시
+  src/svg_raster.rs  # SVG 래스터화(resvg, 썸네일/히스토그램 전용)
   src/sidecar.rs     # sidecar/썸네일/추출물 공용 헬퍼(해시, 락, 원자 발행)
   src/scaled.rs      # 표시 해상도 제한 축소본
   src/thumb_shell.rs # PSD 탐색기 썸네일 셸 연동 명령

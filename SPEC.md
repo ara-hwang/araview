@@ -12,14 +12,14 @@
 
 ## 1. 개요
 
-- Windows 10/11 x64 전용 오프라인 데스크톱 이미지/코믹 뷰어. 로컬 파일만 다루며 라이브러리 가져오기, 계정, 네트워크를 쓰지 않는다(수동 업데이트 확인 제외).
+- Windows 11 x64 전용 오프라인 데스크톱 이미지/코믹 뷰어. 로컬 파일만 다루며 라이브러리 가져오기, 계정, 네트워크를 쓰지 않는다(수동 업데이트 확인 제외).
 - 창은 프레임리스(`decorations: false`)이며 커스텀 타이틀바/툴바(`src/components/Header.tsx`)를 쓴다. Windows 11에서는 최대화 버튼 호버로 OS Snap Layouts 플라이아웃이 뜬다(§20).
 - 다이얼로그/시트가 열려 있어도 타이틀바(최소화/최대화/닫기)는 계속 동작한다. Dialog/Sheet는 `modal="trap-focus"`로 포커스만 가두고, 오버레이는 헤더 아래(`--header-height`)에서 시작한다. Base UI의 투명 전체화면 백드롭(`modal=true`일 때만 렌더)이 창 제어를 가로채는 것을 막기 위한 선택이다. dimmed 영역 클릭과 `Esc`로 닫히고, 키보드 포커스는 다이얼로그 안에 갇힌다.
 - 기술 스택과 플러그인 목록은 `docs/development.md`와 `AGENTS.md`를 따른다.
 
 ## 2. 지원 포맷
 
-총 14개 확장자. 프론트 진실은 `src/constants/imageExtensions.ts`, 백엔드 진실은 `src-tauri/src/image.rs` (`SUPPORTED_EXTENSIONS`, `get_mime_type`).
+총 17개 확장자(이미지 15종 + 아카이브 2종). 프론트 진실은 `src/constants/imageExtensions.ts`, 백엔드 진실은 `src-tauri/src/image.rs` (`SUPPORTED_EXTENSIONS`, `get_mime_type`).
 
 ### 2.1 순수 이미지 15종
 
@@ -61,9 +61,9 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한�
 
 - QOI, JXL, RAW(CR2/NEF/ARW 등), PSB는 제외 유지.
   - QOI: `image` 크레이트 디코드가 가능하고 TGA/DDS/EXR과 같은 sidecar 경로(`raster_sidecar.rs`)에 얹을 수 있지만 아직 포함하지 않았다.
-  - JXL(`jxl-oxide`), RAW(`rawloader`): 디코더 크레이트는 있으나 같은 이유로 sidecar 파이프라인이 선행돼야 한다.
+  - JXL(`jxl-oxide`), RAW(`rawloader`): 디코더 크레이트는 있으나 아직 포함하지 않았다. 추가 시 `transcode.rs`에 디코더를 등록해 같은 sidecar 파이프라인(`SidecarSpec`)에 얹는다.
   - PSB: 실제 PSB는 `8BPS` + version 2인데 디코더가 없어 진입 차단한다(`psd` 크레이트는 PSD만 지원).
-- PSD, TGA, DDS, EXR은 읽기 전용 미리보기(JPEG sidecar)만 지원한다.
+- PSD, TGA, DDS, EXR은 JPEG sidecar 미리보기로만 표시한다(PSD는 합성 이미지, EXR은 8비트 변환). 앱은 어떤 포맷도 편집·저장하지 않는다.
 
 ## 3. 화면과 라우트
 
@@ -195,7 +195,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한�
 - 웹툰 이미지 사이 간격(`webtoonImageGap`, 기본 8px)과 페이지 경계선(`webtoonPageBoundaries`)을 설정한다.
 - `webtoonFitWidth`를 켜면 작은 이미지도 읽기 영역 너비까지 확대하고, 끄면 원본 크기를 유지한 채 너비만 제한한다.
 - `webtoonShowProgress`를 켜면 읽기 영역에 현재 장 번호, 전체 장 수, 스크롤 진행률을 작은 표시로 보여준다.
-- `webtoonThumbnailJump`를 켜면 읽기 영역의 썸네인 버튼으로 그리드를 열어 원하는 장으로 바로 이동할 수 있다. 현재 위치 표시를 꺼도 이 버튼은 유지된다.
+- `webtoonThumbnailJump`를 켜면 읽기 영역의 썸네일 버튼으로 그리드를 열어 원하는 장으로 바로 이동할 수 있다. 현재 위치 표시를 꺼도 이 버튼은 유지된다.
 - 웹툰 중앙 이미지 변경은 전체 reload 없이 인덱스 동기화와 정보 교체로 처리한다.
 
 ## 7. 뷰어 조작
@@ -347,7 +347,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한�
 
 ## 11. 파일 작업
 
-진실: `src/hooks/useFileOperations.ts`, `src-tauri/src/commands.rs`, `src-tauri/src/save.rs`, `src/hooks/useCopyImage.ts`.
+진실: `src/hooks/useFileOperations.ts`, `src-tauri/src/commands.rs`, `src/hooks/useCopyImage.ts`.
 
 공통: 아카이브 모드(전체/미리보기)면 원본 아카이브 경로를 대상으로 삼는다. 단, 휴지통/이름 변경은 아카이브에서 차단된다. 파일 작업은 렌더 경로(`file_path`)가 아니라 사용자가 연 원본(`source_path`)을 대상으로 한다(9.4절).
 
@@ -416,7 +416,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한�
 | `webtoonPageBoundaries` | 웹툰 페이지 경계선 표시                                       | `false`                            |
 | `webtoonFitWidth`       | 웹툰 이미지를 읽기 영역 너비까지 확대                         | `false`                            |
 | `webtoonShowProgress`   | 웹툰 현재 장 번호와 스크롤 진행률 표시                        | `true`                             |
-| `webtoonThumbnailJump`  | 진행 표시에서 썸네인 그리드로 바로가기                        | `true`                             |
+| `webtoonThumbnailJump`  | 진행 표시에서 썸네일 그리드로 바로가기                        | `true`                             |
 | `autoOpenLastFile`      | 시작 시 마지막 파일 자동 열기                                 | `false`                            |
 | `recordRecentFiles`     | 최근 기록 유지                                                | `true`                             |
 | `viewerBackground`      | `theme \| black \| white \| checker`                          | `theme`                            |
@@ -513,7 +513,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한�
 
 ## 15. 백엔드 IPC 계약
 
-진실: `src-tauri/src/lib.rs` `invoke_handler`, `src-tauri/src/commands.rs`, `src-tauri/src/save.rs`, `src-tauri/src/thumb_shell.rs`.
+진실: `src-tauri/src/lib.rs` `invoke_handler`, `src-tauri/src/commands.rs`, `src-tauri/src/cache.rs`, `src-tauri/src/thumb_shell.rs`.
 
 | 명령                                     | 입력 (JS camelCase)                                                                            | 반환                                   |
 | ---------------------------------------- | ---------------------------------------------------------------------------------------------- | -------------------------------------- |

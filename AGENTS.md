@@ -6,7 +6,7 @@ Product truth lives in `PRODUCT.md`, visual system in `DESIGN.md`, full function
 
 ## Project Overview
 
-`araview` is a Windows desktop image viewer built with Tauri 2 + React 19 + TypeScript. Windows 10/11 x64 is the only supported OS.
+`araview` is a Windows desktop image viewer built with Tauri 2 + React 19 + TypeScript. Windows 11 x64 is the only supported OS.
 
 - Frontend: React 19, TypeScript, Vite 6, Tailwind CSS 4, TanStack Router v1, Zustand 5
 - Backend: Rust + Tauri 2 commands (`src-tauri/src/commands.rs`)
@@ -275,7 +275,7 @@ Tauri Store (`settings.json`) is used for:
 
 ## Browser Support
 
-WebView2 (Chromium-based, Windows 10/11 x64) is the only frontend runtime.
+WebView2 (Chromium-based, Windows 11 x64) is the only frontend runtime.
 
 - Baseline Widely available features: use without fallbacks.
 - Baseline Newly Available features: feature-detect and degrade gracefully.

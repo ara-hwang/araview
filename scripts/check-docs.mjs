@@ -122,7 +122,7 @@ function srcFiles(dir) {
   checkSetEqual("확장자 프론트/백엔드", "imageExtensions.ts", front, "image.rs", back)
   checkSetEqual(
     "확장자 설정",
-    "코드 21종",
+    "소스 코드",
     [...new Set([...front, ...back])],
     "tauri.conf.json",
     assoc
@@ -141,7 +141,6 @@ function srcFiles(dir) {
   const commandFiles = [
     "src-tauri/src/commands.rs",
     "src-tauri/src/cache.rs",
-    "src-tauri/src/save.rs",
     "src-tauri/src/thumb_shell.rs",
     "src-tauri/src/lib.rs"
   ]
