@@ -9,7 +9,6 @@ import {
   DialogHeader,
   DialogTitle
 } from "@/components/ui/dialog"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { dismissUpdate, startUpdateDownload } from "@/hooks/useUpdater"
 import { useUpdateStore } from "@/store/updateStore"
 import { formatFileSize } from "@/utils/format"
@@ -61,12 +60,16 @@ export function UpdateDialogs() {
               </DialogTitle>
               <DialogDescription>{t("dialog.update.availableDesc")}</DialogDescription>
             </DialogHeader>
-            <div className="rounded-md border">
-              <ScrollArea className="max-h-40">
-                <p className="p-3 text-sm whitespace-pre-wrap text-muted-foreground">
-                  {body?.trim() ? body : t("dialog.update.noNotes")}
-                </p>
-              </ScrollArea>
+            {/* ScrollArea의 viewport는 size-full이라 max-h만으로는 높이가 제한되지 않는다.
+                네이티브 스크롤로 최대 높이를 걸고, 키보드로도 스크롤되게 포커스를 준다. */}
+            <div
+              tabIndex={0}
+              data-testid="update-notes"
+              className="max-h-40 min-w-0 overflow-y-auto rounded-md border focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+            >
+              <p className="p-3 text-sm [overflow-wrap:anywhere] whitespace-pre-wrap text-muted-foreground">
+                {body?.trim() ? body : t("dialog.update.noNotes")}
+              </p>
             </div>
             <DialogFooter>
               <Button variant="outline" data-testid="update-later" onClick={() => dismissUpdate()}>
