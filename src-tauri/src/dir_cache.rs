@@ -553,6 +553,19 @@ mod tests {
         fs::remove_dir_all(&dir).ok();
     }
 
+    /// 디렉터리 핸들을 열어 수정 시각을 직접 지정한다(`FILE_FLAG_BACKUP_SEMANTICS`).
+    fn bump_dir_mtime(dir: &Path, to: SystemTime) {
+        use std::os::windows::fs::OpenOptionsExt;
+        const FILE_WRITE_ATTRIBUTES: u32 = 0x0100;
+        const FILE_FLAG_BACKUP_SEMANTICS: u32 = 0x0200_0000;
+        let handle = fs::OpenOptions::new()
+            .access_mode(FILE_WRITE_ATTRIBUTES)
+            .custom_flags(FILE_FLAG_BACKUP_SEMANTICS)
+            .open(dir)
+            .expect("open dir handle");
+        handle.set_modified(to).expect("set dir mtime");
+    }
+
     #[test]
     fn cache_invalidates_when_directory_changes() {
         let dir = unique_dir("invalidate");
@@ -563,17 +576,12 @@ mod tests {
         let first = get_sorted_images(&parent, &opts).expect("first scan");
         assert_eq!(file_names(&first), vec!["a.png"]);
 
-        // 캐시는 디렉터리 mtime으로 무효화된다. 러너에 따라 mtime 반영이 늦어
-        // 같은 값으로 읽힐 수 있으므로, 값이 바뀔 때까지 기다린 뒤 재조회한다.
-        let before = dir_mtime(&dir);
+        // 캐시는 디렉터리 mtime으로 무효화된다. 러너의 파일시스템(Dev Drive 등)은
+        // 항목을 추가해도 디렉터리 mtime을 갱신하지 않을 수 있으므로, mtime이
+        // 바뀐 상황을 직접 만들어 검증한다.
+        let before = dir_mtime(&dir).expect("dir mtime");
         write_sized(&dir, "b.png", 10);
-        for _ in 0..50 {
-            if dir_mtime(&dir) != before {
-                break;
-            }
-            std::thread::sleep(std::time::Duration::from_millis(100));
-        }
-        assert_ne!(dir_mtime(&dir), before, "directory mtime did not change");
+        bump_dir_mtime(&dir, before + std::time::Duration::from_secs(2));
         let second = get_sorted_images(&parent, &opts).expect("rescan");
         assert_eq!(file_names(&second), vec!["a.png", "b.png"]);
         fs::remove_dir_all(&dir).ok();
