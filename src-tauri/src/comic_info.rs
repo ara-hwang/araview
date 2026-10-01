@@ -30,6 +30,14 @@ pub struct ComicInfo {
     pub summary: Option<String>,
     pub writer: Option<String>,
     pub penciller: Option<String>,
+    pub inker: Option<String>,
+    pub colorist: Option<String>,
+    pub letterer: Option<String>,
+    pub cover_artist: Option<String>,
+    pub editor: Option<String>,
+    pub year: Option<i32>,
+    pub month: Option<i32>,
+    pub day: Option<i32>,
     pub publisher: Option<String>,
     pub genre: Option<String>,
     pub tags: Option<String>,
@@ -72,6 +80,22 @@ struct RawComicInfo {
     writer: Option<String>,
     #[serde(rename = "Penciller")]
     penciller: Option<String>,
+    #[serde(rename = "Inker")]
+    inker: Option<String>,
+    #[serde(rename = "Colorist")]
+    colorist: Option<String>,
+    #[serde(rename = "Letterer")]
+    letterer: Option<String>,
+    #[serde(rename = "CoverArtist")]
+    cover_artist: Option<String>,
+    #[serde(rename = "Editor")]
+    editor: Option<String>,
+    #[serde(rename = "Year")]
+    year: Option<String>,
+    #[serde(rename = "Month")]
+    month: Option<String>,
+    #[serde(rename = "Day")]
+    day: Option<String>,
     #[serde(rename = "Publisher")]
     publisher: Option<String>,
     #[serde(rename = "Genre")]
@@ -205,6 +229,14 @@ pub fn parse_comic_info(bytes: &[u8]) -> Result<ComicInfo, AppError> {
         summary: normalize(raw.summary),
         writer: normalize(raw.writer),
         penciller: normalize(raw.penciller),
+        inker: normalize(raw.inker),
+        colorist: normalize(raw.colorist),
+        letterer: normalize(raw.letterer),
+        cover_artist: normalize(raw.cover_artist),
+        editor: normalize(raw.editor),
+        year: normalize_number(raw.year),
+        month: normalize_number(raw.month),
+        day: normalize_number(raw.day),
         publisher: normalize(raw.publisher),
         genre: normalize(raw.genre),
         tags: normalize(raw.tags),
@@ -586,5 +618,18 @@ mod tests {
         assert_eq!(json["page_count"], 3);
         assert_eq!(json["pages"][0]["page_type"], "FrontCover");
         assert!(json["title"].is_null());
+    }
+
+    #[test]
+    fn parses_credits_and_release_date() {
+        let xml = "<ComicInfo><Inker>잉커</Inker><Colorist>채색</Colorist><Letterer>식자</Letterer><CoverArtist>표지</CoverArtist><Editor>편집</Editor><Year>2024</Year><Month>3</Month><Day>x</Day></ComicInfo>";
+        let info = parse_comic_info(xml.as_bytes()).expect("parse");
+        assert_eq!(info.inker.as_deref(), Some("잉커"));
+        assert_eq!(info.cover_artist.as_deref(), Some("표지"));
+        assert_eq!(info.editor.as_deref(), Some("편집"));
+        assert_eq!(
+            (info.year, info.month, info.day),
+            (Some(2024), Some(3), None)
+        );
     }
 }

@@ -324,7 +324,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한�
 - 표시 범주는 Camera, Exposure, Image, Lens, DateTime, GPS, Software 계열이다.
 - HEIC는 원본 경로 기준 EXIF를 읽으므로 비어 있는 경우가 많다.
 - JPEG의 Orientation은 표시·썸네일·저장에 반영한다. 패널에는 EXIF 원문 설명을 그대로 보여준다.
-- Comic 섹션: 아카이브 모드이고 `showComicInfo`가 켜져 있고(기본 켜짐, 설정 보기 탭 읽기) `comicInfo`가 있으면 파일/히스토그램/EXIF보다 위에 표시한다. 설정을 끄면 읽은 메타데이터는 유지한 채 섹션만 숨긴다(표지 판정은 계속 동작한다, 6절). 첫 줄은 `Series #Number`(있는 것만), 둘째 줄은 `Title`, 이어서 Writer, Penciller, Publisher, Genre, Tags, Volume, Count, PageCount, LanguageISO, AgeRating, CommunityRating, 마지막에 Summary를 줄바꿈 그대로 표시한다. 값이 없는 필드는 행을 만들지 않는다. 파싱 실패면 재시도 버튼 없이 에러 문구만 남기고(복구 수단은 아카이브 다시 열기), 메타데이터가 없으면 섹션을 숨긴다.
+- Comic 섹션: 아카이브 모드이고 `showComicInfo`가 켜져 있고(기본 켜짐, 설정 보기 탭 읽기) `comicInfo`가 있으면 파일/히스토그램/EXIF보다 위에 표시한다. 설정을 끄면 읽은 메타데이터는 유지한 채 섹션만 숨긴다(표지 판정은 계속 동작한다, 6절). 첫 줄은 `Series #Number`(있는 것만), 둘째 줄은 `Title`, 이어서 Writer, Penciller, Inker, Colorist, Letterer, CoverArtist, Editor, Publisher, 발행일(`Year-Month-Day`, 연도가 있을 때만), 읽기 방향(`Manga`가 `YesAndRightToLeft`/`No`일 때만), Genre, Tags, Volume, Count, PageCount, LanguageISO, AgeRating, CommunityRating, 마지막에 Summary를 줄바꿈 그대로 표시한다. 값이 없는 필드는 행을 만들지 않는다. 파싱 실패면 재시도 버튼 없이 에러 문구만 남기고(복구 수단은 아카이브 다시 열기), 메타데이터가 없으면 섹션을 숨긴다.
 
 ### 10.1 히스토그램 `get_image_histogram`
 
@@ -592,7 +592,7 @@ Rust와 TypeScript는 같은 모양을 유지한다.
 - `Histogram`: `{ r: number[256], g: number[256], b: number[256], sampled_pixels: number }`.
 - `ImageDetails`: 16.2 모양 그대로. 색상 모드, 비트/채널, 생성/수정 시각, DPI, ICC 상태를 포함한다.
 - `ArchiveState`: `{ archivePath: string | null }`.
-- `ComicInfo`: 아카이브의 `ComicInfo.xml`(8절). `{ title, series, number, summary, writer, penciller, publisher, genre, tags, language_iso, age_rating, community_rating, manga: string | null, count, volume, page_count: number | null, pages: ComicPage[] | null }`. `number`와 `community_rating`은 소수 값을 보존하려고 문자열이다.
+- `ComicInfo`: 아카이브의 `ComicInfo.xml`(8절). `{ title, series, number, summary, writer, penciller, inker, colorist, letterer, cover_artist, editor, year, month, day, publisher, genre, tags, language_iso, age_rating, community_rating, manga: string | null, count, volume, page_count: number | null, pages: ComicPage[] | null }`. `number`와 `community_rating`은 소수 값을 보존하려고 문자열이다.
 - `ComicPage`: `{ image: number, page_type: string | null }`. `image`는 ComicRack 스키마대로 0 기반 페이지 인덱스이고 `page_type`은 `FrontCover` 같은 값이다. 양쪽 표지 판정(6절)의 근거다.
 - `FileAssociation`: `{ extension, associated, current_prog_id, needs_os_confirmation }`.
 - `PsdThumbStatus`: 탐색기 썸네일 등록 상태(20.2절).

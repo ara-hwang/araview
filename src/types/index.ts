@@ -85,6 +85,14 @@ export type ComicInfo = {
   summary: string | null
   writer: string | null
   penciller: string | null
+  inker: string | null
+  colorist: string | null
+  letterer: string | null
+  cover_artist: string | null
+  editor: string | null
+  year: number | null
+  month: number | null
+  day: number | null
   publisher: string | null
   genre: string | null
   tags: string | null

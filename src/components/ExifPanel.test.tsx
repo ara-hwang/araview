@@ -91,6 +91,14 @@ const comicInfo: ComicInfo = {
   summary: "요약 첫 줄\n둘째 줄",
   writer: "글 작가",
   penciller: null,
+  inker: null,
+  colorist: null,
+  letterer: null,
+  cover_artist: null,
+  editor: null,
+  year: 2024,
+  month: 3,
+  day: 5,
   publisher: "테스트 출판사",
   genre: null,
   tags: null,
@@ -98,7 +106,7 @@ const comicInfo: ComicInfo = {
   page_count: 20,
   age_rating: null,
   community_rating: "8.5",
-  manga: null,
+  manga: "YesAndRightToLeft",
   pages: [{ image: 0, page_type: "FrontCover" }]
 }
 
@@ -129,6 +137,8 @@ describe("ExifPanel Comic 섹션", () => {
     expect(screen.getByText("첫 화")).not.toBeNull()
     expect(screen.getByText("comic.writer")).not.toBeNull()
     expect(screen.getByText("글 작가")).not.toBeNull()
+    expect(screen.getByText("2024-03-05")).not.toBeNull()
+    expect(screen.getByText("comic.directionRtl")).not.toBeNull()
     // 없는 필드는 행 자체를 만들지 않는다.
     expect(screen.queryByText("comic.penciller")).toBeNull()
 

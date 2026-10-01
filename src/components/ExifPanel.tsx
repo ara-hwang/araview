@@ -15,6 +15,7 @@ import { useExifLoader } from "@/hooks/useExifLoader"
 import { useAppStore } from "@/store/appStore"
 import { useSettingsStore } from "@/store/settingsStore"
 import type { ComicInfo, ImageDetails } from "@/types"
+import { comicReadingDirection } from "@/utils/comicViewMode"
 import { formatDimensions, formatFileSize } from "@/utils/format"
 import { formatDpi, formatUnixDateTime } from "@/utils/imageDetails"
 
@@ -177,6 +178,17 @@ function DetailRows({ rows }: { rows: DetailRow[] }) {
   )
 }
 
+/** `Year`/`Month`/`Day` → `2024-03-05` 형태. 연도가 없으면 null, 월·일은 있는 만큼만 붙인다. */
+function formatComicDate(comic: ComicInfo): string | null {
+  if (comic.year === null) return null
+  const parts = [String(comic.year)]
+  if (comic.month !== null) {
+    parts.push(String(comic.month).padStart(2, "0"))
+    if (comic.day !== null) parts.push(String(comic.day).padStart(2, "0"))
+  }
+  return parts.join("-")
+}
+
 /** ComicInfo → 표시 행. 값이 있는 필드만 순서대로 담는다. */
 function buildComicRows(
   comic: ComicInfo,
@@ -189,7 +201,21 @@ function buildComicRows(
   }
   push("writer", "comic.writer", comic.writer)
   push("penciller", "comic.penciller", comic.penciller)
+  push("inker", "comic.inker", comic.inker)
+  push("colorist", "comic.colorist", comic.colorist)
+  push("letterer", "comic.letterer", comic.letterer)
+  push("coverArtist", "comic.coverArtist", comic.cover_artist)
+  push("editor", "comic.editor", comic.editor)
   push("publisher", "comic.publisher", comic.publisher)
+  push("published", "comic.published", formatComicDate(comic))
+  const direction = comicReadingDirection(comic)
+  push(
+    "direction",
+    "comic.direction",
+    direction === null
+      ? null
+      : t(direction === "right-to-left" ? "comic.directionRtl" : "comic.directionLtr")
+  )
   push("genre", "comic.genre", comic.genre)
   push("tags", "comic.tags", comic.tags)
   push("volume", "comic.volume", comic.volume)
