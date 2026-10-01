@@ -145,6 +145,24 @@ pub fn details_for_path(path: &Path) -> Result<ImageDetails, AppError> {
         .ok_or_else(|| AppError::unsupported("Unsupported image format"))?;
     let meta = fs::metadata(path)
         .map_err(|e| AppError::io("Failed to read metadata", e, ErrorCode::Corrupt))?;
+    if crate::image::is_archive_file(path) {
+        // CBZ/ZIP 자체는 이미지가 아니므로 파일 수준 정보만 채운다.
+        return Ok(ImageDetails {
+            file_path: path.to_string_lossy().to_string(),
+            file_size: meta.len(),
+            width: None,
+            height: None,
+            color_mode: "unknown".to_string(),
+            bits_per_channel: None,
+            created_unix: unix_time(meta.created().ok()),
+            modified_unix: unix_time(meta.modified().ok()),
+            dpi_x: None,
+            dpi_y: None,
+            icc_status: IccStatus::Unchecked,
+            icc_name: None,
+            icc_bytes: None,
+        });
+    }
     // 치수는 렌더 경로 기준 (HEIC/PSD는 JPEG sidecar). JPEG/TIFF는 EXIF
     // orientation까지 반영해 표시 치수와 맞춘다.
     let paint_path = match crate::image::paint_strategy(mime) {

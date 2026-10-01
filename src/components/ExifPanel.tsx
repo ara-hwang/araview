@@ -80,6 +80,7 @@ function buildDetailRows(
   pathLabel: string,
   isArchive: boolean,
   isVector: boolean,
+  isArchiveFile: boolean,
   t: (key: string, vars?: Record<string, string | number>) => string,
   locale: string | undefined
 ): DetailRow[] {
@@ -91,7 +92,7 @@ function buildDetailRows(
       value: formatFileSize(details.file_size, locale)
     }
   ]
-  const dims = formatDimensions(details.width, details.height)
+  const dims = isArchiveFile ? null : formatDimensions(details.width, details.height)
   if (dims !== null) {
     const pixels =
       typeof details.width === "number" &&
@@ -122,6 +123,7 @@ function buildDetailRows(
       })
     }
   }
+  if (isArchiveFile) return rows
   const colorValue = isVector
     ? t("details.colorVector")
     : (() => {
@@ -215,6 +217,7 @@ export function ExifPanel() {
     imageDetails,
     imageInfo,
     archivePath,
+    archivePreviewPath,
     comicInfo,
     comicInfoError,
     dirImages,
@@ -227,6 +230,7 @@ export function ExifPanel() {
       imageDetails: state.imageDetails,
       imageInfo: state.imageInfo,
       archivePath: state.archivePath,
+      archivePreviewPath: state.archivePreviewPath,
       comicInfo: state.comicInfo,
       comicInfoError: state.comicInfoError,
       dirImages: state.dirImages,
@@ -268,6 +272,7 @@ export function ExifPanel() {
   }
 
   const isArchivePanel = archivePath !== null
+  const isArchiveFilePanel = archivePreviewPath !== null
   const isVectorImage =
     imageInfo?.mime_type === "image/svg+xml" ||
     (imageInfo?.file_name.toLowerCase().endsWith(".svg") ?? false)
@@ -284,12 +289,15 @@ export function ExifPanel() {
           detailPathLabel,
           isArchivePanel,
           isVectorImage,
+          isArchiveFilePanel,
           translate,
           locale
         )
   // 아카이브 모드에서만, 설정이 켜져 있고, 읽은 메타데이터나 에러가 있을 때만 쓴다.
   const showComicSection =
-    isArchivePanel && showComicInfo && (comicInfo !== null || comicInfoError !== null)
+    (isArchivePanel || isArchiveFilePanel) &&
+    showComicInfo &&
+    (comicInfo !== null || comicInfoError !== null)
   const comicRows = comicInfo === null ? [] : buildComicRows(comicInfo, translate)
   const comicHeading = comicInfo === null ? "" : comicHeadline(comicInfo)
   const hasAnyContent =
@@ -353,18 +361,20 @@ export function ExifPanel() {
               )}
             </div>
 
-            <div>
-              <h3 className="mb-2 text-xs font-semibold tracking-wider text-muted-foreground uppercase">
-                {t("histogram.title")}
-              </h3>
-              {histogramData === null ? (
-                <p className="text-sm text-muted-foreground">
-                  {t(isVectorImage ? "histogram.vectorUnavailable" : "histogram.unavailable")}
-                </p>
-              ) : (
-                <HistogramChart data={histogramData} />
-              )}
-            </div>
+            {!isArchiveFilePanel && (
+              <div>
+                <h3 className="mb-2 text-xs font-semibold tracking-wider text-muted-foreground uppercase">
+                  {t("histogram.title")}
+                </h3>
+                {histogramData === null ? (
+                  <p className="text-sm text-muted-foreground">
+                    {t(isVectorImage ? "histogram.vectorUnavailable" : "histogram.unavailable")}
+                  </p>
+                ) : (
+                  <HistogramChart data={histogramData} />
+                )}
+              </div>
+            )}
 
             {exifError ? (
               <div className="flex flex-col gap-2">

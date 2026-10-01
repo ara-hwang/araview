@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core"
 import { useCallback } from "react"
 
 import { useAppStore } from "@/store/appStore"
-import type { ExifData, ImageDetails, ImageHistogram } from "@/types"
+import type { ComicInfo, ExifData, ImageDetails, ImageHistogram } from "@/types"
 import { errorMessage } from "@/utils/appError"
 
 async function loadHistogramSilent(filePath: string, isCurrent: () => boolean) {
@@ -40,7 +40,29 @@ export function useExifLoader() {
     // 아카이브 모드에서는 추출된 임시 경로, 일반 모드에서는 실제 파일 경로다.
     // EXIF와 파일 상세는 원본(source_path)을 설명해야 하므로 축소 sidecar가
     // 아닌 원본을 읽고, 히스토그램은 렌더 바이트(file_path)를 그대로 쓴다.
-    const { imageInfo } = useAppStore.getState()
+    const { imageInfo, archivePreviewPath } = useAppStore.getState()
+    if (archivePreviewPath !== null) {
+      // 폴더 미리보기는 CBZ/ZIP 파일 자체를 설명한다. 첫 페이지의 EXIF/히스토그램은 쓰지 않는다.
+      useAppStore.setState({ exifData: null, exifError: null, histogramData: null })
+      const isCurrentPreview = () =>
+        useAppStore.getState().archivePreviewPath === archivePreviewPath
+      const [details, comic] = await Promise.all([
+        invoke<ImageDetails>("get_image_details", { filePath: archivePreviewPath }).catch(
+          () => null
+        ),
+        invoke<ComicInfo | null>("get_comic_info", { filePath: archivePreviewPath }).then(
+          (info) => ({ info: info ?? null, error: null as string | null }),
+          (e) => ({ info: null, error: errorMessage(e) })
+        )
+      ])
+      if (!isCurrentPreview()) return
+      useAppStore.setState({
+        imageDetails: details,
+        comicInfo: comic.info,
+        comicInfoError: comic.error
+      })
+      return
+    }
     const paintPath = imageInfo?.file_path
     const sourcePath = imageInfo?.source_path ?? imageInfo?.file_path
     if (!sourcePath || !paintPath) return
