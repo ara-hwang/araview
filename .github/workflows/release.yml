@@ -175,8 +175,26 @@ jobs:
             $range = "$prev..$tag"
             $compare = "$prev...$tag"
           }
-          $log = git log $range --pretty=format:'- %s (%h)'
-          $changes = $log -join "`n"
+          # 커밋 제목의 접두사로 분류한다. feat는 새 기능, fix는 수정, refactor와 perf는 개선,
+          # 느낌표가 붙은 것(feat!: 등)은 변경이다. docs, chore, ci, build, test, style,
+          # 머지 커밋은 사용자에게 보이지 않으므로 뺀다.
+          $groups = [ordered]@{ "변경" = @(); "새 기능" = @(); "수정" = @(); "개선" = @() }
+          foreach ($subject in @(git log $range --no-merges --pretty=format:'%s')) {
+            if ($subject -notmatch '^(?<type>[a-z]+)(\([^)]*\))?(?<bang>!)?:\s*(?<text>.+)$') { continue }
+            $text = $Matches.text
+            if ($Matches.bang) { $groups["변경"] += $text; continue }
+            switch ($Matches.type) {
+              "feat" { $groups["새 기능"] += $text }
+              "fix" { $groups["수정"] += $text }
+              { $_ -in "refactor", "perf" } { $groups["개선"] += $text }
+            }
+          }
+          $sections = foreach ($name in $groups.Keys) {
+            if ($groups[$name].Count -gt 0) {
+              "### $name`n`n" + (($groups[$name] | ForEach-Object { "- $_" }) -join "`n")
+            }
+          }
+          $changes = if ($sections) { $sections -join "`n`n" } else { "사용자에게 보이는 변경 없음" }
           $compareLine = ""
           if ($compare -ne "") {
             $compareLine = "`n전체 비교: https://github.com/${{ github.repository }}/compare/$compare`n"
