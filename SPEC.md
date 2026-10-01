@@ -656,7 +656,7 @@ Rust와 TypeScript는 같은 모양을 유지한다.
 - `window-state` 플러그인으로 창 상태를 유지한다.
 - Windows 11 Snap Layouts: 커스텀 최대화 버튼(`id=caption-maximize`) 위에 `WM_NCHITTEST`에 `HTMAXBUTTON`으로 응답하는 투명 네이티브 오버레이를 띄운다(`tauri-plugin-snap-layout`, 비-Windows no-op). 오버레이가 마우스를 가로채므로 버튼의 hover 배경/툴팁은 플러그인 이벤트(`tauri-snap://snap/mouseenter|mouseleave`)로 미러링하고, 클릭 최대화/복원은 네이티브가, 키보드(Enter/Space)는 기존 onClick이 담당한다. 헤더가 완전히 가려지는 동안(auto-hide, 메뉴바 숨김; peek 제외) 오버레이를 떼어낸다(`useSnapLayout` 훅).
 - 번들: `nsis`만 빌드한다. 결과물은 `src-tauri/target/release/bundle/` 아래에 생성된다.
-- 릴리스 파이프라인: 기본 경로는 `vX.Y.Z` 태그 푸시다. `.github/workflows/release.yml`이 태그와 4개 버전 파일의 일치, 서명 키 Secrets를 확인한 뒤 검증(테스트, 타입, 포맷, cargo test/clippy, npm/cargo 보안 감사, 라이선스 검사), 서명 빌드, `latest.json` 생성, 원본 저장소 `ara-hwang/araview` 릴리스 생성까지 자동으로 수행한다. 대체 경로 `npm run release:local`(`scripts/Publish-LocalRelease.ps1`)은 CI를 못 쓸 때 쓴다. `ci.yml`은 PR과 main 푸시에서 자동으로 돌지 않고, Actions에서 수동 실행할 때만 같은 검사를 수행한다. 권한과 절차 상세는 `docs/releasing.md`를 따른다.
+- 릴리스 파이프라인: `npm run release -- <버전>`(`scripts/release.mjs`)이 버전 파일 5곳을 올려 커밋하고 `vX.Y.Z` 태그와 함께 푸시한다. 태그 푸시를 `.github/workflows/release.yml`이 받아 태그와 버전 파일의 일치, 서명 키 Secrets를 확인한 뒤 검증(테스트, 타입, 포맷, cargo test/clippy, npm/cargo 보안 감사, 라이선스 검사), 서명 빌드, `latest.json` 생성, 원본 저장소 `ara-hwang/araview` 릴리스 생성까지 자동으로 수행한다. `ci.yml`은 PR과 main 푸시에서 자동으로 돌지 않고, Actions에서 수동 실행할 때만 같은 검사를 수행한다. 권한과 절차 상세는 `docs/releasing.md`를 따른다.
 - 파일 연결 3그룹:
   - Image 12종: png, jpg, jpeg, gif, bmp, webp, svg, ico, avif, heic, heif, psd.
   - Comic 4종: cbz, cb7, cbr, cbt.

@@ -9,8 +9,7 @@ import { dirname, join, resolve } from "node:path"
  * 세션 안에서 `docs_preflight` 툴로 제공한다. 검사는 읽기 전용이며,
  * 스크립트 출력을 그대로 돌려준다. 수정은 하지 않는다.
  *
- * 로더 규약(`{ content }` 반환, `editor.add`의 `name` 필수)은
- * `.opencode/plugins/araview-release.ts`와 같다.
+ * 로더 규약: `{ content }`를 반환하고 `editor.add`의 `name`은 필수다.
  */
 
 type ToolArgs = {

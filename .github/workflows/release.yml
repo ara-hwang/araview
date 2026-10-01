@@ -1,7 +1,7 @@
 name: Release
 
 # `vX.Y.Z` 태그를 푸시하면 검증, 서명 빌드, GitHub 릴리스 생성까지 자동으로 돈다.
-#   git tag v1.0.1 && git push origin v1.0.1
+#   npm run release -- 1.0.1   (버전 올리기, 커밋, 태그, 푸시)
 # 태그는 버전을 올린 커밋(package.json, Cargo.toml, Cargo.lock, tauri.conf.json 4곳
 # 일치)에 붙여야 하며, 어긋나면 첫 단계에서 실패한다. 실패하면 Actions에서 재실행하거나
 # 태그를 지우고 다시 푸시한다. 릴리스 자산은 이 저장소에 게시되고 updater endpoint가

@@ -35,8 +35,8 @@ npm run tauri dev
 npm run build
 npm run tauri build
 
-# Local release (CI alternative, needs the signing key)
-npm run release:local
+# Start a release: bump versions, commit, tag, push (CI publishes)
+npm run release -- <X.Y.Z|patch|minor|major>
 
 # Frontend tests / checks
 npm test
@@ -194,20 +194,16 @@ Tauri Store (`settings.json`) is used for:
 
 ### Prepare a release
 
-1. Run the `release_preflight` tool (`.opencode/plugins/araview-release.ts`).
-   It is read-only and reports READY/BLOCKED for version consistency across the
-   four files, working tree, upstream sync, tag vs HEAD, `gh` auth, signing key
-   presence, password, updater endpoint, and existing bundle artifacts. It never
-   prints key or password contents and never runs a release.
-2. Bump the version with the `release_bump` tool when the tag has to be new. It
-   refuses when the four version files disagree or the target tag exists, and it
-   does not commit.
-3. Commit the bump, push `main`, then push the `vX.Y.Z` tag. The release
-   workflow (`.github/workflows/release.yml`) verifies the tag against the four
-   version files and the signing secret, then builds and publishes. The plugin
-   deliberately has no tool that pushes; `git push` and tagging stay explicit
-   shell steps. `npm run release:local` is only the fallback when CI is unusable.
-4. Full flow: `docs/releasing.md`.
+1. Run `npm run release -- <X.Y.Z|patch|minor|major>` from a clean, up-to-date
+   `main` (`--dry-run` previews the plan without touching anything). It bumps
+   the five version files, checks them with `cargo metadata --locked` and
+   `npm run docs:check`, commits, tags `vX.Y.Z`, and pushes `main` and the tag
+   atomically after a confirmation prompt (`--yes` skips it).
+2. The tag push starts `.github/workflows/release.yml`, which verifies the tag
+   against the version files and the signing secret, then builds and publishes.
+   Do not run the script unless the user explicitly asks: pushing the tag makes
+   a public release.
+3. Full flow: `docs/releasing.md`.
 
 ## Testing Guidance
 
@@ -256,7 +252,7 @@ Tauri Store (`settings.json`) is used for:
      additionally needs `npm run dev:up` (`:1420` + `:9323`) plus
      `driver-session start --port 9323`. The bridge only exists in dev builds
      (`dev-mcp` feature, `src-tauri/src/lib.rs`); release builds
-     (`--no-default-features`, used by CI and `release:local`) have no bridge,
+     (`--no-default-features`, used by CI) have no bridge,
      so connection failure there is expected, not a missing installation.
   3. Fresh-session flake: opencode loads MCP at session start and the first
      `npx -y` download can time out. Restart the session before concluding

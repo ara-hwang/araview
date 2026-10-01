@@ -61,8 +61,8 @@ npm run build:thumb
 # Tauri MCP 검증용 dev 실행 (Vite :1420 + 브리지 :9323 대기)
 npm run dev:up
 
-# 로컬 릴리스 (서명 빌드와 GitHub 릴리스 발행)
-npm run release:local
+# 릴리스 시작 (버전 올리기, 커밋, 태그, 푸시)
+npm run release -- <X.Y.Z|patch|minor|major>
 
 # 테스트
 npm test

@@ -18,7 +18,6 @@ coverage
 # Environment variables
 .env
 .env.*
-!.env.example
 
 # TypeScript build cache
 *.tsbuildinfo
@@ -48,9 +47,6 @@ coverage
 .vcpkg/
 .vcpkg-manifest/
 
-# Local signing key for scripts/Publish-LocalRelease.ps1
+# Local copy of the updater signing key (never commit)
 *.key
 *.key.pub
-
-# Local release output from scripts/Publish-LocalRelease.ps1
-/release/
