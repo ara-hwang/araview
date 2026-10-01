@@ -10,6 +10,7 @@ import {
   CaretUp,
   Command,
   Copy,
+  DotsNine,
   FlipHorizontal,
   FlipVertical,
   FolderOpen,
@@ -487,6 +488,15 @@ export default function Header({
             </AppTooltip>
           </ButtonGroup>
         </div>
+      </div>
+
+      {/* 창 이동 가능 표시용 그립. 장식 요소이며 자체가 드래그 영역이다. */}
+      <div
+        data-tauri-drag-region
+        aria-hidden="true"
+        className="flex shrink-0 items-center px-2.5 text-muted-foreground"
+      >
+        <DotsNine className="pointer-events-none size-5" />
       </div>
 
       {/* 윈도우 캡션 버튼: 타이틀바 우측 끝을 꽉 채운다. 드래그/더블클릭 최대화 제외.
