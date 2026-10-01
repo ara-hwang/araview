@@ -467,24 +467,6 @@
       "label": "File name",
       "submit": "Rename"
     },
-    "save": {
-      "title": "Save edits",
-      "format": "Format",
-      "keep": "Keep original",
-      "saveAs": "Save method",
-      "overwrite": "Overwrite original",
-      "newFile": "Save as new file",
-      "newNamePlaceholder": "Leave empty to auto-generate a name (extension follows format)",
-      "newNameAria": "New file name",
-      "note": "Format changes, HEIC, and GIF are always saved as new files. Only the first frame of GIF is saved. PSD is read-only.",
-      "submit": "Save",
-      "transform": {
-        "rotated": "Rotated {{deg}}°",
-        "flipH": "Flip horizontal",
-        "flipV": "Flip vertical",
-        "none": "No changes"
-      }
-    },
     "update": {
       "availableTitle": "Version {{version}} is available",
       "availableDesc": "Review the changes and choose whether to download.",
@@ -551,8 +533,7 @@
     "reveal": "Reveal in Explorer",
     "openExternal": "Open with Default App",
     "rename": "Rename",
-    "copyPath": "Copy Path",
-    "saveEdits": "Save with Edits"
+    "copyPath": "Copy Path"
   },
   "palette": {
     "title": "Command Palette",
@@ -638,17 +619,6 @@
       "fail": "Failed to rename",
       "done": "Rename complete"
     },
-    "save": {
-      "empty": "No image to save",
-      "noArchive": "Cannot save in archive mode",
-      "noPsd": "PSD files are read-only and cannot be saved",
-      "noReadOnly": "This format is read-only and cannot be saved",
-      "noSvg": "SVG files cannot be saved",
-      "noAvif": "AVIF files cannot be saved",
-      "noChange": "No changes to apply",
-      "fail": "Failed to save",
-      "done": "Save complete"
-    },
     "copy": {
       "empty": "No image to copy",
       "done": "Image copied",
@@ -696,10 +666,6 @@
     "trash": {
       "title": "Delete file",
       "message": "Move {{name}} to Trash?"
-    },
-    "overwrite": {
-      "title": "Overwrite save",
-      "message": "Overwrite {{name}} with your changes? Continue?"
     },
     "resetSettings": {
       "title": "Reset settings",

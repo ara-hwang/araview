@@ -48,11 +48,7 @@ vi.mock("@/components/ui/toast", () => ({
 import {
   getEffectivePath,
   getNextPathAfterTrash,
-  isAvifImage,
-  isPsdImage,
-  isSvgImage,
   replacePathInList,
-  saveBlockedReason,
   useFileOperations
 } from "@/hooks/useFileOperations"
 import { useAppStore } from "@/store/appStore"
@@ -85,74 +81,6 @@ describe("getNextPathAfterTrash", () => {
 
   it("마지막 1장 삭제 시 null (홈 귀환)", () => {
     expect(getNextPathAfterTrash(["/a.jpg"], 0, "/a.jpg")).toBeNull()
-  })
-})
-
-describe("isPsdImage", () => {
-  it("PSD MIME이면 sidecar 경로와 무관하게 true", () => {
-    expect(
-      isPsdImage({
-        mime_type: "image/vnd.adobe.photoshop",
-        file_name: "design.psd"
-      })
-    ).toBe(true)
-  })
-
-  it("파일명 대소문자와 무관하게 .psd를 판정", () => {
-    expect(isPsdImage({ mime_type: "image/png", file_name: "DESIGN.PSD" })).toBe(true)
-  })
-
-  it("일반 이미지와 null은 false", () => {
-    expect(isPsdImage({ mime_type: "image/png", file_name: "a.png" })).toBe(false)
-    expect(isPsdImage(null)).toBe(false)
-  })
-})
-
-describe("isSvgImage", () => {
-  it("SVG MIME이면 true", () => {
-    expect(isSvgImage({ mime_type: "image/svg+xml", file_name: "icon.svg" })).toBe(true)
-  })
-
-  it("파일명으로 .svg를 판정", () => {
-    expect(isSvgImage({ mime_type: "image/png", file_name: "ICON.SVG" })).toBe(true)
-  })
-
-  it("일반 이미지와 null은 false", () => {
-    expect(isSvgImage({ mime_type: "image/png", file_name: "a.png" })).toBe(false)
-    expect(isSvgImage(null)).toBe(false)
-  })
-})
-
-describe("saveBlockedReason", () => {
-  it("PSD는 noPsd", () => {
-    expect(
-      saveBlockedReason({
-        mime_type: "image/vnd.adobe.photoshop",
-        file_name: "a.psd"
-      })
-    ).toBe("noPsd")
-  })
-
-  it("TGA/DDS/EXR은 noReadOnly", () => {
-    expect(saveBlockedReason({ mime_type: "image/x-tga", file_name: "a.tga" })).toBe("noReadOnly")
-    expect(saveBlockedReason({ mime_type: "image/jpeg", file_name: "B.DDS" })).toBe("noReadOnly")
-    expect(saveBlockedReason({ mime_type: "image/x-exr", file_name: "c.exr" })).toBe("noReadOnly")
-  })
-
-  it("SVG는 noSvg", () => {
-    expect(saveBlockedReason({ mime_type: "image/svg+xml", file_name: "a.svg" })).toBe("noSvg")
-  })
-
-  it("AVIF는 noAvif", () => {
-    expect(saveBlockedReason({ mime_type: "image/avif", file_name: "a.avif" })).toBe("noAvif")
-    expect(isAvifImage({ mime_type: "image/png", file_name: "A.AVIF" })).toBe(true)
-    expect(isAvifImage(null)).toBe(false)
-  })
-
-  it("저장 가능 포맷과 null은 null", () => {
-    expect(saveBlockedReason({ mime_type: "image/png", file_name: "a.png" })).toBeNull()
-    expect(saveBlockedReason({ mime_type: "image/jpeg", file_name: "a.jpg" })).toBeNull()
-    expect(saveBlockedReason(null)).toBeNull()
   })
 })
 
@@ -192,7 +120,7 @@ afterEach(() => {
 })
 
 describe("useFileOperations 아카이브 컨텍스트", () => {
-  it("미리보기 모드에서는 휴지통/이름 변경/저장을 차단한다", async () => {
+  it("미리보기 모드에서는 휴지통/이름 변경을 차단한다", async () => {
     useAppStore.setState({
       imageInfo: imageInfo({ file_path: "/tmp/extract/page.jpg" }),
       dirImages: { images: ["/docs/comic.cbz"], current_index: 0, availability: [] },
@@ -204,14 +132,6 @@ describe("useFileOperations 아카이브 컨텍스트", () => {
     await act(async () => {
       await result.current.trashCurrent()
       await result.current.renameCurrent("new.jpg")
-      await result.current.saveEdits({
-        rotationCw: 90,
-        flipH: false,
-        flipV: false,
-        format: null,
-        overwrite: false,
-        newFileName: null
-      })
     })
 
     // 확인 다이얼로그도, 백엔드 파일 작업도 호출되지 않는다.
@@ -219,7 +139,6 @@ describe("useFileOperations 아카이브 컨텍스트", () => {
     const commands = h.invokes.map((call) => call.cmd)
     expect(commands).not.toContain("trash_file")
     expect(commands).not.toContain("rename_file")
-    expect(commands).not.toContain("save_image_edits")
   })
 
   it("미리보기 모드의 경로 복사는 아카이브 경로를 쓴다", async () => {

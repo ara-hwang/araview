@@ -59,7 +59,6 @@ export type PaletteViewerHandlers = {
   onOpenExternal: () => void
   onRenameFile: () => void
   onCopyPath: () => void
-  onSaveEdits: () => void
   onToggleGrid: () => void
   onToggleDock: () => void
 }
@@ -219,9 +218,6 @@ function runCommand(
       break
     case "copyPath":
       viewerHandlers?.onCopyPath()
-      break
-    case "saveEdits":
-      viewerHandlers?.onSaveEdits()
       break
     case "toggleGrid":
       viewerHandlers?.onToggleGrid()

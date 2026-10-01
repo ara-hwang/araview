@@ -15,7 +15,7 @@ Product truth lives in `PRODUCT.md`, visual system in `DESIGN.md`, full function
 
 ## Current Feature Scope
 
-- Supported file extensions: `png`, `jpg`, `jpeg`, `gif`, `bmp`, `webp`, `svg`, `ico`, `avif`, `heic`, `heif`, `psd`, `tga`, `dds`, `exr` (read-only preview via JPEG sidecar, no edit-save), `cbz`, `zip` (PSB excluded, no decoder)
+- Supported file extensions: `png`, `jpg`, `jpeg`, `gif`, `bmp`, `webp`, `svg`, `ico`, `avif`, `heic`, `heif`, `psd`, `tga`, `dds`, `exr` (read-only preview via JPEG sidecar), `cbz`, `zip` (PSB excluded, no decoder)
 - Input flows: file picker, drag-and-drop (file/folder), OS file association open
 - Viewer controls: zoom, fit-to-width/height/screen, pan, rotate, flip
 - Navigation: previous/next, index jump, thumbnail strip/grid, optional loop navigation
@@ -65,7 +65,6 @@ cd src-tauri && cargo fmt
 - Extension source of truth: `src/constants/imageExtensions.ts`
 - Rust commands: `src-tauri/src/commands.rs`
 - MIME/extension logic and tests: `src-tauri/src/image.rs`
-- JPEG save metadata preservation (EXIF/ICC/XMP segments): `src-tauri/src/jpeg_meta.rs`
 - Windows file association registry: `src-tauri/src/file_assoc.rs`
 - HEIC/HEIF JPEG sidecar decode: `src-tauri/src/heif.rs`
 - Derived-image cache root, protection, eviction, and startup cleanup: `src-tauri/src/process_temp.rs`
@@ -105,7 +104,6 @@ Frontend uses `invoke()` for these commands (full table: `SPEC.md` §15):
 - `get_license_bundle()`
 - `get_psd_thumbnail_status()`, `register_psd_thumbnail()`, `unregister_psd_thumbnail()`
 - `trash_file(file_path)`
-- `save_image_edits(file_path, options)`
 - `frontend_ready()`
 
 When app is opened from file association, Windows passes the file path as a CLI argument. Backend buffers it in `PendingOpenFile` until the webview signals readiness (`frontend_ready`), then emits `open-file`; the root layout (`useOpenFileBridge`) bridges the event to the active route's loader.

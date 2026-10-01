@@ -6,10 +6,8 @@ import { useTranslation } from "react-i18next"
 import { ImageContainer } from "@/components/ImageContainer"
 import { ImageNavBar } from "@/components/ImageNavBar"
 import { RenameDialog } from "@/components/RenameDialog"
-import { SaveEditsDialog } from "@/components/SaveEditsDialog"
 import { ThumbnailGrid } from "@/components/ThumbnailGrid"
 import { Button } from "@/components/ui/button"
-import { toast } from "@/components/ui/toast"
 import type { WebtoonScrollTarget } from "@/components/WebtoonContinuousView"
 import type { MouseAction } from "@/constants/shortcuts"
 import { useAlwaysOnTop } from "@/hooks/useAlwaysOnTop"
@@ -20,7 +18,6 @@ import { useCopyImage } from "@/hooks/useCopyImage"
 import { useDirectoryNavigation } from "@/hooks/useDirectoryNavigation"
 import { useExifLoader } from "@/hooks/useExifLoader"
 import { useFileOperations } from "@/hooks/useFileOperations"
-import { saveBlockedReason } from "@/hooks/useFileOperations"
 import { useFullscreen } from "@/hooks/useFullscreen"
 import { useIdleHide } from "@/hooks/useIdleHide"
 import { useImageLoader } from "@/hooks/useImageLoader"
@@ -35,7 +32,6 @@ import { getApp, updateDirImagesIndex, useAppStore, zoomIn, zoomOut } from "@/st
 import { useArchiveProgressStore } from "@/store/archiveProgressStore"
 import { getSettings, updateSettings, useSettingsStore } from "@/store/settingsStore"
 import { cycleViewerBackground } from "@/store/settingsStore"
-import type { SaveEditsPayload } from "@/utils/imageEdits"
 
 export const Route = createFileRoute("/image")({
   beforeLoad: () => {
@@ -235,7 +231,7 @@ function ImagePage() {
   }, [])
   const { toggle: toggleAlwaysOnTop } = useAlwaysOnTop()
   const { copy: copyImage } = useCopyImage()
-  const { trashCurrent, revealCurrent, openExternal, copyPathCurrent, renameCurrent, saveEdits } =
+  const { trashCurrent, revealCurrent, openExternal, copyPathCurrent, renameCurrent } =
     useFileOperations({
       loadImage: loadImageAndReset
     })
@@ -247,19 +243,8 @@ function ImagePage() {
   const dockShowName = useSettingsStore((state) => state.dockShowName)
   const dockShowIndex = useSettingsStore((state) => state.dockShowIndex)
   const [renameOpen, setRenameOpen] = useState(false)
-  const [saveOpen, setSaveOpen] = useState(false)
   const renameInitialName = useAppStore((state) => state.imageInfo?.file_name) ?? ""
   const closeAndGoHome = useCloseImage()
-
-  /** PSD/SVG/AVIF는 저장 불가라 다이얼로그를 열지 않고 즉시 안내한다. */
-  const handleOpenSaveDialog = useCallback(() => {
-    const blocked = saveBlockedReason(useAppStore.getState().imageInfo)
-    if (blocked) {
-      toast.info(t(`toast.save.${blocked}`))
-      return
-    }
-    setSaveOpen(true)
-  }, [t])
 
   // 명령 팔레트에서 뷰어 동작을 실행할 수 있도록 핸들러 등록
   useEffect(() => {
@@ -277,7 +262,6 @@ function ImagePage() {
       onOpenExternal: () => void openExternal(),
       onRenameFile: () => setRenameOpen(true),
       onCopyPath: () => void copyPathCurrent(),
-      onSaveEdits: handleOpenSaveDialog,
       onToggleGrid: toggleGrid,
       onToggleDock: toggleDock
     })
@@ -296,8 +280,7 @@ function ImagePage() {
     openExternal,
     copyPathCurrent,
     toggleGrid,
-    toggleDock,
-    handleOpenSaveDialog
+    toggleDock
   ])
 
   /** Esc 닫기: 그리드/다이얼로그가 열려 있거나 입력 중일 때는 뷰어를 닫지 않는다 */
@@ -306,7 +289,7 @@ function ImagePage() {
       handleGridClose()
       return
     }
-    if (renameOpen || saveOpen) return
+    if (renameOpen) return
     const active = document.activeElement
     if (
       active &&
@@ -317,7 +300,7 @@ function ImagePage() {
       return
     }
     closeAndGoHome()
-  }, [gridOpen, handleGridClose, renameOpen, saveOpen, closeAndGoHome])
+  }, [gridOpen, handleGridClose, renameOpen, closeAndGoHome])
 
   const handleRenameSubmit = useCallback(
     async (newName: string) => {
@@ -325,14 +308,6 @@ function ImagePage() {
       if (ok) setRenameOpen(false)
     },
     [renameCurrent]
-  )
-
-  const handleSaveSubmit = useCallback(
-    async (payload: SaveEditsPayload) => {
-      const ok = await saveEdits(payload)
-      if (ok) setSaveOpen(false)
-    },
-    [saveEdits]
   )
 
   const baseContextMenu = useImageViewerContextMenu(dirImages, {
@@ -349,7 +324,6 @@ function ImagePage() {
     onOpenExternal: () => void openExternal(),
     onRenameFile: () => setRenameOpen(true),
     onCopyPath: () => void copyPathCurrent(),
-    onSaveEdits: handleOpenSaveDialog,
     onToggleGrid: toggleGrid,
     onToggleDock: toggleDock
   })
@@ -443,7 +417,6 @@ function ImagePage() {
     onCycleBackground: () => cycleViewerBackground(),
     onRenameFile: () => setRenameOpen(true),
     onCopyPath: () => void copyPathCurrent(),
-    onSaveEdits: handleOpenSaveDialog,
     onToggleGrid: toggleGrid,
     disabled: gridOpen
   })
@@ -571,11 +544,6 @@ function ImagePage() {
         initialName={renameInitialName}
         onSubmit={(name) => void handleRenameSubmit(name)}
         onClose={() => setRenameOpen(false)}
-      />
-      <SaveEditsDialog
-        open={saveOpen}
-        onSubmit={(payload) => void handleSaveSubmit(payload)}
-        onClose={() => setSaveOpen(false)}
       />
     </div>
   )

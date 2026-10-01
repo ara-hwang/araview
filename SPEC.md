@@ -26,7 +26,7 @@
 | 확장자        | MIME                        | 비고                                                                                                                    |
 | ------------- | --------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | `png`         | `image/png`                 | 네이티브 렌더                                                                                                           |
-| `jpg`, `jpeg` | `image/jpeg`                | 네이티브 렌더. EXIF Orientation(1~8)을 치수·썸네일·편집 저장에 반영(WebView2 표시와 일치)                               |
+| `jpg`, `jpeg` | `image/jpeg`                | 네이티브 렌더. EXIF Orientation(1~8)을 치수·썸네일에 반영(WebView2 표시와 일치)                                         |
 | `gif`         | `image/gif`                 | 네이티브 렌더. 단일 보기에서 재생/정지·프레임 이동 지원(WebCodecs `ImageDecoder`, 미지원 시 네이티브 애니메이션)        |
 | `bmp`         | `image/bmp`                 | 네이티브 렌더                                                                                                           |
 | `webp`        | `image/webp`                | 네이티브 렌더                                                                                                           |
@@ -35,7 +35,7 @@
 | `avif`        | `image/avif`                | 네이티브 렌더                                                                                                           |
 | `heic`        | `image/heic`                | JPEG sidecar 트랜스코드 후 렌더                                                                                         |
 | `heif`        | `image/heif`                | JPEG sidecar 트랜스코드 후 렌더                                                                                         |
-| `psd`         | `image/vnd.adobe.photoshop` | JPEG sidecar 트랜스코드 후 렌더(읽기 전용, 편집 저장 미지원)                                                            |
+| `psd`         | `image/vnd.adobe.photoshop` | JPEG sidecar 트랜스코드 후 렌더(읽기 전용)                                                                              |
 | `tga`         | `image/x-tga`               | JPEG sidecar 트랜스코드 후 렌더(읽기 전용). `image` 크레이트 디코드, 투명은 흰 배경 합성                                |
 | `dds`         | `image/vnd.ms-dds`          | JPEG sidecar 트랜스코드 후 렌더(읽기 전용). DXT1/3/5(BC1~BC3)만 지원, 그 외는 `unsupported`                             |
 | `exr`         | `image/x-exr`               | JPEG sidecar 트랜스코드 후 렌더(읽기 전용). 선형 값을 clamp 후 sRGB 감마로 8비트화(노출 보정 없음)                      |
@@ -63,7 +63,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한�
   - QOI: `image` 크레이트 디코드가 가능하고 TGA/DDS/EXR과 같은 sidecar 경로(`raster_sidecar.rs`)에 얹을 수 있지만 아직 포함하지 않았다.
   - JXL(`jxl-oxide`), RAW(`rawloader`): 디코더 크레이트는 있으나 같은 이유로 sidecar 파이프라인이 선행돼야 한다.
   - PSB: 실제 PSB는 `8BPS` + version 2인데 디코더가 없어 진입 차단한다(`psd` 크레이트는 PSD만 지원).
-- PSD, TGA, DDS, EXR은 읽기 전용 미리보기(JPEG sidecar)만 지원하며 편집 저장은 불가하다(TGA/DDS/EXR은 백엔드가 `Read-only format`으로 차단).
+- PSD, TGA, DDS, EXR은 읽기 전용 미리보기(JPEG sidecar)만 지원한다.
 
 ## 3. 화면과 라우트
 
@@ -82,14 +82,14 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한�
 ### 3.2 뷰어 `/image`
 
 - `beforeLoad`에서 `imageInfo`가 없으면 `/`로 리다이렉트한다.
-- 구성: `ImageContainer`(읽기 영역) + 이미지 목록 도크(`ImageNavBar`, 상/하/좌/우) + 드래그 오버레이 + `ThumbnailGrid`(선택) + `RenameDialog` + `SaveEditsDialog`.
+- 구성: `ImageContainer`(읽기 영역) + 이미지 목록 도크(`ImageNavBar`, 상/하/좌/우) + 드래그 오버레이 + `ThumbnailGrid`(선택) + `RenameDialog`.
 - 도크: 뷰어 가장자리 플로우에 붙으며 읽기 영역을 밀어낸다. 위치(`dockPosition`, 기본 `bottom`), 표시(`dockVisible`, 기본 펼침), 썸네일 크기(`dockThumbSize` S/M/L), 파일명(`dockShowName`)/번호(`dockShowIndex`)를 보기 설정에서 바꾼다. 도크의 `⋯` 버튼에서도 같은 값을 즉시 바꿀 수 있다. 바 전체를 접으면 얇은 엣지 바로 복구한다. 접힘·자동숨김 동안에도 목록 스크롤 위치와 로드한 썸네일이 유지된다. 이미지가 2장 이상일 때만 표시한다.
 - 도크 구성: 한 줄에 이전/다음 버튼, 썸네일 목록(가상화), 그리드 토글, `⋯` 옵션, 접기 버튼을 둔다. 슬라이더는 없다. 목록은 폴더/아카이브의 모든 항목을 같은 순서로 유지하며, 보이는 창을 먼저 채운 뒤 나머지 썸네일을 이어서 로드한다.
 - 도크 위 휠은 설정된 휠 동작(`wheel`)을 따른다(기본: 위=이전, 아래=다음, Ctrl+휠=확대/축소). 동작이 `none`이면 목록 스크롤로 넘긴다. 웹툰 모드에서도 도크 휠은 이동으로 동작한다.
 - `G`(기본, 재할당 가능)로 썸네일 그리드 오버레이를 연다. 열 때 현재 이미지를 중앙에 둔다.
 - 그리드: 뷰포트 기반 가상화, 클릭/`Enter`로 점프 후 닫기, `Esc`/`G`로 닫기, 파일명 필터, 실패 셀 배지와 재시도. 그리드가 열려 있는 동안 뷰어 단축키는 비활성이다. 셀은 `aria-current`로 현재 페이지를, `aria-selected`로 키보드 선택(링)을 따로 표시한다.
 - 우클릭은 설정(`mouse.rightClick`)에 따라 컨텍스트 메뉴 또는 다른 동작이다. 홈에서는 우클릭을 막는다.
-- `Esc` 닫기: 이름 변경/저장 다이얼로그가 열려 있거나 입력 포커스 중이면 닫지 않는다.
+- `Esc` 닫기: 이름 변경 다이얼로그가 열려 있거나 입력 포커스 중이면 닫지 않는다.
 - 이미지 표시 설정은 `auto | smooth | pixelated`를 제공한다. `auto`는 픽셀 아트 자동 감지가 켜져 있고 분석 결과가 `pixel_art`로 분류되면 `pixelated`, 그 외에는 `smooth`를 사용한다. 수동 모드는 자동 감지보다 우선한다.
 - 픽셀 아트 자동 감지는 현재 이미지를 렌더한 뒤 별도 백그라운드 IPC로 분석한다. 분석 전/실패/불확실은 `smooth`로 대체하며 원본과 파생 이미지는 변경하지 않는다. 감지는 동시 2개로 제한하고 웹툰에서는 화면에서 벗어난 대기 요청을 취소한다.
 - 단일 이미지의 픽셀 보존 모드는 transform 확대 대신 레이아웃 크기 확대를 사용해 Chromium 합성 단계의 재보간을 줄인다. GIF Canvas는 `imageSmoothingEnabled=false`를 사용한다. 양쪽/웹툰의 각 이미지는 같은 설정을 공유하되 판정은 이미지별이다.
@@ -222,7 +222,6 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한�
 - `R`: 시계 90도, `Shift+R`: 반시계 90도.
 - `H`: 좌우 반전, `V`: 상하 반전.
 - 이미지 변경 시 기억된 맞춤 모드로 초기화된다.
-- 저장 시 순서는 회전 먼저, 반전 나중이며 화면 표시와 일치한다.
 
 ### 7.4 배경/표시
 
@@ -253,7 +252,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한�
 - `get_comic_info`: CBZ/ZIP의 `ComicInfo.xml`(ComicRack/Komga/Kavita 스키마)을 읽기 전용 메타데이터로 반환한다. 탐색은 엔트리 basename이 `comicinfo.xml`인 항목(대소문자 무시)이며 루트를 우선하고 없으면 첫 중첩 경로를 쓴다. 상한 1 MiB, UTF-8(BOM 허용)과 UTF-16 LE/BE BOM을 지원한다. XML 부재나 지원하지 않는 확장자는 `null`, 깨진 XML/디코딩 실패는 `corrupt`, 크기 초과는 `too_large`다. 필드 누락과 빈 값은 `null`로 정규화하고, 엔트리는 `read_archive_entry_bounded`(`archive.rs`)로 1 MiB 상한 아래에서 메모리로 읽는다. `pages`는 `image` 오름차순으로 최대 1000개까지 담는다.
 - 표지 판정: `pages`에서 `page_type`이 `FrontCover`(대소문자·공백 무시)인 첫 페이지를 양쪽 보기 표지 인덱스로 쓴다(`src/utils/comicCover.ts`). `image`가 목록 범위를 벗어나면(1 기반으로 적은 파일 등) 0번으로 폴백하고, 이어보기 진입도 표지 기준 쌍 시작으로 스냅한다.
 - 열기 흐름: 아카이브를 열 때 `get_archive_images`와 `get_comic_info`를 병행 호출한다. 폴더 미리보기에서는 메타데이터를 읽지 않고, 이전 로드의 응답은 최신 로드 토큰이 아니면 커밋하지 않는다. 파싱 실패는 로드를 막지 않고 패널의 Comic 섹션에 에러로 표시한다.
-- 아카이브 모드 제한: 휴지통 이동, 이름 변경, 편집 저장은 안내와 함께 차단된다.
+- 아카이브 모드 제한: 휴지통 이동, 이름 변경은 안내와 함께 차단된다.
 - 추출 가드: 엔트리 1개당 200MB, 아카이브별 추출 디렉터리 1GB를 넘으면 `too_large`로 중단한다.
 - 목록은 추출과 일치하도록 중복 엔트리 이름을 1회만 노출한다(zip `by_name`은 첫 항목만 돌려준다).
 - 표시용 추출 경로는 추출 전에 `mark_in_use`로 보호하고, 선추출(prefetch)은 보호 슬롯을 소비하지 않는다. `load_archive_image`의 `protect`는 기본 `true`이며 프론트 선로딩은 `false`를 전달한다.
@@ -328,7 +327,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한�
 - `I`로 패널 토글. 패널 내부 포커스에서는 `I` 닫기를 허용한다.
 - 표시 범주는 Camera, Exposure, Image, Lens, DateTime, GPS, Software 계열이다.
 - HEIC는 원본 경로 기준 EXIF를 읽으므로 비어 있는 경우가 많다.
-- JPEG의 Orientation은 표시·썸네일·저장에 반영한다. 패널에는 EXIF 원문 설명을 그대로 보여준다.
+- JPEG의 Orientation은 표시·썸네일에 반영한다. 패널에는 EXIF 원문 설명을 그대로 보여준다.
 - Comic 섹션: 아카이브 모드이고 `showComicInfo`가 켜져 있고(기본 켜짐, 설정 보기 탭 읽기) `comicInfo`가 있으면 파일/히스토그램/EXIF보다 위에 표시한다. 설정을 끄면 읽은 메타데이터는 유지한 채 섹션만 숨긴다(표지 판정은 계속 동작한다, 6절). 첫 줄은 `Series #Number`(있는 것만), 둘째 줄은 `Title`, 이어서 Writer, Penciller, Inker, Colorist, Letterer, CoverArtist, Editor, Publisher, 발행일(`Year-Month-Day`, 연도가 있을 때만), 읽기 방향(`Manga`가 `YesAndRightToLeft`/`No`일 때만), Genre, Tags, Volume, Count, PageCount, LanguageISO, AgeRating, CommunityRating, 마지막에 Summary를 줄바꿈 그대로 표시한다. 값이 없는 필드는 행을 만들지 않는다. 파싱 실패면 재시도 버튼 없이 에러 문구만 남기고(복구 수단은 아카이브 다시 열기), 메타데이터가 없으면 섹션을 숨긴다.
 
 ### 10.1 히스토그램 `get_image_histogram`
@@ -350,7 +349,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한�
 
 진실: `src/hooks/useFileOperations.ts`, `src-tauri/src/commands.rs`, `src-tauri/src/save.rs`, `src/hooks/useCopyImage.ts`.
 
-공통: 아카이브 모드(전체/미리보기)면 원본 아카이브 경로를 대상으로 삼는다. 단, 휴지통/이름 변경/편집 저장은 아카이브에서 차단된다. 파일 작업은 렌더 경로(`file_path`)가 아니라 사용자가 연 원본(`source_path`)을 대상으로 한다(9.4절).
+공통: 아카이브 모드(전체/미리보기)면 원본 아카이브 경로를 대상으로 삼는다. 단, 휴지통/이름 변경은 아카이브에서 차단된다. 파일 작업은 렌더 경로(`file_path`)가 아니라 사용자가 연 원본(`source_path`)을 대상으로 한다(9.4절).
 
 ### 11.1 휴지통 이동 `Delete`
 
@@ -370,26 +369,12 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한�
 - 대소문자만 바꾸는 동일 파일은 이동을 생략한다.
 - 성공 시 디렉토리 목록과 최근 파일 경로를 교체한다.
 
-### 11.3 편집 저장 `Ctrl+S`
-
-- PSD/SVG/AVIF는 저장 불가라 진입 시 다이얼로그를 열지 않고 안내한다. 백엔드도 `unsupported`로 2중 차단한다. 그 외 지원 포맷은 저장 가능하다.
-- `save_image_edits` 옵션: 회전(`0 | 90 | 180 | 270`), 좌우/상하 반전, 출력 포맷(`png | jpg | jpeg | webp` 또는 원본 유지), 덮어쓰기 여부와 새 파일명.
-- 출력 포맷 결정: 요청값 > 원본 유지 가능값(png/jpg/webp) > HEIC/HEIF는 JPG > 그 외는 PNG.
-- 지원 출력은 png/jpg/webp만. 그 외는 `invalid_input`.
-- `overwrite=true`는 포맷이 바뀌지 않을 때만 같은 경로에 쓴다. 그 외는 새 파일명으로 쓰며 중복 시 번호를 붙인다. 확장자는 선택 포맷으로 강제한다.
-- 새 파일명은 `create_new`로 원자적으로 예약한다. 인코딩 중 다른 저장이 같은 이름을 만들면 다음 번호로 넘어가며, 실패 시 예약한 빈 파일을 지운다.
-- JPEG→JPEG 저장은 원본의 APP1(EXIF/XMP), APP2(ICC), APP13(IPTC), COM 세그먼트를 이식한다. 회전은 픽셀에 반영되므로 EXIF Orientation은 1로, PixelXDimension/PixelYDimension은 새 크기로 in-place 패치한다(구조가 예상 밖이면 손대지 않음). 메타데이터 총량이 16MB를 넘거나 SOS를 찾지 못하면 이식하지 않는다.
-- 회전 범위 오류, 디코드 불가 입력은 원본을 건드리지 않고 실패한다.
-- 변경 없음(회전 0 + 반전 없음 + 포맷 유지)은 저장하지 않고 안내한다.
-- 덮어쓰기는 확인 다이얼로그 후 실행한다.
-- 성공 시 최근 파일에 추가하고 새 경로로 다시 로드한다(회전 상태 초기화 포함).
-
-### 11.4 클립보드 복사 `Ctrl+C`
+### 11.3 클립보드 복사 `Ctrl+C`
 
 - 현재 이미지를 PNG로 클립보드에 복사한다.
 - 이미지가 없거나 변환 실패 시 에러 안내를 표시한다.
 
-### 11.5 경로/외부 열기
+### 11.4 경로/외부 열기
 
 - `Ctrl+Shift+C`: 유효 경로를 텍스트로 복사한다.
 - `Ctrl+Shift+E`: 탐색기에 표시한다.
@@ -494,7 +479,6 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한�
 | 배경 순환        | `B`               |
 | 이름 변경        | `F2`              |
 | 경로 복사        | `Ctrl+Shift+C`    |
-| 편집 저장        | `Ctrl+S`          |
 | 명령 팔레트      | `Ctrl+K`          |
 | 10장 이전        | `PageUp`          |
 | 10장 다음        | `PageDown`        |
@@ -561,7 +545,6 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한�
 | `unregister_psd_thumbnail`               | 없음                                                                                           | `PsdThumbStatus`                       |
 | `trash_file`                             | `filePath`                                                                                     | 없음                                   |
 | `rename_file`                            | `oldPath`, `newName`, `maxSide?`, `imageScalingMode?`, `autoDetectPixelArt?`                   | `ImageInfo`                            |
-| `save_image_edits`                       | `filePath`, `options`                                                                          | `ImageInfo`                            |
 | `frontend_ready`                         | 없음                                                                                           | 없음 (`PendingOpenFile` flush)         |
 
 `load_image`, `load_archive_image`, `rename_file`은 표시 정책에 따라 선택적으로 `imageScalingMode`(`auto | smooth | pixelated`)와 `autoDetectPixelArt`를 받는다.
@@ -601,7 +584,6 @@ Rust와 TypeScript는 같은 모양을 유지한다.
 - `ComicPage`: `{ image: number, page_type: string | null }`. `image`는 ComicRack 스키마대로 0 기반 페이지 인덱스이고 `page_type`은 `FrontCover` 같은 값이다. 양쪽 표지 판정(6절)의 근거다.
 - `FileAssociation`: `{ extension, associated, current_prog_id, needs_os_confirmation }`.
 - `PsdThumbStatus`: 탐색기 썸네일 등록 상태(20.2절).
-- `SaveImageOptions`: camelCase `{ rotationCw, flipH, flipV, format?, overwrite, newFileName? }`.
 - `DirListOptions`: camelCase `{ sortKey, descending, recursive }`.
 - `CacheStats`: `{ storage_mode: "temporary"|"persistent", persistent_available, total_bytes, file_count, protected_bytes, protected_file_count, total_limit_bytes, categories }`.
 - `CacheCategoryStats`: `{ key: "thumbnails"|"converted"|"scaled"|"archives"|"other", bytes, file_count, protected_bytes, protected_file_count, limit_bytes }`.
@@ -634,7 +616,7 @@ Rust와 TypeScript는 같은 모양을 유지한다.
 
 - 백엔드는 디코드용 파일 경로를 돌려주고, 프론트는 `convertFileSrc(...)`로 변환해 `<img>`에 넣는다.
 - HEIC/HEIF/PSD는 JPEG sidecar를, 표시 해상도 제한이 걸린 큰 래스터는 `scaled/` 사본(9.4절)을 만든다. sidecar와 아카이브 추출물, 썸네일 캐시는 `cacheStorageMode`가 `persistent`면 Tauri 사용자 캐시 디렉터리의 버전된 루트에, `temporary`면 프로세스 수명 TempDir에 둔다.
-- JPEG의 EXIF Orientation(1~8)은 WebView2 `<img>`가 자동 적용한다. 백엔드는 같은 기준을 따르도록 치수(`ImageInfo.width/height`, `get_image_details`), 썸네일, 편집 저장(`save_image_edits`)에 회전을 명시 적용한다(SVG/WebP/PNG/HEIC는 대상 아님).
+- JPEG의 EXIF Orientation(1~8)은 WebView2 `<img>`가 자동 적용한다. 백엔드는 같은 기준을 따르도록 치수(`ImageInfo.width/height`, `get_image_details`), 썸네일에 회전을 명시 적용한다(SVG/WebP/PNG/HEIC는 대상 아님).
 - `detect_pixel_art`는 표시 바이트 경로를 제한된 분석 이미지로 읽고, 작은 색상 팔레트·평탄도·동일 색상 run·주기적 경계 신호를 결합한다. ML 모델이나 네트워크를 사용하지 않으며, 분석 제한 초과·디코드 실패·불확실 결과는 안전하게 부드러운 표시로 대체한다.
 - `image-rendering`은 `smooth`와 `pixelated` 값을 사용한다. `smooth`는 브라우저의 고품질 보간 선호이며 특정 Bilinear 구현을 보장하지 않는다. `pixelated`는 확대 시 최근접 계열 보간을 요청한다. 픽셀 보존 판정(pixelated 모드와 확신 있는 자동 감지 포함)은 표시 배율이 1x 이상(확대)일 때만 적용되며, 축소 배율에서는 설정·감지와 무관하게 항상 `smooth`로 강제된다. nearest 축소는 스크린톤 같은 주기 패턴을 계단·무아레로 깨뜨린다. 단일 보기 배율은 `imageSize`에 대한 `zoom`이고, 웹툰/양쪽 보기는 렌더된 `<img>`에서 실측한다(측정 전에는 기존 판정 유지).
 - 사용자 원본 파일은 필터링하지 않는다. 표시 해상도 상한 sidecar와 썸네일은 기존 파생 이미지 파이프라인을 유지하며, 픽셀 보존 판정은 메인 이미지 표시 힌트로만 사용한다.

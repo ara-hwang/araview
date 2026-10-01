@@ -37,7 +37,6 @@ type ImageViewerHotkeysParams = {
   onCycleBackground: () => void
   onRenameFile: () => void
   onCopyPath: () => void
-  onSaveEdits: () => void
   onToggleGrid: () => void
   /** 그리드 등 오버레이가 열려 있을 때 뷰어 단축키 전체를 막는다 */
   disabled?: boolean
@@ -218,9 +217,6 @@ export function useImageViewerHotkeys(props: ImageViewerHotkeysParams) {
           break
         case "copyPath":
           run(p.onCopyPath)
-          break
-        case "saveEdits":
-          run(p.onSaveEdits)
           break
         case "toggleGrid":
           run(p.onToggleGrid)

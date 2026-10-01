@@ -119,15 +119,13 @@ src-tauri/
   src/thumbnail.rs   # 썸네일 생성/캐시
   src/sidecar.rs     # sidecar/썸네일/추출물 공용 헬퍼(해시, 락, 원자 발행)
   src/scaled.rs      # 표시 해상도 제한 축소본
-  src/save.rs        # 편집 저장
   src/thumb_shell.rs # PSD 탐색기 썸네일 셸 연동 명령
   src/app_error.rs   # 구조화 에러 코드 매핑
   src/dir_cache.rs    # 디렉토리 목록 캐시
   src/file_availability.rs # Files On-Demand availability 판별
   src/image_info.rs  # 이미지 상세/파일 정보 조회
   src/stable_hash.rs # 영속 캐시 파일명용 안정 해시
-  src/jpeg_meta.rs   # JPEG 저장 시 EXIF/ICC/XMP 세그먼트 이식 및 Orientation 패치
-  src/orientation.rs # EXIF Orientation 읽기/적용 (JPEG 표시·썸네일·저장 정합)
+  src/orientation.rs # EXIF Orientation 읽기/적용 (JPEG 표시·썸네일 정합)
   src/pixel_art.rs   # 표시용 픽셀 아트 휴리스틱 감지
   src/lib.rs         # Tauri 앱 설정 및 command 등록
 ```

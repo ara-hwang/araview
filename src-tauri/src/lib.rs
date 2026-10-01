@@ -10,13 +10,11 @@ pub mod file_availability;
 pub mod heif;
 pub mod image;
 pub mod image_info;
-pub mod jpeg_meta;
 pub mod orientation;
 pub mod pixel_art;
 pub mod process_temp;
 pub mod psd_sidecar;
 pub mod raster_sidecar;
-pub mod save;
 pub mod scaled;
 pub mod sidecar;
 pub mod sniff;
@@ -36,7 +34,6 @@ use commands::{
     open_default_apps_settings, rename_file, resolve_dropped_path, set_file_association,
     trash_file,
 };
-use save::save_image_edits;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use tauri::{Emitter, Manager};
@@ -175,7 +172,6 @@ pub fn run() {
             unregister_psd_thumbnail,
             trash_file,
             rename_file,
-            save_image_edits,
             frontend_ready
         ])
         .setup(|app| {

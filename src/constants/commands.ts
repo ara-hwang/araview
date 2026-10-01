@@ -51,14 +51,6 @@ export const COMMAND_DEFS: readonly CommandDef[] = [
     keywords: ["close", "home"]
   },
   {
-    id: "saveEdits",
-    group: "file",
-    labelKey: "menu.saveEdits",
-    shortcutId: "saveEdits",
-    requiresImage: true,
-    keywords: ["save", "edit"]
-  },
-  {
     id: "copyImage",
     group: "file",
     labelKey: "menu.copyImage",

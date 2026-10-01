@@ -32,7 +32,6 @@ export type ImageViewerContextMenuActions = {
   onOpenExternal: () => void
   onRenameFile: () => void
   onCopyPath: () => void
-  onSaveEdits: () => void
   onToggleGrid: () => void
   onToggleDock: () => void
 }
@@ -212,12 +211,6 @@ export async function showImageViewerContextMenu(
       text: t("menu.copyPath"),
       accelerator: acc(s.copyPath),
       action: () => actions.onCopyPath()
-    }),
-    PredefinedMenuItem.new({ item: "Separator" }),
-    MenuItem.new({
-      text: t("menu.saveEdits"),
-      accelerator: acc(s.saveEdits),
-      action: () => actions.onSaveEdits()
     })
   ])
 
