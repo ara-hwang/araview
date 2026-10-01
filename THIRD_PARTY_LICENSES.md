@@ -11,21 +11,11 @@ to block licenses outside the allow list.
 
 This file is informational, not legal advice.
 
-## 0. Resolved: GPL RAR backend replaced (2026-09-15)
-
-Previous revisions of this file flagged GPL-3.0-or-later code statically
-linked via RAR support (unrar-rs plus reedsolomon-rs). The RAR backend is
-now rars (MIT OR Apache-2.0, pure Rust, RAR 1.3 through RAR 7). Verified:
-unrar-rs and reedsolomon-rs no longer appear in the dependency graph, and
-cargo-deny (licenses check, 2026-09-30) reports no GPL/AGPL/LGPL-licensed
-crates in the Windows x64 dependency closure. The PSD thumbnail handler
-(araview_thumb.dll) closure was permissive all along.
-
 Weak-copyleft note: MPL-2.0 crates (cssparser, cssparser-macros,
 dtoa-short, option-ext, selectors) ship via the Tauri stack
 (tauri-utils html parsing). MPL-2.0 is file-level: keep the exact
 versions listed below so recipients can obtain the unmodified
-crates.io sources. Pre-existing, unrelated to the RAR change.
+crates.io sources.
 
 ## 1. Dynamically linked native libraries (shipped as separate DLLs)
 
@@ -45,7 +35,6 @@ dependencies and other-OS targets are excluded.
 | ----- | ------- | ------- |
 | adler2 | 2.0.1 | 0BSD OR MIT OR Apache-2.0 |
 | aes | 0.8.4 | MIT OR Apache-2.0 |
-| aes | 0.9.3 | MIT OR Apache-2.0 |
 | aho-corasick | 1.1.5 | Unlicense OR MIT |
 | aligned | 0.4.3 | MIT OR Apache-2.0 |
 | aligned-vec | 0.6.4 | MIT |
@@ -75,8 +64,6 @@ dependencies and other-OS targets are excluded.
 | bitflags | 2.13.2 | MIT OR Apache-2.0 |
 | bitstream-io | 4.10.0 | MIT OR Apache-2.0 |
 | block-buffer | 0.10.4 | MIT OR Apache-2.0 |
-| block-buffer | 0.12.1 | MIT OR Apache-2.0 |
-| block-padding | 0.4.2 | MIT OR Apache-2.0 |
 | brotli | 8.0.4 | BSD-3-Clause AND MIT |
 | brotli-decompressor | 5.0.3 | BSD-3-Clause OR MIT |
 | built | 0.8.1 | MIT |
@@ -87,28 +74,21 @@ dependencies and other-OS targets are excluded.
 | byteorder-lite | 0.1.0 | Unlicense OR MIT |
 | bytes | 1.12.1 | MIT |
 | bzip2 | 0.5.2 | MIT OR Apache-2.0 |
-| bzip2 | 0.6.1 | MIT OR Apache-2.0 |
 | bzip2-sys | 0.1.13+1.0.8 | MIT OR Apache-2.0 |
 | camino | 1.2.6 | MIT OR Apache-2.0 |
 | cargo_metadata | 0.19.2 | MIT |
 | cargo_toml | 0.22.3 | Apache-2.0 OR MIT |
 | cargo-platform | 0.1.9 | MIT OR Apache-2.0 |
-| cbc | 0.2.1 | MIT OR Apache-2.0 |
 | cc | 1.4.7 | MIT OR Apache-2.0 |
 | cfb | 0.7.3 | MIT |
 | cfg-expr | 0.20.9 | MIT OR Apache-2.0 |
 | cfg-if | 1.0.5 | MIT OR Apache-2.0 |
 | cipher | 0.4.4 | MIT OR Apache-2.0 |
-| cipher | 0.5.2 | MIT OR Apache-2.0 |
-| cmov | 0.5.4 | Apache-2.0 OR MIT |
 | color_quant | 1.1.0 | MIT |
 | colorchoice | 1.0.5 | MIT OR Apache-2.0 |
-| const-oid | 0.10.2 | Apache-2.0 OR MIT |
 | constant_time_eq | 0.3.1 | CC0-1.0 OR MIT-0 OR Apache-2.0 |
 | cookie | 0.18.2 | MIT OR Apache-2.0 |
-| cpubits | 0.1.1 | MIT OR Apache-2.0 |
 | cpufeatures | 0.2.17 | MIT OR Apache-2.0 |
-| cpufeatures | 0.3.1 | MIT OR Apache-2.0 |
 | crc | 3.4.0 | MIT OR Apache-2.0 |
 | crc-catalog | 2.5.0 | MIT OR Apache-2.0 |
 | crc32fast | 1.5.2 | MIT OR Apache-2.0 |
@@ -117,12 +97,10 @@ dependencies and other-OS targets are excluded.
 | crossbeam-epoch | 0.9.21 | MIT OR Apache-2.0 |
 | crossbeam-utils | 0.8.23 | MIT OR Apache-2.0 |
 | crypto-common | 0.1.7 | MIT OR Apache-2.0 |
-| crypto-common | 0.2.2 | MIT OR Apache-2.0 |
 | cssparser | 0.36.0 | MPL-2.0 |
 | cssparser-macros | 0.6.1 | MPL-2.0 |
 | ctor | 0.8.0 | Apache-2.0 OR MIT |
 | ctor-proc-macro | 0.0.7 | Apache-2.0 OR MIT |
-| ctutils | 0.4.2 | Apache-2.0 OR MIT |
 | darling | 0.24.1 | MIT |
 | darling_core | 0.24.1 | MIT |
 | darling_macro | 0.24.1 | MIT |
@@ -133,7 +111,6 @@ dependencies and other-OS targets are excluded.
 | derive_more | 2.1.1 | MIT |
 | derive_more-impl | 2.1.1 | MIT |
 | digest | 0.10.7 | MIT OR Apache-2.0 |
-| digest | 0.11.3 | MIT OR Apache-2.0 |
 | dirs | 6.0.0 | MIT OR Apache-2.0 |
 | dirs-sys | 0.5.0 | MIT OR Apache-2.0 |
 | displaydoc | 0.2.7 | MIT OR Apache-2.0 |
@@ -155,7 +132,6 @@ dependencies and other-OS targets are excluded.
 | exr | 1.74.2 | BSD-3-Clause |
 | fastrand | 2.5.0 | Apache-2.0 OR MIT |
 | fdeflate | 0.3.7 | MIT OR Apache-2.0 |
-| filetime | 0.2.29 | MIT OR Apache-2.0 |
 | find-msvc-tools | 0.1.13 | MIT OR Apache-2.0 |
 | flate2 | 1.1.10 | MIT OR Apache-2.0 |
 | float-cmp | 0.9.0 | MIT |
@@ -183,14 +159,12 @@ dependencies and other-OS targets are excluded.
 | hashbrown | 0.17.1 | MIT OR Apache-2.0 |
 | heck | 0.5.0 | MIT OR Apache-2.0 |
 | hmac | 0.12.1 | MIT OR Apache-2.0 |
-| hmac | 0.13.0 | MIT OR Apache-2.0 |
 | html5ever | 0.38.0 | MIT OR Apache-2.0 |
 | http | 1.5.0 | MIT OR Apache-2.0 |
 | http-body | 1.1.0 | MIT |
 | http-body-util | 0.1.5 | MIT |
 | http-range | 0.1.5 | MIT |
 | httparse | 1.10.1 | MIT OR Apache-2.0 |
-| hybrid-array | 0.4.15 | MIT OR Apache-2.0 |
 | hyper | 1.11.1 | MIT |
 | hyper-rustls | 0.27.10 | Apache-2.0 OR ISC OR MIT |
 | hyper-util | 0.1.20 | MIT |
@@ -213,7 +187,6 @@ dependencies and other-OS targets are excluded.
 | indexmap | 2.14.2 | Apache-2.0 OR MIT |
 | infer | 0.19.0 | MIT |
 | inout | 0.1.4 | MIT OR Apache-2.0 |
-| inout | 0.2.2 | MIT OR Apache-2.0 |
 | ipnet | 2.12.2 | MIT OR Apache-2.0 |
 | is_terminal_polyfill | 1.70.2 | MIT OR Apache-2.0 |
 | itertools | 0.14.0 | MIT OR Apache-2.0 |
@@ -228,7 +201,6 @@ dependencies and other-OS targets are excluded.
 | keyboard-types | 0.7.0 | MIT OR Apache-2.0 |
 | kurbo | 0.13.1 | Apache-2.0 OR MIT |
 | lebe | 0.5.3 | BSD-3-Clause |
-| libbz2-rs-sys | 0.2.5 | bzip2-1.0.6 |
 | libc | 0.2.189 | MIT OR Apache-2.0 |
 | libheif-rs | 3.0.0 | MIT |
 | libheif-sys | 5.3.1+1.23.1 | MIT |
@@ -238,7 +210,6 @@ dependencies and other-OS targets are excluded.
 | log | 0.4.34 | MIT OR Apache-2.0 |
 | loop9 | 0.1.5 | MIT |
 | lzma-rs | 0.3.0 | MIT |
-| lzma-rust2 | 0.20.1 | Apache-2.0 |
 | lzma-sys | 0.1.20 | MIT OR Apache-2.0 |
 | markup5ever | 0.38.0 | MIT OR Apache-2.0 |
 | maybe-rayon | 0.1.1 | MIT |
@@ -288,7 +259,6 @@ dependencies and other-OS targets are excluded.
 | polycool | 0.4.0 | MIT OR Apache-2.0 |
 | potential_utf | 0.1.6 | Unicode-3.0 |
 | powerfmt | 0.2.0 | MIT OR Apache-2.0 |
-| ppmd-rust | 1.5.0 | CC0-1.0 OR MIT-0 |
 | ppv-lite86 | 0.2.21 | MIT OR Apache-2.0 |
 | precomputed-hash | 0.1.1 | MIT |
 | proc-macro2 | 1.0.107 | MIT OR Apache-2.0 |
@@ -305,7 +275,6 @@ dependencies and other-OS targets are excluded.
 | rand | 0.9.5 | MIT OR Apache-2.0 |
 | rand_chacha | 0.9.0 | MIT OR Apache-2.0 |
 | rand_core | 0.9.5 | MIT OR Apache-2.0 |
-| rars | 0.9.4 | MIT OR Apache-2.0 |
 | rav1e | 0.8.1 | BSD-2-Clause |
 | ravif | 0.13.0 | BSD-3-Clause |
 | raw-cpuid | 11.6.0 | MIT |
@@ -348,11 +317,8 @@ dependencies and other-OS targets are excluded.
 | serialize-to-javascript | 0.1.2 | MIT OR Apache-2.0 |
 | serialize-to-javascript-impl | 0.1.2 | MIT OR Apache-2.0 |
 | servo_arc | 0.4.3 | MIT OR Apache-2.0 |
-| sevenz-rust2 | 0.22.2 | Apache-2.0 |
 | sha1 | 0.10.7 | MIT OR Apache-2.0 |
-| sha1 | 0.11.0 | MIT OR Apache-2.0 |
 | sha2 | 0.10.9 | MIT OR Apache-2.0 |
-| sha2 | 0.11.0 | MIT OR Apache-2.0 |
 | shlex | 2.0.1 | MIT OR Apache-2.0 |
 | simd_helpers | 0.1.0 | MIT |
 | simd-adler32 | 0.3.10 | MIT |
@@ -377,7 +343,6 @@ dependencies and other-OS targets are excluded.
 | synstructure | 0.14.0 | MIT |
 | system-deps | 8.0.0 | MIT OR Apache-2.0 |
 | tao | 0.35.3 | Apache-2.0 |
-| tar | 0.4.46 | MIT OR Apache-2.0 |
 | target-lexicon | 0.13.5 | Apache-2.0 WITH LLVM-exception |
 | tauri | 2.11.6 | Apache-2.0 OR MIT |
 | tauri-build | 2.6.3 | Apache-2.0 OR MIT |

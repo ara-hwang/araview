@@ -75,7 +75,7 @@ export function useImageLoader() {
   const dragDepthRef = useRef(0)
 
   // 아카이브 이웃 선추출. 현재 페인트 후 다음 페이지를 백그라운드로 추출+디코딩해
-  // 만화 Next 체감을 올린다. CB7 역압축 경합을 피하려고 거리를 최대 2로 묶는다.
+  // 만화 Next 체감을 올린다. 추출 경합을 피하려고 거리를 최대 2로 묶는다.
   // current imageInfo/progress를 덮지 않는 fire-and-forget 경로만 쓴다.
   const prefetchArchiveNeighbors = useCallback(
     (archivePath: string, images: string[], currentIndex: number) => {

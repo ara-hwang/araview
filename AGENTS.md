@@ -15,7 +15,7 @@ Product truth lives in `PRODUCT.md`, visual system in `DESIGN.md`, full function
 
 ## Current Feature Scope
 
-- Supported file extensions: `png`, `jpg`, `jpeg`, `gif`, `bmp`, `webp`, `svg`, `ico`, `avif`, `heic`, `heif`, `psd` (read-only preview via JPEG sidecar, no edit-save), `cbz`, `cb7`, `cbr`, `rar`, `zip`, `7z`, `cbt` (PSB excluded, no decoder)
+- Supported file extensions: `png`, `jpg`, `jpeg`, `gif`, `bmp`, `webp`, `svg`, `ico`, `avif`, `heic`, `heif`, `psd` (read-only preview via JPEG sidecar, no edit-save), `cbz`, `zip` (PSB excluded, no decoder)
 - Input flows: file picker, drag-and-drop (file/folder), OS file association open
 - Viewer controls: zoom, fit-to-width/height/screen, pan, rotate, flip
 - Navigation: previous/next, index jump, thumbnail strip/grid, optional loop navigation
@@ -181,7 +181,7 @@ Tauri Store (`settings.json`) is used for:
    check). Generation notes per format: raster/vector via `sharp` in a temp
    dir (never add generator deps to the repo), HEIC/HEIF via PC-installed
    Python `pillow-heif` (repo must not depend on it), CBZ via
-   `Compress-Archive`, CB7 via 7-Zip. If no encoder exists on the PC, install
+   `Compress-Archive`. If no encoder exists on the PC, install
    the tool on the PC instead of vendoring it into the repo.
 6. Update docs (`README.md`, `docs/` usage/development/releasing as relevant, `SPEC.md`, and this file when relevant)
 

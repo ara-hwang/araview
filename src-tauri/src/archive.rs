@@ -1,8 +1,7 @@
-use std::collections::HashMap;
 use std::fs;
 use std::io::Read;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use crate::app_error::{AppError, ErrorCode};
 use crate::image::is_image_file;
@@ -33,12 +32,6 @@ fn extraction_out_path(temp_dir: &Path, entry_name: &str) -> PathBuf {
 /// 단일 엔트리 압축 해제 상한 (zipbomb 가드). 초과 시 에러로 중단한다.
 pub const MAX_ENTRY_BYTES: u64 = 200 * 1024 * 1024;
 
-/// solid 7z 블록 하나의 선언 크기 합 상한 (zipbomb 가드).
-/// solid 블록에서 뒤쪽 엔트리를 읽으려면 앞부분 전체를 디코드해야 하므로,
-/// 개별 엔트리 상한만으로는 수백 GB짜리 디코드 작업을 막지 못한다.
-/// 실제 대형 만화 아카이브(수백 페이지 x 수 MB)는 이 값을 넘지 않는다.
-const MAX_SOLID_BLOCK_BYTES: u64 = 2 * 1024 * 1024 * 1024;
-
 /// 아카이브별 추출 디렉터리 상한. 초과분은 가장 오래된 추출물부터 지운다.
 /// 아직 화면에 있는 추출물은 `mark_in_use`로 보호되고(FE가 이미 asset URL을
 /// 들고 있어 재추출 계기가 없다), 나머지는 다음 접근 시 다시 추출된다.
@@ -50,9 +43,6 @@ pub fn list_archive_images(archive_path: &Path) -> Result<Vec<String>, AppError>
 
     match ext.as_str() {
         "cbz" | "zip" => list_zip_images(archive_path),
-        "cb7" | "7z" => list_7z_images(archive_path),
-        "cbr" | "rar" => list_rar_images(archive_path),
-        "cbt" => list_tar_images(archive_path),
         _ => Err(AppError::unsupported("Unsupported archive format")),
     }
 }
@@ -64,9 +54,6 @@ pub fn list_archive_entries(archive_path: &Path) -> Result<ArchiveEntries, AppEr
 
     match ext.as_str() {
         "cbz" | "zip" => collect_zip_entries(archive_path),
-        "cb7" | "7z" => collect_7z_entries(archive_path),
-        "cbr" | "rar" => collect_rar_entries(archive_path),
-        "cbt" => collect_tar_entries(archive_path),
         _ => Err(AppError::unsupported("Unsupported archive format")),
     }
 }
@@ -122,9 +109,6 @@ pub fn extract_archive_image_with_protection(
         }
         match ext.as_str() {
             "cbz" | "zip" => extract_zip_image(archive_path, entry_name, &out_path),
-            "cb7" | "7z" => extract_7z_image(archive_path, entry_name, &out_path),
-            "cbr" | "rar" => extract_rar_image(archive_path, entry_name, &out_path),
-            "cbt" => extract_tar_image(archive_path, entry_name, &out_path),
             _ => Err(AppError::unsupported("Unsupported archive format")),
         }
     })?;
@@ -260,322 +244,9 @@ fn extract_zip_image(
     Ok(())
 }
 
-fn list_7z_images(archive_path: &Path) -> Result<Vec<String>, AppError> {
-    Ok(Arc::unwrap_or_clone(
-        collect_7z_entries(archive_path)?.images,
-    ))
-}
-
-fn collect_7z_entries(archive_path: &Path) -> Result<ArchiveEntries, AppError> {
-    let reader = sevenz_rust2::ArchiveReader::open(archive_path, sevenz_rust2::Password::empty())
-        .map_err(|e| AppError::corrupt(format!("Failed to read 7z: {e}")))?;
-
-    let mut images: Vec<String> = Vec::new();
-    let mut all: Vec<String> = Vec::new();
-    for entry in reader.archive().files.iter() {
-        if entry.is_directory() {
-            continue;
-        }
-        let name = entry.name().to_string();
-        if name.starts_with("__") || name.starts_with('.') {
-            continue;
-        }
-        all.push(name.clone());
-        if is_image_file(Path::new(&name)) {
-            images.push(name);
-        }
-    }
-
-    Ok(finish_entries(images, all))
-}
-
-fn extract_7z_image(
-    archive_path: &Path,
-    entry_name: &str,
-    out_path: &Path,
-) -> Result<(), AppError> {
-    if out_path.is_file() {
-        crate::process_temp::touch_cache_file(out_path);
-        return Ok(());
-    }
-    let mut reader =
-        sevenz_rust2::ArchiveReader::open(archive_path, sevenz_rust2::Password::empty())
-            .map_err(|e| AppError::corrupt(format!("Failed to read 7z: {e}")))?;
-
-    check_7z_entry_block(reader.archive(), entry_name)?;
-
-    let buf = reader
-        .read_file(entry_name)
-        .map_err(|e| AppError::not_found(format!("Entry not found: {e}")))?;
-    check_entry_size(buf.len() as u64)?;
-
-    write_extracted(out_path, &buf)?;
-
-    Ok(())
-}
-
-/// 디코드 전에 선언 크기를 검사한다. solid 아카이브는 대상 앞 엔트리까지
-/// 순서대로 디코드해야 하므로, 개별 엔트리 상한과 함께 블록 총량도
-/// 제한해 수십 GB짜리 디코드 작업을 막는다.
-fn check_7z_entry_block(archive: &sevenz_rust2::Archive, entry_name: &str) -> Result<(), AppError> {
-    if let Some(target_idx) = archive.files.iter().position(|f| f.name() == entry_name) {
-        let target_block = archive.stream_map.file_block_index[target_idx];
-        let mut block_bytes: u64 = 0;
-        for (i, file) in archive.files.iter().enumerate() {
-            if archive.stream_map.file_block_index[i] == target_block {
-                check_entry_size(file.size())?;
-                block_bytes = block_bytes.saturating_add(file.size());
-            }
-        }
-        if block_bytes > MAX_SOLID_BLOCK_BYTES {
-            return Err(AppError::too_large("Archive block too large"));
-        }
-    }
-    Ok(())
-}
-
-fn list_rar_images(archive_path: &Path) -> Result<Vec<String>, AppError> {
-    Ok(Arc::unwrap_or_clone(
-        collect_rar_entries(archive_path)?.images,
-    ))
-}
-
-fn collect_rar_entries(archive_path: &Path) -> Result<ArchiveEntries, AppError> {
-    let archive = open_rar(archive_path)?;
-
-    let mut images: Vec<String> = Vec::new();
-    let mut all: Vec<String> = Vec::new();
-    for member in archive.members() {
-        if member.meta.is_directory {
-            continue;
-        }
-        let name = rar_display_name(&member.meta);
-        if name.starts_with("__") || name.starts_with('.') {
-            continue;
-        }
-        all.push(name.clone());
-        if is_image_file(Path::new(&name)) {
-            images.push(name);
-        }
-    }
-
-    Ok(finish_entries(images, all))
-}
-
-fn extract_rar_image(
-    archive_path: &Path,
-    entry_name: &str,
-    out_path: &Path,
-) -> Result<(), AppError> {
-    if out_path.is_file() {
-        crate::process_temp::touch_cache_file(out_path);
-        return Ok(());
-    }
-    let archive = open_rar(archive_path)?;
-
-    // 표시 이름은 lossy/`/` 정규화 결과라 추출용 정확한 바이트로 되돌린다
-    // (첫 일치 우선, 이전 백엔드와 같은 규칙).
-    let mut target: Option<(Vec<u8>, u64)> = None;
-    for member in archive.members() {
-        if rar_display_name(&member.meta) == entry_name {
-            target = Some((member.meta.name_bytes().to_vec(), member.meta.unpacked_size));
-            break;
-        }
-    }
-    let (raw_name, declared) =
-        target.ok_or_else(|| AppError::not_found(format!("Entry not found: {entry_name}")))?;
-    check_entry_size(declared)?;
-
-    // rars의 `read_member`는 병렬 버퍼 디코드로 모든 멤버를 메모리에 올릴 수
-    // 있고 상한도 반환 뒤에만 확인한다. 스트리밍 추출에 bounded writer를
-    // 붙여 대상 엔트리만 상한 내에서 모은다. solid 아카이브는 호출마다 전체
-    // 패스를 돌지만 이전 백엔드도 추출마다 다시 열었으므로 비용 성격이 같다.
-    let buf = read_rar_member_bounded(&archive, &raw_name, MAX_ENTRY_BYTES)?
-        .ok_or_else(|| AppError::not_found(format!("Entry not found: {entry_name}")))?;
-
-    write_extracted(out_path, &buf)?;
-
-    Ok(())
-}
-
-/// 스트리밍 추출 버퍼. `limit` 바이트를 넘는 순간 쓰기를 거부해 디코드를
-/// 중단하므로, 선언 크기를 위조한 헤더도 실제 메모리 할당 전에 막힌다.
-struct BoundedBuffer {
-    bytes: Vec<u8>,
-    limit: u64,
-    exceeded: bool,
-}
-
-impl BoundedBuffer {
-    fn new(limit: u64) -> Self {
-        Self {
-            bytes: Vec::new(),
-            limit,
-            exceeded: false,
-        }
-    }
-}
-
-impl std::io::Write for BoundedBuffer {
-    fn write(&mut self, data: &[u8]) -> std::io::Result<usize> {
-        if self.bytes.len() as u64 + data.len() as u64 > self.limit {
-            self.exceeded = true;
-            return Err(std::io::Error::other("archive entry too large"));
-        }
-        self.bytes.extend_from_slice(data);
-        Ok(data.len())
-    }
-
-    fn flush(&mut self) -> std::io::Result<()> {
-        Ok(())
-    }
-}
-
-/// rars의 추출 콜백에 넘기는 공유 버퍼 핸들.
-struct SharedBoundedBuffer(Arc<Mutex<BoundedBuffer>>);
-
-impl std::io::Write for SharedBoundedBuffer {
-    fn write(&mut self, data: &[u8]) -> std::io::Result<usize> {
-        let mut guard = self
-            .0
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        std::io::Write::write(&mut *guard, data)
-    }
-
-    fn flush(&mut self) -> std::io::Result<()> {
-        Ok(())
-    }
-}
-
-/// 스트리밍 추출로 RAR 멤버 하나를 `limit` 바이트까지만 모은다.
-/// 한도를 넘는 순간 쓰기를 거부해 디코드를 중단하므로, 선언 크기를
-/// 위조한 헤더도 실제 메모리 할당 전에 막힌다.
-fn read_rar_member_bounded(
-    archive: &rars::Archive,
-    raw_name: &[u8],
-    limit: u64,
-) -> Result<Option<Vec<u8>>, AppError> {
-    let slot = Arc::new(Mutex::new(BoundedBuffer::new(limit)));
-    let writer_slot = std::sync::Arc::clone(&slot);
-    let mut found = false;
-    // 200MB 초과 멤버는 rars가 버퍼 대신 스트리밍 경로로 디코드하게 한다.
-    let options = rars::ArchiveReadOptions::default().with_rar50_buffered_decode_limit(limit);
-    let result = archive.extract_to_with_options(options, |meta| {
-        if meta.name != raw_name || meta.is_directory {
-            return Ok(Box::new(std::io::sink()) as Box<dyn std::io::Write>);
-        }
-        found = true;
-        Ok(
-            Box::new(SharedBoundedBuffer(std::sync::Arc::clone(&writer_slot)))
-                as Box<dyn std::io::Write>,
-        )
-    });
-
-    let exceeded = slot.lock().map(|buffer| buffer.exceeded).unwrap_or(false);
-    if exceeded {
-        return Err(AppError::too_large("Archive entry too large"));
-    }
-    if let Err(e) = result {
-        return Err(AppError::corrupt(format!("Failed to read entry data: {e}")));
-    }
-    if !found {
-        return Ok(None);
-    }
-    let mut buffer = slot
-        .lock()
-        .map_err(|_| AppError::unknown("Failed to lock RAR buffer"))?;
-    Ok(Some(std::mem::take(&mut buffer.bytes)))
-}
-
-/// `rars` 파사드로 RAR 열기. RAR 1.3부터 RAR 7까지 시그니처로 분기한다.
-/// 암호 항목은 비밀번호 없이 디코드할 때 에러가 나 호출자가 Corrupt로 분류한다.
-fn open_rar(archive_path: &Path) -> Result<rars::Archive, AppError> {
-    rars::ArchiveReader::read_path(archive_path)
-        .map_err(|e| AppError::corrupt(format!("Failed to read RAR: {e}")))
-}
-
-/// RAR 멤버 표시 이름: lossy UTF-8에 `\`를 `/`로 정규화한다
-/// (아래 tar 경로 처리와 같은 규칙).
-fn rar_display_name(meta: &rars::ArchiveMemberMeta) -> String {
-    meta.name_lossy().replace('\\', "/")
-}
-
-fn list_tar_images(archive_path: &Path) -> Result<Vec<String>, AppError> {
-    Ok(Arc::unwrap_or_clone(
-        collect_tar_entries(archive_path)?.images,
-    ))
-}
-
-fn collect_tar_entries(archive_path: &Path) -> Result<ArchiveEntries, AppError> {
-    let file = open_archive_file(archive_path)?;
-    let mut archive = tar::Archive::new(file);
-
-    let mut images: Vec<String> = Vec::new();
-    let mut all: Vec<String> = Vec::new();
-    let entries = archive
-        .entries()
-        .map_err(|e| AppError::corrupt(format!("Failed to read TAR: {e}")))?;
-    for entry in entries {
-        let entry = entry.map_err(|e| AppError::corrupt(format!("Failed to read entry: {e}")))?;
-        if !entry.header().entry_type().is_file() {
-            continue;
-        }
-        let path = entry
-            .path()
-            .map_err(|e| AppError::corrupt(format!("Failed to read entry: {e}")))?;
-        let name = path.to_string_lossy().replace('\\', "/");
-        if name.starts_with("__") || name.starts_with('.') {
-            continue;
-        }
-        all.push(name.clone());
-        if is_image_file(Path::new(&name)) {
-            images.push(name);
-        }
-    }
-
-    Ok(finish_entries(images, all))
-}
-
-fn extract_tar_image(
-    archive_path: &Path,
-    entry_name: &str,
-    out_path: &Path,
-) -> Result<(), AppError> {
-    if out_path.is_file() {
-        crate::process_temp::touch_cache_file(out_path);
-        return Ok(());
-    }
-    let file = open_archive_file(archive_path)?;
-    let mut archive = tar::Archive::new(file);
-
-    let entries = archive
-        .entries()
-        .map_err(|e| AppError::corrupt(format!("Failed to read TAR: {e}")))?;
-    for entry in entries {
-        let mut entry =
-            entry.map_err(|e| AppError::corrupt(format!("Failed to read entry: {e}")))?;
-        let path = entry
-            .path()
-            .map_err(|e| AppError::corrupt(format!("Failed to read entry: {e}")))?;
-        let name = path.to_string_lossy().replace('\\', "/");
-        if name != entry_name {
-            continue;
-        }
-        check_entry_size(entry.header().size().unwrap_or(0))?;
-        let buf = read_bounded(&mut entry, MAX_ENTRY_BYTES, "Failed to read entry data")?;
-        write_extracted(out_path, &buf)?;
-        return Ok(());
-    }
-    Err(AppError::not_found(format!(
-        "Entry not found: {entry_name}"
-    )))
-}
-
 /// 아카이브 엔트리 하나를 `limit` 바이트까지 메모리로 읽는다.
 /// ComicInfo.xml 같은 작은 메타데이터용이다. 임시 파일을 만들지 않고, 선언 크기와
-/// 실제 출력 양쪽을 `limit`로 막아 압축 폭탄을 거른다. 형식별 가드(solid 7z 블록
-/// 상한, RAR 스트리밍 상한)는 이미지 추출과 같다.
+/// 실제 출력 양쪽을 `limit`로 막아 압축 폭탄을 거른다.
 pub(crate) fn read_archive_entry_bounded(
     archive_path: &Path,
     entry_name: &str,
@@ -583,9 +254,6 @@ pub(crate) fn read_archive_entry_bounded(
 ) -> Result<Vec<u8>, AppError> {
     match archive_ext(archive_path).as_str() {
         "cbz" | "zip" => read_zip_entry_bounded(archive_path, entry_name, limit),
-        "cb7" | "7z" => read_7z_entry_bounded(archive_path, entry_name, limit),
-        "cbr" | "rar" => read_rar_entry_bounded(archive_path, entry_name, limit),
-        "cbt" => read_tar_entry_bounded(archive_path, entry_name, limit),
         _ => Err(AppError::unsupported("Unsupported archive format")),
     }
 }
@@ -605,86 +273,6 @@ fn read_zip_entry_bounded(
         return Err(AppError::too_large("Archive entry too large"));
     }
     read_bounded(&mut entry, limit, "Failed to read entry data")
-}
-
-fn read_7z_entry_bounded(
-    archive_path: &Path,
-    entry_name: &str,
-    limit: u64,
-) -> Result<Vec<u8>, AppError> {
-    let mut reader =
-        sevenz_rust2::ArchiveReader::open(archive_path, sevenz_rust2::Password::empty())
-            .map_err(|e| AppError::corrupt(format!("Failed to read 7z: {e}")))?;
-    let declared = reader
-        .archive()
-        .files
-        .iter()
-        .find(|f| f.name() == entry_name)
-        .map(|f| f.size())
-        .ok_or_else(|| AppError::not_found(format!("Entry not found: {entry_name}")))?;
-    if declared > limit {
-        return Err(AppError::too_large("Archive entry too large"));
-    }
-    check_7z_entry_block(reader.archive(), entry_name)?;
-    let buf = reader
-        .read_file(entry_name)
-        .map_err(|e| AppError::not_found(format!("Entry not found: {e}")))?;
-    if buf.len() as u64 > limit {
-        return Err(AppError::too_large("Archive entry too large"));
-    }
-    Ok(buf)
-}
-
-fn read_rar_entry_bounded(
-    archive_path: &Path,
-    entry_name: &str,
-    limit: u64,
-) -> Result<Vec<u8>, AppError> {
-    let archive = open_rar(archive_path)?;
-    // 표시 이름을 추출용 정확한 바이트로 되돌린다 (`extract_rar_image`와 같은 규칙).
-    let mut target: Option<(Vec<u8>, u64)> = None;
-    for member in archive.members() {
-        if rar_display_name(&member.meta) == entry_name {
-            target = Some((member.meta.name_bytes().to_vec(), member.meta.unpacked_size));
-            break;
-        }
-    }
-    let (raw_name, declared) =
-        target.ok_or_else(|| AppError::not_found(format!("Entry not found: {entry_name}")))?;
-    if declared > limit {
-        return Err(AppError::too_large("Archive entry too large"));
-    }
-    read_rar_member_bounded(&archive, &raw_name, limit)?
-        .ok_or_else(|| AppError::not_found(format!("Entry not found: {entry_name}")))
-}
-
-fn read_tar_entry_bounded(
-    archive_path: &Path,
-    entry_name: &str,
-    limit: u64,
-) -> Result<Vec<u8>, AppError> {
-    let file = open_archive_file(archive_path)?;
-    let mut archive = tar::Archive::new(file);
-    let entries = archive
-        .entries()
-        .map_err(|e| AppError::corrupt(format!("Failed to read TAR: {e}")))?;
-    for entry in entries {
-        let mut entry =
-            entry.map_err(|e| AppError::corrupt(format!("Failed to read entry: {e}")))?;
-        let path = entry
-            .path()
-            .map_err(|e| AppError::corrupt(format!("Failed to read entry: {e}")))?;
-        if path.to_string_lossy().replace('\\', "/") != entry_name {
-            continue;
-        }
-        if entry.header().size().unwrap_or(0) > limit {
-            return Err(AppError::too_large("Archive entry too large"));
-        }
-        return read_bounded(&mut entry, limit, "Failed to read entry data");
-    }
-    Err(AppError::not_found(format!(
-        "Entry not found: {entry_name}"
-    )))
 }
 
 /// 이웃 페이지를 아카이브 오픈 1회로 선추출. FE 프리패치용 fire-and-forget.
@@ -712,29 +300,11 @@ pub fn prefetch_archive_images(
     }
     match ext.as_str() {
         "cbz" | "zip" => prefetch_zip_images(archive_path, &missing, temp_dir),
-        "cb7" | "7z" => prefetch_7z_images(archive_path, &missing, temp_dir),
-        "cbr" | "rar" => prefetch_rar_images(archive_path, &missing, temp_dir),
-        "cbt" => prefetch_tar_images(archive_path, &missing, temp_dir),
         _ => 0,
     }
 }
 
-/// 선추출 쓰기 단계를 표시 로드와 같은 파일별 락으로 직렬화한다. 락 안에서
-/// 존재를 재확인하므로 표시 로드가 먼저 발행한 엔트리는 디코드도 건너뛴다.
-fn prefetch_write_entry(reader: &mut dyn Read, out_path: &Path) -> bool {
-    let key = out_path.to_string_lossy().into_owned();
-    crate::sidecar::with_file_lock(&key, "archive extraction lock", || {
-        if out_path.is_file() {
-            return Ok(false);
-        }
-        let buf = read_bounded(reader, MAX_ENTRY_BYTES, "Failed to read entry data")?;
-        write_extracted(out_path, &buf).map(|_| true)
-    })
-    .unwrap_or(false)
-}
-
-/// [`prefetch_write_entry`]의 디코드 결과가 이미 모인 버전 (rar는 디코드와
-/// 쓰기가 추출 패스 안팎으로 갈리므로 바이트를 받는다).
+/// 디코드 결과가 이미 모인 바이트를 파일별 락 아래에서 발행한다.
 fn prefetch_write_bytes(buf: &[u8], out_path: &Path) -> bool {
     let key = out_path.to_string_lossy().into_owned();
     crate::sidecar::with_file_lock(&key, "archive extraction lock", || {
@@ -744,187 +314,6 @@ fn prefetch_write_bytes(buf: &[u8], out_path: &Path) -> bool {
         write_extracted(out_path, buf).map(|_| true)
     })
     .unwrap_or(false)
-}
-
-/// 7z는 블록 단위로 디코드되므로 엔트리별 재오픈이 같은 블록을 반복해서
-/// 푼다(solid면 매번 전체). 대상이 있는 블록만 오름차순으로 1회씩 연다.
-fn prefetch_7z_images(archive_path: &Path, entry_names: &[&String], temp_dir: &Path) -> usize {
-    let mut source = match open_archive_file(archive_path) {
-        Ok(file) => file,
-        Err(_) => return 0,
-    };
-    let password = sevenz_rust2::Password::empty();
-    let archive = match sevenz_rust2::Archive::read(&mut source, &password) {
-        Ok(archive) => archive,
-        Err(_) => return 0,
-    };
-
-    let mut wanted: HashMap<&str, PathBuf> = entry_names
-        .iter()
-        .map(|name| (name.as_str(), extraction_out_path(temp_dir, name)))
-        .collect();
-    let mut block_indexes: Vec<usize> = Vec::new();
-    for (index, file) in archive.files.iter().enumerate() {
-        if !wanted.contains_key(file.name()) {
-            continue;
-        }
-        // 개별 로드와 같은 크기 가드를 먼저 적용한다.
-        if check_7z_entry_block(&archive, file.name()).is_err() {
-            wanted.remove(file.name());
-            continue;
-        }
-        if let Some(block_index) = archive.stream_map.file_block_index[index] {
-            block_indexes.push(block_index);
-        }
-    }
-    block_indexes.sort_unstable();
-    block_indexes.dedup();
-
-    let thread_count = std::thread::available_parallelism()
-        .map(|n| n.get() as u32)
-        .unwrap_or(1);
-    let mut done = 0;
-    for block_index in block_indexes {
-        if wanted.is_empty() {
-            break;
-        }
-        let decoder = sevenz_rust2::BlockDecoder::new(
-            thread_count,
-            block_index,
-            &archive,
-            &password,
-            &mut source,
-        );
-        let mut each = |entry: &sevenz_rust2::ArchiveEntry, reader: &mut dyn Read| {
-            let Some(out_path) = wanted.remove(entry.name()) else {
-                return Ok(true);
-            };
-            if prefetch_write_entry(reader, &out_path) {
-                done += 1;
-            }
-            Ok(!wanted.is_empty())
-        };
-        if decoder.for_each_entries(&mut each).is_err() {
-            break;
-        }
-    }
-    done
-}
-
-/// RAR도 한 번의 디코드 패스로 모든 대상을 모은다. 표시 경로(extract
-/// 함수)와 달리 in-use 링을 소비하지 않는다: 아직 화면에 없는 페이지가
-/// 보호 슬롯을 차지하면 정작 표시 중인 페이지가 밀려난다.
-fn prefetch_rar_images(archive_path: &Path, entry_names: &[&String], temp_dir: &Path) -> usize {
-    let archive = match open_rar(archive_path) {
-        Ok(archive) => archive,
-        Err(_) => return 0,
-    };
-    let wanted: HashMap<&str, PathBuf> = entry_names
-        .iter()
-        .map(|name| (name.as_str(), extraction_out_path(temp_dir, name)))
-        .collect();
-    // 표시 이름은 lossy 정규화 결과라 디코드 대상은 raw 이름 바이트로 잡는다.
-    let mut targets: HashMap<Vec<u8>, PathBuf> = HashMap::new();
-    for member in archive.members() {
-        if member.meta.is_directory {
-            continue;
-        }
-        let display = rar_display_name(&member.meta);
-        let Some(out_path) = wanted.get(display.as_str()) else {
-            continue;
-        };
-        if member.meta.unpacked_size > MAX_ENTRY_BYTES {
-            continue;
-        }
-        targets.insert(member.meta.name_bytes().to_vec(), out_path.clone());
-    }
-    if targets.is_empty() {
-        return 0;
-    }
-
-    // 멤버별 버퍼는 상한을 넘는 순간 쓰기를 거부해 디코드를 중단한다.
-    let slots = Mutex::new(HashMap::<Vec<u8>, Arc<Mutex<BoundedBuffer>>>::new());
-    let options =
-        rars::ArchiveReadOptions::default().with_rar50_buffered_decode_limit(MAX_ENTRY_BYTES);
-    let _ = archive.extract_to_with_options(options, |meta| {
-        if meta.is_directory || !targets.contains_key(&meta.name) {
-            return Ok(Box::new(std::io::sink()) as Box<dyn std::io::Write>);
-        }
-        let slot = slots
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .entry(meta.name.clone())
-            .or_insert_with(|| Arc::new(Mutex::new(BoundedBuffer::new(MAX_ENTRY_BYTES))))
-            .clone();
-        Ok(Box::new(SharedBoundedBuffer(slot)) as Box<dyn std::io::Write>)
-    });
-
-    let mut done = 0;
-    let slots = slots
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner());
-    for (raw_name, slot) in slots.iter() {
-        let Some(out_path) = targets.get(raw_name) else {
-            continue;
-        };
-        let bytes = match slot.lock() {
-            Ok(mut buffer) if !buffer.exceeded => std::mem::take(&mut buffer.bytes),
-            _ => continue,
-        };
-        if prefetch_write_bytes(&bytes, out_path) {
-            done += 1;
-        }
-    }
-    done
-}
-
-/// TAR은 비압축이라 1회 순회로 모든 대상을 쓴다.
-fn prefetch_tar_images(archive_path: &Path, entry_names: &[&String], temp_dir: &Path) -> usize {
-    let file = match open_archive_file(archive_path) {
-        Ok(file) => file,
-        Err(_) => return 0,
-    };
-    let mut archive = tar::Archive::new(file);
-    let mut wanted: HashMap<&str, PathBuf> = entry_names
-        .iter()
-        .map(|name| (name.as_str(), extraction_out_path(temp_dir, name)))
-        .collect();
-    let mut done = 0;
-    let entries = match archive.entries() {
-        Ok(entries) => entries,
-        Err(_) => return 0,
-    };
-    for entry in entries {
-        if wanted.is_empty() {
-            break;
-        }
-        let Ok(mut entry) = entry else {
-            continue;
-        };
-        let name = {
-            let Ok(path) = entry.path() else {
-                continue;
-            };
-            path.to_string_lossy().replace('\\', "/")
-        };
-        let Some(out_path) = wanted.remove(name.as_str()) else {
-            continue;
-        };
-        let key = out_path.to_string_lossy().into_owned();
-        let wrote = crate::sidecar::with_file_lock(&key, "archive extraction lock", || {
-            if out_path.is_file() {
-                return Ok(false);
-            }
-            check_entry_size(entry.header().size().unwrap_or(0))?;
-            let buf = read_bounded(&mut entry, MAX_ENTRY_BYTES, "Failed to read entry data")?;
-            write_extracted(&out_path, &buf).map(|_| true)
-        })
-        .unwrap_or(false);
-        if wrote {
-            done += 1;
-        }
-    }
-    done
 }
 
 fn prefetch_zip_images(archive_path: &Path, entry_names: &[&String], temp_dir: &Path) -> usize {
@@ -976,81 +365,84 @@ mod tests {
 
     #[test]
     fn test_unsupported_archive_ext() {
-        let result = list_archive_images(Path::new("file.tar"));
+        let result = list_archive_images(Path::new("file.rar"));
         assert!(result.is_err());
     }
 
-    /// sevenz-rust2 writer로 CB7 픽스처를 만들어 목록/추출 왕복 검증
-    fn write_cb7_fixture(dir: &Path) -> PathBuf {
-        let a = dir.join("001.png");
-        let b = dir.join("sub-002.jpg");
-        fs::write(&a, b"fake-png-bytes").unwrap();
-        fs::write(&b, b"fake-jpg-bytes").unwrap();
-        fs::write(dir.join("note.txt"), b"not an image").unwrap();
-
-        let archive_path = dir.join("comic.cb7");
-        let mut writer = sevenz_rust2::ArchiveWriter::create(&archive_path).expect("create cb7");
-        writer.set_encrypt_header(false);
-        for (src, name) in [(&a, "001.png"), (&b, "sub/sub-002.jpg")] {
-            let file = fs::File::open(src).expect("open fixture");
-            let entry = sevenz_rust2::ArchiveEntry::from_path(src, name.to_string());
-            writer
-                .push_archive_entry(entry, Some(file))
-                .expect("push entry");
+    #[test]
+    fn test_removed_formats_are_unsupported() {
+        for ext in ["cb7", "7z", "cbr", "rar", "cbt"] {
+            let path = std::path::PathBuf::from(format!("comic.{ext}"));
+            let err = list_archive_images(&path).unwrap_err();
+            assert_eq!(err.code, crate::app_error::ErrorCode::Unsupported, "{ext}");
         }
-        // 텍스트 파일은 아카이브에 넣되 목록에서는 제외되어야 함
-        let note = dir.join("note.txt");
-        let note_file = fs::File::open(&note).expect("open note");
-        writer
-            .push_archive_entry(
-                sevenz_rust2::ArchiveEntry::from_path(&note, "note.txt".to_string()),
-                Some(note_file),
-            )
-            .expect("push note");
-        writer.finish().expect("finish cb7");
+    }
+
+    /// zip 크레이트 writer로 ZIP/CBZ 픽스처를 만들어 왕복 검증
+    fn write_zip_fixture(dir: &Path, file_name: &str) -> PathBuf {
+        use std::io::Write as _;
+        let archive_path = dir.join(file_name);
+        let file = fs::File::create(&archive_path).expect("create zip");
+        let mut writer = zip::ZipWriter::new(file);
+        let options = zip::write::SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Stored);
+        for (name, data) in [
+            ("001.png", b"fake-png-bytes".as_slice()),
+            ("sub/002.jpg", b"fake-jpg-bytes".as_slice()),
+            ("note.txt", b"not an image".as_slice()),
+        ] {
+            writer.start_file(name, options).expect("start entry");
+            writer.write_all(data).expect("write entry");
+        }
+        writer.finish().expect("finish zip");
         archive_path
     }
 
     #[test]
-    fn test_cb7_list_and_extract_roundtrip() {
+    fn test_zip_list_and_extract_roundtrip() {
         let dir = tempfile::tempdir().unwrap();
-        let archive_path = write_cb7_fixture(dir.path());
+        let archive_path = write_zip_fixture(dir.path(), "comic.zip");
 
-        let images = list_archive_images(&archive_path).expect("list cb7");
-        assert_eq!(images, vec!["001.png", "sub/sub-002.jpg"]);
+        // 텍스트 파일은 목록에서 제외된다
+        let images = list_archive_images(&archive_path).expect("list zip");
+        assert_eq!(images, vec!["001.png", "sub/002.jpg"]);
 
         let out_dir = dir.path().join("out");
         fs::create_dir_all(&out_dir).unwrap();
         let extracted =
-            extract_archive_image(&archive_path, "sub/sub-002.jpg", &out_dir).expect("extract");
+            extract_archive_image(&archive_path, "sub/002.jpg", &out_dir).expect("extract");
         let file_name = extracted.file_name().and_then(|n| n.to_str()).unwrap();
         // 고유 prefix + 원본 basename 유지
-        assert!(file_name.ends_with("_sub-002.jpg"), "got {file_name}");
+        assert!(file_name.ends_with("_002.jpg"), "got {file_name}");
         assert_eq!(fs::read(&extracted).unwrap(), b"fake-jpg-bytes");
 
         let missing = extract_archive_image(&archive_path, "nope.png", &out_dir);
         assert!(missing.is_err());
+
+        // .cbz 확장자(대문자 포함)도 같은 zip 경로를 탄다
+        for name in ["comic.cbz", "comic.CBZ"] {
+            let renamed = dir.path().join(name);
+            fs::copy(&archive_path, &renamed).unwrap();
+            assert_eq!(list_archive_images(&renamed).expect(name).len(), 2);
+        }
     }
 
     #[test]
     fn test_same_basename_in_different_dirs_does_not_collide() {
+        use std::io::Write as _;
         let dir = tempfile::tempdir().unwrap();
-        let a = dir.path().join("a.png");
-        let b = dir.path().join("b.png");
-        fs::write(&a, b"first-bytes").unwrap();
-        fs::write(&b, b"second-bytes").unwrap();
-
-        let archive_path = dir.path().join("comic.cb7");
-        let mut writer = sevenz_rust2::ArchiveWriter::create(&archive_path).expect("create cb7");
-        writer.set_encrypt_header(false);
-        for (src, name) in [(&a, "ch1/001.png"), (&b, "ch2/001.png")] {
-            let file = fs::File::open(src).expect("open fixture");
-            let entry = sevenz_rust2::ArchiveEntry::from_path(src, name.to_string());
-            writer
-                .push_archive_entry(entry, Some(file))
-                .expect("push entry");
+        let archive_path = dir.path().join("comic.cbz");
+        let mut writer = zip::ZipWriter::new(fs::File::create(&archive_path).unwrap());
+        let options = zip::write::SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Stored);
+        for (name, data) in [
+            ("ch1/001.png", b"first-bytes".as_slice()),
+            ("ch2/001.png", b"second-bytes".as_slice()),
+        ] {
+            writer.start_file(name, options).unwrap();
+            writer.write_all(data).unwrap();
         }
-        writer.finish().expect("finish cb7");
+        writer.finish().unwrap();
 
         let out_dir = dir.path().join("out");
         fs::create_dir_all(&out_dir).unwrap();
@@ -1076,193 +468,5 @@ mod tests {
             .and_then(|n| n.to_str())
             .unwrap()
             .ends_with("_001.png"));
-    }
-
-    #[test]
-    fn test_cb7_uppercase_extension() {
-        let dir = tempfile::tempdir().unwrap();
-        let lower = write_cb7_fixture(dir.path());
-        let upper = dir.path().join("comic.CB7");
-        fs::rename(&lower, &upper).unwrap();
-        let images = list_archive_images(&upper).expect("list CB7");
-        assert_eq!(images.len(), 2);
-    }
-
-    /// zip 크레이트 writer로 ZIP/CBZ 픽스처를 만들어 왕복 검증
-    fn write_zip_fixture(dir: &Path, file_name: &str) -> PathBuf {
-        use std::io::Write as _;
-        let archive_path = dir.join(file_name);
-        let file = fs::File::create(&archive_path).expect("create zip");
-        let mut writer = zip::ZipWriter::new(file);
-        let options = zip::write::SimpleFileOptions::default()
-            .compression_method(zip::CompressionMethod::Stored);
-        for (name, data) in [
-            ("001.png", b"fake-png-bytes".as_slice()),
-            ("sub/002.jpg", b"fake-jpg-bytes".as_slice()),
-        ] {
-            writer.start_file(name, options).expect("start entry");
-            writer.write_all(data).expect("write entry");
-        }
-        writer.finish().expect("finish zip");
-        archive_path
-    }
-
-    #[test]
-    fn test_zip_alias_list_and_extract_roundtrip() {
-        let dir = tempfile::tempdir().unwrap();
-        let archive_path = write_zip_fixture(dir.path(), "comic.zip");
-
-        let images = list_archive_images(&archive_path).expect("list zip");
-        assert_eq!(images, vec!["001.png", "sub/002.jpg"]);
-
-        let out_dir = dir.path().join("out");
-        fs::create_dir_all(&out_dir).unwrap();
-        let extracted = extract_archive_image(&archive_path, "001.png", &out_dir).expect("extract");
-        assert_eq!(fs::read(&extracted).unwrap(), b"fake-png-bytes");
-
-        // .cbz 확장자도 같은 zip 경로를 탄다
-        let cbz = dir.path().join("comic.cbz");
-        fs::rename(&archive_path, &cbz).unwrap();
-        let images = list_archive_images(&cbz).expect("list cbz");
-        assert_eq!(images.len(), 2);
-    }
-
-    /// tar 크레이트 builder로 CBT 픽스처를 만들어 왕복 검증
-    fn write_cbt_fixture(dir: &Path) -> PathBuf {
-        let archive_path = dir.join("comic.cbt");
-        let file = fs::File::create(&archive_path).expect("create cbt");
-        let mut builder = tar::Builder::new(file);
-        for (name, data) in [
-            ("001.png", b"fake-png-bytes".as_slice()),
-            ("ch/002.jpg", b"fake-jpg-bytes".as_slice()),
-        ] {
-            let mut header = tar::Header::new_gnu();
-            header.set_size(data.len() as u64);
-            header.set_cksum();
-            builder
-                .append_data(&mut header, name, data)
-                .expect("append");
-        }
-        builder.into_inner().expect("finish cbt");
-        archive_path
-    }
-
-    #[test]
-    fn test_cbt_list_and_extract_roundtrip() {
-        let dir = tempfile::tempdir().unwrap();
-        let archive_path = write_cbt_fixture(dir.path());
-
-        let images = list_archive_images(&archive_path).expect("list cbt");
-        assert_eq!(images, vec!["001.png", "ch/002.jpg"]);
-
-        let out_dir = dir.path().join("out");
-        fs::create_dir_all(&out_dir).unwrap();
-        let extracted =
-            extract_archive_image(&archive_path, "ch/002.jpg", &out_dir).expect("extract");
-        assert_eq!(fs::read(&extracted).unwrap(), b"fake-jpg-bytes");
-
-        let missing = extract_archive_image(&archive_path, "nope.png", &out_dir);
-        assert!(missing.is_err());
-    }
-
-    /// rars Builder로 RAR 픽스처를 만들어 목록/추출 왕복 검증.
-    /// `version`에 Rar50/Rar40을 넣어 양쪽 세대를 커버한다.
-    fn write_rar_fixture(dir: &Path, file_name: &str, version: rars::ArchiveVersion) -> PathBuf {
-        let mut builder = rars::Builder::new(version).store(true);
-        builder
-            .add_bytes(b"001.png".to_vec(), b"fake-png-bytes".to_vec(), None, None)
-            .expect("add png");
-        builder
-            .add_bytes(
-                b"sub/002.jpg".to_vec(),
-                b"fake-jpg-bytes".to_vec(),
-                None,
-                None,
-            )
-            .expect("add jpg");
-        let bytes = builder.to_bytes().expect("build rar");
-        let archive_path = dir.join(file_name);
-        fs::write(&archive_path, bytes).unwrap();
-        archive_path
-    }
-
-    fn assert_rar_roundtrip(archive_path: &Path) {
-        let images = list_archive_images(archive_path).expect("list rar");
-        assert_eq!(images, vec!["001.png", "sub/002.jpg"]);
-
-        let out_dir = archive_path.parent().expect("parent").join("out");
-        fs::create_dir_all(&out_dir).unwrap();
-        let extracted =
-            extract_archive_image(archive_path, "sub/002.jpg", &out_dir).expect("extract");
-        assert_eq!(fs::read(&extracted).unwrap(), b"fake-jpg-bytes");
-
-        let missing = extract_archive_image(archive_path, "nope.png", &out_dir);
-        assert!(missing.is_err());
-    }
-
-    #[test]
-    fn test_rar5_list_and_extract_roundtrip() {
-        let dir = tempfile::tempdir().unwrap();
-        let archive_path = write_rar_fixture(dir.path(), "comic.cbr", rars::ArchiveVersion::Rar50);
-        assert_rar_roundtrip(&archive_path);
-    }
-
-    #[test]
-    fn test_rar4_list_and_extract_roundtrip() {
-        let dir = tempfile::tempdir().unwrap();
-        let archive_path = write_rar_fixture(dir.path(), "old.cbr", rars::ArchiveVersion::Rar40);
-        assert_rar_roundtrip(&archive_path);
-    }
-
-    #[test]
-    fn test_rar_sample_fixture_when_present() {
-        // 저장소 samples/sample.cbr(RAR5)로 실파일 회귀 검증.
-        let source = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("..")
-            .join("samples")
-            .join("sample.cbr");
-        if !source.is_file() {
-            return;
-        }
-        let images = list_archive_images(&source).expect("list sample.cbr");
-        assert!(!images.is_empty(), "sample.cbr has no images");
-        let dir = tempfile::tempdir().unwrap();
-        let extracted =
-            extract_archive_image(&source, &images[0], dir.path()).expect("extract sample");
-        assert!(extracted.is_file());
-        assert!(fs::metadata(&extracted).expect("stat").len() > 0);
-    }
-
-    #[test]
-    fn test_rar_routes_to_rar_handler() {
-        // RAR 인코더가 없으므로 라우팅만 검증: 가짜 .rar는
-        // "Unsupported archive format"이 아닌 RAR 판독 에러를 낸다.
-        let dir = tempfile::tempdir().unwrap();
-        let fake = dir.path().join("fake.rar");
-        fs::write(&fake, b"not-a-rar").unwrap();
-        let err = list_archive_images(&fake).unwrap_err();
-        assert_eq!(err.code, crate::app_error::ErrorCode::Corrupt);
-        assert!(
-            err.message.contains("Failed to read RAR"),
-            "unexpected error: {err}"
-        );
-        let fake_cbr = dir.path().join("fake.cbr");
-        fs::write(&fake_cbr, b"not-a-rar").unwrap();
-        let err = list_archive_images(&fake_cbr).unwrap_err();
-        assert_eq!(err.code, crate::app_error::ErrorCode::Corrupt);
-        assert!(
-            err.message.contains("Failed to read RAR"),
-            "unexpected error: {err}"
-        );
-    }
-
-    #[test]
-    fn test_7z_alias_extension() {
-        let dir = tempfile::tempdir().unwrap();
-        let lower = write_cb7_fixture(dir.path());
-        let alias = dir.path().join("archive.7z");
-        fs::rename(&lower, &alias).unwrap();
-        let images = list_archive_images(&alias).expect("list 7z");
-        assert_eq!(images.len(), 2);
     }
 }

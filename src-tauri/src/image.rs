@@ -30,7 +30,7 @@ const TRANSCODE_MIMES: &[&str] = &["image/heic", "image/heif", crate::psd_sideca
 
 pub const SUPPORTED_EXTENSIONS: &[&str] = &[
     "png", "jpg", "jpeg", "gif", "bmp", "webp", "svg", "ico", "avif", "heic", "heif", "psd", "cbz",
-    "cb7", "cbr", "rar", "zip", "7z", "cbt",
+    "zip",
 ];
 
 #[derive(Serialize)]
@@ -56,10 +56,6 @@ pub fn get_mime_type(path: &Path) -> Option<&'static str> {
         "psd" => Some(crate::psd_sidecar::PSD_MIME),
         "cbz" => Some("application/vnd.comicbook+zip"),
         "zip" => Some("application/zip"),
-        "cb7" | "7z" => Some("application/x-7z-compressed"),
-        "cbr" => Some("application/vnd.comicbook-rar"),
-        "rar" => Some("application/x-rar-compressed"),
-        "cbt" => Some("application/x-tar"),
         _ => None,
     }
 }
@@ -422,14 +418,7 @@ pub fn is_image_file(path: &Path) -> bool {
 pub fn is_archive_file(path: &Path) -> bool {
     matches!(
         get_mime_type(path),
-        Some(
-            "application/vnd.comicbook+zip"
-                | "application/zip"
-                | "application/x-7z-compressed"
-                | "application/vnd.comicbook-rar"
-                | "application/x-rar-compressed"
-                | "application/x-tar"
-        )
+        Some("application/vnd.comicbook+zip" | "application/zip")
     )
 }
 
@@ -535,39 +524,25 @@ mod tests {
     }
 
     #[test]
-    fn test_get_mime_type_cb7() {
-        assert_eq!(
-            get_mime_type(Path::new("comic.cb7")),
-            Some("application/x-7z-compressed")
-        );
-        assert_eq!(
-            get_mime_type(Path::new("comic.CB7")),
-            Some("application/x-7z-compressed")
-        );
-    }
-
-    #[test]
-    fn test_get_mime_type_new_archives() {
-        assert_eq!(
-            get_mime_type(Path::new("comic.cbr")),
-            Some("application/vnd.comicbook-rar")
-        );
-        assert_eq!(
-            get_mime_type(Path::new("archive.rar")),
-            Some("application/x-rar-compressed")
-        );
+    fn test_get_mime_type_zip() {
         assert_eq!(
             get_mime_type(Path::new("archive.zip")),
             Some("application/zip")
         );
-        assert_eq!(
-            get_mime_type(Path::new("archive.7z")),
-            Some("application/x-7z-compressed")
-        );
-        assert_eq!(
-            get_mime_type(Path::new("comic.cbt")),
-            Some("application/x-tar")
-        );
+    }
+
+    #[test]
+    fn test_removed_archive_extensions_have_no_mime() {
+        for name in [
+            "comic.cb7",
+            "comic.CB7",
+            "comic.cbr",
+            "archive.rar",
+            "archive.7z",
+            "comic.cbt",
+        ] {
+            assert_eq!(get_mime_type(Path::new(name)), None, "{name}");
+        }
     }
 
     #[test]
@@ -621,13 +596,12 @@ mod tests {
     fn test_is_archive_file() {
         assert!(is_archive_file(Path::new("comic.cbz")));
         assert!(is_archive_file(Path::new("comic.CBZ")));
-        assert!(is_archive_file(Path::new("comic.cb7")));
-        assert!(is_archive_file(Path::new("comic.CB7")));
-        assert!(is_archive_file(Path::new("comic.cbr")));
-        assert!(is_archive_file(Path::new("archive.rar")));
         assert!(is_archive_file(Path::new("archive.zip")));
-        assert!(is_archive_file(Path::new("archive.7z")));
-        assert!(is_archive_file(Path::new("comic.cbt")));
+        assert!(!is_archive_file(Path::new("comic.cb7")));
+        assert!(!is_archive_file(Path::new("comic.cbr")));
+        assert!(!is_archive_file(Path::new("archive.rar")));
+        assert!(!is_archive_file(Path::new("archive.7z")));
+        assert!(!is_archive_file(Path::new("comic.cbt")));
         assert!(!is_archive_file(Path::new("photo.png")));
     }
 
@@ -635,9 +609,9 @@ mod tests {
     fn test_is_supported_file() {
         assert!(is_supported_file(Path::new("photo.png")));
         assert!(is_supported_file(Path::new("comic.cbz")));
-        assert!(is_supported_file(Path::new("comic.cb7")));
-        assert!(is_supported_file(Path::new("comic.cbr")));
-        assert!(is_supported_file(Path::new("comic.cbt")));
+        assert!(!is_supported_file(Path::new("comic.cb7")));
+        assert!(!is_supported_file(Path::new("comic.cbr")));
+        assert!(!is_supported_file(Path::new("comic.cbt")));
         assert!(!is_supported_file(Path::new("doc.pdf")));
     }
 
@@ -649,7 +623,7 @@ mod tests {
                 "missing MIME mapping for .{ext}"
             );
         }
-        assert_eq!(SUPPORTED_EXTENSIONS.len(), 19);
+        assert_eq!(SUPPORTED_EXTENSIONS.len(), 14);
     }
 
     #[test]

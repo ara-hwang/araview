@@ -574,7 +574,7 @@
     },
     "unsupported": {
       "title": "Unsupported format",
-      "hint": "Check if it is a supported format (png/jpg/webp/svg/avif/heic/psd/cbz/cbr, etc.) or try another viewer."
+      "hint": "Check if it is a supported format (png/jpg/webp/svg/avif/heic/psd/cbz, etc.) or try another viewer."
     },
     "corrupt": {
       "title": "Problem reading the file",
@@ -724,11 +724,6 @@
     "heif": "HEIF image",
     "psd": "PSD image",
     "cbz": "Comic archive",
-    "cb7": "Comic archive",
-    "cbr": "Comic archive",
-    "rar": "RAR archive",
-    "zip": "ZIP archive",
-    "7z": "7z archive",
-    "cbt": "Comic archive"
+    "zip": "ZIP archive"
   }
 }

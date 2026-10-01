@@ -30,7 +30,7 @@ describe("classifyError", () => {
   it("classifies corrupt/unreadable files", () => {
     expect(classifyError("Failed to read directory: corrupt header").kind).toBe("corrupt")
     expect(classifyError("Failed to decode image: bad png").kind).toBe("corrupt")
-    expect(classifyError("Failed to read RAR: boom").kind).toBe("corrupt")
+    expect(classifyError("Failed to read ZIP: boom").kind).toBe("corrupt")
     expect(classifyError("Failed to read entry data: boom").kind).toBe("corrupt")
   })
 

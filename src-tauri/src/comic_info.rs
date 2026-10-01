@@ -1,9 +1,9 @@
-//! 아카이브 안의 `ComicInfo.xml` 메타데이터 읽기 (읽기 전용, 표시용).
+//! CBZ/ZIP 안의 `ComicInfo.xml` 메타데이터 읽기 (읽기 전용, 표시용).
 //!
 //! ComicRack/Komga/Kavita가 쓰는 스키마를 그대로 따른다. 탐색은 엔트리
 //! basename 대소문자 무시 일치이고, 루트(`ComicInfo.xml`)를 우선한 뒤
 //! 없으면 첫 번째 중첩 경로를 쓴다. XML 부재는 에러가 아니라 `Ok(None)`이다.
-//! CBZ/ZIP, CB7/7Z, CBR/RAR, CBT를 지원하고 그 밖의 확장자는 `Ok(None)`이다.
+//! CBZ/ZIP만 지원하고 그 밖의 확장자는 `Ok(None)`이다.
 
 use std::path::Path;
 
@@ -106,19 +106,15 @@ struct RawPage {
     page_type: Option<String>,
 }
 
-/// 아카이브에서 ComicInfo.xml을 찾아 파싱한다.
+/// CBZ/ZIP에서 ComicInfo.xml을 찾아 파싱한다.
 /// 지원 확장자가 아니거나 XML이 없으면 `Ok(None)`, 깨진 XML은 `Corrupt`다.
-/// solid 7z/RAR은 XML 앞 데이터까지 디코드해야 해서 페이지 추출과 같은 비용이 든다.
 pub fn read_comic_info(archive_path: &Path) -> Result<Option<ComicInfo>, AppError> {
     let ext = archive_path
         .extension()
         .and_then(|e| e.to_str())
         .map(|e| e.to_lowercase())
         .unwrap_or_default();
-    if !matches!(
-        ext.as_str(),
-        "cbz" | "zip" | "cb7" | "7z" | "cbr" | "rar" | "cbt"
-    ) {
+    if ext != "cbz" && ext != "zip" {
         return Ok(None);
     }
 
@@ -524,129 +520,13 @@ mod tests {
         assert_eq!(err.code, ErrorCode::Corrupt);
     }
 
-    const MANGA_XML: &str = "<ComicInfo><Series>형식 테스트</Series>        <Manga>YesAndRightToLeft</Manga></ComicInfo>";
-
-    fn assert_manga_info(archive: &Path) {
-        let info = read_comic_info(archive)
-            .expect("read")
-            .unwrap_or_else(|| panic!("{}: comic info missing", archive.display()));
-        assert_eq!(info.series.as_deref(), Some("형식 테스트"));
-        assert_eq!(info.manga.as_deref(), Some("YesAndRightToLeft"));
-    }
-
     #[test]
-    fn reads_comic_info_from_cbt() {
+    fn non_zip_extensions_return_none() {
         let dir = tempfile::tempdir().expect("tempdir");
-        let archive_path = dir.path().join("comic.cbt");
-        let mut builder = tar::Builder::new(fs::File::create(&archive_path).expect("create"));
-        for (name, data) in [
-            ("001.png", b"fake-png-bytes".as_slice()),
-            ("ComicInfo.xml", MANGA_XML.as_bytes()),
-        ] {
-            let mut header = tar::Header::new_gnu();
-            header.set_size(data.len() as u64);
-            header.set_cksum();
-            builder
-                .append_data(&mut header, name, data)
-                .expect("append");
-        }
-        builder.into_inner().expect("finish");
-        assert_manga_info(&archive_path);
-    }
-
-    #[test]
-    fn reads_comic_info_from_cb7() {
-        let dir = tempfile::tempdir().expect("tempdir");
-        let image = dir.path().join("001.png");
-        let xml = dir.path().join("ComicInfo.xml");
-        fs::write(&image, b"fake-png-bytes").expect("write image");
-        fs::write(&xml, MANGA_XML).expect("write xml");
-        for ext in ["cb7", "7z"] {
-            let archive_path = dir.path().join(format!("comic.{ext}"));
-            let mut writer = sevenz_rust2::ArchiveWriter::create(&archive_path).expect("create 7z");
-            writer.set_encrypt_header(false);
-            for (src, name) in [(&image, "001.png"), (&xml, "ComicInfo.xml")] {
-                let file = fs::File::open(src).expect("open");
-                let entry = sevenz_rust2::ArchiveEntry::from_path(src, name.to_string());
-                writer
-                    .push_archive_entry(entry, Some(file))
-                    .expect("push entry");
-            }
-            writer.finish().expect("finish 7z");
-            assert_manga_info(&archive_path);
-        }
-    }
-
-    #[test]
-    fn reads_comic_info_from_rar() {
-        let dir = tempfile::tempdir().expect("tempdir");
-        for (file_name, version) in [
-            ("rar5.cbr", rars::ArchiveVersion::Rar50),
-            ("rar4.cbr", rars::ArchiveVersion::Rar40),
-            ("rar5.rar", rars::ArchiveVersion::Rar50),
-        ] {
-            let mut builder = rars::Builder::new(version).store(true);
-            builder
-                .add_bytes(b"001.png".to_vec(), b"fake-png-bytes".to_vec(), None, None)
-                .expect("add png");
-            builder
-                .add_bytes(
-                    b"ComicInfo.xml".to_vec(),
-                    MANGA_XML.as_bytes().to_vec(),
-                    None,
-                    None,
-                )
-                .expect("add xml");
-            let archive_path = dir.path().join(file_name);
-            fs::write(&archive_path, builder.to_bytes().expect("build")).expect("write");
-            assert_manga_info(&archive_path);
-        }
-    }
-
-    #[test]
-    fn non_cbz_archives_without_xml_return_none() {
-        let dir = tempfile::tempdir().expect("tempdir");
-        let archive_path = dir.path().join("comic.cbt");
-        let mut builder = tar::Builder::new(fs::File::create(&archive_path).expect("create"));
-        let data = b"fake-png-bytes";
-        let mut header = tar::Header::new_gnu();
-        header.set_size(data.len() as u64);
-        header.set_cksum();
-        builder
-            .append_data(&mut header, "001.png", data.as_slice())
-            .expect("append");
-        builder.into_inner().expect("finish");
-
-        assert!(read_comic_info(&archive_path).expect("read").is_none());
-    }
-
-    #[test]
-    fn unsupported_extension_returns_none_and_broken_archives_are_corrupt() {
-        let dir = tempfile::tempdir().expect("tempdir");
-        let png = dir.path().join("comic.png");
-        fs::write(&png, b"not an archive").expect("write");
-        assert!(read_comic_info(&png).expect("read").is_none());
-
-        for ext in ["cb7", "cbr", "cbt", "rar", "7z"] {
+        for ext in ["cb7", "cbr", "cbt", "rar", "7z", "png"] {
             let path = dir.path().join(format!("comic.{ext}"));
             fs::write(&path, b"not an archive").expect("write");
-            let err = read_comic_info(&path).expect_err(ext);
-            assert_eq!(err.code, ErrorCode::Corrupt, "{ext}");
-        }
-    }
-
-    #[test]
-    fn sample_archives_do_not_fail() {
-        // 저장소 samples의 실제 CB7/CBR/CBT는 ComicInfo가 없어도 에러 없이 None이다.
-        let samples = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("..")
-            .join("samples");
-        for name in ["sample.cb7", "sample.cbr", "sample.cbt", "sample.7z"] {
-            let path = samples.join(name);
-            if !path.is_file() {
-                continue;
-            }
-            assert!(read_comic_info(&path).expect(name).is_none(), "{name}");
+            assert!(read_comic_info(&path).expect("read").is_none(), "{ext}");
         }
     }
 

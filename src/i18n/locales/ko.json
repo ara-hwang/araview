@@ -574,7 +574,7 @@
     },
     "unsupported": {
       "title": "지원하지 않는 형식입니다",
-      "hint": "지원 포맷(png/jpg/webp/svg/avif/heic/psd/cbz/cbr 등)인지 확인하거나 다른 뷰어로 열어보세요."
+      "hint": "지원 포맷(png/jpg/webp/svg/avif/heic/psd/cbz 등)인지 확인하거나 다른 뷰어로 열어보세요."
     },
     "corrupt": {
       "title": "파일을 읽는 중 문제가 발생했습니다",
@@ -724,11 +724,6 @@
     "heif": "HEIF 이미지",
     "psd": "PSD 이미지",
     "cbz": "만화 아카이브",
-    "cb7": "만화 아카이브",
-    "cbr": "만화 아카이브",
-    "rar": "RAR 아카이브",
-    "zip": "ZIP 아카이브",
-    "7z": "7z 아카이브",
-    "cbt": "만화 아카이브"
+    "zip": "ZIP 아카이브"
   }
 }

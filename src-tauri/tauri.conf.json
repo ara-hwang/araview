@@ -64,19 +64,14 @@
         "name": "Comic Book Archive",
         "description": "Comic Book Archive File",
         "ext": [
-          "cbz",
-          "cb7",
-          "cbr",
-          "cbt"
+          "cbz"
         ]
       },
       {
         "name": "Archive",
         "description": "Archive File",
         "ext": [
-          "rar",
-          "zip",
-          "7z"
+          "zip"
         ]
       }
     ]

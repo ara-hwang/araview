@@ -19,7 +19,7 @@
 
 ## 2. 지원 포맷
 
-총 19개 확장자. 프론트 진실은 `src/constants/imageExtensions.ts`, 백엔드 진실은 `src-tauri/src/image.rs` (`SUPPORTED_EXTENSIONS`, `get_mime_type`).
+총 14개 확장자. 프론트 진실은 `src/constants/imageExtensions.ts`, 백엔드 진실은 `src-tauri/src/image.rs` (`SUPPORTED_EXTENSIONS`, `get_mime_type`).
 
 ### 2.1 순수 이미지 12종
 
@@ -37,24 +37,19 @@
 | `heif`        | `image/heif`                | JPEG sidecar 트랜스코드 후 렌더                                                                                         |
 | `psd`         | `image/vnd.adobe.photoshop` | JPEG sidecar 트랜스코드 후 렌더(읽기 전용, 편집 저장 미지원)                                                            |
 
-### 2.2 아카이브 7종
+### 2.2 아카이브 2종
 
 | 확장자 | MIME                            | 비고                                  |
 | ------ | ------------------------------- | ------------------------------------- |
 | `cbz`  | `application/vnd.comicbook+zip` | ZIP 기반 코믹                         |
 | `zip`  | `application/zip`               | 일반 ZIP도 이미지 목록으로 열 수 있음 |
-| `cb7`  | `application/x-7z-compressed`   | 7z 기반 코믹                          |
-| `7z`   | `application/x-7z-compressed`   | 일반 7z도 지원                        |
-| `cbr`  | `application/vnd.comicbook-rar` | RAR 기반 코믹                         |
-| `rar`  | `application/x-rar-compressed`  | 일반 RAR도 지원                       |
-| `cbt`  | `application/x-tar`             | TAR 기반 코믹                         |
 
-아카이브(CBZ/ZIP, CB7/7Z, CBR/RAR, CBT) 안의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한다(8절, 15절).
+CBZ/ZIP 안의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한다(8절, 15절). CB7/7Z, CBR/RAR, CBT는 지원하지 않는다(디코더 의존성을 줄이려고 제거했다).
 
 백엔드 판별:
 
 - `is_image_file`: MIME이 `application/`으로 시작하지 않는 지원 파일.
-- `is_archive_file`: 위 7종 MIME 해당.
+- `is_archive_file`: 위 2종 MIME 해당.
 - `is_supported_file`: 둘 중 하나.
 
 ### 2.3 제외 포맷
@@ -250,11 +245,11 @@
 - `archive_prefetch`: 이웃 선추출용 fire-and-forget 명령이다.
 - 선추출 거리는 뷰 모드에 따라 보정되며 상한이 있다.
 - 이어보기: 아카이브 경로별 마지막 엔트리와 위치(엔트리명/인덱스/전체 페이지)를 최대 100개 LRU로 저장한다. `resumeReading`이 true이고 목록에 저장된 항목이 있으면 거기서 시작하며, 저장 위치에서 시작할 때 "이어보기" 토스트와 "처음부터" 동작을 함께 제공한다. 설정이 false면 항상 첫 페이지에서 열고 열기만으로 저장 위치를 0페이지로 덮지 않는다. 양쪽 모드에서는 저장 위치가 쌍 중간이면 쌍 시작으로 맞춰 연다.
-- `get_comic_info`: CBZ/ZIP, CB7/7Z, CBR/RAR, CBT의 `ComicInfo.xml`(ComicRack/Komga/Kavita 스키마)을 읽기 전용 메타데이터로 반환한다. 탐색은 엔트리 basename이 `comicinfo.xml`인 항목(대소문자 무시)이며 루트를 우선하고 없으면 첫 중첩 경로를 쓴다. 상한 1 MiB, UTF-8(BOM 허용)과 UTF-16 LE/BE BOM을 지원한다. XML 부재나 지원하지 않는 확장자는 `null`, 깨진 XML/디코딩 실패는 `corrupt`, 크기 초과는 `too_large`다. 필드 누락과 빈 값은 `null`로 정규화하고, 엔트리는 `read_archive_entry_bounded`(`archive.rs`)로 형식별 가드(solid 7z 블록 상한, RAR 스트리밍 상한) 아래에서 메모리로 읽는다. solid 7z/RAR은 XML 앞 데이터까지 디코드하므로 페이지 추출과 같은 비용이 든다. `pages`는 `image` 오름차순으로 최대 1000개까지 담는다.
+- `get_comic_info`: CBZ/ZIP의 `ComicInfo.xml`(ComicRack/Komga/Kavita 스키마)을 읽기 전용 메타데이터로 반환한다. 탐색은 엔트리 basename이 `comicinfo.xml`인 항목(대소문자 무시)이며 루트를 우선하고 없으면 첫 중첩 경로를 쓴다. 상한 1 MiB, UTF-8(BOM 허용)과 UTF-16 LE/BE BOM을 지원한다. XML 부재나 지원하지 않는 확장자는 `null`, 깨진 XML/디코딩 실패는 `corrupt`, 크기 초과는 `too_large`다. 필드 누락과 빈 값은 `null`로 정규화하고, 엔트리는 `read_archive_entry_bounded`(`archive.rs`)로 1 MiB 상한 아래에서 메모리로 읽는다. `pages`는 `image` 오름차순으로 최대 1000개까지 담는다.
 - 표지 판정: `pages`에서 `page_type`이 `FrontCover`(대소문자·공백 무시)인 첫 페이지를 양쪽 보기 표지 인덱스로 쓴다(`src/utils/comicCover.ts`). `image`가 목록 범위를 벗어나면(1 기반으로 적은 파일 등) 0번으로 폴백하고, 이어보기 진입도 표지 기준 쌍 시작으로 스냅한다.
 - 열기 흐름: 아카이브를 열 때 `get_archive_images`와 `get_comic_info`를 병행 호출한다. 폴더 미리보기에서는 메타데이터를 읽지 않고, 이전 로드의 응답은 최신 로드 토큰이 아니면 커밋하지 않는다. 파싱 실패는 로드를 막지 않고 패널의 Comic 섹션에 에러로 표시한다.
 - 아카이브 모드 제한: 휴지통 이동, 이름 변경, 편집 저장은 안내와 함께 차단된다.
-- 추출 가드: 엔트리 1개당 200MB, solid 7z 블록 총량 2GB, 아카이브별 추출 디렉터리 1GB를 넘으면 `too_large`로 중단한다. RAR은 스트리밍 디코드에 bounded writer를 붙여 선언 크기를 위조한 헤더도 실제 할당 전에 막는다.
+- 추출 가드: 엔트리 1개당 200MB, 아카이브별 추출 디렉터리 1GB를 넘으면 `too_large`로 중단한다.
 - 목록은 추출과 일치하도록 중복 엔트리 이름을 1회만 노출한다(zip `by_name`은 첫 항목만 돌려준다).
 - 표시용 추출 경로는 추출 전에 `mark_in_use`로 보호하고, 선추출(prefetch)은 보호 슬롯을 소비하지 않는다. `load_archive_image`의 `protect`는 기본 `true`이며 프론트 선로딩은 `false`를 전달한다.
 - 탐색/썸네일은 엔트리 목록 기준으로 동일하게 동작한다.
@@ -661,8 +656,8 @@ Rust와 TypeScript는 같은 모양을 유지한다.
 - 릴리스 파이프라인: `npm run release -- <버전>`(`scripts/release.mjs`)이 버전 파일 5곳을 올려 커밋하고 `vX.Y.Z` 태그와 함께 푸시한다. 태그 푸시를 `.github/workflows/release.yml`이 받아 태그와 버전 파일의 일치, 서명 키 Secrets를 확인한 뒤 검증(테스트, 타입, 포맷, cargo test/clippy, npm/cargo 보안 감사, 라이선스 검사), 서명 빌드, `latest.json` 생성, 원본 저장소 `ara-hwang/araview` 릴리스 생성까지 자동으로 수행한다. `ci.yml`은 PR과 main 푸시에서 자동으로 돌지 않고, Actions에서 수동 실행할 때만 같은 검사를 수행한다. 권한과 절차 상세는 `docs/releasing.md`를 따른다.
 - 파일 연결 3그룹:
   - Image 12종: png, jpg, jpeg, gif, bmp, webp, svg, ico, avif, heic, heif, psd.
-  - Comic 4종: cbz, cb7, cbr, cbt.
-  - Archive 3종: rar, zip, 7z.
+  - Comic 1종: cbz.
+  - Archive 1종: zip.
 - HEIC/HEIF는 vcpkg `libheif[core,aom]` 동적 링크 + `libde265`(HEVC), `aom`(AV1, AVIF 썸네일/히스토그램)만 사용한다. 설치와 DLL 복사는 `docs/development.md`를 따른다.
 
 ### 20.1 자동 업데이트 (tauri-plugin-updater)

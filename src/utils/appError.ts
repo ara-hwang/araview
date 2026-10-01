@@ -20,7 +20,7 @@ const KO_TEXT: Record<AppErrorKind, { title: string; hint: string }> = {
   },
   unsupported: {
     title: "지원하지 않는 형식입니다",
-    hint: "지원 포맷(png/jpg/webp/svg/avif/heic/psd/cbz/cbr 등)인지 확인하거나 다른 뷰어로 열어보세요."
+    hint: "지원 포맷(png/jpg/webp/svg/avif/heic/psd/cbz 등)인지 확인하거나 다른 뷰어로 열어보세요."
   },
   corrupt: {
     title: "파일을 읽는 중 문제가 발생했습니다",
@@ -80,9 +80,6 @@ const PREFIX_KIND: ReadonlyArray<readonly [string, AppErrorKind]> = [
   ["failed to decode image", "corrupt"],
   ["cannot decode image", "corrupt"],
   ["failed to read zip", "corrupt"],
-  ["failed to read 7z", "corrupt"],
-  ["failed to read rar", "corrupt"],
-  ["failed to read tar", "corrupt"],
   ["failed to read entry data", "corrupt"],
   ["failed to list cache", "unknown"],
   ["failed to create cache", "unknown"],

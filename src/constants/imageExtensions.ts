@@ -14,12 +14,7 @@ export const SUPPORTED_IMAGE_EXTENSIONS = [
   "heif",
   "psd",
   "cbz",
-  "cb7",
-  "cbr",
-  "rar",
-  "zip",
-  "7z",
-  "cbt"
+  "zip"
 ] as const
 
 export type SupportedImageExtension = (typeof SUPPORTED_IMAGE_EXTENSIONS)[number]

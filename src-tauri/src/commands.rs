@@ -312,7 +312,7 @@ fn get_comic_info_blocking(
     crate::comic_info::read_comic_info(path)
 }
 
-/// 아카이브(CBZ/CB7) 파일 내부의 이미지 엔트리 목록을 반환
+/// 아카이브(CBZ/ZIP) 파일 내부의 이미지 엔트리 목록을 반환
 #[tauri::command]
 pub async fn get_archive_images(file_path: String) -> Result<DirectoryImages, AppError> {
     tauri::async_runtime::spawn_blocking(move || get_archive_images_impl(Path::new(&file_path)))

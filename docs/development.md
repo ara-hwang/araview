@@ -112,8 +112,8 @@ src-tauri/
   src/psd_sidecar.rs # PSD 합성 디코드(`psd` 크레이트) 및 JPEG sidecar (읽기 전용)
   src/process_temp.rs # 임시/영구 파생 이미지 캐시 루트, 보호, 상한, 시작 정리
   src/cache.rs        # 캐시 통계 및 종류별/전체 삭제
-  src/archive.rs      # 아카이브 목록/추출 처리 (cbz/zip, cb7/7z, cbr/rar, cbt)
-  src/comic_info.rs  # 아카이브(CBZ/CB7/CBR/CBT) ComicInfo.xml 읽기 전용 파싱
+  src/archive.rs      # 아카이브 목록/추출 처리 (cbz/zip)
+  src/comic_info.rs  # CBZ/ZIP ComicInfo.xml 읽기 전용 파싱
   src/thumbnail.rs   # 썸네일 생성/캐시
   src/sidecar.rs     # sidecar/썸네일/추출물 공용 헬퍼(해시, 락, 원자 발행)
   src/scaled.rs      # 표시 해상도 제한 축소본
