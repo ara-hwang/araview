@@ -234,6 +234,80 @@ pub fn write_rgb8_jpeg_atomic(dest: &Path, rgb: &Rgb8, quality: u8) -> Result<()
     publish_atomic(&tmp, dest, "Failed to publish JPEG sidecar")
 }
 
+/// One JPEG-sidecar pipeline (HEIC/HEIF, PSD, ...). Formats differ only in how
+/// they decode to RGB8 and in their cache file names, so the lock, cache-hit,
+/// downscale, atomic publish and eviction steps live here once.
+pub struct SidecarSpec {
+    /// Lock context label.
+    pub label: &'static str,
+    /// Cache file name prefix for full-size sidecars (`{prefix}{hash}.jpg`).
+    pub paint_prefix: &'static str,
+    /// Cache file name prefix for thumbnail sidecars.
+    pub thumb_prefix: &'static str,
+    pub decode: fn(&Path) -> Result<Rgb8, AppError>,
+}
+
+impl SidecarSpec {
+    pub fn paint_path(&self, source: &Path) -> Result<PathBuf, AppError> {
+        let hash = file_identity_hash(source, &[])?;
+        Ok(paint_dir()?.join(format!("{}{hash:016x}.jpg", self.paint_prefix)))
+    }
+
+    pub fn thumb_path(&self, source: &Path, max_side: u32) -> Result<PathBuf, AppError> {
+        let hash = file_identity_hash(source, &max_side.to_le_bytes())?;
+        Ok(paint_dir()?.join(format!("{}{hash:016x}.jpg", self.thumb_prefix)))
+    }
+
+    pub fn ensure(&self, source: &Path) -> Result<PathBuf, AppError> {
+        let dest = self.paint_path(source)?;
+        self.publish(&dest, 90, downscale_to_fit_u16, source)
+    }
+
+    /// Lightweight thumbnail sidecar: full decode, then downscale to `max_side`
+    /// and cache separately under `paint/`.
+    pub fn ensure_thumb(&self, source: &Path, max_side: u32) -> Result<PathBuf, AppError> {
+        let max_side = max_side.clamp(32, 1024);
+        let dest = self.thumb_path(source, max_side)?;
+        self.publish(
+            &dest,
+            80,
+            |rgb| downscale_to_fit_u16(downscale_rgb8(rgb, max_side)),
+            source,
+        )
+    }
+
+    /// Cached thumbnail sidecar path only (never generates).
+    pub fn cached_thumb(&self, source: &Path, max_side: u32) -> Option<PathBuf> {
+        let dest = self.thumb_path(source, max_side.clamp(32, 1024)).ok()?;
+        if !dest.exists() {
+            return None;
+        }
+        crate::process_temp::touch_cache_file(&dest);
+        Some(dest)
+    }
+
+    fn publish(
+        &self,
+        dest: &Path,
+        quality: u8,
+        shape: impl FnOnce(Rgb8) -> Rgb8,
+        source: &Path,
+    ) -> Result<PathBuf, AppError> {
+        let key = dest.to_string_lossy().into_owned();
+        with_file_lock(&key, self.label, || {
+            crate::process_temp::mark_in_use(dest);
+            if dest.exists() {
+                crate::process_temp::touch_cache_file(dest);
+                return Ok(dest.to_path_buf());
+            }
+            let rgb = shape((self.decode)(source)?);
+            write_rgb8_jpeg_atomic(dest, &rgb, quality)?;
+            crate::process_temp::enforce_cap(PAINT_SUBDIR, MAX_PAINT_BYTES).ok();
+            Ok(dest.to_path_buf())
+        })
+    }
+}
+
 /// Scale to fit inside `max_side` preserving aspect ratio (never upscale).
 pub fn downscale_rgb8(rgb: Rgb8, max_side: u32) -> Rgb8 {
     let max_side = max_side.max(1);

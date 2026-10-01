@@ -45,14 +45,10 @@ pub fn cached_thumbnail(source: &Path) -> Option<ThumbnailInfo> {
     if !source.is_file() {
         return None;
     }
-    let sidecar_source = is_sidecar_source(source);
+    let decoder = crate::transcode::decoder_for(source);
     for &max_side in PREVIEW_THUMB_CANDIDATES {
-        let path = if sidecar_source {
-            if is_psd_source(source) {
-                crate::psd_sidecar::cached_jpeg_sidecar_thumb(source, max_side)
-            } else {
-                crate::heif::cached_jpeg_sidecar_thumb(source, max_side)
-            }
+        let path = if let Some(decoder) = decoder {
+            crate::transcode::cached_thumb(source, decoder, max_side)
         } else {
             thumb_path(source, max_side).ok().filter(|p| p.exists())
         };
@@ -76,12 +72,8 @@ pub fn generate_thumbnail(source: &Path, max_side: u32) -> Result<ThumbnailInfo,
         return Err(AppError::not_found("File not found"));
     }
     let max_side = max_side.clamp(32, 1024);
-    if is_sidecar_source(source) {
-        let sidecar = if is_psd_source(source) {
-            crate::psd_sidecar::ensure_jpeg_sidecar_thumb(source, max_side)?
-        } else {
-            crate::heif::ensure_jpeg_sidecar_thumb(source, max_side)?
-        };
+    if let Some(decoder) = crate::transcode::decoder_for(source) {
+        let sidecar = crate::transcode::ensure_thumb(source, decoder, max_side)?;
         let (width, height) = image::image_dimensions(&sidecar)
             .map_err(|e| AppError::corrupt(format!("Failed to read thumbnail: {e}")))?;
         return Ok(ThumbnailInfo {
@@ -128,37 +120,11 @@ pub fn generate_thumbnail(source: &Path, max_side: u32) -> Result<ThumbnailInfo,
     })
 }
 
-fn is_sidecar_source(source: &Path) -> bool {
-    is_heif_source(source) || is_psd_source(source)
-}
-
-fn is_heif_source(source: &Path) -> bool {
-    matches!(
-        source
-            .extension()
-            .and_then(|e| e.to_str())
-            .map(|e| e.to_lowercase())
-            .as_deref(),
-        Some("heic" | "heif" | "avif")
-    )
-}
-
 fn is_svg_source(source: &Path) -> bool {
     source
         .extension()
         .and_then(|e| e.to_str())
         .is_some_and(|e| e.eq_ignore_ascii_case("svg"))
-}
-
-fn is_psd_source(source: &Path) -> bool {
-    matches!(
-        source
-            .extension()
-            .and_then(|e| e.to_str())
-            .map(|e| e.to_lowercase())
-            .as_deref(),
-        Some("psd")
-    )
 }
 
 #[derive(Serialize, Debug)]

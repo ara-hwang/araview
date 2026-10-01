@@ -387,10 +387,7 @@ pub fn load_viewable_with_limit_mode(
         get_mime_type(source).ok_or_else(|| AppError::unsupported("Unsupported image format"))?;
     let base_path = match paint_strategy(mime) {
         PaintStrategy::Native => source.to_path_buf(),
-        PaintStrategy::TranscodeJpeg if mime == crate::psd_sidecar::PSD_MIME => {
-            crate::psd_sidecar::ensure_jpeg_sidecar(source)?
-        }
-        PaintStrategy::TranscodeJpeg => crate::heif::ensure_jpeg_sidecar(source)?,
+        PaintStrategy::TranscodeJpeg => crate::transcode::ensure_paint(source, mime)?,
     };
     let mut dims_override = None;
     let paint_path = match max_side {

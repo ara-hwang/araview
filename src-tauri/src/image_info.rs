@@ -29,35 +29,15 @@ pub struct Histogram {
 /// 히스토그램 집계 전 다운샘플 상한 (정사각형 기준 한 변).
 const HISTOGRAM_MAX_SIDE: u32 = 256;
 
-fn is_transcoded_source(path: &Path) -> bool {
-    matches!(
-        path.extension()
-            .and_then(|e| e.to_str())
-            .map(|e| e.to_lowercase())
-            .as_deref(),
-        Some("heic" | "heif" | "avif" | "psd")
-    )
-}
-
-/// 히스토그램/색상 판정용 RGB 디코드. HEIC/HEIF/PSD는 전용 디코더를 쓴다.
+/// 히스토그램/색상 판정용 RGB 디코드. HEIC/HEIF/AVIF/PSD는 전용 디코더를 쓴다.
 fn decode_rgb8(path: &Path) -> Result<image::RgbImage, AppError> {
     if !path.is_file() {
         return Err(AppError::not_found("File not found"));
     }
-    if is_transcoded_source(path) {
-        let ext = path
-            .extension()
-            .and_then(|e| e.to_str())
-            .map(|e| e.to_lowercase())
-            .unwrap_or_default();
-        if ext == "psd" {
-            let rgb = crate::psd_sidecar::decode_psd_rgb8(path)?;
-            return image::RgbImage::from_raw(rgb.width, rgb.height, rgb.bytes)
-                .ok_or_else(|| AppError::corrupt("PSD decode produced invalid buffer"));
-        }
-        let rgb = crate::heif::decode_primary_rgb8(path)?;
+    if let Some(decoder) = crate::transcode::decoder_for(path) {
+        let rgb = crate::transcode::decode_rgb8(path, decoder)?;
         return image::RgbImage::from_raw(rgb.width, rgb.height, rgb.bytes)
-            .ok_or_else(|| AppError::corrupt("HEIF decode produced invalid buffer"));
+            .ok_or_else(|| AppError::corrupt("Decode produced invalid buffer"));
     }
     if crate::image::get_mime_type(path).is_none() {
         return Err(AppError::unsupported("Unsupported image format"));
@@ -167,10 +147,7 @@ pub fn details_for_path(path: &Path) -> Result<ImageDetails, AppError> {
     // orientation까지 반영해 표시 치수와 맞춘다.
     let paint_path = match crate::image::paint_strategy(mime) {
         PaintStrategy::Native => path.to_path_buf(),
-        PaintStrategy::TranscodeJpeg if mime == crate::psd_sidecar::PSD_MIME => {
-            crate::psd_sidecar::ensure_jpeg_sidecar(path)?
-        }
-        PaintStrategy::TranscodeJpeg => crate::heif::ensure_jpeg_sidecar(path)?,
+        PaintStrategy::TranscodeJpeg => crate::transcode::ensure_paint(path, mime)?,
     };
     let (width, height) = crate::image::render_dimensions(mime, path, &paint_path);
     let (color_mode, bits_per_channel) = color_info(path, mime);

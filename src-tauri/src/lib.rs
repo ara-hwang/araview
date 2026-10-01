@@ -22,6 +22,7 @@ pub mod stable_hash;
 pub mod svg_raster;
 pub mod thumb_shell;
 pub mod thumbnail;
+pub mod transcode;
 
 use app_error::AppError;
 use commands::{

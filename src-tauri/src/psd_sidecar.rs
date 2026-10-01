@@ -18,7 +18,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::app_error::{AppError, ErrorCode};
-use crate::sidecar::{paint_dir, Rgb8, MAX_PAINT_BYTES, PAINT_SUBDIR};
+use crate::sidecar::{Rgb8, SidecarSpec};
 
 /// 디코드 허용 픽셀 상한 (약 150MP, HEIC와 동일).
 /// PSD 명세상 최대(30000x30000)를 그대로 디코드하면 메모리 고갈이 난다.
@@ -30,42 +30,26 @@ const MAX_PSD_FILE_BYTES: u64 = 768 * 1024 * 1024;
 
 pub const PSD_MIME: &str = "image/vnd.adobe.photoshop";
 
+const SPEC: SidecarSpec = SidecarSpec {
+    label: "PSD sidecar lock",
+    paint_prefix: "psd-",
+    thumb_prefix: "psd-thumb-",
+    decode: decode_psd_rgb8,
+};
+
 pub fn ensure_jpeg_sidecar(source: &Path) -> Result<PathBuf, AppError> {
-    let dest = sidecar_path(source)?;
-    let key = dest.to_string_lossy().into_owned();
-    crate::sidecar::with_file_lock(&key, "PSD sidecar lock", || {
-        crate::process_temp::mark_in_use(&dest);
-        if dest.exists() {
-            crate::process_temp::touch_cache_file(&dest);
-            return Ok(dest.clone());
-        }
-        let rgb = decode_psd_rgb8(source)?;
-        let rgb = crate::sidecar::downscale_to_fit_u16(rgb);
-        crate::sidecar::write_rgb8_jpeg_atomic(&dest, &rgb, 90)?;
-        crate::process_temp::enforce_cap(PAINT_SUBDIR, MAX_PAINT_BYTES).ok();
-        Ok(dest.clone())
-    })
+    SPEC.ensure(source)
 }
 
 /// 썸네일용 경량 sidecar. 풀해상도 디코드 후 max_side로 다운스케일해
 /// `paint/`에 별도 캐시한다.
 pub fn ensure_jpeg_sidecar_thumb(source: &Path, max_side: u32) -> Result<PathBuf, AppError> {
-    let max_side = max_side.clamp(32, 1024);
-    let dest = thumb_sidecar_path(source, max_side)?;
-    let key = dest.to_string_lossy().into_owned();
-    crate::sidecar::with_file_lock(&key, "PSD sidecar lock", || {
-        crate::process_temp::mark_in_use(&dest);
-        if dest.exists() {
-            crate::process_temp::touch_cache_file(&dest);
-            return Ok(dest.clone());
-        }
-        let rgb = decode_psd_rgb8(source)?;
-        let rgb = crate::sidecar::downscale_rgb8(rgb, max_side);
-        let rgb = crate::sidecar::downscale_to_fit_u16(rgb);
-        crate::sidecar::write_rgb8_jpeg_atomic(&dest, &rgb, 80)?;
-        crate::process_temp::enforce_cap(PAINT_SUBDIR, MAX_PAINT_BYTES).ok();
-        Ok(dest.clone())
-    })
+    SPEC.ensure_thumb(source, max_side)
+}
+
+/// 캐시에 이미 있는 썸네일 sidecar 경로만 돌려준다(생성하지 않음).
+pub fn cached_jpeg_sidecar_thumb(source: &Path, max_side: u32) -> Option<PathBuf> {
+    SPEC.cached_thumb(source, max_side)
 }
 
 /// PSD 합성 픽셀을 RGB8로 디코드. 투명은 흰 배경에 합성한다
@@ -130,28 +114,6 @@ fn reject_psb(bytes: &[u8]) -> Result<(), AppError> {
         return Err(AppError::unsupported("PSB is not supported"));
     }
     Ok(())
-}
-
-fn thumb_sidecar_path(source: &Path, max_side: u32) -> Result<PathBuf, AppError> {
-    let hash = crate::sidecar::file_identity_hash(source, &max_side.to_le_bytes())?;
-    let name = format!("psd-thumb-{hash:016x}.jpg");
-    Ok(paint_dir()?.join(name))
-}
-
-/// 캐시에 이미 있는 썸네일 sidecar 경로만 돌려준다(생성하지 않음).
-pub fn cached_jpeg_sidecar_thumb(source: &Path, max_side: u32) -> Option<PathBuf> {
-    let dest = thumb_sidecar_path(source, max_side.clamp(32, 1024)).ok()?;
-    if !dest.exists() {
-        return None;
-    }
-    crate::process_temp::touch_cache_file(&dest);
-    Some(dest)
-}
-
-fn sidecar_path(source: &Path) -> Result<PathBuf, AppError> {
-    let hash = crate::sidecar::file_identity_hash(source, &[])?;
-    let name = format!("psd-{hash:016x}.jpg");
-    Ok(paint_dir()?.join(name))
 }
 
 /// 테스트용 최소 PSD 바이트 (w*h RGB, raw 압축, 레이어 없음).
@@ -266,11 +228,11 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let source = dir.path().join("a.psd");
         fs::write(&source, minimal_psd_bytes(1, 1, [1, 2, 3])).unwrap();
-        let dest = sidecar_path(&source).unwrap();
+        let dest = SPEC.paint_path(&source).unwrap();
         assert_eq!(dest.extension().and_then(|e| e.to_str()), Some("jpg"));
         let name = dest.file_name().and_then(|n| n.to_str()).unwrap();
         assert!(name.starts_with("psd-"), "got {name}");
-        let thumb = thumb_sidecar_path(&source, 64).unwrap();
+        let thumb = SPEC.thumb_path(&source, 64).unwrap();
         let thumb_name = thumb.file_name().and_then(|n| n.to_str()).unwrap();
         assert!(thumb_name.starts_with("psd-thumb-"), "got {thumb_name}");
     }

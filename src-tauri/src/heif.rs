@@ -1,66 +1,28 @@
 use std::path::{Path, PathBuf};
 
 use crate::app_error::AppError;
-use crate::sidecar::{paint_dir, Rgb8, MAX_PAINT_BYTES, PAINT_SUBDIR};
+use crate::sidecar::{Rgb8, SidecarSpec};
+
+const SPEC: SidecarSpec = SidecarSpec {
+    label: "HEIF sidecar lock",
+    paint_prefix: "",
+    thumb_prefix: "thumb-",
+    decode: decode_primary_rgb8,
+};
 
 pub fn ensure_jpeg_sidecar(source: &Path) -> Result<PathBuf, AppError> {
-    let dest = sidecar_path(source)?;
-    let key = dest.to_string_lossy().into_owned();
-    crate::sidecar::with_file_lock(&key, "HEIF sidecar lock", || {
-        crate::process_temp::mark_in_use(&dest);
-        if dest.exists() {
-            crate::process_temp::touch_cache_file(&dest);
-            return Ok(dest.clone());
-        }
-        let rgb = decode_primary_rgb8(source)?;
-        let rgb = crate::sidecar::downscale_to_fit_u16(rgb);
-        crate::sidecar::write_rgb8_jpeg_atomic(&dest, &rgb, 90)?;
-        crate::process_temp::enforce_cap(PAINT_SUBDIR, MAX_PAINT_BYTES).ok();
-        Ok(dest.clone())
-    })
+    SPEC.ensure(source)
 }
 
 /// 썸네일용 경량 sidecar. 풀해상도 디코드 후 max_side로 다운스케일해
 /// `paint/`에 별도 캐시한다. 스트립 N회 호출의 디코드 비용을 줄인다.
 pub fn ensure_jpeg_sidecar_thumb(source: &Path, max_side: u32) -> Result<PathBuf, AppError> {
-    let max_side = max_side.clamp(32, 1024);
-    let dest = thumb_sidecar_path(source, max_side)?;
-    let key = dest.to_string_lossy().into_owned();
-    crate::sidecar::with_file_lock(&key, "HEIF sidecar lock", || {
-        crate::process_temp::mark_in_use(&dest);
-        if dest.exists() {
-            crate::process_temp::touch_cache_file(&dest);
-            return Ok(dest.clone());
-        }
-        let rgb = decode_primary_rgb8(source)?;
-        let rgb = crate::sidecar::downscale_rgb8(rgb, max_side);
-        let rgb = crate::sidecar::downscale_to_fit_u16(rgb);
-        crate::sidecar::write_rgb8_jpeg_atomic(&dest, &rgb, 80)?;
-        crate::process_temp::enforce_cap(PAINT_SUBDIR, MAX_PAINT_BYTES).ok();
-        Ok(dest.clone())
-    })
-}
-
-fn thumb_sidecar_path(source: &Path, max_side: u32) -> Result<PathBuf, AppError> {
-    let hash = crate::sidecar::file_identity_hash(source, &max_side.to_le_bytes())?;
-    let name = format!("thumb-{hash:016x}.jpg");
-    Ok(paint_dir()?.join(name))
+    SPEC.ensure_thumb(source, max_side)
 }
 
 /// 캐시에 이미 있는 썸네일 sidecar 경로만 돌려준다(생성하지 않음).
 pub fn cached_jpeg_sidecar_thumb(source: &Path, max_side: u32) -> Option<PathBuf> {
-    let dest = thumb_sidecar_path(source, max_side.clamp(32, 1024)).ok()?;
-    if !dest.exists() {
-        return None;
-    }
-    crate::process_temp::touch_cache_file(&dest);
-    Some(dest)
-}
-
-fn sidecar_path(source: &Path) -> Result<PathBuf, AppError> {
-    let hash = crate::sidecar::file_identity_hash(source, &[])?;
-    let name = format!("{hash:016x}.jpg");
-    Ok(paint_dir()?.join(name))
+    SPEC.cached_thumb(source, max_side)
 }
 
 /// 디코드 허용 픽셀 상한 (약 150MP). 비정상적으로 큰 HEIF로 인한
@@ -134,7 +96,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let source = dir.path().join("IMG_0001.heic");
         fs::write(&source, b"placeholder").unwrap();
-        let dest = sidecar_path(&source).unwrap();
+        let dest = SPEC.paint_path(&source).unwrap();
         assert_eq!(dest.extension().and_then(|e| e.to_str()), Some("jpg"));
         assert_eq!(
             dest.parent()
