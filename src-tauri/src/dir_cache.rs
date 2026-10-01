@@ -563,7 +563,17 @@ mod tests {
         let first = get_sorted_images(&parent, &opts).expect("first scan");
         assert_eq!(file_names(&first), vec!["a.png"]);
 
+        // 캐시는 디렉터리 mtime으로 무효화된다. 러너에 따라 mtime 반영이 늦어
+        // 같은 값으로 읽힐 수 있으므로, 값이 바뀔 때까지 기다린 뒤 재조회한다.
+        let before = dir_mtime(&dir);
         write_sized(&dir, "b.png", 10);
+        for _ in 0..50 {
+            if dir_mtime(&dir) != before {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
+        assert_ne!(dir_mtime(&dir), before, "directory mtime did not change");
         let second = get_sorted_images(&parent, &opts).expect("rescan");
         assert_eq!(file_names(&second), vec!["a.png", "b.png"]);
         fs::remove_dir_all(&dir).ok();
