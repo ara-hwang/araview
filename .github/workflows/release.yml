@@ -147,7 +147,7 @@ jobs:
       # 비밀키와 비밀번호는 repo Secrets TAURI_SIGNING_PRIVATE_KEY(_PASSWORD)에 넣는다.
       # 키가 없으면 위 검증 단계에서 먼저 실패한다.
       - name: Build and release
-        uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0
+        uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # v1.0.0
         env:
           # RELEASE_TOKEN(contents: write PAT)이 등록돼 있으면 그것을 쓰고, 없으면 GITHUB_TOKEN을 쓴다.
           # 저장소 기본 워크플로 권한을 read로 유지하려면 RELEASE_TOKEN이 필요하다.
