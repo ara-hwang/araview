@@ -183,7 +183,6 @@ jobs:
           }
           # 본문 형식은 .github/RELEASE_TEMPLATE.md에서 고친다.
           $body = (Get-Content .github/RELEASE_TEMPLATE.md -Raw -Encoding utf8).TrimEnd()
-          $body = $body.Replace("{{VERSION}}", $tag.TrimStart("v")).Replace("{{TAG}}", $tag).Replace("{{REPO}}", "${{ github.repository }}")
           $body = $body.Replace("{{CHANGES}}", $changes).Replace("{{COMPARE}}", $compareLine)
           "body<<EOF" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           $body | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
