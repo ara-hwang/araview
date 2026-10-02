@@ -1,6 +1,9 @@
+import { useMemo } from "react"
+
 import { useAppStore } from "@/store/appStore"
 import { useSettingsStore, type ViewMode } from "@/store/settingsStore"
 import { isArchiveFilePath } from "@/utils/archiveFile"
+import { archiveSoloIndices, type SoloIndices } from "@/utils/dirNavigation"
 
 /** 폴더 목록에서 아카이브 파일(CBZ/ZIP)을 열어 첫 페이지만 미리 보는 중인지 여부. */
 function isArchiveFolderPreview(state: ReturnType<typeof useAppStore.getState>): boolean {
@@ -21,6 +24,25 @@ export function useEffectiveViewMode(): ViewMode {
   const archivePreview = useAppStore(isArchiveFolderPreview)
   if (archivePreview && viewMode !== "webtoon") return "single"
   return inArchive && comicViewMode !== null ? comicViewMode : viewMode
+}
+
+/**
+ * 이동·도크 하이라이트가 쓰는 화면 배치 모드. 화면 그리기용 모드와 달리 폴더
+ * 아카이브 미리보기에서도 단일로 바꾸지 않는다. 양쪽 보기에서 아카이브는 단독
+ * 화면으로 배치되므로, 거기서 넘겨도 짝 정렬이 유지된다.
+ */
+export function useLayoutViewMode(): ViewMode {
+  const viewMode = useSettingsStore((state) => state.viewMode)
+  const comicViewMode = useAppStore((state) => state.comicViewMode)
+  const inArchive = useAppStore((state) => state.archivePath !== null)
+  return inArchive && comicViewMode !== null ? comicViewMode : viewMode
+}
+
+/** 양쪽 보기에서 혼자 한 화면을 쓰는 폴더 아카이브 인덱스. */
+export function useSoloIndices(): SoloIndices {
+  const images = useAppStore((state) => state.dirImages.images)
+  const inArchive = useAppStore((state) => state.archivePath !== null)
+  return useMemo(() => archiveSoloIndices(images, inArchive), [images, inArchive])
 }
 
 export function getEffectiveViewMode(): ViewMode {

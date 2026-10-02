@@ -1,3 +1,5 @@
+import { isArchiveFilePath } from "@/utils/archiveFile"
+
 /** 폴더/아카이브 이동의 인덱스 계산. `useDirectoryNavigation`이 쓴다. */
 
 /** 방향 이동의 다음 인덱스. 이동할 수 없으면 null(비루프 경계). */
@@ -36,19 +38,74 @@ export function resolveOffsetIndex(
   return Math.max(0, Math.min(raw, total - 1))
 }
 
+/** 혼자 한 화면을 쓰는 인덱스(폴더 안 아카이브 등). 비어 있으면 기존 쌍 규칙만 쓴다. */
+export type SoloIndices = ReadonlySet<number>
+
+const NO_SOLO: SoloIndices = new Set()
+
+/** 폴더 목록에서 이미지로 그릴 수 없는 아카이브 인덱스. 아카이브 안이면 빈 집합이다. */
+export function archiveSoloIndices(images: readonly string[], inArchive: boolean): SoloIndices {
+  if (inArchive) return NO_SOLO
+  const solo = new Set<number>()
+  images.forEach((path, index) => {
+    if (isArchiveFilePath(path)) solo.add(index)
+  })
+  return solo
+}
+
+/**
+ * 단독 화면이 섞인 양쪽 보기의 화면 시작 목록. 앞에서부터 두 장씩 묶되,
+ * 단독 페이지(또는 그 바로 앞에 남는 페이지)는 혼자 한 화면이 된다.
+ * 단독 집합이 표지 하나면 `dualViewStarts`의 표지 단독 배치와 같다.
+ */
+function soloAwareStarts(total: number, isSolo: (index: number) => boolean): number[] {
+  const starts: number[] = []
+  let i = 0
+  while (i < total) {
+    starts.push(i)
+    i += isSolo(i) || i + 1 >= total || isSolo(i + 1) ? 1 : 2
+  }
+  return starts
+}
+
+function screenStarts(
+  total: number,
+  coverAlone: boolean,
+  coverIndex: number,
+  solo: SoloIndices
+): number[] {
+  if (solo.size === 0) return dualViewStarts(total, coverAlone, coverIndex)
+  const cover = Math.max(0, Math.min(coverIndex, total - 1))
+  return soloAwareStarts(total, (i) => solo.has(i) || (coverAlone && i === cover))
+}
+
+/** 시작 목록에서 `index`를 담는 화면의 시작. */
+function startContaining(starts: readonly number[], index: number): number {
+  let start = starts[0] ?? 0
+  for (const candidate of starts) {
+    if (candidate > index) break
+    start = candidate
+  }
+  return start
+}
+
 /**
  * 양쪽 보기(LTR/RTL)의 쌍 시작 인덱스.
  * `coverAlone = false`면 `[0,1], [2,3], ...`, `true`면 `[0], [1,2], [3,4], ...`.
  * `coverIndex`는 단독으로 보여줄 표지 인덱스다(기본 0번, ComicInfo FrontCover).
+ * `solo`에 든 인덱스(폴더 안 아카이브)는 혼자 한 화면이 된다.
  */
 export function resolvePairStart(
   index: number,
   total: number,
   coverAlone: boolean,
-  coverIndex = 0
+  coverIndex = 0,
+  solo: SoloIndices = NO_SOLO
 ): number {
   if (total <= 0) return 0
   const clamped = Math.max(0, Math.min(index, total - 1))
+  if (solo.size > 0)
+    return startContaining(screenStarts(total, coverAlone, coverIndex, solo), clamped)
   if (!coverAlone) return clamped - (clamped % 2)
   const starts = dualViewStarts(total, coverAlone, coverIndex)
   let start = starts[0] ?? 0
@@ -90,13 +147,15 @@ export function resolveDualStepIndex(
   loop: boolean,
   direction: "prev" | "next",
   coverAlone: boolean,
-  coverIndex = 0
+  coverIndex = 0,
+  solo: SoloIndices = NO_SOLO
 ): number | null {
   if (total <= 1) return null
-  if (!coverAlone) return resolveStepIndex(currentIndex, total, 2, loop, direction)
+  if (!coverAlone && solo.size === 0)
+    return resolveStepIndex(currentIndex, total, 2, loop, direction)
 
-  const starts = dualViewStarts(total, coverAlone, coverIndex)
-  const currentStart = resolvePairStart(currentIndex, total, coverAlone, coverIndex)
+  const starts = screenStarts(total, coverAlone, coverIndex, solo)
+  const currentStart = resolvePairStart(currentIndex, total, coverAlone, coverIndex, solo)
   const position = starts.indexOf(currentStart)
   if (position < 0) return null
 
@@ -138,10 +197,18 @@ export function dualPageIndices(
   total: number,
   coverAlone: boolean,
   coverIndex = 0,
-  loop = false
+  loop = false,
+  solo: SoloIndices = NO_SOLO
 ): number[] {
   if (total <= 0) return []
   const clamped = Math.max(0, Math.min(index, total - 1))
+  if (solo.size > 0) {
+    // 단독 화면이 섞이면 화면 경계가 목록에서 정해지므로 wrap 없이 그 화면만 담는다.
+    const starts = screenStarts(total, coverAlone, coverIndex, solo)
+    const start = startContaining(starts, clamped)
+    const next = starts[starts.indexOf(start) + 1] ?? total
+    return Array.from({ length: Math.min(next - start, 2) }, (_, k) => start + k)
+  }
   const indices: number[] = []
   for (const offset of dualPageOffsets(clamped, total, coverAlone, coverIndex)) {
     const raw = clamped + offset

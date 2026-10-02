@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  archiveSoloIndices,
   dualPageIndices,
   dualPageOffsets,
   resolveDualStepIndex,
@@ -229,5 +230,62 @@ describe("dirNavigation ComicInfo 표지 인덱스", () => {
     expect(resolvePairStart(3, TOTAL, false, COVER)).toBe(2)
     expect(dualPageOffsets(3, TOTAL, false, COVER)).toEqual([0, 1])
     expect(resolveDualStepIndex(0, TOTAL, false, "next", false, COVER)).toBe(2)
+  })
+})
+
+describe("단독 화면(폴더 아카이브)이 섞인 양쪽 보기", () => {
+  it("단독 집합이 표지 하나면 기존 표지 단독 배치와 같다", () => {
+    for (let total = 1; total <= 12; total += 1) {
+      for (let cover = 0; cover < total; cover += 1) {
+        const solo = new Set([cover])
+        for (let index = 0; index < total; index += 1) {
+          expect(resolvePairStart(index, total, true, cover, solo)).toBe(
+            resolvePairStart(index, total, true, cover)
+          )
+          // 이동은 항상 화면 시작으로 맞추므로 보이는 인덱스는 시작 위치에서 비교한다.
+          const pairStart = resolvePairStart(index, total, true, cover)
+          expect(dualPageIndices(pairStart, total, true, cover, false, solo)).toEqual(
+            dualPageIndices(pairStart, total, true, cover, false)
+          )
+          for (const direction of ["prev", "next"] as const) {
+            for (const loop of [false, true]) {
+              const start = resolvePairStart(index, total, true, cover)
+              expect(resolveDualStepIndex(start, total, loop, direction, true, cover, solo)).toBe(
+                resolveDualStepIndex(start, total, loop, direction, true, cover)
+              )
+            }
+          }
+        }
+      }
+    }
+  })
+
+  const IMAGES = ["/p/a.jpg", "/p/b.jpg", "/p/c.cbz", "/p/d.jpg", "/p/e.jpg"]
+  const solo = archiveSoloIndices(IMAGES, false)
+
+  it("폴더 아카이브 인덱스만 단독으로 잡고, 아카이브 안에서는 비운다", () => {
+    expect([...solo]).toEqual([2])
+    expect(archiveSoloIndices(IMAGES, true).size).toBe(0)
+  })
+
+  it("다음/이전 이동이 아카이브를 단독 화면으로 거친다", () => {
+    expect(resolveDualStepIndex(0, 5, false, "next", false, 0, solo)).toBe(2)
+    expect(resolveDualStepIndex(2, 5, false, "next", false, 0, solo)).toBe(3)
+    expect(resolveDualStepIndex(3, 5, false, "next", false, 0, solo)).toBeNull()
+    expect(resolveDualStepIndex(3, 5, false, "prev", false, 0, solo)).toBe(2)
+    expect(resolveDualStepIndex(2, 5, false, "prev", false, 0, solo)).toBe(0)
+  })
+
+  it("화면에 보이는 인덱스는 아카이브를 짝으로 묶지 않는다", () => {
+    expect(dualPageIndices(0, 5, false, 0, false, solo)).toEqual([0, 1])
+    expect(dualPageIndices(2, 5, false, 0, false, solo)).toEqual([2])
+    expect(dualPageIndices(4, 5, false, 0, false, solo)).toEqual([3, 4])
+    expect(resolvePairStart(4, 5, false, 0, solo)).toBe(3)
+  })
+
+  it("표지 단독과 함께 쓰면 표지와 아카이브가 모두 단독이다", () => {
+    expect(dualPageIndices(0, 5, true, 0, false, solo)).toEqual([0])
+    expect(dualPageIndices(1, 5, true, 0, false, solo)).toEqual([1])
+    expect(dualPageIndices(3, 5, true, 0, false, solo)).toEqual([3, 4])
   })
 })

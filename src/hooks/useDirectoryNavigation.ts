@@ -1,6 +1,6 @@
 import { useCallback } from "react"
 
-import { useEffectiveViewMode } from "@/hooks/useEffectiveViewMode"
+import { useLayoutViewMode, useSoloIndices } from "@/hooks/useEffectiveViewMode"
 import { updateDirImagesIndex, useAppStore } from "@/store/appStore"
 import { useSettingsStore } from "@/store/settingsStore"
 import { resolveCoverIndex } from "@/utils/comicCover"
@@ -22,7 +22,9 @@ export function useDirectoryNavigation(
   const dirImages = useAppStore((state) => state.dirImages)
   const archivePath = useAppStore((state) => state.archivePath)
   const loopNavigation = useSettingsStore((state) => state.loopNavigation)
-  const viewMode = useEffectiveViewMode()
+  // 폴더 아카이브 미리보기(그리기는 단일)에서도 양쪽 배치로 넘겨야 짝 정렬이 유지된다.
+  const viewMode = useLayoutViewMode()
+  const solo = useSoloIndices()
   const showCoverAlone = useSettingsStore((state) => state.showCoverAlone)
   const comicInfo = useAppStore((state) => state.comicInfo)
   const coverIndex = resolveCoverIndex(comicInfo, dirImages?.images.length ?? 0)
@@ -41,7 +43,8 @@ export function useDirectoryNavigation(
             loopNavigation,
             direction,
             showCoverAlone,
-            coverIndex
+            coverIndex,
+            solo
           )
         : resolveStepIndex(
             dirImages.current_index,
@@ -69,7 +72,8 @@ export function useDirectoryNavigation(
       loadArchiveImageByIndex,
       isDualView,
       showCoverAlone,
-      coverIndex
+      coverIndex,
+      solo
     ]
   )
 
@@ -79,7 +83,7 @@ export function useDirectoryNavigation(
 
       // 양쪽 모드는 쌍 중간에 착지해도 쌍 시작으로 스냅해 두 화면이 겹치지 않게 한다.
       const clamped = isDualView
-        ? resolvePairStart(index, dirImages.images.length, showCoverAlone, coverIndex)
+        ? resolvePairStart(index, dirImages.images.length, showCoverAlone, coverIndex, solo)
         : Math.max(0, Math.min(index, dirImages.images.length - 1))
 
       if (archivePath && loadArchiveImageByIndex) {
@@ -98,7 +102,8 @@ export function useDirectoryNavigation(
       loadArchiveImageByIndex,
       isDualView,
       showCoverAlone,
-      coverIndex
+      coverIndex,
+      solo
     ]
   )
 

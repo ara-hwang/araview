@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 import { useShallow } from "zustand/react/shallow"
 
-import { useEffectiveViewMode } from "@/hooks/useEffectiveViewMode"
+import { useEffectiveViewMode, useSoloIndices } from "@/hooks/useEffectiveViewMode"
 import { useAppStore } from "@/store/appStore"
 import { useSettingsStore } from "@/store/settingsStore"
 import type { ImageInfo } from "@/types"
@@ -26,6 +26,7 @@ export type MultiPage = {
 
 export function useMultiPageImages(getOrLoadImage: GetOrLoadImage) {
   const viewMode = useEffectiveViewMode()
+  const solo = useSoloIndices()
   const { loopNavigation, showCoverAlone } = useSettingsStore(
     useShallow((s) => ({
       loopNavigation: s.loopNavigation,
@@ -57,11 +58,12 @@ export function useMultiPageImages(getOrLoadImage: GetOrLoadImage) {
       count,
       showCoverAlone,
       resolveCoverIndex(comicInfo, count),
-      loopNavigation
+      loopNavigation,
+      solo
     )
 
-    // 폴더 안 아카이브(CBZ/ZIP)는 이미지로 그릴 수 없으므로 짝 페이지에서 뺀다.
-    // 짝이 빠지면 현재 이미지가 단독으로 가운데 표시된다.
+    // 폴더 안 아카이브는 solo 배치로 이미 단독 화면이지만, 이미지로 그릴 수 없으므로
+    // 만약을 위해 로드 대상에서도 뺀다.
     const paths = targetIndices
       .map((i) => images[i])
       .filter((p): p is string => !!p && !isArchiveFilePath(p))
@@ -91,7 +93,8 @@ export function useMultiPageImages(getOrLoadImage: GetOrLoadImage) {
     comicInfo,
     dirImages.images,
     dirImages.current_index,
-    getOrLoadImage
+    getOrLoadImage,
+    solo
   ])
 
   return { viewMode, pages }

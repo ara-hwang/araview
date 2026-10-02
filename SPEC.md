@@ -187,6 +187,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한�
 - 양쪽 모드 페이지는 `[current, next]`이며 루프가 켜지면 wrap한다. 로드 실패 페이지는 제외한다.
 - 표지 단독(`showCoverAlone`, 기본 true): 표지를 혼자 보여주고 그 뒤부터 `[표지+1, 표지+2]` 쌍을 맞춘다. 표지 인덱스는 ComicInfo의 `FrontCover`(8절)를 쓰고, 메타데이터가 없거나 범위를 벗어나면 0번이다. 표지가 0번이 아니면 표지 바로 앞에 남는 페이지도 단독 화면이 된다. 표지 화면에서는 다음 페이지를 로드하지 않는다. 마지막에 남은 한 장은 기존 단일 중앙 렌더를 재사용한다.
 - 표지 단독을 끄면 표지 인덱스를 무시하고 `[0,1], [2,3], ...`로 넘긴다.
+- 폴더 목록의 아카이브(CBZ/ZIP)는 이미지로 그릴 수 없으므로 양쪽 모드에서 단독 화면이 된다. 짝은 앞에서부터 두 장씩 맞추되 아카이브(표지 단독이면 표지 포함)와 그 바로 앞에 남는 페이지는 혼자 한 화면이므로, 넘김이 아카이브를 건너뛰지 않는다. 아카이브 화면에서는 첫 페이지 미리보기를 단일로 그리지만 이동·도크 하이라이트는 양쪽 배치(`useLayoutViewMode`)를 따른다. 아카이브 안(만화 모드)에는 적용하지 않는다.
 - 양쪽 모드의 점프(썸네일/도크/`Home`/`End`/`PageUp`/`PageDown`)와 아카이브 이어보기 진입은 쌍 시작으로 스냅한다(`src/utils/dirNavigation.ts`).
 - 만화 자동 양쪽 보기(`comicAutoDualView`, 기본 true): 아카이브를 만화 모드로 열 때 `viewMode`가 `webtoon`이 아니면 양쪽 보기로 연다(`resolveComicViewMode`, `src/utils/comicViewMode.ts`). 방향은 ComicInfo `Manga`가 `YesAndRightToLeft`면 우→좌, `No`면 좌→우를 따르고, `Yes`/`Unknown`/메타데이터 없음이면 설정의 양쪽 방향(우→좌였다면 우→좌), 그 외에는 좌→우다. 결과는 영속화하지 않는 `appStore.comicViewMode`에 담고, 화면에 적용되는 모드는 `useEffectiveViewMode`(`comicViewMode ?? viewMode`, 아카이브일 때만)로 읽는다. 헤더나 설정에서 보기 모드를 직접 고르면(`applyManualViewMode`) 자동 결정은 해제되고, 아카이브를 다시 열면 다시 계산한다. 설정값 `viewMode`는 바뀌지 않으므로 일반 이미지는 영향이 없다.
 - 도크와 썸네일 그리드는 화면에 떠 있는 페이지를 모두 현재로 표시한다(`useCurrentPageIndices`). 양쪽 모드는 쌍 두 장이 함께 하이라이트되고, 단독 화면(표지, 표지 바로 앞 페이지, 마지막 홀수 장)이나 단일/웹툰 모드는 현재 장만 하이라이트한다. 쌍의 기준 장은 도크의 `data-dock-current`로 한 개만 표시해 그리드 닫기 시 포커스 복귀 지점을 유지한다. 계산은 `dualPageIndices`가 뷰어 로드 대상과 같은 목록을 돌려준다.
