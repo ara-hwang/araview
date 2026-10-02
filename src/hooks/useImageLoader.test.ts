@@ -575,3 +575,54 @@ describe("useImageLoader 아카이브 열기 실패", () => {
     expect(st.errorCode).toBe("corrupt")
   })
 })
+
+describe("useImageLoader 주변 예열", () => {
+  const FOLDER = [
+    "/pics/0.jpg",
+    "/pics/1.jpg",
+    "/pics/2.jpg",
+    "/pics/3.jpg",
+    "/pics/4.jpg",
+    "/pics/5.jpg"
+  ]
+
+  function setupFolder(loaded: string[]) {
+    setupInvoke({
+      load_image: async (args) => {
+        const path = String(args?.filePath)
+        loaded.push(path)
+        return { ...imgInfo(path), source_path: path }
+      }
+    })
+    useAppStore.setState({
+      archivePath: null,
+      dirImages: { images: [...FOLDER], current_index: 2, availability: [] }
+    })
+  }
+
+  it("캐시 모드가 꺼져 있으면 미리 읽지 않는다", async () => {
+    useSettingsStore.setState({ viewMode: "webtoon", cacheMode: "off" })
+    const loaded: string[] = []
+    setupFolder(loaded)
+    const { result } = renderHook(() => useImageLoader())
+
+    await act(async () => {
+      result.current.prefetchAround(2)
+      await new Promise((r) => setTimeout(r, 20))
+    })
+    expect(loaded).toEqual([])
+  })
+
+  it("웹툰은 캐시 모드 거리의 두 배만큼 앞뒤를 읽는다", async () => {
+    useSettingsStore.setState({ viewMode: "webtoon", cacheMode: "nearby" })
+    const loaded: string[] = []
+    setupFolder(loaded)
+    const { result } = renderHook(() => useImageLoader())
+
+    await act(async () => {
+      result.current.prefetchAround(2)
+      await new Promise((r) => setTimeout(r, 20))
+    })
+    expect([...loaded].sort()).toEqual(["/pics/0.jpg", "/pics/1.jpg", "/pics/3.jpg", "/pics/4.jpg"])
+  })
+})

@@ -396,6 +396,21 @@ export function useImageLoader() {
     [loadArchive]
   )
 
+  /** 보기 모드별 폴더 프리페치: 양쪽은 짝 페이지를, webtoon은 스크롤 앞쪽을 더 넓게. */
+  const prefetchFolderNeighbors = useCallback(
+    (images: string[], index: number) => {
+      const baseDistance = getPrefetchDistance()
+      const distance =
+        viewMode === "webtoon"
+          ? baseDistance * 2
+          : viewMode === "single"
+            ? baseDistance
+            : baseDistance + 1
+      prefetchNearbyImages(images, index, loopNavigation, distance)
+    },
+    [getPrefetchDistance, loopNavigation, prefetchNearbyImages, viewMode]
+  )
+
   const loadImage = useCallback(
     async (filePath: string, options?: LoadImageOptions) => {
       if (isArchiveFilePath(filePath)) {
@@ -457,20 +472,7 @@ export function useImageLoader() {
           if (resolvedDirInfo) {
             const resolvedIndex = resolvedDirInfo.images.indexOf(filePath)
             const nextIndex = resolvedIndex >= 0 ? resolvedIndex : resolvedDirInfo.current_index
-            // 보기 모드별 프리페치: 양쪽은 짝 페이지를, webtoon은 스크롤 앞쪽을 더 넓게.
-            const baseDistance = getPrefetchDistance()
-            const prefetchDistance =
-              viewMode === "webtoon"
-                ? baseDistance * 2
-                : viewMode === "single"
-                  ? baseDistance
-                  : baseDistance + 1
-            prefetchNearbyImages(
-              resolvedDirInfo.images,
-              nextIndex,
-              loopNavigation,
-              prefetchDistance
-            )
+            prefetchFolderNeighbors(resolvedDirInfo.images, nextIndex)
           }
         },
         async (e, message) => {
@@ -502,13 +504,26 @@ export function useImageLoader() {
       clearImageMetaCache,
       dirImages,
       getOrLoadImage,
-      getPrefetchDistance,
-      prefetchNearbyImages,
-      loopNavigation,
-      viewMode,
+      prefetchFolderNeighbors,
       loadArchive,
       loadArchivePreview
     ]
+  )
+
+  /**
+   * 현재 위치 주변을 미리 읽는다. 아카이브 안이면 엔트리 선추출 경로를,
+   * 폴더면 보기 모드별 거리를 쓴다. 거리는 캐시 모드 설정을 따른다(끔이면 생략).
+   */
+  const prefetchAround = useCallback(
+    (index: number) => {
+      const { archivePath, dirImages: current } = useAppStore.getState()
+      if (archivePath) {
+        prefetchArchiveNeighbors(archivePath, current.images, index)
+      } else {
+        prefetchFolderNeighbors(current.images, index)
+      }
+    },
+    [prefetchArchiveNeighbors, prefetchFolderNeighbors]
   )
 
   // 표시 해상도나 보간 정책이 바뀌면 이전 기준으로 캐시된 메타를 버리고 현재
@@ -632,6 +647,7 @@ export function useImageLoader() {
     handleDragEnter,
     handleDragLeave,
     isDragOver,
-    getOrLoadImage
+    getOrLoadImage,
+    prefetchAround
   }
 }

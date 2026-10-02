@@ -62,7 +62,8 @@ function ImagePage() {
     handleDragLeave,
     isDragOver,
     getOrLoadImage,
-    openArchiveFromPreview
+    openArchiveFromPreview,
+    prefetchAround
   } = useImageLoader()
 
   const { viewMode, pages } = useMultiPageImages(getOrLoadImage)
@@ -118,14 +119,10 @@ function ImagePage() {
           }
         })
         .catch(() => {})
-      // 스크롤 방향 예열: 앞 5장 메타 확보
-      const imgs = st.dirImages.images
-      for (let k = 1; k <= 5; k += 1) {
-        const p = imgs[index + k]
-        if (p) void getOrLoadImage(p).catch(() => {})
-      }
+      // 주변 예열은 일반 이동과 같은 규칙(캐시 모드 거리, 아카이브 선추출)을 따른다.
+      prefetchAround(index)
     },
-    [getOrLoadImage]
+    [getOrLoadImage, prefetchAround]
   )
 
   const scrollWebtoonTo = useCallback(
