@@ -330,6 +330,9 @@ pub(crate) fn touch_cache_file(path: &Path) {
 /// Webtoon·대용량 아카이브에서 오래된 페이지 asset URL이 깨지지 않도록 여유를 둔다.
 const MAX_IN_USE: usize = 1024;
 
+static IN_USE_OVERFLOW_LOGGED: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+
 static IN_USE: LazyLock<Mutex<(VecDeque<PathBuf>, HashSet<PathBuf>)>> =
     LazyLock::new(|| Mutex::new((VecDeque::new(), HashSet::new())));
 
@@ -352,6 +355,14 @@ pub(crate) fn mark_in_use(path: &Path) {
     while queue.len() > MAX_IN_USE {
         if let Some(old) = queue.pop_front() {
             set.remove(&old);
+            // 넘침 자체는 설계된 동작이지만, 화면에 떠 있던 파일이 축출될 수
+            // 있어 깨진 이미지 추적에 단서가 되도록 세션당 한 번만 남긴다.
+            if !IN_USE_OVERFLOW_LOGGED.swap(true, std::sync::atomic::Ordering::Relaxed) {
+                log::warn!(
+                    "[cache] in-use protection exceeded {MAX_IN_USE} entries; oldest lost protection: {}",
+                    old.display()
+                );
+            }
         }
     }
 }

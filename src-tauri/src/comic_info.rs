@@ -133,12 +133,7 @@ struct RawPage {
 /// CBZ/ZIP에서 ComicInfo.xml을 찾아 파싱한다.
 /// 지원 확장자가 아니거나 XML이 없으면 `Ok(None)`, 깨진 XML은 `Corrupt`다.
 pub fn read_comic_info(archive_path: &Path) -> Result<Option<ComicInfo>, AppError> {
-    let ext = archive_path
-        .extension()
-        .and_then(|e| e.to_str())
-        .map(|e| e.to_lowercase())
-        .unwrap_or_default();
-    if ext != "cbz" && ext != "zip" {
+    if !crate::image::is_archive_file(archive_path) {
         return Ok(None);
     }
 

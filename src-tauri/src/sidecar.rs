@@ -67,11 +67,16 @@ pub fn with_file_lock<T>(
     let guard = slot.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
     let result = f();
     drop(guard);
-    if std::sync::Arc::strong_count(&slot) <= 2 {
-        if let Ok(mut map) = NAMED_LOCKS.lock() {
-            if std::sync::Arc::strong_count(&slot) <= 2 {
-                map.remove(key);
-            }
+    // 복제는 맵 잠금 안에서만 생기므로, 잠금을 쥔 채 자기 복제본을 놓고 남은
+    // 참조가 맵 하나뿐이면 지운다. 동시에 끝난 스레드들 중 마지막 하나가 반드시
+    // 지우게 된다 (각자 자기 복제본을 쥔 채 세면 서로를 보고 둘 다 남길 수 있다).
+    if let Ok(mut map) = NAMED_LOCKS.lock() {
+        drop(slot);
+        if map
+            .get(key)
+            .is_some_and(|entry| std::sync::Arc::strong_count(entry) == 1)
+        {
+            map.remove(key);
         }
     }
     result
@@ -385,6 +390,24 @@ mod tests {
         let still_there = NAMED_LOCKS
             .lock()
             .map(|map| map.contains_key("sidecar-test-key"))
+            .unwrap_or(true);
+        assert!(!still_there);
+    }
+
+    #[test]
+    fn lock_entries_are_cleaned_up_after_concurrent_holders() {
+        let key = "sidecar-test-concurrent";
+        for _ in 0..50 {
+            let threads: Vec<_> = (0..8)
+                .map(|_| std::thread::spawn(move || with_file_lock(key, "test", || Ok(()))))
+                .collect();
+            for thread in threads {
+                thread.join().expect("join").expect("lock");
+            }
+        }
+        let still_there = NAMED_LOCKS
+            .lock()
+            .map(|map| map.contains_key(key))
             .unwrap_or(true);
         assert!(!still_there);
     }
