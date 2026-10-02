@@ -41,48 +41,42 @@ export function replacePathInList(images: string[], oldPath: string, newPath: st
   return images.map((p) => (p === oldPath ? newPath : p))
 }
 
+/**
+ * 현재 대상 경로(아카이브면 아카이브 원본)로 작업을 실행한다.
+ * 대상이 없거나 작업이 실패하면 `toast.<key>.empty` / `toast.<key>.fail`로 알린다.
+ */
+async function withEffectiveTarget(
+  key: "reveal" | "external" | "path",
+  action: (target: string) => Promise<void>
+) {
+  const { imageInfo, archivePath, archivePreviewPath } = useAppStore.getState()
+  const target = getEffectivePath(imageInfo?.source_path ?? null, archivePath ?? archivePreviewPath)
+  if (!target) {
+    toast.error(i18n.t(`toast.${key}.empty`))
+    return
+  }
+  try {
+    await action(target)
+  } catch (e) {
+    toast.error(i18n.t(`toast.${key}.fail`), {
+      description: errorMessage(e),
+      details: errorCopyDetails(e, target)
+    })
+  }
+}
+
 export function useFileOperations({ loadImage }: { loadImage: LoadImageFn }) {
   const navigate = useNavigate()
 
-  const revealCurrent = useCallback(async () => {
-    const { imageInfo, archivePath, archivePreviewPath } = useAppStore.getState()
-    const target = getEffectivePath(
-      imageInfo?.source_path ?? null,
-      archivePath ?? archivePreviewPath
-    )
-    if (!target) {
-      toast.error(i18n.t("toast.reveal.empty"))
-      return
-    }
-    try {
-      await revealItemInDir(target)
-    } catch (e) {
-      toast.error(i18n.t("toast.reveal.fail"), {
-        description: errorMessage(e),
-        details: errorCopyDetails(e, target)
-      })
-    }
-  }, [])
+  const revealCurrent = useCallback(
+    () => withEffectiveTarget("reveal", (target) => revealItemInDir(target)),
+    []
+  )
 
-  const openExternal = useCallback(async () => {
-    const { imageInfo, archivePath, archivePreviewPath } = useAppStore.getState()
-    const target = getEffectivePath(
-      imageInfo?.source_path ?? null,
-      archivePath ?? archivePreviewPath
-    )
-    if (!target) {
-      toast.error(i18n.t("toast.external.empty"))
-      return
-    }
-    try {
-      await openPath(target)
-    } catch (e) {
-      toast.error(i18n.t("toast.external.fail"), {
-        description: errorMessage(e),
-        details: errorCopyDetails(e, target)
-      })
-    }
-  }, [])
+  const openExternal = useCallback(
+    () => withEffectiveTarget("external", (target) => openPath(target)),
+    []
+  )
 
   const trashCurrent = useCallback(async () => {
     const { imageInfo, dirImages, archivePath, archivePreviewPath } = useAppStore.getState()
@@ -130,29 +124,17 @@ export function useFileOperations({ loadImage }: { loadImage: LoadImageFn }) {
     await loadImage(next, { refreshDirectory: true })
   }, [loadImage, navigate])
 
-  const copyPathCurrent = useCallback(async () => {
-    const { imageInfo, archivePath, archivePreviewPath } = useAppStore.getState()
-    const target = getEffectivePath(
-      imageInfo?.source_path ?? null,
-      archivePath ?? archivePreviewPath
-    )
-    if (!target) {
-      toast.error(i18n.t("toast.path.empty"))
-      return
-    }
-    try {
-      await navigator.clipboard.writeText(target)
-      toast.success(i18n.t("toast.path.done"), {
-        description: target,
-        duration: 1500
-      })
-    } catch (e) {
-      toast.error(i18n.t("toast.path.fail"), {
-        description: errorMessage(e),
-        details: errorCopyDetails(e, target)
-      })
-    }
-  }, [])
+  const copyPathCurrent = useCallback(
+    () =>
+      withEffectiveTarget("path", async (target) => {
+        await navigator.clipboard.writeText(target)
+        toast.success(i18n.t("toast.path.done"), {
+          description: target,
+          duration: 1500
+        })
+      }),
+    []
+  )
 
   /** 이름 변경. 성공 시 true (다이얼로그를 닫아도 됨) */
   const renameCurrent = useCallback(async (newName: string) => {

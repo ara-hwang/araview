@@ -22,6 +22,8 @@ vi.mock("@tauri-apps/plugin-dialog", () => ({
   open: vi.fn(async () => null)
 }))
 
+import { revealItemInDir } from "@tauri-apps/plugin-opener"
+
 vi.mock("@tauri-apps/plugin-opener", () => ({
   openPath: vi.fn(async () => {}),
   revealItemInDir: vi.fn(async () => {})
@@ -45,12 +47,14 @@ vi.mock("@/components/ui/toast", () => ({
   toast: { error: vi.fn(), info: vi.fn(), success: vi.fn() }
 }))
 
+import { toast } from "@/components/ui/toast"
 import {
   getEffectivePath,
   getNextPathAfterTrash,
   replacePathInList,
   useFileOperations
 } from "@/hooks/useFileOperations"
+import i18n from "@/i18n"
 import { useAppStore } from "@/store/appStore"
 import type { ImageInfo } from "@/types"
 
@@ -111,6 +115,7 @@ const imageInfo = (overrides: Partial<ImageInfo> = {}): ImageInfo => ({
 const noopLoad = async () => {}
 
 beforeEach(() => {
+  vi.mocked(toast.error).mockClear()
   h.invokes = []
   h.confirmCalls = 0
 })
@@ -177,5 +182,45 @@ describe("useFileOperations 아카이브 컨텍스트", () => {
 
     const trash = h.invokes.find((call) => call.cmd === "trash_file")
     expect(trash?.args?.filePath).toBe("/pics/photo.jpg")
+  })
+})
+
+describe("useFileOperations 대상 경로 작업", () => {
+  it("대상이 없으면 작업별 empty 토스트를 띄운다", async () => {
+    useAppStore.setState({ imageInfo: null, archivePath: null, archivePreviewPath: null })
+    const { result } = renderHook(() => useFileOperations({ loadImage: noopLoad }))
+
+    await act(async () => {
+      await result.current.revealCurrent()
+      await result.current.openExternal()
+      await result.current.copyPathCurrent()
+    })
+
+    const titles = vi.mocked(toast.error).mock.calls.map((call) => call[0])
+    expect(titles).toEqual([
+      i18n.t("toast.reveal.empty"),
+      i18n.t("toast.external.empty"),
+      i18n.t("toast.path.empty")
+    ])
+    expect(titles).not.toContain("toast.reveal.empty")
+  })
+
+  it("작업이 실패하면 fail 토스트에 대상 경로를 담는다", async () => {
+    vi.mocked(revealItemInDir).mockRejectedValueOnce(new Error("denied"))
+    useAppStore.setState({
+      imageInfo: imageInfo(),
+      archivePath: null,
+      archivePreviewPath: null
+    })
+    const { result } = renderHook(() => useFileOperations({ loadImage: noopLoad }))
+
+    await act(async () => {
+      await result.current.revealCurrent()
+    })
+
+    expect(toast.error).toHaveBeenCalledWith(
+      i18n.t("toast.reveal.fail"),
+      expect.objectContaining({ description: "denied" })
+    )
   })
 })
