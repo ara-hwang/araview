@@ -242,8 +242,13 @@ mod tests {
         assert_eq!(file_names(&list_paths(&a, None)), vec!["a.png", "b.png"]);
 
         // 비재귀 목록은 존재 여부를 다시 확인하지 않으므로 삭제가 폴더
-        // mtime 변경으로 캐시를 무효화해야 한다.
+        // mtime 변경으로 캐시를 무효화해야 한다. Dev Drive(ReFS) 등 일부
+        // 파일시스템은 삭제 시 mtime을 갱신하지 않으므로 상황을 직접 만든다.
         fs::remove_file(&b).expect("remove b");
+        let before = fs::metadata(&dir)
+            .and_then(|m| m.modified())
+            .expect("dir mtime");
+        crate::dir_cache::bump_dir_mtime(&dir, before + std::time::Duration::from_secs(2));
         assert_eq!(file_names(&list_paths(&a, None)), vec!["a.png"]);
         fs::remove_dir_all(&dir).ok();
     }

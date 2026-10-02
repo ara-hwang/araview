@@ -467,6 +467,22 @@ pub(crate) fn contains_for_tests(key: &str) -> bool {
         .unwrap_or(false)
 }
 
+/// 디렉터리 핸들을 열어 수정 시각을 직접 지정한다(`FILE_FLAG_BACKUP_SEMANTICS`).
+/// Dev Drive(ReFS) 등 일부 파일시스템은 자식 추가/삭제 시 디렉터리 mtime을
+/// 갱신하지 않으므로, mtime 기반 무효화를 검증하는 테스트가 상황을 직접 만든다.
+#[cfg(test)]
+pub(crate) fn bump_dir_mtime(dir: &Path, to: SystemTime) {
+    use std::os::windows::fs::OpenOptionsExt;
+    const FILE_WRITE_ATTRIBUTES: u32 = 0x0100;
+    const FILE_FLAG_BACKUP_SEMANTICS: u32 = 0x0200_0000;
+    let handle = fs::OpenOptions::new()
+        .access_mode(FILE_WRITE_ATTRIBUTES)
+        .custom_flags(FILE_FLAG_BACKUP_SEMANTICS)
+        .open(dir)
+        .expect("open dir handle");
+    handle.set_modified(to).expect("set dir mtime");
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -556,19 +572,6 @@ mod tests {
         assert_eq!(entries[0].path, expected);
         assert!(!entries[0].path.starts_with(r"\\?\"));
         fs::remove_dir_all(&dir).ok();
-    }
-
-    /// 디렉터리 핸들을 열어 수정 시각을 직접 지정한다(`FILE_FLAG_BACKUP_SEMANTICS`).
-    fn bump_dir_mtime(dir: &Path, to: SystemTime) {
-        use std::os::windows::fs::OpenOptionsExt;
-        const FILE_WRITE_ATTRIBUTES: u32 = 0x0100;
-        const FILE_FLAG_BACKUP_SEMANTICS: u32 = 0x0200_0000;
-        let handle = fs::OpenOptions::new()
-            .access_mode(FILE_WRITE_ATTRIBUTES)
-            .custom_flags(FILE_FLAG_BACKUP_SEMANTICS)
-            .open(dir)
-            .expect("open dir handle");
-        handle.set_modified(to).expect("set dir mtime");
     }
 
     #[test]
