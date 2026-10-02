@@ -5,6 +5,22 @@ import { useAppStore } from "@/store/appStore"
 import { formatDimensions, formatFileSize } from "@/utils/format"
 import { buildStatusModel } from "@/utils/statusBar"
 
+/** "폴더명 /" 앞부분. 좁은 창(sm 미만)에서는 숨긴다. */
+function FolderSegment({ name, maxWidth }: { name: string; maxWidth: "max-w-32" | "max-w-40" }) {
+  return (
+    <>
+      <span
+        className={`hidden ${maxWidth} min-w-0 shrink truncate text-muted-foreground sm:inline`}
+      >
+        {name}
+      </span>
+      <span aria-hidden="true" className="hidden shrink-0 text-muted-foreground sm:inline">
+        /
+      </span>
+    </>
+  )
+}
+
 export function StatusBar() {
   const { t } = useTranslation()
   const { imageInfo, zoom, imageSize, dirImages, archivePath } = useAppStore(
@@ -51,51 +67,32 @@ export function StatusBar() {
       role="status"
       aria-label={t("status.barLabel")}
     >
-      {model.kind === "archive" ? (
-        <span
-          className="flex min-w-0 flex-1 items-baseline gap-1 overflow-hidden whitespace-nowrap"
-          title={model.tooltip}
-        >
-          {model.folderName && (
-            <>
-              <span className="hidden max-w-32 min-w-0 shrink truncate text-muted-foreground sm:inline">
-                {model.folderName}
-              </span>
-              <span aria-hidden="true" className="hidden shrink-0 text-muted-foreground sm:inline">
-                /
-              </span>
-            </>
-          )}
-          <span className="max-w-48 min-w-0 shrink-0 truncate font-medium">
-            {model.archiveName}
-          </span>
-          {model.entryName && (
-            <>
-              <span aria-hidden="true" className="shrink-0 text-muted-foreground">
-                ›
-              </span>
-              <span className="min-w-0 flex-1 truncate">{model.entryName}</span>
-            </>
-          )}
-        </span>
-      ) : (
-        <span
-          className="flex min-w-0 flex-1 items-baseline gap-1 overflow-hidden whitespace-nowrap"
-          title={model.tooltip}
-        >
-          {model.folderName && (
-            <>
-              <span className="hidden max-w-40 min-w-0 shrink truncate text-muted-foreground sm:inline">
-                {model.folderName}
-              </span>
-              <span aria-hidden="true" className="hidden shrink-0 text-muted-foreground sm:inline">
-                /
-              </span>
-            </>
-          )}
-          <span className="min-w-0 flex-1 truncate font-medium">{model.fileName}</span>
-        </span>
-      )}
+      <span
+        className="flex min-w-0 flex-1 items-baseline gap-1 overflow-hidden whitespace-nowrap"
+        title={model.tooltip}
+      >
+        {model.kind === "archive" ? (
+          <>
+            {model.folderName && <FolderSegment name={model.folderName} maxWidth="max-w-32" />}
+            <span className="max-w-48 min-w-0 shrink-0 truncate font-medium">
+              {model.archiveName}
+            </span>
+            {model.entryName && (
+              <>
+                <span aria-hidden="true" className="shrink-0 text-muted-foreground">
+                  ›
+                </span>
+                <span className="min-w-0 flex-1 truncate">{model.entryName}</span>
+              </>
+            )}
+          </>
+        ) : (
+          <>
+            {model.folderName && <FolderSegment name={model.folderName} maxWidth="max-w-40" />}
+            <span className="min-w-0 flex-1 truncate font-medium">{model.fileName}</span>
+          </>
+        )}
+      </span>
       <span className="shrink-0 font-mono tabular-nums">{tokens.join(" | ")}</span>
     </div>
   )

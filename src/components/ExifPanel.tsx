@@ -420,21 +420,13 @@ export function ExifPanel() {
                     <h3 className="mb-2 text-xs font-semibold tracking-wider text-muted-foreground uppercase">
                       {section.title}
                     </h3>
-                    <div className="space-y-1">
-                      {section.entries.map(([key, value]) => (
-                        <div
-                          key={key}
-                          className="flex items-baseline justify-between gap-2 text-sm"
-                        >
-                          <span className="shrink-0 text-muted-foreground">
-                            {formatTagName(key)}
-                          </span>
-                          <span className="truncate text-right font-medium tabular-nums">
-                            {value}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
+                    <DetailRows
+                      rows={section.entries.map(([key, value]) => ({
+                        key,
+                        label: formatTagName(key),
+                        value
+                      }))}
+                    />
                   </div>
                 ))}
               </div>
