@@ -9,7 +9,7 @@ Product truth lives in `PRODUCT.md`, visual system in `DESIGN.md`, full function
 `araview` is a Windows desktop image viewer built with Tauri 2 + React 19 + TypeScript. Windows 11 x64 is the only supported OS.
 
 - Frontend: React 19, TypeScript, Vite 6, Tailwind CSS 4, TanStack Router v1, Zustand 5
-- Backend: Rust + Tauri 2 commands (`src-tauri/src/commands.rs`)
+- Backend: Rust + Tauri 2 commands (`src-tauri/src/commands/`)
 - UI primitives: shadcn/ui built on `@base-ui/react` (do not introduce `@radix-ui/*`)
 - Package manager/runtime assumptions: Node.js `>=22`, npm scripts in `package.json`
 
@@ -63,7 +63,7 @@ cd src-tauri && cargo fmt
 - Stores: `src/store/`
 - Shared TS types: `src/types/index.ts`
 - Extension source of truth: `src/constants/imageExtensions.ts`
-- Rust commands: `src-tauri/src/commands.rs`
+- Rust commands: `src-tauri/src/commands/` (one module per domain, re-exported from `mod.rs`)
 - MIME/extension logic and tests: `src-tauri/src/image.rs`
 - Windows file association registry: `src-tauri/src/file_assoc.rs`
 - HEIC/HEIF JPEG sidecar decode: `src-tauri/src/heif.rs`
@@ -161,7 +161,7 @@ Tauri Store (`settings.json`) is used for:
 
 ### Rust / Tauri
 
-- Add new Tauri commands in `src-tauri/src/commands.rs`
+- Add new Tauri commands to the matching domain module in `src-tauri/src/commands/`; run blocking work through `run_blocking`
 - Register every new command in `src-tauri/src/lib.rs` `invoke_handler`
 - Keep extension and MIME logic in `src-tauri/src/image.rs`
 - Add/update Rust unit tests when changing supported formats
@@ -185,7 +185,7 @@ Tauri Store (`settings.json`) is used for:
 
 ### Add a new backend command
 
-1. Implement command in `src-tauri/src/commands.rs` with `#[tauri::command]`
+1. Implement command in the matching `src-tauri/src/commands/<domain>.rs` with `#[tauri::command]`
 2. Register in `src-tauri/src/lib.rs`
 3. Call from frontend using `invoke(...)` (usually from a hook)
 4. Update TypeScript types if payload/response shape changes

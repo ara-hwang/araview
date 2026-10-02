@@ -8,7 +8,7 @@
 //!
 //! Cache keys use the canonicalized archive path, mirroring `dir_cache`.
 //! When the archive file changes, the derived-extract subdirectory name
-//! changes with it (`sidecar::file_identity_hash` in `commands.rs`), so a
+//! changes with it (`sidecar::file_identity_hash` in `commands/archive.rs`), so a
 //! stale index never serves extracts for the wrong archive content; the
 //! mtime+size check still clears the old index entry promptly.
 

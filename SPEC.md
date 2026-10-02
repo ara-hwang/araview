@@ -132,7 +132,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한�
 
 ## 5. 디렉토리 목록과 탐색
 
-진실: `src-tauri/src/commands.rs`, `src-tauri/src/dir_cache.rs`, `src/hooks/useDirectoryNavigation.ts`, `src/utils/directoryOptions.ts`.
+진실: `src-tauri/src/commands/directory.rs`, `src-tauri/src/dir_cache.rs`, `src/hooks/useDirectoryNavigation.ts`, `src/utils/directoryOptions.ts`.
 
 ### 5.1 `get_directory_images`
 
@@ -240,7 +240,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한�
 
 ## 8. 아카이브
 
-진실: `src-tauri/src/archive.rs`, `src-tauri/src/archive_index.rs`, `src-tauri/src/commands.rs`, `src/hooks/useImageLoader.ts`, `src/store/archiveProgressStore.ts`.
+진실: `src-tauri/src/archive.rs`, `src-tauri/src/archive_index.rs`, `src-tauri/src/commands/archive.rs`, `src/hooks/useImageLoader.ts`, `src/store/archiveProgressStore.ts`.
 
 - 아카이브 커맨드(`get_archive_images`, `load_archive_image`, `archive_prefetch`, `get_comic_info`, `generate_archive_thumbnail`, `generate_archive_file_thumbnail(s)_batch`)는 모두 비동기 커맨드로 `spawn_blocking`에서 실행되어 메인 스레드를 막지 않는다. `archive_prefetch`는 fire-and-forget 성격에 맞게 조인 실패도 흡수해 `Ok(0)`을 반환한다.
 - 엔트리 인덱스 캐시(`archive_index.rs`): 아카이브별 이미지/전체 엔트리 목록을 canonical 경로 + mtime + size 검증으로 캐시한다(최대 64개 LRU). `get_archive_images`, `get_comic_info`, `generate_archive_file_thumbnail(s)_batch`가 공유해 아카이브당 전체 스캔이 1회로 수렴한다. `clear_cache` 시 함께 비워진다.
@@ -320,7 +320,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한�
 
 ## 10. EXIF/파일 정보
 
-진실: `src-tauri/src/commands.rs`, `src-tauri/src/image_info.rs`, `src/hooks/useExifLoader.ts`, `src/components/ExifPanel.tsx`, `src/components/HistogramChart.tsx`.
+진실: `src-tauri/src/commands/metadata.rs`, `src-tauri/src/image_info.rs`, `src/hooks/useExifLoader.ts`, `src/components/ExifPanel.tsx`, `src/components/HistogramChart.tsx`.
 
 - `get_exif_data`는 문자열 맵을 반환한다.
 - 파일 없음이면 `not_found`, EXIF 없으면 `unsupported`.
@@ -347,7 +347,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한�
 
 ## 11. 파일 작업
 
-진실: `src/hooks/useFileOperations.ts`, `src-tauri/src/commands.rs`, `src/hooks/useCopyImage.ts`.
+진실: `src/hooks/useFileOperations.ts`, `src-tauri/src/commands/file_ops.rs`, `src/hooks/useCopyImage.ts`.
 
 공통: 아카이브 모드(전체/미리보기)면 원본 아카이브 경로를 대상으로 삼는다. 단, 휴지통/이름 변경은 아카이브에서 차단된다. 파일 작업은 렌더 경로(`file_path`)가 아니라 사용자가 연 원본(`source_path`)을 대상으로 한다(9.4절).
 
@@ -513,7 +513,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한�
 
 ## 15. 백엔드 IPC 계약
 
-진실: `src-tauri/src/lib.rs` `invoke_handler`, `src-tauri/src/commands.rs`, `src-tauri/src/cache.rs`, `src-tauri/src/thumb_shell.rs`.
+진실: `src-tauri/src/lib.rs` `invoke_handler`, `src-tauri/src/commands/`, `src-tauri/src/cache.rs`, `src-tauri/src/thumb_shell.rs`.
 
 | 명령                                     | 입력 (JS camelCase)                                                                            | 반환                                   |
 | ---------------------------------------- | ---------------------------------------------------------------------------------------------- | -------------------------------------- |

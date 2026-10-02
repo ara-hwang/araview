@@ -105,7 +105,7 @@ src/
   types/             # 공용 타입
 
 src-tauri/
-  src/commands.rs    # Tauri command
+  src/commands/      # Tauri command (도메인별 모듈, mod.rs에서 재내보내기)
   src/file_assoc.rs  # Windows 확장자 연결(레지스트리)
   src/image.rs       # MIME/확장자 판별(resolve_mime), load_viewable
   src/sniff.rs       # 파일 선두 시그니처 기반 포맷 판별

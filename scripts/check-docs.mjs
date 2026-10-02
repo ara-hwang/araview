@@ -139,7 +139,9 @@ function srcFiles(dir) {
   checkSetEqual("IPC 표/등록", "SPEC.md §15", specCommands, "invoke_handler", invoked)
   const defined = []
   const commandFiles = [
-    "src-tauri/src/commands.rs",
+    ...readdirSync(join(root, "src-tauri/src/commands"))
+      .filter((name) => name.endsWith(".rs"))
+      .map((name) => `src-tauri/src/commands/${name}`),
     "src-tauri/src/cache.rs",
     "src-tauri/src/thumb_shell.rs",
     "src-tauri/src/lib.rs"
