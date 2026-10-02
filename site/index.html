@@ -1,0 +1,483 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AraView</title>
+    <meta
+      name="description"
+      content="Windows 11용 가벼운 오프라인 이미지·만화 뷰어. A lightweight offline image and comic viewer for Windows 11."
+    />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="icon" type="image/svg+xml" href="icon-light.svg" />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/pretendard@1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css"
+    />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header class="top">
+      <a class="brand" href="#top" aria-label="AraView">
+        <picture>
+          <source srcset="icon-dark.svg" media="(prefers-color-scheme: dark)" />
+          <img src="icon-light.svg" width="28" height="28" alt="" />
+        </picture>
+        <span>AraView</span>
+      </a>
+      <nav aria-label="Primary">
+        <a href="#features" data-ko="기능" data-en="Features">기능</a>
+        <a href="#formats" data-ko="포맷" data-en="Formats">포맷</a>
+        <a href="#keys" data-ko="단축키" data-en="Shortcuts">단축키</a>
+        <button type="button" id="lang" class="btn btn-outline">EN</button>
+        <a class="badge" href="https://github.com/ara-hwang/araview" aria-label="GitHub">
+          <img
+            src="https://img.shields.io/github/stars/ara-hwang/araview?style=social"
+            height="20"
+            alt="GitHub stars"
+          />
+        </a>
+      </nav>
+    </header>
+
+    <main id="top">
+      <section class="hero">
+        <picture>
+          <source srcset="icon-dark.svg" media="(prefers-color-scheme: dark)" />
+          <img class="hero-icon" src="icon-light.svg" width="96" height="96" alt="" />
+        </picture>
+        <h1>AraView <span class="ko-name">아라뷰</span></h1>
+        <p
+          class="lead"
+          data-ko="Windows 11용 가벼운 오프라인 이미지·만화 뷰어."
+          data-en="A lightweight offline image and comic viewer for Windows 11."
+        >
+          Windows 11용 가벼운 오프라인 이미지·만화 뷰어.
+        </p>
+        <div class="cta">
+          <a
+            class="btn btn-primary"
+            href="https://github.com/ara-hwang/araview/releases/latest"
+            data-ko="최신 버전 다운로드"
+            data-en="Download latest release"
+            >최신 버전 다운로드</a
+          >
+          <a
+            class="btn btn-outline"
+            href="https://github.com/ara-hwang/araview"
+            data-ko="소스 보기"
+            data-en="View source"
+            >소스 보기</a
+          >
+        </div>
+        <p
+          class="note"
+          data-ko="Windows 11 (x64) 전용 · EUPL-1.2"
+          data-en="Windows 11 (x64) only · EUPL-1.2"
+        >
+          Windows 11 (x64) 전용 · EUPL-1.2
+        </p>
+      </section>
+
+      <section id="features">
+        <h2 class="label" data-ko="기능" data-en="Features">기능</h2>
+        <div class="grid">
+          <article>
+            <h3 data-ko="이미지를 빠르게 보기" data-en="Look at images, fast">
+              이미지를 빠르게 보기
+            </h3>
+            <p
+              data-ko="확대/축소, 가로·세로·화면 맞춤, 이동, 회전, 반전. 폴더 안 이전/다음 이동, 썸네일 스트립과 그리드, 인덱스 점프를 지원합니다."
+              data-en="Zoom, fit to width, height or screen, pan, rotate, flip. Previous/next in the folder, thumbnail strip and grid, index jump."
+            >
+              확대/축소, 가로·세로·화면 맞춤, 이동, 회전, 반전. 폴더 안 이전/다음 이동, 썸네일
+              스트립과 그리드, 인덱스 점프를 지원합니다.
+            </p>
+          </article>
+          <article>
+            <h3 data-ko="만화 읽기" data-en="Read comics">만화 읽기</h3>
+            <p
+              data-ko="CBZ/ZIP 아카이브를 단일, 좌→우, 우→좌, 웹툰 보기로 읽습니다. ComicInfo.xml을 읽어 표지와 읽기 방향을 맞추고, 마지막으로 본 페이지에서 이어봅니다."
+              data-en="Open CBZ/ZIP archives in single, left-to-right, right-to-left or webtoon mode. ComicInfo.xml drives cover and reading direction, and reading resumes where you left off."
+            >
+              CBZ/ZIP 아카이브를 단일, 좌→우, 우→좌, 웹툰 보기로 읽습니다. ComicInfo.xml을 읽어
+              표지와 읽기 방향을 맞추고, 마지막으로 본 페이지에서 이어봅니다.
+            </p>
+          </article>
+          <article>
+            <h3 data-ko="픽셀 아트도 선명하게" data-en="Pixel art stays crisp">
+              픽셀 아트도 선명하게
+            </h3>
+            <p
+              data-ko="부드럽게, 픽셀 보존, 자동 중에서 고릅니다. 자동 모드는 보수적으로 픽셀 아트를 감지하고, 불확실하면 부드럽게 표시합니다."
+              data-en="Choose smooth, pixelated or auto. Auto detects pixel art conservatively and falls back to smooth when unsure."
+            >
+              부드럽게, 픽셀 보존, 자동 중에서 고릅니다. 자동 모드는 보수적으로 픽셀 아트를
+              감지하고, 불확실하면 부드럽게 표시합니다.
+            </p>
+          </article>
+          <article>
+            <h3 data-ko="키보드 중심" data-en="Keyboard first">키보드 중심</h3>
+            <p
+              data-ko="모든 조작을 키보드로 할 수 있습니다. Ctrl+K 명령 팔레트로 기능을 검색해 실행하고, 단축키는 설정에서 바꿉니다."
+              data-en="Everything is reachable from the keyboard. Search and run commands with the Ctrl+K palette, and rebind shortcuts in settings."
+            >
+              모든 조작을 키보드로 할 수 있습니다. Ctrl+K 명령 팔레트로 기능을 검색해 실행하고,
+              단축키는 설정에서 바꿉니다.
+            </p>
+          </article>
+          <article>
+            <h3 data-ko="정보와 도구" data-en="Info and tools">정보와 도구</h3>
+            <p
+              data-ko="EXIF 패널, 전체화면, 이미지를 PNG로 클립보드에 복사, 최근 파일, 이름 변경, 휴지통 이동을 지원합니다."
+              data-en="EXIF panel, fullscreen, copy image to clipboard as PNG, recent files, rename, and move to Recycle Bin."
+            >
+              EXIF 패널, 전체화면, 이미지를 PNG로 클립보드에 복사, 최근 파일, 이름 변경, 휴지통
+              이동을 지원합니다.
+            </p>
+          </article>
+          <article>
+            <h3 data-ko="오프라인, 원본 보존" data-en="Offline, originals untouched">
+              오프라인, 원본 보존
+            </h3>
+            <p
+              data-ko="네트워크는 설정이나 명령 팔레트에서 직접 업데이트를 확인할 때만 씁니다. 변환·축소본은 캐시에만 만들고 원본 파일은 수정하지 않습니다."
+              data-en="The network is used only when you check for updates yourself. Converted and downscaled copies live in the cache; original files are never modified."
+            >
+              네트워크는 설정이나 명령 팔레트에서 직접 업데이트를 확인할 때만 씁니다. 변환·축소본은
+              캐시에만 만들고 원본 파일은 수정하지 않습니다.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section id="formats">
+        <h2 class="label" data-ko="지원 포맷" data-en="Supported formats">지원 포맷</h2>
+        <ul class="chips" aria-label="Formats">
+          <li>PNG</li>
+          <li>JPG</li>
+          <li>GIF</li>
+          <li>BMP</li>
+          <li>WebP</li>
+          <li>SVG</li>
+          <li>ICO</li>
+          <li>AVIF</li>
+          <li>HEIC</li>
+          <li>HEIF</li>
+          <li>PSD</li>
+          <li>TGA</li>
+          <li>DDS</li>
+          <li>EXR</li>
+          <li>CBZ</li>
+          <li>ZIP</li>
+        </ul>
+        <p
+          class="note"
+          data-ko="HEIC/HEIF/PSD/TGA/DDS/EXR은 읽기 전용 미리보기입니다(JPEG 사이드카로 변환해 표시). PSB는 지원하지 않습니다."
+          data-en="HEIC/HEIF/PSD/TGA/DDS/EXR are read-only previews rendered through a JPEG sidecar. PSB is not supported."
+        >
+          HEIC/HEIF/PSD/TGA/DDS/EXR은 읽기 전용 미리보기입니다(JPEG 사이드카로 변환해 표시). PSB는
+          지원하지 않습니다.
+        </p>
+      </section>
+
+      <section id="keys">
+        <h2 class="label" data-ko="단축키" data-en="Shortcuts">단축키</h2>
+        <p
+          class="note"
+          data-ko="모든 단축키는 앱 설정에서 다시 지정할 수 있습니다."
+          data-en="Every shortcut can be reassigned in the app settings."
+        >
+          모든 단축키는 설정에서 다시 지정할 수 있습니다.
+        </p>
+
+        <h3 class="sub-h" data-ko="파일 / 탐색" data-en="File / navigation">파일 / 탐색</h3>
+        <dl class="keys">
+          <div>
+            <dt><kbd>Ctrl</kbd> <kbd>O</kbd></dt>
+            <dd data-ko="열기" data-en="Open">열기</dd>
+          </div>
+          <div>
+            <dt><kbd>←</kbd> <kbd>→</kbd></dt>
+            <dd data-ko="이전 / 다음" data-en="Previous / next">이전 / 다음</dd>
+          </div>
+          <div>
+            <dt><kbd>PageUp</kbd> <kbd>PageDown</kbd></dt>
+            <dd data-ko="10장 앞으로 / 뒤로" data-en="Jump 10 images back / forward">
+              10장 앞으로 / 뒤로
+            </dd>
+          </div>
+          <div>
+            <dt><kbd>Home</kbd> <kbd>End</kbd></dt>
+            <dd data-ko="처음 / 마지막" data-en="First / last">처음 / 마지막</dd>
+          </div>
+          <div>
+            <dt><kbd>Esc</kbd></dt>
+            <dd data-ko="이미지 닫기" data-en="Close image">이미지 닫기</dd>
+          </div>
+        </dl>
+
+        <div id="keys-more" hidden>
+          <h3 class="sub-h" data-ko="이동(팬)" data-en="Pan">이동(팬)</h3>
+          <dl class="keys">
+            <div>
+              <dt><kbd>Ctrl</kbd> <kbd>←</kbd> <kbd>→</kbd> <kbd>↑</kbd> <kbd>↓</kbd></dt>
+              <dd data-ko="이미지 이동" data-en="Move the image">이미지 이동</dd>
+            </div>
+          </dl>
+          <p
+            class="note"
+            data-ko="웹툰 모드에서는 이전/다음 이동과 스크롤로 바뀌고, 다이얼로그나 입력창에 포커스가 있을 때와 그리드가 열려 있을 때는 동작하지 않습니다."
+            data-en="In webtoon mode these become previous/next and scrolling. They do nothing while a dialog or input has focus, or while the grid is open."
+          >
+            웹툰 모드에서는 이전/다음 이동과 스크롤로 바뀌고, 다이얼로그나 입력창에 포커스가 있을
+            때와 그리드가 열려 있을 때는 동작하지 않습니다.
+          </p>
+
+          <h3 class="sub-h" data-ko="줌" data-en="Zoom">줌</h3>
+          <dl class="keys">
+            <div>
+              <dt><kbd>=</kbd> <kbd>-</kbd></dt>
+              <dd data-ko="확대 / 축소" data-en="Zoom in / out">확대 / 축소</dd>
+            </div>
+            <div>
+              <dt><kbd>0</kbd></dt>
+              <dd data-ko="초기화" data-en="Reset">초기화</dd>
+            </div>
+            <div>
+              <dt><kbd>1</kbd></dt>
+              <dd data-ko="가로 맞춤" data-en="Fit width">가로 맞춤</dd>
+            </div>
+            <div>
+              <dt><kbd>2</kbd></dt>
+              <dd data-ko="세로 맞춤" data-en="Fit height">세로 맞춤</dd>
+            </div>
+            <div>
+              <dt><kbd>3</kbd></dt>
+              <dd data-ko="화면 맞춤" data-en="Fit screen">화면 맞춤</dd>
+            </div>
+          </dl>
+
+          <h3 class="sub-h" data-ko="이미지 조작" data-en="Transform">이미지 조작</h3>
+          <dl class="keys">
+            <div>
+              <dt><kbd>R</kbd></dt>
+              <dd data-ko="시계 방향 회전" data-en="Rotate clockwise">시계 방향 회전</dd>
+            </div>
+            <div>
+              <dt><kbd>Shift</kbd> <kbd>R</kbd></dt>
+              <dd data-ko="반시계 방향 회전" data-en="Rotate counterclockwise">반시계 방향 회전</dd>
+            </div>
+            <div>
+              <dt><kbd>H</kbd></dt>
+              <dd data-ko="좌우 반전" data-en="Flip horizontal">좌우 반전</dd>
+            </div>
+            <div>
+              <dt><kbd>V</kbd></dt>
+              <dd data-ko="상하 반전" data-en="Flip vertical">상하 반전</dd>
+            </div>
+          </dl>
+
+          <h3 class="sub-h" data-ko="보기" data-en="View">보기</h3>
+          <dl class="keys">
+            <div>
+              <dt><kbd>I</kbd></dt>
+              <dd data-ko="EXIF / 정보 패널" data-en="EXIF / info panel">EXIF / 정보 패널</dd>
+            </div>
+            <div>
+              <dt><kbd>G</kbd></dt>
+              <dd data-ko="썸네일 그리드" data-en="Thumbnail grid">썸네일 그리드</dd>
+            </div>
+            <div>
+              <dt><kbd>F11</kbd></dt>
+              <dd data-ko="전체화면" data-en="Fullscreen">전체화면</dd>
+            </div>
+            <div>
+              <dt><kbd>T</kbd></dt>
+              <dd data-ko="항상 위" data-en="Always on top">항상 위</dd>
+            </div>
+            <div>
+              <dt><kbd>B</kbd></dt>
+              <dd data-ko="배경 순환" data-en="Cycle background">배경 순환</dd>
+            </div>
+          </dl>
+
+          <h3 class="sub-h" data-ko="GIF" data-en="GIF">GIF</h3>
+          <dl class="keys">
+            <div>
+              <dt><kbd>P</kbd></dt>
+              <dd data-ko="재생 / 정지" data-en="Play / pause">재생 / 정지</dd>
+            </div>
+            <div>
+              <dt><kbd>,</kbd> <kbd>.</kbd></dt>
+              <dd data-ko="이전 / 다음 프레임" data-en="Previous / next frame">
+                이전 / 다음 프레임
+              </dd>
+            </div>
+          </dl>
+          <p
+            class="note"
+            data-ko="단일 보기에서만 동작합니다. 정지 GIF와 웹툰/양쪽 보기에서는 원래 애니메이션으로 재생됩니다."
+            data-en="Single view only. Still GIFs, and GIFs in webtoon or two-page view, play as the original animation."
+          >
+            단일 보기에서만 동작합니다. 정지 GIF와 웹툰/양쪽 보기에서는 원래 애니메이션으로
+            재생됩니다.
+          </p>
+
+          <h3 class="sub-h" data-ko="복사 / 외부 앱" data-en="Copy / external">복사 / 외부 앱</h3>
+          <dl class="keys">
+            <div>
+              <dt><kbd>Ctrl</kbd> <kbd>C</kbd></dt>
+              <dd data-ko="이미지 복사" data-en="Copy image">이미지 복사</dd>
+            </div>
+            <div>
+              <dt><kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>C</kbd></dt>
+              <dd data-ko="경로 복사" data-en="Copy path">경로 복사</dd>
+            </div>
+            <div>
+              <dt><kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>E</kbd></dt>
+              <dd data-ko="탐색기에서 보기" data-en="Show in Explorer">탐색기에서 보기</dd>
+            </div>
+            <div>
+              <dt><kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>O</kbd></dt>
+              <dd data-ko="기본 앱으로 열기" data-en="Open in default app">기본 앱으로 열기</dd>
+            </div>
+          </dl>
+
+          <h3 class="sub-h" data-ko="파일 관리 / 기타" data-en="File management / other">
+            파일 관리 / 기타
+          </h3>
+          <dl class="keys">
+            <div>
+              <dt><kbd>Delete</kbd></dt>
+              <dd data-ko="휴지통으로 이동" data-en="Move to Recycle Bin">휴지통으로 이동</dd>
+            </div>
+            <div>
+              <dt><kbd>F2</kbd></dt>
+              <dd data-ko="이름 변경" data-en="Rename">이름 변경</dd>
+            </div>
+            <div>
+              <dt><kbd>Ctrl</kbd> <kbd>K</kbd></dt>
+              <dd data-ko="명령 팔레트" data-en="Command palette">명령 팔레트</dd>
+            </div>
+          </dl>
+
+          <h3 class="sub-h" data-ko="썸네일 그리드 안에서" data-en="Inside the thumbnail grid">
+            썸네일 그리드 안에서
+          </h3>
+          <dl class="keys">
+            <div>
+              <dt><kbd>←</kbd> <kbd>→</kbd> <kbd>↑</kbd> <kbd>↓</kbd></dt>
+              <dd data-ko="이동" data-en="Move">이동</dd>
+            </div>
+            <div>
+              <dt><kbd>Home</kbd> <kbd>End</kbd></dt>
+              <dd data-ko="처음 / 마지막" data-en="First / last">처음 / 마지막</dd>
+            </div>
+            <div>
+              <dt><kbd>PageUp</kbd> <kbd>PageDown</kbd></dt>
+              <dd data-ko="페이지 이동" data-en="Page up / down">페이지 이동</dd>
+            </div>
+            <div>
+              <dt><kbd>Enter</kbd></dt>
+              <dd data-ko="열기" data-en="Open">열기</dd>
+            </div>
+            <div>
+              <dt><kbd>Esc</kbd> / <kbd>G</kbd></dt>
+              <dd data-ko="닫기" data-en="Close">닫기</dd>
+            </div>
+          </dl>
+
+          <h3 class="sub-h" data-ko="마우스" data-en="Mouse">마우스</h3>
+          <dl class="keys">
+            <div>
+              <dt data-ko="휠 위 / 아래" data-en="Wheel up / down">휠 위 / 아래</dt>
+              <dd data-ko="이전 / 다음" data-en="Previous / next">이전 / 다음</dd>
+            </div>
+            <div>
+              <dt><kbd>Ctrl</kbd> + <span data-ko="휠" data-en="wheel">휠</span></dt>
+              <dd data-ko="확대 / 축소" data-en="Zoom in / out">확대 / 축소</dd>
+            </div>
+            <div>
+              <dt data-ko="왼쪽 드래그" data-en="Left drag">왼쪽 드래그</dt>
+              <dd data-ko="이동(팬)" data-en="Pan">이동(팬)</dd>
+            </div>
+            <div>
+              <dt data-ko="더블클릭" data-en="Double-click">더블클릭</dt>
+              <dd data-ko="전체화면" data-en="Fullscreen">전체화면</dd>
+            </div>
+            <div>
+              <dt data-ko="우클릭" data-en="Right-click">우클릭</dt>
+              <dd data-ko="컨텍스트 메뉴" data-en="Context menu">컨텍스트 메뉴</dd>
+            </div>
+          </dl>
+        </div>
+
+        <button
+          type="button"
+          id="keys-toggle"
+          class="btn btn-outline"
+          aria-expanded="false"
+          aria-controls="keys-more"
+          data-ko="더 보기"
+          data-en="Show more"
+        >
+          더 보기
+        </button>
+      </section>
+    </main>
+
+    <footer>
+      <p>
+        AraView · EUPL-1.2 ·
+        <a href="https://github.com/ara-hwang/araview/issues" data-ko="이슈" data-en="Issues"
+          >이슈</a
+        >
+        ·
+        <a
+          href="https://github.com/ara-hwang/araview/blob/main/THIRD_PARTY_LICENSES.md"
+          data-ko="서드파티 라이선스"
+          data-en="Third-party licenses"
+          >서드파티 라이선스</a
+        >
+      </p>
+    </footer>
+
+    <script>
+      ;(function () {
+        var more = document.getElementById("keys-more")
+        var toggle = document.getElementById("keys-toggle")
+        toggle.addEventListener("click", function () {
+          var open = more.hidden
+          more.hidden = !open
+          toggle.setAttribute("aria-expanded", String(open))
+          toggle.setAttribute("data-ko", open ? "접기" : "더 보기")
+          toggle.setAttribute("data-en", open ? "Show less" : "Show more")
+          toggle.textContent = toggle.getAttribute("data-" + document.documentElement.lang)
+        })
+        var btn = document.getElementById("lang")
+        var nodes = document.querySelectorAll("[data-ko]")
+        function apply(lang) {
+          document.documentElement.lang = lang
+          nodes.forEach(function (n) {
+            n.textContent = n.getAttribute("data-" + lang)
+          })
+          btn.textContent = lang === "ko" ? "EN" : "한국어"
+          try {
+            localStorage.setItem("lang", lang)
+          } catch (e) {}
+        }
+        var saved = null
+        try {
+          saved = localStorage.getItem("lang")
+        } catch (e) {}
+        var initial =
+          saved || ((navigator.language || "").toLowerCase().indexOf("ko") === 0 ? "ko" : "en")
+        if (initial !== "ko") apply(initial)
+        btn.addEventListener("click", function () {
+          apply(document.documentElement.lang === "ko" ? "en" : "ko")
+        })
+      })()
+    </script>
+  </body>
+</html>
