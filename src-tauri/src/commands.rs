@@ -54,6 +54,18 @@ pub(crate) fn allow_asset_path(app: &tauri::AppHandle, path: &Path) -> Result<()
         .map_err(|e| AppError::unknown(format!("Failed to allow asset path: {e}")))
 }
 
+/// 블로킹 작업을 런타임 밖 스레드에서 실행한다. join 실패(패닉 등)는
+/// `AppError::unknown("Failed to join <task> task: ...")`로 통일한다.
+async fn run_blocking<T, F>(task: &'static str, f: F) -> Result<T, AppError>
+where
+    F: FnOnce() -> Result<T, AppError> + Send + 'static,
+    T: Send + 'static,
+{
+    tauri::async_runtime::spawn_blocking(f)
+        .await
+        .map_err(|e| AppError::unknown(format!("Failed to join {task} task: {e}")))?
+}
+
 #[tauri::command]
 pub async fn load_image(
     app: tauri::AppHandle,
@@ -64,7 +76,7 @@ pub async fn load_image(
 ) -> Result<ImageInfo, AppError> {
     // 동기 커맨드는 메인 스레드에서 실행된다. 디코드 같은 무거운 작업은
     // blocking 풀로 넘겨 창 이벤트 루프와 다른 커맨드를 막지 않는다.
-    tauri::async_runtime::spawn_blocking(move || {
+    run_blocking("image load", move || {
         load_image_blocking(
             &app,
             &file_path,
@@ -74,7 +86,6 @@ pub async fn load_image(
         )
     })
     .await
-    .map_err(|e| AppError::unknown(format!("Failed to join image load task: {e}")))?
 }
 
 fn load_image_blocking(
@@ -106,11 +117,10 @@ fn parse_image_scaling_mode(
 pub async fn detect_pixel_art(
     file_path: String,
 ) -> Result<crate::pixel_art::PixelArtDetection, AppError> {
-    tauri::async_runtime::spawn_blocking(move || {
-        crate::pixel_art::detect_file(Path::new(&file_path))
+    run_blocking("pixel-art detection", move || {
+        Ok(crate::pixel_art::detect_file(Path::new(&file_path)))
     })
     .await
-    .map_err(|e| AppError::unknown(format!("Failed to join pixel-art detection task: {e}")))
 }
 
 #[tauri::command]
@@ -118,9 +128,10 @@ pub async fn get_directory_images(
     file_path: String,
     options: Option<DirListOptions>,
 ) -> Result<DirectoryImages, AppError> {
-    tauri::async_runtime::spawn_blocking(move || get_directory_images_impl(&file_path, options))
-        .await
-        .map_err(|e| AppError::unknown(format!("Failed to join directory listing task: {e}")))?
+    run_blocking("directory listing", move || {
+        get_directory_images_impl(&file_path, options)
+    })
+    .await
 }
 
 fn get_directory_images_impl(
@@ -134,14 +145,18 @@ fn get_directory_images_impl(
         .ok_or_else(|| AppError::not_found("Cannot get parent directory"))?;
 
     let images = crate::dir_cache::get_sorted_images(parent, &opts)?;
-    let mut paths = Vec::new();
-    let mut availability = Vec::new();
+    // 지원 형식 판정은 스캔 시점에 끝났다. 비재귀 목록은 폴더 mtime으로
+    // 검증되므로 삭제가 이미 반영되어 있고, 재귀 목록은 워처 이벤트가
+    // 도착하기 전 틈이 있어 그때만 존재 여부를 다시 확인한다.
+    let recheck_exists = opts.recursive;
+    let mut paths = Vec::with_capacity(images.len());
+    let mut availability = Vec::with_capacity(images.len());
     for entry in images {
-        let path = Path::new(&entry.path);
-        if path.is_file() && is_supported_file(path) {
-            paths.push(entry.path);
-            availability.push(entry.availability);
+        if recheck_exists && !Path::new(&entry.path).is_file() {
+            continue;
         }
+        paths.push(entry.path);
+        availability.push(entry.availability);
     }
 
     // 보통은 문자열이 그대로 일치한다. 대소문자나 8.3 단축 경로처럼 철자가
@@ -190,9 +205,7 @@ pub enum DirSortKey {
 // 드롭된 경로를 해석한다. 파일이면 그대로, 디렉토리면 내부의 첫 이미지 경로를 반환.
 #[tauri::command]
 pub async fn resolve_dropped_path(path: String) -> Result<String, AppError> {
-    tauri::async_runtime::spawn_blocking(move || resolve_dropped_path_impl(&path))
-        .await
-        .map_err(|e| AppError::unknown(format!("Failed to join dropped path task: {e}")))?
+    run_blocking("dropped path", move || resolve_dropped_path_impl(&path)).await
 }
 
 fn resolve_dropped_path_impl(path: &str) -> Result<String, AppError> {
@@ -220,12 +233,10 @@ fn resolve_dropped_path_impl(path: &str) -> Result<String, AppError> {
             }
         }
 
-        if images.is_empty() {
-            return Err(AppError::not_found("No images found in directory"));
-        }
-
-        images.sort_by_key(|s| s.to_lowercase());
-        return Ok(images.remove(0));
+        return images
+            .into_iter()
+            .min_by_key(|s| s.to_lowercase())
+            .ok_or_else(|| AppError::not_found("No images found in directory"));
     }
 
     Err(AppError::unsupported("Unsupported path type"))
@@ -233,9 +244,7 @@ fn resolve_dropped_path_impl(path: &str) -> Result<String, AppError> {
 
 #[tauri::command]
 pub async fn get_exif_data(file_path: String) -> Result<HashMap<String, String>, AppError> {
-    tauri::async_runtime::spawn_blocking(move || get_exif_data_impl(&file_path))
-        .await
-        .map_err(|e| AppError::unknown(format!("Failed to join exif task: {e}")))?
+    run_blocking("exif", move || get_exif_data_impl(&file_path)).await
 }
 
 fn get_exif_data_impl(file_path: &str) -> Result<HashMap<String, String>, AppError> {
@@ -270,11 +279,10 @@ fn get_exif_data_impl(file_path: &str) -> Result<HashMap<String, String>, AppErr
 pub async fn get_image_histogram(
     file_path: String,
 ) -> Result<crate::image_info::Histogram, AppError> {
-    tauri::async_runtime::spawn_blocking(move || {
+    run_blocking("histogram", move || {
         crate::image_info::histogram_for_path(Path::new(&file_path))
     })
     .await
-    .map_err(|e| AppError::unknown(format!("Failed to join histogram task: {e}")))?
 }
 
 /// 파일 상세(크기/치수/색상/날짜/DPI/ICC). EXIF가 없어도 성공한다.
@@ -282,11 +290,10 @@ pub async fn get_image_histogram(
 pub async fn get_image_details(
     file_path: String,
 ) -> Result<crate::image_info::ImageDetails, AppError> {
-    tauri::async_runtime::spawn_blocking(move || {
+    run_blocking("details", move || {
         crate::image_info::details_for_path(Path::new(&file_path))
     })
     .await
-    .map_err(|e| AppError::unknown(format!("Failed to join details task: {e}")))?
 }
 
 /// CBZ/ZIP 안의 ComicInfo.xml 메타데이터를 읽는다 (읽기 전용, 표시용).
@@ -295,9 +302,7 @@ pub async fn get_image_details(
 pub async fn get_comic_info(
     file_path: String,
 ) -> Result<Option<crate::comic_info::ComicInfo>, AppError> {
-    tauri::async_runtime::spawn_blocking(move || get_comic_info_blocking(&file_path))
-        .await
-        .map_err(|e| AppError::unknown(format!("Failed to join comic info task: {e}")))?
+    run_blocking("comic info", move || get_comic_info_blocking(&file_path)).await
 }
 
 fn get_comic_info_blocking(
@@ -315,9 +320,10 @@ fn get_comic_info_blocking(
 /// 아카이브(CBZ/ZIP) 파일 내부의 이미지 엔트리 목록을 반환
 #[tauri::command]
 pub async fn get_archive_images(file_path: String) -> Result<DirectoryImages, AppError> {
-    tauri::async_runtime::spawn_blocking(move || get_archive_images_impl(Path::new(&file_path)))
-        .await
-        .map_err(|e| AppError::unknown(format!("Failed to join archive listing task: {e}")))?
+    run_blocking("archive listing", move || {
+        get_archive_images_impl(Path::new(&file_path))
+    })
+    .await
 }
 
 fn get_archive_images_impl(path: &Path) -> Result<DirectoryImages, AppError> {
@@ -356,7 +362,7 @@ pub async fn load_archive_image(
     image_scaling_mode: Option<String>,
     auto_detect_pixel_art: Option<bool>,
 ) -> Result<ImageInfo, AppError> {
-    tauri::async_runtime::spawn_blocking(move || {
+    run_blocking("archive load", move || {
         load_archive_image_blocking(
             &app,
             &archive_path,
@@ -368,7 +374,6 @@ pub async fn load_archive_image(
         )
     })
     .await
-    .map_err(|e| AppError::unknown(format!("Failed to join archive load: {e}")))?
 }
 
 fn load_archive_image_blocking(
@@ -461,9 +466,7 @@ fn archive_prefetch_blocking(
 
 #[tauri::command]
 pub async fn get_file_associations() -> Result<Vec<crate::file_assoc::FileAssociation>, AppError> {
-    tauri::async_runtime::spawn_blocking(crate::file_assoc::list_associations)
-        .await
-        .map_err(|e| AppError::unknown(format!("Failed to join associations task: {e}")))?
+    run_blocking("associations", crate::file_assoc::list_associations).await
 }
 
 #[tauri::command]
@@ -472,11 +475,10 @@ pub async fn set_file_association(
     extension: String,
     associate: bool,
 ) -> Result<crate::file_assoc::FileAssociation, AppError> {
-    tauri::async_runtime::spawn_blocking(move || {
+    run_blocking("association", move || {
         crate::file_assoc::set_association(&extension, associate, window_hwnd(&window))
     })
     .await
-    .map_err(|e| AppError::unknown(format!("Failed to join association task: {e}")))?
 }
 
 /// 소유자 창의 HWND 값(없으면 0). `file_assoc`가 raw 포인터를 safe
@@ -487,9 +489,11 @@ fn window_hwnd(window: &tauri::WebviewWindow) -> isize {
 
 #[tauri::command]
 pub async fn open_default_apps_settings() -> Result<(), AppError> {
-    tauri::async_runtime::spawn_blocking(crate::file_assoc::open_default_apps_settings)
-        .await
-        .map_err(|e| AppError::unknown(format!("Failed to join default apps task: {e}")))?
+    run_blocking(
+        "default apps",
+        crate::file_assoc::open_default_apps_settings,
+    )
+    .await
 }
 
 /// 설치 프로그램에 동봉된 서드파티 라이선스 문서(고지 문서 + 라이브러리 원문).
@@ -520,7 +524,7 @@ pub async fn get_license_bundle(app: tauri::AppHandle) -> Result<LicenseBundle, 
         .resource_dir()
         .map_err(|e| AppError::unknown(format!("Failed to resolve resource dir: {e}")))?
         .join("licenses");
-    tauri::async_runtime::spawn_blocking(move || {
+    run_blocking("licenses", move || {
         let entries = std::fs::read_dir(&dir).map_err(|e| {
             AppError::io(
                 &format!("read licenses dir {}", dir.display()),
@@ -567,7 +571,6 @@ pub async fn get_license_bundle(app: tauri::AppHandle) -> Result<LicenseBundle, 
         })
     })
     .await
-    .map_err(|e| AppError::unknown(format!("Failed to join licenses task: {e}")))?
 }
 
 /// 썸네일 스트립용 축소 JPEG 경로 반환. 디코드 불가 시 에러 → 프론트는 원본으로 폴백.
@@ -576,14 +579,13 @@ pub async fn generate_thumbnail(
     file_path: String,
     max_side: Option<u32>,
 ) -> Result<crate::thumbnail::ThumbnailInfo, AppError> {
-    tauri::async_runtime::spawn_blocking(move || {
+    run_blocking("thumbnail", move || {
         crate::thumbnail::generate_thumbnail(
             Path::new(&file_path),
             max_side.unwrap_or_else(crate::thumbnail::default_max_side),
         )
     })
     .await
-    .map_err(|e| AppError::unknown(format!("Failed to join thumbnail task: {e}")))?
 }
 
 /// 캐시에 이미 있는 썸네일만 반환한다. 없으면 null이며 프론트는 바로 원본을 그린다.
@@ -601,9 +603,7 @@ pub async fn get_cached_thumbnail(file_path: String) -> Option<crate::thumbnail:
 /// blocking task 안에서 실행한다.
 #[tauri::command]
 pub async fn get_cache_stats() -> Result<crate::cache::CacheStats, AppError> {
-    tauri::async_runtime::spawn_blocking(crate::cache::get_cache_stats)
-        .await
-        .map_err(|e| AppError::unknown(format!("Failed to join cache stats task: {e}")))?
+    run_blocking("cache stats", crate::cache::get_cache_stats).await
 }
 
 /// 종류별 또는 전체 캐시 삭제. 화면에 전달된 in-use 파일은 보존한다.
@@ -611,9 +611,7 @@ pub async fn get_cache_stats() -> Result<crate::cache::CacheStats, AppError> {
 pub async fn clear_cache(
     scope: crate::cache::CacheScope,
 ) -> Result<crate::cache::CacheClearResult, AppError> {
-    tauri::async_runtime::spawn_blocking(move || crate::cache::clear_cache(scope))
-        .await
-        .map_err(|e| AppError::unknown(format!("Failed to join cache clear task: {e}")))?
+    run_blocking("cache clear", move || crate::cache::clear_cache(scope)).await
 }
 
 /// 썸네일 윈도우 배치 처리. 항목별 성공/실패를 함께 반환한다.
@@ -622,14 +620,13 @@ pub async fn generate_thumbnails_batch(
     file_paths: Vec<String>,
     max_side: Option<u32>,
 ) -> Result<Vec<crate::thumbnail::BatchThumb>, AppError> {
-    tauri::async_runtime::spawn_blocking(move || {
+    run_blocking("thumbnail batch", move || {
         Ok(crate::thumbnail::generate_thumbnails_batch(
             &file_paths,
             max_side.unwrap_or_else(crate::thumbnail::default_max_side),
         ))
     })
     .await
-    .map_err(|e| AppError::unknown(format!("Failed to join thumbnail batch task: {e}")))?
 }
 
 /// 아카이브 엔트리 썸네일 생성 코어. AppHandle 없이 테스트 가능하다.
@@ -655,7 +652,7 @@ pub async fn generate_archive_thumbnail(
     entry_name: String,
     max_side: Option<u32>,
 ) -> Result<crate::thumbnail::ThumbnailInfo, AppError> {
-    tauri::async_runtime::spawn_blocking(move || {
+    run_blocking("archive thumbnail", move || {
         generate_archive_thumbnail_blocking(
             &app,
             Path::new(&archive_path),
@@ -664,7 +661,6 @@ pub async fn generate_archive_thumbnail(
         )
     })
     .await
-    .map_err(|e| AppError::unknown(format!("Failed to join archive thumbnail task: {e}")))?
 }
 
 fn generate_archive_thumbnail_blocking(
@@ -685,7 +681,7 @@ pub async fn generate_archive_file_thumbnail(
     archive_path: String,
     max_side: Option<u32>,
 ) -> Result<crate::thumbnail::ThumbnailInfo, AppError> {
-    tauri::async_runtime::spawn_blocking(move || {
+    run_blocking("archive file thumbnail", move || {
         generate_archive_file_thumbnail_blocking(
             &app,
             Path::new(&archive_path),
@@ -693,7 +689,6 @@ pub async fn generate_archive_file_thumbnail(
         )
     })
     .await
-    .map_err(|e| AppError::unknown(format!("Failed to join archive file thumbnail task: {e}")))?
 }
 
 fn generate_archive_file_thumbnail_blocking(
@@ -720,7 +715,7 @@ pub async fn generate_archive_file_thumbnails_batch(
     archive_paths: Vec<String>,
     max_side: Option<u32>,
 ) -> Result<Vec<crate::thumbnail::BatchThumb>, AppError> {
-    tauri::async_runtime::spawn_blocking(move || {
+    run_blocking("archive cover batch", move || {
         let max_side = max_side.unwrap_or_else(crate::thumbnail::default_max_side);
         Ok(crate::thumbnail::map_with_workers(&archive_paths, |path| {
             match generate_archive_file_thumbnail_blocking(&app, Path::new(path), max_side) {
@@ -738,15 +733,12 @@ pub async fn generate_archive_file_thumbnails_batch(
         }))
     })
     .await
-    .map_err(|e| AppError::unknown(format!("Failed to join archive cover batch task: {e}")))?
 }
 
 /// 현재 이미지를 OS 휴지통으로 이동 (영구 삭제 아님)
 #[tauri::command]
 pub async fn trash_file(file_path: String) -> Result<(), AppError> {
-    tauri::async_runtime::spawn_blocking(move || trash_file_impl(&file_path))
-        .await
-        .map_err(|e| AppError::unknown(format!("Failed to join trash task: {e}")))?
+    run_blocking("trash", move || trash_file_impl(&file_path)).await
 }
 
 fn trash_file_impl(file_path: &str) -> Result<(), AppError> {
@@ -773,14 +765,13 @@ pub async fn rename_file(
     image_scaling_mode: Option<String>,
     auto_detect_pixel_art: Option<bool>,
 ) -> Result<ImageInfo, AppError> {
-    tauri::async_runtime::spawn_blocking(move || {
+    run_blocking("rename", move || {
         let mode = parse_image_scaling_mode(image_scaling_mode, auto_detect_pixel_art);
         let info = rename_file_impl_with_mode(&old_path, &new_name, max_side, mode)?;
         allow_asset_path(&app, Path::new(&info.file_path))?;
         Ok(info)
     })
     .await
-    .map_err(|e| AppError::unknown(format!("Failed to join rename task: {e}")))?
 }
 
 #[cfg(test)]
@@ -1029,6 +1020,20 @@ mod tests {
 
         let names = file_names(&list_paths(&top, None));
         assert_eq!(names, vec!["top.png"]);
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn dir_list_drops_file_deleted_after_cached_listing() {
+        let dir = unique_dir("deleted-after-cache");
+        let a = write_sized(&dir, "a.png", 10);
+        let b = write_sized(&dir, "b.png", 10);
+        assert_eq!(file_names(&list_paths(&a, None)), vec!["a.png", "b.png"]);
+
+        // 비재귀 목록은 존재 여부를 다시 확인하지 않으므로 삭제가 폴더
+        // mtime 변경으로 캐시를 무효화해야 한다.
+        fs::remove_file(&b).expect("remove b");
+        assert_eq!(file_names(&list_paths(&a, None)), vec!["a.png"]);
         fs::remove_dir_all(&dir).ok();
     }
 
