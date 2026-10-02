@@ -121,14 +121,30 @@ pub fn reset() {
 mod tests {
     use super::*;
     use std::io::Write as _;
+    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::sync::MutexGuard;
+
+    /// `INDEX_CACHE` is process-global and cargo runs tests on parallel
+    /// threads, so `reset()` in one test would wipe entries another test is
+    /// about to assert on. Every test here holds this lock for its duration.
+    static CACHE_TEST_LOCK: Mutex<()> = Mutex::new(());
+
+    fn lock_cache() -> MutexGuard<'static, ()> {
+        // A panicking test poisons the lock; later tests still need it.
+        CACHE_TEST_LOCK
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
 
     fn unique_dir(suffix: &str) -> PathBuf {
+        static COUNTER: AtomicU64 = AtomicU64::new(0);
+        let seq = COUNTER.fetch_add(1, Ordering::Relaxed);
         let nanos = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
             .expect("clock")
             .as_nanos();
         let dir = std::env::temp_dir().join(format!(
-            "tiv-arcidx-{suffix}-{}-{nanos}",
+            "tiv-arcidx-{suffix}-{}-{nanos}-{seq}",
             std::process::id()
         ));
         fs::create_dir_all(&dir).expect("create temp dir");
@@ -153,6 +169,7 @@ mod tests {
 
     #[test]
     fn cache_hit_serves_same_entries() {
+        let _guard = lock_cache();
         let dir = unique_dir("hit");
         let archive = write_cbz(
             &dir,
@@ -173,6 +190,7 @@ mod tests {
 
     #[test]
     fn cache_invalidates_when_archive_changes() {
+        let _guard = lock_cache();
         let dir = unique_dir("invalidate");
         let archive = write_cbz(&dir, "comic.cbz", &[("001.png", PNG_MAGIC)]);
 
@@ -180,8 +198,8 @@ mod tests {
         assert_eq!(first.images.len(), 1);
         assert!(contains_for_tests(&archive));
 
-        // Rewrite with one more page (mtime + size both change).
-        std::thread::sleep(std::time::Duration::from_millis(20));
+        // Rewrite with one more page. The size always grows, so invalidation
+        // does not depend on filesystem mtime resolution.
         let rewritten = write_cbz(
             &dir,
             "comic.cbz",
@@ -196,6 +214,7 @@ mod tests {
 
     #[test]
     fn reset_clears_all_entries() {
+        let _guard = lock_cache();
         let dir = unique_dir("reset");
         let archive = write_cbz(&dir, "comic.cbz", &[("001.png", PNG_MAGIC)]);
         get_archive_entries(&archive).expect("populate");
