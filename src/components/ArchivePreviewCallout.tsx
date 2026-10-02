@@ -2,7 +2,7 @@ import { BookOpen } from "@phosphor-icons/react"
 import { useTranslation } from "react-i18next"
 
 import { Button } from "@/components/ui/button"
-import { basenameOf } from "@/utils/statusBar"
+import { basenameOf } from "@/utils/path"
 
 type ArchivePreviewCalloutProps = {
   archivePath: string

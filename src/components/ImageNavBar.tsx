@@ -31,7 +31,7 @@ import { cn } from "@/lib/utils"
 import { useAppStore } from "@/store/appStore"
 import type { ImageInfo } from "@/types"
 import { cloudOnlyPathSet } from "@/utils/fileAvailability"
-import { basenameOf, parentFolderNameOf } from "@/utils/statusBar"
+import { basenameOf, parentFolderNameOf } from "@/utils/path"
 import { computeStripWindow, stripOffsetForIndex, stripScrollToReveal } from "@/utils/stripWindow"
 import { resolveWheelAction } from "@/utils/wheelAction"
 
@@ -207,7 +207,7 @@ export function ImageNavBar({
   } = useThumbnailSrcs(dirImages.images, getOrLoadImage, thumbnailOptions)
 
   const thumbLabel = (path: string) => {
-    if (archivePath) return path.split(/[\\/]/).pop() ?? path
+    if (archivePath) return basenameOf(path)
     const name = basenameOf(path)
     const parent = parentFolderNameOf(path)
     return parent ? `${parent}/${name}` : name

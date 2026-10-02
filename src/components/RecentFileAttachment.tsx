@@ -16,6 +16,7 @@ import type { RecentFileStatus } from "@/hooks/useRecentFileDetails"
 import type { ArchiveReadingProgress } from "@/store/archiveProgressStore"
 import type { ImageInfo } from "@/types"
 import { formatDimensions, formatFileSize } from "@/utils/format"
+import { basenameOf } from "@/utils/path"
 
 type RecentFileAttachmentProps = {
   path: string
@@ -35,7 +36,7 @@ export function parentDir(path: string): string {
 }
 
 export function extOf(path: string): string {
-  const base = path.split(/[\\/]/).pop() ?? path
+  const base = basenameOf(path)
   const dot = base.lastIndexOf(".")
   if (dot < 0 || dot === base.length - 1) return ""
   return base.slice(dot + 1).toUpperCase()
@@ -51,7 +52,7 @@ export function RecentFileAttachment({
   onRemove
 }: RecentFileAttachmentProps) {
   const { t, i18n } = useTranslation()
-  const name = info?.file_name ?? path.split(/[\\/]/).pop() ?? path
+  const name = info?.file_name ?? basenameOf(path)
   const isArchive = info ? info.mime_type.startsWith("application/") : false
   const showImage = status === "done" && !!src && !isArchive
   const progressText =

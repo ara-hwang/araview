@@ -12,6 +12,7 @@ import type { ImageInfo } from "@/types"
 import { errorMessage } from "@/utils/appError"
 import { runLimitedImageLoad } from "@/utils/concurrencyLimit"
 import { getPixelArtDetectionPath } from "@/utils/imageRendering"
+import { basenameOf } from "@/utils/path"
 import {
   calculateWebtoonScrollMetrics,
   type WebtoonPageRect,
@@ -61,7 +62,7 @@ function WebtoonLazyPage({
   const [error, setError] = useState<string | null>(null)
   const [isNearViewport, setIsNearViewport] = useState(false)
   const [nonce, setNonce] = useState(0)
-  const name = path.split(/[\\/]/).pop() ?? path
+  const name = basenameOf(path)
 
   useEffect(() => {
     registerRef(index, wrapRef.current)

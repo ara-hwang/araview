@@ -17,6 +17,7 @@ import {
   gridScrollTopToCenter,
   gridScrollTopToReveal
 } from "@/utils/gridWindow"
+import { basenameOf, parentFolderNameOf } from "@/utils/path"
 
 type ThumbnailGridProps = {
   dirImages: DirectoryImages
@@ -35,8 +36,6 @@ const OVERSCAN_ROWS = 2
 const THUMB_MAX_SIDE = 256
 /** 스크롤 중 창을 재계산하는 간격. 연속 스크롤에서도 ~10fps로 창을 갱신한다. */
 const SCROLL_SETTLE_MS = 100
-
-const basename = (path: string) => path.split(/[\\/]/).pop() ?? path
 
 export function ThumbnailGrid({
   dirImages,
@@ -62,7 +61,7 @@ export function ThumbnailGrid({
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase()
     if (needle === "") return items
-    return items.filter((item) => basename(item.path).toLowerCase().includes(needle))
+    return items.filter((item) => basenameOf(item.path).toLowerCase().includes(needle))
   }, [items, query])
 
   const failedSet = useMemo(() => new Set(failedPaths), [failedPaths])
@@ -195,7 +194,7 @@ export function ThumbnailGrid({
       const nextList =
         needle === ""
           ? items
-          : items.filter((item) => basename(item.path).toLowerCase().includes(needle))
+          : items.filter((item) => basenameOf(item.path).toLowerCase().includes(needle))
       const pos = nextList.findIndex((item) => item.index === dirImages.current_index)
       setSelectedPos(pos >= 0 ? pos : 0)
     },
@@ -292,11 +291,10 @@ export function ThumbnailGrid({
   } = useThumbnailSrcs(visiblePaths, getOrLoadImage, thumbnailOptions)
 
   const locationName = useMemo(() => {
-    if (archivePath) return basename(archivePath)
+    if (archivePath) return basenameOf(archivePath)
     const first = dirImages.images[0]
     if (!first) return ""
-    const parts = first.split(/[\\/]/)
-    return parts.length >= 2 ? parts[parts.length - 2] : first
+    return parentFolderNameOf(first) ?? first
   }, [archivePath, dirImages.images])
 
   const activeId = filtered[selectedPos] ? `grid-item-${filtered[selectedPos].index}` : undefined
@@ -392,7 +390,7 @@ export function ThumbnailGrid({
               const isCloudOnly = cloudOnlySet.has(item.path)
               const isFailed =
                 !isCloudOnly && (failedSet.has(item.path) || thumbFailed.has(item.path))
-              const name = basename(item.path)
+              const name = basenameOf(item.path)
               const left = PADDING + (position % layout.columns) * (layout.cellWidth + GAP)
               const top = gridOffsetForIndex(
                 position,
