@@ -151,11 +151,11 @@ fn get_directory_images_impl(
     let recheck_exists = opts.recursive;
     let mut paths = Vec::with_capacity(images.len());
     let mut availability = Vec::with_capacity(images.len());
-    for entry in images {
+    for entry in images.iter() {
         if recheck_exists && !Path::new(&entry.path).is_file() {
             continue;
         }
-        paths.push(entry.path);
+        paths.push(entry.path.clone());
         availability.push(entry.availability);
     }
 

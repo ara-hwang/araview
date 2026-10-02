@@ -23,7 +23,7 @@
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::{LazyLock, Mutex};
+use std::sync::{Arc, LazyLock, Mutex};
 use std::time::{Instant, SystemTime};
 
 use crate::app_error::{AppError, ErrorCode};
@@ -49,7 +49,8 @@ struct CachedListing {
     parent: PathBuf,
     parent_key: String,
     dir_mtime: Option<SystemTime>,
-    images: Vec<ImageEntry>,
+    /// 캐시 히트가 목록을 복사하지 않고 잠금 밖에서 읽도록 공유한다.
+    images: Arc<Vec<ImageEntry>>,
     last_access: Instant,
 }
 
@@ -105,7 +106,7 @@ fn dir_mtime(dir: &Path) -> Option<SystemTime> {
 pub(crate) fn get_sorted_images(
     parent: &Path,
     opts: &DirListOptions,
-) -> Result<Vec<ImageEntry>, AppError> {
+) -> Result<Arc<Vec<ImageEntry>>, AppError> {
     // `canonical`은 캐시 키/워처 식별에만 쓴다. Windows canonicalize는
     // `\\?\D:\...` 확장 경로를 돌려주는데, 그 문자열이 그대로 FE까지 가면
     // 탐색기 열기(`/select,`)와 경로 표시가 깨진다. 스캔은 호출자가 준
@@ -117,7 +118,7 @@ pub(crate) fn get_sorted_images(
             if let Some(entry) = cache.get_mut(&cache_key(&canonical, opts)) {
                 if entry.dir_mtime == current {
                     entry.last_access = Instant::now();
-                    return Ok(entry.images.clone());
+                    return Ok(Arc::clone(&entry.images));
                 }
             }
         }
@@ -125,7 +126,8 @@ pub(crate) fn get_sorted_images(
         collect_images(parent, false, &mut images)?;
         sort_images(&mut images, opts);
         ensure_watched(&canonical, false);
-        insert_cache(canonical, opts, current, images.clone());
+        let images = Arc::new(images);
+        insert_cache(canonical, opts, current, Arc::clone(&images));
         Ok(images)
     } else {
         let key = cache_key(&canonical, opts);
@@ -138,15 +140,16 @@ pub(crate) fn get_sorted_images(
             if let Ok(mut cache) = DIR_CACHE.lock() {
                 if let Some(entry) = cache.get_mut(&key) {
                     entry.last_access = Instant::now();
-                    return Ok(entry.images.clone());
+                    return Ok(Arc::clone(&entry.images));
                 }
             }
         }
         let mut images = Vec::new();
         collect_images(parent, true, &mut images)?;
         sort_images(&mut images, opts);
+        let images = Arc::new(images);
         if watched {
-            insert_cache(canonical, opts, None, images.clone());
+            insert_cache(canonical, opts, None, Arc::clone(&images));
         }
         Ok(images)
     }
@@ -156,7 +159,7 @@ fn insert_cache(
     canonical_parent: PathBuf,
     opts: &DirListOptions,
     dir_mtime: Option<SystemTime>,
-    images: Vec<ImageEntry>,
+    images: Arc<Vec<ImageEntry>>,
 ) {
     let Ok(mut cache) = DIR_CACHE.lock() else {
         return;
@@ -188,7 +191,7 @@ fn insert_entry(
     canonical_parent: PathBuf,
     opts: &DirListOptions,
     dir_mtime: Option<SystemTime>,
-    images: Vec<ImageEntry>,
+    images: Arc<Vec<ImageEntry>>,
 ) {
     cache.insert(
         cache_key(&canonical_parent, opts),
@@ -520,6 +523,8 @@ mod tests {
         // No FS change: second call must hit the cache and agree.
         let second = get_sorted_images(&parent, &opts).expect("cached");
         assert_eq!(file_names(&second), vec!["a.png"]);
+        // 히트는 목록을 복사하지 않고 캐시와 같은 버퍼를 공유한다.
+        assert!(Arc::ptr_eq(&first, &second));
         fs::remove_dir_all(&dir).ok();
     }
 
