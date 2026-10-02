@@ -40,6 +40,27 @@ export type ThumbnailSrcsOptions = {
 
 const sleep = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms))
 
+const NO_PATHS: readonly string[] = []
+
+function sameItems(a: readonly string[], b: readonly string[]): boolean {
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i += 1) {
+    if (a[i] !== b[i]) return false
+  }
+  return true
+}
+
+/**
+ * 내용이 같으면 이전 배열을 그대로 돌려준다. 호출부가 렌더마다 새 배열을
+ * 넘겨도(그리드의 slice) 로드 effect가 재시작되지 않고, 목록 전체를 이어 붙인
+ * 문자열 키를 렌더마다 만들 필요도 없다.
+ */
+function useStableList(list: readonly string[]): readonly string[] {
+  const ref = useRef(list)
+  if (ref.current !== list && !sameItems(ref.current, list)) ref.current = list
+  return ref.current
+}
+
 // 썸네일 스트립/그리드용 축소 이미지 URL을 로드하는 훅.
 // 백엔드 썸네일이 실패하면(아카이브 엔트리, SVG 등)
 // 원본 로드로 조용히 폴백한다.
@@ -63,9 +84,9 @@ export function useThumbnailSrcs(
   const previousCacheEpochRef = useRef(cacheEpoch)
   const cacheEpochRef = useRef(cacheEpoch)
   cacheEpochRef.current = cacheEpoch
-  const pathsKey = paths.join("\0")
-  const priorityKey = (options.priorityPaths ?? []).join("\0")
-  const [settledPriorityKey, setSettledPriorityKey] = useState(priorityKey)
+  const stablePaths = useStableList(paths)
+  const priorityPaths = useStableList(options.priorityPaths ?? NO_PATHS)
+  const [settledPriority, setSettledPriority] = useState(priorityPaths)
   const maxSide = options.maxSide ?? THUMB_MAX_SIDE
   const archivePath = options.archivePath ?? null
   const skipThumbnailPaths = options.skipThumbnailPaths
@@ -88,9 +109,9 @@ export function useThumbnailSrcs(
 
   // 보이는 창이 잠깐 바뀌는 동안에는 큐를 다시 시작하지 않는다.
   useEffect(() => {
-    const id = window.setTimeout(() => setSettledPriorityKey(priorityKey), PRIORITY_SETTLE_MS)
+    const id = window.setTimeout(() => setSettledPriority(priorityPaths), PRIORITY_SETTLE_MS)
     return () => window.clearTimeout(id)
-  }, [priorityKey])
+  }, [priorityPaths])
 
   const put = useCallback((path: string, filePath: string, epoch = cacheEpochRef.current) => {
     if (cacheEpochRef.current !== epoch) return
@@ -227,7 +248,7 @@ export function useThumbnailSrcs(
   )
 
   useEffect(() => {
-    const list = pathsKey === "" ? [] : pathsKey.split("\0")
+    const list = stablePaths
     const wanted = new Set(list)
     const epoch = cacheEpoch
     let cancelled = false
@@ -255,8 +276,7 @@ export function useThumbnailSrcs(
       return next
     })
 
-    const priority = settledPriorityKey === "" ? [] : settledPriorityKey.split("\0")
-    const prioritySet = new Set(priority)
+    const prioritySet = new Set(settledPriority)
 
     void (async () => {
       const missing = list.filter((p) => {
@@ -289,8 +309,8 @@ export function useThumbnailSrcs(
       cancelled = true
     }
   }, [
-    pathsKey,
-    settledPriorityKey,
+    stablePaths,
+    settledPriority,
     retryNonce,
     maxSide,
     archivePath,
