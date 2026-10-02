@@ -15,6 +15,10 @@ vi.mock("@tauri-apps/api/core", () => ({
   }
 }))
 
+vi.mock("@/components/ui/toast", () => ({
+  toast: { error: vi.fn(), info: vi.fn(), success: vi.fn() }
+}))
+
 vi.mock("@tauri-apps/plugin-dialog", () => ({
   open: vi.fn(async () => null)
 }))
@@ -29,8 +33,10 @@ vi.mock("@tauri-apps/plugin-store", () => ({
   }
 }))
 
+import { toast } from "@/components/ui/toast"
 import { getEffectiveViewMode } from "@/hooks/useEffectiveViewMode"
 import { useImageLoader } from "@/hooks/useImageLoader"
+import i18n from "@/i18n"
 import { applyManualViewMode, closeImage, useAppStore } from "@/store/appStore"
 import { useArchiveProgressStore } from "@/store/archiveProgressStore"
 import { useSettingsStore } from "@/store/settingsStore"
@@ -115,6 +121,8 @@ function setupInvoke(
 
 beforeEach(() => {
   cleanup()
+  vi.mocked(toast.error).mockClear()
+  vi.mocked(toast.info).mockClear()
   closeImage()
   useArchiveProgressStore.setState({ progress: {} })
   useSettingsStore.setState({
@@ -429,5 +437,91 @@ describe("useImageLoader 표시 해상도 상한", () => {
       expect(maxSides).toEqual([null, 3840])
     })
     expect(useAppStore.getState().imageInfo?.file_name).toBe("a.jpg")
+  })
+})
+
+describe("useImageLoader 손상 파일 건너뛰기", () => {
+  const DIR = ["/pics/a.jpg", "/pics/b.jpg", "/pics/c.jpg"]
+
+  function setupBrokenFile(broken: string, loaded: string[]) {
+    setupInvoke({
+      load_image: async (args) => {
+        const path = String(args?.filePath)
+        loaded.push(path)
+        if (path === broken) throw { code: "not_found", message: "File not found" }
+        return { ...imgInfo(path), source_path: path, file_name: path.split("/").pop() ?? path }
+      },
+      get_directory_images: async () => ({ images: [...DIR], current_index: 0, availability: [] })
+    })
+    useAppStore.setState({
+      dirImages: { images: [...DIR], current_index: 0, availability: [] },
+      failedPaths: []
+    })
+  }
+
+  it("켜져 있으면 실패한 파일을 표시하지 않고 다음 파일로 이동한다", async () => {
+    useSettingsStore.setState({ skipBrokenFiles: true, cacheMode: "off" })
+    const loaded: string[] = []
+    setupBrokenFile("/pics/b.jpg", loaded)
+    const { result } = renderHook(() => useImageLoader())
+
+    await act(async () => {
+      await result.current.loadImage("/pics/b.jpg", { refreshDirectory: false })
+    })
+
+    const st = useAppStore.getState()
+    expect(st.imageInfo?.source_path).toBe("/pics/c.jpg")
+    expect(st.dirImages.current_index).toBe(2)
+    expect(st.failedPaths).toContain("/pics/b.jpg")
+    expect(st.loading).toBe(false)
+    expect(vi.mocked(toast.info)).toHaveBeenCalledWith(i18n.t("toast.load.skipped"), {
+      description: "/pics/b.jpg"
+    })
+  })
+
+  it("꺼져 있으면 오류를 남기고 다음 파일을 읽지 않는다", async () => {
+    useSettingsStore.setState({ skipBrokenFiles: false, cacheMode: "off" })
+    const loaded: string[] = []
+    setupBrokenFile("/pics/b.jpg", loaded)
+    const { result } = renderHook(() => useImageLoader())
+
+    await act(async () => {
+      await result.current.loadImage("/pics/b.jpg", { refreshDirectory: false })
+    })
+
+    const st = useAppStore.getState()
+    expect(st.imageInfo).toBeNull()
+    expect(st.error).toBe("File not found")
+    expect(st.loading).toBe(false)
+    expect(loaded).not.toContain("/pics/c.jpg")
+    expect(vi.mocked(toast.error)).toHaveBeenCalledWith(
+      i18n.t("toast.load.imageFail"),
+      expect.objectContaining({ description: "File not found" })
+    )
+  })
+
+  it("아카이브 엔트리가 실패하면 다음 엔트리로 이동한다", async () => {
+    useSettingsStore.setState({ skipBrokenFiles: true, cacheMode: "off" })
+    setupInvoke({
+      load_archive_image: async (args) => {
+        const entry = String(args?.entryName)
+        if (entry === "002.jpg") throw { code: "corrupt", message: "bad entry" }
+        return imgInfo(entry)
+      }
+    })
+    const { result } = renderHook(() => useImageLoader())
+
+    await act(async () => {
+      await result.current.loadImage(ARCHIVE_PATH, { archiveOpen: "full" })
+    })
+    await act(async () => {
+      await result.current.loadArchiveImageByIndex(ARCHIVE_PATH, "002.jpg")
+    })
+
+    const st = useAppStore.getState()
+    expect(st.imageInfo?.file_name).toBe("003.jpg")
+    expect(st.dirImages.current_index).toBe(2)
+    expect(st.failedPaths).toContain("002.jpg")
+    expect(st.loading).toBe(false)
   })
 })

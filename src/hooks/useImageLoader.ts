@@ -39,6 +39,54 @@ function imageRenderArgs() {
   }
 }
 
+function invokeLoadArchiveImage(archivePath: string, entryName: string): Promise<ImageInfo> {
+  return invoke<ImageInfo>("load_archive_image", {
+    archivePath,
+    entryName,
+    maxSide: maxSideForResolution(useSettingsStore.getState().maxResolution),
+    ...imageRenderArgs()
+  })
+}
+
+/**
+ * 로드 본문을 실행하고 실패 처리와 로딩 종료를 맡는다. 실패 시점에 더 새
+ * 로드가 시작됐으면 실패를 무시한다. `onError`의 자동 스킵 재귀까지 끝난 뒤
+ * 로딩을 종료한다.
+ */
+async function runImageLoad(
+  token: number,
+  body: () => Promise<void>,
+  onError: (e: unknown, message: string) => Promise<void> | void
+): Promise<void> {
+  try {
+    await body()
+  } catch (e) {
+    if (!isCurrentImageLoad(token)) return
+    await onError(e, errorMessage(e))
+  } finally {
+    endImageLoadIfCurrent(token)
+  }
+}
+
+/**
+ * 깨진 파일 자동 스킵 대상 인덱스. 설정이 꺼져 있거나 연쇄 한도를 넘었거나
+ * 건너뛸 곳이 없으면 null. 실패 경로가 목록에 없으면 `fallbackToCurrent`일
+ * 때만 현재 인덱스에서 찾는다.
+ */
+function resolveSkipTarget(
+  failedPath: string,
+  skipDepth: number,
+  fallbackToCurrent: boolean
+): number | null {
+  const settings = useSettingsStore.getState()
+  if (!settings.skipBrokenFiles || skipDepth >= MAX_SKIP_ATTEMPTS) return null
+  const { dirImages, failedPaths } = useAppStore.getState()
+  const failedIndex = dirImages.images.indexOf(failedPath)
+  const from = failedIndex >= 0 ? failedIndex : fallbackToCurrent ? dirImages.current_index : null
+  if (from === null) return null
+  return findSkipTarget(dirImages.images, from, new Set(failedPaths), settings.loopNavigation)
+}
+
 type ComicInfoResult = { info: ComicInfo | null; error: string | null }
 
 /**
@@ -117,48 +165,35 @@ export function useImageLoader() {
     async (archivePath: string, entryName: string, skipDepth = 0) => {
       const loadToken = beginImageLoad()
       useAppStore.setState({ loading: true })
-      try {
-        // 메타 캐시/in-flight 맵을 경유한다. 선축충·웹툰 예열이 이미 같은
-        // 엔트리를 로드 중이면 추출 중복 없이 캐시 히트로 끝난다.
-        const scopeMatches = useAppStore.getState().archivePath === archivePath
-        const imgInfo = scopeMatches
-          ? await getOrLoadImage(entryName, { protectArchive: true })
-          : await invoke<ImageInfo>("load_archive_image", {
-              archivePath,
-              entryName,
-              maxSide: maxSideForResolution(useSettingsStore.getState().maxResolution),
-              ...imageRenderArgs()
-            })
-        if (!isCurrentImageLoad(loadToken)) return
-        setImageInfoAndResetView(imgInfo)
-        useAppStore.getState().removeFailedPath(entryName)
+      await runImageLoad(
+        loadToken,
+        async () => {
+          // 메타 캐시/in-flight 맵을 경유한다. 선축충·웹툰 예열이 이미 같은
+          // 엔트리를 로드 중이면 추출 중복 없이 캐시 히트로 끝난다.
+          const scopeMatches = useAppStore.getState().archivePath === archivePath
+          const imgInfo = scopeMatches
+            ? await getOrLoadImage(entryName, { protectArchive: true })
+            : await invokeLoadArchiveImage(archivePath, entryName)
+          if (!isCurrentImageLoad(loadToken)) return
+          setImageInfoAndResetView(imgInfo)
+          useAppStore.getState().removeFailedPath(entryName)
 
-        const st = useAppStore.getState()
-        const currentIndex = st.dirImages.images.indexOf(entryName)
-        void useArchiveProgressStore.getState().save(archivePath, entryName, {
-          index: currentIndex >= 0 ? currentIndex : undefined,
-          total: st.dirImages.images.length || undefined
-        })
-        if (currentIndex >= 0) {
-          prefetchArchiveNeighbors(archivePath, st.dirImages.images, currentIndex)
-        }
-      } catch (e) {
-        if (!isCurrentImageLoad(loadToken)) return
-        const message = errorMessage(e)
-        useAppStore.setState({ error: message })
-        useAppStore.getState().addFailedPath(entryName)
-        const settings = useSettingsStore.getState()
-        if (settings.skipBrokenFiles && skipDepth < MAX_SKIP_ATTEMPTS) {
           const st = useAppStore.getState()
-          const failedIndex = st.dirImages.images.indexOf(entryName)
-          const target = findSkipTarget(
-            st.dirImages.images,
-            failedIndex >= 0 ? failedIndex : st.dirImages.current_index,
-            new Set(st.failedPaths),
-            settings.loopNavigation
-          )
+          const currentIndex = st.dirImages.images.indexOf(entryName)
+          void useArchiveProgressStore.getState().save(archivePath, entryName, {
+            index: currentIndex >= 0 ? currentIndex : undefined,
+            total: st.dirImages.images.length || undefined
+          })
+          if (currentIndex >= 0) {
+            prefetchArchiveNeighbors(archivePath, st.dirImages.images, currentIndex)
+          }
+        },
+        async (e, message) => {
+          useAppStore.setState({ error: message })
+          useAppStore.getState().addFailedPath(entryName)
+          const target = resolveSkipTarget(entryName, skipDepth, true)
           if (target !== null) {
-            const nextEntry = st.dirImages.images[target]
+            const nextEntry = useAppStore.getState().dirImages.images[target]
             toast.info(i18n.t("toast.load.skipped"), {
               description: entryName
             })
@@ -166,14 +201,12 @@ export function useImageLoader() {
             updateDirImagesIndex(target)
             return
           }
+          toast.error(i18n.t("toast.load.imageFail"), {
+            description: message,
+            details: errorCopyDetails(e, archivePath, entryName)
+          })
         }
-        toast.error(i18n.t("toast.load.imageFail"), {
-          description: message,
-          details: errorCopyDetails(e, archivePath, entryName)
-        })
-      } finally {
-        endImageLoadIfCurrent(loadToken)
-      }
+      )
     },
     [getOrLoadImage, prefetchArchiveNeighbors]
   )
@@ -194,104 +227,99 @@ export function useImageLoader() {
         comicInfoError: null,
         comicViewMode: null
       })
-      try {
-        const archiveImages = await invoke<DirectoryImages>("get_archive_images", {
-          filePath: archivePath
-        })
-
-        // 표지 판정(ComicInfo FrontCover)에 필요해 추출 전에 먼저 확정한다.
-        const comic = await comicPromise
-
-        // 이어보기 설정이 켜져 있고 저장된 엔트리가 목록에 있으면 거기서 시작
-        const resumeEnabled = useSettingsStore.getState().resumeReading
-        const saved = resumeEnabled ? useArchiveProgressStore.getState().get(archivePath) : null
-        const total = archiveImages.images.length
-        const rawStartIndex = resolveArchiveStartIndex(archiveImages.images, saved)
-        // 양쪽 보기에서 쌍 중간에 착지하면 화면이 겹치므로 쌍 시작으로 맞춰 연다.
-        const settings = useSettingsStore.getState()
-        // 만화 자동 양쪽 보기: 방향은 ComicInfo(Manga)를 우선한다.
-        const comicViewMode = resolveComicViewMode(
-          settings.viewMode,
-          settings.comicAutoDualView,
-          comic.info
-        )
-        const openViewMode = comicViewMode ?? settings.viewMode
-        const isDualView = openViewMode === "left-to-right" || openViewMode === "right-to-left"
-        const startIndex = isDualView
-          ? resolvePairStart(
-              rawStartIndex,
-              total,
-              settings.showCoverAlone,
-              resolveCoverIndex(comic.info, total)
-            )
-          : rawStartIndex
-        const firstEntry = archiveImages.images[startIndex]
-        const imgInfo = await invoke<ImageInfo>("load_archive_image", {
-          archivePath,
-          entryName: firstEntry,
-          maxSide: maxSideForResolution(useSettingsStore.getState().maxResolution),
-          ...imageRenderArgs()
-        })
-
-        if (!isCurrentImageLoad(loadToken)) return
-
-        useAppStore.setState({
-          dirImages: {
-            ...archiveImages,
-            current_index: startIndex
-          },
-          comicViewMode
-        })
-        setImageInfoAndResetView(imgInfo)
-
-        // 표시한 뒤 메타데이터를 반영한다 (이전 로드의 응답은 무시).
-        if (isCurrentImageLoad(loadToken)) {
-          useAppStore.setState({ comicInfo: comic.info, comicInfoError: comic.error })
-        }
-
-        // 이어보기를 끈 상태에서는 열기만으로 저장 위치를 0페이지로 덮지 않는다.
-        if (resumeEnabled) {
-          void useArchiveProgressStore.getState().save(archivePath, firstEntry, {
-            index: startIndex,
-            total
+      await runImageLoad(
+        loadToken,
+        async () => {
+          const archiveImages = await invoke<DirectoryImages>("get_archive_images", {
+            filePath: archivePath
           })
-        }
 
-        if (startIndex > 0) {
-          toast.info(i18n.t("toast.archive.resumed", { index: startIndex + 1, total }), {
-            actionProps: {
-              children: i18n.t("toast.archive.startOver"),
-              onClick: () => {
-                void loadArchiveImageByIndex(archivePath, archiveImages.images[0])
-                updateDirImagesIndex(0)
+          // 표지 판정(ComicInfo FrontCover)에 필요해 추출 전에 먼저 확정한다.
+          const comic = await comicPromise
+
+          // 이어보기 설정이 켜져 있고 저장된 엔트리가 목록에 있으면 거기서 시작
+          const resumeEnabled = useSettingsStore.getState().resumeReading
+          const saved = resumeEnabled ? useArchiveProgressStore.getState().get(archivePath) : null
+          const total = archiveImages.images.length
+          const rawStartIndex = resolveArchiveStartIndex(archiveImages.images, saved)
+          // 양쪽 보기에서 쌍 중간에 착지하면 화면이 겹치므로 쌍 시작으로 맞춰 연다.
+          const settings = useSettingsStore.getState()
+          // 만화 자동 양쪽 보기: 방향은 ComicInfo(Manga)를 우선한다.
+          const comicViewMode = resolveComicViewMode(
+            settings.viewMode,
+            settings.comicAutoDualView,
+            comic.info
+          )
+          const openViewMode = comicViewMode ?? settings.viewMode
+          const isDualView = openViewMode === "left-to-right" || openViewMode === "right-to-left"
+          const startIndex = isDualView
+            ? resolvePairStart(
+                rawStartIndex,
+                total,
+                settings.showCoverAlone,
+                resolveCoverIndex(comic.info, total)
+              )
+            : rawStartIndex
+          const firstEntry = archiveImages.images[startIndex]
+          const imgInfo = await invokeLoadArchiveImage(archivePath, firstEntry)
+
+          if (!isCurrentImageLoad(loadToken)) return
+
+          useAppStore.setState({
+            dirImages: {
+              ...archiveImages,
+              current_index: startIndex
+            },
+            comicViewMode
+          })
+          setImageInfoAndResetView(imgInfo)
+
+          // 표시한 뒤 메타데이터를 반영한다 (이전 로드의 응답은 무시).
+          if (isCurrentImageLoad(loadToken)) {
+            useAppStore.setState({ comicInfo: comic.info, comicInfoError: comic.error })
+          }
+
+          // 이어보기를 끈 상태에서는 열기만으로 저장 위치를 0페이지로 덮지 않는다.
+          if (resumeEnabled) {
+            void useArchiveProgressStore.getState().save(archivePath, firstEntry, {
+              index: startIndex,
+              total
+            })
+          }
+
+          if (startIndex > 0) {
+            toast.info(i18n.t("toast.archive.resumed", { index: startIndex + 1, total }), {
+              actionProps: {
+                children: i18n.t("toast.archive.startOver"),
+                onClick: () => {
+                  void loadArchiveImageByIndex(archivePath, archiveImages.images[0])
+                  updateDirImagesIndex(0)
+                }
               }
-            }
+            })
+          }
+
+          if (useSettingsStore.getState().recordRecentFiles) {
+            void useRecentFilesStore.getState().add(archivePath)
+          }
+
+          prefetchArchiveNeighbors(archivePath, archiveImages.images, startIndex)
+          options?.onAfterLoad?.()
+        },
+        (e, message) => {
+          useAppStore.setState({
+            error: message,
+            imageInfo: null,
+            archivePath: null,
+            comicInfo: null,
+            comicInfoError: null
+          })
+          toast.error(i18n.t("toast.load.archiveFail"), {
+            description: message,
+            details: errorCopyDetails(e, archivePath)
           })
         }
-
-        if (useSettingsStore.getState().recordRecentFiles) {
-          void useRecentFilesStore.getState().add(archivePath)
-        }
-
-        prefetchArchiveNeighbors(archivePath, archiveImages.images, startIndex)
-        options?.onAfterLoad?.()
-      } catch (e) {
-        if (!isCurrentImageLoad(loadToken)) return
-        const message = errorMessage(e)
-        useAppStore.setState({
-          error: message,
-          imageInfo: null,
-          archivePath: null,
-          comicInfo: null,
-          comicInfoError: null
-        })
-        toast.error(i18n.t("toast.load.archiveFail"), {
-          description: message,
-          details: errorCopyDetails(e, archivePath)
-        })
-      } finally {
-        endImageLoadIfCurrent(loadToken)
-      }
+      )
     },
     [clearImageMetaCache, loadArchiveImageByIndex, prefetchArchiveNeighbors]
   )
@@ -309,35 +337,30 @@ export function useImageLoader() {
         comicInfo: null,
         comicInfoError: null
       })
-      try {
-        const archiveImages = await invoke<DirectoryImages>("get_archive_images", {
-          filePath: archivePath
-        })
-        const firstEntry = archiveImages.images[0]
-        if (!firstEntry) {
-          throw new Error("No images in archive")
+      await runImageLoad(
+        loadToken,
+        async () => {
+          const archiveImages = await invoke<DirectoryImages>("get_archive_images", {
+            filePath: archivePath
+          })
+          const firstEntry = archiveImages.images[0]
+          if (!firstEntry) {
+            throw new Error("No images in archive")
+          }
+          const imgInfo = await invokeLoadArchiveImage(archivePath, firstEntry)
+          if (!isCurrentImageLoad(loadToken)) return
+          setImageInfoAndResetView(imgInfo)
+          useAppStore.getState().removeFailedPath(archivePath)
+          options?.onAfterLoad?.()
+        },
+        (e, message) => {
+          useAppStore.setState({ error: message, imageInfo: null, archivePreviewPath: null })
+          toast.error(i18n.t("toast.load.archiveFail"), {
+            description: message,
+            details: errorCopyDetails(e, archivePath)
+          })
         }
-        const imgInfo = await invoke<ImageInfo>("load_archive_image", {
-          archivePath,
-          entryName: firstEntry,
-          maxSide: maxSideForResolution(useSettingsStore.getState().maxResolution),
-          ...imageRenderArgs()
-        })
-        if (!isCurrentImageLoad(loadToken)) return
-        setImageInfoAndResetView(imgInfo)
-        useAppStore.getState().removeFailedPath(archivePath)
-        options?.onAfterLoad?.()
-      } catch (e) {
-        if (!isCurrentImageLoad(loadToken)) return
-        const message = errorMessage(e)
-        useAppStore.setState({ error: message, imageInfo: null, archivePreviewPath: null })
-        toast.error(i18n.t("toast.load.archiveFail"), {
-          description: message,
-          details: errorCopyDetails(e, archivePath)
-        })
-      } finally {
-        endImageLoadIfCurrent(loadToken)
-      }
+      )
     },
     [clearImageMetaCache]
   )
@@ -382,66 +405,59 @@ export function useImageLoader() {
       const cachedPreview = invoke<ThumbnailInfo | null>("get_cached_thumbnail", {
         filePath
       }).catch(() => null)
-      try {
-        const imgInfo = await getOrLoadImage(filePath)
-        if (!isCurrentImageLoad(loadToken)) return
-        setImageInfoAndResetView(imgInfo)
-        const preview = await cachedPreview
-        if (preview && isCurrentImageLoad(loadToken) && shouldUsePreviewThumbnail(imgInfo)) {
-          useAppStore.setState({ previewPath: preview.file_path })
-        }
-        useAppStore.getState().removeFailedPath(filePath)
-        if (useSettingsStore.getState().recordRecentFiles) {
-          void useRecentFilesStore.getState().add(filePath)
-        }
-        options?.onAfterLoad?.()
-
-        let resolvedDirInfo = dirImages
-
-        if (refreshDirectory || !resolvedDirInfo || !resolvedDirInfo.images.includes(filePath)) {
-          resolvedDirInfo = await invoke<DirectoryImages>("get_directory_images", {
-            filePath,
-            options: buildDirListOptions(useSettingsStore.getState())
-          })
+      await runImageLoad(
+        loadToken,
+        async () => {
+          const imgInfo = await getOrLoadImage(filePath)
           if (!isCurrentImageLoad(loadToken)) return
-          useAppStore.setState({ dirImages: resolvedDirInfo })
-        }
+          setImageInfoAndResetView(imgInfo)
+          const preview = await cachedPreview
+          if (preview && isCurrentImageLoad(loadToken) && shouldUsePreviewThumbnail(imgInfo)) {
+            useAppStore.setState({ previewPath: preview.file_path })
+          }
+          useAppStore.getState().removeFailedPath(filePath)
+          if (useSettingsStore.getState().recordRecentFiles) {
+            void useRecentFilesStore.getState().add(filePath)
+          }
+          options?.onAfterLoad?.()
 
-        if (resolvedDirInfo) {
-          const resolvedIndex = resolvedDirInfo.images.indexOf(filePath)
-          const nextIndex = resolvedIndex >= 0 ? resolvedIndex : resolvedDirInfo.current_index
-          // 보기 모드별 프리페치: 양쪽은 짝 페이지를, webtoon은 스크롤 앞쪽을 더 넓게.
-          const baseDistance = getPrefetchDistance()
-          const prefetchDistance =
-            viewMode === "webtoon"
-              ? baseDistance * 2
-              : viewMode === "single"
-                ? baseDistance
-                : baseDistance + 1
-          prefetchNearbyImages(resolvedDirInfo.images, nextIndex, loopNavigation, prefetchDistance)
-        }
-      } catch (e) {
-        if (!isCurrentImageLoad(loadToken)) return
-        const message = errorMessage(e)
-        useAppStore.setState({ error: message })
-        useAppStore.setState({ imageInfo: null })
-        useAppStore.getState().addFailedPath(filePath)
-        const settings = useSettingsStore.getState()
-        const skipDepth = options?.skipDepth ?? 0
-        if (settings.skipBrokenFiles && skipDepth < MAX_SKIP_ATTEMPTS) {
-          const st = useAppStore.getState()
-          const failedIndex = st.dirImages.images.indexOf(filePath)
-          const target =
-            failedIndex >= 0
-              ? findSkipTarget(
-                  st.dirImages.images,
-                  failedIndex,
-                  new Set(st.failedPaths),
-                  settings.loopNavigation
-                )
-              : null
+          let resolvedDirInfo = dirImages
+
+          if (refreshDirectory || !resolvedDirInfo || !resolvedDirInfo.images.includes(filePath)) {
+            resolvedDirInfo = await invoke<DirectoryImages>("get_directory_images", {
+              filePath,
+              options: buildDirListOptions(useSettingsStore.getState())
+            })
+            if (!isCurrentImageLoad(loadToken)) return
+            useAppStore.setState({ dirImages: resolvedDirInfo })
+          }
+
+          if (resolvedDirInfo) {
+            const resolvedIndex = resolvedDirInfo.images.indexOf(filePath)
+            const nextIndex = resolvedIndex >= 0 ? resolvedIndex : resolvedDirInfo.current_index
+            // 보기 모드별 프리페치: 양쪽은 짝 페이지를, webtoon은 스크롤 앞쪽을 더 넓게.
+            const baseDistance = getPrefetchDistance()
+            const prefetchDistance =
+              viewMode === "webtoon"
+                ? baseDistance * 2
+                : viewMode === "single"
+                  ? baseDistance
+                  : baseDistance + 1
+            prefetchNearbyImages(
+              resolvedDirInfo.images,
+              nextIndex,
+              loopNavigation,
+              prefetchDistance
+            )
+          }
+        },
+        async (e, message) => {
+          useAppStore.setState({ error: message, imageInfo: null })
+          useAppStore.getState().addFailedPath(filePath)
+          const skipDepth = options?.skipDepth ?? 0
+          const target = resolveSkipTarget(filePath, skipDepth, false)
           if (target !== null) {
-            const nextPath = st.dirImages.images[target]
+            const nextPath = useAppStore.getState().dirImages.images[target]
             toast.info(i18n.t("toast.load.skipped"), {
               description: filePath
             })
@@ -453,14 +469,12 @@ export function useImageLoader() {
             updateDirImagesIndex(target)
             return
           }
+          toast.error(i18n.t("toast.load.imageFail"), {
+            description: message,
+            details: errorCopyDetails(e, filePath)
+          })
         }
-        toast.error(i18n.t("toast.load.imageFail"), {
-          description: message,
-          details: errorCopyDetails(e, filePath)
-        })
-      } finally {
-        endImageLoadIfCurrent(loadToken)
-      }
+      )
     },
     [
       clearImageMetaCache,
