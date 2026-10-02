@@ -15,7 +15,7 @@
 //! 공용 `sidecar` 모듈을 사용한다.
 
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use crate::app_error::{AppError, ErrorCode};
 use crate::sidecar::{Rgb8, SidecarSpec};
@@ -30,27 +30,13 @@ const MAX_PSD_FILE_BYTES: u64 = 768 * 1024 * 1024;
 
 pub const PSD_MIME: &str = "image/vnd.adobe.photoshop";
 
-const SPEC: SidecarSpec = SidecarSpec {
+/// 이 디코더의 JPEG sidecar 규칙. `transcode`가 디코더별로 골라 쓴다.
+pub(crate) static SPEC: SidecarSpec = SidecarSpec {
     label: "PSD sidecar lock",
     paint_prefix: "psd-",
     thumb_prefix: "psd-thumb-",
     decode: decode_psd_rgb8,
 };
-
-pub fn ensure_jpeg_sidecar(source: &Path) -> Result<PathBuf, AppError> {
-    SPEC.ensure(source)
-}
-
-/// 썸네일용 경량 sidecar. 풀해상도 디코드 후 max_side로 다운스케일해
-/// `paint/`에 별도 캐시한다.
-pub fn ensure_jpeg_sidecar_thumb(source: &Path, max_side: u32) -> Result<PathBuf, AppError> {
-    SPEC.ensure_thumb(source, max_side)
-}
-
-/// 캐시에 이미 있는 썸네일 sidecar 경로만 돌려준다(생성하지 않음).
-pub fn cached_jpeg_sidecar_thumb(source: &Path, max_side: u32) -> Option<PathBuf> {
-    SPEC.cached_thumb(source, max_side)
-}
 
 /// PSD 합성 픽셀을 RGB8로 디코드. 투명은 흰 배경에 합성한다
 /// (JPEG에 알파가 없어 `save.rs` flatten과 같은 규칙).

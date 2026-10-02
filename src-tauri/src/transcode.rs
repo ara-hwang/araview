@@ -7,7 +7,7 @@
 use std::path::{Path, PathBuf};
 
 use crate::app_error::AppError;
-use crate::sidecar::Rgb8;
+use crate::sidecar::{Rgb8, SidecarSpec};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Decoder {
@@ -34,37 +34,37 @@ pub fn is_raster_mime(mime: &str) -> bool {
     RASTER_MIMES.contains(&mime)
 }
 
+fn spec_for(decoder: Decoder) -> &'static SidecarSpec {
+    match decoder {
+        Decoder::Heif => &crate::heif::SPEC,
+        Decoder::Psd => &crate::psd_sidecar::SPEC,
+        Decoder::Raster => &crate::raster_sidecar::SPEC,
+    }
+}
+
 /// Full-size paint sidecar for a MIME whose strategy is `TranscodeJpeg`.
 pub fn ensure_paint(source: &Path, mime: &str) -> Result<PathBuf, AppError> {
-    match mime {
-        crate::psd_sidecar::PSD_MIME => crate::psd_sidecar::ensure_jpeg_sidecar(source),
-        mime if is_raster_mime(mime) => crate::raster_sidecar::ensure_jpeg_sidecar(source),
-        _ => crate::heif::ensure_jpeg_sidecar(source),
-    }
+    let decoder = match mime {
+        crate::psd_sidecar::PSD_MIME => Decoder::Psd,
+        mime if is_raster_mime(mime) => Decoder::Raster,
+        _ => Decoder::Heif,
+    };
+    spec_for(decoder).ensure(source)
 }
 
+/// 썸네일용 경량 sidecar. 풀해상도 디코드 후 max_side로 다운스케일해
+/// `paint/`에 별도 캐시한다. 스트립 N회 호출의 디코드 비용을 줄인다.
 pub fn ensure_thumb(source: &Path, decoder: Decoder, max_side: u32) -> Result<PathBuf, AppError> {
-    match decoder {
-        Decoder::Heif => crate::heif::ensure_jpeg_sidecar_thumb(source, max_side),
-        Decoder::Psd => crate::psd_sidecar::ensure_jpeg_sidecar_thumb(source, max_side),
-        Decoder::Raster => crate::raster_sidecar::ensure_jpeg_sidecar_thumb(source, max_side),
-    }
+    spec_for(decoder).ensure_thumb(source, max_side)
 }
 
+/// 캐시에 이미 있는 썸네일 sidecar 경로만 돌려준다(생성하지 않음).
 pub fn cached_thumb(source: &Path, decoder: Decoder, max_side: u32) -> Option<PathBuf> {
-    match decoder {
-        Decoder::Heif => crate::heif::cached_jpeg_sidecar_thumb(source, max_side),
-        Decoder::Psd => crate::psd_sidecar::cached_jpeg_sidecar_thumb(source, max_side),
-        Decoder::Raster => crate::raster_sidecar::cached_jpeg_sidecar_thumb(source, max_side),
-    }
+    spec_for(decoder).cached_thumb(source, max_side)
 }
 
 pub fn decode_rgb8(source: &Path, decoder: Decoder) -> Result<Rgb8, AppError> {
-    match decoder {
-        Decoder::Heif => crate::heif::decode_primary_rgb8(source),
-        Decoder::Psd => crate::psd_sidecar::decode_psd_rgb8(source),
-        Decoder::Raster => crate::raster_sidecar::decode_rgb8(source),
-    }
+    (spec_for(decoder).decode)(source)
 }
 
 #[cfg(test)]

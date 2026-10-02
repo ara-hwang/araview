@@ -13,7 +13,7 @@
 
 use std::fs;
 use std::io::BufReader;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use image::{DynamicImage, ImageDecoder, ImageFormat, ImageReader, Limits};
 
@@ -39,24 +39,13 @@ pub fn format_for_ext(ext: &str) -> Option<ImageFormat> {
     }
 }
 
-const SPEC: SidecarSpec = SidecarSpec {
+/// 이 디코더의 JPEG sidecar 규칙. `transcode`가 디코더별로 골라 쓴다.
+pub(crate) static SPEC: SidecarSpec = SidecarSpec {
     label: "Raster sidecar lock",
     paint_prefix: "raster-",
     thumb_prefix: "raster-thumb-",
     decode: decode_rgb8,
 };
-
-pub fn ensure_jpeg_sidecar(source: &Path) -> Result<PathBuf, AppError> {
-    SPEC.ensure(source)
-}
-
-pub fn ensure_jpeg_sidecar_thumb(source: &Path, max_side: u32) -> Result<PathBuf, AppError> {
-    SPEC.ensure_thumb(source, max_side)
-}
-
-pub fn cached_jpeg_sidecar_thumb(source: &Path, max_side: u32) -> Option<PathBuf> {
-    SPEC.cached_thumb(source, max_side)
-}
 
 /// 합성 픽셀을 RGB8로 디코드. 투명은 흰 배경에 합성한다
 /// (JPEG에 알파가 없어 `psd_sidecar`/`save.rs` flatten과 같은 규칙).
@@ -143,6 +132,7 @@ fn linear_to_srgb_rgba8(img: &image::Rgba32FImage) -> image::RgbaImage {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::PathBuf;
 
     fn save_as(dir: &Path, name: &str, img: &DynamicImage, format: ImageFormat) -> PathBuf {
         let path = dir.join(name);
