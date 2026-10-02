@@ -32,6 +32,7 @@ import { cn } from "@/lib/utils"
 import { getApp, updateDirImagesIndex, useAppStore, zoomIn, zoomOut } from "@/store/appStore"
 import { useArchiveProgressStore } from "@/store/archiveProgressStore"
 import { getSettings, updateSettings, useSettingsStore } from "@/store/settingsStore"
+import { isArchiveFilePath } from "@/utils/archiveFile"
 
 export const Route = createFileRoute("/image")({
   beforeLoad: () => {
@@ -104,6 +105,8 @@ function ImagePage() {
       const path = st.dirImages.images[index]
       if (!path) return
       updateDirImagesIndex(index)
+      // 폴더 안 아카이브는 웹툰에서 안내 카드로만 보인다. 이미지로 읽지 않는다.
+      if (!st.archivePath && isArchiveFilePath(path)) return
       if (st.archivePath) {
         void useArchiveProgressStore.getState().save(st.archivePath, path, {
           index,
@@ -493,6 +496,7 @@ function ImagePage() {
             webtoonScrollTarget={webtoonScrollTarget}
             onOpenThumbnailGrid={toggleGrid}
             onOpenArchiveFromPreview={handleOpenArchiveFromPreview}
+            onOpenArchive={loadImageExplicit}
           />
         </div>
         {dockPosition === "right" && <div className="flex min-h-0 shrink-0 pb-6">{dockArea}</div>}

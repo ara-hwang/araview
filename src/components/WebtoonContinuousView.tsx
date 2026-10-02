@@ -1,4 +1,4 @@
-import { SquaresFour } from "@phosphor-icons/react"
+import { BookOpen, SquaresFour } from "@phosphor-icons/react"
 import { convertFileSrc } from "@tauri-apps/api/core"
 import { memo, useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils"
 import type { ImageScalingMode } from "@/store/settingsStore"
 import type { ImageInfo } from "@/types"
 import { errorMessage } from "@/utils/appError"
+import { isArchiveFilePath } from "@/utils/archiveFile"
 import { runLimitedImageLoad } from "@/utils/concurrencyLimit"
 import { getPixelArtDetectionPath } from "@/utils/imageRendering"
 import { basenameOf } from "@/utils/path"
@@ -41,7 +42,8 @@ function WebtoonLazyPage({
   showPageBoundary,
   priority,
   isCurrent,
-  onImageDoubleClick
+  onImageDoubleClick,
+  onOpenArchive
 }: {
   path: string
   index: number
@@ -54,6 +56,7 @@ function WebtoonLazyPage({
   priority: boolean
   isCurrent: boolean
   onImageDoubleClick?: (e: React.MouseEvent) => void
+  onOpenArchive?: (path: string) => void
 }) {
   const { t } = useTranslation()
   const wrapRef = useRef<HTMLDivElement>(null)
@@ -63,6 +66,8 @@ function WebtoonLazyPage({
   const [isNearViewport, setIsNearViewport] = useState(false)
   const [nonce, setNonce] = useState(0)
   const name = basenameOf(path)
+  // 폴더 안 아카이브(CBZ/ZIP)는 이미지로 그릴 수 없어 만화 열기 안내 카드로 보여준다.
+  const isArchive = isArchiveFilePath(path)
 
   useEffect(() => {
     registerRef(index, wrapRef.current)
@@ -71,7 +76,7 @@ function WebtoonLazyPage({
 
   useEffect(() => {
     const el = wrapRef.current
-    if (!el) return
+    if (!el || isArchive) return
     let cancelled = false
     let loaded = false
 
@@ -124,7 +129,7 @@ function WebtoonLazyPage({
       cancelled = true
       io.disconnect()
     }
-  }, [path, getOrLoadImage, nonce, priority])
+  }, [path, getOrLoadImage, nonce, priority, isArchive])
 
   return (
     <div
@@ -136,7 +141,23 @@ function WebtoonLazyPage({
         showPageBoundary && "border-t border-border"
       )}
     >
-      {info && !error ? (
+      {isArchive ? (
+        <div className="flex w-full max-w-2xl flex-col items-center gap-3 rounded-lg border border-border bg-background p-6 text-center">
+          <p className="text-sm text-muted-foreground">
+            {t("viewer.webtoon.archiveHint", { name })}
+          </p>
+          {onOpenArchive && (
+            <Button
+              size="sm"
+              onClick={() => onOpenArchive(path)}
+              title={t("viewer.archivePreview.openTitle")}
+            >
+              <BookOpen data-icon="inline-start" />
+              {t("viewer.archivePreview.open")}
+            </Button>
+          )}
+        </div>
+      ) : info && !error ? (
         <PixelArtImage
           filePath={info.file_path}
           detectionPath={getPixelArtDetectionPath(info)}
@@ -197,6 +218,7 @@ type WebtoonPageListProps = {
   imageScalingMode: ImageScalingMode
   autoDetectPixelArt: boolean
   onImageDoubleClick?: (e: React.MouseEvent) => void
+  onOpenArchive?: (path: string) => void
 }
 
 const WebtoonPageList = memo(function WebtoonPageList({
@@ -209,7 +231,8 @@ const WebtoonPageList = memo(function WebtoonPageList({
   fitWidth,
   imageScalingMode,
   autoDetectPixelArt,
-  onImageDoubleClick
+  onImageDoubleClick,
+  onOpenArchive
 }: WebtoonPageListProps) {
   return (
     <div
@@ -230,6 +253,7 @@ const WebtoonPageList = memo(function WebtoonPageList({
           priority={index === currentIndex}
           isCurrent={index === currentIndex}
           onImageDoubleClick={onImageDoubleClick}
+          onOpenArchive={onOpenArchive}
         />
       ))}
     </div>
@@ -274,7 +298,8 @@ export function WebtoonContinuousView({
   showProgress,
   thumbnailJump,
   onOpenThumbnailGrid,
-  onImageDoubleClick
+  onImageDoubleClick,
+  onOpenArchive
 }: {
   images: string[]
   currentIndex: number
@@ -290,6 +315,7 @@ export function WebtoonContinuousView({
   thumbnailJump: boolean
   onOpenThumbnailGrid?: (trigger?: HTMLButtonElement) => void
   onImageDoubleClick?: (e: React.MouseEvent) => void
+  onOpenArchive?: (path: string) => void
 }) {
   const { t } = useTranslation()
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -443,6 +469,7 @@ export function WebtoonContinuousView({
           imageScalingMode={imageScalingMode}
           autoDetectPixelArt={autoDetectPixelArt}
           onImageDoubleClick={onImageDoubleClick}
+          onOpenArchive={onOpenArchive}
         />
       </div>
 

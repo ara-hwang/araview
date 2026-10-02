@@ -371,7 +371,8 @@
       "scrollRegion": "웹툰 읽기 영역",
       "position": "{{current}} / {{total}} · {{percent}}%",
       "progressLabel": "{{current}}장 / {{total}}장, 전체 {{percent}}%",
-      "openThumbnails": "썸네일 그리드 열기"
+      "openThumbnails": "썸네일 그리드 열기",
+      "archiveHint": "「{{name}}」은 만화 파일입니다. 만화로 열어 읽을 수 있습니다."
     },
     "archivePreview": {
       "hint": "「{{name}}」은 만화 파일입니다. 첫 페이지만 미리 보고 있습니다.",

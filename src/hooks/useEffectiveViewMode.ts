@@ -11,21 +11,21 @@ function isArchiveFolderPreview(state: ReturnType<typeof useAppStore.getState>):
 
 /**
  * 화면에 실제로 적용되는 보기 모드. 만화 자동 양쪽 보기가 정한 값이 있으면 그 값이다.
- * 폴더 안 아카이브 미리보기는 이웃 항목을 이미지로 디코드할 수 없으므로 항상 단일 보기다.
+ * 폴더 안 아카이브 미리보기는 이웃 항목을 이미지로 디코드할 수 없으므로 단일 보기다.
+ * 웹툰은 예외로, 연속 뷰가 아카이브 자리에 만화 열기 카드를 그린다.
  */
 export function useEffectiveViewMode(): ViewMode {
   const viewMode = useSettingsStore((state) => state.viewMode)
   const comicViewMode = useAppStore((state) => state.comicViewMode)
   const inArchive = useAppStore((state) => state.archivePath !== null)
   const archivePreview = useAppStore(isArchiveFolderPreview)
-  if (archivePreview) return "single"
+  if (archivePreview && viewMode !== "webtoon") return "single"
   return inArchive && comicViewMode !== null ? comicViewMode : viewMode
 }
 
 export function getEffectiveViewMode(): ViewMode {
   const state = useAppStore.getState()
-  if (isArchiveFolderPreview(state)) return "single"
-  return state.archivePath !== null && state.comicViewMode !== null
-    ? state.comicViewMode
-    : useSettingsStore.getState().viewMode
+  const viewMode = useSettingsStore.getState().viewMode
+  if (isArchiveFolderPreview(state) && viewMode !== "webtoon") return "single"
+  return state.archivePath !== null && state.comicViewMode !== null ? state.comicViewMode : viewMode
 }

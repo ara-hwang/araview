@@ -371,7 +371,8 @@
       "scrollRegion": "Webtoon reading area",
       "position": "{{current}} / {{total}} · {{percent}}%",
       "progressLabel": "Page {{current}} of {{total}}, {{percent}} percent read",
-      "openThumbnails": "Open thumbnail grid"
+      "openThumbnails": "Open thumbnail grid",
+      "archiveHint": "\"{{name}}\" is a comic archive. Open it as a comic to read it."
     },
     "archivePreview": {
       "hint": "\"{{name}}\" is a comic archive. Showing the first page only.",

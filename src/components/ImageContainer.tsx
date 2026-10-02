@@ -48,6 +48,8 @@ type ImageContainerProps = {
   webtoonScrollTarget?: WebtoonScrollTarget
   onOpenThumbnailGrid?: (trigger?: HTMLButtonElement) => void
   onOpenArchiveFromPreview?: () => void
+  /** 웹툰 연속 뷰 안의 폴더 아카이브를 만화로 연다 */
+  onOpenArchive?: (path: string) => void
 }
 
 const toSrc = (info: ImageInfo) => convertFileSrc(info.file_path)
@@ -69,7 +71,8 @@ export function ImageContainer({
   onWebtoonIndexChange,
   webtoonScrollTarget,
   onOpenThumbnailGrid,
-  onOpenArchiveFromPreview
+  onOpenArchiveFromPreview,
+  onOpenArchive
 }: ImageContainerProps) {
   const { t } = useTranslation()
   const app = useAppStore(
@@ -370,6 +373,7 @@ export function ImageContainer({
           showProgress={webtoonSettings.webtoonShowProgress}
           thumbnailJump={webtoonSettings.webtoonThumbnailJump}
           onOpenThumbnailGrid={onOpenThumbnailGrid}
+          onOpenArchive={onOpenArchive}
           onImageDoubleClick={onDoubleClick}
         />
       )}

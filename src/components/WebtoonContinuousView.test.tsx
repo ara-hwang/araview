@@ -117,4 +117,28 @@ describe("WebtoonContinuousView", () => {
     fireEvent.click(screen.getByRole("button", { name: "viewer.webtoon.openThumbnails" }))
     expect(onOpenThumbnailGrid).toHaveBeenCalledTimes(1)
   })
+
+  it("폴더 안 아카이브는 이미지 대신 만화 열기 카드로 그린다", async () => {
+    const load = vi.fn(getOrLoadImage)
+    const onOpenArchive = vi.fn()
+    render(
+      <WebtoonContinuousView
+        images={["/pics/a.jpg", "/pics/comic.cbz"]}
+        currentIndex={0}
+        getOrLoadImage={load}
+        onCenterChange={vi.fn()}
+        scrollTarget={null}
+        imageGap={0}
+        showPageBoundaries={false}
+        fitWidth={false}
+        showProgress={false}
+        thumbnailJump={false}
+        onOpenArchive={onOpenArchive}
+      />
+    )
+
+    fireEvent.click(await screen.findByRole("button", { name: "viewer.archivePreview.open" }))
+    expect(onOpenArchive).toHaveBeenCalledWith("/pics/comic.cbz")
+    expect(load).not.toHaveBeenCalledWith("/pics/comic.cbz")
+  })
 })
