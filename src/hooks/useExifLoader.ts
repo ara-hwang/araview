@@ -74,25 +74,22 @@ export function useExifLoader() {
       return info?.file_path === paintPath && (info?.source_path ?? info?.file_path) === sourcePath
     }
 
-    try {
-      const data = await invoke<ExifData>("get_exif_data", { filePath: sourcePath })
-      if (isCurrent()) {
-        useAppStore.setState({ exifData: data, exifError: null })
-      }
-    } catch (e) {
-      // EXIF 자체가 없는 파일은 실패가 아닌 빈 상태로 취급한다.
-      // 백엔드는 "No EXIF data found: ..." 에러로 알리므로 여기서 구분한다.
-      const message = errorMessage(e)
-      if (isCurrent()) {
-        if (message.toLowerCase().includes("no exif")) {
-          useAppStore.setState({ exifData: null, exifError: null })
-        } else {
-          useAppStore.setState({ exifData: null, exifError: message })
+    const loadExifData = async () => {
+      try {
+        const data = await invoke<ExifData>("get_exif_data", { filePath: sourcePath })
+        if (!isCurrent()) return
+        // EXIF가 없거나 읽을 수 없는 파일은 백엔드가 빈 맵으로 알린다(실패 아님).
+        const hasExif = Object.keys(data).length > 0
+        useAppStore.setState({ exifData: hasExif ? data : null, exifError: null })
+      } catch (e) {
+        if (isCurrent()) {
+          useAppStore.setState({ exifData: null, exifError: errorMessage(e) })
         }
       }
     }
-    // 히스토그램/파일 상세는 EXIF 유무와 독립적으로 병렬 로드한다.
+    // EXIF, 히스토그램, 파일 상세는 서로 독립이라 함께 시작한다.
     await Promise.all([
+      loadExifData(),
       loadHistogramSilent(paintPath, isCurrent),
       loadDetailsSilent(sourcePath, isCurrent)
     ])

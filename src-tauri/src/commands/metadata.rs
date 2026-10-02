@@ -25,10 +25,15 @@ fn get_exif_data_impl(file_path: &str) -> Result<HashMap<String, String>, AppErr
         .map_err(|e| AppError::io("Failed to open file", e, ErrorCode::Corrupt))?;
     let mut reader = BufReader::new(file);
 
-    let exif_reader = exif::Reader::new();
-    let exif = exif_reader
-        .read_from_container(&mut reader)
-        .map_err(|e| AppError::unsupported(format!("No EXIF data found: {e}")))?;
+    // EXIF가 없거나 읽을 수 없는 파일은 실패가 아니라 빈 결과다. 프론트는
+    // 빈 맵을 "EXIF 없음" 상태로 보여준다.
+    let exif = match exif::Reader::new().read_from_container(&mut reader) {
+        Ok(exif) => exif,
+        Err(e) => {
+            log::debug!("[exif] no readable EXIF in {}: {e}", path.display());
+            return Ok(HashMap::new());
+        }
+    };
 
     let mut data = HashMap::new();
 
@@ -94,6 +99,20 @@ mod tests {
     fn get_exif_data_rejects_missing_file() {
         let err = get_exif_data_impl("D:\\no-such-dir-commands\\nope.jpg").unwrap_err();
         assert_eq!(err.code, ErrorCode::NotFound);
+    }
+
+    #[test]
+    fn get_exif_data_without_exif_is_empty_not_error() {
+        let sample = Path::new(env!("CARGO_MANIFEST_DIR")).join("../samples/sample.png");
+        let data = get_exif_data_impl(sample.to_str().unwrap()).expect("no-exif is not an error");
+        assert!(data.is_empty());
+    }
+
+    #[test]
+    fn get_exif_data_reads_tags_from_jpeg() {
+        let sample = Path::new(env!("CARGO_MANIFEST_DIR")).join("../samples/exif-sample.jpg");
+        let data = get_exif_data_impl(sample.to_str().unwrap()).expect("exif");
+        assert!(!data.is_empty());
     }
 
     #[test]

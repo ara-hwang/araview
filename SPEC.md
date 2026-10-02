@@ -322,7 +322,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한�
 
 진실: `src-tauri/src/commands/metadata.rs`, `src-tauri/src/image_info.rs`, `src/hooks/useExifLoader.ts`, `src/components/ExifPanel.tsx`, `src/components/HistogramChart.tsx`.
 
-- `get_exif_data`는 문자열 맵을 반환한다.
+- `get_exif_data`는 문자열 맵을 반환한다. EXIF가 없거나 읽을 수 없는 파일은 오류가 아니라 빈 맵이고, 프론트는 이를 "EXIF 없음" 상태로 보여준다. 파일이 없으면 `not_found` 오류다.
 - 파일 없음이면 `not_found`, EXIF 없으면 `unsupported`.
 - `I`로 패널 토글. 패널 내부 포커스에서는 `I` 닫기를 허용한다.
 - 표시 범주는 Camera, Exposure, Image, Lens, DateTime, GPS, Software 계열이다.
