@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState, type ImgHTMLAttributes } from
 import { usePixelArtDetection } from "@/hooks/usePixelArtDetection"
 import { cn } from "@/lib/utils"
 import type { ImageScalingMode } from "@/store/settingsStore"
-import { resolveImageRenderingMode } from "@/utils/imageRendering"
+import { isMagnifiedDisplay, resolveImageRenderingMode } from "@/utils/imageRendering"
 
 type PixelArtImageProps = ImgHTMLAttributes<HTMLImageElement> & {
   src: string
@@ -79,13 +79,20 @@ export function PixelArtImage({
   style,
   ...props
 }: PixelArtImageProps) {
+  const [imgRef, measure, displayScale] = useMeasuredDisplayScale()
+  // 판정은 원본을 백엔드에서 한 번 더 디코드한다. 결과는 확대 표시에서만
+  // 쓰이므로 실측 배율이 1x 이상인 이미지만 요청한다. 실측 전에는 배율을
+  // 모르므로 기다린다(양쪽 보기의 만화 페이지는 대개 축소 표시다).
   const detection = usePixelArtDetection(
     detectionPath ?? filePath,
     fileSize,
-    scalingMode === "auto" && autoDetectPixelArt && detectionEnabled,
+    scalingMode === "auto" &&
+      autoDetectPixelArt &&
+      detectionEnabled &&
+      displayScale !== null &&
+      isMagnifiedDisplay(displayScale),
     detectionPriority
   )
-  const [imgRef, measure, displayScale] = useMeasuredDisplayScale()
   // 축소 배율에서는 nearest 보간이 스크린톤 같은 주기 패턴을 깨뜨리므로
   // resolveImageRenderingMode가 smooth로 강제한다.
   const imageRendering = resolveImageRenderingMode(

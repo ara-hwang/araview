@@ -1,15 +1,19 @@
-import { cleanup, render, screen } from "@testing-library/react"
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react"
 import { createRef } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-vi.mock("@tauri-apps/api/core", () => ({
-  convertFileSrc: (p: string) => p,
-  invoke: async () => ({
+const { invoke } = vi.hoisted(() => ({
+  invoke: vi.fn(async () => ({
     classification: "continuous",
     confidence: 0,
     pixel_scale: null,
     method: "unsupported"
-  })
+  }))
+}))
+
+vi.mock("@tauri-apps/api/core", () => ({
+  convertFileSrc: (p: string) => p,
+  invoke
 }))
 
 vi.mock("@tanstack/react-router", () => ({
@@ -25,6 +29,7 @@ vi.mock("@/components/ui/toast", () => ({
 }))
 
 import { ImageContainer } from "@/components/ImageContainer"
+import { clearPixelArtDetectionCache } from "@/hooks/usePixelArtDetection"
 import { closeImage, useAppStore } from "@/store/appStore"
 import { DEFAULT_SETTINGS, useSettingsStore } from "@/store/settingsStore"
 
@@ -33,7 +38,60 @@ const noop = () => {}
 beforeEach(() => {
   cleanup()
   closeImage()
+  clearPixelArtDetectionCache()
+  invoke.mockClear()
   useSettingsStore.setState({ ...DEFAULT_SETTINGS })
+})
+
+function renderContainer() {
+  return render(
+    <ImageContainer
+      containerRef={createRef<HTMLDivElement>()}
+      imageRef={createRef<HTMLImageElement>()}
+      onWheel={noop}
+      onMouseDown={noop}
+      onMouseMove={noop}
+      onMouseUp={noop}
+    />
+  )
+}
+
+function setSingleImage(zoom: number) {
+  useAppStore.setState({
+    imageInfo: {
+      file_path: "/pics/photo.png",
+      source_path: "/pics/photo.png",
+      file_name: "photo.png",
+      file_size: 123,
+      mime_type: "image/png",
+      width: 4000,
+      height: 3000
+    },
+    imageSize: { width: 4000, height: 3000 },
+    zoom,
+    position: { x: 0, y: 0 },
+    rotation: 0,
+    flipH: false,
+    flipV: false
+  })
+}
+
+describe("ImageContainer 픽셀 아트 판정", () => {
+  it("축소 배율에서는 원본을 다시 디코드하는 판정을 요청하지 않는다", async () => {
+    setSingleImage(0.25)
+    renderContainer()
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(invoke).not.toHaveBeenCalledWith("detect_pixel_art", expect.anything())
+  })
+
+  it("확대 배율로 바뀌면 판정을 요청한다", async () => {
+    setSingleImage(0.25)
+    renderContainer()
+    act(() => useAppStore.setState({ zoom: 2 }))
+    await waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith("detect_pixel_art", { filePath: "/pics/photo.png" })
+    )
+  })
 })
 
 describe("ImageContainer single mode", () => {
