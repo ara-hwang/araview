@@ -9,8 +9,18 @@
   --on-ink: oklch(0.985 0 0);
   --font: "Pretendard Variable", Pretendard, -apple-system, "Segoe UI", "Malgun Gothic", sans-serif;
 }
+:root[data-theme="dark"] {
+  --ink: oklch(0.922 0 0);
+  --paper: oklch(0.145 0 0);
+  --paper-ink: oklch(0.985 0 0);
+  --wash: oklch(0.269 0 0);
+  --muted: oklch(0.708 0 0);
+  --rule: oklch(1 0 0 / 10%);
+  --focus: oklch(0.556 0 0);
+  --on-ink: oklch(0.205 0 0);
+}
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme]) {
     --ink: oklch(0.922 0 0);
     --paper: oklch(0.145 0 0);
     --paper-ink: oklch(0.985 0 0);
@@ -19,6 +29,31 @@
     --rule: oklch(1 0 0 / 10%);
     --focus: oklch(0.556 0 0);
     --on-ink: oklch(0.205 0 0);
+  }
+}
+.only-dark {
+  display: none;
+}
+:root[data-theme="dark"] .only-light {
+  display: none;
+}
+:root[data-theme="dark"] .only-dark {
+  display: block;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) .only-light {
+    display: none;
+  }
+  :root:not([data-theme]) .only-dark {
+    display: block;
+  }
+}
+@media (max-width: 480px) {
+  .top nav {
+    gap: 8px;
+  }
+  .brand span {
+    display: none;
   }
 }
 * {
@@ -304,4 +339,76 @@ section[id] {
 }
 .top nav a.badge img {
   display: block;
+}
+
+.carousel {
+  position: relative;
+}
+.stage {
+  position: relative;
+}
+.track {
+  display: flex;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+}
+.track::-webkit-scrollbar {
+  display: none;
+}
+.slide {
+  flex: 0 0 100%;
+  scroll-snap-align: start;
+}
+.slide img {
+  width: 100%;
+  height: auto;
+}
+.slide img.only-light {
+  display: block;
+}
+.car-btn {
+  position: absolute;
+  top: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin-top: -16px;
+  padding: 0;
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  background: var(--paper);
+  color: var(--paper-ink);
+  cursor: pointer;
+}
+.car-btn:active {
+  transform: translateY(1px);
+}
+.car-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.car-prev {
+  left: 8px;
+}
+.car-next {
+  right: 8px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .car-btn:not(:disabled):hover {
+    background: var(--wash);
+  }
+}
+.car-count {
+  margin: 4px 0 0;
+  font-size: 0.8125rem;
+  font-feature-settings: "tnum";
+  color: var(--muted);
+}
+.credits {
+  margin-top: 8px;
 }
