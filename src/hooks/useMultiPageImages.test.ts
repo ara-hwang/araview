@@ -174,3 +174,24 @@ describe("useMultiPageImages 양쪽 오프셋", () => {
     expect(result.current.pages.map((p) => p.path)).toEqual([IMAGES[5]])
   })
 })
+
+describe("useMultiPageImages 폴더 안 아카이브", () => {
+  it("짝 페이지가 아카이브면 현재 이미지만 단독으로 로드한다", async () => {
+    setup(1)
+    useAppStore.setState({
+      dirImages: {
+        images: ["/pics/1.jpg", "/pics/2.jpg", "/pics/comic.cbz", "/pics/4.jpg"],
+        current_index: 1,
+        availability: []
+      }
+    })
+    const getOrLoadImage = vi.fn(async (path: string) => imgInfo(path))
+    const { result } = renderHook(() => useMultiPageImages(getOrLoadImage))
+
+    await waitFor(() => {
+      expect(result.current.pages).toHaveLength(1)
+    })
+    expect(result.current.pages.map((p) => p.path)).toEqual(["/pics/2.jpg"])
+    expect(getOrLoadImage).not.toHaveBeenCalledWith("/pics/comic.cbz")
+  })
+})

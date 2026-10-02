@@ -5,6 +5,7 @@ import { useEffectiveViewMode } from "@/hooks/useEffectiveViewMode"
 import { useAppStore } from "@/store/appStore"
 import { useSettingsStore } from "@/store/settingsStore"
 import type { ImageInfo } from "@/types"
+import { isArchiveFilePath } from "@/utils/archiveFile"
 import { resolveCoverIndex } from "@/utils/comicCover"
 import { dualPageIndices } from "@/utils/dirNavigation"
 
@@ -59,7 +60,11 @@ export function useMultiPageImages(getOrLoadImage: GetOrLoadImage) {
       loopNavigation
     )
 
-    const paths = targetIndices.map((i) => images[i]).filter(Boolean)
+    // 폴더 안 아카이브(CBZ/ZIP)는 이미지로 그릴 수 없으므로 짝 페이지에서 뺀다.
+    // 짝이 빠지면 현재 이미지가 단독으로 가운데 표시된다.
+    const paths = targetIndices
+      .map((i) => images[i])
+      .filter((p): p is string => !!p && !isArchiveFilePath(p))
     let cancelled = false
 
     Promise.all(
