@@ -271,10 +271,11 @@ export function ThumbnailGrid({
     ]
   )
 
-  const visiblePaths = useMemo(
-    () => filtered.slice(gridWindow.startIndex, gridWindow.endIndex).map((item) => item.path),
+  const visibleItems = useMemo(
+    () => filtered.slice(gridWindow.startIndex, gridWindow.endIndex),
     [filtered, gridWindow.startIndex, gridWindow.endIndex]
   )
+  const visiblePaths = useMemo(() => visibleItems.map((item) => item.path), [visibleItems])
   const cloudOnlySet = useMemo(() => cloudOnlyPathSet(dirImages), [dirImages])
   const thumbnailOptions = useMemo(
     () => ({
@@ -382,7 +383,7 @@ export function ThumbnailGrid({
           </Empty>
         ) : (
           <div className="relative" style={{ height: gridWindow.totalHeight }}>
-            {filtered.slice(gridWindow.startIndex, gridWindow.endIndex).map((item, offset) => {
+            {visibleItems.map((item, offset) => {
               const position = gridWindow.startIndex + offset
               const isCurrent = currentIndices.has(item.index)
               const isSelected = position === selectedPos

@@ -40,6 +40,17 @@ export function useImageCache() {
   const imageScalingMode = useSettingsStore((state) => state.imageScalingMode)
   const autoDetectPixelArt = useSettingsStore((state) => state.autoDetectPixelArt)
   const paintPreloadsRef = useRef<Map<string, HTMLImageElement>>(new Map())
+  /** 예열해 둔 디코드 이미지를 모두 놓아 메모리를 돌려준다. */
+  const clearPaintPreloads = useCallback(() => {
+    for (const img of paintPreloadsRef.current.values()) {
+      try {
+        img.removeAttribute("src")
+      } catch {
+        // 무시
+      }
+    }
+    paintPreloadsRef.current.clear()
+  }, [])
 
   const cacheLimit = useMemo(() => getCacheLimit(cacheMode), [cacheMode])
   const cacheByteLimit = useMemo(() => getCacheByteLimit(cacheMode), [cacheMode])
@@ -220,43 +231,22 @@ export function useImageCache() {
   useEffect(() => {
     trimCacheToBudget(cacheLimit, cacheByteLimit)
     if (cacheMode === "off") {
-      for (const [key, img] of paintPreloadsRef.current) {
-        paintPreloadsRef.current.delete(key)
-        try {
-          img.removeAttribute("src")
-        } catch {
-          // 무시
-        }
-      }
+      clearPaintPreloads()
     }
-  }, [cacheByteLimit, cacheLimit, cacheMode, trimCacheToBudget])
+  }, [cacheByteLimit, cacheLimit, cacheMode, clearPaintPreloads, trimCacheToBudget])
 
   const previousCacheEpochRef = useRef(cacheEpoch)
   useEffect(() => {
     if (previousCacheEpochRef.current === cacheEpoch) return
     previousCacheEpochRef.current = cacheEpoch
-    for (const [key, img] of paintPreloadsRef.current) {
-      paintPreloadsRef.current.delete(key)
-      try {
-        img.removeAttribute("src")
-      } catch {
-        // 무시
-      }
-    }
-  }, [cacheEpoch])
+    clearPaintPreloads()
+  }, [cacheEpoch, clearPaintPreloads])
 
   // 해상도 상한이 바뀌면 이전 기준으로 예열한 픽셀을 버린다. 새 기준의
   // 메타는 useImageLoader가 캐시를 비우고 현재 이미지를 다시 로드한다.
   useEffect(() => {
-    for (const [key, img] of paintPreloadsRef.current) {
-      paintPreloadsRef.current.delete(key)
-      try {
-        img.removeAttribute("src")
-      } catch {
-        // 무시
-      }
-    }
-  }, [autoDetectPixelArt, imageScalingMode, maxResolution])
+    clearPaintPreloads()
+  }, [autoDetectPixelArt, clearPaintPreloads, imageScalingMode, maxResolution])
 
   return {
     getOrLoadImage,

@@ -109,6 +109,15 @@ export function useZoomPan() {
   }, [])
 
   const handleMouseUp = useCallback(() => {
+    // 아직 그리지 않은 마지막 이동을 놓기 전에 반영한다. 다음 프레임으로
+    // 미루면 드래그가 이미 끝나 그 이동이 버려진다.
+    if (rafRef.current !== 0) {
+      cancelAnimationFrame(rafRef.current)
+      rafRef.current = 0
+    }
+    const pending = pendingPosRef.current
+    pendingPosRef.current = null
+    if (pending) moveDrag(pending.x, pending.y)
     setIsDragging(false)
   }, [])
 

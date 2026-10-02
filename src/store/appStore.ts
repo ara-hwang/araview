@@ -165,9 +165,13 @@ export const useAppStore = create<AppState & AppStoreActions>((set) => ({
 
 export const getApp = () => useAppStore.getState()
 
+/** 회전을 반영한 이미지 크기. 90°/270°면 가로세로가 바뀐다. */
+const orientedSizeOf = (state: Pick<AppState, "imageSize" | "rotation">) =>
+  getOrientedImageSize(state.imageSize.width, state.imageSize.height, state.rotation)
+
 export const getFitZoom = (): number => {
   const { containerSize, imageSize, rotation } = useAppStore.getState()
-  const oriented = getOrientedImageSize(imageSize.width, imageSize.height, rotation)
+  const oriented = orientedSizeOf({ imageSize, rotation })
   return getFitZoomFromSizes(
     containerSize.width,
     containerSize.height,
@@ -179,7 +183,7 @@ export const getFitZoom = (): number => {
 export const setZoomToFit = (mode: "width" | "height" | "screen") => {
   const { containerSize, imageSize, rotation } = useAppStore.getState()
   const { width: cw, height: ch } = containerSize
-  const oriented = getOrientedImageSize(imageSize.width, imageSize.height, rotation)
+  const oriented = orientedSizeOf({ imageSize, rotation })
   const { width: iw, height: ih } = oriented
 
   if (iw <= 0 || ih <= 0) return
@@ -212,7 +216,7 @@ export const zoomInBy = (factor = 1.25) => {
 
 export const zoomOutBy = (factor = 1.25) => {
   const { zoom, containerSize, imageSize, rotation } = useAppStore.getState()
-  const oriented = getOrientedImageSize(imageSize.width, imageSize.height, rotation)
+  const oriented = orientedSizeOf({ imageSize, rotation })
   const minZoom = getMinZoom(
     containerSize.width,
     containerSize.height,
@@ -228,7 +232,7 @@ export const zoomOut = () => zoomOutBy(1.25)
 
 export const resetZoomPan = () => {
   const { containerSize, imageSize, rotation } = useAppStore.getState()
-  const oriented = getOrientedImageSize(imageSize.width, imageSize.height, rotation)
+  const oriented = orientedSizeOf({ imageSize, rotation })
   const zoom = getZoomForFitMode(
     "auto",
     containerSize.width,
@@ -254,7 +258,7 @@ export const resetZoomPan = () => {
  */
 export const applyRememberedFit = () => {
   const { containerSize, imageSize, rotation } = useAppStore.getState()
-  const oriented = getOrientedImageSize(imageSize.width, imageSize.height, rotation)
+  const oriented = orientedSizeOf({ imageSize, rotation })
   const fitMode = useSettingsStore.getState().fitMode
   const zoom = getZoomForFitMode(
     fitMode,
@@ -398,11 +402,7 @@ export const moveDrag = (clientX: number, clientY: number) => {
   const newY = clientY - state.dragStart.y
 
   const { width: cw, height: ch } = state.containerSize
-  const oriented = getOrientedImageSize(
-    state.imageSize.width,
-    state.imageSize.height,
-    state.rotation
-  )
+  const oriented = orientedSizeOf(state)
   const { width: iw, height: ih } = oriented
 
   if (cw > 0 && ch > 0 && iw > 0 && ih > 0) {
@@ -423,11 +423,7 @@ export const panBy = (dx: number, dy: number) => {
   const newX = state.position.x + dx
   const newY = state.position.y + dy
   const { width: cw, height: ch } = state.containerSize
-  const oriented = getOrientedImageSize(
-    state.imageSize.width,
-    state.imageSize.height,
-    state.rotation
-  )
+  const oriented = orientedSizeOf(state)
   const { width: iw, height: ih } = oriented
   if (cw > 0 && ch > 0 && iw > 0 && ih > 0) {
     const { maxX, maxY } = getPositionBounds(cw, ch, iw, ih, state.zoom)

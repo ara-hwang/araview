@@ -1,4 +1,4 @@
-import type { ShortcutActionId } from "@/constants/shortcuts"
+import { SHORTCUT_ACTION_IDS, type ShortcutActionId } from "@/constants/shortcuts"
 
 export type CommandGroup = "file" | "navigate" | "view" | "display" | "system"
 
@@ -15,13 +15,19 @@ export type CommandDef = {
   id: CommandId
   group: CommandGroup
   labelKey: string
-  shortcutId?: ShortcutActionId
   requiresImage?: boolean
   requiresNavigation?: boolean
   /** GIF 재생/프레임 제어 전용. 열린 이미지가 제어 가능한 GIF일 때만 활성화된다. */
   requiresGif?: boolean
   /** 현재 UI 언어와 무관하게 매칭되는 영문 별칭 (ko UI에서 영문 검색용) */
   keywords?: readonly string[]
+}
+
+const SHORTCUT_IDS: ReadonlySet<string> = new Set(SHORTCUT_ACTION_IDS)
+
+/** 명령의 단축키 id. 단축키 액션과 같은 id면 그대로 쓰고, 아니면(설정 열기 등) 없다. */
+export function commandShortcutId(def: Pick<CommandDef, "id">): ShortcutActionId | undefined {
+  return SHORTCUT_IDS.has(def.id) ? (def.id as ShortcutActionId) : undefined
 }
 
 export const COMMAND_GROUP_ORDER: readonly CommandGroup[] = [
@@ -39,14 +45,12 @@ export const COMMAND_DEFS: readonly CommandDef[] = [
     id: "openFile",
     group: "file",
     labelKey: "menu.open",
-    shortcutId: "openFile",
     keywords: ["open", "file"]
   },
   {
     id: "closeImage",
     group: "file",
     labelKey: "menu.closeImage",
-    shortcutId: "closeImage",
     requiresImage: true,
     keywords: ["close", "home"]
   },
@@ -54,7 +58,6 @@ export const COMMAND_DEFS: readonly CommandDef[] = [
     id: "copyImage",
     group: "file",
     labelKey: "menu.copyImage",
-    shortcutId: "copyImage",
     requiresImage: true,
     keywords: ["copy", "clipboard"]
   },
@@ -62,7 +65,6 @@ export const COMMAND_DEFS: readonly CommandDef[] = [
     id: "trashFile",
     group: "file",
     labelKey: "menu.trash",
-    shortcutId: "trashFile",
     requiresImage: true,
     keywords: ["trash", "delete"]
   },
@@ -70,7 +72,6 @@ export const COMMAND_DEFS: readonly CommandDef[] = [
     id: "renameFile",
     group: "file",
     labelKey: "menu.rename",
-    shortcutId: "renameFile",
     requiresImage: true,
     keywords: ["rename"]
   },
@@ -78,7 +79,6 @@ export const COMMAND_DEFS: readonly CommandDef[] = [
     id: "copyPath",
     group: "file",
     labelKey: "menu.copyPath",
-    shortcutId: "copyPath",
     requiresImage: true,
     keywords: ["path", "copy"]
   },
@@ -86,7 +86,6 @@ export const COMMAND_DEFS: readonly CommandDef[] = [
     id: "revealInExplorer",
     group: "file",
     labelKey: "menu.reveal",
-    shortcutId: "revealInExplorer",
     requiresImage: true,
     keywords: ["explorer", "folder", "reveal"]
   },
@@ -94,7 +93,6 @@ export const COMMAND_DEFS: readonly CommandDef[] = [
     id: "openExternal",
     group: "file",
     labelKey: "menu.openExternal",
-    shortcutId: "openExternal",
     requiresImage: true,
     keywords: ["external", "default app"]
   },
@@ -103,7 +101,6 @@ export const COMMAND_DEFS: readonly CommandDef[] = [
     id: "navigatePrev",
     group: "navigate",
     labelKey: "menu.prev",
-    shortcutId: "navigatePrev",
     requiresNavigation: true,
     keywords: ["prev", "previous"]
   },
@@ -111,7 +108,6 @@ export const COMMAND_DEFS: readonly CommandDef[] = [
     id: "navigateNext",
     group: "navigate",
     labelKey: "menu.next",
-    shortcutId: "navigateNext",
     requiresNavigation: true,
     keywords: ["next"]
   },
@@ -119,7 +115,6 @@ export const COMMAND_DEFS: readonly CommandDef[] = [
     id: "jumpPrev10",
     group: "navigate",
     labelKey: "menu.jumpPrev10",
-    shortcutId: "jumpPrev10",
     requiresNavigation: true,
     keywords: ["jump", "prev", "10", "pageup"]
   },
@@ -127,7 +122,6 @@ export const COMMAND_DEFS: readonly CommandDef[] = [
     id: "jumpNext10",
     group: "navigate",
     labelKey: "menu.jumpNext10",
-    shortcutId: "jumpNext10",
     requiresNavigation: true,
     keywords: ["jump", "next", "10", "pagedown"]
   },
@@ -135,7 +129,6 @@ export const COMMAND_DEFS: readonly CommandDef[] = [
     id: "jumpFirst",
     group: "navigate",
     labelKey: "menu.jumpFirst",
-    shortcutId: "jumpFirst",
     requiresNavigation: true,
     keywords: ["jump", "first", "home"]
   },
@@ -143,7 +136,6 @@ export const COMMAND_DEFS: readonly CommandDef[] = [
     id: "jumpLast",
     group: "navigate",
     labelKey: "menu.jumpLast",
-    shortcutId: "jumpLast",
     requiresNavigation: true,
     keywords: ["jump", "last", "end"]
   },
@@ -152,7 +144,6 @@ export const COMMAND_DEFS: readonly CommandDef[] = [
     id: "zoomIn",
     group: "view",
     labelKey: "menu.zoomIn",
-    shortcutId: "zoomIn",
     requiresImage: true,
     keywords: ["zoom in"]
   },
@@ -160,7 +151,6 @@ export const COMMAND_DEFS: readonly CommandDef[] = [
     id: "zoomOut",
     group: "view",
     labelKey: "menu.zoomOut",
-    shortcutId: "zoomOut",
     requiresImage: true,
     keywords: ["zoom out"]
   },
@@ -168,7 +158,6 @@ export const COMMAND_DEFS: readonly CommandDef[] = [
     id: "panLeft",
     group: "view",
     labelKey: "menu.panLeft",
-    shortcutId: "panLeft",
     requiresImage: true,
     keywords: ["pan", "left", "move"]
   },
@@ -176,7 +165,6 @@ export const COMMAND_DEFS: readonly CommandDef[] = [
     id: "panRight",
     group: "view",
     labelKey: "menu.panRight",
-    shortcutId: "panRight",
     requiresImage: true,
     keywords: ["pan", "right", "move"]
   },
@@ -184,7 +172,6 @@ export const COMMAND_DEFS: readonly CommandDef[] = [
     id: "panUp",
     group: "view",
     labelKey: "menu.panUp",
-    shortcutId: "panUp",
     requiresImage: true,
     keywords: ["pan", "up", "move"]
   },
@@ -192,7 +179,6 @@ export const COMMAND_DEFS: readonly CommandDef[] = [
     id: "panDown",
     group: "view",
     labelKey: "menu.panDown",
-    shortcutId: "panDown",
     requiresImage: true,
     keywords: ["pan", "down", "move"]
   },
@@ -200,7 +186,6 @@ export const COMMAND_DEFS: readonly CommandDef[] = [
     id: "resetView",
     group: "view",
     labelKey: "menu.actualSize",
-    shortcutId: "resetView",
     requiresImage: true,
     keywords: ["actual size", "reset", "100%"]
   },
@@ -208,7 +193,6 @@ export const COMMAND_DEFS: readonly CommandDef[] = [
     id: "fitWidth",
     group: "view",
     labelKey: "menu.fitWidth",
-    shortcutId: "fitWidth",
     requiresImage: true,
     keywords: ["fit", "width"]
   },
@@ -216,7 +200,6 @@ export const COMMAND_DEFS: readonly CommandDef[] = [
     id: "fitHeight",
     group: "view",
     labelKey: "menu.fitHeight",
-    shortcutId: "fitHeight",
     requiresImage: true,
     keywords: ["fit", "height"]
   },
@@ -224,7 +207,6 @@ export const COMMAND_DEFS: readonly CommandDef[] = [
     id: "fitScreen",
     group: "view",
     labelKey: "menu.fitScreen",
-    shortcutId: "fitScreen",
     requiresImage: true,
     keywords: ["fit", "screen"]
   },
@@ -232,7 +214,6 @@ export const COMMAND_DEFS: readonly CommandDef[] = [
     id: "toggleGrid",
     group: "view",
     labelKey: "menu.toggleGrid",
-    shortcutId: "toggleGrid",
     requiresImage: true,
     keywords: ["grid", "thumbnails", "overview", "contact sheet"]
   },
@@ -247,7 +228,6 @@ export const COMMAND_DEFS: readonly CommandDef[] = [
     id: "toggleGifPlayback",
     group: "view",
     labelKey: "menu.gifPlayPause",
-    shortcutId: "toggleGifPlayback",
     requiresGif: true,
     keywords: ["gif", "animation", "play", "pause", "frame"]
   },
@@ -255,7 +235,6 @@ export const COMMAND_DEFS: readonly CommandDef[] = [
     id: "gifPrevFrame",
     group: "view",
     labelKey: "menu.gifPrevFrame",
-    shortcutId: "gifPrevFrame",
     requiresGif: true,
     keywords: ["gif", "frame", "previous", "step"]
   },
@@ -263,7 +242,6 @@ export const COMMAND_DEFS: readonly CommandDef[] = [
     id: "gifNextFrame",
     group: "view",
     labelKey: "menu.gifNextFrame",
-    shortcutId: "gifNextFrame",
     requiresGif: true,
     keywords: ["gif", "frame", "next", "step"]
   },
@@ -271,7 +249,6 @@ export const COMMAND_DEFS: readonly CommandDef[] = [
     id: "rotateCW",
     group: "view",
     labelKey: "menu.rotateCw",
-    shortcutId: "rotateCW",
     requiresImage: true,
     keywords: ["rotate", "clockwise"]
   },
@@ -279,7 +256,6 @@ export const COMMAND_DEFS: readonly CommandDef[] = [
     id: "rotateCCW",
     group: "view",
     labelKey: "menu.rotateCcw",
-    shortcutId: "rotateCCW",
     requiresImage: true,
     keywords: ["rotate", "counterclockwise"]
   },
@@ -287,7 +263,6 @@ export const COMMAND_DEFS: readonly CommandDef[] = [
     id: "flipH",
     group: "view",
     labelKey: "menu.flipH",
-    shortcutId: "flipH",
     requiresImage: true,
     keywords: ["flip", "horizontal", "mirror"]
   },
@@ -295,7 +270,6 @@ export const COMMAND_DEFS: readonly CommandDef[] = [
     id: "flipV",
     group: "view",
     labelKey: "menu.flipV",
-    shortcutId: "flipV",
     requiresImage: true,
     keywords: ["flip", "vertical"]
   },
@@ -304,7 +278,6 @@ export const COMMAND_DEFS: readonly CommandDef[] = [
     id: "toggleExif",
     group: "display",
     labelKey: "menu.toggleExif",
-    shortcutId: "toggleExif",
     requiresImage: true,
     keywords: ["exif", "info", "metadata"]
   },
@@ -312,21 +285,18 @@ export const COMMAND_DEFS: readonly CommandDef[] = [
     id: "toggleFullscreen",
     group: "display",
     labelKey: "menu.toggleFullscreen",
-    shortcutId: "toggleFullscreen",
     keywords: ["fullscreen"]
   },
   {
     id: "toggleAlwaysOnTop",
     group: "display",
     labelKey: "menu.toggleAlwaysOnTop",
-    shortcutId: "toggleAlwaysOnTop",
     keywords: ["always on top", "pin"]
   },
   {
     id: "cycleBackground",
     group: "display",
     labelKey: "menu.cycleBg",
-    shortcutId: "cycleBackground",
     requiresImage: true,
     keywords: ["background", "checker"]
   },

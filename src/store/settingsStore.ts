@@ -216,10 +216,10 @@ export function sanitizeSettings(value: unknown): SettingsState {
       initialSettings.webtoonThumbnailJump
     ),
     autoOpenLastFile: sanitizeBoolean(record.autoOpenLastFile),
-    recordRecentFiles:
-      record.recordRecentFiles === undefined
-        ? initialSettings.recordRecentFiles
-        : sanitizeBoolean(record.recordRecentFiles),
+    recordRecentFiles: sanitizeBooleanWithDefault(
+      record.recordRecentFiles,
+      initialSettings.recordRecentFiles
+    ),
     viewerBackground: sanitizeEnum(
       record.viewerBackground,
       VIEWER_BACKGROUNDS,
@@ -232,28 +232,19 @@ export function sanitizeSettings(value: unknown): SettingsState {
     sortDescending: sanitizeBoolean(record.sortDescending),
     includeSubfolders: sanitizeBoolean(record.includeSubfolders),
     skipBrokenFiles: sanitizeBoolean(record.skipBrokenFiles),
-    resumeReading:
-      record.resumeReading === undefined
-        ? initialSettings.resumeReading
-        : sanitizeBoolean(record.resumeReading),
-    showCoverAlone:
-      record.showCoverAlone === undefined
-        ? initialSettings.showCoverAlone
-        : sanitizeBoolean(record.showCoverAlone),
-    showComicInfo:
-      record.showComicInfo === undefined
-        ? initialSettings.showComicInfo
-        : sanitizeBoolean(record.showComicInfo),
-    comicAutoDualView:
-      record.comicAutoDualView === undefined
-        ? initialSettings.comicAutoDualView
-        : sanitizeBoolean(record.comicAutoDualView),
+    resumeReading: sanitizeBooleanWithDefault(record.resumeReading, initialSettings.resumeReading),
+    showCoverAlone: sanitizeBooleanWithDefault(
+      record.showCoverAlone,
+      initialSettings.showCoverAlone
+    ),
+    showComicInfo: sanitizeBooleanWithDefault(record.showComicInfo, initialSettings.showComicInfo),
+    comicAutoDualView: sanitizeBooleanWithDefault(
+      record.comicAutoDualView,
+      initialSettings.comicAutoDualView
+    ),
     fitMode: sanitizeEnum(record.fitMode, FIT_MODES, initialSettings.fitMode),
     dockPosition: sanitizeEnum(record.dockPosition, DOCK_POSITIONS, initialSettings.dockPosition),
-    dockVisible:
-      record.dockVisible === undefined
-        ? initialSettings.dockVisible
-        : sanitizeBoolean(record.dockVisible),
+    dockVisible: sanitizeBooleanWithDefault(record.dockVisible, initialSettings.dockVisible),
     dockThumbSize: sanitizeEnum(
       record.dockThumbSize,
       DOCK_THUMB_SIZES,

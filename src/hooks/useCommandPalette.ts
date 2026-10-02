@@ -6,6 +6,7 @@ import { useShallow } from "zustand/react/shallow"
 import {
   COMMAND_DEFS,
   COMMAND_GROUP_ORDER,
+  commandShortcutId,
   filterCommands,
   isCommandEnabled,
   type CommandContext,
@@ -22,6 +23,7 @@ import { useAppStore } from "@/store/appStore"
 import { useGifStore } from "@/store/gifStore"
 import { usePaletteMruStore } from "@/store/paletteMruStore"
 import { getSettings, useSettingsStore } from "@/store/settingsStore"
+import { isEditableTarget } from "@/utils/editableTarget"
 
 export { OPEN_SETTINGS_EVENT, requestOpenSettings } from "@/hooks/viewerActions"
 
@@ -93,14 +95,6 @@ export type ResolvedPaletteCommand = {
   enabled: boolean
 }
 
-function isEditableTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false
-  const tag = target.tagName
-  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true
-  if (target.isContentEditable) return true
-  return false
-}
-
 function runCommand(id: CommandId, host: PaletteHostHandlers) {
   runViewerCommand(id, { ...(viewerHandlers ?? NOOP_VIEWER_HANDLERS), ...host })
 }
@@ -153,10 +147,14 @@ export function useCommandPaletteHost() {
 
   const commands: ResolvedPaletteCommand[] = useMemo(() => {
     const tx = t as unknown as (key: string) => string
+    const shortcutLabelOf = (def: CommandDef) => {
+      const shortcutId = commandShortcutId(def)
+      return shortcutId ? formatShortcutDisplay(shortcuts[shortcutId] ?? "") : ""
+    }
     return COMMAND_DEFS.map((def) => ({
       def,
       label: tx(def.labelKey),
-      shortcutLabel: def.shortcutId ? formatShortcutDisplay(shortcuts[def.shortcutId] ?? "") : "",
+      shortcutLabel: shortcutLabelOf(def),
       enabled: isCommandEnabled(def, ctx)
     }))
   }, [t, shortcuts, ctx])

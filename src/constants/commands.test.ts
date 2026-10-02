@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest"
 
-import { COMMAND_DEFS, filterCommands, isCommandEnabled } from "@/constants/commands"
+import {
+  COMMAND_DEFS,
+  commandShortcutId,
+  filterCommands,
+  isCommandEnabled
+} from "@/constants/commands"
+import { SHORTCUT_ACTION_IDS } from "@/constants/shortcuts"
 
 describe("filterCommands", () => {
   const items = [
@@ -82,5 +88,22 @@ describe("isCommandEnabled", () => {
       expect(isCommandEnabled(def, ctx({ hasImage: true }))).toBe(false)
       expect(isCommandEnabled(def, ctx({ hasImage: true, isGif: true }))).toBe(true)
     }
+  })
+})
+
+describe("commandShortcutId", () => {
+  it("단축키 액션과 같은 id의 명령은 그 단축키를 쓴다", () => {
+    expect(commandShortcutId({ id: "zoomIn" })).toBe("zoomIn")
+  })
+
+  it("단축키가 없는 명령은 undefined다", () => {
+    expect(commandShortcutId({ id: "openSettings" })).toBeUndefined()
+    expect(commandShortcutId({ id: "toggleDock" })).toBeUndefined()
+  })
+
+  it("팔레트 토글을 뺀 모든 단축키 액션이 명령으로 노출된다", () => {
+    const exposed = new Set(COMMAND_DEFS.map((def) => commandShortcutId(def)).filter(Boolean))
+    const missing = SHORTCUT_ACTION_IDS.filter((id) => id !== "togglePalette" && !exposed.has(id))
+    expect(missing).toEqual([])
   })
 })
