@@ -17,50 +17,42 @@ import { useAlwaysOnTop } from "@/hooks/useAlwaysOnTop"
 import { useCloseImage } from "@/hooks/useCloseImage"
 import { useFullscreen } from "@/hooks/useFullscreen"
 import { useImageLoader } from "@/hooks/useImageLoader"
-import { WEBTOON_KEY_SCROLL_PX, scrollWebtoonBy } from "@/hooks/useImageViewerHotkeys"
-import { requestUpdateCheck } from "@/hooks/useUpdater"
-import {
-  flipHorizontal,
-  flipVertical,
-  panDown,
-  panLeft,
-  panRight,
-  panUp,
-  resetZoomPan,
-  rotateCCW,
-  rotateCW,
-  setZoomToFit,
-  useAppStore,
-  zoomIn,
-  zoomOut
-} from "@/store/appStore"
-import { stepGifFrameBy, toggleGifPlayback, useGifStore } from "@/store/gifStore"
+import { runViewerCommand, type ViewerActionHandlers } from "@/hooks/viewerActions"
+import { useAppStore } from "@/store/appStore"
+import { useGifStore } from "@/store/gifStore"
 import { usePaletteMruStore } from "@/store/paletteMruStore"
-import { cycleViewerBackground, getSettings, useSettingsStore } from "@/store/settingsStore"
+import { getSettings, useSettingsStore } from "@/store/settingsStore"
 
-export const OPEN_SETTINGS_EVENT = "tiv:open-settings"
+export { OPEN_SETTINGS_EVENT, requestOpenSettings } from "@/hooks/viewerActions"
 
-export function requestOpenSettings() {
-  window.dispatchEvent(new CustomEvent(OPEN_SETTINGS_EVENT))
-}
+/** 팔레트 호스트가 직접 처리하는 동작. 홈에서도 동작해야 해서 뷰어 등록과 분리한다. */
+type PaletteHostHandlers = Pick<
+  ViewerActionHandlers,
+  "onOpenFile" | "onCloseImage" | "onToggleFullscreen" | "onToggleAlwaysOnTop"
+>
 
-/** 뷰어 페이지가 등록하는 이미지 의존 핸들러. 홈에서는 비활성이라 불필요. */
-export type PaletteViewerHandlers = {
-  onNavigatePrev: () => void
-  onNavigateNext: () => void
-  onJumpPrev10: () => void
-  onJumpNext10: () => void
-  onJumpFirst: () => void
-  onJumpLast: () => void
-  onToggleExif: () => void
-  onCopyImage: () => void
-  onTrashFile: () => void
-  onRevealInExplorer: () => void
-  onOpenExternal: () => void
-  onRenameFile: () => void
-  onCopyPath: () => void
-  onToggleGrid: () => void
-  onToggleDock: () => void
+/** 뷰어 페이지가 등록하는 이미지 의존 핸들러. 홈에서는 등록되지 않는다. */
+export type PaletteViewerHandlers = Omit<ViewerActionHandlers, keyof PaletteHostHandlers>
+
+const noop = () => {}
+
+/** 뷰어 핸들러가 없을 때(홈)의 기본값. 이미지 의존 명령은 아무 일도 하지 않는다. */
+const NOOP_VIEWER_HANDLERS: PaletteViewerHandlers = {
+  onNavigatePrev: noop,
+  onNavigateNext: noop,
+  onJumpPrev10: noop,
+  onJumpNext10: noop,
+  onJumpFirst: noop,
+  onJumpLast: noop,
+  onToggleExif: noop,
+  onCopyImage: noop,
+  onTrashFile: noop,
+  onRevealInExplorer: noop,
+  onOpenExternal: noop,
+  onRenameFile: noop,
+  onCopyPath: noop,
+  onToggleGrid: noop,
+  onToggleDock: noop
 }
 
 let viewerHandlers: PaletteViewerHandlers | null = null
@@ -109,140 +101,8 @@ function isEditableTarget(target: EventTarget | null): boolean {
   return false
 }
 
-function runCommand(
-  id: CommandId,
-  host: {
-    openFile: () => void
-    closeImage: () => void
-    toggleFullscreen: () => void
-    toggleAlwaysOnTop: () => void
-  }
-) {
-  switch (id) {
-    case "openFile":
-      host.openFile()
-      break
-    case "closeImage":
-      host.closeImage()
-      break
-    case "navigatePrev":
-      viewerHandlers?.onNavigatePrev()
-      break
-    case "navigateNext":
-      viewerHandlers?.onNavigateNext()
-      break
-    case "jumpPrev10":
-      viewerHandlers?.onJumpPrev10()
-      break
-    case "jumpNext10":
-      viewerHandlers?.onJumpNext10()
-      break
-    case "jumpFirst":
-      viewerHandlers?.onJumpFirst()
-      break
-    case "jumpLast":
-      viewerHandlers?.onJumpLast()
-      break
-    case "zoomIn":
-      zoomIn()
-      break
-    case "zoomOut":
-      zoomOut()
-      break
-    case "panLeft":
-      if (getSettings().viewMode === "webtoon") viewerHandlers?.onNavigatePrev()
-      else panLeft()
-      break
-    case "panRight":
-      if (getSettings().viewMode === "webtoon") viewerHandlers?.onNavigateNext()
-      else panRight()
-      break
-    case "panUp":
-      if (getSettings().viewMode === "webtoon") scrollWebtoonBy(-WEBTOON_KEY_SCROLL_PX)
-      else panUp()
-      break
-    case "panDown":
-      if (getSettings().viewMode === "webtoon") scrollWebtoonBy(WEBTOON_KEY_SCROLL_PX)
-      else panDown()
-      break
-    case "resetView":
-      resetZoomPan()
-      break
-    case "fitWidth":
-      setZoomToFit("width")
-      break
-    case "fitHeight":
-      setZoomToFit("height")
-      break
-    case "fitScreen":
-      setZoomToFit("screen")
-      break
-    case "rotateCW":
-      rotateCW()
-      break
-    case "rotateCCW":
-      rotateCCW()
-      break
-    case "flipH":
-      flipHorizontal()
-      break
-    case "flipV":
-      flipVertical()
-      break
-    case "toggleExif":
-      viewerHandlers?.onToggleExif()
-      break
-    case "toggleFullscreen":
-      void host.toggleFullscreen()
-      break
-    case "toggleAlwaysOnTop":
-      void host.toggleAlwaysOnTop()
-      break
-    case "copyImage":
-      viewerHandlers?.onCopyImage()
-      break
-    case "trashFile":
-      viewerHandlers?.onTrashFile()
-      break
-    case "revealInExplorer":
-      viewerHandlers?.onRevealInExplorer()
-      break
-    case "openExternal":
-      viewerHandlers?.onOpenExternal()
-      break
-    case "cycleBackground":
-      cycleViewerBackground()
-      break
-    case "renameFile":
-      viewerHandlers?.onRenameFile()
-      break
-    case "copyPath":
-      viewerHandlers?.onCopyPath()
-      break
-    case "toggleGrid":
-      viewerHandlers?.onToggleGrid()
-      break
-    case "toggleDock":
-      viewerHandlers?.onToggleDock()
-      break
-    case "toggleGifPlayback":
-      toggleGifPlayback()
-      break
-    case "gifPrevFrame":
-      stepGifFrameBy(-1)
-      break
-    case "gifNextFrame":
-      stepGifFrameBy(1)
-      break
-    case "openSettings":
-      requestOpenSettings()
-      break
-    case "checkForUpdates":
-      requestUpdateCheck()
-      break
-    case "togglePalette":
-      break
-  }
+function runCommand(id: CommandId, host: PaletteHostHandlers) {
+  runViewerCommand(id, { ...(viewerHandlers ?? NOOP_VIEWER_HANDLERS), ...host })
 }
 
 /**
@@ -331,10 +191,10 @@ export function useCommandPaletteHost() {
 
   const run = (id: CommandId) => {
     runCommand(id, {
-      openFile: handleOpenFile,
-      closeImage: closeAndGoHome,
-      toggleFullscreen: () => void fullscreen.toggle(),
-      toggleAlwaysOnTop: () => void toggleAlwaysOnTop()
+      onOpenFile: () => void handleOpenFile(),
+      onCloseImage: closeAndGoHome,
+      onToggleFullscreen: () => void fullscreen.toggle(),
+      onToggleAlwaysOnTop: () => void toggleAlwaysOnTop()
     })
     if (id !== "togglePalette") void usePaletteMruStore.getState().push(id)
     usePaletteStore.getState().setOpen(false)

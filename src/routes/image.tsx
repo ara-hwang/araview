@@ -1,6 +1,6 @@
 import { CaretDown, CaretLeft, CaretRight, CaretUp } from "@phosphor-icons/react"
 import { createFileRoute, redirect } from "@tanstack/react-router"
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 
 import { ImageContainer } from "@/components/ImageContainer"
@@ -27,11 +27,11 @@ import { useOpenFileListener } from "@/hooks/useOpenFileListener"
 import { useViewerElements } from "@/hooks/useViewerElements"
 import { useWheelNavigation } from "@/hooks/useWheelNavigation"
 import { useZoomPan } from "@/hooks/useZoomPan"
+import type { ViewerActionHandlers } from "@/hooks/viewerActions"
 import { cn } from "@/lib/utils"
 import { getApp, updateDirImagesIndex, useAppStore, zoomIn, zoomOut } from "@/store/appStore"
 import { useArchiveProgressStore } from "@/store/archiveProgressStore"
 import { getSettings, updateSettings, useSettingsStore } from "@/store/settingsStore"
-import { cycleViewerBackground } from "@/store/settingsStore"
 
 export const Route = createFileRoute("/image")({
   beforeLoad: () => {
@@ -194,7 +194,7 @@ function ImagePage() {
 
   useOpenFileListener(loadImageExplicit)
 
-  const fullscreen = useFullscreen()
+  const { toggle: toggleFullscreen } = useFullscreen()
 
   const gridReturnFocusRef = useRef<HTMLElement | null>(null)
   const handleGridClose = useCallback(() => {
@@ -246,43 +246,6 @@ function ImagePage() {
   const renameInitialName = useAppStore((state) => state.imageInfo?.file_name) ?? ""
   const closeAndGoHome = useCloseImage()
 
-  // 명령 팔레트에서 뷰어 동작을 실행할 수 있도록 핸들러 등록
-  useEffect(() => {
-    registerPaletteHandlers({
-      onNavigatePrev: () => handleNavigateImage("prev"),
-      onNavigateNext: () => handleNavigateImage("next"),
-      onJumpPrev10: () => handleNavigateByOffset(-10),
-      onJumpNext10: () => handleNavigateByOffset(10),
-      onJumpFirst: () => handleNavigateToIndex(0),
-      onJumpLast: () => handleNavigateToIndex(dirImages.images.length - 1),
-      onToggleExif: () => void toggleExifPanel(),
-      onCopyImage: () => void copyImage(),
-      onTrashFile: () => void trashCurrent(),
-      onRevealInExplorer: () => void revealCurrent(),
-      onOpenExternal: () => void openExternal(),
-      onRenameFile: () => setRenameOpen(true),
-      onCopyPath: () => void copyPathCurrent(),
-      onToggleGrid: toggleGrid,
-      onToggleDock: toggleDock
-    })
-    return () => {
-      unregisterPaletteHandlers()
-    }
-  }, [
-    handleNavigateImage,
-    handleNavigateByOffset,
-    handleNavigateToIndex,
-    dirImages.images.length,
-    toggleExifPanel,
-    copyImage,
-    trashCurrent,
-    revealCurrent,
-    openExternal,
-    copyPathCurrent,
-    toggleGrid,
-    toggleDock
-  ])
-
   /** Esc 닫기: 그리드/다이얼로그가 열려 있거나 입력 중일 때는 뷰어를 닫지 않는다 */
   const handleCloseImage = useCallback(() => {
     if (gridOpen) {
@@ -310,23 +273,58 @@ function ImagePage() {
     [renameCurrent]
   )
 
-  const baseContextMenu = useImageViewerContextMenu(dirImages, {
-    onOpenFile: handleOpenFile,
-    onCloseImage: handleCloseImage,
-    onNavigatePrev: () => handleNavigateImage("prev"),
-    onNavigateNext: () => handleNavigateImage("next"),
-    onToggleExif: () => void toggleExifPanel(),
-    onToggleFullscreen: () => void fullscreen.toggle(),
-    onToggleAlwaysOnTop: () => void toggleAlwaysOnTop(),
-    onCopyImage: () => void copyImage(),
-    onTrashFile: () => void trashCurrent(),
-    onRevealInExplorer: () => void revealCurrent(),
-    onOpenExternal: () => void openExternal(),
-    onRenameFile: () => setRenameOpen(true),
-    onCopyPath: () => void copyPathCurrent(),
-    onToggleGrid: toggleGrid,
-    onToggleDock: toggleDock
-  })
+  /** 단축키, 명령 팔레트, 컨텍스트 메뉴가 함께 쓰는 뷰어 동작 */
+  const viewerActions: ViewerActionHandlers = useMemo(
+    () => ({
+      onNavigatePrev: () => handleNavigateImage("prev"),
+      onNavigateNext: () => handleNavigateImage("next"),
+      onJumpPrev10: () => handleNavigateByOffset(-10),
+      onJumpNext10: () => handleNavigateByOffset(10),
+      onJumpFirst: () => handleNavigateToIndex(0),
+      onJumpLast: () => handleNavigateToIndex(dirImages.images.length - 1),
+      onOpenFile: () => void handleOpenFile(),
+      onCloseImage: handleCloseImage,
+      onToggleExif: () => void toggleExifPanel(),
+      onToggleFullscreen: () => void toggleFullscreen(),
+      onToggleAlwaysOnTop: () => void toggleAlwaysOnTop(),
+      onCopyImage: () => void copyImage(),
+      onTrashFile: () => void trashCurrent(),
+      onRevealInExplorer: () => void revealCurrent(),
+      onOpenExternal: () => void openExternal(),
+      onRenameFile: () => setRenameOpen(true),
+      onCopyPath: () => void copyPathCurrent(),
+      onToggleGrid: () => toggleGrid(),
+      onToggleDock: toggleDock
+    }),
+    [
+      handleNavigateImage,
+      handleNavigateByOffset,
+      handleNavigateToIndex,
+      dirImages.images.length,
+      handleOpenFile,
+      handleCloseImage,
+      toggleExifPanel,
+      toggleFullscreen,
+      toggleAlwaysOnTop,
+      copyImage,
+      trashCurrent,
+      revealCurrent,
+      openExternal,
+      copyPathCurrent,
+      toggleGrid,
+      toggleDock
+    ]
+  )
+
+  // 명령 팔레트에서 뷰어 동작을 실행할 수 있도록 핸들러 등록
+  useEffect(() => {
+    registerPaletteHandlers(viewerActions)
+    return () => {
+      unregisterPaletteHandlers()
+    }
+  }, [viewerActions])
+
+  const baseContextMenu = useImageViewerContextMenu(dirImages, viewerActions)
 
   const runMouseAction = useCallback(
     (action: MouseAction, e?: React.MouseEvent) => {
@@ -344,7 +342,7 @@ function ImagePage() {
           zoomOut()
           break
         case "toggleFullscreen":
-          void fullscreen.toggle()
+          void toggleFullscreen()
           break
         case "contextMenu":
           if (e) void baseContextMenu(e)
@@ -355,7 +353,7 @@ function ImagePage() {
           break
       }
     },
-    [baseContextMenu, fullscreen, handleNavigateImage]
+    [baseContextMenu, toggleFullscreen, handleNavigateImage]
   )
 
   const handleDoubleClick = useCallback(
@@ -398,28 +396,7 @@ function ImagePage() {
     [baseContextMenu, runMouseAction]
   )
 
-  useImageViewerHotkeys({
-    onNavigatePrev: () => handleNavigateImage("prev"),
-    onNavigateNext: () => handleNavigateImage("next"),
-    onJumpPrev10: () => handleNavigateByOffset(-10),
-    onJumpNext10: () => handleNavigateByOffset(10),
-    onJumpFirst: () => handleNavigateToIndex(0),
-    onJumpLast: () => handleNavigateToIndex(dirImages.images.length - 1),
-    onOpenFile: handleOpenFile,
-    onCloseImage: handleCloseImage,
-    onToggleExif: () => void toggleExifPanel(),
-    onToggleFullscreen: () => void fullscreen.toggle(),
-    onToggleAlwaysOnTop: () => void toggleAlwaysOnTop(),
-    onCopyImage: () => void copyImage(),
-    onTrashFile: () => void trashCurrent(),
-    onRevealInExplorer: () => void revealCurrent(),
-    onOpenExternal: () => void openExternal(),
-    onCycleBackground: () => cycleViewerBackground(),
-    onRenameFile: () => setRenameOpen(true),
-    onCopyPath: () => void copyPathCurrent(),
-    onToggleGrid: toggleGrid,
-    disabled: gridOpen
-  })
+  useImageViewerHotkeys({ ...viewerActions, disabled: gridOpen })
 
   const showDock = dirImages.images.length > 1
   // 도크는 항상 마운트해 두고 CSS로만 감춘다. 접었다 펼 때 목록 스크롤 위치와

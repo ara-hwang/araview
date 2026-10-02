@@ -1,40 +1,16 @@
 import { Menu, MenuItem, PredefinedMenuItem } from "@tauri-apps/api/menu"
 import { useCallback } from "react"
 
+import type { CommandId } from "@/constants/commands"
 import { toTauriAccelerator } from "@/constants/shortcuts"
+import { runViewerCommand, type ViewerActionHandlers } from "@/hooks/viewerActions"
 import i18n from "@/i18n"
-import {
-  flipHorizontal,
-  flipVertical,
-  resetZoomPan,
-  rotateCCW,
-  rotateCW,
-  setZoomToFit,
-  zoomIn,
-  zoomOut
-} from "@/store/appStore"
-import { stepGifFrameBy, toggleGifPlayback, useGifStore } from "@/store/gifStore"
-import { cycleViewerBackground, getSettings } from "@/store/settingsStore"
+import { useGifStore } from "@/store/gifStore"
+import { getSettings } from "@/store/settingsStore"
 
 import type { DirectoryImages } from "../types"
 
-export type ImageViewerContextMenuActions = {
-  onOpenFile: () => void
-  onCloseImage: () => void
-  onNavigatePrev: () => void
-  onNavigateNext: () => void
-  onToggleExif: () => void
-  onToggleFullscreen: () => void
-  onToggleAlwaysOnTop: () => void
-  onCopyImage: () => void
-  onTrashFile: () => void
-  onRevealInExplorer: () => void
-  onOpenExternal: () => void
-  onRenameFile: () => void
-  onCopyPath: () => void
-  onToggleGrid: () => void
-  onToggleDock: () => void
-}
+export type ImageViewerContextMenuActions = ViewerActionHandlers
 
 export async function showImageViewerContextMenu(
   dirImages: DirectoryImages | null,
@@ -43,20 +19,18 @@ export async function showImageViewerContextMenu(
   const t = i18n.t.bind(i18n)
   const s = getSettings().shortcuts
   const acc = (binding: string) => toTauriAccelerator(binding)
+  const item = (text: string, id: CommandId, binding?: string) =>
+    MenuItem.new({
+      text,
+      accelerator: binding === undefined ? undefined : acc(binding),
+      action: () => void runViewerCommand(id, actions)
+    })
   const navItems =
     dirImages && dirImages.images.length > 1
       ? [
           PredefinedMenuItem.new({ item: "Separator" }),
-          MenuItem.new({
-            text: t("menu.prev"),
-            accelerator: acc(s.navigatePrev),
-            action: () => actions.onNavigatePrev()
-          }),
-          MenuItem.new({
-            text: t("menu.next"),
-            accelerator: acc(s.navigateNext),
-            action: () => actions.onNavigateNext()
-          })
+          item(t("menu.prev"), "navigatePrev", s.navigatePrev),
+          item(t("menu.next"), "navigateNext", s.navigateNext)
         ]
       : []
 
@@ -65,153 +39,46 @@ export async function showImageViewerContextMenu(
     gif.active && gif.frameCount > 1
       ? [
           PredefinedMenuItem.new({ item: "Separator" }),
-          MenuItem.new({
-            text: t("menu.gifPlayPause"),
-            accelerator: acc(s.toggleGifPlayback),
-            action: () => toggleGifPlayback()
-          }),
-          MenuItem.new({
-            text: t("menu.gifPrevFrame"),
-            accelerator: acc(s.gifPrevFrame),
-            action: () => stepGifFrameBy(-1)
-          }),
-          MenuItem.new({
-            text: t("menu.gifNextFrame"),
-            accelerator: acc(s.gifNextFrame),
-            action: () => stepGifFrameBy(1)
-          })
+          item(t("menu.gifPlayPause"), "toggleGifPlayback", s.toggleGifPlayback),
+          item(t("menu.gifPrevFrame"), "gifPrevFrame", s.gifPrevFrame),
+          item(t("menu.gifNextFrame"), "gifNextFrame", s.gifNextFrame)
         ]
       : []
 
   const [openItem, closeItem, ...rest] = await Promise.all([
-    MenuItem.new({
-      text: t("menu.open"),
-      accelerator: acc(s.openFile),
-      action: () => actions.onOpenFile()
-    }),
-    MenuItem.new({
-      text: t("menu.closeImage"),
-      accelerator: acc(s.closeImage),
-      action: () => actions.onCloseImage()
-    }),
+    item(t("menu.open"), "openFile", s.openFile),
+    item(t("menu.closeImage"), "closeImage", s.closeImage),
     ...navItems,
     PredefinedMenuItem.new({ item: "Separator" }),
-    MenuItem.new({
-      text: t("menu.zoomIn"),
-      accelerator: acc(s.zoomIn),
-      action: () => zoomIn()
-    }),
-    MenuItem.new({
-      text: t("menu.zoomOut"),
-      accelerator: acc(s.zoomOut),
-      action: () => zoomOut()
-    }),
-    MenuItem.new({
-      text: t("menu.actualSize"),
-      accelerator: acc(s.resetView),
-      action: () => resetZoomPan()
-    }),
+    item(t("menu.zoomIn"), "zoomIn", s.zoomIn),
+    item(t("menu.zoomOut"), "zoomOut", s.zoomOut),
+    item(t("menu.actualSize"), "resetView", s.resetView),
     PredefinedMenuItem.new({ item: "Separator" }),
-    MenuItem.new({
-      text: t("menu.fitWidth"),
-      accelerator: acc(s.fitWidth),
-      action: () => setZoomToFit("width")
-    }),
-    MenuItem.new({
-      text: t("menu.fitHeight"),
-      accelerator: acc(s.fitHeight),
-      action: () => setZoomToFit("height")
-    }),
-    MenuItem.new({
-      text: t("menu.fitScreen"),
-      accelerator: acc(s.fitScreen),
-      action: () => setZoomToFit("screen")
-    }),
+    item(t("menu.fitWidth"), "fitWidth", s.fitWidth),
+    item(t("menu.fitHeight"), "fitHeight", s.fitHeight),
+    item(t("menu.fitScreen"), "fitScreen", s.fitScreen),
     PredefinedMenuItem.new({ item: "Separator" }),
-    MenuItem.new({
-      text: t("menu.rotateCw"),
-      accelerator: acc(s.rotateCW),
-      action: () => rotateCW()
-    }),
-    MenuItem.new({
-      text: t("menu.rotateCcw"),
-      accelerator: acc(s.rotateCCW),
-      action: () => rotateCCW()
-    }),
-    MenuItem.new({
-      text: t("menu.flipH"),
-      accelerator: acc(s.flipH),
-      action: () => flipHorizontal()
-    }),
-    MenuItem.new({
-      text: t("menu.flipV"),
-      accelerator: acc(s.flipV),
-      action: () => flipVertical()
-    }),
+    item(t("menu.rotateCw"), "rotateCW", s.rotateCW),
+    item(t("menu.rotateCcw"), "rotateCCW", s.rotateCCW),
+    item(t("menu.flipH"), "flipH", s.flipH),
+    item(t("menu.flipV"), "flipV", s.flipV),
     PredefinedMenuItem.new({ item: "Separator" }),
-    MenuItem.new({
-      text: t("menu.toggleExif"),
-      accelerator: acc(s.toggleExif),
-      action: () => actions.onToggleExif()
-    }),
-    MenuItem.new({
-      text: t("menu.toggleGrid"),
-      accelerator: acc(s.toggleGrid),
-      action: () => actions.onToggleGrid()
-    }),
-    MenuItem.new({
-      text: t("menu.toggleDock"),
-      action: () => actions.onToggleDock()
-    }),
+    item(t("menu.toggleExif"), "toggleExif", s.toggleExif),
+    item(t("menu.toggleGrid"), "toggleGrid", s.toggleGrid),
+    item(t("menu.toggleDock"), "toggleDock"),
     ...gifItems,
-    MenuItem.new({
-      text: t("menu.toggleFullscreen"),
-      accelerator: acc(s.toggleFullscreen),
-      action: () => actions.onToggleFullscreen()
-    }),
-    MenuItem.new({
-      text: t("menu.toggleAlwaysOnTop"),
-      accelerator: acc(s.toggleAlwaysOnTop),
-      action: () => actions.onToggleAlwaysOnTop()
-    }),
-    MenuItem.new({
-      text: t("menu.copyImage"),
-      accelerator: acc(s.copyImage),
-      action: () => actions.onCopyImage()
-    }),
+    item(t("menu.toggleFullscreen"), "toggleFullscreen", s.toggleFullscreen),
+    item(t("menu.toggleAlwaysOnTop"), "toggleAlwaysOnTop", s.toggleAlwaysOnTop),
+    item(t("menu.copyImage"), "copyImage", s.copyImage),
     PredefinedMenuItem.new({ item: "Separator" }),
-    MenuItem.new({
-      text: t("menu.cycleBg"),
-      accelerator: acc(s.cycleBackground),
-      action: () => cycleViewerBackground()
-    }),
+    item(t("menu.cycleBg"), "cycleBackground", s.cycleBackground),
     PredefinedMenuItem.new({ item: "Separator" }),
-    MenuItem.new({
-      text: t("menu.trash"),
-      accelerator: acc(s.trashFile),
-      action: () => actions.onTrashFile()
-    }),
-    MenuItem.new({
-      text: t("menu.reveal"),
-      accelerator: acc(s.revealInExplorer),
-      action: () => actions.onRevealInExplorer()
-    }),
-    MenuItem.new({
-      text: t("menu.openExternal"),
-      accelerator: acc(s.openExternal),
-      action: () => actions.onOpenExternal()
-    }),
+    item(t("menu.trash"), "trashFile", s.trashFile),
+    item(t("menu.reveal"), "revealInExplorer", s.revealInExplorer),
+    item(t("menu.openExternal"), "openExternal", s.openExternal),
     PredefinedMenuItem.new({ item: "Separator" }),
-    MenuItem.new({
-      text: t("menu.rename"),
-      accelerator: acc(s.renameFile),
-      action: () => actions.onRenameFile()
-    }),
-    MenuItem.new({
-      text: t("menu.copyPath"),
-      accelerator: acc(s.copyPath),
-      action: () => actions.onCopyPath()
-    })
+    item(t("menu.rename"), "renameFile", s.renameFile),
+    item(t("menu.copyPath"), "copyPath", s.copyPath)
   ])
 
   const menu = await Menu.new({ items: [openItem, closeItem, ...rest] })
