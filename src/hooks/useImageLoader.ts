@@ -219,6 +219,16 @@ export function useImageLoader() {
       clearImageMetaCache()
       // ComicInfo는 아카이브 경로만 필요하므로 목록 조회와 병행한다.
       const comicPromise = readComicInfoSilent(archivePath)
+      // 실패하면 열기 직전 화면으로 되돌린다. 목록(dirImages)과 이미지는 성공
+      // 전까지 바뀌지 않으므로 아카이브 범위 필드만 기억하면 된다.
+      const prior = useAppStore.getState()
+      const priorScope = {
+        archivePath: prior.archivePath,
+        archivePreviewPath: prior.archivePreviewPath,
+        comicInfo: prior.comicInfo,
+        comicInfoError: prior.comicInfoError,
+        comicViewMode: prior.comicViewMode
+      }
       useAppStore.setState({
         loading: true,
         archivePath,
@@ -307,14 +317,20 @@ export function useImageLoader() {
           options?.onAfterLoad?.()
         },
         (e, message) => {
-          useAppStore.setState({
-            error: message,
-            errorCode: errorCode(e),
-            imageInfo: null,
-            archivePath: null,
-            comicInfo: null,
-            comicInfoError: null
-          })
+          if (useAppStore.getState().imageInfo) {
+            // 보던 이미지가 있으면 그 화면을 그대로 두고 알림만 띄운다. 오류
+            // 상태로 바꾸면 이전 폴더 목록과 비어 있는 이미지가 섞여 보인다.
+            useAppStore.setState(priorScope)
+          } else {
+            useAppStore.setState({
+              error: message,
+              errorCode: errorCode(e),
+              imageInfo: null,
+              archivePath: null,
+              comicInfo: null,
+              comicInfoError: null
+            })
+          }
           toast.error(i18n.t("toast.load.archiveFail"), {
             description: message,
             details: errorCopyDetails(e, archivePath)

@@ -526,3 +526,52 @@ describe("useImageLoader 손상 파일 건너뛰기", () => {
     expect(st.loading).toBe(false)
   })
 })
+
+describe("useImageLoader 아카이브 열기 실패", () => {
+  const failingArchive = () =>
+    setupInvoke({
+      get_archive_images: async () => {
+        throw { code: "corrupt", message: "Failed to read ZIP" }
+      }
+    })
+
+  it("보던 이미지가 있으면 화면을 되돌리고 알림만 띄운다", async () => {
+    const viewing = imgInfo("/pics/a.jpg")
+    useAppStore.setState({
+      imageInfo: viewing,
+      dirImages: { images: ["/pics/a.jpg", "/pics/b.jpg"], current_index: 0, availability: [] }
+    })
+    failingArchive()
+    const { result } = renderHook(() => useImageLoader())
+
+    await act(async () => {
+      await result.current.loadImage(ARCHIVE_PATH, { archiveOpen: "full" })
+    })
+
+    const st = useAppStore.getState()
+    expect(st.imageInfo).toEqual(viewing)
+    expect(st.archivePath).toBeNull()
+    expect(st.error).toBeNull()
+    expect(st.dirImages.images).toEqual(["/pics/a.jpg", "/pics/b.jpg"])
+    expect(st.loading).toBe(false)
+    expect(vi.mocked(toast.error)).toHaveBeenCalledWith(
+      i18n.t("toast.load.archiveFail"),
+      expect.objectContaining({ description: "Failed to read ZIP" })
+    )
+  })
+
+  it("보던 이미지가 없으면 오류 상태로 남긴다", async () => {
+    failingArchive()
+    const { result } = renderHook(() => useImageLoader())
+
+    await act(async () => {
+      await result.current.loadImage(ARCHIVE_PATH, { archiveOpen: "full" })
+    })
+
+    const st = useAppStore.getState()
+    expect(st.imageInfo).toBeNull()
+    expect(st.archivePath).toBeNull()
+    expect(st.error).toBe("Failed to read ZIP")
+    expect(st.errorCode).toBe("corrupt")
+  })
+})
