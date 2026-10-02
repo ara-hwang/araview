@@ -6,7 +6,7 @@
 //! revision `b2bee10c1c3b211a2532baca9088857b19480dca`); AraView implements
 //! its own bounded version here and does not modify source images.
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::VecDeque;
 use std::fs;
 use std::path::Path;
 use std::sync::{LazyLock, Mutex};
@@ -116,6 +116,20 @@ pub fn cache_detection(path: &Path, detection: &PixelArtDetection) {
 #[derive(Clone, Copy, Debug)]
 struct PaletteStats {
     score: f32,
+    /// 알파 128 이상인 픽셀 수.
+    opaque: usize,
+}
+
+/// 가로/세로 이웃 픽셀 쌍을 한 번 순회해 얻는 신호들.
+#[derive(Debug)]
+struct NeighborStats {
+    /// 둘 다 불투명한 이웃 쌍 중 양자화 색이 같은 비율.
+    flatness: f32,
+    /// 둘 다 불투명한 이웃 쌍 중 RGB 거리 32 이상인 비율.
+    detail: f32,
+    /// 같은 불투명 색이 2픽셀 이상 이어진 가로/세로 런 길이.
+    horizontal_runs: Vec<u32>,
+    vertical_runs: Vec<u32>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -189,16 +203,16 @@ fn analyze_rgba(rgba: &[u8], width: u32, height: u32) -> PixelArtDetection {
         return PixelArtDetection::unsupported();
     }
 
-    let opaque_pixels = count_opaque(rgba, width, height);
-    if opaque_pixels < 16 {
+    let palette = palette_stats(rgba, width, height);
+    if palette.opaque < 16 {
         return PixelArtDetection::unsupported();
     }
 
-    let palette = palette_stats(rgba, width, height);
-    let flatness = flatness_score(rgba, width, height);
-    let grid = grid_stats(rgba, width, height);
+    let neighbors = neighbor_stats(rgba, width, height);
+    let flatness = neighbors.flatness;
+    let detail = neighbors.detail;
+    let grid = grid_stats(&neighbors.horizontal_runs, &neighbors.vertical_runs);
     let edge = edge_stats(rgba, width, height);
-    let detail = strong_edge_ratio(rgba, width, height);
 
     // Palette and flatness identify native 1x pixel art. Grid/edge signals
     // identify an already-upscaled sprite. A completely flat image has no
@@ -262,21 +276,10 @@ fn analyze_rgba(rgba: &[u8], width: u32, height: u32) -> PixelArtDetection {
     }
 }
 
-fn count_opaque(rgba: &[u8], width: u32, height: u32) -> usize {
-    let mut count = 0;
-    for y in 0..height {
-        for x in 0..width {
-            let index = pixel_index(x, y, width);
-            if rgba[index + 3] >= 128 {
-                count += 1;
-            }
-        }
-    }
-    count
-}
-
 fn palette_stats(rgba: &[u8], width: u32, height: u32) -> PaletteStats {
-    let mut counts: HashMap<u32, usize> = HashMap::new();
+    // 양자화 색은 15비트라 해시 대신 존재 표시 배열로 서로 다른 색 수를 센다.
+    let mut seen = vec![false; 1 << 15];
+    let mut color_count = 0usize;
     let mut total = 0usize;
     for y in 0..height {
         for x in 0..width {
@@ -284,65 +287,105 @@ fn palette_stats(rgba: &[u8], width: u32, height: u32) -> PaletteStats {
             if rgba[index + 3] < 128 {
                 continue;
             }
-            *counts.entry(quantized_color(rgba, index)).or_insert(0) += 1;
+            let slot = &mut seen[quantized_color(rgba, index) as usize];
+            if !*slot {
+                *slot = true;
+                color_count += 1;
+            }
             total += 1;
         }
     }
-    if total == 0 || counts.is_empty() {
-        return PaletteStats { score: 0.0 };
+    if total == 0 || color_count == 0 {
+        return PaletteStats {
+            score: 0.0,
+            opaque: total,
+        };
     }
 
-    let color_count = counts.len();
     let score = 1.0 - ((color_count.saturating_sub(4) as f32) / 252.0).clamp(0.0, 1.0);
     PaletteStats {
         score: score.clamp(0.0, 1.0),
+        opaque: total,
     }
 }
 
-fn flatness_score(rgba: &[u8], width: u32, height: u32) -> f32 {
+/// 평탄도, 강한 경계 비율, 가로/세로 런을 이웃 쌍 1회 순회로 함께 모은다.
+/// 세로 런은 열마다 진행 중인 길이를 들고 행 단위로 내려간다.
+fn neighbor_stats(rgba: &[u8], width: u32, height: u32) -> NeighborStats {
+    let row_stride = width as usize * 4;
     let mut same = 0usize;
+    let mut strong = 0usize;
     let mut total = 0usize;
+    let mut horizontal_runs = Vec::new();
+    let mut vertical_runs = Vec::new();
+    let mut column_lengths = vec![1u32; width as usize];
+
+    // 둘 다 불투명한 쌍만 통계에 넣고, 같은 불투명 색인지(런 연장 여부)를 돌려준다.
+    let mut compare = |a: usize, b: usize| -> bool {
+        if rgba[a + 3] < 128 || rgba[b + 3] < 128 {
+            return false;
+        }
+        total += 1;
+        if color_distance(rgba, a, b) >= 32 {
+            strong += 1;
+        }
+        let same_color = quantized_color(rgba, a) == quantized_color(rgba, b);
+        if same_color {
+            same += 1;
+        }
+        same_color
+    };
 
     for y in 0..height {
-        for x in 1..width {
-            let a = pixel_index(x - 1, y, width);
-            let b = pixel_index(x, y, width);
-            if rgba[a + 3] >= 128 && rgba[b + 3] >= 128 {
-                total += 1;
-                if same_opaque_color(rgba, a, b) {
-                    same += 1;
-                }
-            }
-        }
-    }
-    for y in 1..height {
+        let mut row_length = 1u32;
         for x in 0..width {
-            let a = pixel_index(x, y - 1, width);
-            let b = pixel_index(x, y, width);
-            if rgba[a + 3] >= 128 && rgba[b + 3] >= 128 {
-                total += 1;
-                if same_opaque_color(rgba, a, b) {
-                    same += 1;
+            let current = pixel_index(x, y, width);
+            if x > 0 {
+                if compare(current - 4, current) {
+                    row_length += 1;
+                } else {
+                    if row_length > 1 {
+                        horizontal_runs.push(row_length);
+                    }
+                    row_length = 1;
+                }
+            }
+            if y > 0 {
+                let column = &mut column_lengths[x as usize];
+                if compare(current - row_stride, current) {
+                    *column += 1;
+                } else {
+                    if *column > 1 {
+                        vertical_runs.push(*column);
+                    }
+                    *column = 1;
                 }
             }
         }
+        if row_length > 1 {
+            horizontal_runs.push(row_length);
+        }
     }
+    vertical_runs.extend(column_lengths.into_iter().filter(|length| *length > 1));
 
-    if total == 0 {
-        0.0
-    } else {
-        same as f32 / total as f32
+    let ratio = |count: usize| {
+        if total == 0 {
+            0.0
+        } else {
+            count as f32 / total as f32
+        }
+    };
+    NeighborStats {
+        flatness: ratio(same),
+        detail: ratio(strong),
+        horizontal_runs,
+        vertical_runs,
     }
 }
 
-fn grid_stats(rgba: &[u8], width: u32, height: u32) -> GridStats {
-    let mut horizontal = Vec::new();
-    let mut vertical = Vec::new();
-    collect_runs(rgba, width, height, true, &mut horizontal);
-    collect_runs(rgba, width, height, false, &mut vertical);
-
-    let h = run_scale_score(&horizontal);
-    let v = run_scale_score(&vertical);
+fn grid_stats(horizontal: &[u32], vertical: &[u32]) -> GridStats {
+    let h = run_scale_score(horizontal);
+    let v = run_scale_score(vertical);
     let score = match (h.1, v.1) {
         (Some(_), Some(_)) => (h.0 + v.0) * 0.5,
         (Some(_), None) => h.0 * 0.8,
@@ -356,58 +399,28 @@ fn grid_stats(rgba: &[u8], width: u32, height: u32) -> GridStats {
     }
 }
 
-fn collect_runs(rgba: &[u8], width: u32, height: u32, horizontal: bool, output: &mut Vec<u32>) {
-    if horizontal {
-        for y in 0..height {
-            let mut length = 1u32;
-            for x in 1..width {
-                let previous = pixel_index(x - 1, y, width);
-                let current = pixel_index(x, y, width);
-                if same_opaque_color(rgba, previous, current) {
-                    length += 1;
-                } else {
-                    if length > 1 {
-                        output.push(length);
-                    }
-                    length = 1;
-                }
-            }
-            if length > 1 {
-                output.push(length);
-            }
-        }
-    } else {
-        for x in 0..width {
-            let mut length = 1u32;
-            for y in 1..height {
-                let previous = pixel_index(x, y - 1, width);
-                let current = pixel_index(x, y, width);
-                if same_opaque_color(rgba, previous, current) {
-                    length += 1;
-                } else {
-                    if length > 1 {
-                        output.push(length);
-                    }
-                    length = 1;
-                }
-            }
-            if length > 1 {
-                output.push(length);
-            }
-        }
-    }
-}
-
 fn run_scale_score(runs: &[u32]) -> (f32, Option<u32>) {
     if runs.len() < MIN_RUNS {
         return (0.0, None);
+    }
+
+    // 길이별 개수를 한 번 세 두면 후보 배율마다 런 전체를 다시 훑지 않고
+    // 배수 위치만 더하면 된다.
+    let max_length = runs.iter().copied().max().unwrap_or(0) as usize;
+    let mut histogram = vec![0usize; max_length + 1];
+    for &length in runs {
+        histogram[length as usize] += 1;
     }
 
     let mut best_score = 0.0;
     let mut best_scale = None;
     let mut scores = Vec::new();
     for scale in MIN_SCALE..=MAX_SCALE {
-        let matching = runs.iter().filter(|length| **length % scale == 0).count();
+        let matching: usize = histogram
+            .iter()
+            .skip(scale as usize)
+            .step_by(scale as usize)
+            .sum();
         let support = (matching as f32 / MIN_RUNS as f32).min(1.0);
         let ratio = matching as f32 / runs.len() as f32;
         let score = ratio * (0.55 + support * 0.45);
@@ -454,33 +467,27 @@ fn grayscale(rgba: &[u8], width: u32, height: u32) -> Vec<f32> {
 }
 
 fn edge_profiles(gray: &[f32], width: u32, height: u32) -> (Vec<f32>, Vec<f32>) {
-    let mut horizontal = vec![0.0; width as usize];
-    let mut vertical = vec![0.0; height as usize];
-    for y in 0..height {
-        for x in 0..width {
-            let gx = -sample_gray(gray, width, height, x as i32 - 1, y as i32 - 1)
-                + sample_gray(gray, width, height, x as i32 + 1, y as i32 - 1)
-                - 2.0 * sample_gray(gray, width, height, x as i32 - 1, y as i32)
-                + 2.0 * sample_gray(gray, width, height, x as i32 + 1, y as i32)
-                - sample_gray(gray, width, height, x as i32 - 1, y as i32 + 1)
-                + sample_gray(gray, width, height, x as i32 + 1, y as i32 + 1);
-            let gy = -sample_gray(gray, width, height, x as i32 - 1, y as i32 - 1)
-                - 2.0 * sample_gray(gray, width, height, x as i32, y as i32 - 1)
-                - sample_gray(gray, width, height, x as i32 + 1, y as i32 - 1)
-                + sample_gray(gray, width, height, x as i32 - 1, y as i32 + 1)
-                + 2.0 * sample_gray(gray, width, height, x as i32, y as i32 + 1)
-                + sample_gray(gray, width, height, x as i32 + 1, y as i32 + 1);
-            horizontal[x as usize] += gx.abs();
-            vertical[y as usize] += gy.abs();
+    let w = width as usize;
+    let h = height as usize;
+    let mut horizontal = vec![0.0; w];
+    let mut vertical = vec![0.0; h];
+    // Sobel 3x3. 이미지 밖은 가장자리 픽셀을 반복한다(좌표 clamp). 이웃 열
+    // 인덱스를 미리 구해 픽셀마다 clamp를 반복하지 않는다. 항 순서는 유지한다.
+    let prev_col: Vec<usize> = (0..w).map(|x| x.saturating_sub(1)).collect();
+    let next_col: Vec<usize> = (0..w).map(|x| (x + 1).min(w - 1)).collect();
+    for y in 0..h {
+        let above = &gray[y.saturating_sub(1) * w..][..w];
+        let row = &gray[y * w..][..w];
+        let below = &gray[(y + 1).min(h - 1) * w..][..w];
+        for x in 0..w {
+            let (l, r) = (prev_col[x], next_col[x]);
+            let gx = -above[l] + above[r] - 2.0 * row[l] + 2.0 * row[r] - below[l] + below[r];
+            let gy = -above[l] - 2.0 * above[x] - above[r] + below[l] + 2.0 * below[x] + below[r];
+            horizontal[x] += gx.abs();
+            vertical[y] += gy.abs();
         }
     }
     (horizontal, vertical)
-}
-
-fn sample_gray(gray: &[f32], width: u32, height: u32, x: i32, y: i32) -> f32 {
-    let x = x.clamp(0, width.saturating_sub(1) as i32) as usize;
-    let y = y.clamp(0, height.saturating_sub(1) as i32) as usize;
-    gray[y * width as usize + x]
 }
 
 fn peak_lag(profile: &[f32]) -> (u32, f32) {
@@ -534,40 +541,6 @@ fn peak_lag(profile: &[f32]) -> (u32, f32) {
     (best_lag as u32, best_value.clamp(0.0, 1.0))
 }
 
-fn strong_edge_ratio(rgba: &[u8], width: u32, height: u32) -> f32 {
-    let mut strong = 0usize;
-    let mut total = 0usize;
-    for y in 0..height {
-        for x in 1..width {
-            let a = pixel_index(x - 1, y, width);
-            let b = pixel_index(x, y, width);
-            if rgba[a + 3] >= 128 && rgba[b + 3] >= 128 {
-                total += 1;
-                if color_distance(rgba, a, b) >= 32 {
-                    strong += 1;
-                }
-            }
-        }
-    }
-    for y in 1..height {
-        for x in 0..width {
-            let a = pixel_index(x, y - 1, width);
-            let b = pixel_index(x, y, width);
-            if rgba[a + 3] >= 128 && rgba[b + 3] >= 128 {
-                total += 1;
-                if color_distance(rgba, a, b) >= 32 {
-                    strong += 1;
-                }
-            }
-        }
-    }
-    if total == 0 {
-        0.0
-    } else {
-        strong as f32 / total as f32
-    }
-}
-
 fn reconcile_scales(horizontal: Option<u32>, vertical: Option<u32>) -> Option<u32> {
     match (horizontal, vertical) {
         (Some(a), Some(b)) if a.abs_diff(b) <= 2 => Some((a + b) / 2),
@@ -579,10 +552,6 @@ fn reconcile_scales(horizontal: Option<u32>, vertical: Option<u32>) -> Option<u3
 
 fn pixel_index(x: u32, y: u32, width: u32) -> usize {
     (y as usize * width as usize + x as usize) * 4
-}
-
-fn same_opaque_color(rgba: &[u8], a: usize, b: usize) -> bool {
-    rgba[a + 3] >= 128 && rgba[b + 3] >= 128 && quantized_color(rgba, a) == quantized_color(rgba, b)
 }
 
 fn quantized_color(rgba: &[u8], index: usize) -> u32 {
