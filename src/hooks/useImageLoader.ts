@@ -13,7 +13,7 @@ import { useArchiveProgressStore } from "@/store/archiveProgressStore"
 import { useRecentFilesStore } from "@/store/recentFilesStore"
 import { useSettingsStore } from "@/store/settingsStore"
 import type { ComicInfo, DirectoryImages, ImageInfo, ThumbnailInfo } from "@/types"
-import { errorCopyDetails, errorMessage } from "@/utils/appError"
+import { errorCode, errorCopyDetails, errorMessage } from "@/utils/appError"
 import { isArchiveFilePath } from "@/utils/archiveFile"
 import { resolveArchiveStartIndex } from "@/utils/archiveResume"
 import { resolveCoverIndex } from "@/utils/comicCover"
@@ -189,7 +189,7 @@ export function useImageLoader() {
           }
         },
         async (e, message) => {
-          useAppStore.setState({ error: message })
+          useAppStore.setState({ error: message, errorCode: errorCode(e) })
           useAppStore.getState().addFailedPath(entryName)
           const target = resolveSkipTarget(entryName, skipDepth, true)
           if (target !== null) {
@@ -309,6 +309,7 @@ export function useImageLoader() {
         (e, message) => {
           useAppStore.setState({
             error: message,
+            errorCode: errorCode(e),
             imageInfo: null,
             archivePath: null,
             comicInfo: null,
@@ -354,7 +355,12 @@ export function useImageLoader() {
           options?.onAfterLoad?.()
         },
         (e, message) => {
-          useAppStore.setState({ error: message, imageInfo: null, archivePreviewPath: null })
+          useAppStore.setState({
+            error: message,
+            errorCode: errorCode(e),
+            imageInfo: null,
+            archivePreviewPath: null
+          })
           toast.error(i18n.t("toast.load.archiveFail"), {
             description: message,
             details: errorCopyDetails(e, archivePath)
@@ -452,7 +458,7 @@ export function useImageLoader() {
           }
         },
         async (e, message) => {
-          useAppStore.setState({ error: message, imageInfo: null })
+          useAppStore.setState({ error: message, errorCode: errorCode(e), imageInfo: null })
           useAppStore.getState().addFailedPath(filePath)
           const skipDepth = options?.skipDepth ?? 0
           const target = resolveSkipTarget(filePath, skipDepth, false)

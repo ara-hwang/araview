@@ -24,6 +24,8 @@ type AppState = {
   dirImages: DirectoryImages
   imageInfo: ImageInfo | null
   error: string | null
+  /** 백엔드 AppError 코드. 오류 화면 분류에 쓴다 (코드 없는 오류는 null). */
+  errorCode: string | null
   loading: boolean
   position: { x: number; y: number }
   isDragging: boolean
@@ -104,6 +106,7 @@ const initialApp: AppState = {
     availability: []
   },
   error: null,
+  errorCode: null,
   loading: false,
   position: { x: 0, y: 0 },
   isDragging: false,
@@ -294,6 +297,7 @@ export const setImageInfoAndResetView = (imgInfo: ImageInfo) => {
       flipV: false,
       isFitLocked: true,
       error: null,
+      errorCode: null,
       previewPath: null
     })
     return
@@ -309,6 +313,7 @@ export const setImageInfoAndResetView = (imgInfo: ImageInfo) => {
     flipV: false,
     isFitLocked: true,
     error: null,
+    errorCode: null,
     previewPath: null
   })
 }

@@ -76,6 +76,7 @@ export function ImageContainer({
     useShallow((state) => ({
       loading: state.loading,
       error: state.error,
+      errorCode: state.errorCode,
       dirImages: state.dirImages,
       imageInfo: state.imageInfo,
       position: state.position,
@@ -111,7 +112,7 @@ export function ImageContainer({
   const [loadedSrc, setLoadedSrc] = useState<string | null>(null)
   const fullLoaded = imageSrc !== null && loadedSrc === imageSrc
   const navigate = useNavigate()
-  const classified = app.error ? classifyError(app.error) : null
+  const classified = app.error ? classifyError({ code: app.errorCode, message: app.error }) : null
   const tx = t as unknown as (key: string) => string
   const classifiedTitle = classified ? tx(classified.titleKey) : null
   const classifiedHint = classified ? tx(classified.hintKey) : null
@@ -399,7 +400,7 @@ export function ImageContainer({
             <Button
               size="sm"
               variant="outline"
-              onClick={() => useAppStore.setState({ error: null })}
+              onClick={() => useAppStore.setState({ error: null, errorCode: null })}
             >
               {t("viewer.error.dismiss")}
             </Button>

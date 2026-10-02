@@ -492,6 +492,7 @@ describe("useImageLoader 손상 파일 건너뛰기", () => {
     const st = useAppStore.getState()
     expect(st.imageInfo).toBeNull()
     expect(st.error).toBe("File not found")
+    expect(st.errorCode).toBe("not_found")
     expect(st.loading).toBe(false)
     expect(loaded).not.toContain("/pics/c.jpg")
     expect(vi.mocked(toast.error)).toHaveBeenCalledWith(

@@ -20,10 +20,6 @@ describe("classifyError", () => {
     expect(classifyError("Unsupported image format").kind).toBe("unsupported")
     expect(classifyError("Not an archive file").kind).toBe("unsupported")
     expect(classifyError("Unsupported archive format").kind).toBe("unsupported")
-    expect(classifyError("PSD files are read-only").kind).toBe("unsupported")
-    expect(classifyError("Read-only format").kind).toBe("unsupported")
-    expect(classifyError("SVG save is not supported").kind).toBe("unsupported")
-    expect(classifyError("AVIF save is not supported").kind).toBe("unsupported")
     expect(classifyError("PSB is not supported").kind).toBe("unsupported")
     expect(classifyError("Archive entry too large").kind).toBe("unsupported")
   })
@@ -55,6 +51,16 @@ describe("classifyError", () => {
   it("falls back to message matching for generic codes", () => {
     expect(classifyError({ code: "unknown", message: "permission denied" }).kind).toBe("permission")
     expect(classifyError({ code: "invalid_input", message: "nope" }).kind).toBe("unknown")
+  })
+})
+
+describe("classifyError store 입력", () => {
+  it("code가 null이면 메시지로 판정한다", () => {
+    expect(classifyError({ code: null, message: "File not found" }).kind).toBe("not-found")
+  })
+
+  it("code가 있으면 메시지와 무관하게 code를 따른다", () => {
+    expect(classifyError({ code: "corrupt", message: "File not found" }).kind).toBe("corrupt")
   })
 })
 

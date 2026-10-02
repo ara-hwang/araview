@@ -113,7 +113,7 @@ function ImagePage() {
         .then((info) => {
           const cur = useAppStore.getState()
           if (cur.dirImages.images[cur.dirImages.current_index] === path) {
-            useAppStore.setState({ imageInfo: info, error: null })
+            useAppStore.setState({ imageInfo: info, error: null, errorCode: null })
             cur.removeFailedPath(path)
           }
         })

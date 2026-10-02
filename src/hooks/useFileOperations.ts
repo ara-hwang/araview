@@ -177,7 +177,8 @@ export function useFileOperations({ loadImage }: { loadImage: LoadImageFn }) {
         ...dirImages,
         images: replacePathInList(dirImages.images, sourcePath, nextInfo.source_path)
       },
-      error: null
+      error: null,
+      errorCode: null
     })
     const recent = useRecentFilesStore.getState()
     void recent.remove(sourcePath).then(() => {

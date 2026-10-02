@@ -3,33 +3,6 @@ export type ClassifiedError = {
   kind: AppErrorKind
   titleKey: string
   hintKey: string
-  /** @deprecated Use titleKey/hintKey with i18n. Kept for tests. */
-  title: string
-  /** @deprecated Use titleKey/hintKey with i18n. Kept for tests. */
-  hint: string
-}
-
-const KO_TEXT: Record<AppErrorKind, { title: string; hint: string }> = {
-  "not-found": {
-    title: "파일을 찾을 수 없습니다",
-    hint: "파일이 이동·삭제되었거나 아카이브 항목이 없을 수 있습니다. 다른 파일을 열어보세요."
-  },
-  permission: {
-    title: "파일에 접근할 수 없습니다",
-    hint: "권한이 없거나 다른 프로그램이 사용 중일 수 있습니다. 권한을 확인한 뒤 다시 시도하세요."
-  },
-  unsupported: {
-    title: "지원하지 않는 형식입니다",
-    hint: "지원 포맷(png/jpg/webp/svg/avif/heic/psd/cbz 등)인지 확인하거나 다른 뷰어로 열어보세요."
-  },
-  corrupt: {
-    title: "파일을 읽는 중 문제가 발생했습니다",
-    hint: "파일이 손상되었을 수 있습니다. 마지막으로 본 이미지나 홈으로 돌아갈 수 있습니다."
-  },
-  unknown: {
-    title: "이미지를 불러오지 못했습니다",
-    hint: "다시 시도하거나 홈으로 돌아가 다른 파일을 열어보세요."
-  }
 }
 
 const KEY_BY_KIND: Record<AppErrorKind, { titleKey: string; hintKey: string }> = {
@@ -55,7 +28,11 @@ const KEY_BY_KIND: Record<AppErrorKind, { titleKey: string; hintKey: string }> =
   }
 }
 
-/** 백엔드가 반환하는 고정 에러 문자열 → 종류. 전체 일치만 해당한다. */
+/**
+ * 코드 없는 에러 문자열 → 종류. 전체 일치만 해당한다.
+ * 백엔드 에러는 구조화 code로 분류되므로(오류 화면은 store의 errorCode를 함께 넘긴다)
+ * 이 표와 아래 접두사/부분일치는 code가 없는 입력의 보조 판정이다.
+ */
 const EXACT_KIND: ReadonlyMap<string, AppErrorKind> = new Map([
   ["File not found", "not-found"],
   ["Path not found", "not-found"],
@@ -65,10 +42,6 @@ const EXACT_KIND: ReadonlyMap<string, AppErrorKind> = new Map([
   ["No images found in archive", "not-found"],
   ["Unsupported image format", "unsupported"],
   ["Unsupported archive format", "unsupported"],
-  ["PSD files are read-only", "unsupported"],
-  ["Read-only format", "unsupported"],
-  ["SVG save is not supported", "unsupported"],
-  ["AVIF save is not supported", "unsupported"],
   ["PSB is not supported", "unsupported"],
   ["Not an archive file", "unsupported"],
   ["Unsupported path type", "unsupported"],
@@ -79,7 +52,6 @@ const EXACT_KIND: ReadonlyMap<string, AppErrorKind> = new Map([
 const PREFIX_KIND: ReadonlyArray<readonly [string, AppErrorKind]> = [
   ["entry not found", "not-found"],
   ["failed to decode image", "corrupt"],
-  ["cannot decode image", "corrupt"],
   ["failed to read zip", "corrupt"],
   ["failed to read entry data", "corrupt"],
   ["failed to list cache", "unknown"],
@@ -202,11 +174,7 @@ function kindOf(message: string): AppErrorKind {
     return "permission"
   }
 
-  if (
-    lower.includes("unsupported") ||
-    lower.includes("not an archive") ||
-    lower.includes("no exif data")
-  ) {
+  if (lower.includes("unsupported") || lower.includes("not an archive")) {
     return "unsupported"
   }
 
@@ -235,7 +203,6 @@ export function classifyError(input: unknown): ClassifiedError {
     code !== null && CODE_KIND.has(code) ? (CODE_KIND.get(code) as AppErrorKind) : kindOf(message)
   return {
     kind,
-    ...KEY_BY_KIND[kind],
-    ...KO_TEXT[kind]
+    ...KEY_BY_KIND[kind]
   }
 }
