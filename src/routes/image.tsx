@@ -9,6 +9,7 @@ import { RenameDialog } from "@/components/RenameDialog"
 import { ThumbnailGrid } from "@/components/ThumbnailGrid"
 import { Button } from "@/components/ui/button"
 import type { WebtoonScrollTarget } from "@/components/WebtoonContinuousView"
+import { ZoomPanSync } from "@/components/ZoomPanSync"
 import type { MouseAction } from "@/constants/shortcuts"
 import { useAlwaysOnTop } from "@/hooks/useAlwaysOnTop"
 import { useCloseImage } from "@/hooks/useCloseImage"
@@ -523,6 +524,7 @@ function ImagePage() {
         onSubmit={(name) => void handleRenameSubmit(name)}
         onClose={() => setRenameOpen(false)}
       />
+      <ZoomPanSync />
     </div>
   )
 }
