@@ -112,11 +112,11 @@ footer {
 }
 .top nav a {
   text-decoration: none;
-  color: var(--muted);
+  color: var(--paper-ink);
 }
 @media (hover: hover) and (pointer: fine) {
   .top nav a:hover {
-    color: var(--paper-ink);
+    color: var(--muted);
   }
 }
 @media (max-width: 560px) {
@@ -160,13 +160,8 @@ footer {
 }
 
 .hero {
-  padding: 80px 0 64px;
+  padding: 24px 0 64px;
   text-align: center;
-  border-top: 0;
-}
-.hero-icon {
-  display: block;
-  margin: 0 auto 24px;
 }
 h1 {
   margin: 0;
@@ -204,7 +199,6 @@ h1 {
 
 section {
   padding: 40px 0;
-  border-top: 1px solid var(--rule);
 }
 .label {
   margin: 0 0 24px;
@@ -265,7 +259,6 @@ article p {
   justify-content: space-between;
   gap: 16px;
   padding: 8px 0;
-  border-bottom: 1px solid var(--rule);
 }
 .keys dt,
 .keys dd {
@@ -289,7 +282,6 @@ kbd {
 
 footer {
   padding: 32px 0 48px;
-  border-top: 1px solid var(--rule);
   font-size: 0.8125rem;
   color: var(--muted);
 }
@@ -352,8 +344,9 @@ section[id] {
   overflow-x: auto;
   scroll-snap-type: x mandatory;
   scrollbar-width: none;
-  border: 1px solid var(--rule);
+  border: 1px solid light-dark(oklch(0 0 0 / 0.2), oklch(1 0 0 / 0.28));
   border-radius: 10px;
+  box-shadow: 0 10px 30px light-dark(oklch(0 0 0 / 0.16), oklch(0 0 0 / 0.6));
 }
 .track::-webkit-scrollbar {
   display: none;
@@ -411,4 +404,23 @@ section[id] {
 }
 .credits {
   margin-top: 8px;
+}
+
+.btn-icon {
+  width: 32px;
+  padding: 0;
+}
+#theme svg {
+  display: none;
+}
+#theme[data-mode="system"] .i-system,
+#theme[data-mode="light"] .i-light,
+#theme[data-mode="dark"] .i-dark {
+  display: block;
+}
+
+.screens {
+  max-width: 840px;
+  margin: 0 auto 32px;
+  text-align: left;
 }
