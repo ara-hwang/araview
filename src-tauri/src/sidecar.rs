@@ -307,7 +307,7 @@ impl SidecarSpec {
             }
             let rgb = shape((self.decode)(source)?);
             write_rgb8_jpeg_atomic(dest, &rgb, quality)?;
-            crate::process_temp::enforce_cap(PAINT_SUBDIR, MAX_PAINT_BYTES).ok();
+            crate::process_temp::note_published(dest, MAX_PAINT_BYTES);
             Ok(dest.to_path_buf())
         })
     }

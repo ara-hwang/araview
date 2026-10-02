@@ -167,6 +167,8 @@ pub fn ensure_scaled_sidecar_with_mode(
             if let Some(detection) = &detection {
                 crate::pixel_art::cache_detection(&png_dest, detection);
             }
+            // Best effort: eviction failures must not fail image delivery.
+            crate::process_temp::note_published(&png_dest, MAX_SCALED_BYTES);
             Ok(png_dest.clone())
         } else {
             let rgb = Rgb8 {
@@ -178,13 +180,12 @@ pub fn ensure_scaled_sidecar_with_mode(
             if let Some(detection) = &detection {
                 crate::pixel_art::cache_detection(&jpeg_dest, detection);
             }
+            crate::process_temp::note_published(&jpeg_dest, MAX_SCALED_BYTES);
             Ok(jpeg_dest.clone())
         }
     })?;
     // WebView가 이 경로로 asset URL을 유지하므로 축출에서 보호한다.
     crate::process_temp::mark_in_use(&dest);
-    // Best effort: eviction failures must not fail image delivery.
-    crate::process_temp::enforce_cap(SCALED_SUBDIR, MAX_SCALED_BYTES).ok();
     sidecar_info(&dest)
 }
 

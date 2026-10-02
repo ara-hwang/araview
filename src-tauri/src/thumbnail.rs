@@ -107,7 +107,9 @@ pub fn generate_thumbnail(source: &Path, max_side: u32) -> Result<ThumbnailInfo,
             };
             write_jpeg_atomic(&dest, &thumb)?;
             // Best effort: eviction failures must not fail thumbnail delivery.
-            crate::process_temp::enforce_cap(THUMBS_SUBDIR, MAX_CACHE_BYTES).ok();
+            // A full cache holds tens of thousands of thumbnails, so track the
+            // running total instead of rescanning the directory per write.
+            crate::process_temp::note_published(&dest, MAX_CACHE_BYTES);
             Ok(())
         })?;
     }

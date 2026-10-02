@@ -386,6 +386,11 @@ pub(crate) fn reset_dir_totals() {
     }
 }
 
+/// 상한을 넘겨 정리할 때 상한의 이 비율(1/N)만큼 더 비운다. 상한 바로 아래까지만
+/// 지우면 꽉 찬 캐시에서는 다음 쓰기가 곧바로 상한을 넘겨 쓸 때마다 폴더를 다시
+/// 훑게 된다.
+const EVICT_HEADROOM_DIVISOR: u64 = 10;
+
 /// Record `bytes` written into `dir` and enforce `max_bytes` only when the
 /// running total suggests the cap is exceeded. Best effort.
 pub(crate) fn note_written(dir: &Path, bytes: u64, max_bytes: u64) {
@@ -405,24 +410,35 @@ pub(crate) fn note_written(dir: &Path, bytes: u64, max_bytes: u64) {
     if !needs_scan {
         return;
     }
-    if let Ok(total) = enforce_cap_in(dir, max_bytes) {
+    let target = max_bytes - max_bytes / EVICT_HEADROOM_DIVISOR;
+    if let Ok(total) = enforce_cap_in(dir, max_bytes, target) {
         if let Ok(mut totals) = DIR_TOTALS.lock() {
             totals.insert(dir.to_path_buf(), total);
         }
     }
 }
 
-/// Delete oldest files in `process_temp/<sub_dir>` until under `max_bytes`.
-pub(crate) fn enforce_cap(sub_dir: &str, max_bytes: u64) -> Result<(), AppError> {
-    let dir = process_temp_dir()?.join(sub_dir);
-    enforce_cap_in(&dir, max_bytes).map(|_| ())
+/// [`note_written`] for a cache file that was just published. Writers that
+/// encode straight to disk do not know the byte count, so one metadata read
+/// stands in for rescanning the whole directory on every write.
+pub(crate) fn note_published(path: &Path, max_bytes: u64) {
+    let Some(dir) = path.parent() else {
+        return;
+    };
+    let bytes = fs::metadata(path).map(|m| m.len()).unwrap_or(0);
+    note_written(dir, bytes, max_bytes);
 }
 
-/// Core of [`enforce_cap`] over an explicit directory (unit testable).
-/// Returns the directory byte total that remains after eviction.
-pub(crate) fn enforce_cap_in(dir: &Path, max_bytes: u64) -> Result<u64, AppError> {
+/// When `dir` holds more than `max_bytes`, delete oldest files until it is
+/// under `target_bytes` (unit testable). Returns the directory byte total that
+/// remains after eviction.
+pub(crate) fn enforce_cap_in(
+    dir: &Path,
+    max_bytes: u64,
+    target_bytes: u64,
+) -> Result<u64, AppError> {
     let files = collect_files(dir, false)?;
-    Ok(evict_oldest(files, max_bytes))
+    Ok(evict_oldest(files, max_bytes, target_bytes))
 }
 
 /// Delete oldest files anywhere under the active cache root until the whole
@@ -431,7 +447,7 @@ pub(crate) fn enforce_cap_in(dir: &Path, max_bytes: u64) -> Result<u64, AppError
 pub(crate) fn enforce_total_cap(max_bytes: u64) -> Result<(), AppError> {
     let root = process_temp_dir()?;
     let files = collect_files(&root, true)?;
-    evict_oldest(files, max_bytes);
+    evict_oldest(files, max_bytes, max_bytes);
     // Per-directory estimates are stale after a tree-wide sweep; relearn them.
     if let Ok(mut totals) = DIR_TOTALS.lock() {
         totals.clear();
@@ -543,18 +559,20 @@ pub(crate) fn collect_files(
     Ok(files)
 }
 
-/// Delete oldest-first until the total is under `max_bytes`, skipping files the
-/// frontend is still displaying. Returns the total that remains.
-fn evict_oldest(mut files: Vec<(u128, u64, PathBuf)>, max_bytes: u64) -> u64 {
+/// When the total exceeds `max_bytes`, delete oldest-first until it is under
+/// `target_bytes` (at most `max_bytes`), skipping files the frontend is still
+/// displaying. Returns the total that remains.
+fn evict_oldest(mut files: Vec<(u128, u64, PathBuf)>, max_bytes: u64, target_bytes: u64) -> u64 {
     let mut total = files
         .iter()
         .fold(0u64, |acc, (_, size, _)| acc.saturating_add(*size));
     if total <= max_bytes {
         return total;
     }
+    let target_bytes = target_bytes.min(max_bytes);
     files.sort_by_key(|(mtime, _, _)| *mtime);
     for (_, size, path) in files {
-        if total <= max_bytes {
+        if total <= target_bytes {
             break;
         }
         // 스냅샷이 아니라 삭제 직전에 확인한다. 수집 이후 mark_in_use된 파일은
@@ -580,7 +598,7 @@ mod tests {
             fs::write(dir.path().join(name), vec![0u8; 100]).unwrap();
             std::thread::sleep(std::time::Duration::from_millis(5));
         }
-        enforce_cap_in(dir.path(), 150).expect("evict");
+        enforce_cap_in(dir.path(), 150, 150).expect("evict");
         assert!(!dir.path().join("old.jpg").exists());
         assert!(!dir.path().join("mid.jpg").exists());
         assert!(dir.path().join("new.jpg").exists());
@@ -592,7 +610,7 @@ mod tests {
         let inflight = format!("a.tmp-{}-ThreadId4-0.jpg", std::process::id());
         fs::write(dir.path().join(&inflight), vec![0u8; 1000]).unwrap();
         fs::write(dir.path().join("b.jpg"), vec![0u8; 100]).unwrap();
-        enforce_cap_in(dir.path(), 150).expect("evict");
+        enforce_cap_in(dir.path(), 150, 150).expect("evict");
         // 진행 중 temp는 축출 대상에서 빠지고, 그 바이트도 상한 계산에
         // 들어가지 않는다 (b.jpg 100B만 세므로 cap 이내).
         assert!(dir.path().join(&inflight).exists());
@@ -613,7 +631,7 @@ mod tests {
         // 파일명은 임시 파일 exemption을 받지 못하므로 오래된 것부터 축출된다.
         std::thread::sleep(std::time::Duration::from_millis(5));
         fs::write(dir.path().join("keep.jpg"), vec![0u8; 100]).unwrap();
-        enforce_cap_in(dir.path(), 150).expect("evict");
+        enforce_cap_in(dir.path(), 150, 150).expect("evict");
         assert!(!dir.path().join("deadbeef_x.tmp-1.jpg").exists());
         assert!(!dir.path().join("foreign.tmp-part-abc-0.jpg").exists());
         assert!(dir.path().join("keep.jpg").exists());
@@ -629,7 +647,7 @@ mod tests {
         }
         mark_in_use(&old);
         // The cap forces one eviction, but the oldest file is still on screen.
-        enforce_cap_in(dir.path(), 150).expect("evict");
+        enforce_cap_in(dir.path(), 150, 150).expect("evict");
         assert!(old.exists());
         assert!(!dir.path().join("new.jpg").exists());
     }
@@ -664,7 +682,7 @@ mod tests {
     fn enforce_cap_reports_total_after_scan() {
         let dir = tempfile::tempdir().unwrap();
         fs::write(dir.path().join("a.jpg"), vec![0u8; 100]).unwrap();
-        assert_eq!(enforce_cap_in(dir.path(), 1000).expect("scan"), 100);
+        assert_eq!(enforce_cap_in(dir.path(), 1000, 1000).expect("scan"), 100);
     }
 
     #[test]
@@ -687,6 +705,48 @@ mod tests {
         note_written(dir.path(), 5000, 1000);
         assert!(!small.exists());
         assert!(!big.exists());
+    }
+
+    #[test]
+    fn note_written_leaves_headroom_after_eviction() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = |i: usize| dir.path().join(format!("{i:02}.jpg"));
+        for i in 0..10 {
+            fs::write(path(i), vec![0u8; 100]).unwrap();
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        // Exactly at the cap: the first scan only learns the total.
+        note_written(dir.path(), 100, 1000);
+        assert!(path(0).exists());
+
+        // One more write crosses the cap. Eviction clears down to 90% (900),
+        // not merely under 1000, so the two oldest files go.
+        fs::write(path(10), vec![0u8; 100]).unwrap();
+        note_written(dir.path(), 100, 1000);
+        assert!(!path(0).exists());
+        assert!(!path(1).exists());
+        assert!(path(2).exists());
+
+        // The next small write fits in the headroom and must not rescan. A file
+        // that appeared behind the cache's back would be evicted by a rescan.
+        fs::write(dir.path().join("behind.jpg"), vec![0u8; 500]).unwrap();
+        note_written(dir.path(), 50, 1000);
+        assert!(path(2).exists());
+    }
+
+    #[test]
+    fn note_published_reads_size_from_disk() {
+        let dir = tempfile::tempdir().unwrap();
+        let old = dir.path().join("old.jpg");
+        fs::write(&old, vec![0u8; 100]).unwrap();
+        note_published(&old, 1000);
+        std::thread::sleep(std::time::Duration::from_millis(5));
+
+        // The new file's real size (2000) pushes the running total over the cap.
+        let new = dir.path().join("new.jpg");
+        fs::write(&new, vec![0u8; 2000]).unwrap();
+        note_published(&new, 1000);
+        assert!(!old.exists());
     }
 
     #[test]
