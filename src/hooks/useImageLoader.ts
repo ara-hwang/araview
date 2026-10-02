@@ -271,7 +271,9 @@ export function useImageLoader() {
               )
             : rawStartIndex
           const firstEntry = archiveImages.images[startIndex]
-          const imgInfo = await invokeLoadArchiveImage(archivePath, firstEntry)
+          // 스토어 범위가 이미 이 아카이브라 공용 캐시/in-flight를 거친다. 첫 페이지가
+          // 캐시에 남고, 같은 엔트리를 예열 중이면 추출 요청이 합쳐진다.
+          const imgInfo = await getOrLoadImage(firstEntry, { protectArchive: true })
 
           if (!isCurrentImageLoad(loadToken)) return
 
@@ -338,7 +340,7 @@ export function useImageLoader() {
         }
       )
     },
-    [clearImageMetaCache, loadArchiveImageByIndex, prefetchArchiveNeighbors]
+    [clearImageMetaCache, getOrLoadImage, loadArchiveImageByIndex, prefetchArchiveNeighbors]
   )
 
   /** 폴더 목록을 유지하고 아카이브 첫 페이지만 미리본다 (이어보기·내부 목록 미적용). */

@@ -626,3 +626,28 @@ describe("useImageLoader 주변 예열", () => {
     expect([...loaded].sort()).toEqual(["/pics/0.jpg", "/pics/1.jpg", "/pics/3.jpg", "/pics/4.jpg"])
   })
 })
+
+describe("useImageLoader 아카이브 첫 페이지 캐시", () => {
+  it("만화로 연 첫 페이지는 메타 캐시에 남아 다시 추출하지 않는다", async () => {
+    const extracted: string[] = []
+    setupInvoke({
+      load_archive_image: async (args) => {
+        extracted.push(String(args?.entryName))
+        return imgInfo(String(args?.entryName))
+      }
+    })
+    useArchiveProgressStore.setState({ progress: {} })
+    const { result } = renderHook(() => useImageLoader())
+
+    await act(async () => {
+      await result.current.loadImage(ARCHIVE_PATH, { archiveOpen: "full" })
+    })
+    const firstCount = extracted.filter((e) => e === ENTRIES[0]).length
+    await act(async () => {
+      await result.current.getOrLoadImage(ENTRIES[0])
+    })
+
+    expect(firstCount).toBe(1)
+    expect(extracted.filter((e) => e === ENTRIES[0])).toHaveLength(1)
+  })
+})
