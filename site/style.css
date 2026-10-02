@@ -297,8 +297,11 @@ section[id] {
 #keys-more[hidden] {
   display: none;
 }
-  display: none;
-}
 
-.top nav a.badge { display: inline-flex; align-items: center; }
-.top nav a.badge img { display: block; }
+.top nav a.badge {
+  display: inline-flex;
+  align-items: center;
+}
+.top nav a.badge img {
+  display: block;
+}
