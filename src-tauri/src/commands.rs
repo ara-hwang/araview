@@ -803,8 +803,6 @@ fn rename_file_impl_with_mode(
     max_side: Option<u32>,
     mode: crate::scaled::ImageScalingMode,
 ) -> Result<ImageInfo, AppError> {
-    use crate::image::is_supported_file;
-
     let old = Path::new(old_path);
 
     if !old.is_file() {

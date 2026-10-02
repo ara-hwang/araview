@@ -190,7 +190,7 @@ function ImagePage() {
     void loadImageAndReset(current, { refreshDirectory: false })
   }, [loadArchiveImageByIndex, loadImageAndReset])
 
-  const handleWheel = useWheelNavigation(zoomPan, navigateImage)
+  const handleWheel = useWheelNavigation(navigateImage)
 
   useOpenFileListener(loadImageExplicit)
 

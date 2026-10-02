@@ -5,7 +5,6 @@
 //! (nearest shrink breaks periodic tones like screentone), and published as a
 //! JPEG (PNG when the source has an alpha channel or the mode is pixelated)
 //! under `process_temp/scaled/`.
-//! `process_temp/scaled/`.
 //! The WebView then decodes the smaller copy, keeping peak memory bounded for
 //! huge images.
 //!

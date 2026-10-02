@@ -18,6 +18,7 @@ import type { ComicInfo, ImageDetails } from "@/types"
 import { comicReadingDirection } from "@/utils/comicViewMode"
 import { formatDimensions, formatFileSize } from "@/utils/format"
 import { formatDpi, formatUnixDateTime } from "@/utils/imageDetails"
+import { isSvgImageInfo } from "@/utils/imageRendering"
 
 const EXIF_CATEGORIES: Record<string, string[]> = {
   Camera: ["Make", "Model", "LensModel", "LensMake", "BodySerialNumber"],
@@ -299,9 +300,7 @@ export function ExifPanel() {
 
   const isArchivePanel = archivePath !== null
   const isArchiveFilePanel = archivePreviewPath !== null
-  const isVectorImage =
-    imageInfo?.mime_type === "image/svg+xml" ||
-    (imageInfo?.file_name.toLowerCase().endsWith(".svg") ?? false)
+  const isVectorImage = isSvgImageInfo(imageInfo)
   const panelEntryName = dirImages.images[dirImages.current_index]
   const detailPathLabel =
     imageDetails !== null && isArchivePanel && archivePath !== null && panelEntryName !== undefined

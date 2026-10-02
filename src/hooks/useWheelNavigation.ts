@@ -4,10 +4,6 @@ import { zoomInBy, zoomOutBy } from "@/store/appStore"
 import { getSettings } from "@/store/settingsStore"
 import { resolveWheelAction } from "@/utils/wheelAction"
 
-type ZoomPanHandlers = {
-  handleWheel: (e: React.WheelEvent) => void
-}
-
 export type WheelNavigationOptions = {
   /**
    * 웹툰 모드에서 수식키 없는 휠을 네이티브 스크롤에 넘긴다 (뷰어 기본).
@@ -17,7 +13,6 @@ export type WheelNavigationOptions = {
 }
 
 export function useWheelNavigation(
-  _zoomPan: ZoomPanHandlers,
   navigateImage: (direction: "prev" | "next") => Promise<void> | void,
   options: WheelNavigationOptions = {}
 ) {

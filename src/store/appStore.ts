@@ -9,6 +9,7 @@ import {
   ImageHistogram,
   ImageInfo
 } from "@/types"
+import { isSvgImageInfo } from "@/utils/imageRendering"
 import {
   clampPosition,
   getFitZoomFromSizes,
@@ -198,17 +199,12 @@ export const MAX_ZOOM = 10
 /** 벡터(SVG)는 표시 크기에서 재래스터되므로 증분 확대 상한을 높인다. */
 export const MAX_ZOOM_VECTOR = 40
 
-const isVectorImage = (): boolean => {
-  const info = useAppStore.getState().imageInfo
-  return (
-    info?.mime_type === "image/svg+xml" || (info?.file_name.toLowerCase().endsWith(".svg") ?? false)
-  )
-}
+const isVectorImage = (): boolean => isSvgImageInfo(useAppStore.getState().imageInfo)
 
 export const zoomInBy = (factor = 1.25) => {
   const { zoom } = useAppStore.getState()
   const next = Math.min(zoom * factor, isVectorImage() ? MAX_ZOOM_VECTOR : MAX_ZOOM)
-  useAppStore.setState((s) => ({ ...s, zoom: next, isFitLocked: false }))
+  useAppStore.setState({ zoom: next, isFitLocked: false })
 }
 
 export const zoomOutBy = (factor = 1.25) => {
@@ -221,7 +217,7 @@ export const zoomOutBy = (factor = 1.25) => {
     oriented.height
   )
   const next = Math.max(zoom / factor, minZoom)
-  useAppStore.setState((s) => ({ ...s, zoom: next, isFitLocked: false }))
+  useAppStore.setState({ zoom: next, isFitLocked: false })
 }
 
 export const zoomIn = () => zoomInBy(1.25)
@@ -237,15 +233,14 @@ export const resetZoomPan = () => {
     oriented.width,
     oriented.height
   )
-  useAppStore.setState((s) => ({
-    ...s,
+  useAppStore.setState({
     zoom,
     position: { x: 0, y: 0 },
     rotation: 0,
     flipH: false,
     flipV: false,
     isFitLocked: true
-  }))
+  })
   // 0(실제 크기/자동 맞춤)은 맞춤 잠금을 해제하고 기억한다.
   void updateSettings({ fitMode: "auto" })
 }
@@ -265,15 +260,14 @@ export const applyRememberedFit = () => {
     oriented.width,
     oriented.height
   )
-  useAppStore.setState((s) => ({
-    ...s,
+  useAppStore.setState({
     zoom,
     position: { x: 0, y: 0 },
     rotation: 0,
     flipH: false,
     flipV: false,
     isFitLocked: true
-  }))
+  })
 }
 
 /**
@@ -327,8 +321,7 @@ export const applyImageNaturalSize = (width: number, height: number) => {
   // viewBox-only처럼 고유 크기가 없을 때 기본값(300x150 계열)이라 종횡비만
   // 같으면 백엔드 값을 유지해 첫 페인트 보정 깜빡임을 막는다.
   const info = useAppStore.getState().imageInfo
-  const isSvg =
-    info?.mime_type === "image/svg+xml" || (info?.file_name.toLowerCase().endsWith(".svg") ?? false)
+  const isSvg = isSvgImageInfo(info)
   if (
     isSvg &&
     typeof info?.width === "number" &&
@@ -382,22 +375,13 @@ export const updateDirImagesIndex = (nextIndex: number) => {
 
 /** 열린 이미지를 닫고 뷰어 상태를 초기값으로 되돌린다 (홈 귀환용) */
 export const closeImage = () => {
-  useAppStore.setState({
-    ...initialApp,
-    dirImages: { images: [], current_index: 0, availability: [] },
-    archivePreviewPath: null,
-    position: { x: 0, y: 0 },
-    viewportSize: { width: 0, height: 0 },
-    containerSize: { width: 0, height: 0 },
-    imageSize: { width: 0, height: 0 },
-    dragStart: { x: 0, y: 0 }
-  })
+  useAppStore.setState({ ...initialApp })
 }
 
 export const startDrag = (clientX: number, clientY: number) => {
   const { position } = useAppStore.getState()
-  useAppStore.setState({ isDragging: true })
   useAppStore.setState({
+    isDragging: true,
     dragStart: { x: clientX - position.x, y: clientY - position.y }
   })
 }
@@ -419,9 +403,9 @@ export const moveDrag = (clientX: number, clientY: number) => {
   if (cw > 0 && ch > 0 && iw > 0 && ih > 0) {
     const { maxX, maxY } = getPositionBounds(cw, ch, iw, ih, state.zoom)
     const next = clampPosition(newX, newY, maxX, maxY)
-    useAppStore.setState((s) => ({ ...s, position: next }))
+    useAppStore.setState({ position: next })
   } else {
-    useAppStore.setState((s) => ({ ...s, position: { x: newX, y: newY } }))
+    useAppStore.setState({ position: { x: newX, y: newY } })
   }
 }
 
@@ -442,12 +426,11 @@ export const panBy = (dx: number, dy: number) => {
   const { width: iw, height: ih } = oriented
   if (cw > 0 && ch > 0 && iw > 0 && ih > 0) {
     const { maxX, maxY } = getPositionBounds(cw, ch, iw, ih, state.zoom)
-    useAppStore.setState((s) => ({
-      ...s,
+    useAppStore.setState({
       position: clampPosition(newX, newY, maxX, maxY)
-    }))
+    })
   } else {
-    useAppStore.setState((s) => ({ ...s, position: { x: newX, y: newY } }))
+    useAppStore.setState({ position: { x: newX, y: newY } })
   }
 }
 

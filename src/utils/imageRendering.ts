@@ -36,3 +36,11 @@ export function resolveImageRenderingMode(
   }
   return "smooth"
 }
+
+/** SVG 여부. MIME이 비어 오는 경우를 위해 확장자도 함께 본다. */
+export function isSvgImageInfo(
+  info: Pick<ImageInfo, "mime_type" | "file_name"> | null | undefined
+) {
+  if (!info) return false
+  return info.mime_type === "image/svg+xml" || info.file_name.toLowerCase().endsWith(".svg")
+}

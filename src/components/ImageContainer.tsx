@@ -20,7 +20,11 @@ import type { ViewMode } from "@/store/settingsStore"
 import type { ImageInfo } from "@/types"
 import { classifyError } from "@/utils/appError"
 import { canControlGif } from "@/utils/gifPlayback"
-import { getPixelArtDetectionPath, resolveImageRenderingMode } from "@/utils/imageRendering"
+import {
+  getPixelArtDetectionPath,
+  isSvgImageInfo,
+  resolveImageRenderingMode
+} from "@/utils/imageRendering"
 import { MAX_SKIP_ATTEMPTS, findSkipTarget } from "@/utils/skipBroken"
 
 import { ArchivePreviewCallout } from "./ArchivePreviewCallout"
@@ -188,9 +192,7 @@ export function ImageContainer({
   // (정지 GIF가 빈 캔버스가 되는 것을 막는다).
   const showGifCanvas = gifControllable && gifActive && !gifFailed
 
-  const isSvgImage =
-    app.imageInfo?.mime_type === "image/svg+xml" ||
-    (app.imageInfo?.file_name.toLowerCase().endsWith(".svg") ?? false)
+  const isSvgImage = isSvgImageInfo(app.imageInfo)
   // 벡터는 레이아웃 크기로 줌하고 transform에는 이동/반전/회전만 남긴다.
   // scale(zoom) 확대는 래스터를 늘려 흐릿해지지만, 레이아웃 크기면
   // 브라우저가 표시 크기에서 재래스터해 선명도가 유지된다.

@@ -214,11 +214,9 @@ export function ImageNavBar({
   }
 
   // 도크 위 휠은 설정된 휠 동작을 따른다. 동작이 없으면 스크롤로 넘긴다.
-  const wheelNavigate = useWheelNavigation(
-    { handleWheel: () => {} },
-    (direction) => onNavigate(direction),
-    { webtoonPassthrough: false }
-  )
+  const wheelNavigate = useWheelNavigation((direction) => onNavigate(direction), {
+    webtoonPassthrough: false
+  })
   const handleStripWheel = useCallback(
     (e: React.WheelEvent) => {
       const action = resolveWheelAction(e, getSettings().wheel)

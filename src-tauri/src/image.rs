@@ -91,7 +91,7 @@ pub fn paint_strategy(mime: &str) -> PaintStrategy {
 
 /// 렌더 기준 치수. image 크레이트가 디코드하면 그 값을 쓰고,
 /// SVG처럼 미지원이면 헤더 파싱으로 복원한다.
-/// WebView2가 `<img>`에 EXIF orientation을 적용하므로 JPEG/TIFF는 회전된
+/// WebView2가 `<img>`에 EXIF orientation을 적용하므로 JPEG는 회전된
 /// 기준(5~8은 가로/세로 교환)으로 보고해 초기 fit이 표시와 어긋나지 않게 한다.
 pub(crate) fn render_dimensions(
     mime: &str,
