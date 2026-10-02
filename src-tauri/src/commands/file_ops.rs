@@ -74,7 +74,7 @@ fn rename_file_impl_with_mode(
         return Err(AppError::not_found("File not found"));
     }
 
-    let name = crate::image::validate_new_file_name(new_name)?;
+    let name = validate_new_file_name(new_name)?;
 
     let parent = old
         .parent()
@@ -96,6 +96,45 @@ fn rename_file_impl_with_mode(
     }
 
     crate::image::load_viewable_with_limit_mode(&new_path, max_side, mode)
+}
+
+/// Windows가 장치 이름으로 예약해 `File::create`가 원인 불명 에러로
+/// 실패하는 이름들(`CON`, `NUL`, `COM1`...). 확장자가 붙어도(`CON.txt`)
+/// 예약은 유지되므로 첫 점 앞부분으로 판정한다.
+const WINDOWS_RESERVED_NAMES: &[&str] = &[
+    "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8",
+    "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
+];
+
+/// 같은 폴더 내 새 파일명에 대한 공통 검증. trim된 이름을 반환
+fn validate_new_file_name(name: &str) -> Result<String, AppError> {
+    let trimmed = name.trim();
+    if trimmed.is_empty() {
+        return Err(AppError::invalid_input("File name is empty"));
+    }
+    if trimmed.contains(['/', '\\']) {
+        return Err(AppError::invalid_input(
+            "File name cannot contain path separators",
+        ));
+    }
+    if trimmed.contains(['<', '>', ':', '"', '|', '?', '*']) {
+        return Err(AppError::invalid_input(
+            "File name contains invalid characters",
+        ));
+    }
+    if trimmed.ends_with([' ', '.']) {
+        return Err(AppError::invalid_input(
+            "File name cannot end with a space or dot",
+        ));
+    }
+    let stem = trimmed.split('.').next().unwrap_or(trimmed);
+    if WINDOWS_RESERVED_NAMES
+        .iter()
+        .any(|reserved| stem.eq_ignore_ascii_case(reserved))
+    {
+        return Err(AppError::invalid_input("File name is reserved by Windows"));
+    }
+    Ok(trimmed.to_string())
 }
 
 #[cfg(test)]
@@ -186,5 +225,30 @@ mod tests {
         let err = trash_file_impl(dir.to_str().unwrap()).unwrap_err();
         assert_eq!(err.code, ErrorCode::InvalidInput);
         fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn validate_new_file_name_rejects_reserved_device_names() {
+        for name in ["CON", "nul", "Com1", "LPT9.txt", "aux.png"] {
+            assert!(
+                validate_new_file_name(name).is_err(),
+                "{name} should be rejected"
+            );
+        }
+        // 예약명이 부분 문자열로만 들어간 정상 이름은 허용한다.
+        assert!(validate_new_file_name("CONX.png").is_ok());
+        assert!(validate_new_file_name("my-nul.png").is_ok());
+    }
+
+    #[test]
+    fn validate_new_file_name_rejects_invalid_shapes() {
+        assert!(validate_new_file_name("").is_err());
+        assert!(validate_new_file_name("a/b.png").is_err());
+        assert!(validate_new_file_name("a?.png").is_err());
+        assert!(validate_new_file_name("name.").is_err());
+        assert_eq!(
+            validate_new_file_name("  photo.png  ").unwrap(),
+            "photo.png"
+        );
     }
 }

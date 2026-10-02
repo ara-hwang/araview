@@ -20,6 +20,7 @@ pub mod sidecar;
 pub mod sniff;
 pub mod stable_hash;
 pub mod svg_raster;
+pub mod svg_size;
 pub mod thumb_shell;
 pub mod thumbnail;
 pub mod transcode;

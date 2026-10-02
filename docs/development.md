@@ -120,6 +120,7 @@ src-tauri/
   src/comic_info.rs  # CBZ/ZIP ComicInfo.xml 읽기 전용 파싱
   src/thumbnail.rs   # 썸네일 생성/캐시
   src/svg_raster.rs  # SVG 래스터화(resvg, 썸네일/히스토그램 전용)
+  src/svg_size.rs    # SVG 헤더(width/height/viewBox) 치수 파서
   src/sidecar.rs     # sidecar/썸네일/추출물 공용 헬퍼(해시, 락, 원자 발행)
   src/scaled.rs      # 표시 해상도 제한 축소본
   src/thumb_shell.rs # PSD 탐색기 썸네일 셸 연동 명령
