@@ -45,6 +45,13 @@ export function useSoloIndices(): SoloIndices {
   return useMemo(() => archiveSoloIndices(images, inArchive), [images, inArchive])
 }
 
+/** `useLayoutViewMode`의 비구독 버전. 이벤트 시점 계산용이다. */
+export function getLayoutViewMode(): ViewMode {
+  const state = useAppStore.getState()
+  const viewMode = useSettingsStore.getState().viewMode
+  return state.archivePath !== null && state.comicViewMode !== null ? state.comicViewMode : viewMode
+}
+
 export function getEffectiveViewMode(): ViewMode {
   const state = useAppStore.getState()
   const viewMode = useSettingsStore.getState().viewMode

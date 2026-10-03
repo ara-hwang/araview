@@ -34,6 +34,7 @@ vi.mock("@tauri-apps/plugin-store", () => ({
 }))
 
 import { toast } from "@/components/ui/toast"
+import { useDirectoryNavigation } from "@/hooks/useDirectoryNavigation"
 import { getEffectiveViewMode } from "@/hooks/useEffectiveViewMode"
 import { useImageLoader } from "@/hooks/useImageLoader"
 import i18n from "@/i18n"
@@ -649,5 +650,146 @@ describe("useImageLoader 아카이브 첫 페이지 캐시", () => {
 
     expect(firstCount).toBe(1)
     expect(extracted.filter((e) => e === ENTRIES[0])).toHaveLength(1)
+  })
+})
+
+describe("useImageLoader 이동 로드 경합", () => {
+  const DIR = ["/pics/a.jpg", "/pics/b.jpg", "/pics/c.jpg", "/pics/d.jpg"]
+
+  const folderInfo = (path: string): ImageInfo => ({
+    ...imgInfo(path),
+    file_path: path,
+    source_path: path,
+    file_name: path.split("/").pop() ?? path
+  })
+
+  /** 뷰어 라우트처럼 실제 로더를 이동 훅에 물린다. */
+  function renderViewer() {
+    return renderHook(() => {
+      const loader = useImageLoader()
+      const nav = useDirectoryNavigation(loader.loadImage, loader.loadArchiveImageByIndex)
+      return { ...loader, ...nav }
+    })
+  }
+
+  function openFolderAt(index: number) {
+    useAppStore.setState({
+      imageInfo: folderInfo(DIR[index]),
+      dirImages: { images: [...DIR], current_index: index, availability: [] },
+      failedPaths: []
+    })
+  }
+
+  /** 화면에 보이는 파일과 current_index가 가리키는 파일이 같아야 한다. */
+  function expectIndexMatchesDisplayed(expected: string) {
+    const st = useAppStore.getState()
+    expect(st.imageInfo?.source_path).toBe(expected)
+    expect(st.dirImages.images[st.dirImages.current_index]).toBe(expected)
+  }
+
+  it("밀린 느린 로드가 늦게 끝나도 인덱스는 화면에 보이는 이미지를 가리킨다", async () => {
+    useSettingsStore.setState({ cacheMode: "off" })
+    const slow = deferred<ImageInfo>()
+    setupInvoke({
+      load_image: (args) => {
+        const path = String(args?.filePath)
+        return path === DIR[1] ? slow.promise : Promise.resolve(folderInfo(path))
+      }
+    })
+    openFolderAt(0)
+    const { result } = renderViewer()
+
+    // 다음(느린 b)을 누르고, 끝나기 전에 캐시된 d로 점프한다.
+    let slowNav: Promise<void> | null = null
+    await act(async () => {
+      slowNav = result.current.navigateImage("next")
+    })
+    await act(async () => {
+      await result.current.navigateToIndex(3)
+    })
+    expectIndexMatchesDisplayed(DIR[3])
+
+    slow.resolve(folderInfo(DIR[1]))
+    await act(async () => {
+      await slowNav
+    })
+
+    expectIndexMatchesDisplayed(DIR[3])
+    expect(useAppStore.getState().dirImages.current_index).toBe(3)
+    expect(useAppStore.getState().loading).toBe(false)
+  })
+
+  it("아카이브에서 밀린 엔트리 로드는 인덱스와 이어보기 위치를 덮지 않는다", async () => {
+    useSettingsStore.setState({ cacheMode: "off" })
+    const slow = deferred<ImageInfo>()
+    setupInvoke({
+      load_archive_image: (args) => {
+        const entry = String(args?.entryName)
+        return entry === ENTRIES[1] ? slow.promise : Promise.resolve(imgInfo(entry))
+      }
+    })
+    const { result } = renderViewer()
+    await act(async () => {
+      await result.current.loadImage(ARCHIVE_PATH, { archiveOpen: "full" })
+    })
+
+    let slowNav: Promise<void> | null = null
+    await act(async () => {
+      slowNav = result.current.navigateImage("next")
+    })
+    await act(async () => {
+      await result.current.navigateToIndex(4)
+    })
+    slow.resolve(imgInfo(ENTRIES[1]))
+    await act(async () => {
+      await slowNav
+    })
+
+    const st = useAppStore.getState()
+    expect(st.imageInfo?.file_name).toBe(ENTRIES[4])
+    expect(st.dirImages.current_index).toBe(4)
+    expect(useArchiveProgressStore.getState().get(ARCHIVE_PATH)).toBe(ENTRIES[4])
+  })
+
+  it("이동한 파일이 깨져 건너뛰면 인덱스는 건너뛴 뒤 보이는 파일을 가리킨다", async () => {
+    useSettingsStore.setState({ skipBrokenFiles: true, cacheMode: "off" })
+    setupInvoke({
+      load_image: async (args) => {
+        const path = String(args?.filePath)
+        if (path === DIR[1]) throw { code: "corrupt", message: "bad file" }
+        return folderInfo(path)
+      }
+    })
+    openFolderAt(0)
+    const { result } = renderViewer()
+
+    await act(async () => {
+      await result.current.navigateImage("next")
+    })
+
+    expectIndexMatchesDisplayed(DIR[2])
+    expect(useAppStore.getState().failedPaths).toContain(DIR[1])
+  })
+
+  it("깨진 파일을 건너뛰지 않으면 인덱스는 오류가 난 파일에 머문다", async () => {
+    useSettingsStore.setState({ skipBrokenFiles: false, cacheMode: "off" })
+    setupInvoke({
+      load_image: async (args) => {
+        const path = String(args?.filePath)
+        if (path === DIR[1]) throw { code: "corrupt", message: "bad file" }
+        return folderInfo(path)
+      }
+    })
+    openFolderAt(0)
+    const { result } = renderViewer()
+
+    await act(async () => {
+      await result.current.navigateImage("next")
+    })
+
+    const st = useAppStore.getState()
+    expect(st.imageInfo).toBeNull()
+    expect(st.error).toBe("bad file")
+    expect(st.dirImages.current_index).toBe(1)
   })
 })

@@ -8,7 +8,7 @@ import { getEffectiveViewMode, useEffectiveViewMode } from "@/hooks/useEffective
 import { useImageCache } from "@/hooks/useImageCache"
 import { clearPixelArtDetectionCache } from "@/hooks/usePixelArtDetection"
 import i18n from "@/i18n"
-import { setImageInfoAndResetView, updateDirImagesIndex, useAppStore } from "@/store/appStore"
+import { setImageInfoAndResetView, syncDirImagesIndexTo, useAppStore } from "@/store/appStore"
 import { useArchiveProgressStore } from "@/store/archiveProgressStore"
 import { useRecentFilesStore } from "@/store/recentFilesStore"
 import { useSettingsStore } from "@/store/settingsStore"
@@ -176,6 +176,7 @@ export function useImageLoader() {
             : await invokeLoadArchiveImage(archivePath, entryName)
           if (!isCurrentImageLoad(loadToken)) return
           setImageInfoAndResetView(imgInfo)
+          syncDirImagesIndexTo(entryName)
           useAppStore.getState().removeFailedPath(entryName)
 
           const st = useAppStore.getState()
@@ -190,6 +191,7 @@ export function useImageLoader() {
         },
         async (e, message) => {
           useAppStore.setState({ error: message, errorCode: errorCode(e) })
+          syncDirImagesIndexTo(entryName)
           useAppStore.getState().addFailedPath(entryName)
           const target = resolveSkipTarget(entryName, skipDepth, true)
           if (target !== null) {
@@ -197,8 +199,8 @@ export function useImageLoader() {
             toast.info(i18n.t("toast.load.skipped"), {
               description: entryName
             })
+            // 건너뛴 엔트리의 인덱스는 그 로드가 최신으로 그릴 때 맞춰진다.
             await loadArchiveImageByIndex(archivePath, nextEntry, skipDepth + 1)
-            updateDirImagesIndex(target)
             return
           }
           toast.error(i18n.t("toast.load.imageFail"), {
@@ -305,7 +307,6 @@ export function useImageLoader() {
                 children: i18n.t("toast.archive.startOver"),
                 onClick: () => {
                   void loadArchiveImageByIndex(archivePath, archiveImages.images[0])
-                  updateDirImagesIndex(0)
                 }
               }
             })
@@ -369,6 +370,7 @@ export function useImageLoader() {
           const imgInfo = await invokeLoadArchiveImage(archivePath, firstEntry)
           if (!isCurrentImageLoad(loadToken)) return
           setImageInfoAndResetView(imgInfo)
+          syncDirImagesIndexTo(archivePath)
           useAppStore.getState().removeFailedPath(archivePath)
           options?.onAfterLoad?.()
         },
@@ -379,6 +381,7 @@ export function useImageLoader() {
             imageInfo: null,
             archivePreviewPath: null
           })
+          syncDirImagesIndexTo(archivePath)
           toast.error(i18n.t("toast.load.archiveFail"), {
             description: message,
             details: errorCopyDetails(e, archivePath)
@@ -450,6 +453,7 @@ export function useImageLoader() {
           const imgInfo = await getOrLoadImage(filePath)
           if (!isCurrentImageLoad(loadToken)) return
           setImageInfoAndResetView(imgInfo)
+          syncDirImagesIndexTo(filePath)
           const preview = await cachedPreview
           if (preview && isCurrentImageLoad(loadToken) && shouldUsePreviewThumbnail(imgInfo)) {
             useAppStore.setState({ previewPath: preview.file_path })
@@ -479,6 +483,7 @@ export function useImageLoader() {
         },
         async (e, message) => {
           useAppStore.setState({ error: message, errorCode: errorCode(e), imageInfo: null })
+          syncDirImagesIndexTo(filePath)
           useAppStore.getState().addFailedPath(filePath)
           const skipDepth = options?.skipDepth ?? 0
           const target = resolveSkipTarget(filePath, skipDepth, false)
@@ -487,12 +492,12 @@ export function useImageLoader() {
             toast.info(i18n.t("toast.load.skipped"), {
               description: filePath
             })
+            // 건너뛴 파일의 인덱스는 그 로드가 최신으로 그릴 때 맞춰진다.
             await loadImage(nextPath, {
               refreshDirectory: false,
               skipDepth: skipDepth + 1,
               onAfterLoad: options?.onAfterLoad
             })
-            updateDirImagesIndex(target)
             return
           }
           toast.error(i18n.t("toast.load.imageFail"), {

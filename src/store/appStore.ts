@@ -382,6 +382,18 @@ export const updateDirImagesIndex = (nextIndex: number) => {
   })
 }
 
+/**
+ * 화면에 올린 항목의 목록 위치를 current_index로 맞춘다. 목록에 없으면 그대로
+ * 둔다. 로더가 그리는(또는 그 항목의 오류 화면을 띄우는) 최신 로드에서만 불러
+ * 화면과 도크 하이라이트·이동 기준이 어긋나지 않게 한다.
+ */
+export const syncDirImagesIndexTo = (path: string) => {
+  const { dirImages } = useAppStore.getState()
+  const index = dirImages.images.indexOf(path)
+  if (index < 0 || index === dirImages.current_index) return
+  useAppStore.setState({ dirImages: { ...dirImages, current_index: index } })
+}
+
 /** 열린 이미지를 닫고 뷰어 상태를 초기값으로 되돌린다 (홈 귀환용) */
 export const closeImage = () => {
   useAppStore.setState({ ...initialApp })
