@@ -42,13 +42,13 @@ tauri-plugin-snap-layout = "1"
 log = "0.4"
 env_logger = "0.11"
 exif = { package = "kamadak-exif", version = "0.6" }
-zip = "2"
+zip = "4"
 tempfile = "3"
 jpeg-encoder = "0.7"
 libheif-rs = { version = "3", default-features = false, features = ["v1_17"] }
 winreg = "0.56.0"
 tauri-plugin-mcp-bridge = { version = "0.13", optional = true }
-trash = "3"
+trash = "5"
 image = { version = "0.25", default-features = false, features = ["rayon", "avif", "bmp", "dds", "exr", "ff", "gif", "hdr", "ico", "jpeg", "png", "pnm", "qoi", "tga", "webp"] }
 psd = "0.3"
 resvg = { version = "0.48", default-features = false, features = ["text", "system-fonts"] }
