@@ -5,6 +5,7 @@
   "license": "EUPL-1.2",
   "type": "module",
   "scripts": {
+    "audit:frontend": "node scripts/audit-frontend.mjs",
     "build": "tsc && vite build",
     "build:thumb": "pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/Build-ThumbDll.ps1",
     "dev": "vite",

@@ -55,9 +55,10 @@ jobs:
       - name: Docs consistency
         run: npm run docs:check
 
-      # moderate 이상 취약점이 있으면 실패한다. 로컬 기준선: 0건.
+      # moderate 이상 새 자문이 있으면 실패한다. 업스트림 패치가 아직 없는
+      # 자문만 scripts/audit-frontend.mjs의 허용 목록에 이유와 추적 링크를 남긴다.
       - name: Frontend dependency audit
-        run: npm audit --audit-level=moderate
+        run: npm run audit:frontend
 
   rust:
     # PR과 main 푸시에서는 건너뛴다. workflow_call에서는 event_name이 호출자(태그 푸시)
