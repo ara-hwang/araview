@@ -11,7 +11,7 @@ Product truth lives in `PRODUCT.md`, visual system in `DESIGN.md`, full function
 - Frontend: React 19, TypeScript, Vite 6, Tailwind CSS 4, TanStack Router v1, Zustand 5
 - Backend: Rust + Tauri 2 commands (`src-tauri/src/commands/`)
 - UI primitives: shadcn/ui built on `@base-ui/react` (do not introduce `@radix-ui/*`)
-- Package manager/runtime assumptions: Node.js `>=22`, npm scripts in `package.json`
+- Package manager/runtime assumptions: Node.js `>=24`, npm scripts in `package.json`
 
 ## Current Feature Scope
 
