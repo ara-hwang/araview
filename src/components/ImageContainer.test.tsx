@@ -136,6 +136,8 @@ describe("ImageContainer single mode", () => {
     // 파일 전환 시 이전 줌에서 새 줌으로 보간되는 전환 애니메이션을 막기 위해
     // transform 트랜지션을 두지 않는다.
     expect(img.className).not.toContain("transition-transform")
+    // opacity 페이드는 전환마다 배경이 비치는 깜빡임을 만든다.
+    expect(img.className).not.toContain("transition-opacity")
     expect(img.style.maxWidth).toBe("none")
     expect(img.style.maxHeight).toBe("none")
     // 렌더 박스 x 줌 = 맞춤 치수 계약

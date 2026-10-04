@@ -27,6 +27,9 @@ import { maxSideForResolution } from "../utils/resolutionLimit"
 /** 픽셀 프리웜 보관 상한. 메타 캐시와 별개로 작게 유지해 메모리 팽창을 막는다. */
 const MAX_PAINT_PRELOADS = 12
 
+/** 전환 직전 디코드 대기 상한. 큰 이미지에서 이동이 굼떠 보이지 않게 짧게 둔다. */
+const PAINT_READY_TIMEOUT_MS = 300
+
 type ImageLoadOptions = {
   protectArchive?: boolean
   cacheResult?: boolean
@@ -115,6 +118,30 @@ export function useImageCache() {
       // jsdom/테스트 환경이나 URL 변환 실패는 조용히 스킵
     }
   }, [])
+
+  /**
+   * 이미지가 첫 페인트에 바로 그려질 수 있을 때까지 기다린다. 화면 전환 전에
+   * 불러 두면 새 `<img>`가 마운트 즉시 표시되어 빈 프레임이 끼지 않는다.
+   * 상한을 넘기거나 디코드가 실패하면 그냥 돌아오고 표시는 onLoad/onError가 맡는다.
+   */
+  const awaitPaintReady = useCallback(
+    async (imgInfo: ImageInfo, key: string): Promise<void> => {
+      warmPaintImage(imgInfo, key)
+      const img = paintPreloadsRef.current.get(key)
+      if (!img || typeof img.decode !== "function") return
+      // 이미 예열된 이미지는 기다리지 않아 전환이 같은 프레임에 끝난다.
+      if (img.complete && img.naturalWidth > 0) return
+      let timer: ReturnType<typeof setTimeout> | undefined
+      await Promise.race([
+        img.decode().catch(() => {}),
+        new Promise<void>((resolve) => {
+          timer = setTimeout(resolve, PAINT_READY_TIMEOUT_MS)
+        })
+      ])
+      clearTimeout(timer)
+    },
+    [warmPaintImage]
+  )
 
   const getOrLoadImage = useCallback(
     async (pathOrEntry: string, options: ImageLoadOptions = {}): Promise<ImageInfo> => {
@@ -250,6 +277,7 @@ export function useImageCache() {
 
   return {
     getOrLoadImage,
+    awaitPaintReady,
     prefetchNearbyImages,
     getPrefetchDistance: () => getPrefetchDistance(cacheMode),
     clearImageMetaCache
