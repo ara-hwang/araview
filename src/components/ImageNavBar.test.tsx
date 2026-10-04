@@ -156,6 +156,48 @@ describe("ImageNavBar", () => {
     expect((container.firstChild as HTMLElement).className).toContain("hidden")
   })
 
+  describe("우→좌 양쪽 보기 배치", () => {
+    const thumbStyle = (index: number) =>
+      screen.getByRole("button", { name: new RegExp(`viewer\\.nav\\.thumb ${index} `) }).style
+    const navOrder = (container: HTMLElement) =>
+      [...container.querySelectorAll("button")]
+        .map((el) => el.getAttribute("aria-label"))
+        .filter((label) => label === "viewer.nav.prev" || label === "viewer.nav.next")
+
+    it("가로 도크는 썸네일과 이전/다음 버튼을 오른쪽부터 늘어놓는다", () => {
+      setup()
+      useSettingsStore.setState({ viewMode: "right-to-left" })
+      const { container } = render(<ImageNavBar {...baseProps} />)
+
+      // 전체 폭 160px(패딩 4 + 48×3 + 간격 4×2 + 패딩 4)의 오른쪽 끝부터 채운다.
+      expect(thumbStyle(1).left).toBe("108px")
+      expect(thumbStyle(2).left).toBe("56px")
+      expect(thumbStyle(3).left).toBe("4px")
+      expect(container.querySelector('[dir="rtl"]')).not.toBeNull()
+      expect(navOrder(container)).toEqual(["viewer.nav.next", "viewer.nav.prev"])
+    })
+
+    it("좌→우 양쪽 보기는 왼쪽부터 그대로 둔다", () => {
+      setup()
+      useSettingsStore.setState({ viewMode: "left-to-right" })
+      const { container } = render(<ImageNavBar {...baseProps} />)
+
+      expect(thumbStyle(1).left).toBe("4px")
+      expect(container.querySelector('[dir="rtl"]')).toBeNull()
+      expect(navOrder(container)).toEqual(["viewer.nav.prev", "viewer.nav.next"])
+    })
+
+    it("세로 도크는 우→좌에서도 위에서 아래로 둔다", () => {
+      setup()
+      useSettingsStore.setState({ viewMode: "right-to-left" })
+      const { container } = render(<ImageNavBar {...baseProps} position="left" />)
+
+      expect(thumbStyle(1).top).toBe("4px")
+      expect(container.querySelector('[dir="rtl"]')).toBeNull()
+      expect(navOrder(container)).toEqual(["viewer.nav.prev", "viewer.nav.next"])
+    })
+  })
+
   describe("현재 썸네일 하이라이트", () => {
     const currentLabels = (container: HTMLElement) =>
       [...container.querySelectorAll('[aria-current="true"]')].map((el) =>

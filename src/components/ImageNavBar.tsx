@@ -25,6 +25,7 @@ import {
   DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu"
 import { useCurrentPageIndices } from "@/hooks/useCurrentPageIndices"
+import { useLayoutViewMode } from "@/hooks/useEffectiveViewMode"
 import { useThumbnailSrcs } from "@/hooks/useThumbnailSrcs"
 import { useWheelNavigation } from "@/hooks/useWheelNavigation"
 import { cn } from "@/lib/utils"
@@ -72,6 +73,12 @@ const STRIP_PADDING = 4
 /** 화면 밖으로 미리 그릴 항목 수 (스크롤 방향 여유) */
 const STRIP_OVERSCAN = 4
 
+/** 목록 시작(첫 장)부터의 스크롤 거리. rtl 컨테이너의 scrollLeft는 0에서 음수로 내려간다. */
+function readStripScroll(el: HTMLElement, isVertical: boolean, mirrored: boolean): number {
+  if (isVertical) return el.scrollTop
+  return mirrored ? -el.scrollLeft : el.scrollLeft
+}
+
 export function ImageNavBar({
   onNavigate,
   onNavigateToIndex,
@@ -97,6 +104,10 @@ export function ImageNavBar({
   // 현재 화면에 보이는 인덱스들. 양쪽 보기는 두 장이 함께 떠 있으므로 둘 다
   // 하이라이트한다.
   const currentIndices = useCurrentPageIndices()
+
+  // 우→좌 양쪽 보기에서는 가로 도크도 읽는 방향을 따라 오른쪽부터 늘어놓는다.
+  // 세로 도크는 위에서 아래 그대로다.
+  const mirrored = useLayoutViewMode() === "right-to-left" && !isVertical
 
   // 맨 앞·맨 뒤 이미지 여부와 설정에 따른 이전/다음 비활성화 상태 계산
   const isFirst = dirImages.current_index === 0
@@ -131,26 +142,26 @@ export function ImageNavBar({
       scrollFrameRef.current = 0
       const el = stripRef.current
       if (!el) return
-      setScrollOffset(isVertical ? el.scrollTop : el.scrollLeft)
+      setScrollOffset(readStripScroll(el, isVertical, mirrored))
     })
-  }, [isVertical])
+  }, [isVertical, mirrored])
 
   useEffect(() => {
     return () => window.cancelAnimationFrame(scrollFrameRef.current)
   }, [])
 
-  // 인덱스나 썸네일 크기가 바뀌면 현재 항목이 보이도록 맞춘다.
+  // 인덱스, 썸네일 크기, 배치 방향이 바뀌면 현재 항목이 보이도록 맞춘다.
   // 도크를 접었다 펼 때는 위치를 그대로 두기 위해 이 플래그를 세우지 않는다.
   useEffect(() => {
     needsRevealRef.current = true
-  }, [dirImages.current_index, side])
+  }, [dirImages.current_index, side, mirrored])
 
   // 도크가 보이는 상태가 되면 스크롤 상태를 동기화한다.
   // (display:none 동안 브라우저가 스크롤 위치를 보존하므로 값만 다시 읽는다)
   useEffect(() => {
     const el = stripRef.current
     if (!el || viewportSize <= 0) return
-    const current = isVertical ? el.scrollTop : el.scrollLeft
+    const current = readStripScroll(el, isVertical, mirrored)
     if (needsRevealRef.current) {
       needsRevealRef.current = false
       const next = stripScrollToReveal({
@@ -163,13 +174,13 @@ export function ImageNavBar({
       })
       if (next !== current) {
         if (isVertical) el.scrollTo({ top: next })
-        else el.scrollTo({ left: next })
+        else el.scrollTo({ left: mirrored ? -next : next })
         setScrollOffset(next)
         return
       }
     }
     setScrollOffset((prev) => (prev === current ? prev : current))
-  }, [viewportSize, dirImages.current_index, isVertical, side])
+  }, [viewportSize, dirImages.current_index, isVertical, side, mirrored])
 
   const stripWindow = useMemo(
     () =>
@@ -228,13 +239,13 @@ export function ImageNavBar({
       if (!el || e.deltaY === 0) return
       e.preventDefault()
       if (isVertical) el.scrollTop += e.deltaY
-      else el.scrollLeft += e.deltaY
+      else el.scrollLeft += mirrored ? -e.deltaY : e.deltaY
     },
-    [isVertical, wheelNavigate]
+    [isVertical, mirrored, wheelNavigate]
   )
 
-  const PrevIcon = isVertical ? CaretUp : CaretLeft
-  const NextIcon = isVertical ? CaretDown : CaretRight
+  const PrevIcon = isVertical ? CaretUp : mirrored ? CaretRight : CaretLeft
+  const NextIcon = isVertical ? CaretDown : mirrored ? CaretLeft : CaretRight
   const CollapseIcon =
     position === "top"
       ? CaretUp
@@ -327,7 +338,9 @@ export function ImageNavBar({
     /** 쌍의 기준 장(포커스 복귀와 화면 이동의 기준) */
     const isAnchor = index === dirImages.current_index
     const labelHeight = showName ? 18 : 0
-    const left = stripOffsetForIndex(index, side, STRIP_GAP, STRIP_PADDING)
+    const offset = stripOffsetForIndex(index, side, STRIP_GAP, STRIP_PADDING)
+    // 뒤집힌 도크는 같은 간격을 오른쪽 끝에서부터 잰다.
+    const left = mirrored ? stripWindow.totalSize - offset - side : offset
     return (
       <button
         key={path}
@@ -426,6 +439,8 @@ export function ImageNavBar({
   const strip = hasStrip ? (
     <div
       ref={stripRef}
+      // rtl 스크롤 컨테이너는 오른쪽 끝이 원점이라 첫 장이 오른쪽에서 시작한다.
+      dir={mirrored ? "rtl" : undefined}
       onWheel={handleStripWheel}
       className={cn(
         "relative min-h-0 min-w-0 flex-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
@@ -435,6 +450,8 @@ export function ImageNavBar({
     >
       <div
         className="relative mx-auto"
+        // 썸네일 안의 파일명·번호는 원래 방향대로 둔다.
+        dir={mirrored ? "ltr" : undefined}
         style={
           isVertical
             ? { height: stripWindow.totalSize, width: stripSize }
@@ -448,6 +465,34 @@ export function ImageNavBar({
       </div>
     </div>
   ) : null
+
+  // 뒤집힌 도크에서는 버튼도 자리를 바꿔, 화살표가 가리키는 쪽으로 하이라이트가 움직인다.
+  const prevButton = (
+    <Button
+      variant="outline"
+      size="icon"
+      onClick={() => onNavigate("prev")}
+      title={t("viewer.nav.prev")}
+      aria-label={t("viewer.nav.prev")}
+      disabled={isPrevDisabled}
+      className="shrink-0"
+    >
+      <PrevIcon />
+    </Button>
+  )
+  const nextButton = (
+    <Button
+      variant="outline"
+      size="icon"
+      onClick={() => onNavigate("next")}
+      title={t("viewer.nav.next")}
+      aria-label={t("viewer.nav.next")}
+      disabled={isNextDisabled}
+      className="shrink-0"
+    >
+      <NextIcon />
+    </Button>
+  )
 
   return (
     <div
@@ -463,31 +508,11 @@ export function ImageNavBar({
       onMouseDown={(e) => e.stopPropagation()}
       onDoubleClick={(e) => e.stopPropagation()}
     >
-      <Button
-        variant="outline"
-        size="icon"
-        onClick={() => onNavigate("prev")}
-        title={t("viewer.nav.prev")}
-        aria-label={t("viewer.nav.prev")}
-        disabled={isPrevDisabled}
-        className="shrink-0"
-      >
-        <PrevIcon />
-      </Button>
+      {mirrored ? nextButton : prevButton}
 
       {strip}
 
-      <Button
-        variant="outline"
-        size="icon"
-        onClick={() => onNavigate("next")}
-        title={t("viewer.nav.next")}
-        aria-label={t("viewer.nav.next")}
-        disabled={isNextDisabled}
-        className="shrink-0"
-      >
-        <NextIcon />
-      </Button>
+      {mirrored ? prevButton : nextButton}
 
       {onToggleGrid && (
         <Toggle
