@@ -19,6 +19,7 @@ so Explorer renders real PSD thumbnails instead.
 | `src/psd.rs`  | PSD byte decode, aspect-fit sizing, downscale                    |
 | `src/bitmap.rs` | RGB8 to 32bpp DIB section (`HBITMAP`)                          |
 | `src/registry.rs` | HKCU registration (CLSID, ShellEx, PerceivedType)            |
+| `araview_thumb.def` + `build.rs` | Marks the four COM exports `PRIVATE` (silences LNK4104) |
 
 ## CLSIDs (never change)
 

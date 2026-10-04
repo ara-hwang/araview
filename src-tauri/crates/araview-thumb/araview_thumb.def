@@ -1,0 +1,8 @@
+; COM entry points. The MSVC linker wants the standard Dll* exports marked
+; PRIVATE (they are found via GetProcAddress, never through the import
+; library), otherwise it emits LNK4104 for each of them.
+EXPORTS
+    DllGetClassObject   PRIVATE
+    DllCanUnloadNow     PRIVATE
+    DllRegisterServer   PRIVATE
+    DllUnregisterServer PRIVATE

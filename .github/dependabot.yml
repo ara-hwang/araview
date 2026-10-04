@@ -13,6 +13,12 @@ updates:
     directory: "/"
     schedule:
       interval: weekly
+    # tauri-plugin-mcp-bridge 0.13 needs the webview2-com 0.38 types, which
+    # tauri 2.11 uses; tauri 2.12 moved to 0.39 and breaks the dev build.
+    # Keep the JS packages on the same minor as the Rust crates.
+    ignore:
+      - dependency-name: "@tauri-apps/*"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
     groups:
       npm:
         patterns: ["*"]
@@ -20,6 +26,31 @@ updates:
     directory: "/src-tauri"
     schedule:
       interval: weekly
+    # See the npm block: stay on the tauri 2.11 line until
+    # tauri-plugin-mcp-bridge supports webview2-com 0.39.
+    ignore:
+      - dependency-name: "tauri"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
+      - dependency-name: "tauri-build"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
+      # araview-thumb pins windows-core to the same minor as `windows`;
+      # bumping it alone (0.100 vs windows 0.62) breaks the thumbnail DLL.
+      - dependency-name: "windows-core"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
+      # Listed one by one: a tauri-plugin-* glob would also block
+      # tauri-plugin-mcp-bridge, the update we are waiting for.
+      - dependency-name: "tauri-plugin-dialog"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
+      - dependency-name: "tauri-plugin-opener"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
+      - dependency-name: "tauri-plugin-store"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
+      - dependency-name: "tauri-plugin-updater"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
+      - dependency-name: "tauri-plugin-window-state"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
+      - dependency-name: "tauri-plugin-single-instance"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
     groups:
       cargo:
         patterns: ["*"]

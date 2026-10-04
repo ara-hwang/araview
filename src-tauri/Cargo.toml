@@ -29,7 +29,7 @@ lto = "thin"
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = ["protocol-asset"] }
+tauri = { version = "~2.11", features = ["protocol-asset"] }
 tauri-plugin-opener = "2.5.5"
 tauri-plugin-updater = "2"
 serde = { version = "1", features = ["derive"] }
