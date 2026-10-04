@@ -278,7 +278,9 @@ export function ImageContainer({
             src={imageSrc}
             alt={app.imageInfo?.file_name}
             className={cn(
-              "pointer-events-auto block max-h-none max-w-none shrink-0 origin-center transition-opacity duration-150 ease-motion-out will-change-transform motion-reduce:transition-none",
+              "pointer-events-auto block max-h-none max-w-none shrink-0 origin-center will-change-transform",
+              // 페이드 없이 바로 바꾼다. opacity 트랜지션을 두면 이미 로드된
+              // 이미지도 전환마다 배경이 비쳤다가 나타난다.
               fullLoaded ? "opacity-100" : "opacity-0",
               imageRendering === "pixelated"
                 ? "image-rendering-pixelated"

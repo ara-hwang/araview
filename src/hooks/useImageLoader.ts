@@ -20,6 +20,7 @@ import { resolveCoverIndex } from "@/utils/comicCover"
 import { resolveComicViewMode } from "@/utils/comicViewMode"
 import { buildDirListOptions } from "@/utils/directoryOptions"
 import { resolvePairStart } from "@/utils/dirNavigation"
+import { imageCacheKey } from "@/utils/imageCacheKey"
 import { beginImageLoad, isCurrentImageLoad } from "@/utils/imageLoadSession"
 import { shouldUsePreviewThumbnail } from "@/utils/previewThumbnail"
 import { maxSideForResolution } from "@/utils/resolutionLimit"
@@ -116,8 +117,26 @@ export function useImageLoader() {
   const loopNavigation = useSettingsStore((state) => state.loopNavigation)
   const viewMode = useEffectiveViewMode()
 
-  const { getOrLoadImage, prefetchNearbyImages, getPrefetchDistance, clearImageMetaCache } =
-    useImageCache()
+  const {
+    getOrLoadImage,
+    awaitPaintReady,
+    prefetchNearbyImages,
+    getPrefetchDistance,
+    clearImageMetaCache
+  } = useImageCache()
+
+  /**
+   * 보던 이미지가 있으면 새 이미지가 그려질 준비가 될 때까지 화면 교체를 미룬다.
+   * 먼저 바꾸면 새 이미지가 로드되기 전까지 배경이 비쳐 깜빡인다. 양쪽 보기에서도
+   * 아카이브 미리보기처럼 단일 렌더 경로를 타는 화면이 있어 보기 모드로 가르지 않는다.
+   */
+  const holdUntilPaintReady = useCallback(
+    async (imgInfo: ImageInfo, scope: string | null, pathOrEntry: string) => {
+      if (!useAppStore.getState().imageInfo) return
+      await awaitPaintReady(imgInfo, imageCacheKey(scope, pathOrEntry))
+    },
+    [awaitPaintReady]
+  )
 
   const [isDragOver, setIsDragOver] = useState(false)
   const dragDepthRef = useRef(0)
@@ -174,6 +193,7 @@ export function useImageLoader() {
           const imgInfo = scopeMatches
             ? await getOrLoadImage(entryName, { protectArchive: true })
             : await invokeLoadArchiveImage(archivePath, entryName)
+          await holdUntilPaintReady(imgInfo, archivePath, entryName)
           if (!isCurrentImageLoad(loadToken)) return
           setImageInfoAndResetView(imgInfo)
           syncDirImagesIndexTo(entryName)
@@ -210,7 +230,7 @@ export function useImageLoader() {
         }
       )
     },
-    [getOrLoadImage, prefetchArchiveNeighbors]
+    [getOrLoadImage, holdUntilPaintReady, prefetchArchiveNeighbors]
   )
 
   /** 아카이브 파일을 열어 내부 첫 이미지(또는 이어보기 위치)를 표시 */
@@ -276,6 +296,7 @@ export function useImageLoader() {
           // 스토어 범위가 이미 이 아카이브라 공용 캐시/in-flight를 거친다. 첫 페이지가
           // 캐시에 남고, 같은 엔트리를 예열 중이면 추출 요청이 합쳐진다.
           const imgInfo = await getOrLoadImage(firstEntry, { protectArchive: true })
+          await holdUntilPaintReady(imgInfo, archivePath, firstEntry)
 
           if (!isCurrentImageLoad(loadToken)) return
 
@@ -341,7 +362,13 @@ export function useImageLoader() {
         }
       )
     },
-    [clearImageMetaCache, getOrLoadImage, loadArchiveImageByIndex, prefetchArchiveNeighbors]
+    [
+      clearImageMetaCache,
+      getOrLoadImage,
+      holdUntilPaintReady,
+      loadArchiveImageByIndex,
+      prefetchArchiveNeighbors
+    ]
   )
 
   /** 폴더 목록을 유지하고 아카이브 첫 페이지만 미리본다 (이어보기·내부 목록 미적용). */
@@ -368,6 +395,7 @@ export function useImageLoader() {
             throw new Error("No images in archive")
           }
           const imgInfo = await invokeLoadArchiveImage(archivePath, firstEntry)
+          await holdUntilPaintReady(imgInfo, archivePath, firstEntry)
           if (!isCurrentImageLoad(loadToken)) return
           setImageInfoAndResetView(imgInfo)
           syncDirImagesIndexTo(archivePath)
@@ -389,7 +417,7 @@ export function useImageLoader() {
         }
       )
     },
-    [clearImageMetaCache]
+    [clearImageMetaCache, holdUntilPaintReady]
   )
 
   const openArchiveFromPreview = useCallback(
@@ -451,6 +479,7 @@ export function useImageLoader() {
         loadToken,
         async () => {
           const imgInfo = await getOrLoadImage(filePath)
+          await holdUntilPaintReady(imgInfo, null, filePath)
           if (!isCurrentImageLoad(loadToken)) return
           setImageInfoAndResetView(imgInfo)
           syncDirImagesIndexTo(filePath)
@@ -511,6 +540,7 @@ export function useImageLoader() {
       clearImageMetaCache,
       dirImages,
       getOrLoadImage,
+      holdUntilPaintReady,
       prefetchFolderNeighbors,
       loadArchive,
       loadArchivePreview
