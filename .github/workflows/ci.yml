@@ -5,7 +5,9 @@ name: CI
 # 커서 Actions 탭 수동 실행(workflow_dispatch)과 릴리스(release.yml이
 # workflow_call로 호출)에서만 돈다. 대신 PR에서 src-tauri나 Cargo.lock이 바뀌면
 # 가벼운 rust-check 잡(cargo check, 기본 feature와 --no-default-features)이 돌아
-# 의존성 업데이트가 빌드를 깨는 것을 병합 전에 잡는다.
+# 의존성 업데이트가 빌드를 깨는 것을 병합 전에 잡는다. main 푸시에서도 같은 조건으로
+# 돌리는 이유는 캐시다. PR은 자기 ref와 main의 캐시만 복원할 수 있어서, main이
+# 캐시를 저장해 두지 않으면 모든 PR이 빈 캐시로 시작한다.
 # 릴리스 검증은 이 파일을 그대로 재사용하므로 검증 항목은 여기서만 고친다.
 on:
   pull_request:
@@ -65,9 +67,11 @@ jobs:
       - name: Frontend tests with coverage
         run: npm run test:coverage
 
-  # PR에서 Rust 쪽 파일이 바뀐 경우에만 rust-check를 돌리기 위한 판별 잡.
+  # Rust 쪽 파일이 바뀐 PR과 main 푸시에서만 rust-check를 돌리기 위한 판별 잡.
+  # 태그(릴리스)는 rust 잡이 맡으므로 제외한다. workflow_call에서는 event_name이
+  # 호출자(태그 푸시) 것이라 ref_type으로 거른다.
   changes:
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref_type == 'branch')
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -80,9 +84,13 @@ jobs:
       - name: Detect Rust-related changes
         id: filter
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          # PR은 베이스 커밋, 푸시는 푸시 직전 커밋과 비교한다.
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: |
-          if git diff --name-only "$BASE_SHA" HEAD | grep -Eq '^(src-tauri/|\.github/actions/setup-rust-native/|\.github/workflows/ci\.yml$)'; then
+          # 비교 대상을 못 찾으면(새 브랜치의 0 커밋, 강제 푸시 등) 안전하게 돌린다.
+          if ! files=$(git diff --name-only "$BASE_SHA" HEAD 2>/dev/null); then
+            echo "rust=true" >> "$GITHUB_OUTPUT"
+          elif echo "$files" | grep -Eq '^(src-tauri/|\.github/actions/setup-rust-native/|\.github/workflows/ci\.yml$)'; then
             echo "rust=true" >> "$GITHUB_OUTPUT"
           else
             echo "rust=false" >> "$GITHUB_OUTPUT"
