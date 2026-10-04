@@ -2,7 +2,7 @@
 
 maintainer용 안내입니다. 사용자용 업데이트 확인 방법은 `usage.md#업데이트-확인`을 봅니다. 배포 규격 진실은 `../SPEC.md` §20을 따릅니다.
 
-릴리스는 `npm run release -- <버전>` 한 줄로 시작합니다. 이 명령이 버전을 올려 커밋하고 `vX.Y.Z` 태그와 함께 푸시하면, `.github/workflows/release.yml`이 검증(테스트, 타입, 포맷, cargo test/clippy, 보안 감사, 라이선스 검사), 서명 빌드, `latest.json` 생성, GitHub 릴리스 생성까지 자동으로 수행합니다. 공개 저장소라 GitHub 호스팅 표준 러너는 무료입니다. `.github/workflows/ci.yml`이 검증을 담당하며 릴리스 워크플로가 그대로 재사용합니다. PR과 main 푸시에서는 프론트엔드 검사가 자동으로 돌고, PR에서 `src-tauri/`나 `Cargo.lock`이 바뀌면 가벼운 `cargo check`(기본 feature와 `--no-default-features`)도 돕니다. 전체 Rust 검사(cargo test/clippy, 보안 감사, 라이선스 검사)는 Actions 탭에서 수동 실행하거나 릴리스 때 돕니다.
+릴리스는 `npm run release -- <버전>` 한 줄로 시작합니다. 이 명령이 버전을 올려 커밋하고 `vX.Y.Z` 태그와 함께 푸시하면, `.github/workflows/release.yml`이 검증(테스트, 타입, 포맷, cargo test/clippy, 보안 감사, 라이선스 검사), 서명 빌드, `latest.json` 생성, GitHub 릴리스 생성까지 자동으로 수행합니다. 공개 저장소라 GitHub 호스팅 표준 러너는 무료입니다. `.github/workflows/ci.yml`이 검증을 담당하며 릴리스 워크플로가 그대로 재사용합니다. PR과 main 푸시에서는 프론트엔드 검사가 자동으로 돌고, PR과 main 푸시에서 `src-tauri/`나 `Cargo.lock`이 바뀌면 가벼운 `cargo check`(기본 feature와 `--no-default-features`)도 돕니다. main 푸시에서 도는 것은 캐시 때문입니다. PR은 자기 ref와 main의 캐시만 복원할 수 있어서, main이 저장해 두어야 PR이 빈 캐시로 시작하지 않습니다. 전체 Rust 검사(cargo test/clippy, 보안 감사, 라이선스 검사)는 Actions 탭에서 수동 실행하거나 릴리스 때 돕니다.
 
 ## 태그로 자동 릴리스
 

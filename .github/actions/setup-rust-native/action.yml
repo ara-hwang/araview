@@ -29,14 +29,23 @@ runs:
         workspaces: "./src-tauri -> target"
         shared-key: ${{ inputs.cache-key }}
 
+    # VCPKG_INSTALLATION_ROOT는 러너가 프로세스 환경에만 넣어 주는 값이라 `env` 컨텍스트에
+    # 없다. `${{ env.VCPKG_INSTALLATION_ROOT }}`를 경로에 쓰면 빈 문자열이 되어 캐시가
+    # 저장도 복원도 되지 않으므로(libheif를 매번 8분씩 소스 빌드), 스텝 출력으로 넘긴다.
+    - name: Locate vcpkg
+      id: vcpkg-root
+      shell: pwsh
+      run: |
+        "root=$env:VCPKG_INSTALLATION_ROOT" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+    # installed만 저장한다. vcpkg는 이 디렉터리의 상태(status)만 보고 이미 설치된
+    # 패키지를 건너뛰며, packages와 buildtrees는 수백 MB 이상의 중간 산출물이라
+    # 캐시 용량(저장소 전체 10GB)만 잡아먹는다.
     - name: Cache vcpkg
       id: vcpkg-cache
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
-        path: |
-          ${{ env.VCPKG_INSTALLATION_ROOT }}/installed
-          ${{ env.VCPKG_INSTALLATION_ROOT }}/packages
-          ${{ env.VCPKG_INSTALLATION_ROOT }}/buildtrees
+        path: ${{ steps.vcpkg-root.outputs.root }}/installed
         key: vcpkg-libheif-x64-${{ hashFiles('src-tauri/Cargo.toml', 'src-tauri/Cargo.lock') }}
         restore-keys: |
           vcpkg-libheif-x64-
