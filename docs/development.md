@@ -111,7 +111,7 @@ src-tauri/
   src/sniff.rs       # 파일 선두 시그니처 기반 포맷 판별
   src/heif.rs        # HEIC/HEIF 디코드 및 JPEG sidecar
   src/psd_sidecar.rs # PSD 합성 디코드(`psd` 크레이트) 및 JPEG sidecar (읽기 전용)
-  src/raster_sidecar.rs # TGA/DDS/EXR 디코드(`image` 크레이트) 및 JPEG sidecar (읽기 전용)
+  src/raster_sidecar.rs # TGA/DDS/EXR/QOI 디코드(`image` 크레이트) 및 JPEG sidecar (읽기 전용)
   src/transcode.rs # 포맷(resolve_mime)별 sidecar 디코더 디스패치
   src/process_temp.rs # 임시/영구 파생 이미지 캐시 루트, 보호, 상한, 시작 정리
   src/cache.rs        # 캐시 통계 및 종류별/전체 삭제

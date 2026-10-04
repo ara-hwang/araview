@@ -465,6 +465,31 @@ mod tests {
     }
 
     #[test]
+    fn histogram_and_details_support_qoi() {
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("pixels.qoi");
+        let img = image::DynamicImage::ImageRgb8(image::RgbImage::from_pixel(
+            4,
+            4,
+            image::Rgb([255, 0, 0]),
+        ));
+        img.save_with_format(&source, image::ImageFormat::Qoi)
+            .unwrap();
+
+        let hist = histogram_for_path(&source).expect("qoi histogram");
+        assert_eq!(hist.sampled_pixels, 16);
+        assert_eq!(hist.r[255], 16);
+        assert_eq!(hist.g[0], 16);
+        assert_eq!(hist.b[0], 16);
+
+        let details = details_for_path(&source).expect("qoi details");
+        assert_eq!((details.width, details.height), (Some(4), Some(4)));
+        assert_eq!(details.color_mode, "rgb");
+        assert_eq!(details.bits_per_channel, Some(8));
+        assert_eq!(details.icc_status, IccStatus::Unchecked);
+    }
+
+    #[test]
     fn histogram_and_details_support_psd() {
         let dir = tempfile::tempdir().unwrap();
         let source = dir.path().join("design.psd");

@@ -42,6 +42,9 @@ pub fn sniff_mime(head: &[u8]) -> Option<&'static str> {
     if head.starts_with(&[0x76, 0x2F, 0x31, 0x01]) {
         return Some("image/x-exr");
     }
+    if head.starts_with(b"qoif") {
+        return Some("image/qoi");
+    }
     sniff_bmff(head)
 }
 
@@ -110,6 +113,7 @@ mod tests {
             sniff_mime(&[0x76, 0x2F, 0x31, 0x01, 2, 0]),
             Some("image/x-exr")
         );
+        assert_eq!(sniff_mime(b"qoif\x00\x00\x03\x20"), Some("image/qoi"));
     }
 
     #[test]

@@ -27,8 +27,13 @@ pub fn decoder_for(path: &Path) -> Option<Decoder> {
     }
 }
 
-/// TGA/DDS/EXR: formats the `image` crate decodes but WebView2 cannot paint.
-pub const RASTER_MIMES: &[&str] = &["image/x-tga", "image/vnd.ms-dds", "image/x-exr"];
+/// TGA/DDS/EXR/QOI: formats the `image` crate decodes but WebView2 cannot paint.
+pub const RASTER_MIMES: &[&str] = &[
+    "image/x-tga",
+    "image/vnd.ms-dds",
+    "image/x-exr",
+    "image/qoi",
+];
 
 pub fn is_raster_mime(mime: &str) -> bool {
     RASTER_MIMES.contains(&mime)
@@ -79,6 +84,7 @@ mod tests {
         assert_eq!(decoder_for(Path::new("a.TGA")), Some(Decoder::Raster));
         assert_eq!(decoder_for(Path::new("a.dds")), Some(Decoder::Raster));
         assert_eq!(decoder_for(Path::new("a.exr")), Some(Decoder::Raster));
+        assert_eq!(decoder_for(Path::new("a.qoi")), Some(Decoder::Raster));
         assert_eq!(decoder_for(Path::new("a.png")), None);
     }
 }

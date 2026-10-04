@@ -704,6 +704,7 @@
     "tga": "TGA 이미지",
     "dds": "DDS 텍스처",
     "exr": "OpenEXR 이미지",
+    "qoi": "QOI 이미지",
     "cbz": "만화 아카이브",
     "zip": "ZIP 아카이브"
   }

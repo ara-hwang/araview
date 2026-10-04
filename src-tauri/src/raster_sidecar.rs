@@ -1,4 +1,4 @@
-//! TGA / DDS / OpenEXR 미리보기용 JPEG sidecar.
+//! TGA / DDS / OpenEXR / QOI 미리보기용 JPEG sidecar.
 //!
 //! WebView2는 이 포맷들을 네이티브 렌더하지 못해 HEIC/PSD와 같은 전제로
 //! 디코드한 픽셀을 JPEG sidecar로 변환해 렌더한다.
@@ -6,6 +6,7 @@
 //! - DDS는 크레이트가 DXT1/3/5(BC1~BC3)만 지원한다. 그 외(BC7, 비압축)는
 //!   `unsupported`로 보고한다.
 //! - EXR은 선형 부동소수 값을 clamp 후 sRGB 감마로 8비트화한다(노출 보정 없음).
+//! - QOI는 8비트 RGB/RGBA 손실 압축이며, 투명은 흰 배경에 합성한다.
 //! - 편집 저장은 지원하지 않는다(읽기 전용). `save.rs`에서 진입 차단.
 //!
 //! 파일 식별 해시, per-file 락, JPEG 원자적 발행, 다운스케일은
@@ -29,12 +30,13 @@ const MAX_DECODE_ALLOC: u64 = 2 * 1024 * 1024 * 1024;
 /// 파일 전체를 읽기 전에 거르는 크기 상한.
 const MAX_FILE_BYTES: u64 = 768 * 1024 * 1024;
 
-/// 이 모듈이 담당하는 확장자와 `image` 포맷.
-pub fn format_for_ext(ext: &str) -> Option<ImageFormat> {
-    match ext {
-        "tga" => Some(ImageFormat::Tga),
-        "dds" => Some(ImageFormat::Dds),
-        "exr" => Some(ImageFormat::OpenExr),
+/// 이 모듈이 담당하는 MIME과 `image` 포맷.
+pub fn format_for_mime(mime: &str) -> Option<ImageFormat> {
+    match mime {
+        "image/x-tga" => Some(ImageFormat::Tga),
+        "image/vnd.ms-dds" => Some(ImageFormat::Dds),
+        "image/x-exr" => Some(ImageFormat::OpenExr),
+        "image/qoi" => Some(ImageFormat::Qoi),
         _ => None,
     }
 }
@@ -50,13 +52,11 @@ pub(crate) static SPEC: SidecarSpec = SidecarSpec {
 /// 합성 픽셀을 RGB8로 디코드. 투명은 흰 배경에 합성한다
 /// (JPEG에 알파가 없어 `psd_sidecar`/`save.rs` flatten과 같은 규칙).
 pub(crate) fn decode_rgb8(source: &Path) -> Result<Rgb8, AppError> {
-    let ext = source
-        .extension()
-        .and_then(|e| e.to_str())
-        .map(str::to_lowercase)
-        .unwrap_or_default();
-    let format =
-        format_for_ext(&ext).ok_or_else(|| AppError::unsupported("Unsupported image format"))?;
+    // 렌더 경로를 정하는 `resolve_mime`을 그대로 따른다. 이름이 바뀐
+    // QOI/DDS/EXR도 시그니처로 판별돼 같은 디코더로 들어온다.
+    let format = crate::image::resolve_mime(source)
+        .and_then(format_for_mime)
+        .ok_or_else(|| AppError::unsupported("Unsupported image format"))?;
     let meta = fs::metadata(source)
         .map_err(|e| AppError::io("Failed to read metadata", e, ErrorCode::Corrupt))?;
     if meta.len() > MAX_FILE_BYTES {
@@ -188,6 +188,33 @@ mod tests {
     }
 
     #[test]
+    fn qoi_decodes_to_rgb8() {
+        let dir = tempfile::tempdir().unwrap();
+        let img =
+            DynamicImage::ImageRgb8(image::RgbImage::from_pixel(3, 2, image::Rgb([10, 20, 30])));
+        let path = save_as(dir.path(), "a.qoi", &img, ImageFormat::Qoi);
+        let rgb = decode_rgb8(&path).unwrap();
+        assert_eq!((rgb.width, rgb.height), (3, 2));
+        assert_eq!(&rgb.bytes[..3], &[10, 20, 30]);
+    }
+
+    #[test]
+    fn qoi_alpha_is_flattened_on_white() {
+        let dir = tempfile::tempdir().unwrap();
+        let img = DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(
+            2,
+            2,
+            image::Rgba([0, 0, 0, 0]),
+        ));
+        let path = save_as(dir.path(), "a.qoi", &img, ImageFormat::Qoi);
+        let rgb = decode_rgb8(&path).unwrap();
+        assert_eq!(
+            rgb.bytes,
+            vec![255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255]
+        );
+    }
+
+    #[test]
     fn exr_linear_values_are_gamma_encoded() {
         let dir = tempfile::tempdir().unwrap();
         let img = DynamicImage::ImageRgba32F(image::Rgba32FImage::from_pixel(
@@ -225,7 +252,7 @@ mod tests {
     #[test]
     fn garbage_is_an_error_not_a_panic() {
         let dir = tempfile::tempdir().unwrap();
-        for name in ["a.tga", "a.dds", "a.exr"] {
+        for name in ["a.tga", "a.dds", "a.exr", "a.qoi"] {
             let path = dir.path().join(name);
             fs::write(&path, b"not an image at all, just text").unwrap();
             let err = decode_rgb8(&path).unwrap_err();
@@ -262,6 +289,7 @@ mod tests {
             ("sample.tga", "image/x-tga", (800, 600)),
             ("sample.dds", "image/vnd.ms-dds", (800, 600)),
             ("sample.exr", "image/x-exr", (400, 300)),
+            ("sample.qoi", "image/qoi", (800, 600)),
         ] {
             let source = samples.join(name);
             let info =

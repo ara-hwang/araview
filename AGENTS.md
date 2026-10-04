@@ -15,7 +15,7 @@ Product truth lives in `PRODUCT.md`, visual system in `DESIGN.md`, full function
 
 ## Current Feature Scope
 
-- Supported file extensions: `png`, `jpg`, `jpeg`, `gif`, `bmp`, `webp`, `svg`, `ico`, `avif`, `heic`, `heif`, `psd`, `tga`, `dds`, `exr` (read-only preview via JPEG sidecar), `cbz`, `zip` (PSB excluded, no decoder)
+- Supported file extensions: `png`, `jpg`, `jpeg`, `gif`, `bmp`, `webp`, `svg`, `ico`, `avif`, `heic`, `heif`, `psd`, `tga`, `dds`, `exr`, `qoi` (read-only preview via JPEG sidecar), `cbz`, `zip` (PSB excluded, no decoder)
 - Input flows: file picker, drag-and-drop (file/folder), OS file association open
 - Viewer controls: zoom, fit-to-width/height/screen, pan, rotate, flip
 - Navigation: previous/next, index jump, thumbnail strip/grid, optional loop navigation
@@ -132,7 +132,7 @@ Full data model: see `SPEC.md` §16.
 Image rendering is path-based:
 
 - Backend returns a filesystem path the WebView can decode (`ImageInfo.file_path`)
-- HEIC/HEIF/PSD/TGA/DDS/EXR are transcoded to JPEG sidecars (`src-tauri/src/transcode.rs` dispatches to the decoder; shared pipeline is `SidecarSpec` in `sidecar.rs`) under the active derived-image cache root at load
+- HEIC/HEIF/PSD/TGA/DDS/EXR/QOI are transcoded to JPEG sidecars (`src-tauri/src/transcode.rs` dispatches to the decoder; shared pipeline is `SidecarSpec` in `sidecar.rs`) under the active derived-image cache root at load
 - Persistent cache is the default; temporary mode uses a session-only root. The active mode is managed from Settings and mode changes apply on the next launch
 - Frontend converts that path via `convertFileSrc(...)`
 - `src-tauri/src/pixel_art.rs` provides conservative display-only detection; the frontend resolves `auto | smooth | pixelated` through `src/utils/imageRendering.ts`

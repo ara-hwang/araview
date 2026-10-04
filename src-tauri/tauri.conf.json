@@ -60,7 +60,8 @@
           "psd",
           "tga",
           "dds",
-          "exr"
+          "exr",
+          "qoi"
         ]
       },
       {
