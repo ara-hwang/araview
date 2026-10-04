@@ -1,8 +1,11 @@
 name: CI
 
 # 프론트엔드 검사는 PR과 main 푸시에서 자동으로 돈다.
-# Rust 검사는 비용이 커서 Actions 탭 수동 실행(workflow_dispatch)과
-# 릴리스(release.yml이 workflow_call로 호출)에서만 돈다.
+# Rust는 두 단계다. 전체 검증(rust 잡: fmt, test, clippy, audit, deny)은 비용이
+# 커서 Actions 탭 수동 실행(workflow_dispatch)과 릴리스(release.yml이
+# workflow_call로 호출)에서만 돈다. 대신 PR에서 src-tauri나 Cargo.lock이 바뀌면
+# 가벼운 rust-check 잡(cargo check, 기본 feature와 --no-default-features)이 돌아
+# 의존성 업데이트가 빌드를 깨는 것을 병합 전에 잡는다.
 # 릴리스 검증은 이 파일을 그대로 재사용하므로 검증 항목은 여기서만 고친다.
 on:
   pull_request:
@@ -13,8 +16,9 @@ on:
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  # 태그(릴리스) 검증은 도중에 취소하지 않는다.
-  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+  # PR 브랜치의 이전 실행만 취소한다. main 푸시가 연달아 들어와도 앞선 실행이
+  # 끝까지 돌아야 하고, 태그(릴리스) 검증도 도중에 취소하지 않는다.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -42,9 +46,6 @@ jobs:
       - name: Frontend lint
         run: npm run lint
 
-      - name: Frontend tests with coverage
-        run: npm run test:coverage
-
       - name: Type check
         run: npx tsc --noEmit
 
@@ -59,6 +60,56 @@ jobs:
       # 자문만 scripts/audit-frontend.mjs의 허용 목록에 이유와 추적 링크를 남긴다.
       - name: Frontend dependency audit
         run: npm run audit:frontend
+
+      # 가장 오래 걸리는 단계라 빠른 검사들 뒤에 둔다. 사소한 오류는 여기 오기 전에 드러난다.
+      - name: Frontend tests with coverage
+        run: npm run test:coverage
+
+  # PR에서 Rust 쪽 파일이 바뀐 경우에만 rust-check를 돌리기 위한 판별 잡.
+  changes:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      rust: ${{ steps.filter.outputs.rust }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Detect Rust-related changes
+        id: filter
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if git diff --name-only "$BASE_SHA" HEAD | grep -Eq '^(src-tauri/|\.github/actions/setup-rust-native/|\.github/workflows/ci\.yml$)'; then
+            echo "rust=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "rust=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  # 풀 검증(rust 잡)보다 훨씬 싼 컴파일 검사. 기본 feature(dev-mcp 포함)와
+  # 릴리스 feature를 모두 확인한다. 풀 검증은 --no-default-features만 보기 때문에
+  # mcp-bridge가 tauri와 어긋나는 문제는 여기서만 잡힌다.
+  rust-check:
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Rust and native dependencies
+        uses: ./.github/actions/setup-rust-native
+        with:
+          cache-key: check
+
+      - name: Cargo check (default features, dev-mcp)
+        run: cd src-tauri && cargo check --workspace --all-targets
+
+      - name: Cargo check (release features)
+        run: cd src-tauri && cargo check --workspace --all-targets --no-default-features
 
   rust:
     # PR과 main 푸시에서는 건너뛴다. workflow_call에서는 event_name이 호출자(태그 푸시)
