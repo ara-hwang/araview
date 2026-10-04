@@ -4,7 +4,7 @@ import { useLayoutEffect, useRef, useState, type RefObject } from "react"
 import { useTranslation } from "react-i18next"
 import { useShallow } from "zustand/react/shallow"
 
-import { PixelArtImage } from "@/components/PixelArtImage"
+import { DualPageSpread } from "@/components/DualPageSpread"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
 import { toast } from "@/components/ui/toast"
@@ -54,6 +54,7 @@ type ImageContainerProps = {
 }
 
 const toSrc = (info: ImageInfo) => convertFileSrc(info.file_path)
+const toPageSrc = (page: MultiPage) => toSrc(page.info)
 
 export function ImageContainer({
   containerRef,
@@ -336,33 +337,15 @@ export function ImageContainer({
 
       {/* Dual page: LTR / RTL. 마지막 홀수 장은 단일 중앙 표시 */}
       {isDual && (
-        <div
-          className={cn(
-            "absolute inset-0 flex items-center justify-center",
-            viewMode === "right-to-left" && "flex-row-reverse"
-          )}
-        >
-          {pages.map((page, index) => (
-            <PixelArtImage
-              key={page.path}
-              filePath={page.info.file_path}
-              detectionPath={getPixelArtDetectionPath(page.info)}
-              fileSize={page.info.file_size}
-              scalingMode={webtoonSettings.imageScalingMode}
-              autoDetectPixelArt={webtoonSettings.autoDetectPixelArt}
-              detectionPriority={index === 0}
-              src={toSrc(page.info)}
-              alt={page.info.file_name}
-              className={
-                pages.length === 1
-                  ? "max-h-full max-w-full object-contain"
-                  : "max-h-full max-w-[50%] object-contain"
-              }
-              draggable={false}
-              onDoubleClick={onDoubleClick}
-            />
-          ))}
-        </div>
+        <DualPageSpread
+          key={pages.map((page) => page.path).join("\n")}
+          pages={pages}
+          reversed={viewMode === "right-to-left"}
+          src={toPageSrc}
+          scalingMode={webtoonSettings.imageScalingMode}
+          autoDetectPixelArt={webtoonSettings.autoDetectPixelArt}
+          onDoubleClick={onDoubleClick}
+        />
       )}
 
       {/* Webtoon: 전 구간 연속 스크롤 */}

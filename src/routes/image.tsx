@@ -64,11 +64,12 @@ function ImagePage() {
     handleDragLeave,
     isDragOver,
     getOrLoadImage,
+    awaitPagePaintReady,
     openArchiveFromPreview,
     prefetchAround
   } = useImageLoader()
 
-  const { viewMode, pages } = useMultiPageImages(getOrLoadImage)
+  const { viewMode, pages } = useMultiPageImages(getOrLoadImage, awaitPagePaintReady)
   const { toggleExifPanel } = useExifLoader()
 
   // 이미지 로드 후 줌/팬 초기화
