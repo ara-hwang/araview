@@ -34,11 +34,12 @@ const TRANSCODE_MIMES: &[&str] = &[
     "image/x-tga",
     "image/vnd.ms-dds",
     "image/x-exr",
+    "image/qoi",
 ];
 
 pub const SUPPORTED_EXTENSIONS: &[&str] = &[
     "png", "jpg", "jpeg", "gif", "bmp", "webp", "svg", "ico", "avif", "heic", "heif", "psd", "tga",
-    "dds", "exr", "cbz", "zip",
+    "dds", "exr", "qoi", "cbz", "zip",
 ];
 
 #[derive(Serialize)]
@@ -65,6 +66,7 @@ pub fn get_mime_type(path: &Path) -> Option<&'static str> {
         "tga" => Some("image/x-tga"),
         "dds" => Some("image/vnd.ms-dds"),
         "exr" => Some("image/x-exr"),
+        "qoi" => Some("image/qoi"),
         "cbz" => Some("application/vnd.comicbook+zip"),
         "zip" => Some("application/zip"),
         _ => None,
@@ -322,6 +324,12 @@ mod tests {
     }
 
     #[test]
+    fn test_get_mime_type_qoi() {
+        assert_eq!(get_mime_type(Path::new("pixels.qoi")), Some("image/qoi"));
+        assert_eq!(get_mime_type(Path::new("pixels.QOI")), Some("image/qoi"));
+    }
+
+    #[test]
     fn test_get_mime_type_cbz() {
         assert_eq!(
             get_mime_type(Path::new("comic.cbz")),
@@ -387,6 +395,7 @@ mod tests {
         assert!(is_image_file(Path::new("IMG_0001.heic")));
         assert!(is_image_file(Path::new("photo.heif")));
         assert!(is_image_file(Path::new("design.psd")));
+        assert!(is_image_file(Path::new("pixels.qoi")));
     }
 
     #[test]
@@ -429,7 +438,7 @@ mod tests {
                 "missing MIME mapping for .{ext}"
             );
         }
-        assert_eq!(SUPPORTED_EXTENSIONS.len(), 17);
+        assert_eq!(SUPPORTED_EXTENSIONS.len(), 18);
     }
 
     #[test]
@@ -455,6 +464,12 @@ mod tests {
         let svg = dir.path().join("a.svg");
         std::fs::write(&svg, b"<svg/>").unwrap();
         assert_eq!(resolve_mime(&svg), Some("image/svg+xml"));
+        // QOI도 시그니처(qoif)로 판별한다.
+        let qoi = dir.path().join("really-qoi.jpg");
+        image::DynamicImage::ImageRgb8(image::RgbImage::new(2, 2))
+            .save_with_format(&qoi, image::ImageFormat::Qoi)
+            .unwrap();
+        assert_eq!(resolve_mime(&qoi), Some("image/qoi"));
         let fake = dir.path().join("fake.heic");
         std::fs::write(&fake, b"not-a-real-heic").unwrap();
         assert_eq!(resolve_mime(&fake), Some("image/heic"));
@@ -480,6 +495,23 @@ mod tests {
     }
 
     #[test]
+    fn mislabeled_qoi_loads_through_the_raster_decoder() {
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("really-qoi.png");
+        let img = image::DynamicImage::ImageRgb8(image::RgbImage::from_pixel(
+            4,
+            2,
+            image::Rgb([9, 9, 9]),
+        ));
+        img.save_with_format(&source, image::ImageFormat::Qoi)
+            .unwrap();
+        let info = load_viewable(&source).expect("sniffed as QOI");
+        assert_eq!(info.mime_type, "image/qoi");
+        assert_ne!(info.file_path, info.source_path);
+        assert_eq!((info.width, info.height), (Some(4), Some(2)));
+    }
+
+    #[test]
     fn test_is_image_file_case_insensitive() {
         assert!(is_image_file(Path::new("PHOTO.PNG")));
         assert!(is_image_file(Path::new("image.JPEG")));
@@ -493,7 +525,12 @@ mod tests {
             paint_strategy("image/vnd.adobe.photoshop"),
             PaintStrategy::TranscodeJpeg
         );
-        for mime in ["image/x-tga", "image/vnd.ms-dds", "image/x-exr"] {
+        for mime in [
+            "image/x-tga",
+            "image/vnd.ms-dds",
+            "image/x-exr",
+            "image/qoi",
+        ] {
             assert_eq!(paint_strategy(mime), PaintStrategy::TranscodeJpeg, "{mime}");
         }
         assert_eq!(paint_strategy("image/png"), PaintStrategy::Native);
@@ -658,6 +695,29 @@ mod tests {
         assert_eq!(&jpeg[..2], &[0xFF, 0xD8]);
         assert_eq!((first.width, first.height), (Some(4), Some(2)));
         let again = load_viewable(&source).expect("reuse PSD sidecar");
+        assert_eq!(again.file_path, first.file_path);
+    }
+
+    #[test]
+    fn load_viewable_qoi_transcodes_to_jpeg_sidecar() {
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("pixels.qoi");
+        let img = image::DynamicImage::ImageRgb8(image::RgbImage::from_pixel(
+            4,
+            2,
+            image::Rgb([10, 20, 30]),
+        ));
+        img.save_with_format(&source, image::ImageFormat::Qoi)
+            .unwrap();
+        let first = load_viewable(&source).expect("decode QOI fixture");
+        assert_eq!(first.mime_type, "image/qoi");
+        assert_eq!(first.file_name, "pixels.qoi");
+        assert_ne!(first.file_path, source.to_string_lossy());
+        assert!(Path::new(&first.file_path).exists());
+        let jpeg = std::fs::read(&first.file_path).unwrap();
+        assert_eq!(&jpeg[..2], &[0xFF, 0xD8]);
+        assert_eq!((first.width, first.height), (Some(4), Some(2)));
+        let again = load_viewable(&source).expect("reuse QOI sidecar");
         assert_eq!(again.file_path, first.file_path);
     }
 

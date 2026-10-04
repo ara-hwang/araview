@@ -704,6 +704,7 @@
     "tga": "TGA image",
     "dds": "DDS texture",
     "exr": "OpenEXR image",
+    "qoi": "QOI image",
     "cbz": "Comic archive",
     "zip": "ZIP archive"
   }

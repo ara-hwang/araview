@@ -16,6 +16,7 @@ export const SUPPORTED_IMAGE_EXTENSIONS = [
   "tga",
   "dds",
   "exr",
+  "qoi",
   "cbz",
   "zip"
 ] as const

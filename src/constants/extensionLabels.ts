@@ -20,6 +20,7 @@ type ExtensionLabelKey =
   | "tga"
   | "dds"
   | "exr"
+  | "qoi"
   | "cbz"
   | "zip"
 
@@ -39,6 +40,7 @@ const EXTENSION_I18N_KEYS: Record<ExtensionLabelKey, string> = {
   tga: "ext.tga",
   dds: "ext.dds",
   exr: "ext.exr",
+  qoi: "ext.qoi",
   cbz: "ext.cbz",
   zip: "ext.zip"
 }
@@ -60,6 +62,7 @@ export const EXTENSION_LABELS: Record<SupportedImageExtension, string> = {
   tga: "TGA 이미지",
   dds: "DDS 텍스처",
   exr: "OpenEXR 이미지",
+  qoi: "QOI 이미지",
   cbz: "만화 아카이브",
   zip: "ZIP 아카이브"
 }

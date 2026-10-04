@@ -19,9 +19,9 @@
 
 ## 2. 지원 포맷
 
-총 17개 확장자(이미지 15종 + 아카이브 2종). 프론트 진실은 `src/constants/imageExtensions.ts`, 백엔드 진실은 `src-tauri/src/image.rs` (`SUPPORTED_EXTENSIONS`, `get_mime_type`).
+총 18개 확장자(이미지 16종 + 아카이브 2종). 프론트 진실은 `src/constants/imageExtensions.ts`, 백엔드 진실은 `src-tauri/src/image.rs` (`SUPPORTED_EXTENSIONS`, `get_mime_type`).
 
-### 2.1 순수 이미지 15종
+### 2.1 순수 이미지 16종
 
 | 확장자        | MIME                        | 비고                                                                                                                    |
 | ------------- | --------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
@@ -39,6 +39,7 @@
 | `tga`         | `image/x-tga`               | JPEG sidecar 트랜스코드 후 렌더(읽기 전용). `image` 크레이트 디코드, 투명은 흰 배경 합성                                |
 | `dds`         | `image/vnd.ms-dds`          | JPEG sidecar 트랜스코드 후 렌더(읽기 전용). DXT1/3/5(BC1~BC3)만 지원, 그 외는 `unsupported`                             |
 | `exr`         | `image/x-exr`               | JPEG sidecar 트랜스코드 후 렌더(읽기 전용). 선형 값을 clamp 후 sRGB 감마로 8비트화(노출 보정 없음)                      |
+| `qoi`         | `image/qoi`                 | JPEG sidecar 트랜스코드 후 렌더(읽기 전용). `image` 크레이트 디코드, 투명은 흰 배경 합성                                |
 
 ### 2.2 아카이브 2종
 
@@ -59,11 +60,10 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한�
 
 ### 2.3 제외 포맷
 
-- QOI, JXL, RAW(CR2/NEF/ARW 등), PSB는 제외 유지.
-  - QOI: `image` 크레이트 디코드가 가능하고 TGA/DDS/EXR과 같은 sidecar 경로(`raster_sidecar.rs`)에 얹을 수 있지만 아직 포함하지 않았다.
+- JXL, RAW(CR2/NEF/ARW 등), PSB는 제외 유지.
   - JXL(`jxl-oxide`), RAW(`rawloader`): 디코더 크레이트는 있으나 아직 포함하지 않았다. 추가 시 `transcode.rs`에 디코더를 등록해 같은 sidecar 파이프라인(`SidecarSpec`)에 얹는다.
   - PSB: 실제 PSB는 `8BPS` + version 2인데 디코더가 없어 진입 차단한다(`psd` 크레이트는 PSD만 지원).
-- PSD, TGA, DDS, EXR은 JPEG sidecar 미리보기로만 표시한다(PSD는 합성 이미지, EXR은 8비트 변환). 앱은 어떤 포맷도 편집·저장하지 않는다.
+- PSD, TGA, DDS, EXR, QOI는 JPEG sidecar 미리보기로만 표시한다(PSD는 합성 이미지, EXR은 8비트 변환). 앱은 어떤 포맷도 편집·저장하지 않는다.
 
 ## 3. 화면과 라우트
 
@@ -644,7 +644,7 @@ Rust와 TypeScript는 같은 모양을 유지한다.
 - 번들: `nsis`만 빌드한다. 결과물은 `src-tauri/target/release/bundle/` 아래에 생성된다.
 - 릴리스 파이프라인: `npm run release -- <버전>`(`scripts/release.mjs`)이 버전 파일 5곳을 올려 커밋하고 `vX.Y.Z` 태그와 함께 푸시한다. 태그 푸시를 `.github/workflows/release.yml`이 받아 태그와 버전 파일의 일치, 서명 키 Secrets를 확인한 뒤 검증(테스트, 타입, 포맷, cargo test/clippy, npm/cargo 보안 감사, 라이선스 검사), 서명 빌드, `latest.json` 생성, 원본 저장소 `ara-hwang/araview` 릴리스 생성까지 자동으로 수행한다. `ci.yml`이 검증을 담당하고 릴리스가 이를 재사용한다. PR과 main 푸시에서는 프론트엔드 검사가 자동으로 돌고, PR에서 `src-tauri/`나 `Cargo.lock`이 바뀌면 `cargo check`(기본 feature와 `--no-default-features`)도 돈다. 전체 Rust 검사는 Actions 수동 실행과 릴리스에서만 돈다. 권한과 절차 상세는 `docs/releasing.md`를 따른다.
 - 파일 연결 3그룹:
-  - Image 15종: png, jpg, jpeg, gif, bmp, webp, svg, ico, avif, heic, heif, psd, tga, dds, exr.
+  - Image 16종: png, jpg, jpeg, gif, bmp, webp, svg, ico, avif, heic, heif, psd, tga, dds, exr, qoi.
   - Comic 1종: cbz.
   - Archive 1종: zip.
 - HEIC/HEIF는 vcpkg `libheif[core,aom]` 동적 링크 + `libde265`(HEVC), `aom`(AV1, AVIF 썸네일/히스토그램)만 사용한다. 설치와 DLL 복사는 `docs/development.md`를 따른다.
