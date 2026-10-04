@@ -26,7 +26,7 @@
     "@base-ui/react": "^1.7.0",
     "@phosphor-icons/react": "^2.1.10",
     "@tailwindcss/vite": "^4.3.3",
-    "@tanstack/react-router": "^1.170.40",
+    "@tanstack/react-router": "^1.170.41",
     "@tauri-apps/api": "~2.11.1",
     "@tauri-apps/plugin-dialog": "~2.7.3",
     "@tauri-apps/plugin-opener": "~2.5.5",
@@ -46,7 +46,7 @@
   },
   "devDependencies": {
     "@shadcn/lint": "^0.2.0",
-    "@tanstack/router-plugin": "^1.168.41",
+    "@tanstack/router-plugin": "^1.168.42",
     "@tauri-apps/cli": "~2.11.4",
     "@testing-library/react": "^16.3.3",
     "@types/node": "^26.6.3",
