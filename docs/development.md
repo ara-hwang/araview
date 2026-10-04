@@ -11,7 +11,7 @@
 ## 요구 사항
 
 - **OS**: Windows 11 (x64)
-- **Node.js**: `>= 22`
+- **Node.js**: `>= 24`
 - **Rust**: stable (`1.97` 이상 권장, 릴리스 워크플로 기준)
 
 HEIC/HEIF를 쓰려면 [vcpkg](https://vcpkg.io/)로 `libheif`를 설치합니다.
