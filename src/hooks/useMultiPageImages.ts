@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react"
-import { useShallow } from "zustand/react/shallow"
 
+import { useCoverLayout } from "@/hooks/useCoverLayout"
 import { useEffectiveViewMode, useSoloIndices } from "@/hooks/useEffectiveViewMode"
 import { useAppStore } from "@/store/appStore"
 import { useSettingsStore } from "@/store/settingsStore"
 import type { ImageInfo } from "@/types"
 import { isArchiveFilePath } from "@/utils/archiveFile"
-import { resolveCoverIndex } from "@/utils/comicCover"
+import { withCoverSolo } from "@/utils/comicCover"
 import { dualPageIndices } from "@/utils/dirNavigation"
 
 // viewMode에 따라 현재 이미지 외에 주변 이미지를 로드해 반환한다.
@@ -31,14 +31,9 @@ export function useMultiPageImages(
 ) {
   const viewMode = useEffectiveViewMode()
   const solo = useSoloIndices()
-  const { loopNavigation, showCoverAlone } = useSettingsStore(
-    useShallow((s) => ({
-      loopNavigation: s.loopNavigation,
-      showCoverAlone: s.showCoverAlone
-    }))
-  )
+  const cover = useCoverLayout()
+  const loopNavigation = useSettingsStore((s) => s.loopNavigation)
   const dirImages = useAppStore((s) => s.dirImages)
-  const comicInfo = useAppStore((s) => s.comicInfo)
   const [pages, setPages] = useState<MultiPage[]>([])
 
   useEffect(() => {
@@ -60,10 +55,10 @@ export function useMultiPageImages(
     const targetIndices = dualPageIndices(
       index,
       count,
-      showCoverAlone,
-      resolveCoverIndex(comicInfo, count),
+      cover.coverAlone,
+      cover.coverIndex,
       loopNavigation,
-      solo
+      withCoverSolo(cover, solo)
     )
 
     // 폴더 안 아카이브는 solo 배치로 이미 단독 화면이지만, 이미지로 그릴 수 없으므로
@@ -96,8 +91,7 @@ export function useMultiPageImages(
   }, [
     viewMode,
     loopNavigation,
-    showCoverAlone,
-    comicInfo,
+    cover,
     dirImages.images,
     dirImages.current_index,
     getOrLoadImage,

@@ -44,7 +44,8 @@ function spyHandlers(): ViewerActionHandlers {
     onRenameFile: vi.fn(),
     onCopyPath: vi.fn(),
     onToggleGrid: vi.fn(),
-    onToggleDock: vi.fn()
+    onToggleDock: vi.fn(),
+    onToggleComicCover: vi.fn()
   }
 }
 

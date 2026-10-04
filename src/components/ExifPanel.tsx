@@ -11,6 +11,7 @@ import {
   SheetTitle,
   SheetDescription
 } from "@/components/ui/sheet"
+import { Spinner } from "@/components/ui/spinner"
 import { useExifLoader } from "@/hooks/useExifLoader"
 import { useAppStore } from "@/store/appStore"
 import { useSettingsStore } from "@/store/settingsStore"
@@ -248,7 +249,8 @@ export function ExifPanel() {
     comicInfo,
     comicInfoError,
     dirImages,
-    showExifPanel
+    showExifPanel,
+    infoLoading
   } = useAppStore(
     useShallow((state) => ({
       exifData: state.exifData,
@@ -261,7 +263,8 @@ export function ExifPanel() {
       comicInfo: state.comicInfo,
       comicInfoError: state.comicInfoError,
       dirImages: state.dirImages,
-      showExifPanel: state.showExifPanel
+      showExifPanel: state.showExifPanel,
+      infoLoading: state.infoLoading
     }))
   )
   const showComicInfo = useSettingsStore((state) => state.showComicInfo)
@@ -339,6 +342,13 @@ export function ExifPanel() {
 
         <ScrollArea className="flex-1 overflow-auto">
           <div className="space-y-4 p-4">
+            {infoLoading && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground" role="status">
+                <Spinner />
+                {t("exif.loading")}
+              </div>
+            )}
+
             {showComicSection && (
               <div>
                 <h3 className="mb-2 text-xs font-semibold tracking-wider text-muted-foreground uppercase">
@@ -375,18 +385,21 @@ export function ExifPanel() {
               </div>
             )}
 
-            <div>
-              <h3 className="mb-2 text-xs font-semibold tracking-wider text-muted-foreground uppercase">
-                {t("details.title")}
-              </h3>
-              {imageDetails === null ? (
-                <p className="text-sm text-muted-foreground">{t("details.unavailable")}</p>
-              ) : (
-                <DetailRows rows={detailRows} />
-              )}
-            </div>
+            {/* 읽는 중에는 아직 오지 않은 섹션을 "없음"으로 단정하지 않고 비워 둔다. */}
+            {(imageDetails !== null || !infoLoading) && (
+              <div>
+                <h3 className="mb-2 text-xs font-semibold tracking-wider text-muted-foreground uppercase">
+                  {t("details.title")}
+                </h3>
+                {imageDetails === null ? (
+                  <p className="text-sm text-muted-foreground">{t("details.unavailable")}</p>
+                ) : (
+                  <DetailRows rows={detailRows} />
+                )}
+              </div>
+            )}
 
-            {!isArchiveFilePanel && (
+            {!isArchiveFilePanel && (histogramData !== null || !infoLoading) && (
               <div>
                 <h3 className="mb-2 text-xs font-semibold tracking-wider text-muted-foreground uppercase">
                   {t("histogram.title")}
@@ -412,7 +425,8 @@ export function ExifPanel() {
                 </div>
               </div>
             ) : !exifData || sections.length === 0 ? (
-              !hasAnyContent && <p className="text-sm text-muted-foreground">{t("exif.empty")}</p>
+              !hasAnyContent &&
+              !infoLoading && <p className="text-sm text-muted-foreground">{t("exif.empty")}</p>
             ) : (
               <div className="space-y-4">
                 {sections.map((section) => (

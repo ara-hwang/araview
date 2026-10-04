@@ -1,4 +1,4 @@
-//! EXIF, 히스토그램, 파일 상세, ComicInfo 조회 커맨드.
+//! EXIF, 히스토그램, 파일 상세, ComicInfo 조회와 표지 지정 커맨드.
 
 use std::collections::HashMap;
 use std::fs;
@@ -68,7 +68,7 @@ pub async fn get_image_details(
     .await
 }
 
-/// CBZ/ZIP 안의 ComicInfo.xml 메타데이터를 읽는다 (읽기 전용, 표시용).
+/// CBZ/ZIP 안의 ComicInfo.xml 메타데이터를 읽는다.
 /// XML이 없거나 CBZ/ZIP이 아니면 `None`을 돌려주고, 깨진 XML은 에러다.
 #[tauri::command]
 pub async fn get_comic_info(
@@ -87,6 +87,23 @@ fn get_comic_info_blocking(
     }
 
     crate::comic_info::read_comic_info(path)
+}
+
+/// 표지 페이지(`FrontCover`) 집합을 ComicInfo.xml에 쓴다. 원본 아카이브를
+/// 고쳐 쓰고, 반영된 메타데이터를 돌려준다.
+#[tauri::command]
+pub async fn set_comic_cover_pages(
+    file_path: String,
+    cover_pages: Vec<u32>,
+) -> Result<crate::comic_info::ComicInfo, AppError> {
+    run_blocking("comic cover", move || {
+        let path = Path::new(&file_path);
+        if !path.exists() {
+            return Err(AppError::not_found("File not found"));
+        }
+        crate::comic_info::write_cover_pages(path, &cover_pages)
+    })
+    .await
 }
 
 #[cfg(test)]

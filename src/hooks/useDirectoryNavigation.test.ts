@@ -230,7 +230,7 @@ describe("useDirectoryNavigation 로드-표시-이동 플로우", () => {
   it("ComicInfo FrontCover가 0번이 아니면 표지 다음이 1페이지다", async () => {
     setup(0)
     useSettingsStore.setState({ viewMode: "left-to-right", showCoverAlone: true })
-    useAppStore.setState({ comicInfo: comicInfoWithCover(1) })
+    useAppStore.setState({ archivePath: "/docs/m.cbz", comicInfo: comicInfoWithCover(1) })
     const loadImage = paintingLoader()
     const { result } = renderHook(() => useDirectoryNavigation(loadImage))
 
@@ -249,7 +249,7 @@ describe("useDirectoryNavigation 로드-표시-이동 플로우", () => {
   it("ComicInfo 표지 기준으로 점프 스냅한다", async () => {
     setup(0)
     useSettingsStore.setState({ viewMode: "left-to-right", showCoverAlone: true })
-    useAppStore.setState({ comicInfo: comicInfoWithCover(1) })
+    useAppStore.setState({ archivePath: "/docs/m.cbz", comicInfo: comicInfoWithCover(1) })
     const loadImage = paintingLoader()
     const { result } = renderHook(() => useDirectoryNavigation(loadImage))
 

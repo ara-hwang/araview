@@ -32,8 +32,8 @@ use commands::{
     generate_thumbnails_batch, get_archive_images, get_cache_stats, get_cached_thumbnail,
     get_comic_info, get_directory_images, get_exif_data, get_file_associations, get_image_details,
     get_image_histogram, get_license_bundle, load_archive_image, load_image,
-    open_default_apps_settings, rename_file, resolve_dropped_path, set_file_association,
-    trash_file,
+    open_default_apps_settings, rename_file, resolve_dropped_path, set_comic_cover_pages,
+    set_file_association, trash_file,
 };
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
@@ -161,6 +161,7 @@ pub fn run() {
             generate_archive_file_thumbnails_batch,
             resolve_dropped_path,
             get_comic_info,
+            set_comic_cover_pages,
             get_archive_images,
             load_archive_image,
             archive_prefetch,

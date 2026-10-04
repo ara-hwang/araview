@@ -2,13 +2,20 @@ import { SHORTCUT_ACTION_IDS, type ShortcutActionId } from "@/constants/shortcut
 
 export type CommandGroup = "file" | "navigate" | "view" | "display" | "system"
 
-export type CommandId = ShortcutActionId | "openSettings" | "checkForUpdates" | "toggleDock"
+export type CommandId =
+  | ShortcutActionId
+  | "openSettings"
+  | "checkForUpdates"
+  | "toggleDock"
+  | "toggleComicCover"
 
 export type CommandContext = {
   hasImage: boolean
   canNavigate: boolean
   /** 제어 가능한 GIF(단일 보기 + 다중 프레임 + 디코더 지원)가 현재 이미지인지 */
   isGif: boolean
+  /** 아카이브(만화)를 열어 페이지를 보고 있는지 */
+  inArchive: boolean
 }
 
 export type CommandDef = {
@@ -19,6 +26,8 @@ export type CommandDef = {
   requiresNavigation?: boolean
   /** GIF 재생/프레임 제어 전용. 열린 이미지가 제어 가능한 GIF일 때만 활성화된다. */
   requiresGif?: boolean
+  /** 아카이브(만화) 안의 페이지를 보고 있을 때만 활성화된다. */
+  requiresArchive?: boolean
   /** 현재 UI 언어와 무관하게 매칭되는 영문 별칭 (ko UI에서 영문 검색용) */
   keywords?: readonly string[]
 }
@@ -81,6 +90,13 @@ export const COMMAND_DEFS: readonly CommandDef[] = [
     labelKey: "menu.copyPath",
     requiresImage: true,
     keywords: ["path", "copy"]
+  },
+  {
+    id: "toggleComicCover",
+    group: "file",
+    labelKey: "menu.toggleCover",
+    requiresArchive: true,
+    keywords: ["cover", "front cover", "comicinfo", "표지"]
   },
   {
     id: "revealInExplorer",
@@ -317,6 +333,7 @@ export const COMMAND_DEFS: readonly CommandDef[] = [
 
 export function isCommandEnabled(def: CommandDef, ctx: CommandContext): boolean {
   if (def.requiresGif) return ctx.hasImage && ctx.isGif
+  if (def.requiresArchive) return ctx.hasImage && ctx.inArchive
   if (def.requiresNavigation) return ctx.hasImage && ctx.canNavigate
   if (def.requiresImage) return ctx.hasImage
   return true

@@ -275,6 +275,68 @@ fn read_zip_entry_bounded(
     read_bounded(&mut entry, limit, "Failed to read entry data")
 }
 
+/// 아카이브의 엔트리 하나를 교체한다(없으면 추가). ComicInfo.xml 쓰기용이다.
+/// 나머지 엔트리는 재압축 없이 그대로 옮기고, 같은 폴더의 임시 파일에 다 쓴 뒤
+/// 원본과 바꾼다. 실패하면 원본은 그대로 남는다.
+pub(crate) fn replace_archive_entry(
+    archive_path: &Path,
+    entry_name: &str,
+    data: &[u8],
+) -> Result<(), AppError> {
+    match archive_ext(archive_path).as_str() {
+        "cbz" | "zip" => {
+            let tmp = crate::sidecar::scratch_path_for(archive_path);
+            let written = write_zip_with_entry(archive_path, entry_name, data, &tmp);
+            let replaced = written.and_then(|()| {
+                fs::rename(&tmp, archive_path)
+                    .map_err(|e| AppError::io("Failed to replace archive", e, ErrorCode::Unknown))
+            });
+            if replaced.is_err() {
+                let _ = fs::remove_file(&tmp);
+            }
+            replaced
+        }
+        _ => Err(AppError::unsupported("Unsupported archive format")),
+    }
+}
+
+fn write_zip_with_entry(
+    archive_path: &Path,
+    entry_name: &str,
+    data: &[u8],
+    out_path: &Path,
+) -> Result<(), AppError> {
+    use std::io::Write as _;
+
+    let zip_err = |e: zip::result::ZipError| AppError::unknown(format!("Failed to write ZIP: {e}"));
+    let io_err = |e: std::io::Error| AppError::io("Failed to write archive", e, ErrorCode::Unknown);
+
+    let file = open_archive_file(archive_path)?;
+    let mut archive = zip::ZipArchive::new(file)
+        .map_err(|e| AppError::corrupt(format!("Failed to read ZIP: {e}")))?;
+
+    let out = fs::File::create(out_path).map_err(io_err)?;
+    let mut writer = zip::ZipWriter::new(out);
+    writer
+        .set_raw_comment(archive.comment().into())
+        .map_err(zip_err)?;
+    for i in 0..archive.len() {
+        let entry = archive
+            .by_index_raw(i)
+            .map_err(|e| AppError::corrupt(format!("Failed to read entry: {e}")))?;
+        if entry.name() == entry_name {
+            continue;
+        }
+        writer.raw_copy_file(entry).map_err(zip_err)?;
+    }
+    writer
+        .start_file(entry_name, zip::write::SimpleFileOptions::default())
+        .map_err(zip_err)?;
+    writer.write_all(data).map_err(io_err)?;
+    let out = writer.finish().map_err(zip_err)?;
+    out.sync_all().map_err(io_err)
+}
+
 /// 이웃 페이지를 아카이브 오픈 1회로 선추출. FE 프리패치용 fire-and-forget.
 pub fn prefetch_archive_images(
     archive_path: &Path,
@@ -425,6 +487,30 @@ mod tests {
             fs::copy(&archive_path, &renamed).unwrap();
             assert_eq!(list_archive_images(&renamed).expect(name).len(), 2);
         }
+    }
+
+    #[test]
+    fn replace_archive_entry_swaps_one_entry_and_keeps_the_rest() {
+        let dir = tempfile::tempdir().unwrap();
+        let archive_path = write_zip_fixture(dir.path(), "comic.cbz");
+
+        // 없던 엔트리는 추가되고, 다시 쓰면 교체된다.
+        replace_archive_entry(&archive_path, "ComicInfo.xml", b"<a/>").expect("add");
+        replace_archive_entry(&archive_path, "ComicInfo.xml", b"<b/>").expect("replace");
+
+        let all = list_archive_entries(&archive_path).expect("list").all;
+        assert_eq!(
+            *all,
+            vec!["001.png", "ComicInfo.xml", "note.txt", "sub/002.jpg"]
+        );
+        let xml = read_archive_entry_bounded(&archive_path, "ComicInfo.xml", 1024).expect("read");
+        assert_eq!(xml, b"<b/>");
+        let page = read_archive_entry_bounded(&archive_path, "sub/002.jpg", 1024).expect("read");
+        assert_eq!(page, b"fake-jpg-bytes");
+
+        // 임시 파일이 폴더에 남지 않는다.
+        let leftovers = fs::read_dir(dir.path()).unwrap().count();
+        assert_eq!(leftovers, 1);
     }
 
     #[test]

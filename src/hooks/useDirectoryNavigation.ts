@@ -1,9 +1,10 @@
 import { useCallback } from "react"
 
+import { getCoverLayout } from "@/hooks/useCoverLayout"
 import { getLayoutViewMode } from "@/hooks/useEffectiveViewMode"
 import { useAppStore } from "@/store/appStore"
 import { getSettings } from "@/store/settingsStore"
-import { resolveCoverIndex } from "@/utils/comicCover"
+import { withCoverSolo } from "@/utils/comicCover"
 import {
   archiveSoloIndices,
   resolveDualStepIndex,
@@ -21,21 +22,24 @@ type LoadArchiveImageFn = (archivePath: string, entryName: string) => Promise<vo
  * 직전 이동이 그려진 직후의 입력도 새 위치에서 출발한다.
  */
 function readNavigationState() {
-  const { dirImages, archivePath, comicInfo } = useAppStore.getState()
+  const { dirImages, archivePath } = useAppStore.getState()
   const settings = getSettings()
   // 폴더 아카이브 미리보기(그리기는 단일)에서도 양쪽 배치로 넘겨야 짝 정렬이 유지된다.
   const viewMode = getLayoutViewMode()
   // 양쪽 보기(ltr/rtl)는 2장씩 넘기고, 나머지는 1장씩 넘긴다.
   const isDualView = viewMode === "left-to-right" || viewMode === "right-to-left"
+  const cover = getCoverLayout()
   return {
     dirImages,
     archivePath,
     isDualView,
     loopNavigation: settings.loopNavigation,
-    showCoverAlone: settings.showCoverAlone,
-    coverIndex: resolveCoverIndex(comicInfo, dirImages.images.length),
+    showCoverAlone: cover.coverAlone,
+    coverIndex: cover.coverIndex,
     // 단독 화면 판정은 양쪽 보기에서만 쓴다. 단일 보기에서는 목록 순회를 생략한다.
-    solo: isDualView ? archiveSoloIndices(dirImages.images, archivePath !== null) : undefined
+    solo: isDualView
+      ? withCoverSolo(cover, archiveSoloIndices(dirImages.images, archivePath !== null))
+      : undefined
   }
 }
 

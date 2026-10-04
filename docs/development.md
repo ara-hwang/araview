@@ -117,7 +117,7 @@ src-tauri/
   src/cache.rs        # 캐시 통계 및 종류별/전체 삭제
   src/archive.rs      # 아카이브 목록/추출 처리 (cbz/zip)
   src/archive_index.rs # 아카이브 엔트리 목록 캐시 (mtime+size 검증 LRU)
-  src/comic_info.rs  # CBZ/ZIP ComicInfo.xml 읽기 전용 파싱
+  src/comic_info.rs  # CBZ/ZIP ComicInfo.xml 파싱, 표지 지정 쓰기
   src/thumbnail.rs   # 썸네일 생성/캐시
   src/svg_raster.rs  # SVG 래스터화(resvg, 썸네일/히스토그램 전용)
   src/svg_size.rs    # SVG 헤더(width/height/viewBox) 치수 파서

@@ -48,7 +48,7 @@
 | `cbz`  | `application/vnd.comicbook+zip` | ZIP 기반 코믹                         |
 | `zip`  | `application/zip`               | 일반 ZIP도 이미지 목록으로 열 수 있음 |
 
-CBZ/ZIP 안의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한다(8절, 15절). CB7/7Z, CBR/RAR, CBT는 지원하지 않는다(디코더 의존성을 줄이려고 제거했다).
+CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`FrontCover`) 쓰기를 지원한다(8절, 15절). CB7/7Z, CBR/RAR, CBT는 지원하지 않는다(디코더 의존성을 줄이려고 제거했다).
 
 백엔드 판별:
 
@@ -187,8 +187,9 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한�
 | `webtoon`       | 전 구간 연속 수직 스크롤, 지연 로드 | 스크롤 이동 | 기본 x 2      |
 
 - 양쪽 모드 페이지는 `[current, next]`이며 루프가 켜지면 wrap한다. 로드 실패 페이지는 제외한다.
-- 표지 단독(`showCoverAlone`, 기본 true): 표지를 혼자 보여주고 그 뒤부터 `[표지+1, 표지+2]` 쌍을 맞춘다. 표지 인덱스는 ComicInfo의 `FrontCover`(8절)를 쓰고, 메타데이터가 없거나 범위를 벗어나면 0번이다. 표지가 0번이 아니면 표지 바로 앞에 남는 페이지도 단독 화면이 된다. 표지 화면에서는 다음 페이지를 로드하지 않는다. 마지막에 남은 한 장은 기존 단일 중앙 렌더를 재사용한다.
-- 표지 단독을 끄면 표지 인덱스를 무시하고 `[0,1], [2,3], ...`로 넘긴다.
+- 표지 단독: 표지를 혼자 보여주고 그 뒤부터 `[표지+1, 표지+2]` 쌍을 맞춘다. 표지가 0번이 아니면 표지 바로 앞에 남는 페이지도 단독 화면이 된다. 표지 화면에서는 다음 페이지를 로드하지 않는다. 마지막에 남은 한 장은 기존 단일 중앙 렌더를 재사용한다.
+- 표지 배치는 아카이브마다 정해지며 아카이브 지정이 전역 설정보다 우선한다(`resolveCoverLayout`, `src/utils/comicCover.ts`). 열린 아카이브의 ComicInfo(8절)에 `FrontCover`가 있으면 `showCoverAlone`이 꺼져 있어도 그 구간을 단독으로 보여준다. `FrontCover`가 없고 0번 페이지에 다른 `Type`이 명시돼 있으면 "표지 없음"이라 `showCoverAlone`이 켜져 있어도 `[0,1], [2,3], ...`로 넘긴다. 아무 지정이 없거나 `FrontCover`가 목록 범위 밖이면 `showCoverAlone`(기본 true)대로 0번을 표지로 본다. 폴더 목록과 폴더 미리보기에는 ComicInfo를 적용하지 않는다.
+- 표지는 연속된 여러 장일 수 있다(변형 표지 등). `FrontCover`가 여러 개면 가장 앞에서부터 끊기지 않고 이어지는 구간만 표지로 보고, 각 장이 단독 화면이 된다.
 - 폴더 목록의 아카이브(CBZ/ZIP)는 이미지로 그릴 수 없으므로 양쪽 모드에서 단독 화면이 된다. 짝은 앞에서부터 두 장씩 맞추되 아카이브(표지 단독이면 표지 포함)와 그 바로 앞에 남는 페이지는 혼자 한 화면이므로, 넘김이 아카이브를 건너뛰지 않는다. 아카이브 화면에서는 첫 페이지 미리보기를 단일로 그리지만 이동·도크 하이라이트는 양쪽 배치(`useLayoutViewMode`)를 따른다. 아카이브 안(만화 모드)에는 적용하지 않는다.
 - 양쪽 모드의 점프(썸네일/도크/`Home`/`End`/`PageUp`/`PageDown`)와 아카이브 이어보기 진입은 쌍 시작으로 스냅한다(`src/utils/dirNavigation.ts`).
 - 만화 자동 양쪽 보기(`comicAutoDualView`, 기본 true): 아카이브를 만화 모드로 열 때 `viewMode`가 `webtoon`이 아니면 양쪽 보기로 연다(`resolveComicViewMode`, `src/utils/comicViewMode.ts`). 방향은 ComicInfo `Manga`가 `YesAndRightToLeft`면 우→좌, `No`면 좌→우를 따르고, `Yes`/`Unknown`/메타데이터 없음이면 설정의 양쪽 방향(우→좌였다면 우→좌), 그 외에는 좌→우다. 결과는 영속화하지 않는 `appStore.comicViewMode`에 담고, 화면에 적용되는 모드는 `useEffectiveViewMode`(`comicViewMode ?? viewMode`, 아카이브일 때만)로 읽는다. 헤더나 설정에서 보기 모드를 직접 고르면(`applyManualViewMode`) 자동 결정은 해제되고, 아카이브를 다시 열면 다시 계산한다. 설정값 `viewMode`는 바뀌지 않으므로 일반 이미지는 영향이 없다.
@@ -245,15 +246,18 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한�
 
 진실: `src-tauri/src/archive.rs`, `src-tauri/src/archive_index.rs`, `src-tauri/src/commands/archive.rs`, `src/hooks/useImageLoader.ts`, `src/store/archiveProgressStore.ts`.
 
-- 아카이브 커맨드(`get_archive_images`, `load_archive_image`, `archive_prefetch`, `get_comic_info`, `generate_archive_thumbnail`, `generate_archive_file_thumbnail(s)_batch`)는 모두 비동기 커맨드로 `spawn_blocking`에서 실행되어 메인 스레드를 막지 않는다. `archive_prefetch`는 fire-and-forget 성격에 맞게 조인 실패도 흡수해 `Ok(0)`을 반환한다.
+- 아카이브 커맨드(`get_archive_images`, `load_archive_image`, `archive_prefetch`, `get_comic_info`, `set_comic_cover_pages`, `generate_archive_thumbnail`, `generate_archive_file_thumbnail(s)_batch`)는 모두 비동기 커맨드로 `spawn_blocking`에서 실행되어 메인 스레드를 막지 않는다. `archive_prefetch`는 fire-and-forget 성격에 맞게 조인 실패도 흡수해 `Ok(0)`을 반환한다.
 - 엔트리 인덱스 캐시(`archive_index.rs`): 아카이브별 이미지/전체 엔트리 목록을 canonical 경로 + mtime + size 검증으로 캐시한다(최대 64개 LRU). `get_archive_images`, `get_comic_info`, `generate_archive_file_thumbnail(s)_batch`가 공유해 아카이브당 전체 스캔이 1회로 수렴한다. `clear_cache` 시 함께 비워진다.
 - `get_archive_images`: 내부 이미지 엔트리 목록 + `current_index: 0`. 비어 있으면 `not_found`.
 - `load_archive_image`: 활성 파생 이미지 캐시 루트의 `archives/` 아래에 추출 후 표시 가능한 경로로 반환한다.
 - `archive_prefetch`: 이웃 선추출용 fire-and-forget 명령이다.
 - 선추출 거리는 뷰 모드에 따라 보정되며 상한이 있다.
 - 이어보기: 아카이브 경로별 마지막 엔트리와 위치(엔트리명/인덱스/전체 페이지)를 최대 100개 LRU로 저장한다. `resumeReading`이 true이고 목록에 저장된 항목이 있으면 거기서 시작하며, 저장 위치에서 시작할 때 "이어보기" 토스트와 "처음부터" 동작을 함께 제공한다. 설정이 false면 항상 첫 페이지에서 열고 열기만으로 저장 위치를 0페이지로 덮지 않는다. 양쪽 모드에서는 저장 위치가 쌍 중간이면 쌍 시작으로 맞춰 연다.
-- `get_comic_info`: CBZ/ZIP의 `ComicInfo.xml`(ComicRack/Komga/Kavita 스키마)을 읽기 전용 메타데이터로 반환한다. 탐색은 엔트리 basename이 `comicinfo.xml`인 항목(대소문자 무시)이며 루트를 우선하고 없으면 첫 중첩 경로를 쓴다. 상한 1 MiB, UTF-8(BOM 허용)과 UTF-16 LE/BE BOM을 지원한다. XML 부재나 지원하지 않는 확장자는 `null`, 깨진 XML/디코딩 실패는 `corrupt`, 크기 초과는 `too_large`다. 필드 누락과 빈 값은 `null`로 정규화하고, 엔트리는 `read_archive_entry_bounded`(`archive.rs`)로 1 MiB 상한 아래에서 메모리로 읽는다. `pages`는 `image` 오름차순으로 최대 1000개까지 담는다.
-- 표지 판정: `pages`에서 `page_type`이 `FrontCover`(대소문자·공백 무시)인 첫 페이지를 양쪽 보기 표지 인덱스로 쓴다(`src/utils/comicCover.ts`). `image`가 목록 범위를 벗어나면(1 기반으로 적은 파일 등) 0번으로 폴백하고, 이어보기 진입도 표지 기준 쌍 시작으로 스냅한다.
+- `get_comic_info`: CBZ/ZIP의 `ComicInfo.xml`(ComicRack/Komga/Kavita 스키마)을 메타데이터로 반환한다. 탐색은 엔트리 basename이 `comicinfo.xml`인 항목(대소문자 무시)이며 루트를 우선하고 없으면 첫 중첩 경로를 쓴다. 상한 1 MiB, UTF-8(BOM 허용)과 UTF-16 LE/BE BOM을 지원한다. XML 부재나 지원하지 않는 확장자는 `null`, 깨진 XML/디코딩 실패는 `corrupt`, 크기 초과는 `too_large`다. 필드 누락과 빈 값은 `null`로 정규화하고, 엔트리는 `read_archive_entry_bounded`(`archive.rs`)로 1 MiB 상한 아래에서 메모리로 읽는다. `pages`는 `image` 오름차순으로 최대 1000개까지 담는다.
+- 표지 판정: `pages`에서 `page_type`이 `FrontCover`(대소문자·공백 무시)인 페이지를 양쪽 보기 표지로 쓴다(규칙은 6절, `src/utils/comicCover.ts`). `image`가 목록 범위를 벗어난 항목(1 기반으로 적은 파일 등)은 버리고, 이어보기 진입도 표지 기준 쌍 시작으로 스냅한다.
+- `set_comic_cover_pages`: 표지 페이지 집합을 `ComicInfo.xml`에 쓴다. ComicInfo에서 앱이 고쳐 쓰는 것은 `Pages`의 `Type`뿐이다. 집합의 페이지는 `FrontCover`가 되고 그 밖의 기존 `FrontCover`는 `Story`로 바뀌며, 집합이 비면 0번을 `Story`로 남겨 "표지 없음"을 명시한다. `Page` 요소가 없으면 추가하고 XML이 없으면 루트에 새로 만든다. 다른 요소와 속성은 이벤트 단위로 그대로 옮겨 보존하고 출력은 UTF-8이다. 인덱스가 페이지 수를 넘으면 `invalid_input`, CBZ/ZIP이 아니면 `unsupported`다.
+- 아카이브 쓰기(`replace_archive_entry`, `archive.rs`): 나머지 엔트리는 재압축 없이 그대로 옮기고, 같은 폴더의 임시 파일(`.araview-part`)에 다 쓴 뒤 원본과 바꾼다. 백업은 남기지 않고 수정 시각은 쓴 시각이 된다. 실패하면 원본은 그대로 남고 임시 파일은 지운다. 파일이 바뀌면 인덱스 캐시와 추출 디렉터리 식별자(mtime + size)가 함께 바뀐다.
+- 표지 지정 UI: 아카이브 안에서 뷰어 본문을 우클릭하면 컨텍스트 메뉴 끝에 `이 페이지를 표지로 지정`/`표지 지정 해제`가 나온다. 양쪽 보기와 웹툰은 클릭한 쪽 페이지가 대상이다. 명령 팔레트의 `현재 페이지 표지 지정/해제`는 현재 페이지에 같은 동작을 한다. 표지 구간에 붙은 페이지를 지정하면 구간이 늘고, 떨어진 페이지를 지정하면 그 페이지만 표지가 되며, 구간 중간을 해제하면 앞쪽 구간만 남는다(`toggleCoverPage`). 전역 설정으로 표지인 0번을 해제하면 "표지 없음"이 기록된다. 저장 후에는 그 페이지의 쌍 시작으로 다시 맞추고, 실패는 토스트로 알린다(`src/hooks/useComicCoverEdit.ts`).
 - 열기 흐름: 아카이브를 열 때 `get_archive_images`와 `get_comic_info`를 병행 호출한다. 폴더 미리보기에서는 메타데이터를 읽지 않고, 이전 로드의 응답은 최신 로드 토큰이 아니면 커밋하지 않는다. 파싱 실패는 로드를 막지 않고 패널의 Comic 섹션에 에러로 표시한다.
 - 아카이브 모드 제한: 휴지통 이동, 이름 변경은 안내와 함께 차단된다.
 - 추출 가드: 엔트리 1개당 200MB, 아카이브별 추출 디렉터리 1GB를 넘으면 `too_large`로 중단한다.
@@ -328,6 +332,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한�
 - `get_exif_data`는 문자열 맵을 반환한다. EXIF가 없거나 읽을 수 없는 파일은 오류가 아니라 빈 맵이고, 프론트는 이를 "EXIF 없음" 상태로 보여준다. 파일이 없으면 `not_found` 오류다.
 - 파일 없음이면 `not_found`, EXIF 없으면 `unsupported`.
 - `I`로 패널 토글. 패널 내부 포커스에서는 `I` 닫기를 허용한다.
+- 패널은 데이터를 기다리지 않고 바로 열린다. 읽는 동안(`infoLoading`) 로딩 안내를 보여주고, EXIF/히스토그램/파일 상세는 도착하는 대로 채운다. 읽는 중에는 아직 오지 않은 섹션을 "없음"으로 표시하지 않는다.
 - 표시 범주는 Camera, Exposure, Image, Lens, DateTime, GPS, Software 계열이다.
 - HEIC는 원본 경로 기준 EXIF를 읽으므로 비어 있는 경우가 많다.
 - JPEG의 Orientation은 표시·썸네일에 반영한다. 패널에는 EXIF 원문 설명을 그대로 보여준다.
@@ -405,44 +410,44 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한�
 
 진실: `src/store/settingsStore.ts`.
 
-| 설정                    | 값                                                            | 기본값                             |
-| ----------------------- | ------------------------------------------------------------- | ---------------------------------- |
-| `language`              | `ko \| en`                                                    | `ko`(초기 로드는 시스템 감지 우선) |
-| `loopNavigation`        | 끝에서 루프 여부                                              | `false`                            |
-| `cacheMode`             | `off \| nearby \| extended \| memory-1gb \| memory-2gb`       | `nearby`                           |
-| `cacheStorageMode`      | `temporary \| persistent`                                     | `persistent`                       |
-| `maxResolution`         | `original \| 4k \| 1080p` (긴 변 상한, 9.4절)                 | `original`                         |
-| `imageScalingMode`      | `auto \| smooth \| pixelated` 이미지 보간 방식                | `auto`                             |
-| `autoDetectPixelArt`    | 자동 모드에서 픽셀 아트 감지 사용                             | `true`                             |
-| `viewMode`              | `single \| left-to-right \| right-to-left \| webtoon`         | `single`                           |
-| `webtoonImageGap`       | 웹툰 이미지 사이 간격(px, 0~64)                               | `8`                                |
-| `webtoonPageBoundaries` | 웹툰 페이지 경계선 표시                                       | `false`                            |
-| `webtoonFitWidth`       | 웹툰 이미지를 읽기 영역 너비까지 확대                         | `false`                            |
-| `webtoonShowProgress`   | 웹툰 현재 장 번호와 스크롤 진행률 표시                        | `true`                             |
-| `webtoonThumbnailJump`  | 진행 표시에서 썸네일 그리드로 바로가기                        | `true`                             |
-| `autoOpenLastFile`      | 시작 시 마지막 파일 자동 열기                                 | `false`                            |
-| `recordRecentFiles`     | 최근 기록 유지                                                | `true`                             |
-| `viewerBackground`      | `theme \| black \| white \| checker`                          | `theme`                            |
-| `autoHideUI`            | 읽기 중 크롬 자동 숨김                                        | `false`                            |
-| `menuBarHidden`         | 상단바 수동 숨김 (이미지 보기 중만, 상단 호버 시 peek)        | `false`                            |
-| `alwaysOnTop`           | 항상 위                                                       | `false`                            |
-| `sortKey`               | `name \| date \| size`                                        | `name`                             |
-| `sortDescending`        | 내림차순                                                      | `false`                            |
-| `includeSubfolders`     | 하위 폴더 포함(재귀)                                          | `false`                            |
-| `skipBrokenFiles`       | 손상 파일 자동 건너뛰기                                       | `false`                            |
-| `resumeReading`         | 아카이브 재진입 시 이어보기                                   | `true`                             |
-| `showCoverAlone`        | 양쪽 보기에서 첫 페이지(표지)를 단독 표시                     | `true`                             |
-| `showComicInfo`         | 정보 패널에 만화 정보(ComicInfo.xml) 섹션 표시                | `true`                             |
-| `comicAutoDualView`     | 아카이브(만화)를 열면 자동으로 양쪽 보기, ComicInfo 방향 적용 | `true`                             |
-| `fitMode`               | 맞춤 기억 `width \| height \| screen \| auto`                 | `auto`                             |
-| `dockPosition`          | 이미지 목록 위치 `top \| bottom \| left \| right`             | `bottom`                           |
-| `dockVisible`           | 이미지 목록 표시                                              | `true`                             |
-| `dockThumbSize`         | 썸네일 크기 `s \| m \| l`                                     | `s`                                |
-| `dockShowName`          | 썸네일 파일명 표시                                            | `false`                            |
-| `dockShowIndex`         | 썸네일 번호 표시                                              | `false`                            |
-| `shortcuts`             | 단축키 맵                                                     | 아래 기본표                        |
-| `wheel`                 | 휠 맵                                                         | 아래 기본표                        |
-| `mouse`                 | 마우스 맵                                                     | 아래 기본표                        |
+| 설정                    | 값                                                                      | 기본값                             |
+| ----------------------- | ----------------------------------------------------------------------- | ---------------------------------- |
+| `language`              | `ko \| en`                                                              | `ko`(초기 로드는 시스템 감지 우선) |
+| `loopNavigation`        | 끝에서 루프 여부                                                        | `false`                            |
+| `cacheMode`             | `off \| nearby \| extended \| memory-1gb \| memory-2gb`                 | `nearby`                           |
+| `cacheStorageMode`      | `temporary \| persistent`                                               | `persistent`                       |
+| `maxResolution`         | `original \| 4k \| 1080p` (긴 변 상한, 9.4절)                           | `original`                         |
+| `imageScalingMode`      | `auto \| smooth \| pixelated` 이미지 보간 방식                          | `auto`                             |
+| `autoDetectPixelArt`    | 자동 모드에서 픽셀 아트 감지 사용                                       | `true`                             |
+| `viewMode`              | `single \| left-to-right \| right-to-left \| webtoon`                   | `single`                           |
+| `webtoonImageGap`       | 웹툰 이미지 사이 간격(px, 0~64)                                         | `8`                                |
+| `webtoonPageBoundaries` | 웹툰 페이지 경계선 표시                                                 | `false`                            |
+| `webtoonFitWidth`       | 웹툰 이미지를 읽기 영역 너비까지 확대                                   | `false`                            |
+| `webtoonShowProgress`   | 웹툰 현재 장 번호와 스크롤 진행률 표시                                  | `true`                             |
+| `webtoonThumbnailJump`  | 진행 표시에서 썸네일 그리드로 바로가기                                  | `true`                             |
+| `autoOpenLastFile`      | 시작 시 마지막 파일 자동 열기                                           | `false`                            |
+| `recordRecentFiles`     | 최근 기록 유지                                                          | `true`                             |
+| `viewerBackground`      | `theme \| black \| white \| checker`                                    | `theme`                            |
+| `autoHideUI`            | 읽기 중 크롬 자동 숨김                                                  | `false`                            |
+| `menuBarHidden`         | 상단바 수동 숨김 (이미지 보기 중만, 상단 호버 시 peek)                  | `false`                            |
+| `alwaysOnTop`           | 항상 위                                                                 | `false`                            |
+| `sortKey`               | `name \| date \| size`                                                  | `name`                             |
+| `sortDescending`        | 내림차순                                                                | `false`                            |
+| `includeSubfolders`     | 하위 폴더 포함(재귀)                                                    | `false`                            |
+| `skipBrokenFiles`       | 손상 파일 자동 건너뛰기                                                 | `false`                            |
+| `resumeReading`         | 아카이브 재진입 시 이어보기                                             | `true`                             |
+| `showCoverAlone`        | 양쪽 보기에서 첫 페이지(표지)를 단독 표시 (지정 없는 아카이브의 기본값) | `true`                             |
+| `showComicInfo`         | 정보 패널에 만화 정보(ComicInfo.xml) 섹션 표시                          | `true`                             |
+| `comicAutoDualView`     | 아카이브(만화)를 열면 자동으로 양쪽 보기, ComicInfo 방향 적용           | `true`                             |
+| `fitMode`               | 맞춤 기억 `width \| height \| screen \| auto`                           | `auto`                             |
+| `dockPosition`          | 이미지 목록 위치 `top \| bottom \| left \| right`                       | `bottom`                           |
+| `dockVisible`           | 이미지 목록 표시                                                        | `true`                             |
+| `dockThumbSize`         | 썸네일 크기 `s \| m \| l`                                               | `s`                                |
+| `dockShowName`          | 썸네일 파일명 표시                                                      | `false`                            |
+| `dockShowIndex`         | 썸네일 번호 표시                                                        | `false`                            |
+| `shortcuts`             | 단축키 맵                                                               | 아래 기본표                        |
+| `wheel`                 | 휠 맵                                                                   | 아래 기본표                        |
+| `mouse`                 | 마우스 맵                                                               | 아래 기본표                        |
 
 설정 항목에 연결된 단축키가 있으면 항목 옆에 현재 할당된 단축키를 배지로 표시한다. 재할당하거나 해제하면 배지도 즉시 따라간다.
 
@@ -510,7 +515,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한�
 ### 14.4 명령 팔레트 `Ctrl+K`
 
 - 그룹 순서: `file → navigate → view → display → system`.
-- 이미지가 있을 때만, 이동 가능할 때만, 제어 가능한 GIF일 때만 활성화되는 명령이 있다. `system` 그룹은 항상 활성이다.
+- 이미지가 있을 때만, 이동 가능할 때만, 제어 가능한 GIF일 때만, 아카이브 안일 때만(표지 지정) 활성화되는 명령이 있다. `system` 그룹은 항상 활성이다.
 - 공백 분리 토큰 AND 매칭이며 라벨 앞부분 일치를 우선한다.
 - 한국어 UI에서도 영문 별칭으로 검색된다.
 
@@ -529,6 +534,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한�
 | `get_image_details`                      | `filePath`                                                                                     | `ImageDetails`                         |
 | `get_archive_images`                     | `filePath`                                                                                     | `DirectoryImages`(엔트리 목록)         |
 | `get_comic_info`                         | `filePath`                                                                                     | `ComicInfo \| null`                    |
+| `set_comic_cover_pages`                  | `filePath`, `coverPages`                                                                       | `ComicInfo`                            |
 | `load_archive_image`                     | `archivePath`, `entryName`, `maxSide?`, `protect?`, `imageScalingMode?`, `autoDetectPixelArt?` | `ImageInfo`                            |
 | `archive_prefetch`                       | `archivePath`, `entryNames`                                                                    | 추출 개수 `number`                     |
 | `generate_thumbnail`                     | `filePath`, `maxSide?`                                                                         | `ThumbnailInfo`                        |

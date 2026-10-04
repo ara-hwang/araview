@@ -1,12 +1,17 @@
-//! CBZ/ZIP 안의 `ComicInfo.xml` 메타데이터 읽기 (읽기 전용, 표시용).
+//! CBZ/ZIP 안의 `ComicInfo.xml` 메타데이터 읽기와 표지 지정(`FrontCover`) 쓰기.
 //!
 //! ComicRack/Komga/Kavita가 쓰는 스키마를 그대로 따른다. 탐색은 엔트리
 //! basename 대소문자 무시 일치이고, 루트(`ComicInfo.xml`)를 우선한 뒤
 //! 없으면 첫 번째 중첩 경로를 쓴다. XML 부재는 에러가 아니라 `Ok(None)`이다.
 //! CBZ/ZIP만 지원하고 그 밖의 확장자는 `Ok(None)`이다.
+//!
+//! 쓰기는 `Pages`의 `Type`만 바꾼다. 나머지 요소는 이벤트 단위로 그대로 옮겨
+//! 이 모듈이 모르는 필드도 보존한다.
 
+use std::collections::BTreeSet;
 use std::path::Path;
 
+use quick_xml::events::{BytesDecl, BytesEnd, BytesStart, BytesText, Event};
 use serde::{Deserialize, Serialize};
 
 use crate::app_error::AppError;
@@ -276,6 +281,215 @@ fn normalize_pages(pages: Option<RawPages>) -> Option<Vec<ComicPage>> {
         return None;
     }
     Some(normalized)
+}
+
+const FRONT_COVER: &str = "FrontCover";
+const STORY: &str = "Story";
+
+/// 표지 페이지 집합을 `ComicInfo.xml`에 쓰고 아카이브를 교체한다.
+/// `covers`의 페이지는 `FrontCover`가 되고, 그 밖의 기존 `FrontCover`는 `Story`로
+/// 바뀐다. `covers`가 비면 0번을 `Story`로 남겨 "표지 없음"을 명시한다.
+/// XML이 없으면 루트에 새로 만든다. 쓴 결과를 다시 파싱해 돌려준다.
+pub fn write_cover_pages(archive_path: &Path, covers: &[u32]) -> Result<ComicInfo, AppError> {
+    if !crate::image::is_archive_file(archive_path) {
+        return Err(AppError::unsupported("Not an archive file"));
+    }
+
+    let key = archive_path.to_string_lossy().into_owned();
+    crate::sidecar::with_file_lock(&key, "comic info write lock", || {
+        let entries = crate::archive_index::get_archive_entries(archive_path)?;
+        let total = entries.images.len();
+        if covers.iter().any(|&cover| cover as usize >= total) {
+            return Err(AppError::invalid_input("Cover page is out of range"));
+        }
+        let covers: BTreeSet<u32> = covers.iter().copied().collect();
+
+        let existing = find_comic_info_in_entries(&entries.all);
+        let xml = match &existing {
+            Some(entry_name) => {
+                let bytes = crate::archive::read_archive_entry_bounded(
+                    archive_path,
+                    entry_name,
+                    MAX_COMICINFO_BYTES,
+                )?;
+                apply_cover_pages(&decode_xml(&bytes)?, &covers)?
+            }
+            None => new_document(&covers),
+        };
+        // 쓰기 전에 결과가 읽히는지 확인해, 깨진 XML로 원본을 덮지 않는다.
+        let info = parse_comic_info(xml.as_bytes())?;
+
+        let entry_name = existing.as_deref().unwrap_or("ComicInfo.xml");
+        crate::archive::replace_archive_entry(archive_path, entry_name, xml.as_bytes())?;
+        Ok(info)
+    })
+}
+
+fn page_element(image: u32, page_type: &str) -> BytesStart<'static> {
+    let mut element = BytesStart::new("Page");
+    element.push_attribute(("Image", image.to_string().as_str()));
+    element.push_attribute(("Type", page_type));
+    element
+}
+
+/// `Pages`에 아직 없는 표지(또는 "표지 없음" 표식) 페이지.
+fn missing_pages(covers: &BTreeSet<u32>, seen: &BTreeSet<u32>) -> Vec<BytesStart<'static>> {
+    if covers.is_empty() {
+        return if seen.contains(&0) {
+            Vec::new()
+        } else {
+            vec![page_element(0, STORY)]
+        };
+    }
+    covers
+        .difference(seen)
+        .map(|&image| page_element(image, FRONT_COVER))
+        .collect()
+}
+
+fn new_document(covers: &BTreeSet<u32>) -> String {
+    let pages: String = missing_pages(covers, &BTreeSet::new())
+        .iter()
+        .map(|page| format!("    <{} />\n", &**page))
+        .collect();
+    format!(
+        "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<ComicInfo xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\">\n  <Pages>\n{pages}  </Pages>\n</ComicInfo>\n"
+    )
+}
+
+/// 기존 `Page` 요소의 `Type`을 표지 집합에 맞춘다. 다른 속성은 원문 그대로 둔다.
+fn retype_page(
+    page: &BytesStart<'_>,
+    covers: &BTreeSet<u32>,
+    seen: &mut BTreeSet<u32>,
+) -> Result<BytesStart<'static>, AppError> {
+    let attrs = page
+        .attributes()
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| AppError::corrupt(format!("Failed to parse ComicInfo.xml: {e}")))?;
+    let value_of = |name: &str| {
+        attrs
+            .iter()
+            .find(|attr| attr.key.0 == name)
+            .map(|attr| attr.value.trim().to_string())
+    };
+    // Image가 없으면 어느 페이지인지 알 수 없어 건드리지 않는다.
+    let Some(image) = value_of("Image").and_then(|v| v.parse::<u32>().ok()) else {
+        return Ok(page.to_owned());
+    };
+    seen.insert(image);
+
+    let current = value_of("Type").unwrap_or_default();
+    let next = if covers.contains(&image) {
+        FRONT_COVER
+    } else if current.eq_ignore_ascii_case(FRONT_COVER)
+        || (covers.is_empty() && image == 0 && current.is_empty())
+    {
+        STORY
+    } else {
+        return Ok(page.to_owned());
+    };
+
+    let name = page.name().0.to_string();
+    let mut element = BytesStart::new(name);
+    for attr in attrs {
+        if attr.key.0 != "Type" {
+            element.push_attribute(attr);
+        }
+    }
+    element.push_attribute(("Type", next));
+    Ok(element)
+}
+
+/// 기존 XML에 표지 집합을 반영한다. 출력은 항상 UTF-8이다.
+fn apply_cover_pages(xml: &str, covers: &BTreeSet<u32>) -> Result<String, AppError> {
+    let mut reader = quick_xml::Reader::from_str(xml);
+    let mut writer = quick_xml::Writer::new(Vec::new());
+    let mut emit = |event: Event<'_>| {
+        writer
+            .write_event(event)
+            .map_err(|e| AppError::unknown(format!("Failed to write ComicInfo.xml: {e}")))
+    };
+    let pages_block = |seen: &BTreeSet<u32>| -> Vec<Event<'static>> {
+        let mut events = vec![Event::Start(BytesStart::new("Pages"))];
+        events.extend(missing_pages(covers, seen).into_iter().map(Event::Empty));
+        events.push(Event::End(BytesEnd::new("Pages")));
+        events
+    };
+
+    let mut seen = BTreeSet::new();
+    let mut depth = 0usize;
+    let mut in_pages = false;
+    let mut wrote_pages = false;
+    loop {
+        let event = reader
+            .read_event()
+            .map_err(|e| AppError::corrupt(format!("Failed to parse ComicInfo.xml: {e}")))?;
+        match event {
+            Event::Eof => break,
+            // UTF-16 원본도 UTF-8로 다시 쓰므로 선언의 encoding을 맞춘다.
+            Event::Decl(_) => emit(Event::Decl(BytesDecl::new("1.0", Some("utf-8"), None)))?,
+            Event::Start(element) => {
+                let is_pages = depth == 1 && element.name().0 == "Pages";
+                let is_page = in_pages && depth == 2 && element.name().0 == "Page";
+                if is_page {
+                    emit(Event::Start(retype_page(&element, covers, &mut seen)?))?;
+                } else {
+                    emit(Event::Start(element))?;
+                }
+                if is_pages {
+                    in_pages = true;
+                    wrote_pages = true;
+                }
+                depth += 1;
+            }
+            Event::Empty(element) => {
+                if in_pages && depth == 2 && element.name().0 == "Page" {
+                    emit(Event::Empty(retype_page(&element, covers, &mut seen)?))?;
+                } else if depth == 1 && element.name().0 == "Pages" {
+                    wrote_pages = true;
+                    for event in pages_block(&seen) {
+                        emit(event)?;
+                    }
+                } else if depth == 0 {
+                    // `<ComicInfo/>`: 루트를 열어 Pages를 넣는다.
+                    wrote_pages = true;
+                    let end = element.to_end().into_owned();
+                    emit(Event::Start(element))?;
+                    for event in pages_block(&seen) {
+                        emit(event)?;
+                    }
+                    emit(Event::End(end))?;
+                } else {
+                    emit(Event::Empty(element))?;
+                }
+            }
+            Event::End(element) => {
+                depth = depth.saturating_sub(1);
+                if in_pages && depth == 1 {
+                    in_pages = false;
+                    for page in missing_pages(covers, &seen) {
+                        emit(Event::Empty(page))?;
+                    }
+                } else if depth == 0 && !wrote_pages {
+                    wrote_pages = true;
+                    emit(Event::Text(BytesText::new("  ")))?;
+                    for event in pages_block(&seen) {
+                        emit(event)?;
+                    }
+                    emit(Event::Text(BytesText::new("\n")))?;
+                }
+                emit(Event::End(element))?;
+            }
+            other => emit(other)?,
+        }
+    }
+    if !wrote_pages {
+        return Err(AppError::corrupt("ComicInfo.xml has no root element"));
+    }
+
+    String::from_utf8(writer.into_inner())
+        .map_err(|_| AppError::corrupt("ComicInfo.xml is not valid UTF-8"))
 }
 
 #[cfg(test)]
@@ -626,5 +840,124 @@ mod tests {
             (info.year, info.month, info.day),
             (Some(2024), Some(3), None)
         );
+    }
+
+    fn cover_set(covers: &[u32]) -> BTreeSet<u32> {
+        covers.iter().copied().collect()
+    }
+
+    fn cover_types(xml: &str) -> Vec<(u32, Option<String>)> {
+        parse_comic_info(xml.as_bytes())
+            .expect("parse")
+            .pages
+            .unwrap_or_default()
+            .into_iter()
+            .map(|page| (page.image, page.page_type))
+            .collect()
+    }
+
+    #[test]
+    fn apply_cover_pages_moves_cover_and_keeps_other_fields() {
+        let out = apply_cover_pages(SIMPLE_XML, &cover_set(&[1])).expect("apply");
+        let info = parse_comic_info(out.as_bytes()).expect("parse");
+        assert_eq!(info.series.as_deref(), Some("테스트 시리즈"));
+        assert_eq!(info.number.as_deref(), Some("1.5"));
+        assert_eq!(
+            cover_types(&out),
+            vec![
+                (0, Some("Story".to_string())),
+                (1, Some("FrontCover".to_string())),
+                (3, Some("Story".to_string())),
+            ]
+        );
+    }
+
+    #[test]
+    fn apply_cover_pages_adds_missing_pages_and_pages_element() {
+        let out = apply_cover_pages(
+            "<ComicInfo><Title>t</Title></ComicInfo>",
+            &cover_set(&[0, 1]),
+        )
+        .expect("apply");
+        assert_eq!(
+            cover_types(&out),
+            vec![
+                (0, Some("FrontCover".to_string())),
+                (1, Some("FrontCover".to_string())),
+            ]
+        );
+        assert!(out.contains("<Title>t</Title>"));
+
+        for xml in ["<ComicInfo/>", "<ComicInfo><Pages/></ComicInfo>"] {
+            let out = apply_cover_pages(xml, &cover_set(&[2])).expect("apply");
+            assert_eq!(cover_types(&out), vec![(2, Some("FrontCover".to_string()))]);
+        }
+    }
+
+    #[test]
+    fn apply_cover_pages_empty_set_marks_first_page_as_story() {
+        let out = apply_cover_pages(SIMPLE_XML, &cover_set(&[])).expect("apply");
+        assert_eq!(cover_types(&out)[0], (0, Some("Story".to_string())));
+
+        let out = apply_cover_pages("<ComicInfo></ComicInfo>", &cover_set(&[])).expect("apply");
+        assert_eq!(cover_types(&out), vec![(0, Some("Story".to_string()))]);
+
+        // 0번에 이미 다른 Type이 있으면 그대로 둔다.
+        let xml = "<ComicInfo><Pages><Page Image=\"0\" Type=\"Other\"/></Pages></ComicInfo>";
+        let out = apply_cover_pages(xml, &cover_set(&[])).expect("apply");
+        assert_eq!(cover_types(&out), vec![(0, Some("Other".to_string()))]);
+    }
+
+    #[test]
+    fn apply_cover_pages_preserves_unknown_attributes_and_elements() {
+        let xml = "<?xml version=\"1.0\" encoding=\"utf-16\"?><ComicInfo><Custom a=\"1\">x &amp; y</Custom><Pages><Page Image=\"0\" ImageSize=\"123\" Type=\"FrontCover\"/></Pages></ComicInfo>";
+        let out = apply_cover_pages(xml, &cover_set(&[])).expect("apply");
+        assert!(out.contains("<Custom a=\"1\">x &amp; y</Custom>"));
+        assert!(out.contains("ImageSize=\"123\""));
+        assert!(out.contains("encoding=\"utf-8\""));
+        assert_eq!(cover_types(&out), vec![(0, Some("Story".to_string()))]);
+    }
+
+    #[test]
+    fn write_cover_pages_creates_and_updates_comic_info() {
+        let dir = tempfile::tempdir().unwrap();
+        let archive = write_cbz(
+            dir.path(),
+            "plain.cbz",
+            &[("001.png", b"a"), ("002.png", b"b"), ("003.png", b"c")],
+        );
+
+        let info = write_cover_pages(&archive, &[0, 1]).expect("create");
+        let covers: Vec<u32> = info.pages.unwrap().iter().map(|p| p.image).collect();
+        assert_eq!(covers, vec![0, 1]);
+
+        write_cover_pages(&archive, &[]).expect("clear");
+        let read = read_comic_info(&archive).expect("read").expect("some");
+        assert_eq!(
+            read.pages.unwrap(),
+            vec![
+                ComicPage {
+                    image: 0,
+                    page_type: Some("Story".to_string())
+                },
+                ComicPage {
+                    image: 1,
+                    page_type: Some("Story".to_string())
+                },
+            ]
+        );
+        // 페이지 목록은 그대로다.
+        let entries = crate::archive_index::get_archive_entries(&archive).expect("entries");
+        assert_eq!(entries.images.len(), 3);
+    }
+
+    #[test]
+    fn write_cover_pages_rejects_out_of_range_and_non_archive() {
+        let dir = tempfile::tempdir().unwrap();
+        let archive = write_cbz(dir.path(), "plain.cbz", &[("001.png", b"a")]);
+        let err = write_cover_pages(&archive, &[1]).unwrap_err();
+        assert_eq!(err.code, ErrorCode::InvalidInput);
+        let err = write_cover_pages(Path::new("a.png"), &[0]).unwrap_err();
+        assert_eq!(err.code, ErrorCode::Unsupported);
     }
 }

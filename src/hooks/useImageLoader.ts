@@ -16,7 +16,7 @@ import type { ComicInfo, DirectoryImages, ImageInfo, ThumbnailInfo } from "@/typ
 import { errorCode, errorCopyDetails, errorMessage } from "@/utils/appError"
 import { isArchiveFilePath } from "@/utils/archiveFile"
 import { resolveArchiveStartIndex } from "@/utils/archiveResume"
-import { resolveCoverIndex } from "@/utils/comicCover"
+import { resolveCoverLayout, withCoverSolo } from "@/utils/comicCover"
 import { resolveComicViewMode } from "@/utils/comicViewMode"
 import { buildDirListOptions } from "@/utils/directoryOptions"
 import { resolvePairStart } from "@/utils/dirNavigation"
@@ -291,12 +291,14 @@ export function useImageLoader() {
           )
           const openViewMode = comicViewMode ?? settings.viewMode
           const isDualView = openViewMode === "left-to-right" || openViewMode === "right-to-left"
+          const cover = resolveCoverLayout(comic.info, total, settings.showCoverAlone)
           const startIndex = isDualView
             ? resolvePairStart(
                 rawStartIndex,
                 total,
-                settings.showCoverAlone,
-                resolveCoverIndex(comic.info, total)
+                cover.coverAlone,
+                cover.coverIndex,
+                withCoverSolo(cover, new Set())
               )
             : rawStartIndex
           const firstEntry = archiveImages.images[startIndex]

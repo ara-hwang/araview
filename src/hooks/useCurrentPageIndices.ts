@@ -1,9 +1,10 @@
 import { useMemo } from "react"
 
+import { useCoverLayout } from "@/hooks/useCoverLayout"
 import { useLayoutViewMode, useSoloIndices } from "@/hooks/useEffectiveViewMode"
 import { useAppStore } from "@/store/appStore"
 import { useSettingsStore } from "@/store/settingsStore"
-import { resolveCoverIndex } from "@/utils/comicCover"
+import { withCoverSolo } from "@/utils/comicCover"
 import { dualPageIndices } from "@/utils/dirNavigation"
 
 /**
@@ -15,10 +16,9 @@ import { dualPageIndices } from "@/utils/dirNavigation"
 export function useCurrentPageIndices(): Set<number> {
   const currentIndex = useAppStore((state) => state.dirImages.current_index)
   const total = useAppStore((state) => state.dirImages.images.length)
-  const comicInfo = useAppStore((state) => state.comicInfo)
   const viewMode = useLayoutViewMode()
   const solo = useSoloIndices()
-  const showCoverAlone = useSettingsStore((state) => state.showCoverAlone)
+  const cover = useCoverLayout()
   const loopNavigation = useSettingsStore((state) => state.loopNavigation)
 
   return useMemo(() => {
@@ -29,11 +29,11 @@ export function useCurrentPageIndices(): Set<number> {
       dualPageIndices(
         currentIndex,
         total,
-        showCoverAlone,
-        resolveCoverIndex(comicInfo, total),
+        cover.coverAlone,
+        cover.coverIndex,
         loopNavigation,
-        solo
+        withCoverSolo(cover, solo)
       )
     )
-  }, [viewMode, currentIndex, total, showCoverAlone, loopNavigation, comicInfo, solo])
+  }, [viewMode, currentIndex, total, cover, loopNavigation, solo])
 }

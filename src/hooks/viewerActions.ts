@@ -41,6 +41,8 @@ export type ViewerActionHandlers = {
   onCopyPath: () => void
   onToggleGrid: () => void
   onToggleDock: () => void
+  /** 현재 페이지의 표지 지정(ComicInfo `FrontCover`)을 뒤집는다. */
+  onToggleComicCover: () => void
 }
 
 export const OPEN_SETTINGS_EVENT = "tiv:open-settings"
@@ -174,6 +176,9 @@ export function runViewerCommand(id: CommandId, h: ViewerActionHandlers): boolea
       return true
     case "toggleDock":
       h.onToggleDock()
+      return true
+    case "toggleComicCover":
+      h.onToggleComicCover()
       return true
     case "toggleGifPlayback":
       toggleGifPlayback()

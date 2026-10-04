@@ -54,7 +54,8 @@ const NOOP_VIEWER_HANDLERS: PaletteViewerHandlers = {
   onRenameFile: noop,
   onCopyPath: noop,
   onToggleGrid: noop,
-  onToggleDock: noop
+  onToggleDock: noop,
+  onToggleComicCover: noop
 }
 
 let viewerHandlers: PaletteViewerHandlers | null = null
@@ -116,6 +117,7 @@ export function useCommandPaletteHost() {
   const hasImage = useAppStore((s) => s.imageInfo !== null)
   const imageCount = useAppStore((s) => s.dirImages.images.length)
   const isGif = useGifStore((s) => s.active && s.frameCount > 1)
+  const inArchive = useAppStore((s) => s.archivePath !== null)
   const mruIds = usePaletteMruStore((s) => s.ids)
 
   const { handleOpenFile } = useImageLoader()
@@ -141,8 +143,8 @@ export function useCommandPaletteHost() {
   }, [])
 
   const ctx: CommandContext = useMemo(
-    () => ({ hasImage, canNavigate: imageCount > 1, isGif }),
-    [hasImage, imageCount, isGif]
+    () => ({ hasImage, canNavigate: imageCount > 1, isGif, inArchive }),
+    [hasImage, imageCount, isGif, inArchive]
   )
 
   const commands: ResolvedPaletteCommand[] = useMemo(() => {

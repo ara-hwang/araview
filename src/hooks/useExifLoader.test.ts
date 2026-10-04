@@ -64,3 +64,27 @@ describe("useExifLoader EXIF 상태", () => {
     expect(useAppStore.getState().exifError).toBe("File not found")
   })
 })
+
+describe("useExifLoader 패널 열기", () => {
+  it("읽기가 끝나기 전에 패널을 열고 로딩 상태를 보여준다", async () => {
+    let finish: (value: unknown) => void = () => {}
+    h.exif = () => new Promise((resolve) => (finish = resolve))
+    const { result } = renderHook(() => useExifLoader())
+
+    let pending: Promise<void> = Promise.resolve()
+    act(() => {
+      pending = result.current.toggleExifPanel()
+    })
+    expect(useAppStore.getState().showExifPanel).toBe(true)
+    expect(useAppStore.getState().infoLoading).toBe(true)
+    // 직전 이미지의 값은 새 패널에 남기지 않는다.
+    expect(useAppStore.getState().exifData).toBeNull()
+
+    await act(async () => {
+      finish({ Make: "Camera" })
+      await pending
+    })
+    expect(useAppStore.getState().infoLoading).toBe(false)
+    expect(useAppStore.getState().exifData).toEqual({ Make: "Camera" })
+  })
+})

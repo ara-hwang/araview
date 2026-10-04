@@ -13,6 +13,7 @@ import { ZoomPanSync } from "@/components/ZoomPanSync"
 import type { MouseAction } from "@/constants/shortcuts"
 import { useAlwaysOnTop } from "@/hooks/useAlwaysOnTop"
 import { useCloseImage } from "@/hooks/useCloseImage"
+import { useComicCoverEdit } from "@/hooks/useComicCoverEdit"
 import { registerPaletteHandlers, unregisterPaletteHandlers } from "@/hooks/useCommandPalette"
 import { useImageViewerContextMenu } from "@/hooks/useContextMenu"
 import { useCopyImage } from "@/hooks/useCopyImage"
@@ -177,6 +178,9 @@ function ImagePage() {
     [isWebtoon, navigateByOffset, scrollWebtoonTo]
   )
 
+  const { toggleCover } = useComicCoverEdit(handleNavigateToIndex)
+  const handleToggleCover = useCallback((index: number) => void toggleCover(index), [toggleCover])
+
   const handleRetry = useCallback(() => {
     const st = useAppStore.getState()
     const current = st.dirImages.images[st.dirImages.current_index]
@@ -296,7 +300,8 @@ function ImagePage() {
       onRenameFile: () => setRenameOpen(true),
       onCopyPath: () => void copyPathCurrent(),
       onToggleGrid: () => toggleGrid(),
-      onToggleDock: toggleDock
+      onToggleDock: toggleDock,
+      onToggleComicCover: () => handleToggleCover(useAppStore.getState().dirImages.current_index)
     }),
     [
       handleNavigateImage,
@@ -314,7 +319,8 @@ function ImagePage() {
       openExternal,
       copyPathCurrent,
       toggleGrid,
-      toggleDock
+      toggleDock,
+      handleToggleCover
     ]
   )
 
@@ -326,7 +332,7 @@ function ImagePage() {
     }
   }, [viewerActions])
 
-  const baseContextMenu = useImageViewerContextMenu(dirImages, viewerActions)
+  const baseContextMenu = useImageViewerContextMenu(dirImages, viewerActions, handleToggleCover)
 
   const runMouseAction = useCallback(
     (action: MouseAction, e?: React.MouseEvent) => {
