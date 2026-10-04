@@ -138,6 +138,13 @@ export function useImageLoader() {
     [awaitPaintReady]
   )
 
+  /** 양쪽 보기의 한 장이 그려질 준비가 될 때까지 기다린다 (현재 아카이브 범위 기준). */
+  const awaitPagePaintReady = useCallback(
+    (imgInfo: ImageInfo, pathOrEntry: string) =>
+      awaitPaintReady(imgInfo, imageCacheKey(useAppStore.getState().archivePath, pathOrEntry)),
+    [awaitPaintReady]
+  )
+
   const [isDragOver, setIsDragOver] = useState(false)
   const dragDepthRef = useRef(0)
 
@@ -685,6 +692,7 @@ export function useImageLoader() {
     handleDragLeave,
     isDragOver,
     getOrLoadImage,
+    awaitPagePaintReady,
     prefetchAround
   }
 }

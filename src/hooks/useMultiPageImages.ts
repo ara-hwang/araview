@@ -18,13 +18,17 @@ import { dualPageIndices } from "@/utils/dirNavigation"
 // getOrLoadImage를 인자로 받는다.
 
 type GetOrLoadImage = (filePath: string) => Promise<ImageInfo>
+type AwaitPaintReady = (info: ImageInfo, filePath: string) => Promise<void>
 
 export type MultiPage = {
   path: string
   info: ImageInfo
 }
 
-export function useMultiPageImages(getOrLoadImage: GetOrLoadImage) {
+export function useMultiPageImages(
+  getOrLoadImage: GetOrLoadImage,
+  awaitPaintReady?: AwaitPaintReady
+) {
   const viewMode = useEffectiveViewMode()
   const solo = useSoloIndices()
   const { loopNavigation, showCoverAlone } = useSettingsStore(
@@ -73,6 +77,9 @@ export function useMultiPageImages(getOrLoadImage: GetOrLoadImage) {
       paths.map(async (p) => {
         try {
           const info = await getOrLoadImage(p)
+          // 두 장이 모두 그려질 준비가 될 때까지 이전 화면을 유지한다. 먼저 바꾸면
+          // 한 장만 먼저 나타났다가 나머지가 로드될 때 옆으로 밀린다.
+          await awaitPaintReady?.(info, p)
           return { path: p, info } as MultiPage
         } catch {
           return null
@@ -94,6 +101,7 @@ export function useMultiPageImages(getOrLoadImage: GetOrLoadImage) {
     dirImages.images,
     dirImages.current_index,
     getOrLoadImage,
+    awaitPaintReady,
     solo
   ])
 

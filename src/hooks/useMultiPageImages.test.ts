@@ -1,4 +1,4 @@
-import { cleanup, renderHook, waitFor } from "@testing-library/react"
+import { act, cleanup, renderHook, waitFor } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { useMultiPageImages } from "@/hooks/useMultiPageImages"
@@ -172,6 +172,37 @@ describe("useMultiPageImages 양쪽 오프셋", () => {
       expect(result.current.pages).toHaveLength(1)
     })
     expect(result.current.pages.map((p) => p.path)).toEqual([IMAGES[5]])
+  })
+})
+
+describe("useMultiPageImages 표시 준비 대기", () => {
+  it("두 장이 모두 그려질 준비가 된 뒤에 함께 반환한다", async () => {
+    setup(1)
+    const getOrLoadImage = vi.fn(async (path: string) => imgInfo(path))
+    const release: Record<string, () => void> = {}
+    const awaitPaintReady = vi.fn(
+      (_info: ImageInfo, path: string) =>
+        new Promise<void>((resolve) => {
+          release[path] = resolve
+        })
+    )
+    const { result } = renderHook(() => useMultiPageImages(getOrLoadImage, awaitPaintReady))
+
+    await waitFor(() => {
+      expect(awaitPaintReady).toHaveBeenCalledTimes(2)
+    })
+    // 한 장만 준비되면 아직 화면을 바꾸지 않는다.
+    await act(async () => {
+      release[IMAGES[1]]()
+    })
+    expect(result.current.pages).toHaveLength(0)
+
+    await act(async () => {
+      release[IMAGES[2]]()
+    })
+    await waitFor(() => {
+      expect(result.current.pages.map((p) => p.path)).toEqual([IMAGES[1], IMAGES[2]])
+    })
   })
 })
 
