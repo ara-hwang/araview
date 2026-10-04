@@ -3,8 +3,10 @@ import { useCallback } from "react"
 
 import type { CommandId } from "@/constants/commands"
 import { toTauriAccelerator } from "@/constants/shortcuts"
+import { isCoverPage } from "@/hooks/useComicCoverEdit"
 import { runViewerCommand, type ViewerActionHandlers } from "@/hooks/viewerActions"
 import i18n from "@/i18n"
+import { useAppStore } from "@/store/appStore"
 import { useGifStore } from "@/store/gifStore"
 import { getSettings } from "@/store/settingsStore"
 
@@ -12,9 +14,34 @@ import type { DirectoryImages } from "../types"
 
 export type ImageViewerContextMenuActions = ViewerActionHandlers
 
+/** 우클릭한 페이지의 표지 지정 항목. 아카이브 안에서만 메뉴에 넣는다. */
+export type CoverMenuTarget = {
+  isCover: boolean
+  onToggle: () => void
+}
+
+/**
+ * 우클릭한 요소가 가리키는 페이지 인덱스. 양쪽 보기와 웹툰은 클릭한 쪽 페이지를,
+ * 그 밖에는 현재 페이지를 돌려준다.
+ */
+export function contextPageIndex(target: EventTarget | null): number {
+  const { dirImages } = useAppStore.getState()
+  const el =
+    target instanceof Element ? target.closest("[data-page-path], [data-webtoon-index]") : null
+  if (el instanceof HTMLElement) {
+    const index =
+      el.dataset.pagePath !== undefined
+        ? dirImages.images.indexOf(el.dataset.pagePath)
+        : Number(el.dataset.webtoonIndex)
+    if (Number.isInteger(index) && index >= 0 && index < dirImages.images.length) return index
+  }
+  return dirImages.current_index
+}
+
 export async function showImageViewerContextMenu(
   dirImages: DirectoryImages | null,
-  actions: ImageViewerContextMenuActions
+  actions: ImageViewerContextMenuActions,
+  cover?: CoverMenuTarget
 ): Promise<void> {
   const t = i18n.t.bind(i18n)
   const s = getSettings().shortcuts
@@ -44,6 +71,16 @@ export async function showImageViewerContextMenu(
           item(t("menu.gifNextFrame"), "gifNextFrame", s.gifNextFrame)
         ]
       : []
+
+  const coverItems = cover
+    ? [
+        PredefinedMenuItem.new({ item: "Separator" }),
+        MenuItem.new({
+          text: t(cover.isCover ? "menu.unsetCover" : "menu.setCover"),
+          action: cover.onToggle
+        })
+      ]
+    : []
 
   const [openItem, closeItem, ...rest] = await Promise.all([
     item(t("menu.open"), "openFile", s.openFile),
@@ -78,7 +115,8 @@ export async function showImageViewerContextMenu(
     item(t("menu.openExternal"), "openExternal", s.openExternal),
     PredefinedMenuItem.new({ item: "Separator" }),
     item(t("menu.rename"), "renameFile", s.renameFile),
-    item(t("menu.copyPath"), "copyPath", s.copyPath)
+    item(t("menu.copyPath"), "copyPath", s.copyPath),
+    ...coverItems
   ])
 
   const menu = await Menu.new({ items: [openItem, closeItem, ...rest] })
@@ -87,13 +125,20 @@ export async function showImageViewerContextMenu(
 
 export function useImageViewerContextMenu(
   dirImages: DirectoryImages | null,
-  actions: ImageViewerContextMenuActions
+  actions: ImageViewerContextMenuActions,
+  onToggleCover?: (index: number) => void
 ) {
   return useCallback(
     async (e: React.MouseEvent) => {
       e.preventDefault()
-      await showImageViewerContextMenu(dirImages, actions)
+      const inArchive = useAppStore.getState().archivePath !== null
+      const index = contextPageIndex(e.target)
+      const cover =
+        onToggleCover && inArchive
+          ? { isCover: isCoverPage(index), onToggle: () => onToggleCover(index) }
+          : undefined
+      await showImageViewerContextMenu(dirImages, actions, cover)
     },
-    [dirImages, actions]
+    [dirImages, actions, onToggleCover]
   )
 }

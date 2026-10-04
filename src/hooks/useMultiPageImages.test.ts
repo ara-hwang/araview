@@ -127,7 +127,7 @@ describe("useMultiPageImages 양쪽 오프셋", () => {
 
   it("ComicInfo FrontCover가 0번이 아니면 표지를 기준으로 짝을 맞춘다", async () => {
     setup(3)
-    useAppStore.setState({ comicInfo: comicInfoWithCover(3) })
+    useAppStore.setState({ archivePath: "/docs/m.cbz", comicInfo: comicInfoWithCover(3) })
     const getOrLoadImage = vi.fn(async (path: string) => imgInfo(path))
     const { result } = renderHook(() => useMultiPageImages(getOrLoadImage))
 
@@ -140,7 +140,7 @@ describe("useMultiPageImages 양쪽 오프셋", () => {
 
   it("ComicInfo 표지 뒤 페이지는 표지 기준 쌍으로 로드한다", async () => {
     setup(4)
-    useAppStore.setState({ comicInfo: comicInfoWithCover(3) })
+    useAppStore.setState({ archivePath: "/docs/m.cbz", comicInfo: comicInfoWithCover(3) })
     const getOrLoadImage = vi.fn(async (path: string) => imgInfo(path))
     const { result } = renderHook(() => useMultiPageImages(getOrLoadImage))
 
@@ -152,7 +152,7 @@ describe("useMultiPageImages 양쪽 오프셋", () => {
 
   it("표지 바로 앞에 남는 페이지도 단독으로 로드한다", async () => {
     setup(2)
-    useAppStore.setState({ comicInfo: comicInfoWithCover(3) })
+    useAppStore.setState({ archivePath: "/docs/m.cbz", comicInfo: comicInfoWithCover(3) })
     const getOrLoadImage = vi.fn(async (path: string) => imgInfo(path))
     const { result } = renderHook(() => useMultiPageImages(getOrLoadImage))
 

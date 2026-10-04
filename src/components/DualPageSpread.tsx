@@ -67,6 +67,7 @@ export function DualPageSpread({
           detectionPriority={index === 0}
           src={src(page)}
           alt={page.info.file_name}
+          data-page-path={page.path}
           // 마지막 홀수 장은 단일 중앙 표시
           className={
             pages.length === 1

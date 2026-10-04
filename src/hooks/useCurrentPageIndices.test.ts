@@ -15,6 +15,7 @@ function setup(
 ) {
   useAppStore.setState({
     dirImages: { images: IMAGES, current_index: index, availability: [] },
+    archivePath: options?.comicInfo ? "/docs/m.cbz" : null,
     comicInfo: options?.comicInfo ?? null
   })
   useSettingsStore.setState({
@@ -28,7 +29,7 @@ const current = () => [...renderHook(() => useCurrentPageIndices()).result.curre
 
 beforeEach(() => {
   useSettingsStore.setState({ viewMode: "single", showCoverAlone: true, loopNavigation: false })
-  useAppStore.setState({ comicInfo: null })
+  useAppStore.setState({ archivePath: null, comicInfo: null })
 })
 
 describe("useCurrentPageIndices", () => {
@@ -101,5 +102,26 @@ describe("useCurrentPageIndices", () => {
     } as ComicInfo
     setup(2, "left-to-right", { coverAlone: true, comicInfo })
     expect(current()).toEqual([2])
+  })
+
+  it("아카이브의 표지 지정은 전역 설정보다 우선한다", () => {
+    const withPages = (pages: ComicInfo["pages"]) => ({ pages }) as ComicInfo
+
+    // 연속 표지는 전역 설정이 꺼져 있어도 각각 단독 화면이고, 그 뒤부터 쌍이다.
+    const covers = withPages([
+      { image: 0, page_type: "FrontCover" },
+      { image: 1, page_type: "FrontCover" }
+    ])
+    setup(0, "left-to-right", { coverAlone: false, comicInfo: covers })
+    expect(current()).toEqual([0])
+    setup(1, "left-to-right", { coverAlone: false, comicInfo: covers })
+    expect(current()).toEqual([1])
+    setup(2, "left-to-right", { coverAlone: false, comicInfo: covers })
+    expect(current()).toEqual([2, 3])
+
+    // 0번을 표지가 아니라고 명시하면 전역 설정이 켜져 있어도 쌍으로 본다.
+    const noCover = withPages([{ image: 0, page_type: "Story" }])
+    setup(0, "left-to-right", { coverAlone: true, comicInfo: noCover })
+    expect(current()).toEqual([0, 1])
   })
 })

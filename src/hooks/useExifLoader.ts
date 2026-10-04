@@ -35,8 +35,11 @@ async function loadDetailsSilent(filePath: string, isCurrent: () => boolean) {
   }
 }
 
+/** 가장 최근 정보 로드. 늦게 끝난 이전 로드가 로딩 표시를 끄지 않게 한다. */
+let infoLoadSeq = 0
+
 export function useExifLoader() {
-  const loadExif = useCallback(async () => {
+  const loadInfo = useCallback(async () => {
     // 아카이브 모드에서는 추출된 임시 경로, 일반 모드에서는 실제 파일 경로다.
     // EXIF와 파일 상세는 원본(source_path)을 설명해야 하므로 축소 sidecar가
     // 아닌 원본을 읽고, 히스토그램은 렌더 바이트(file_path)를 그대로 쓴다.
@@ -95,6 +98,16 @@ export function useExifLoader() {
     ])
   }, [])
 
+  const loadExif = useCallback(async () => {
+    const seq = ++infoLoadSeq
+    useAppStore.setState({ infoLoading: true })
+    try {
+      await loadInfo()
+    } finally {
+      if (seq === infoLoadSeq) useAppStore.setState({ infoLoading: false })
+    }
+  }, [loadInfo])
+
   const toggleExifPanel = useCallback(async () => {
     const { showExifPanel, imageInfo } = useAppStore.getState()
 
@@ -104,8 +117,17 @@ export function useExifLoader() {
     }
 
     if (!imageInfo?.file_path) return
+    // 패널을 먼저 연다. 히스토그램은 원본을 디코드하느라 오래 걸릴 수 있고,
+    // 다 읽은 뒤에 열면 그동안 버튼이 반응하지 않는 것처럼 보인다.
+    // 직전 이미지의 값이 새 패널에 잠깐 비치지 않도록 비우고 시작한다.
+    useAppStore.setState({
+      showExifPanel: true,
+      exifData: null,
+      exifError: null,
+      histogramData: null,
+      imageDetails: null
+    })
     await loadExif()
-    useAppStore.setState({ showExifPanel: true })
   }, [loadExif])
 
   return { toggleExifPanel, reloadExif: loadExif }

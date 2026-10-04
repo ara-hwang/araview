@@ -49,6 +49,8 @@ type AppState = {
   histogramData: ImageHistogram | null
   imageDetails: ImageDetails | null
   showExifPanel: boolean
+  /** 정보 패널 데이터를 읽는 중. 패널은 먼저 열리고 그동안 로딩 상태를 보여준다. */
+  infoLoading: boolean
   rotation: 0 | 90 | 180 | 270
   flipH: boolean
   flipV: boolean
@@ -124,6 +126,7 @@ const initialApp: AppState = {
   histogramData: null,
   imageDetails: null,
   showExifPanel: false,
+  infoLoading: false,
   rotation: 0,
   flipH: false,
   flipV: false,

@@ -75,7 +75,7 @@ export type ComicPage = {
   page_type: string | null
 }
 
-/** 아카이브 안의 ComicInfo.xml 메타데이터 (읽기 전용, 표시용). */
+/** 아카이브 안의 ComicInfo.xml 메타데이터. 표지 지정(`pages`)만 앱에서 고쳐 쓴다. */
 export type ComicInfo = {
   title: string | null
   series: string | null

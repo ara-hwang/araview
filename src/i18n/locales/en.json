@@ -197,7 +197,7 @@
     },
     "reading": {
       "title": "Reading",
-      "desc": "Resume comics (CBZ and other archives) from the last page you viewed. Cover alone shows the first page by itself in dual view.",
+      "desc": "Resume comics (CBZ and other archives) from the last page you viewed. Cover alone shows the first page by itself in dual view. Comics with a cover set or unset from the viewer right-click menu follow that choice.",
       "resume": "Resume reading",
       "comicAutoDual": "Open comic archives in dual view automatically (follows ComicInfo reading direction)",
       "coverAlone": "Show cover alone in dual view",
@@ -397,7 +397,8 @@
     "empty": "No EXIF data available for this image.",
     "loadFail": "Failed to load EXIF.",
     "retry": "Retry",
-    "other": "Other"
+    "other": "Other",
+    "loading": "Loading information"
   },
   "details": {
     "title": "File",
@@ -534,7 +535,10 @@
     "reveal": "Reveal in Explorer",
     "openExternal": "Open with Default App",
     "rename": "Rename",
-    "copyPath": "Copy Path"
+    "copyPath": "Copy Path",
+    "toggleCover": "Set or Unset Current Page as Cover",
+    "setCover": "Set This Page as Cover",
+    "unsetCover": "Unset Cover"
   },
   "palette": {
     "title": "Command Palette",
@@ -661,6 +665,11 @@
     "drop": {
       "fail": "Cannot open dropped item",
       "firstOf": "Showing the first of {{count}} images"
+    },
+    "cover": {
+      "set": "Set as cover",
+      "unset": "Cover unset",
+      "fail": "Could not save the cover setting"
     }
   },
   "confirm": {

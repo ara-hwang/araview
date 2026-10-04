@@ -4,7 +4,8 @@ import {
   COMMAND_DEFS,
   commandShortcutId,
   filterCommands,
-  isCommandEnabled
+  isCommandEnabled,
+  type CommandContext
 } from "@/constants/commands"
 import { SHORTCUT_ACTION_IDS } from "@/constants/shortcuts"
 
@@ -45,11 +46,18 @@ describe("filterCommands", () => {
 })
 
 describe("isCommandEnabled", () => {
-  const ctx = (partial: Partial<{ hasImage: boolean; canNavigate: boolean; isGif: boolean }>) => ({
+  const ctx = (partial: Partial<CommandContext>): CommandContext => ({
     hasImage: false,
     canNavigate: false,
     isGif: false,
+    inArchive: false,
     ...partial
+  })
+
+  it("표지 지정 명령은 아카이브 안에서만 활성화된다", () => {
+    const def = COMMAND_DEFS.find((d) => d.id === "toggleComicCover")!
+    expect(isCommandEnabled(def, ctx({ hasImage: true }))).toBe(false)
+    expect(isCommandEnabled(def, ctx({ hasImage: true, inArchive: true }))).toBe(true)
   })
 
   it("이미지 필요 명령은 홈에서 비활성화된다", () => {
