@@ -292,7 +292,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한�
 ### 9.3 썸네일
 
 - `generate_thumbnail`: 기본 256px, JPEG 캐시 후 재사용한다. 상한(500MB)을 넘기면 오래된 것부터 상한의 90%까지 제거한다. 상한 초과는 새로 쓴 파일 크기를 누적해 판단하므로, 쓸 때마다 폴더 전체를 다시 훑지 않는다(HEIC/PSD sidecar의 `paint/`, 축소본의 `scaled/`도 같다).
-- HEIC/HEIF/PSD는 썸네일용 JPEG sidecar 경로를 쓴다.
+- HEIC/HEIF/AVIF/PSD/TGA/DDS/EXR/QOI는 썸네일용 JPEG sidecar 경로를 쓴다(AVIF는 표시만 네이티브이고 썸네일은 libheif로 디코드한다).
 - 디코드 불가 입력(SVG 등)이나 아카이브 엔트리명은 에러를 내고, 프론트는 원본으로 폴백한다.
 - 배치 조회와 아카이브 엔트리용 썸네일 API를 별도로 제공한다. 아카이브 썸네일은 추출물과 캐시를 재사용해 풀사이즈 로드를 피한다.
 - 그리드는 보이는 창의 경로만 썸네일을 요청한다.
@@ -565,7 +565,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 읽기 전용 메타데이터로만 지원한�
 
 Rust와 TypeScript는 같은 모양을 유지한다.
 
-- `file_path: string`: WebView가 디코드할 경로. HEIC/HEIF/PSD는 JPEG sidecar 경로, 표시 해상도 제한이 걸린 큰 래스터는 `scaled/` 사본 경로일 수 있다(9.4절).
+- `file_path: string`: WebView가 디코드할 경로. HEIC/HEIF/PSD/TGA/DDS/EXR/QOI는 JPEG sidecar 경로, 표시 해상도 제한이 걸린 큰 래스터는 `scaled/` 사본 경로일 수 있다(9.4절).
 - `source_path: string`: 사용자가 연 원본 파일 경로. sidecar가 아니며, 파일 작업·EXIF·파일 상세가 이 경로를 쓴다. 아카이브 엔트리는 활성 파생 이미지 캐시에서 추출된 경로다.
 - `mime_type: string`
 - `file_name: string`
@@ -617,7 +617,7 @@ Rust와 TypeScript는 같은 모양을 유지한다.
 ## 18. 렌더링 경로
 
 - 백엔드는 디코드용 파일 경로를 돌려주고, 프론트는 `convertFileSrc(...)`로 변환해 `<img>`에 넣는다.
-- HEIC/HEIF/PSD는 JPEG sidecar를, 표시 해상도 제한이 걸린 큰 래스터는 `scaled/` 사본(9.4절)을 만든다. sidecar와 아카이브 추출물, 썸네일 캐시는 `cacheStorageMode`가 `persistent`면 Tauri 사용자 캐시 디렉터리의 버전된 루트에, `temporary`면 프로세스 수명 TempDir에 둔다.
+- WebView2가 직접 그리지 못하는 HEIC/HEIF/PSD/TGA/DDS/EXR/QOI는 JPEG sidecar를(`transcode.rs`가 디코더를 고르고 `sidecar.rs`의 `SidecarSpec` 파이프라인을 공유한다), 표시 해상도 제한이 걸린 큰 래스터는 `scaled/` 사본(9.4절)을 만든다. sidecar와 아카이브 추출물, 썸네일 캐시는 `cacheStorageMode`가 `persistent`면 Tauri 사용자 캐시 디렉터리의 버전된 루트에, `temporary`면 프로세스 수명 TempDir에 둔다.
 - JPEG의 EXIF Orientation(1~8)은 WebView2 `<img>`가 자동 적용한다. 백엔드는 같은 기준을 따르도록 치수(`ImageInfo.width/height`, `get_image_details`), 썸네일에 회전을 명시 적용한다(SVG/WebP/PNG/HEIC는 대상 아님).
 - `detect_pixel_art`는 표시 바이트 경로를 제한된 분석 이미지로 읽고, 작은 색상 팔레트·평탄도·동일 색상 run·주기적 경계 신호를 결합한다. ML 모델이나 네트워크를 사용하지 않으며, 분석 제한 초과·디코드 실패·불확실 결과는 안전하게 부드러운 표시로 대체한다.
 - `image-rendering`은 `smooth`와 `pixelated` 값을 사용한다. `smooth`는 브라우저의 고품질 보간 선호이며 특정 Bilinear 구현을 보장하지 않는다. `pixelated`는 확대 시 최근접 계열 보간을 요청한다. 픽셀 보존 판정(pixelated 모드와 확신 있는 자동 감지 포함)은 표시 배율이 1x 이상(확대)일 때만 적용되며, 축소 배율에서는 설정·감지와 무관하게 항상 `smooth`로 강제된다. nearest 축소는 스크린톤 같은 주기 패턴을 계단·무아레로 깨뜨린다. 단일 보기 배율은 `imageSize`에 대한 `zoom`이고, 웹툰/양쪽 보기는 렌더된 `<img>`에서 실측한다(측정 전에는 기존 판정 유지).
