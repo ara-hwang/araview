@@ -177,15 +177,15 @@ Motion confirms state; it never decorates. Curves live in `src/App.css` (`@theme
 
 ## App Icon
 
-The app icon is an obangsaek 2x2 grid: four sticky-note tiles in red, ochre, teal, and ink, with a folded corner on the bottom-right tile (the page-turn). The name stays Korean-first after the 아 monogram: 청・적・황・흑 carry the identity, and 백 (white) is the transparent gap itself.
+The app icon is an obangsaek 2x2 grid: four sticky-note tiles in red, ochre, teal, and ink, with the bottom-right tile's outer corner cut away and folded back over the tile (the page-turn). The name stays Korean-first after the 아 monogram: 청・적・황・흑 carry the identity, and 백 (white) is the transparent gap itself.
 
-- **Construction:** 1024 canvas, tile 408, gap 64, tile radius 48, fold 150. Tiles at (72,72), (544,72), (72,544); bottom-right tile is a cut-corner path with a solid fold triangle.
+- **Construction:** 1024 canvas, tile 440, gap 24, tile radius 68, fold 180 measured along the cut diagonal. Tiles at (60,60), (524,60), (60,524); the bottom-right tile is a cut-corner path whose cut corner stays transparent, with the solid fold triangle mirrored across the diagonal so it lies on the tile itself. In tile-edge units: radius 15.5%, fold 40.9%.
 - **Light (default):** `#D9382B` / `#E5A81C` / `#2E8B7A` / ink `#171717`, fold `#525252`.
 - **Dark:** same first three tiles; bottom-right tile is paper `#F5F5F5` with an ink `#171717` fold, so it survives dark taskbars where the ink tile would merge.
 - **Why two variants:** Win32 `.ico` cannot switch with the Windows theme, so each variant is tuned for its own background. The light variant is the bundled default (matches the paper-first chrome and the default light taskbar).
-- **Small sizes:** verified at 16, 32, 64, 128, and 1024 on light and dark backgrounds; the grid stays readable to 16px. The fold disappears at 16px, which is acceptable.
-- **Sources of truth:** `src-tauri/icons/icon.svg` (bundled set, light variant), `src-tauri/icons/candidates/icon-obang-light.svg`, `src-tauri/icons/candidates/icon-obang-dark.svg`. Export a 1024px PNG from the SVG, then regenerate the full set with `npm run tauri icon <1024.png>`. Full reference sets live in `design/icon-output/obang-light/` and `design/icon-output/obang-dark/`.
-- **Switching to dark:** `npx tauri icon src-tauri/icons/candidates/icon-obang-dark.svg` (writes directly to `src-tauri/icons/`). Switch back the same way with the light SVG. Windows caches icons aggressively; log out/in or rebuild the icon cache if the old mark persists.
+- **Small sizes:** verified at every size the bundled set ships (16, 24, 32, 48, 64, 128, 256, 512, 1024) on light and dark backgrounds. The 24-unit gap is 0.4px at 16px, so the four tiles fuse into one four-colour block there, show only a faint seam at 32px, and separate cleanly from 64px up; the cut corner still reads at 16px, and the gray fold triangle holds as a solid silhouette from 32px up.
+- **Sources of truth:** `src-tauri/icons/icon.svg` (bundled set, light variant), `src-tauri/icons/candidates/icon-obangsaek-grid-light.svg`, `src-tauri/icons/candidates/icon-obangsaek-grid-dark.svg`. Regenerate the full set from either SVG (square, transparency) or a 1024px PNG of it: `npm run tauri icon <source>`. Full reference sets live in `design/icon-output/quiver-obangsaek-grid-light/` and `design/icon-output/quiver-obangsaek-grid-dark/`. The earlier obang mark is kept as history in `src-tauri/icons/candidates/icon-obang-light.svg`, `icon-obang-dark.svg`, `design/icon-output/obang-light/`, and `design/icon-output/obang-dark/`.
+- **Switching to dark:** `npx tauri icon src-tauri/icons/candidates/icon-obangsaek-grid-dark.svg` (writes directly to `src-tauri/icons/`). Switch back the same way with the light SVG. `tauri icon` also emits `ios/` and `android/` folders and a `64x64.png`: this Windows-only repo keeps `64x64.png` and deletes the two mobile folders. Windows caches icons aggressively; log out/in or rebuild the icon cache if the old mark persists.
 
 ## Components
 

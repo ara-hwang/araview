@@ -4,6 +4,9 @@ Generated with the hosted QuiverAI MCP server (`https://app.quiver.ai/mcp`, mode
 Every candidate is a drop-in replacement shape for the existing icon flow: 1024 canvas,
 transparent background, flat fills only, no gradients or shadows.
 
+**Status:** `quiver-obangsaek-grid` is promoted to the bundled app icon (see `DESIGN.md` App Icon).
+The other eight stay as reference directions.
+
 Each folder holds `icon.svg` (the source of truth) and `icon-1024.png` (rasterized preview).
 `preview-light.png` and `preview-dark.png` show every candidate at 256, 128, 64, 32 and 16 px
 on a white and a dark background.
@@ -23,15 +26,16 @@ on a white and a dark background.
 ## Reading the previews
 
 - Candidates whose mark is mostly ink (monochrome ring, bare monogram, ink page) disappear on a
-  dark taskbar the same way `icon-obang-dark.svg` solves it today: they need a paper-on-ink twin
-  before they can ship as the bundled `.ico`.
+  dark taskbar the same way `icon-obangsaek-grid-dark.svg` solves it today: they need a paper-on-ink
+  twin before they can ship as the bundled `.ico`.
 - The 16px row is the honest test. The folded tile and the obangsaek grid keep their shape there;
   the monograms and the framed marks read as a silhouette with the detail gone.
 
-## quiver-obangsaek-grid vs the bundled icon
+## quiver-obangsaek-grid vs the previous mark (obang)
 
-Same family, measured differences. `src-tauri/icons/icon.svg` (bundled light variant) against
-`design/icon-candidates/quiver-obangsaek-grid/icon.svg`, both on the 1024 artboard:
+This candidate is the bundled icon now: `src-tauri/icons/icon.svg` holds it, and the obang mark it
+replaced is kept in `design/icon-output/obang-light/icon.svg`. Same family, measured differences,
+both on the 1024 artboard:
 
 | Measure                     | Bundled                                                  | quiver-obangsaek-grid                  | At 16px            | At 32px            |
 | --------------------------- | -------------------------------------------------------- | -------------------------------------- | ------------------ | ------------------ |
@@ -67,8 +71,11 @@ grid whose white panels vanish on both backgrounds, one panel grid that repeats
 
 ## Promoting one candidate
 
-1. Copy the chosen `icon.svg` over `src-tauri/icons/candidates/icon-<variant>.svg`.
-2. Rasterize at 1024 and run `npm run tauri icon <1024.png>` (writes the full set into
-   `src-tauri/icons/`).
-3. Record the choice and the variant color values in `DESIGN.md` (App Icon section), then keep the
-   reference set in `design/icon-output/<variant>/`.
+Done for `quiver-obangsaek-grid`; the steps stay here for the next one.
+
+1. Copy the chosen `icon.svg` over `src-tauri/icons/candidates/icon-<variant>.svg` and derive the
+   dark twin from it (paper tile, ink flap).
+2. Rasterize at 1024 and run `npm run tauri icon <svg-or-1024.png>` (writes the full set into
+   `src-tauri/icons/`; delete the `ios/` and `android/` folders it emits).
+3. Record the choice, the construction numbers, and the variant color values in `DESIGN.md`
+   (App Icon section), then keep the reference set in `design/icon-output/<variant>/`.
