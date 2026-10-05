@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <rect x="64" y="64" width="800" height="800" rx="112" fill="#E5A81C" id="ochre_sheet"/><path d="M 208 96 H 816 Q 928 96 928 208 V 664 L 664 928 H 208 Q 96 928 96 816 V 208 Q 96 96 208 96 Z" fill="#171717" id="ink_tile"/>
+  <path d="M 664 928 L 928 664 L 664 664 Z" fill="#525252" id="fold_flap"/>
+</svg>

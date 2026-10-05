@@ -1,0 +1,2 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <rect x="100" y="100" width="640" height="640" rx="112" fill="#171717" id="ink_tile"/><path d="M 436 340 H 828 Q 924 340 924 436 V 756 L 756 924 H 436 Q 340 924 340 828 V 436 Q 340 340 436 340 Z" fill="#2E8B7A" id="teal_tile"/><path d="M 756 924 L 924 756 L 756 756 Z" fill="#525252" id="fold_flap"/></svg>
