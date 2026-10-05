@@ -47,6 +47,7 @@
         "description": "Image File",
         "ext": [
           "png",
+          "apng",
           "jpg",
           "jpeg",
           "gif",

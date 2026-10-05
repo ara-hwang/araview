@@ -10,6 +10,8 @@ const context = {
   drawImage: vi.fn()
 }
 
+const decoderTypes: string[] = []
+
 class MockImageDecoder {
   tracks = {
     ready: Promise.resolve(),
@@ -17,7 +19,9 @@ class MockImageDecoder {
   }
   completed = Promise.resolve()
 
-  constructor(_init: { data: ArrayBuffer; type: string; preferAnimation: boolean }) {}
+  constructor(init: { data: ArrayBuffer; type: string; preferAnimation: boolean }) {
+    decoderTypes.push(init.type)
+  }
 
   async decode() {
     return {
@@ -36,6 +40,7 @@ class MockImageDecoder {
 beforeEach(() => {
   cleanup()
   useGifStore.getState().reset()
+  decoderTypes.length = 0
   context.imageSmoothingEnabled = true
   context.clearRect.mockClear()
   context.drawImage.mockClear()
@@ -66,6 +71,19 @@ describe("useGifPlayer", () => {
 
     await waitFor(() => expect(context.imageSmoothingEnabled).toBe(false))
     expect(context.drawImage).toHaveBeenCalled()
+    expect(decoderTypes).toEqual(["image/gif"])
+    view.unmount()
+  })
+
+  it("APNG는 image/apng 디코더로 프레임을 읽는다", async () => {
+    const canvasRef = { current: document.createElement("canvas") }
+    const view = renderHook(() =>
+      useGifPlayer(canvasRef, "asset://test.apng", true, true, "image/apng")
+    )
+
+    await waitFor(() => expect(useGifStore.getState().active).toBe(true))
+    expect(decoderTypes).toEqual(["image/apng"])
+    expect(useGifStore.getState().frameCount).toBe(2)
     view.unmount()
   })
 })

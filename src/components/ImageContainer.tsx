@@ -19,7 +19,7 @@ import { useSettingsStore } from "@/store/settingsStore"
 import type { ViewMode } from "@/store/settingsStore"
 import type { ImageInfo } from "@/types"
 import { classifyError } from "@/utils/appError"
-import { canControlGif } from "@/utils/gifPlayback"
+import { animationMimeOf, canControlGif } from "@/utils/gifPlayback"
 import {
   getPixelArtDetectionPath,
   isMagnifiedDisplay,
@@ -189,7 +189,7 @@ export function ImageContainer({
   )
   const isPixelated = imageRendering === "pixelated"
 
-  // GIF는 단일 보기에서만 캔버스로 제어한다(재생/정지/프레임 이동).
+  // GIF/APNG는 단일 보기에서만 캔버스로 제어한다(재생/정지/프레임 이동).
   const gifCanvasRef = useRef<HTMLCanvasElement>(null)
   const gifControllable = canControlGif(app.imageInfo, viewMode)
   const gifActive = useGifStore((state) => state.active)
@@ -197,10 +197,11 @@ export function ImageContainer({
     gifCanvasRef,
     gifControllable ? imageSrc : null,
     gifControllable,
-    !isPixelated
+    !isPixelated,
+    animationMimeOf(app.imageInfo) ?? undefined
   )
   // 디코더가 다중 프레임을 확인해 active가 되기 전에는 기존 <img>로 보여준다
-  // (정지 GIF가 빈 캔버스가 되는 것을 막는다).
+  // (정지 GIF/PNG가 빈 캔버스가 되는 것을 막는다).
   const showGifCanvas = gifControllable && gifActive && !gifFailed
 
   const isSvgImage = isSvgImageInfo(app.imageInfo)
@@ -309,7 +310,7 @@ export function ImageContainer({
         </div>
       )}
 
-      {/* GIF 캔버스: 프레임 제어가 가능할 때만. 줌/팬 transform은 img와 동일하다. */}
+      {/* GIF/APNG 캔버스: 프레임 제어가 가능할 때만. 줌/팬 transform은 img와 동일하다. */}
       {!isMulti && showGifCanvas && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
           <canvas

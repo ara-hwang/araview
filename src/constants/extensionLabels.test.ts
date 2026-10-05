@@ -25,10 +25,12 @@ describe("extensionLabels", () => {
   it("returns the mapped label for known extensions", async () => {
     await initI18n("ko")
     expect(extensionLabel("png")).toBe("PNG 이미지")
+    expect(extensionLabel("apng")).toBe("APNG 이미지")
     expect(extensionLabel("psd")).toBe("PSD 이미지")
     expect(extensionLabel("cbz")).toBe("만화 아카이브")
     await initI18n("en")
     expect(extensionLabel("png")).toBe("PNG image")
+    expect(extensionLabel("apng")).toBe("APNG image")
     expect(extensionLabel("psd")).toBe("PSD image")
     expect(extensionLabel("cbz")).toBe("Comic archive")
     await initI18n("ko")

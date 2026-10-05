@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import type { ImageInfo } from "@/types"
 import {
+  animationMimeOf,
   canControlGif,
   clampGifFrame,
   isGifImage,
@@ -28,6 +29,23 @@ const png: ImageInfo = {
   height: 4
 }
 const gifWithoutMime: ImageInfo = { ...gif, mime_type: "", file_name: "ANIM.GIF" }
+const apng: ImageInfo = { ...png, mime_type: "image/apng", file_name: "anim.apng" }
+// 확장자가 .png인 APNG는 백엔드가 내용으로 판별해 image/apng로 보고한다.
+const apngNamedPng: ImageInfo = { ...png, mime_type: "image/apng" }
+const apngWithoutMime: ImageInfo = { ...png, mime_type: "", file_name: "ANIM.APNG" }
+
+describe("animationMimeOf", () => {
+  it("GIF와 APNG를 MIME 우선, 파일명 보조로 판정한다", () => {
+    expect(animationMimeOf(gif)).toBe("image/gif")
+    expect(animationMimeOf(gifWithoutMime)).toBe("image/gif")
+    expect(animationMimeOf(apng)).toBe("image/apng")
+    expect(animationMimeOf(apngNamedPng)).toBe("image/apng")
+    expect(animationMimeOf(apngWithoutMime)).toBe("image/apng")
+    expect(animationMimeOf({ ...apng, file_name: "renamed.gif" })).toBe("image/apng")
+    expect(animationMimeOf(png)).toBeNull()
+    expect(animationMimeOf(null)).toBeNull()
+  })
+})
 
 describe("isGifImage", () => {
   it("MIME 또는 파일명으로 판정한다", () => {
@@ -39,8 +57,10 @@ describe("isGifImage", () => {
 })
 
 describe("canControlGif", () => {
-  it("단일 보기 + GIF + 디코더 지원일 때만 true", () => {
+  it("단일 보기 + GIF/APNG + 디코더 지원일 때만 true", () => {
     expect(canControlGif(gif, "single")).toBe(supportsAnimationControl())
+    expect(canControlGif(apng, "single")).toBe(supportsAnimationControl())
+    expect(canControlGif(apng, "webtoon")).toBe(false)
     expect(canControlGif(gif, "webtoon")).toBe(false)
     expect(canControlGif(gif, "left-to-right")).toBe(false)
     expect(canControlGif(png, "single")).toBe(false)

@@ -8,8 +8,8 @@
 //! The WebView then decodes the smaller copy, keeping peak memory bounded for
 //! huge images.
 //!
-//! Formats that must keep the original bytes are left alone: GIF (animation)
-//! and animated WebP. Anything the `image` crate cannot decode (SVG, AVIF)
+//! Formats that must keep the original bytes are left alone: GIF (animation),
+//! animated WebP and animated PNG (APNG). Anything the `image` crate cannot decode (SVG, AVIF)
 //! fails the header probe and falls back to the original as well, so the cap
 //! can only ever make rendering cheaper, never break it.
 
@@ -98,6 +98,7 @@ pub fn ensure_scaled_sidecar_with_mode(
     match format {
         image::ImageFormat::Gif => return Ok(None),
         image::ImageFormat::WebP if is_animated_webp(source) => return Ok(None),
+        image::ImageFormat::Png if is_animated_png(source) => return Ok(None),
         _ => {}
     }
     // EXIF orientation 5..=8 swaps the axes but not the long edge, so the cap
@@ -209,6 +210,12 @@ fn is_animated_webp(source: &Path) -> bool {
         // 헤더를 읽지 못하면 원본 유지가 안전하다.
         Err(_) => true,
     }
+}
+
+/// APNG(`acTL` 청크가 있는 PNG)도 같은 이유로 원본을 쓴다. 확장자가 `.png`여도 해당한다.
+fn is_animated_png(source: &Path) -> bool {
+    // 헤더를 읽지 못하면 원본 유지가 안전하다.
+    crate::sniff::png_is_animated(source).unwrap_or(true)
 }
 
 fn sidecar_info(path: &Path) -> Result<Option<ScaledSidecar>, AppError> {
@@ -394,6 +401,21 @@ mod tests {
             .unwrap();
 
         assert!(ensure_scaled_sidecar(&source, 512).unwrap().is_none());
+    }
+
+    #[test]
+    fn animated_png_is_left_alone() {
+        let sample = Path::new(env!("CARGO_MANIFEST_DIR")).join("../samples/sample.apng");
+        assert!(is_animated_png(&sample));
+        // 확장자가 .png여도 내용(acTL)으로 판별한다.
+        let dir = tempfile::tempdir().unwrap();
+        let renamed = dir.path().join("anim.png");
+        fs::copy(&sample, &renamed).unwrap();
+        assert!(ensure_scaled_sidecar(&renamed, 512).unwrap().is_none());
+
+        let still = dir.path().join("still.png");
+        write_png(&still, 2000, 1000);
+        assert!(!is_animated_png(&still));
     }
 
     #[test]

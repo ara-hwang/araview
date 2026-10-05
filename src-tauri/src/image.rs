@@ -38,8 +38,8 @@ const TRANSCODE_MIMES: &[&str] = &[
 ];
 
 pub const SUPPORTED_EXTENSIONS: &[&str] = &[
-    "png", "jpg", "jpeg", "gif", "bmp", "webp", "svg", "ico", "avif", "heic", "heif", "psd", "tga",
-    "dds", "exr", "qoi", "cbz", "zip",
+    "png", "apng", "jpg", "jpeg", "gif", "bmp", "webp", "svg", "ico", "avif", "heic", "heif",
+    "psd", "tga", "dds", "exr", "qoi", "cbz", "zip",
 ];
 
 #[derive(Serialize)]
@@ -53,6 +53,7 @@ pub struct DirectoryImages {
 pub fn get_mime_type(path: &Path) -> Option<&'static str> {
     match path.extension()?.to_str()?.to_lowercase().as_str() {
         "png" => Some("image/png"),
+        "apng" => Some("image/apng"),
         "jpg" | "jpeg" => Some("image/jpeg"),
         "gif" => Some("image/gif"),
         "bmp" => Some("image/bmp"),
@@ -81,7 +82,14 @@ pub fn resolve_mime(path: &Path) -> Option<&'static str> {
     if by_ext.is_some_and(|m| m.starts_with("application/") || m == "image/svg+xml") {
         return by_ext;
     }
-    crate::sniff::sniff_file(path).or(by_ext)
+    let sniffed = crate::sniff::sniff_file(path);
+    // APNG는 PNG와 시그니처가 같다. 확장자가 밝혔거나 `acTL` 청크가 있으면 APNG다.
+    if sniffed == Some("image/png")
+        && (by_ext == Some("image/apng") || crate::sniff::png_is_animated(path) == Some(true))
+    {
+        return Some("image/apng");
+    }
+    sniffed.or(by_ext)
 }
 
 pub fn paint_strategy(mime: &str) -> PaintStrategy {
@@ -245,6 +253,12 @@ mod tests {
     }
 
     #[test]
+    fn test_get_mime_type_apng() {
+        assert_eq!(get_mime_type(Path::new("anim.apng")), Some("image/apng"));
+        assert_eq!(get_mime_type(Path::new("anim.APNG")), Some("image/apng"));
+    }
+
+    #[test]
     fn test_get_mime_type_jpg() {
         assert_eq!(get_mime_type(Path::new("photo.jpg")), Some("image/jpeg"));
     }
@@ -389,6 +403,7 @@ mod tests {
     #[test]
     fn test_is_image_file_valid() {
         assert!(is_image_file(Path::new("photo.png")));
+        assert!(is_image_file(Path::new("anim.apng")));
         assert!(is_image_file(Path::new("photo.jpg")));
         assert!(is_image_file(Path::new("anim.gif")));
         assert!(is_image_file(Path::new("photo.avif")));
@@ -438,7 +453,7 @@ mod tests {
                 "missing MIME mapping for .{ext}"
             );
         }
-        assert_eq!(SUPPORTED_EXTENSIONS.len(), 18);
+        assert_eq!(SUPPORTED_EXTENSIONS.len(), 19);
     }
 
     #[test]
@@ -460,6 +475,18 @@ mod tests {
         let bare = dir.path().join("download");
         std::fs::write(&bare, MIN_PNG).unwrap();
         assert_eq!(resolve_mime(&bare), Some("image/png"));
+        // APNG는 PNG 시그니처를 공유하므로 확장자가 밝힌 MIME을 유지한다.
+        let apng = dir.path().join("anim.apng");
+        std::fs::write(&apng, MIN_PNG).unwrap();
+        assert_eq!(resolve_mime(&apng), Some("image/apng"));
+        // 확장자가 .png여도 애니메이션이면 APNG로 보고한다.
+        let animated = dir.path().join("anim.png");
+        std::fs::copy(
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../samples/sample.apng"),
+            &animated,
+        )
+        .unwrap();
+        assert_eq!(resolve_mime(&animated), Some("image/apng"));
         // 시그니처가 불확실하면 확장자를 따른다.
         let svg = dir.path().join("a.svg");
         std::fs::write(&svg, b"<svg/>").unwrap();
@@ -534,6 +561,7 @@ mod tests {
             assert_eq!(paint_strategy(mime), PaintStrategy::TranscodeJpeg, "{mime}");
         }
         assert_eq!(paint_strategy("image/png"), PaintStrategy::Native);
+        assert_eq!(paint_strategy("image/apng"), PaintStrategy::Native);
         assert_eq!(paint_strategy("image/jpeg"), PaintStrategy::Native);
         assert_eq!(paint_strategy("image/avif"), PaintStrategy::Native);
         assert_eq!(
@@ -572,6 +600,16 @@ mod tests {
         assert_eq!(info.source_path, source.to_string_lossy());
         assert_eq!(info.width, Some(1));
         assert_eq!(info.height, Some(1));
+    }
+
+    #[test]
+    fn load_viewable_apng_sample_stays_native_under_the_cap() {
+        let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("../samples/sample.apng");
+        // 800x600 애니메이션: 상한(512)을 넘어도 첫 프레임으로 굳지 않게 원본을 쓴다.
+        let info = load_viewable_with_limit(&source, Some(512)).expect("load sample.apng");
+        assert_eq!(info.mime_type, "image/apng");
+        assert_eq!(info.file_path, source.to_string_lossy());
+        assert_eq!((info.width, info.height), (Some(800), Some(600)));
     }
 
     #[test]

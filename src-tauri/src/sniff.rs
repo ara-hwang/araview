@@ -79,6 +79,34 @@ pub fn sniff_file(path: &Path) -> Option<&'static str> {
     sniff_mime(&head[..filled])
 }
 
+/// Chunks walked before giving up on a PNG that never reaches `IDAT`.
+const PNG_MAX_CHUNKS: usize = 256;
+
+/// Whether a PNG is animated (APNG). `acTL` must precede the first `IDAT`, so
+/// only the leading chunk headers are read. `None` when the file is not a PNG
+/// or cannot be read.
+pub fn png_is_animated(path: &Path) -> Option<bool> {
+    let mut file = std::io::BufReader::new(std::fs::File::open(path).ok()?);
+    let mut signature = [0u8; 8];
+    file.read_exact(&mut signature).ok()?;
+    if signature != [0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A] {
+        return None;
+    }
+    for _ in 0..PNG_MAX_CHUNKS {
+        let mut header = [0u8; 8];
+        file.read_exact(&mut header).ok()?;
+        match &header[4..] {
+            b"acTL" => return Some(true),
+            b"IDAT" | b"IEND" => return Some(false),
+            _ => {}
+        }
+        let len = u32::from_be_bytes([header[0], header[1], header[2], header[3]]);
+        // Chunk data plus its CRC.
+        file.seek_relative(i64::from(len) + 4).ok()?;
+    }
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -140,6 +168,22 @@ mod tests {
             None
         );
         assert_eq!(sniff_mime(b"PK\x03\x04"), None);
+    }
+
+    #[test]
+    fn png_animation_is_read_from_the_actl_chunk() {
+        let sample = Path::new(env!("CARGO_MANIFEST_DIR")).join("../samples/sample.apng");
+        assert_eq!(png_is_animated(&sample), Some(true));
+        let dir = tempfile::tempdir().unwrap();
+        let still = dir.path().join("still.png");
+        image::DynamicImage::ImageRgb8(image::RgbImage::new(2, 2))
+            .save(&still)
+            .unwrap();
+        assert_eq!(png_is_animated(&still), Some(false));
+        let other = dir.path().join("not-png.png");
+        std::fs::write(&other, b"GIF89a").unwrap();
+        assert_eq!(png_is_animated(&other), None);
+        assert_eq!(png_is_animated(&dir.path().join("missing.png")), None);
     }
 
     #[test]

@@ -42,6 +42,12 @@ describe("shouldUsePreviewThumbnail", () => {
     ).toBe(true)
   })
 
+  it("APNG도 프레임 캔버스가 처리하므로 제외한다", () => {
+    expect(shouldUsePreviewThumbnail(info({ mime_type: "image/apng", file_size: 9_000_000 }))).toBe(
+      false
+    )
+  })
+
   it("GIF는 프레임 캔버스가 처리하므로 제외한다", () => {
     expect(shouldUsePreviewThumbnail(info({ mime_type: "image/gif", file_size: 9_000_000 }))).toBe(
       false

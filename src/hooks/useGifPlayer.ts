@@ -2,14 +2,15 @@ import { useEffect, useRef, useState, type RefObject } from "react"
 
 import { applyImageNaturalSize } from "@/store/appStore"
 import { useGifStore } from "@/store/gifStore"
+import { GIF_MIME, type AnimationMime } from "@/utils/gifPlayback"
 
 /** 프레임 duration이 0/누락인 GIF가 폭주하지 않게 하는 하한 */
 const MIN_FRAME_MS = 20
 const DEFAULT_FRAME_MS = 100
 
 /**
- * WebCodecs ImageDecoder로 GIF를 캔버스에 그려 재생/정지/프레임 이동을 가능하게 한다.
- * 단일 보기 + GIF + 디코더 지원일 때만 `enabled`가 true이며, 그 외에는 기존
+ * WebCodecs ImageDecoder로 GIF/APNG를 캔버스에 그려 재생/정지/프레임 이동을 가능하게 한다.
+ * 단일 보기 + GIF/APNG + 디코더 지원일 때만 `enabled`가 true이며, 그 외에는 기존
  * `<img>` 네이티브 애니메이션을 그대로 쓴다.
  *
  * 디코더가 준비되면 `gifStore`에 active/frameCount/playing을 기록하고, store의
@@ -20,7 +21,8 @@ export function useGifPlayer(
   canvasRef: RefObject<HTMLCanvasElement | null>,
   src: string | null,
   enabled: boolean,
-  smoothingEnabled = true
+  smoothingEnabled = true,
+  type: AnimationMime = GIF_MIME
 ): { failed: boolean } {
   const [failed, setFailed] = useState(false)
   const [decoderReady, setDecoderReady] = useState(0)
@@ -50,11 +52,11 @@ export function useGifPlayer(
     const load = async () => {
       try {
         const response = await fetch(src, { signal: controller.signal })
-        if (!response.ok) throw new Error(`GIF fetch failed: ${response.status}`)
+        if (!response.ok) throw new Error(`Animation fetch failed: ${response.status}`)
         const data = await response.arrayBuffer()
         if (cancelled) return
 
-        const decoder = new ImageDecoder({ data, type: "image/gif", preferAnimation: true })
+        const decoder = new ImageDecoder({ data, type, preferAnimation: true })
         await decoder.tracks.ready
         await decoder.completed
         if (cancelled) {
@@ -64,7 +66,7 @@ export function useGifPlayer(
         const track = decoder.tracks.selectedTrack
         const count = track?.frameCount ?? 0
         if (count <= 1) {
-          // 정지 GIF: 캔버스 제어 없이 <img> 한 장으로 보여준다.
+          // 정지 GIF/PNG: 캔버스 제어 없이 <img> 한 장으로 보여준다.
           decoder.close()
           return
         }
@@ -114,7 +116,7 @@ export function useGifPlayer(
       }
       useGifStore.getState().reset()
     }
-  }, [enabled, src])
+  }, [enabled, src, type])
 
   // store의 frame/playing에 맞춰 현재 프레임을 그리고, 재생 중이면 다음 프레임을 예약한다.
   useEffect(() => {

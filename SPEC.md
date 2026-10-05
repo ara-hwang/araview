@@ -19,27 +19,28 @@
 
 ## 2. 지원 포맷
 
-총 18개 확장자(이미지 16종 + 아카이브 2종). 프론트 진실은 `src/constants/imageExtensions.ts`, 백엔드 진실은 `src-tauri/src/image.rs` (`SUPPORTED_EXTENSIONS`, `get_mime_type`).
+총 19개 확장자(이미지 17종 + 아카이브 2종). 프론트 진실은 `src/constants/imageExtensions.ts`, 백엔드 진실은 `src-tauri/src/image.rs` (`SUPPORTED_EXTENSIONS`, `get_mime_type`).
 
-### 2.1 순수 이미지 16종
+### 2.1 순수 이미지 17종
 
-| 확장자        | MIME                        | 비고                                                                                                                    |
-| ------------- | --------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `png`         | `image/png`                 | 네이티브 렌더                                                                                                           |
-| `jpg`, `jpeg` | `image/jpeg`                | 네이티브 렌더. EXIF Orientation(1~8)을 치수·썸네일에 반영(WebView2 표시와 일치)                                         |
-| `gif`         | `image/gif`                 | 네이티브 렌더. 단일 보기에서 재생/정지·프레임 이동 지원(WebCodecs `ImageDecoder`, 미지원 시 네이티브 애니메이션)        |
-| `bmp`         | `image/bmp`                 | 네이티브 렌더                                                                                                           |
-| `webp`        | `image/webp`                | 네이티브 렌더                                                                                                           |
-| `svg`         | `image/svg+xml`             | 네이티브 렌더. 치수는 `<svg>` 헤더(width/height/viewBox, 절대 단위) 파싱으로 복원하며 해석 불가분만 `width/height` 생략 |
-| `ico`         | `image/x-icon`              | 네이티브 렌더                                                                                                           |
-| `avif`        | `image/avif`                | 네이티브 렌더                                                                                                           |
-| `heic`        | `image/heic`                | JPEG sidecar 트랜스코드 후 렌더                                                                                         |
-| `heif`        | `image/heif`                | JPEG sidecar 트랜스코드 후 렌더                                                                                         |
-| `psd`         | `image/vnd.adobe.photoshop` | JPEG sidecar 트랜스코드 후 렌더(읽기 전용)                                                                              |
-| `tga`         | `image/x-tga`               | JPEG sidecar 트랜스코드 후 렌더(읽기 전용). `image` 크레이트 디코드, 투명은 흰 배경 합성                                |
-| `dds`         | `image/vnd.ms-dds`          | JPEG sidecar 트랜스코드 후 렌더(읽기 전용). DXT1/3/5(BC1~BC3)만 지원, 그 외는 `unsupported`                             |
-| `exr`         | `image/x-exr`               | JPEG sidecar 트랜스코드 후 렌더(읽기 전용). 선형 값을 clamp 후 sRGB 감마로 8비트화(노출 보정 없음)                      |
-| `qoi`         | `image/qoi`                 | JPEG sidecar 트랜스코드 후 렌더(읽기 전용). `image` 크레이트 디코드, 투명은 흰 배경 합성                                |
+| 확장자        | MIME                        | 비고                                                                                                                       |
+| ------------- | --------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `png`         | `image/png`                 | 네이티브 렌더                                                                                                              |
+| `apng`        | `image/apng`                | 네이티브 렌더. PNG와 시그니처가 같아 확장자로 구분하며, 애니메이션은 WebView2가 그대로 재생. 재생 제어는 GIF와 같다(7.5절) |
+| `jpg`, `jpeg` | `image/jpeg`                | 네이티브 렌더. EXIF Orientation(1~8)을 치수·썸네일에 반영(WebView2 표시와 일치)                                            |
+| `gif`         | `image/gif`                 | 네이티브 렌더. 단일 보기에서 재생/정지·프레임 이동 지원(WebCodecs `ImageDecoder`, 미지원 시 네이티브 애니메이션)           |
+| `bmp`         | `image/bmp`                 | 네이티브 렌더                                                                                                              |
+| `webp`        | `image/webp`                | 네이티브 렌더                                                                                                              |
+| `svg`         | `image/svg+xml`             | 네이티브 렌더. 치수는 `<svg>` 헤더(width/height/viewBox, 절대 단위) 파싱으로 복원하며 해석 불가분만 `width/height` 생략    |
+| `ico`         | `image/x-icon`              | 네이티브 렌더                                                                                                              |
+| `avif`        | `image/avif`                | 네이티브 렌더                                                                                                              |
+| `heic`        | `image/heic`                | JPEG sidecar 트랜스코드 후 렌더                                                                                            |
+| `heif`        | `image/heif`                | JPEG sidecar 트랜스코드 후 렌더                                                                                            |
+| `psd`         | `image/vnd.adobe.photoshop` | JPEG sidecar 트랜스코드 후 렌더(읽기 전용)                                                                                 |
+| `tga`         | `image/x-tga`               | JPEG sidecar 트랜스코드 후 렌더(읽기 전용). `image` 크레이트 디코드, 투명은 흰 배경 합성                                   |
+| `dds`         | `image/vnd.ms-dds`          | JPEG sidecar 트랜스코드 후 렌더(읽기 전용). DXT1/3/5(BC1~BC3)만 지원, 그 외는 `unsupported`                                |
+| `exr`         | `image/x-exr`               | JPEG sidecar 트랜스코드 후 렌더(읽기 전용). 선형 값을 clamp 후 sRGB 감마로 8비트화(노출 보정 없음)                         |
+| `qoi`         | `image/qoi`                 | JPEG sidecar 트랜스코드 후 렌더(읽기 전용). `image` 크레이트 디코드, 투명은 흰 배경 합성                                   |
 
 ### 2.2 아카이브 2종
 
@@ -52,7 +53,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 
 백엔드 판별:
 
-- MIME은 확장자를 1차로 보되, 렌더 경로를 정하는 `resolve_mime`(`image.rs`)이 파일 선두 32바이트 시그니처(`sniff.rs`)로 보정한다. 이름이 바뀐 파일(HEIC를 `.jpg`로 저장 등)이나 확장자 없는 파일도 올바른 경로를 탄다. 시그니처가 불확실한 SVG, 아카이브, TGA, HEIF/AVIF 공용 브랜드(`mif1`)는 확장자를 따른다. 폴더 목록은 확장자 기준 그대로다.
+- MIME은 확장자를 1차로 보되, 렌더 경로를 정하는 `resolve_mime`(`image.rs`)이 파일 선두 32바이트 시그니처(`sniff.rs`)로 보정한다. 이름이 바뀐 파일(HEIC를 `.jpg`로 저장 등)이나 확장자 없는 파일도 올바른 경로를 탄다. PNG 시그니처 파일은 확장자가 `apng`이거나 첫 `IDAT` 앞에 `acTL` 청크가 있으면 `image/apng`로 보고한다(확장자가 `.png`인 APNG 포함). 시그니처가 불확실한 SVG, 아카이브, TGA, HEIF/AVIF 공용 브랜드(`mif1`)는 확장자를 따른다. 폴더 목록은 확장자 기준 그대로다.
 
 - `is_image_file`: MIME이 `application/`으로 시작하지 않는 지원 파일.
 - `is_archive_file`: 위 2종 MIME 해당.
@@ -93,7 +94,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 - 이미지 표시 설정은 `auto | smooth | pixelated`를 제공한다. `auto`는 픽셀 아트 자동 감지가 켜져 있고 분석 결과가 `pixel_art`로 분류되면 `pixelated`, 그 외에는 `smooth`를 사용한다. 수동 모드는 자동 감지보다 우선한다.
 - 픽셀 아트 자동 감지는 현재 이미지를 렌더한 뒤 별도 백그라운드 IPC로 분석한다. 분석 전/실패/불확실은 `smooth`로 대체하며 원본과 파생 이미지는 변경하지 않는다. 감지는 동시 2개로 제한하고 웹툰에서는 화면에서 벗어난 대기 요청을 취소한다.
 - 분석은 표시 바이트를 백엔드에서 다시 디코드하므로, 결과가 쓰이는 확대 표시(배율 1x 이상)에서만 요청한다. 단일 보기는 치수를 모를 때도 요청하고, 웹툰/양쪽 보기는 렌더된 `<img>`를 실측해 확대일 때만 요청한다. 축소에서 확대로 바뀌면 그때 요청한다.
-- 단일 이미지의 픽셀 보존 모드는 transform 확대 대신 레이아웃 크기 확대를 사용해 Chromium 합성 단계의 재보간을 줄인다. GIF Canvas는 `imageSmoothingEnabled=false`를 사용한다. 양쪽/웹툰의 각 이미지는 같은 설정을 공유하되 판정은 이미지별이다.
+- 단일 이미지의 픽셀 보존 모드는 transform 확대 대신 레이아웃 크기 확대를 사용해 Chromium 합성 단계의 재보간을 줄인다. GIF/APNG Canvas는 `imageSmoothingEnabled=false`를 사용한다. 양쪽/웹툰의 각 이미지는 같은 설정을 공유하되 판정은 이미지별이다.
 - `autoHideUI`가 true일 때만 읽기 중 크롬(상단바, 이미지 목록 도크, 상태바)을 숨기고 읽기 영역을 확장한다. 도크 상태(스크롤 위치, 로드한 썸네일)는 유지된다.
 - `menuBarHidden`이 true이면 상단바를 숨기고, 상단 호버 영역에서 peek 오버레이로 표시한다. 헤더 숨기기 버튼과 보기 설정 스위치로 토글한다. peek 시에는 읽기 영역 위로 겹쳐 내려오며, 포커스 이탈 시에는 즉시 닫힌다. 모션 토큰과 timing은 `DESIGN.md`를 따른다. `Esc`로는 닫히지 않는다(뷰어의 이미지 닫기와 충돌 방지).
 - `menuBarHidden`은 이미지를 보고 있을 때만 적용한다. 이미지 없이 빈 화면(홈)에서는 설정값을 유지한 채 상단바를 항상 표시한다(열기/드래그 동선 유지). `autoHideUI`와 동일한 조건을 쓴다.
@@ -235,9 +236,9 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 - `F11`: 전체화면 토글. 더블클릭 기본도 전체화면이다.
 - `autoHideUI`: true일 때 읽기 중 크롬 자동 숨김.
 
-### 7.5 GIF 재생 제어
+### 7.5 GIF/APNG 재생 제어
 
-- 단일 보기에서 GIF는 캔버스로 그리며 재생/정지(`P`), 프레임 이동(`,`/`.`), 프레임 카운터를 제공한다. WebCodecs `ImageDecoder` 미지원 환경이나 정지 GIF, 양쪽/웹툰 보기에서는 네이티브 `<img>` 애니메이션으로 폴백한다.
+- 단일 보기에서 GIF와 APNG는 캔버스로 그리며 재생/정지(`P`), 프레임 이동(`,`/`.`), 프레임 카운터를 제공한다. WebCodecs `ImageDecoder` 미지원 환경이나 정지 GIF/PNG, 양쪽/웹툰 보기에서는 네이티브 `<img>` 애니메이션으로 폴백한다.
 - 재생은 이미지 진입 시 자동 시작하며, OS 모션 최소화(`prefers-reduced-motion: reduce`)면 정지 상태로 시작한다.
 - 단일/다중 프레임 판정과 반복 횟수는 디코더 트랙 정보를 따르고, 유한 반복 GIF는 마지막 회차에서 멈춘다.
 - 헤더 컨트롤은 좁은 창(1024px 미만)에서 숨는다. 단축키와 명령 팔레트는 항상 쓸 수 있다.
@@ -310,7 +311,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 
 - 설정 `maxResolution`(기본 `original`)이 켜져 있으면 긴 변이 상한(4k=3840px, 1080p=1920px)을 넘는 래스터를 `scaled/` sidecar로 한 번만 축소해 렌더한다. 원본 파일은 바뀌지 않는다.
 - 적용 대상은 `image` 크레이트가 디코드할 수 있는 래스터(PNG/JPEG/BMP/ICO/정지 WebP)이며, EXIF Orientation(5~8)은 픽셀에 반영한 뒤 축소한다. 알파 채널이 있으면 투명도 보존을 위해 PNG로 저장한다.
-- GIF, 움직이는 WebP, SVG, 디코드 불가 포맷(AVIF 등)은 원본 바이트를 그대로 렌더한다.
+- GIF, 움직이는 WebP, 움직이는 PNG(APNG, 확장자가 `.png`여도 `acTL` 청크로 판별), SVG, 디코드 불가 포맷(AVIF 등)은 원본 바이트를 그대로 렌더한다.
 - sidecar는 활성 캐시 루트의 `scaled/`에 캐시되며 상한(500MB)을 넘기면 오래된 것부터 상한의 90%까지 제거한다. 캐시 경로는 원본 식별 해시 + 상한 + 픽셀 아트 필터 알고리즘 revision 기준이라 설정이나 필터 알고리즘이 바뀌면 다른 사본을 만든다.
 - sidecar 축소는 표시 정책과 무관하게 항상 보간 필터(`Triangle`)를 사용한다. Nearest 축소는 스크린톤 같은 주기 패턴을 계단·무아레로 깨뜨린다. `smooth`/`auto`는 JPEG로, `pixelated`는 lossless PNG로 저장한다. `auto`는 휴리스틱 분석을 실행해 결과를 후속 `detect_pixel_art` IPC가 재사용하지만, 분류가 `pixel_art`여도 축소 필터에는 영향을 주지 않는다(픽셀 보존 표시는 확대 배율에서만 적용되기 때문). 분석은 원본을 바꾸지 않는다.
 - 새 상한으로 로드한 `ImageInfo.width/height`는 축소 사본 기준이고, `source_path`는 항상 원본 파일이다(11절). 히스토그램은 렌더 바이트(`file_path`), EXIF/파일 상세는 원본(`source_path`) 기준이다.
@@ -457,45 +458,45 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 
 ### 14.1 기본 단축키
 
-| 동작             | 기본값            |
-| ---------------- | ----------------- |
-| 이전             | `ArrowLeft`       |
-| 다음             | `ArrowRight`      |
-| 왼쪽 팬          | `Ctrl+ArrowLeft`  |
-| 오른쪽 팬        | `Ctrl+ArrowRight` |
-| 위 팬            | `ArrowUp`         |
-| 아래 팬          | `ArrowDown`       |
-| 확대             | `=`               |
-| 축소             | `-`               |
-| 보기 초기화      | `0`               |
-| 가로 맞춤        | `1`               |
-| 세로 맞춤        | `2`               |
-| 화면 맞춤        | `3`               |
-| 파일 열기        | `Ctrl+O`          |
-| 이미지 닫기      | `Escape`          |
-| EXIF             | `I`               |
-| 시계 회전        | `R`               |
-| 반시계 회전      | `Shift+R`         |
-| 좌우 반전        | `H`               |
-| 상하 반전        | `V`               |
-| 전체화면         | `F11`             |
-| 항상 위          | `T`               |
-| 이미지 복사      | `Ctrl+C`          |
-| 휴지통           | `Delete`          |
-| 탐색기에 표시    | `Ctrl+Shift+E`    |
-| 기본 앱으로 열기 | `Ctrl+Shift+O`    |
-| 배경 순환        | `B`               |
-| 이름 변경        | `F2`              |
-| 경로 복사        | `Ctrl+Shift+C`    |
-| 명령 팔레트      | `Ctrl+K`          |
-| 10장 이전        | `PageUp`          |
-| 10장 다음        | `PageDown`        |
-| 처음             | `Home`            |
-| 마지막           | `End`             |
-| 썸네일 그리드    | `G`               |
-| GIF 재생/정지    | `P`               |
-| 이전 GIF 프레임  | `,`               |
-| 다음 GIF 프레임  | `.`               |
+| 동작                   | 기본값            |
+| ---------------------- | ----------------- |
+| 이전                   | `ArrowLeft`       |
+| 다음                   | `ArrowRight`      |
+| 왼쪽 팬                | `Ctrl+ArrowLeft`  |
+| 오른쪽 팬              | `Ctrl+ArrowRight` |
+| 위 팬                  | `ArrowUp`         |
+| 아래 팬                | `ArrowDown`       |
+| 확대                   | `=`               |
+| 축소                   | `-`               |
+| 보기 초기화            | `0`               |
+| 가로 맞춤              | `1`               |
+| 세로 맞춤              | `2`               |
+| 화면 맞춤              | `3`               |
+| 파일 열기              | `Ctrl+O`          |
+| 이미지 닫기            | `Escape`          |
+| EXIF                   | `I`               |
+| 시계 회전              | `R`               |
+| 반시계 회전            | `Shift+R`         |
+| 좌우 반전              | `H`               |
+| 상하 반전              | `V`               |
+| 전체화면               | `F11`             |
+| 항상 위                | `T`               |
+| 이미지 복사            | `Ctrl+C`          |
+| 휴지통                 | `Delete`          |
+| 탐색기에 표시          | `Ctrl+Shift+E`    |
+| 기본 앱으로 열기       | `Ctrl+Shift+O`    |
+| 배경 순환              | `B`               |
+| 이름 변경              | `F2`              |
+| 경로 복사              | `Ctrl+Shift+C`    |
+| 명령 팔레트            | `Ctrl+K`          |
+| 10장 이전              | `PageUp`          |
+| 10장 다음              | `PageDown`        |
+| 처음                   | `Home`            |
+| 마지막                 | `End`             |
+| 썸네일 그리드          | `G`               |
+| 애니메이션 재생/정지   | `P`               |
+| 이전 애니메이션 프레임 | `,`               |
+| 다음 애니메이션 프레임 | `.`               |
 
 그리드 내부: 화살표(선택 이동), `Home`/`End`, `PageUp`/`PageDown`, `Enter`(점프), `Esc`/`G`(닫기). 그리드가 열려 있는 동안 다른 뷰어 단축키는 동작하지 않는다.
 
@@ -651,7 +652,7 @@ Rust와 TypeScript는 같은 모양을 유지한다.
 - 번들: `nsis`만 빌드한다. 결과물은 `src-tauri/target/release/bundle/` 아래에 생성된다.
 - 릴리스 파이프라인: `npm run release -- <버전>`(`scripts/release.mjs`)이 버전 파일 5곳을 올려 커밋하고 `vX.Y.Z` 태그와 함께 푸시한다. 태그 푸시를 `.github/workflows/release.yml`이 받아 태그와 버전 파일의 일치, 서명 키 Secrets를 확인한 뒤 검증(테스트, 타입, 포맷, cargo test/clippy, npm/cargo 보안 감사, 라이선스 검사), 서명 빌드, `latest.json` 생성, 원본 저장소 `ara-hwang/araview` 릴리스 생성까지 자동으로 수행한다. `ci.yml`이 검증을 담당하고 릴리스가 이를 재사용한다. PR과 main 푸시에서는 프론트엔드 검사가 자동으로 돌고, PR과 main 푸시에서 `src-tauri/`나 `Cargo.lock`이 바뀌면 `cargo check`(기본 feature와 `--no-default-features`)도 돈다(main 푸시는 PR이 복원할 캐시를 채운다). 전체 Rust 검사는 Actions 수동 실행과 릴리스에서만 돈다. 권한과 절차 상세는 `docs/releasing.md`를 따른다.
 - 파일 연결 3그룹:
-  - Image 16종: png, jpg, jpeg, gif, bmp, webp, svg, ico, avif, heic, heif, psd, tga, dds, exr, qoi.
+  - Image 17종: png, apng, jpg, jpeg, gif, bmp, webp, svg, ico, avif, heic, heif, psd, tga, dds, exr, qoi.
   - Comic 1종: cbz.
   - Archive 1종: zip.
 - HEIC/HEIF는 vcpkg `libheif[core,aom]` 동적 링크 + `libde265`(HEVC), `aom`(AV1, AVIF 썸네일/히스토그램)만 사용한다. 설치와 DLL 복사는 `docs/development.md`를 따른다.

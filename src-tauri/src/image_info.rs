@@ -271,7 +271,7 @@ fn icc_info(path: &Path) -> (IccStatus, Option<String>, Option<u64>) {
         .unwrap_or_default();
     let found = match ext.as_str() {
         "jpg" | "jpeg" => icc_from_jpeg(path),
-        "png" => icc_from_png(path),
+        "png" | "apng" => icc_from_png(path),
         _ => return (IccStatus::Unchecked, None, None),
     };
     match found {
