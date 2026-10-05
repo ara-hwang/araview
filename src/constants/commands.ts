@@ -12,7 +12,7 @@ export type CommandId =
 export type CommandContext = {
   hasImage: boolean
   canNavigate: boolean
-  /** 제어 가능한 GIF(단일 보기 + 다중 프레임 + 디코더 지원)가 현재 이미지인지 */
+  /** 제어 가능한 GIF/APNG(단일 보기 + 다중 프레임 + 디코더 지원)가 현재 이미지인지 */
   isGif: boolean
   /** 아카이브(만화)를 열어 페이지를 보고 있는지 */
   inArchive: boolean
@@ -24,7 +24,7 @@ export type CommandDef = {
   labelKey: string
   requiresImage?: boolean
   requiresNavigation?: boolean
-  /** GIF 재생/프레임 제어 전용. 열린 이미지가 제어 가능한 GIF일 때만 활성화된다. */
+  /** GIF/APNG 재생/프레임 제어 전용. 열린 이미지가 제어 가능한 애니메이션일 때만 활성화된다. */
   requiresGif?: boolean
   /** 아카이브(만화) 안의 페이지를 보고 있을 때만 활성화된다. */
   requiresArchive?: boolean
@@ -245,21 +245,21 @@ export const COMMAND_DEFS: readonly CommandDef[] = [
     group: "view",
     labelKey: "menu.gifPlayPause",
     requiresGif: true,
-    keywords: ["gif", "animation", "play", "pause", "frame"]
+    keywords: ["gif", "apng", "animation", "play", "pause", "frame"]
   },
   {
     id: "gifPrevFrame",
     group: "view",
     labelKey: "menu.gifPrevFrame",
     requiresGif: true,
-    keywords: ["gif", "frame", "previous", "step"]
+    keywords: ["gif", "apng", "frame", "previous", "step"]
   },
   {
     id: "gifNextFrame",
     group: "view",
     labelKey: "menu.gifNextFrame",
     requiresGif: true,
-    keywords: ["gif", "frame", "next", "step"]
+    keywords: ["gif", "apng", "frame", "next", "step"]
   },
   {
     id: "rotateCW",

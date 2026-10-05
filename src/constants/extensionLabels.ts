@@ -6,6 +6,7 @@ import i18n from "@/i18n"
 
 type ExtensionLabelKey =
   | "png"
+  | "apng"
   | "jpg"
   | "jpeg"
   | "gif"
@@ -26,6 +27,7 @@ type ExtensionLabelKey =
 
 const EXTENSION_I18N_KEYS: Record<ExtensionLabelKey, string> = {
   png: "ext.png",
+  apng: "ext.apng",
   jpg: "ext.jpg",
   jpeg: "ext.jpeg",
   gif: "ext.gif",
@@ -48,6 +50,7 @@ const EXTENSION_I18N_KEYS: Record<ExtensionLabelKey, string> = {
 /** @deprecated Use `extensionLabel()` which follows the active language. */
 export const EXTENSION_LABELS: Record<SupportedImageExtension, string> = {
   png: "PNG 이미지",
+  apng: "APNG 이미지",
   jpg: "JPEG 이미지",
   jpeg: "JPEG 이미지",
   gif: "GIF 이미지",
