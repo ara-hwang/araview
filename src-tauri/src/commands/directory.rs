@@ -120,7 +120,7 @@ fn resolve_dropped_path_impl(path: &str) -> Result<String, AppError> {
 
         return images
             .into_iter()
-            .min_by_key(|s| s.to_lowercase())
+            .min_by_key(|s| crate::natural_sort::natural_key(s))
             .ok_or_else(|| AppError::not_found("No images found in directory"));
     }
 

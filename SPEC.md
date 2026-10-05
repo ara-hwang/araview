@@ -121,10 +121,10 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 - 아카이브 경로는 그대로 유지한다.
 - 그 외 경로는 `resolve_dropped_path`로 해석한다:
   - 파일이면 그대로 반환.
-  - 폴더면 내부 지원 파일 중 이름순(소문자 기준) 첫 이미지를 반환.
+  - 폴더면 내부 지원 파일 중 이름순(자연 정렬, 5.1절) 첫 이미지를 반환.
   - 이미지 없음/경로 없음/지원 불가면 에러.
 - 해석 실패 항목은 건너뛴다. 전부 실패하면 실패 안내를 표시한다.
-- 성공 목록은 소문자 이름순 정렬 후 첫 항목을 열고, 2개 이상이면 첫 항목 열림을 알린다.
+- 성공 목록은 이름순(숫자는 값으로 비교, 대소문자 무시) 정렬 후 첫 항목을 열고, 2개 이상이면 첫 항목 열림을 알린다.
 
 ### 4.3 OS 파일 연결 실행
 
@@ -141,6 +141,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 
 - 입력: `file_path`, `options?: DirListOptions`(`sortKey: name | date | size`, `descending`, `recursive`).
 - 부모 폴더 기준으로 정렬 목록을 만들고, `current_index`는 요청 경로의 위치(없으면 0)이다.
+- 이름순은 탐색기와 같은 자연 정렬이다(`src-tauri/src/natural_sort.rs`): 숫자 구간은 값으로 비교해 `2.jpg`가 `10.jpg`보다 앞이고, 대소문자는 무시하며, 기호와 비ASCII 문자는 사용자 로캘 규칙을 따른다. 경로는 폴더 단위로 나눠 비교한다. `date`/`size` 정렬의 동률과 아카이브 엔트리 순서에도 같은 규칙을 쓴다.
 - 재귀가 켜지면 하위 폴더 이미지를 포함한다.
 - 디렉토리 목록은 캐시되며 상한이 있다.
 - 응답 `availability`는 `images`와 같은 순서의 `local` | `cloud_only` | `unknown` 배열이다. Windows Files On-Demand placeholder는 `cloud_only`로 표시한다. 아카이브 목록은 빈 배열이다.
