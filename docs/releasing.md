@@ -64,7 +64,6 @@ npm run tauri build
 - 비밀번호를 설정하지 않으면 대화형 프롬프트가 뜨므로 비대화형 환경에서는 반드시 설정합니다. (`--ci` 또는 `CI` 환경이면 빈 문자열로 처리)
 - 성공하면 `src-tauri/target/release/bundle/nsis/` 아래에 설치본과 `.sig`가 함께 생성됩니다.
 - `npm run tauri build`를 직접 실행하면 기본 features에 `dev-mcp`가 포함되어 설치본이 loopback MCP 브리지를 띄웁니다(플러그인 기본 base port 9223). 릴리스용 산출물은 CI가 `--no-default-features`로 빌드하므로 브리지가 빠집니다. 같은 방식으로 빌드하려면 `npm run tauri -- build -- --no-default-features`를 씁니다.
-  @@CUT@@ `--no-default-features`로 빌드하므로 브리지가 빠집니다. 직접 빌드할 때도 맞추려면 `npm run tauri -- build -- --no-default-features`를 씁니다.
 
 ## 서명 없이 설치본만 만들기
 
