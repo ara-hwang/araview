@@ -30,6 +30,7 @@ use crate::app_error::{AppError, ErrorCode};
 use crate::commands::{DirListOptions, DirSortKey};
 use crate::file_availability::FileAvailability;
 use crate::image::is_supported_file;
+use crate::natural_sort::natural_key;
 
 /// Upper bound for cached directory listings; oldest entry evicted past this.
 const MAX_CACHE_ENTRIES: usize = 128;
@@ -444,14 +445,14 @@ fn is_reparse_point(entry: &fs::DirEntry) -> bool {
 }
 
 fn sort_images(images: &mut [ImageEntry], opts: &DirListOptions) {
-    // 비교마다 lowercase String을 새로 만들지 않도록 키를 한 번만 계산한다.
+    // 정렬 키 계산(Win32 호출)이 비교마다 반복되지 않도록 한 번만 계산한다.
     match opts.sort_key {
-        DirSortKey::Name => images.sort_by_cached_key(|e| e.path.to_lowercase()),
+        DirSortKey::Name => images.sort_by_cached_key(|e| natural_key(&e.path)),
         DirSortKey::Date => {
-            images.sort_by_cached_key(|e| (e.modified, e.path.to_lowercase()));
+            images.sort_by_cached_key(|e| (e.modified, natural_key(&e.path)));
         }
         DirSortKey::Size => {
-            images.sort_by_cached_key(|e| (e.size, e.path.to_lowercase()));
+            images.sort_by_cached_key(|e| (e.size, natural_key(&e.path)));
         }
     }
     if opts.descending {

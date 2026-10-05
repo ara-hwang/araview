@@ -26,6 +26,9 @@ import { shouldUsePreviewThumbnail } from "@/utils/previewThumbnail"
 import { maxSideForResolution } from "@/utils/resolutionLimit"
 import { MAX_SKIP_ATTEMPTS, findSkipTarget } from "@/utils/skipBroken"
 
+// 백엔드 목록 정렬(`natural_sort.rs`)과 같은 규칙: 숫자는 값으로, 대소문자 무시.
+const naturalCollator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" })
+
 function endImageLoadIfCurrent(token: number): void {
   if (isCurrentImageLoad(token)) {
     useAppStore.setState({ loading: false })
@@ -652,7 +655,7 @@ export function useImageLoader() {
         return
       }
 
-      resolved.sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()))
+      resolved.sort(naturalCollator.compare)
       await loadImage(resolved[0], { archiveOpen: "full" })
       if (resolved.length > 1) {
         toast.info(i18n.t("toast.drop.firstOf", { count: resolved.length }), {

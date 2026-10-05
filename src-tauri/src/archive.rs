@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 use crate::app_error::{AppError, ErrorCode};
 use crate::image::is_image_file;
+use crate::natural_sort::natural_key;
 
 /// 이미지 엔트리 + 전체 엔트리(ComicInfo 탐색용)를 한 번의 스캔으로 모은다.
 #[derive(Debug, Clone)]
@@ -60,9 +61,9 @@ pub fn list_archive_entries(archive_path: &Path) -> Result<ArchiveEntries, AppEr
 
 /// 수집된 (이미지, 전체) 엔트리 쌍을 공통 뒤처리한다: 정렬 + dedup + Arc.
 fn finish_entries(mut images: Vec<String>, mut all: Vec<String>) -> ArchiveEntries {
-    images.sort_by_cached_key(|n| n.to_lowercase());
+    images.sort_by_cached_key(|n| natural_key(n));
     images.dedup();
-    all.sort_by_cached_key(|n| n.to_lowercase());
+    all.sort_by_cached_key(|n| natural_key(n));
     all.dedup();
     ArchiveEntries {
         images: Arc::new(images),
