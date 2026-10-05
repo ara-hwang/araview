@@ -117,30 +117,15 @@ describe("useZoomPan 입력 핸들러", () => {
   })
 })
 
-describe("useZoomPanSync 줌 변경 위치 보정", () => {
-  it("줌이 바뀌면 위치를 같은 비율로 옮기고 경계 안으로 맞춘다", () => {
+describe("useZoomPanSync 수동 줌", () => {
+  it("커서 기준 줌으로 옮긴 위치를 다시 보정하지 않는다", () => {
     openTestImage()
-    // 2000x1000을 2배로 보면 4000x2000. 컨테이너 1000x700에서 x 경계는 ±1500이다.
-    useAppStore.setState({ zoom: 1, position: { x: 100, y: 50 }, isFitLocked: false })
     renderHook(() => useZoomPanSync())
 
     act(() => {
-      useAppStore.setState({ zoom: 2 })
+      zoomInBy(2, { x: 200, y: 100 })
     })
 
-    expect(useAppStore.getState().position).toEqual({ x: 200, y: 100 })
-  })
-
-  it("위치가 이미 (0,0)이면 줌이 바뀌어도 위치 객체를 바꾸지 않는다", () => {
-    openTestImage()
-    useAppStore.setState({ isFitLocked: false })
-    renderHook(() => useZoomPanSync())
-    const before = useAppStore.getState().position
-
-    act(() => {
-      useAppStore.setState({ zoom: 2 })
-    })
-
-    expect(useAppStore.getState().position).toBe(before)
+    expect(useAppStore.getState().position).toEqual({ x: -200, y: -100 })
   })
 })
