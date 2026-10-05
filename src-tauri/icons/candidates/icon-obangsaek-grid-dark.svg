@@ -2,6 +2,6 @@
   <rect x="60" y="60" width="440" height="440" rx="68" fill="#D9382B"/>
   <rect x="524" y="60" width="440" height="440" rx="68" fill="#E5A81C"/>
   <rect x="60" y="524" width="440" height="440" rx="68" fill="#2E8B7A"/>
-  <path d="M592 524 H896 Q964 524 964 592 V784 L784 964 H592 Q524 964 524 896 V592 Q524 524 592 524 Z" fill="#F5F5F5"/>
+  <path d="M592 524 H896 A68 68 0 0 1 964 592 V784 L784 964 H592 A68 68 0 0 1 524 896 V592 A68 68 0 0 1 592 524 Z" fill="#F5F5F5"/>
   <path d="M784 964 L964 784 L784 784 Z" fill="#171717"/>
 </svg>

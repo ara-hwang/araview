@@ -71,7 +71,13 @@ grid whose white panels vanish on both backgrounds, one panel grid that repeats
 
 ## Promoting one candidate
 
-Done for `quiver-obangsaek-grid`; the steps stay here for the next one.
+Done for `quiver-obangsaek-grid`; the steps stay here for the next one. The promoted files carry one
+correction over the raw Quiver output: Quiver drew the ink tile's three rounded corners as quadratic
+Béziers, up to 4.12px tighter at 1024 scale than the circular `rx` corners of the other three tiles,
+so they were rewritten as circular arcs (`A`). That removes the last asymmetry outside the fold: the
+mark now mirrors exactly left-right, up-down, and on both diagonals, with the notch as the only
+difference. At 16 to 64px the rewrite changes at most 97 of 16,384 colour channels. The raw output
+stays untouched in `design/icon-candidates/quiver-obangsaek-grid/icon.svg`.
 
 1. Copy the chosen `icon.svg` over `src-tauri/icons/candidates/icon-<variant>.svg` and derive the
    dark twin from it (paper tile, ink flap).
