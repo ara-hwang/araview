@@ -81,6 +81,8 @@ export type SettingsState = {
   resumeReading: boolean
   /** 양쪽 보기에서 첫 페이지(표지)를 단독으로 표시한다 */
   showCoverAlone: boolean
+  /** 양쪽 보기에서 가로가 더 긴 페이지(펼침 스캔)를 단독으로 표시한다 */
+  showWidePageAlone: boolean
   /** 정보 패널에 CBZ/ZIP ComicInfo 섹션을 표시한다 */
   showComicInfo: boolean
   /** 아카이브(만화)를 열면 자동으로 양쪽 보기로 본다. ComicInfo의 Manga 방향을 따른다 */
@@ -130,6 +132,7 @@ const initialSettings: SettingsState = {
   skipBrokenFiles: false,
   resumeReading: true,
   showCoverAlone: true,
+  showWidePageAlone: true,
   showComicInfo: true,
   comicAutoDualView: true,
   fitMode: "auto",
@@ -236,6 +239,10 @@ export function sanitizeSettings(value: unknown): SettingsState {
     showCoverAlone: sanitizeBooleanWithDefault(
       record.showCoverAlone,
       initialSettings.showCoverAlone
+    ),
+    showWidePageAlone: sanitizeBooleanWithDefault(
+      record.showWidePageAlone,
+      initialSettings.showWidePageAlone
     ),
     showComicInfo: sanitizeBooleanWithDefault(record.showComicInfo, initialSettings.showComicInfo),
     comicAutoDualView: sanitizeBooleanWithDefault(

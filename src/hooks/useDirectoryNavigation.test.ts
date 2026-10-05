@@ -9,6 +9,7 @@ import {
   useAppStore
 } from "@/store/appStore"
 import { useSettingsStore } from "@/store/settingsStore"
+import { recordWidePage, useWidePageStore } from "@/store/widePageStore"
 import type { ComicInfo } from "@/types"
 
 const IMAGES = ["/pics/a.jpg", "/pics/b.jpg", "/pics/c.jpg", "/pics/d.jpg"]
@@ -312,5 +313,78 @@ describe("useDirectoryNavigation 로드-표시-이동 플로우", () => {
       await navigateByOffset(-2)
     })
     expect(useAppStore.getState().dirImages.current_index).toBe(0)
+  })
+})
+
+describe("useDirectoryNavigation 넓은 페이지 단독", () => {
+  const PAGES = Array.from({ length: 8 }, (_, i) => `/scan/p${i}.jpg`)
+  const WIDE = PAGES[5]
+
+  /** `getOrLoadImage`처럼 로드한 페이지의 치수를 기록한다. */
+  function probingLoader() {
+    return vi.fn(async (path: string) => {
+      const wide = path === WIDE
+      recordWidePage(null, path, { width: wide ? 3000 : 1400, height: 2000 })
+    })
+  }
+
+  function setupDual(index: number) {
+    setup(index, PAGES)
+    useWidePageStore.setState({ scope: null, paths: new Set() })
+    useSettingsStore.setState({
+      viewMode: "left-to-right",
+      showCoverAlone: false,
+      showWidePageAlone: true
+    })
+  }
+
+  it("뒤로 넘길 때 아직 로드하지 않은 넓은 페이지를 건너뛰지 않는다", async () => {
+    // 6에서 시작하면 5가 넓은지 모른다. 모르는 채로 넘기면 [4,5] 짝의 4에 착지한다.
+    setupDual(6)
+    const loadImage = paintingLoader()
+    const probe = probingLoader()
+    const { result } = renderHook(() => useDirectoryNavigation(loadImage, undefined, probe))
+
+    await act(async () => {
+      await result.current.navigateImage("prev")
+    })
+    expect(probe).toHaveBeenCalledWith(PAGES[5])
+    expect(useAppStore.getState().dirImages.current_index).toBe(5)
+
+    // 배치는 [0,1] [2,3] [4] [5 넓음] [6,7]이라 넓은 페이지 앞에 남는 4는 단독 화면이다.
+    await act(async () => {
+      await result.current.navigateImage("prev")
+    })
+    expect(useAppStore.getState().dirImages.current_index).toBe(4)
+    await act(async () => {
+      await result.current.navigateImage("prev")
+    })
+    expect(useAppStore.getState().dirImages.current_index).toBe(2)
+  })
+
+  it("넓은 페이지로 점프하면 그 페이지에 착지한다", async () => {
+    setupDual(0)
+    const loadImage = paintingLoader()
+    const probe = probingLoader()
+    const { result } = renderHook(() => useDirectoryNavigation(loadImage, undefined, probe))
+
+    await act(async () => {
+      await result.current.navigateToIndex(5)
+    })
+    expect(useAppStore.getState().dirImages.current_index).toBe(5)
+  })
+
+  it("설정을 끄면 치수를 확인하지 않고 두 장씩 넘긴다", async () => {
+    setupDual(6)
+    useSettingsStore.setState({ showWidePageAlone: false })
+    const loadImage = paintingLoader()
+    const probe = probingLoader()
+    const { result } = renderHook(() => useDirectoryNavigation(loadImage, undefined, probe))
+
+    await act(async () => {
+      await result.current.navigateImage("prev")
+    })
+    expect(probe).not.toHaveBeenCalled()
+    expect(useAppStore.getState().dirImages.current_index).toBe(4)
   })
 })

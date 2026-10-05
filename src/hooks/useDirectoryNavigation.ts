@@ -1,12 +1,12 @@
 import { useCallback } from "react"
 
 import { getCoverLayout } from "@/hooks/useCoverLayout"
-import { getLayoutViewMode } from "@/hooks/useEffectiveViewMode"
+import { getLayoutViewMode, getSoloIndices } from "@/hooks/useEffectiveViewMode"
 import { useAppStore } from "@/store/appStore"
 import { getSettings } from "@/store/settingsStore"
+import { isArchiveFilePath } from "@/utils/archiveFile"
 import { withCoverSolo } from "@/utils/comicCover"
 import {
-  archiveSoloIndices,
   resolveDualStepIndex,
   resolveOffsetIndex,
   resolvePairStart,
@@ -16,6 +16,9 @@ import {
 type LoadImageFn = (filePath: string, options?: { refreshDirectory?: boolean }) => Promise<void>
 
 type LoadArchiveImageFn = (archivePath: string, entryName: string) => Promise<void>
+
+/** 항목을 로드해 치수를 알아내는 함수(`getOrLoadImage`). 결과는 쓰지 않는다. */
+type ProbeImageFn = (pathOrEntry: string) => Promise<unknown>
 
 /**
  * 이동 계산에 쓰는 현재 상태. 렌더 클로저가 아니라 호출 시점의 스토어에서 읽어,
@@ -37,9 +40,7 @@ function readNavigationState() {
     showCoverAlone: cover.coverAlone,
     coverIndex: cover.coverIndex,
     // 단독 화면 판정은 양쪽 보기에서만 쓴다. 단일 보기에서는 목록 순회를 생략한다.
-    solo: isDualView
-      ? withCoverSolo(cover, archiveSoloIndices(dirImages.images, archivePath !== null))
-      : undefined
+    solo: isDualView ? withCoverSolo(cover, getSoloIndices()) : undefined
   }
 }
 
@@ -50,8 +51,26 @@ function readNavigationState() {
  */
 export function useDirectoryNavigation(
   loadImage: LoadImageFn,
-  loadArchiveImageByIndex?: LoadArchiveImageFn
+  loadArchiveImageByIndex?: LoadArchiveImageFn,
+  probeImage?: ProbeImageFn
 ) {
+  /**
+   * 양쪽 보기에서 이동할 자리의 페이지를 먼저 로드해 넓은 페이지인지 확인한다.
+   * 치수는 로드해야 알 수 있어, 모르는 채로 짝을 잡으면 넓은 페이지가 짝의
+   * 둘째 장으로 밀려 뒤로 넘길 때 건너뛴다. 어차피 곧 그릴 페이지라 로드는 버려지지 않는다.
+   */
+  const probeWidePages = useCallback(
+    async (indices: readonly number[]) => {
+      if (!probeImage || !getSettings().showWidePageAlone) return
+      const { images } = useAppStore.getState().dirImages
+      const targets = indices
+        .map((index) => images[index])
+        .filter((path): path is string => path !== undefined && !isArchiveFilePath(path))
+      await Promise.all(targets.map((path) => probeImage(path).catch(() => {})))
+    },
+    [probeImage]
+  )
+
   const loadAt = useCallback(
     async (images: readonly string[], archivePath: string | null, index: number) => {
       const target = images[index]
@@ -67,6 +86,12 @@ export function useDirectoryNavigation(
 
   const navigateImage = useCallback(
     async (direction: "prev" | "next") => {
+      const before = readNavigationState()
+      if (before.dirImages.images.length <= 1) return
+      if (before.isDualView && direction === "prev") {
+        const current = before.dirImages.current_index
+        await probeWidePages([current - 1, current - 2])
+      }
       const nav = readNavigationState()
       const { dirImages } = nav
       if (dirImages.images.length <= 1) return
@@ -79,7 +104,8 @@ export function useDirectoryNavigation(
             direction,
             nav.showCoverAlone,
             nav.coverIndex,
-            nav.solo
+            nav.solo,
+            true
           )
         : resolveStepIndex(
             dirImages.current_index,
@@ -92,11 +118,12 @@ export function useDirectoryNavigation(
 
       await loadAt(dirImages.images, nav.archivePath, newIndex)
     },
-    [loadAt]
+    [loadAt, probeWidePages]
   )
 
   const navigateToIndex = useCallback(
     async (index: number) => {
+      if (readNavigationState().isDualView) await probeWidePages([index])
       const nav = readNavigationState()
       const { dirImages } = nav
       if (dirImages.images.length === 0) return
@@ -108,13 +135,14 @@ export function useDirectoryNavigation(
             dirImages.images.length,
             nav.showCoverAlone,
             nav.coverIndex,
-            nav.solo
+            nav.solo,
+            dirImages.current_index
           )
         : Math.max(0, Math.min(index, dirImages.images.length - 1))
 
       await loadAt(dirImages.images, nav.archivePath, clamped)
     },
-    [loadAt]
+    [loadAt, probeWidePages]
   )
 
   /** 점프 이동: 오프셋만큼 이동하되 루프 설정에 따라 wrap/clamp */

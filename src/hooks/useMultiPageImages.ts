@@ -58,7 +58,8 @@ export function useMultiPageImages(
       cover.coverAlone,
       cover.coverIndex,
       loopNavigation,
-      withCoverSolo(cover, solo)
+      withCoverSolo(cover, solo),
+      true
     )
 
     // 폴더 안 아카이브는 solo 배치로 이미 단독 화면이지만, 이미지로 그릴 수 없으므로

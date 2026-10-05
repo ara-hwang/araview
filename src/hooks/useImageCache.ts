@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef } from "react"
 import { useAppStore } from "@/store/appStore"
 import { useCacheInvalidationStore } from "@/store/cacheInvalidationStore"
 import { useSettingsStore } from "@/store/settingsStore"
+import { recordWidePage } from "@/store/widePageStore"
 
 import type { ImageInfo } from "../types"
 import { getCacheByteLimit, getCacheLimit, getPrefetchDistance } from "../utils/cacheConfig"
@@ -174,6 +175,10 @@ export function useImageCache() {
             })
       )
         .then((imgInfo) => {
+          // 예열한 이웃도 여기를 지나므로, 넓은 페이지를 도착하기 전에 알게 된다.
+          if (useAppStore.getState().archivePath === scopeAtStart) {
+            recordWidePage(scopeAtStart, pathOrEntry, imgInfo)
+          }
           if (
             cacheResult &&
             useAppStore.getState().archivePath === scopeAtStart &&

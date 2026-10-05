@@ -7,7 +7,8 @@ import {
   resolveDualStepIndex,
   resolveOffsetIndex,
   resolvePairStart,
-  resolveStepIndex
+  resolveStepIndex,
+  withWideSolo
 } from "@/utils/dirNavigation"
 
 describe("resolveStepIndex", () => {
@@ -287,5 +288,51 @@ describe("단독 화면(폴더 아카이브)이 섞인 양쪽 보기", () => {
     expect(dualPageIndices(0, 5, true, 0, false, solo)).toEqual([0])
     expect(dualPageIndices(1, 5, true, 0, false, solo)).toEqual([1])
     expect(dualPageIndices(3, 5, true, 0, false, solo)).toEqual([3, 4])
+  })
+})
+
+describe("넓은 페이지 단독 화면", () => {
+  const PAGES = ["p0", "p1", "p2", "p3", "p4", "p5", "p6", "p7"]
+  const NONE = new Set<number>()
+
+  it("넓은 페이지 인덱스를 단독에 더하고, 없으면 같은 집합을 돌려준다", () => {
+    expect([...withWideSolo(NONE, PAGES, new Set(["p3"]))]).toEqual([3])
+    expect([...withWideSolo(new Set([1]), PAGES, new Set(["p3", "p6"]))]).toEqual([1, 3, 6])
+    expect(withWideSolo(NONE, PAGES, new Set())).toBe(NONE)
+    expect(withWideSolo(NONE, PAGES, new Set(["other"]))).toBe(NONE)
+  })
+
+  it("넓은 페이지는 혼자 한 화면이고 그 뒤부터 다시 짝을 맞춘다", () => {
+    // 표지 단독: [0] [1,2] [3 넓음] [4,5] [6,7]
+    const solo = withWideSolo(NONE, PAGES, new Set(["p3"]))
+    expect(dualPageIndices(1, 8, true, 0, false, solo, true)).toEqual([1, 2])
+    expect(dualPageIndices(3, 8, true, 0, false, solo, true)).toEqual([3])
+    expect(dualPageIndices(4, 8, true, 0, false, solo, true)).toEqual([4, 5])
+    expect(resolveDualStepIndex(1, 8, false, "next", true, 0, solo, true)).toBe(3)
+    expect(resolveDualStepIndex(3, 8, false, "next", true, 0, solo, true)).toBe(4)
+    expect(resolveDualStepIndex(4, 8, false, "prev", true, 0, solo, true)).toBe(3)
+  })
+
+  it("넓은 페이지 바로 앞에 남는 페이지도 단독 화면이다", () => {
+    // 표지 단독: [0] [1,2] [3] [4 넓음] [5,6] [7]
+    const solo = withWideSolo(NONE, PAGES, new Set(["p4"]))
+    expect(dualPageIndices(3, 8, true, 0, false, solo, true)).toEqual([3])
+    expect(resolveDualStepIndex(3, 8, false, "next", true, 0, solo, true)).toBe(4)
+    expect(resolveDualStepIndex(4, 8, false, "next", true, 0, solo, true)).toBe(5)
+  })
+
+  it("뒤늦게 알려진 앞쪽 넓은 페이지가 짝을 밀어도 지금 화면은 그대로다", () => {
+    // 중간(4)에서 [4,5]를 보다가 2가 넓다고 알려진다. 전체 배치는
+    // [0,1] [2 넓음] [3,4] [5,6]이지만 지금 화면은 4에서 시작한다.
+    const solo = withWideSolo(NONE, PAGES, new Set(["p2"]))
+    expect(dualPageIndices(4, 8, false, 0, false, solo)).toEqual([3, 4])
+    expect(dualPageIndices(4, 8, false, 0, false, solo, true)).toEqual([4, 5])
+    expect(resolveDualStepIndex(4, 8, false, "next", false, 0, solo, true)).toBe(6)
+    // 앞에 남은 3은 단독 화면으로 거친다.
+    expect(resolveDualStepIndex(4, 8, false, "prev", false, 0, solo, true)).toBe(3)
+    expect(resolveDualStepIndex(3, 8, false, "prev", false, 0, solo, true)).toBe(2)
+    // 점프는 지금 화면 기준 배치로 스냅한다.
+    expect(resolvePairStart(7, 8, false, 0, solo, 4)).toBe(6)
+    expect(resolvePairStart(7, 8, false, 0, solo)).toBe(7)
   })
 })

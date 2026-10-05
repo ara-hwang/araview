@@ -32,7 +32,8 @@ export function useCurrentPageIndices(): Set<number> {
         cover.coverAlone,
         cover.coverIndex,
         loopNavigation,
-        withCoverSolo(cover, solo)
+        withCoverSolo(cover, solo),
+        true
       )
     )
   }, [viewMode, currentIndex, total, cover, loopNavigation, solo])

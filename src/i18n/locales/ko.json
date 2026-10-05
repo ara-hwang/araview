@@ -201,6 +201,7 @@
       "resume": "이어보기",
       "comicAutoDual": "만화 아카이브를 열면 자동으로 양쪽 보기 (ComicInfo의 읽기 방향 적용)",
       "coverAlone": "양쪽 보기에서 표지 단독 표시",
+      "wideAlone": "양쪽 보기에서 넓은 페이지(가로 스캔) 단독 표시",
       "showComicInfo": "정보 패널에 만화 정보(ComicInfo.xml) 표시"
     },
     "dock": {
