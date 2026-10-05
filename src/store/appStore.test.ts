@@ -273,6 +273,63 @@ describe("applyImageNaturalSize", () => {
   })
 })
 
+describe("줌 기준점", () => {
+  // 2000x1000 이미지를 1000x700 컨테이너에서 본다.
+  const open = (zoom: number, position = { x: 0, y: 0 }) =>
+    useAppStore.setState({
+      containerSize: { width: 1000, height: 700 },
+      imageSize: { width: 2000, height: 1000 },
+      rotation: 0,
+      zoom,
+      position
+    })
+
+  it("기준점이 없으면 컨테이너 중심 기준으로 위치를 같은 비율로 옮긴다", () => {
+    open(1, { x: 100, y: 50 })
+    zoomInBy(2)
+    expect(useAppStore.getState().position).toEqual({ x: 200, y: 100 })
+  })
+
+  it("확대해도 커서 아래의 이미지 지점이 그대로 있다", () => {
+    open(1, { x: 100, y: 50 })
+    const anchor = { x: 300, y: -120 }
+    // 커서 아래 지점의 이미지 좌표(중심 기준): (anchor - position) / zoom
+    const before = { x: (anchor.x - 100) / 1, y: (anchor.y - 50) / 1 }
+    zoomInBy(2, anchor)
+    const { zoom, position } = useAppStore.getState()
+    expect(zoom).toBe(2)
+    expect((anchor.x - position.x) / zoom).toBeCloseTo(before.x)
+    expect((anchor.y - position.y) / zoom).toBeCloseTo(before.y)
+  })
+
+  it("축소해도 커서 아래의 이미지 지점이 그대로 있다", () => {
+    open(4, { x: 400, y: 200 })
+    const anchor = { x: -250, y: 150 }
+    const before = { x: (anchor.x - 400) / 4, y: (anchor.y - 200) / 4 }
+    zoomOutBy(2, anchor)
+    const { zoom, position } = useAppStore.getState()
+    expect(zoom).toBe(2)
+    expect((anchor.x - position.x) / zoom).toBeCloseTo(before.x)
+    expect((anchor.y - position.y) / zoom).toBeCloseTo(before.y)
+  })
+
+  it("기준점으로 옮긴 위치도 컨테이너 경계로 clamp한다", () => {
+    // 0.5배(1000x500)는 컨테이너 안에 들어오므로 어느 쪽으로도 옮길 수 없다.
+    open(1, { x: 500, y: 150 })
+    zoomOutBy(2, { x: -500, y: -350 })
+    const { zoom, position } = useAppStore.getState()
+    expect(zoom).toBe(0.5)
+    expect(position).toEqual({ x: 0, y: 0 })
+  })
+
+  it("위치가 그대로면 위치 객체를 바꾸지 않는다", () => {
+    open(1)
+    const before = useAppStore.getState().position
+    zoomInBy(2)
+    expect(useAppStore.getState().position).toBe(before)
+  })
+})
+
 describe("setZoomToFit", () => {
   it("너비 맞춤은 컨테이너 너비와 일치한다", () => {
     useAppStore.setState({

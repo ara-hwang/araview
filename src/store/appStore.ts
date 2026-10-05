@@ -76,7 +76,6 @@ type AppState = {
 }
 
 type AppStoreActions = {
-  setZoom: (nextZoom: AppState["zoom"]) => void
   setDirImages: (nextDirImages: AppState["dirImages"]) => void
   setImageInfo: (nextImageInfo: AppState["imageInfo"]) => void
   setError: (nextError: AppState["error"]) => void
@@ -139,7 +138,6 @@ const initialApp: AppState = {
 
 export const useAppStore = create<AppState & AppStoreActions>((set) => ({
   ...initialApp,
-  setZoom: (nextZoom) => set({ zoom: nextZoom }),
   setDirImages: (nextDirImages) => set({ dirImages: nextDirImages }),
   setImageInfo: (nextImageInfo) => set({ imageInfo: nextImageInfo }),
   setError: (nextError) => set({ error: nextError }),
@@ -211,13 +209,45 @@ export const MAX_ZOOM_VECTOR = 40
 
 const isVectorImage = (): boolean => isSvgImageInfo(useAppStore.getState().imageInfo)
 
-export const zoomInBy = (factor = 1.25) => {
-  const { zoom } = useAppStore.getState()
-  const next = Math.min(zoom * factor, isVectorImage() ? MAX_ZOOM_VECTOR : MAX_ZOOM)
-  useAppStore.setState({ zoom: next, isFitLocked: false })
+/** 줌 기준점. 컨테이너 중심에서 잰 화면 좌표(px)이며, 없으면 컨테이너 중심이다. */
+export type ZoomAnchor = { x: number; y: number }
+
+/**
+ * 수동 줌을 적용한다. 기준점 아래의 이미지 지점이 화면에서 움직이지 않도록 position을
+ * 같은 갱신에서 옮기고 컨테이너 경계로 clamp한다. 핏 잠금은 풀린다.
+ */
+const applyManualZoom = (nextZoom: number, anchor?: ZoomAnchor) => {
+  const state = useAppStore.getState()
+  const { zoom, position } = state
+  const ratio = zoom > 0 ? nextZoom / zoom : 1
+  const ax = anchor?.x ?? 0
+  const ay = anchor?.y ?? 0
+  let next = {
+    x: ax - (ax - position.x) * ratio,
+    y: ay - (ay - position.y) * ratio
+  }
+  const { width: cw, height: ch } = state.containerSize
+  const { width: iw, height: ih } = orientedSizeOf(state)
+  if (cw > 0 && ch > 0 && iw > 0 && ih > 0) {
+    const { maxX, maxY } = getPositionBounds(cw, ch, iw, ih, nextZoom)
+    next = clampPosition(next.x, next.y, maxX, maxY)
+  }
+  // 위치가 그대로면 같은 객체를 유지해 구독자 렌더를 늘리지 않는다.
+  const unchanged = next.x === position.x && next.y === position.y
+  useAppStore.setState({
+    zoom: nextZoom,
+    position: unchanged ? position : next,
+    isFitLocked: false
+  })
 }
 
-export const zoomOutBy = (factor = 1.25) => {
+export const zoomInBy = (factor = 1.25, anchor?: ZoomAnchor) => {
+  const { zoom } = useAppStore.getState()
+  const next = Math.min(zoom * factor, isVectorImage() ? MAX_ZOOM_VECTOR : MAX_ZOOM)
+  applyManualZoom(next, anchor)
+}
+
+export const zoomOutBy = (factor = 1.25, anchor?: ZoomAnchor) => {
   const { zoom, containerSize, imageSize, rotation } = useAppStore.getState()
   const oriented = orientedSizeOf({ imageSize, rotation })
   const minZoom = getMinZoom(
@@ -227,7 +257,7 @@ export const zoomOutBy = (factor = 1.25) => {
     oriented.height
   )
   const next = Math.max(zoom / factor, minZoom)
-  useAppStore.setState({ zoom: next, isFitLocked: false })
+  applyManualZoom(next, anchor)
 }
 
 export const zoomIn = () => zoomInBy(1.25)
