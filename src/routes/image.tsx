@@ -93,7 +93,8 @@ function ImagePage() {
 
   const { navigateImage, navigateToIndex, navigateByOffset } = useDirectoryNavigation(
     loadImageAndReset,
-    loadArchiveImageByIndex
+    loadArchiveImageByIndex,
+    getOrLoadImage
   )
 
   const [webtoonScrollTarget, setWebtoonScrollTarget] = useState<WebtoonScrollTarget>(null)

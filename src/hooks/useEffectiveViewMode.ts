@@ -1,9 +1,12 @@
 import { useMemo } from "react"
 
 import { useAppStore } from "@/store/appStore"
-import { useSettingsStore, type ViewMode } from "@/store/settingsStore"
+import { getSettings, useSettingsStore, type ViewMode } from "@/store/settingsStore"
+import { useWidePageStore } from "@/store/widePageStore"
 import { isArchiveFilePath } from "@/utils/archiveFile"
-import { archiveSoloIndices, type SoloIndices } from "@/utils/dirNavigation"
+import { archiveSoloIndices, withWideSolo, type SoloIndices } from "@/utils/dirNavigation"
+
+const NO_WIDE: ReadonlySet<string> = new Set()
 
 /** 폴더 목록에서 아카이브 파일(CBZ/ZIP)을 열어 첫 페이지만 미리 보는 중인지 여부. */
 function isArchiveFolderPreview(state: ReturnType<typeof useAppStore.getState>): boolean {
@@ -38,11 +41,30 @@ export function useLayoutViewMode(): ViewMode {
   return inArchive && comicViewMode !== null ? comicViewMode : viewMode
 }
 
-/** 양쪽 보기에서 혼자 한 화면을 쓰는 폴더 아카이브 인덱스. */
+/** 양쪽 보기에서 혼자 한 화면을 쓰는 인덱스: 폴더 아카이브와 넓은 페이지. */
 export function useSoloIndices(): SoloIndices {
   const images = useAppStore((state) => state.dirImages.images)
-  const inArchive = useAppStore((state) => state.archivePath !== null)
-  return useMemo(() => archiveSoloIndices(images, inArchive), [images, inArchive])
+  const archivePath = useAppStore((state) => state.archivePath)
+  const enabled = useSettingsStore((state) => state.showWidePageAlone)
+  const wide = useWidePageStore((state) =>
+    enabled && state.scope === archivePath ? state.paths : NO_WIDE
+  )
+  return useMemo(
+    () => withWideSolo(archiveSoloIndices(images, archivePath !== null), images, wide),
+    [images, archivePath, wide]
+  )
+}
+
+/** `useSoloIndices`의 비구독 버전. 이벤트 시점 계산용이다. */
+export function getSoloIndices(): SoloIndices {
+  const { dirImages, archivePath } = useAppStore.getState()
+  const { scope, paths } = useWidePageStore.getState()
+  const wide = getSettings().showWidePageAlone && scope === archivePath ? paths : NO_WIDE
+  return withWideSolo(
+    archiveSoloIndices(dirImages.images, archivePath !== null),
+    dirImages.images,
+    wide
+  )
 }
 
 /** `useLayoutViewMode`의 비구독 버전. 이벤트 시점 계산용이다. */

@@ -47,6 +47,7 @@ export function ViewTabPanel() {
       viewerBackground: state.viewerBackground,
       resumeReading: state.resumeReading,
       showCoverAlone: state.showCoverAlone,
+      showWidePageAlone: state.showWidePageAlone,
       showComicInfo: state.showComicInfo,
       comicAutoDualView: state.comicAutoDualView,
       autoHideUI: state.autoHideUI,
@@ -262,6 +263,16 @@ export function ViewTabPanel() {
             }
           />{" "}
           <Label htmlFor="settings-reading-cover-alone">{t("settings.reading.coverAlone")}</Label>
+        </Field>
+        <Field orientation="horizontal">
+          <Switch
+            id="settings-reading-wide-alone"
+            checked={settings.showWidePageAlone}
+            onCheckedChange={(checked) =>
+              handleSettingsChange({ showWidePageAlone: checked === true })
+            }
+          />
+          <Label htmlFor="settings-reading-wide-alone">{t("settings.reading.wideAlone")}</Label>
         </Field>
         <Field orientation="horizontal">
           <Switch

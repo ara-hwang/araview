@@ -156,6 +156,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 
 - `viewMode`가 `left-to-right`/`right-to-left`이면 2장씩, 나머지는 1장씩 이동한다.
 - `showCoverAlone`이 true인 양쪽 모드에서는 화면이 `[0], [1,2], [3,4], ...`가 되고 넘김도 화면 단위다. false면 `[0,1], [2,3], ...`다.
+- 넓은 페이지나 폴더 안 아카이브처럼 단독 화면이 섞이면 그 화면은 1장씩 넘긴다(6절).
 - `loopNavigation=false`: 끝에서 멈춘다. 단, 마지막 장은 clamp로 볼 수 있게 한다.
 - `loopNavigation=true`: wrap한다.
 - 아카이브/일반 모드에 맞는 로더로 인덱스를 갱신한다.
@@ -192,9 +193,10 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 - 표지 배치는 아카이브마다 정해지며 아카이브 지정이 전역 설정보다 우선한다(`resolveCoverLayout`, `src/utils/comicCover.ts`). 열린 아카이브의 ComicInfo(8절)에 `FrontCover`가 있으면 `showCoverAlone`이 꺼져 있어도 그 구간을 단독으로 보여준다. `FrontCover`가 없고 0번 페이지에 다른 `Type`이 명시돼 있으면 "표지 없음"이라 `showCoverAlone`이 켜져 있어도 `[0,1], [2,3], ...`로 넘긴다. 아무 지정이 없거나 `FrontCover`가 목록 범위 밖이면 `showCoverAlone`(기본 true)대로 0번을 표지로 본다. 폴더 목록과 폴더 미리보기에는 ComicInfo를 적용하지 않는다.
 - 표지는 연속된 여러 장일 수 있다(변형 표지 등). `FrontCover`가 여러 개면 가장 앞에서부터 끊기지 않고 이어지는 구간만 표지로 보고, 각 장이 단독 화면이 된다.
 - 폴더 목록의 아카이브(CBZ/ZIP)는 이미지로 그릴 수 없으므로 양쪽 모드에서 단독 화면이 된다. 짝은 앞에서부터 두 장씩 맞추되 아카이브(표지 단독이면 표지 포함)와 그 바로 앞에 남는 페이지는 혼자 한 화면이므로, 넘김이 아카이브를 건너뛰지 않는다. 아카이브 화면에서는 첫 페이지 미리보기를 단일로 그리지만 이동·도크 하이라이트는 양쪽 배치(`useLayoutViewMode`)를 따른다. 아카이브 안(만화 모드)에는 적용하지 않는다.
+- 넓은 페이지 단독(`showWidePageAlone`, 기본 true): 표시 치수의 가로가 세로보다 긴 페이지(펼침면을 한 장으로 스캔한 가로 스캔)는 양쪽 모드에서 혼자 한 화면을 쓴다. 반쪽 칸에 넣으면 절반 크기로 줄어들기 때문이다. 배치 규칙은 폴더 아카이브와 같아서 넓은 페이지 바로 앞에 남는 페이지도 단독 화면이 되고, 그 뒤부터 다시 두 장씩 짝을 맞춘다. 폴더와 아카이브 모두에 적용한다. 치수는 로드해야 알 수 있으므로 본 페이지와 예열한 이웃만 반영하며(`src/store/widePageStore.ts`, 목록 범위가 바뀌면 버리고 영속화하지 않는다), 아직 로드하지 않은 구간은 두 장씩으로 가정한다. 이전 화면으로 넘기거나 점프할 때는 도착할 자리의 페이지(이전은 앞의 두 장, 점프는 대상 한 장)를 먼저 로드해 확인하므로 넓은 페이지를 건너뛰지 않는다. 뒤늦게 알려진 앞쪽 넓은 페이지가 짝을 밀어도 지금 화면은 바뀌지 않는다. 현재 인덱스를 화면 시작으로 고정하고(`anchor`) 그 앞뒤로 배치를 이어 간다.
 - 양쪽 모드의 점프(썸네일/도크/`Home`/`End`/`PageUp`/`PageDown`)와 아카이브 이어보기 진입은 쌍 시작으로 스냅한다(`src/utils/dirNavigation.ts`).
 - 만화 자동 양쪽 보기(`comicAutoDualView`, 기본 true): 아카이브를 만화 모드로 열 때 `viewMode`가 `webtoon`이 아니면 양쪽 보기로 연다(`resolveComicViewMode`, `src/utils/comicViewMode.ts`). 방향은 ComicInfo `Manga`가 `YesAndRightToLeft`면 우→좌, `No`면 좌→우를 따르고, `Yes`/`Unknown`/메타데이터 없음이면 설정의 양쪽 방향(우→좌였다면 우→좌), 그 외에는 좌→우다. 결과는 영속화하지 않는 `appStore.comicViewMode`에 담고, 화면에 적용되는 모드는 `useEffectiveViewMode`(`comicViewMode ?? viewMode`, 아카이브일 때만)로 읽는다. 헤더나 설정에서 보기 모드를 직접 고르면(`applyManualViewMode`) 자동 결정은 해제되고, 아카이브를 다시 열면 다시 계산한다. 설정값 `viewMode`는 바뀌지 않으므로 일반 이미지는 영향이 없다.
-- 도크와 썸네일 그리드는 화면에 떠 있는 페이지를 모두 현재로 표시한다(`useCurrentPageIndices`). 양쪽 모드는 쌍 두 장이 함께 하이라이트되고, 단독 화면(표지, 표지 바로 앞 페이지, 마지막 홀수 장)이나 단일/웹툰 모드는 현재 장만 하이라이트한다. 쌍의 기준 장은 도크의 `data-dock-current`로 한 개만 표시해 그리드 닫기 시 포커스 복귀 지점을 유지한다. 계산은 `dualPageIndices`가 뷰어 로드 대상과 같은 목록을 돌려준다.
+- 도크와 썸네일 그리드는 화면에 떠 있는 페이지를 모두 현재로 표시한다(`useCurrentPageIndices`). 양쪽 모드는 쌍 두 장이 함께 하이라이트되고, 단독 화면(표지, 표지 바로 앞 페이지, 넓은 페이지, 마지막 홀수 장)이나 단일/웹툰 모드는 현재 장만 하이라이트한다. 쌍의 기준 장은 도크의 `data-dock-current`로 한 개만 표시해 그리드 닫기 시 포커스 복귀 지점을 유지한다. 계산은 `dualPageIndices`가 뷰어 로드 대상과 같은 목록을 돌려준다.
 - 웹툰 모드에서 `ArrowLeft/ArrowRight`는 이전/다음 이미지 스크롤 이동이다.
 - 웹툰 모드에서 `ArrowUp/ArrowDown`은 연속 스크롤 컨테이너를 일정량씩 스크롤한다.
 - 웹툰 이미지 사이 간격(`webtoonImageGap`, 기본 8px)과 페이지 경계선(`webtoonPageBoundaries`)을 설정한다.
@@ -439,6 +441,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 | `skipBrokenFiles`       | 손상 파일 자동 건너뛰기                                                 | `false`                            |
 | `resumeReading`         | 아카이브 재진입 시 이어보기                                             | `true`                             |
 | `showCoverAlone`        | 양쪽 보기에서 첫 페이지(표지)를 단독 표시 (지정 없는 아카이브의 기본값) | `true`                             |
+| `showWidePageAlone`     | 양쪽 보기에서 가로가 더 긴 페이지(가로 스캔)를 단독 표시                | `true`                             |
 | `showComicInfo`         | 정보 패널에 만화 정보(ComicInfo.xml) 섹션 표시                          | `true`                             |
 | `comicAutoDualView`     | 아카이브(만화)를 열면 자동으로 양쪽 보기, ComicInfo 방향 적용           | `true`                             |
 | `fitMode`               | 맞춤 기억 `width \| height \| screen \| auto`                           | `auto`                             |

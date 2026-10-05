@@ -201,6 +201,7 @@
       "resume": "Resume reading",
       "comicAutoDual": "Open comic archives in dual view automatically (follows ComicInfo reading direction)",
       "coverAlone": "Show cover alone in dual view",
+      "wideAlone": "Show wide pages (landscape scans) alone in dual view",
       "showComicInfo": "Show comic metadata (ComicInfo.xml) in the info panel"
     },
     "dock": {
