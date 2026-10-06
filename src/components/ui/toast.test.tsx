@@ -134,7 +134,8 @@ describe("ToastCopyButton", () => {
       expect(lines[1]).toBe("원인")
       expect(lines[2]).toBe("code: corrupt")
       expect(lines[3]).toMatch(/^time: /)
-      expect(screen.getByRole("button", { name: "toast.copied" })).toBeDefined()
+      // 복사 완료 표시는 writeText 약속이 풀린 뒤의 상태 갱신이라 렌더를 기다린다.
+      expect(await screen.findByRole("button", { name: "toast.copied" })).toBeDefined()
     } finally {
       unmount()
     }
