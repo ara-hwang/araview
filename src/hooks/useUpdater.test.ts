@@ -28,6 +28,8 @@ vi.mock("@/i18n", () => ({
 
 import {
   REQUEST_UPDATE_CHECK_EVENT,
+  UPDATE_CHECK_TIMEOUT_MS,
+  UPDATE_DOWNLOAD_TIMEOUT_MS,
   __resetUpdateModuleForTests,
   checkForUpdatesNow,
   computeDownloadPct,
@@ -50,6 +52,7 @@ describe("checkForUpdatesNow", () => {
     await expect(checkForUpdatesNow()).resolves.toBe("latest")
 
     expect(mockCheck).toHaveBeenCalledTimes(1)
+    expect(mockCheck).toHaveBeenCalledWith({ timeout: UPDATE_CHECK_TIMEOUT_MS })
     expect(mockToast.success).toHaveBeenCalledWith("toast.update.latest")
     expect(useUpdateStore.getState().stage).toBe("idle")
   })
@@ -152,6 +155,9 @@ describe("startUpdateDownload", () => {
     await startUpdateDownload()
 
     expect(downloadAndInstall).toHaveBeenCalledTimes(1)
+    expect(downloadAndInstall).toHaveBeenCalledWith(expect.any(Function), {
+      timeout: UPDATE_DOWNLOAD_TIMEOUT_MS
+    })
     const state = useUpdateStore.getState()
     expect(state.stage).toBe("installing")
     expect(state.pct).toBe(100)
