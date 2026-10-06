@@ -1,5 +1,5 @@
 import { getVersion } from "@tauri-apps/api/app"
-import { check, type Update } from "@tauri-apps/plugin-updater"
+import { check, type DownloadEvent, type Update } from "@tauri-apps/plugin-updater"
 import { useEffect, useState } from "react"
 
 import { toast } from "@/components/ui/toast"
@@ -13,6 +13,16 @@ export const REQUEST_UPDATE_CHECK_EVENT = "tiv:check-updates"
 export function requestUpdateCheck() {
   window.dispatchEvent(new CustomEvent(REQUEST_UPDATE_CHECK_EVENT))
 }
+
+/** 릴리스 피드(latest.json) 확인 요청의 HTTP 타임아웃. */
+export const UPDATE_CHECK_TIMEOUT_MS = 30_000
+
+/**
+ * 설치 관리자 다운로드 요청의 HTTP 타임아웃. 플러그인은 이 값을 reqwest
+ * 요청 전체(본문 수신 포함) 기한으로 쓰므로, 느린 회선에서도 끝낼 수 있게
+ * 넉넉히 둔다. 무응답 연결에서 Dialog가 닫히지 않는 상태를 막는 상한이다.
+ */
+export const UPDATE_DOWNLOAD_TIMEOUT_MS = 10 * 60_000
 
 let checkInFlight = false
 let downloadInFlight = false
@@ -30,7 +40,7 @@ export async function checkForUpdatesNow(): Promise<UpdateCheckResult> {
   if (useUpdateStore.getState().stage !== "idle") return "busy"
   checkInFlight = true
   try {
-    const update = await check()
+    const update = await check({ timeout: UPDATE_CHECK_TIMEOUT_MS })
     if (!update) {
       toast.success(i18n.t("toast.update.latest"))
       return "latest"
@@ -72,7 +82,7 @@ export async function startUpdateDownload(): Promise<void> {
   try {
     let total: number | null = null
     let downloaded = 0
-    await update.downloadAndInstall((event) => {
+    const onEvent = (event: DownloadEvent) => {
       if (event.event === "Started") {
         const contentLength = event.data.contentLength
         total =
@@ -96,7 +106,8 @@ export async function startUpdateDownload(): Promise<void> {
         // 않으므로 installing 단계가 종료 전 마지막 화면이 된다.
         useUpdateStore.getState().markInstalling()
       }
-    })
+    }
+    await update.downloadAndInstall(onEvent, { timeout: UPDATE_DOWNLOAD_TIMEOUT_MS })
     // Windows에서는 설치 관리자 인계 시 프로세스가 종료되어 여기에 도달하지 않는다.
   } catch (e) {
     useUpdateStore.getState().setDownloadError(errorMessage(e))
