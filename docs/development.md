@@ -11,7 +11,8 @@
 ## 요구 사항
 
 - **OS**: Windows 11 (x64)
-- **Node.js**: `>= 24`
+- **Node.js**: `>= 24.15` (jsdom 등 일부 dev 의존성이 요구하는 최소 버전)
+- **npm**: `>= 11.7` (11.6 이하는 `npm install`만으로 `package-lock.json`의 번들 항목을 지워 `npm ci`가 실패합니다. `preinstall` 가드 `scripts/check-npm-version.mjs`가 낮은 버전의 설치를 실패시킵니다. 이때 락파일은 이미 바뀌었을 수 있으니 `git checkout package-lock.json`으로 되돌립니다. `npm install -g npm@11`로 올립니다)
 - **Rust**: stable (`1.97` 이상 권장, 릴리스 워크플로 기준)
 
 HEIC/HEIF를 쓰려면 [vcpkg](https://vcpkg.io/)로 `libheif`를 설치합니다.

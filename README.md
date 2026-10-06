@@ -8,7 +8,7 @@ Tauri 2 + React 19 + TypeScript 기반의 Windows 데스크톱 이미지 뷰어
 
 ## 요구 사항
 
-- Windows 11 (x64), Node.js `>= 24`, Rust stable
+- Windows 11 (x64), Node.js `>= 24.15`, npm `>= 11.7`, Rust stable
 
 ## 로컬 개발
 

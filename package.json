@@ -15,6 +15,7 @@
     "format:check": "oxfmt --check",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
+    "preinstall": "node scripts/check-npm-version.mjs",
     "preview": "vite preview",
     "release": "node scripts/release.mjs",
     "tauri": "tauri",
@@ -63,6 +64,7 @@
     "vitest": "^5.0.0"
   },
   "engines": {
-    "node": ">=24.0.0"
+    "node": ">=24.15.0",
+    "npm": ">=11.7.0"
   }
 }
