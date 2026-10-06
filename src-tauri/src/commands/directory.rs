@@ -2,6 +2,7 @@
 
 use std::fs;
 use std::path::Path;
+use std::sync::Arc;
 
 use crate::app_error::{AppError, ErrorCode};
 use crate::image::{is_supported_file, DirectoryImages};
@@ -29,18 +30,24 @@ fn get_directory_images_impl(
         .parent()
         .ok_or_else(|| AppError::not_found("Cannot get parent directory"))?;
 
-    let images = crate::dir_cache::get_sorted_images(parent, &opts)?;
+    let (images, source) = crate::dir_cache::get_sorted_images_with_source(parent, &opts)?;
     // 지원 형식 판정은 스캔 시점에 끝났다. 비재귀 목록은 폴더 mtime으로
     // 검증되므로 삭제가 이미 반영되어 있고, 재귀 목록은 워처 이벤트가
-    // 도착하기 전 틈이 있어 그때만 존재 여부를 다시 확인한다.
-    let recheck_exists = opts.recursive;
+    // 도착하기 전 틈이 있어 캐시에서 온 목록만 존재 여부를 다시 확인한다.
+    // 방금 스캔한 목록은 디스크 상태 그대로라 항목별 stat을 다시 하지 않는다.
+    let recheck_exists = opts.recursive && source == crate::dir_cache::ListingSource::Cached;
+    let exists = if recheck_exists {
+        files_exist(&images)
+    } else {
+        Vec::new()
+    };
     let mut paths = Vec::with_capacity(images.len());
     let mut availability = Vec::with_capacity(images.len());
-    for entry in images.iter() {
-        if recheck_exists && !Path::new(&entry.path).is_file() {
+    for (index, entry) in images.iter().enumerate() {
+        if recheck_exists && !exists[index] {
             continue;
         }
-        paths.push(entry.path.clone());
+        paths.push(Arc::clone(&entry.path));
         availability.push(entry.availability);
     }
 
@@ -55,15 +62,32 @@ fn get_directory_images_impl(
     })
 }
 
+/// 이 개수부터 존재 확인을 병렬로 돌린다. stat은 항목끼리 독립이다.
+const PARALLEL_EXISTS_MIN: usize = 256;
+
+/// 목록 순서대로 각 파일이 아직 있는지 확인한다.
+fn files_exist(images: &[crate::dir_cache::ImageEntry]) -> Vec<bool> {
+    use rayon::prelude::*;
+
+    let exists = |entry: &crate::dir_cache::ImageEntry| Path::new(&*entry.path).is_file();
+    if images.len() >= PARALLEL_EXISTS_MIN {
+        images.par_iter().map(exists).collect()
+    } else {
+        images.iter().map(exists).collect()
+    }
+}
+
 /// 대소문자만 다른 철자로 들어와도 현재 파일을 찾는다. 목록은 호출자가 준
 /// 부모 경로로 스캔되므로 보통 첫 비교에서 끝난다. 폴백에서 경로마다
 /// canonicalize를 돌리면 수천 장 폴더에서 syscall 폭주가 나므로 하지 않는다.
-fn index_of_current(paths: &[String], current: &Path) -> Option<usize> {
-    if let Some(pos) = paths.iter().position(|p| Path::new(p) == current) {
+fn index_of_current<S: AsRef<str>>(paths: &[S], current: &Path) -> Option<usize> {
+    if let Some(pos) = paths.iter().position(|p| Path::new(p.as_ref()) == current) {
         return Some(pos);
     }
     let lowered = current.to_string_lossy().to_lowercase();
-    paths.iter().position(|p| p.to_lowercase() == lowered)
+    paths
+        .iter()
+        .position(|p| p.as_ref().to_lowercase() == lowered)
 }
 
 /// 디렉토리 목록 정렬/수집 옵션 (프론트 settingsStore와 대응)
@@ -137,6 +161,9 @@ mod tests {
         get_directory_images_impl(file_path, options)
             .expect("list ok")
             .images
+            .iter()
+            .map(|p| p.to_string())
+            .collect()
     }
 
     fn file_names(paths: &[String]) -> Vec<String> {
@@ -277,12 +304,44 @@ mod tests {
     }
 
     #[test]
+    fn dir_list_recursive_cached_listing_drops_deleted_file() {
+        // 워처 이벤트가 오기 전이라 캐시가 남아 있어도 지워진 파일은 빠진다.
+        // 파일이 많은 쪽(병렬 확인)과 적은 쪽 모두 같은 결과여야 한다.
+        for count in [3usize, 300] {
+            let dir = unique_dir(&format!("recursive-recheck-{count}"));
+            let sub = dir.join("sub");
+            fs::create_dir_all(&sub).expect("create sub");
+            let top = write_sized(&dir, "top.png", 10);
+            let mut nested = Vec::new();
+            for i in 0..count {
+                nested.push(write_sized(&sub, &format!("n{i:03}.png"), 10));
+            }
+            let opts = || {
+                Some(DirListOptions {
+                    recursive: true,
+                    ..Default::default()
+                })
+            };
+            assert_eq!(list_paths(&top, opts()).len(), count + 1);
+
+            fs::remove_file(&nested[1]).expect("remove nested");
+            let after = list_paths(&top, opts());
+            assert_eq!(after.len(), count, "count {count}");
+            assert!(!after.contains(&nested[1]));
+            fs::remove_dir_all(&dir).ok();
+        }
+    }
+
+    #[test]
     fn index_of_current_matches_exact_then_case_insensitive() {
         let paths = vec!["/pics/a.png".to_string(), "/pics/b.png".to_string()];
         assert_eq!(index_of_current(&paths, Path::new("/pics/b.png")), Some(1));
         assert_eq!(index_of_current(&paths, Path::new("/PICS/B.PNG")), Some(1));
         assert_eq!(index_of_current(&paths, Path::new("/pics/z.png")), None);
-        assert_eq!(index_of_current(&[], Path::new("/pics/a.png")), None);
+        assert_eq!(
+            index_of_current::<String>(&[], Path::new("/pics/a.png")),
+            None
+        );
     }
 
     #[test]

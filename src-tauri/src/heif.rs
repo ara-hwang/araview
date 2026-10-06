@@ -51,6 +51,19 @@ pub(crate) fn decode_primary_rgb8(source: &Path) -> Result<Rgb8, AppError> {
     let capacity = row_bytes
         .checked_mul(height as usize)
         .ok_or_else(|| AppError::corrupt("HEIF image dimensions overflow"))?;
+    // 행 패딩이 없으면 평면 전체를 한 번에 복사한다.
+    if stride == row_bytes {
+        let bytes = plane
+            .data
+            .get(..capacity)
+            .ok_or_else(|| AppError::corrupt("HEIF plane data is shorter than expected"))?
+            .to_vec();
+        return Ok(Rgb8 {
+            width,
+            height,
+            bytes,
+        });
+    }
     let mut bytes = Vec::with_capacity(capacity);
     for y in 0..height as usize {
         let start = y

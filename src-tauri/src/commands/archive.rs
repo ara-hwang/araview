@@ -2,11 +2,10 @@
 
 use std::fs;
 use std::path::Path;
-use std::sync::Arc;
 
 use crate::app_error::{AppError, ErrorCode};
 use crate::archive;
-use crate::image::{is_archive_file, DirectoryImages, ImageInfo};
+use crate::image::{is_archive_file, ArchiveImages, ImageInfo};
 use crate::process_temp::process_temp_dir;
 
 use super::load::parse_image_scaling_mode;
@@ -14,14 +13,14 @@ use super::{allow_asset_path, run_blocking};
 
 /// 아카이브(CBZ/ZIP) 파일 내부의 이미지 엔트리 목록을 반환
 #[tauri::command]
-pub async fn get_archive_images(file_path: String) -> Result<DirectoryImages, AppError> {
+pub async fn get_archive_images(file_path: String) -> Result<ArchiveImages, AppError> {
     run_blocking("archive listing", move || {
         get_archive_images_impl(Path::new(&file_path))
     })
     .await
 }
 
-fn get_archive_images_impl(path: &Path) -> Result<DirectoryImages, AppError> {
+fn get_archive_images_impl(path: &Path) -> Result<ArchiveImages, AppError> {
     if !path.exists() {
         return Err(AppError::not_found("File not found"));
     }
@@ -38,8 +37,8 @@ fn get_archive_images_impl(path: &Path) -> Result<DirectoryImages, AppError> {
         return Err(AppError::not_found("No images found in archive"));
     }
 
-    Ok(DirectoryImages {
-        images: Arc::unwrap_or_clone(entries.images),
+    Ok(ArchiveImages {
+        images: entries.images,
         current_index: 0,
         availability: Vec::new(),
     })

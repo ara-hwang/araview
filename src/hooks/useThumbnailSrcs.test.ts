@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const h = vi.hoisted(() => ({
   batches: [] as string[][],
+  archiveBatches: [] as { archivePath: string; entryNames: string[] }[],
   /** 설정하면 배치 응답이 이 약속을 기다린다 (요청 중 상태 재현). */
   gate: null as Promise<void> | null
 }))
@@ -21,6 +22,21 @@ vi.mock("@tauri-apps/api/core", () => ({
         }))
       )
     }
+    if (cmd === "generate_archive_thumbnails_batch") {
+      const entryNames = args?.entryNames as string[]
+      h.archiveBatches.push({ archivePath: args?.archivePath as string, entryNames })
+      return Promise.resolve(
+        entryNames.map((source) =>
+          source === "broken.png"
+            ? { source, thumb: null, error: "corrupt" }
+            : {
+                source,
+                thumb: { file_path: `/thumbs/${source}`, width: 1, height: 1 },
+                error: null
+              }
+        )
+      )
+    }
     return Promise.resolve(null)
   }
 }))
@@ -33,6 +49,7 @@ const OPTIONS = { chunkDelayMs: 0 }
 
 beforeEach(() => {
   h.batches = []
+  h.archiveBatches = []
   h.gate = null
 })
 
@@ -90,5 +107,35 @@ describe("useThumbnailSrcs 목록 변경", () => {
     const { result } = renderHook(() => useThumbnailSrcs(paths, getOrLoad, options))
     await waitFor(() => expect(result.current.urls.size).toBe(5))
     expect(h.batches).toEqual([["/3.png", "/4.png"], ["/5.png"], ["/1.png", "/2.png"]])
+  })
+})
+
+describe("useThumbnailSrcs 아카이브", () => {
+  it("엔트리 청크를 배치 1회로 요청하고 실패한 엔트리만 원본 로드로 폴백한다", async () => {
+    const fallback = vi.fn((path: string): Promise<ImageInfo> =>
+      Promise.resolve({
+        file_path: `/full/${path}`,
+        source_path: path,
+        file_name: path,
+        file_size: 1,
+        mime_type: "image/png",
+        width: 1,
+        height: 1
+      })
+    )
+    const { result } = renderHook(() =>
+      useThumbnailSrcs(["001.png", "broken.png", "003.png"], fallback, {
+        ...OPTIONS,
+        archivePath: "/comic.cbz"
+      })
+    )
+    await waitFor(() => expect(result.current.urls.size).toBe(3))
+
+    expect(h.archiveBatches).toEqual([
+      { archivePath: "/comic.cbz", entryNames: ["001.png", "broken.png", "003.png"] }
+    ])
+    expect(result.current.urls.get("001.png")).toBe("asset:///thumbs/001.png")
+    expect(fallback.mock.calls).toEqual([["broken.png"]])
+    expect(result.current.urls.get("broken.png")).toBe("asset:///full/broken.png")
   })
 })

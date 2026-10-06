@@ -155,6 +155,7 @@ dependencies = [
  "notify",
  "psd",
  "quick-xml",
+ "rayon",
  "resvg",
  "serde",
  "serde_json",

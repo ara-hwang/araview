@@ -129,7 +129,7 @@ pub fn generate_thumbnail(source: &Path, max_side: u32) -> Result<ThumbnailInfo,
 /// 작아지지 않는 가장 작은 배율이라 화질 손실 없이 풀해상도 디코드와 큰 버퍼를
 /// 피한다. JPEG가 아니거나 CMYK처럼 여기서 다루지 않는 입력은 `None`을 돌려
 /// 호출자가 `image::open`으로 처리한다.
-fn decode_jpeg_scaled(source: &Path, max_side: u32) -> Option<image::DynamicImage> {
+pub(crate) fn decode_jpeg_scaled(source: &Path, max_side: u32) -> Option<image::DynamicImage> {
     use jpeg_decoder::PixelFormat;
 
     if crate::image::resolve_mime(source) != Some("image/jpeg") {
@@ -176,6 +176,23 @@ fn batch_workers() -> usize {
         .clamp(4, 8)
 }
 
+impl BatchThumb {
+    pub(crate) fn from_result(source: &str, result: Result<ThumbnailInfo, AppError>) -> Self {
+        match result {
+            Ok(thumb) => Self {
+                source: source.to_string(),
+                thumb: Some(thumb),
+                error: None,
+            },
+            Err(e) => Self {
+                source: source.to_string(),
+                thumb: None,
+                error: Some(e.message),
+            },
+        }
+    }
+}
+
 /// 항목별 독립 작업을 bounded 워커에 나눠 입력 순서대로 모은다.
 /// 생성 경로는 `with_file_lock`이 파일별로 직렬화하므로 디코드만 병렬화된다.
 /// 워커가 패닉하면 scope가 그대로 전파해 호출자(join)가 에러로 받는다.
@@ -185,18 +202,33 @@ where
     T: Send,
     F: Fn(&I) -> T + Sync,
 {
+    map_with_worker_state(items, || (), |(), item| f(item))
+}
+
+/// `map_with_workers`에 워커별 상태를 더한 형태. `init`은 워커 스레드마다 한 번
+/// 불리므로, 열어 둔 아카이브 핸들처럼 스레드끼리 나눌 수 없는 자원을 둔다.
+pub(crate) fn map_with_worker_state<I, S, T, N, F>(items: &[I], init: N, f: F) -> Vec<T>
+where
+    I: Sync,
+    T: Send,
+    N: Fn() -> S + Sync,
+    F: Fn(&mut S, &I) -> T + Sync,
+{
     let next = std::sync::atomic::AtomicUsize::new(0);
     let results = Mutex::new(Vec::<(usize, T)>::with_capacity(items.len()));
     std::thread::scope(|scope| {
         for _ in 0..batch_workers().min(items.len()) {
-            scope.spawn(|| loop {
-                let index = next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                if index >= items.len() {
-                    break;
-                }
-                let value = f(&items[index]);
-                if let Ok(mut guard) = results.lock() {
-                    guard.push((index, value));
+            scope.spawn(|| {
+                let mut state = init();
+                loop {
+                    let index = next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                    if index >= items.len() {
+                        break;
+                    }
+                    let value = f(&mut state, &items[index]);
+                    if let Ok(mut guard) = results.lock() {
+                        guard.push((index, value));
+                    }
                 }
             });
         }
@@ -209,18 +241,7 @@ where
 /// 썸네일 스트립 윈도우를 1회 invoke으로 처리. 실패 항목은 FE가 원본 폴백한다.
 pub fn generate_thumbnails_batch(sources: &[String], max_side: u32) -> Vec<BatchThumb> {
     map_with_workers(sources, |s| {
-        match generate_thumbnail(Path::new(s), max_side) {
-            Ok(thumb) => BatchThumb {
-                source: s.clone(),
-                thumb: Some(thumb),
-                error: None,
-            },
-            Err(e) => BatchThumb {
-                source: s.clone(),
-                thumb: None,
-                error: Some(e.message),
-            },
-        }
+        BatchThumb::from_result(s, generate_thumbnail(Path::new(s), max_side))
     })
 }
 

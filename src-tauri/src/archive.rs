@@ -1,11 +1,12 @@
 use std::fs;
 use std::io::Read;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
+use std::time::SystemTime;
 
 use crate::app_error::{AppError, ErrorCode};
 use crate::image::is_image_file;
-use crate::natural_sort::natural_key;
+use crate::natural_sort::sort_by_natural_path;
 
 /// 이미지 엔트리 + 전체 엔트리(ComicInfo 탐색용)를 한 번의 스캔으로 모은다.
 #[derive(Debug, Clone)]
@@ -59,12 +60,16 @@ pub fn list_archive_entries(archive_path: &Path) -> Result<ArchiveEntries, AppEr
     }
 }
 
-/// 수집된 (이미지, 전체) 엔트리 쌍을 공통 뒤처리한다: 정렬 + dedup + Arc.
-fn finish_entries(mut images: Vec<String>, mut all: Vec<String>) -> ArchiveEntries {
-    images.sort_by_cached_key(|n| natural_key(n));
-    images.dedup();
-    all.sort_by_cached_key(|n| natural_key(n));
+/// 수집된 전체 엔트리를 공통 뒤처리한다: 정렬 + dedup + Arc. 이미지 목록은
+/// 정렬된 전체 목록에서 걸러 내므로 정렬 키를 한 번만 계산한다.
+fn finish_entries(mut all: Vec<String>) -> ArchiveEntries {
+    sort_by_natural_path(&mut all, |n| n.as_str());
     all.dedup();
+    let images = all
+        .iter()
+        .filter(|name| is_image_file(Path::new(name)))
+        .cloned()
+        .collect();
     ArchiveEntries {
         images: Arc::new(images),
         all: Arc::new(all),
@@ -88,33 +93,73 @@ pub fn extract_archive_image_with_protection(
     temp_dir: &Path,
     protect: bool,
 ) -> Result<PathBuf, AppError> {
-    let ext = archive_ext(archive_path);
-    let out_path = extraction_out_path(temp_dir, entry_name);
-    // FE는 표시용으로 이 경로를 asset URL로 계속 참조한다. 선로딩은 보호하지
-    // 않지만, 두 경로 모두 LRU hit 시 modification time을 갱신한다.
-    if protect {
-        crate::process_temp::mark_in_use(&out_path);
-    }
-    if out_path.is_file() {
-        crate::process_temp::touch_cache_file(&out_path);
-        return Ok(out_path);
+    ArchiveExtractor::new(archive_path, temp_dir).extract(entry_name, protect)
+}
+
+/// 한 아카이브에서 엔트리를 여러 개 추출하는 핸들. 아카이브는 추출물이 없는
+/// 첫 엔트리에서 한 번만 열어 이후 엔트리에 재사용한다. 배치 워커는 각자
+/// 하나씩 들고 병렬로 추출한다.
+pub(crate) struct ArchiveExtractor<'a> {
+    archive_path: &'a Path,
+    temp_dir: &'a Path,
+    zip: Option<zip::ZipArchive<fs::File>>,
+}
+
+impl<'a> ArchiveExtractor<'a> {
+    pub(crate) fn new(archive_path: &'a Path, temp_dir: &'a Path) -> Self {
+        Self {
+            archive_path,
+            temp_dir,
+            zip: None,
+        }
     }
 
-    // 표시 로드와 선추출이 같은 엔트리를 동시에 요청하면 둘 다 디코드+쓰기를
-    // 한다. 결과는 tmp+rename으로 안전하지만 solid 아카이브의 중복 디코드는
-    // 크므로, 파일별 락 아래에서 존재를 다시 확인해 한 쪽만 추출하게 한다.
-    let key = out_path.to_string_lossy().into_owned();
-    crate::sidecar::with_file_lock(&key, "archive extraction lock", || {
+    pub(crate) fn extract(&mut self, entry_name: &str, protect: bool) -> Result<PathBuf, AppError> {
+        let ext = archive_ext(self.archive_path);
+        let out_path = extraction_out_path(self.temp_dir, entry_name);
+        // FE는 표시용으로 이 경로를 asset URL로 계속 참조한다. 선로딩은 보호하지
+        // 않지만, 두 경로 모두 LRU hit 시 modification time을 갱신한다.
+        if protect {
+            crate::process_temp::mark_in_use(&out_path);
+        }
+        // 이미 추출됐으면 아카이브를 열지 않는다 (페이지 넘김 가속).
         if out_path.is_file() {
-            return Ok(());
+            crate::process_temp::touch_cache_file(&out_path);
+            return Ok(out_path);
         }
-        match ext.as_str() {
-            "cbz" | "zip" => extract_zip_image(archive_path, entry_name, &out_path),
-            _ => Err(AppError::unsupported("Unsupported archive format")),
-        }
-    })?;
-    crate::process_temp::touch_cache_file(&out_path);
-    Ok(out_path)
+
+        // 표시 로드와 선추출이 같은 엔트리를 동시에 요청하면 둘 다 디코드+쓰기를
+        // 한다. 결과는 tmp+rename으로 안전하지만 solid 아카이브의 중복 디코드는
+        // 크므로, 파일별 락 아래에서 존재를 다시 확인해 한 쪽만 추출하게 한다.
+        let key = out_path.to_string_lossy().into_owned();
+        crate::sidecar::with_file_lock(&key, "archive extraction lock", || {
+            if out_path.is_file() {
+                return Ok(());
+            }
+            match ext.as_str() {
+                "cbz" | "zip" => self.extract_zip(entry_name, &out_path),
+                _ => Err(AppError::unsupported("Unsupported archive format")),
+            }
+        })?;
+        crate::process_temp::touch_cache_file(&out_path);
+        Ok(out_path)
+    }
+
+    fn extract_zip(&mut self, entry_name: &str, out_path: &Path) -> Result<(), AppError> {
+        let archive = match &mut self.zip {
+            Some(archive) => archive,
+            None => self.zip.insert(open_zip(self.archive_path)?),
+        };
+        let mut entry = archive
+            .by_name(entry_name)
+            .map_err(|e| AppError::not_found(format!("Entry not found: {e}")))?;
+
+        check_entry_size(entry.size())?;
+
+        let buf = read_bounded(&mut entry, MAX_ENTRY_BYTES, "Failed to read entry data")?;
+
+        write_extracted(out_path, &buf)
+    }
 }
 
 /// 소문자 확장자. 지원 판정과 추출 라우팅이 같은 규칙을 쓰게 한다.
@@ -129,6 +174,60 @@ fn archive_ext(archive_path: &Path) -> String {
 fn open_archive_file(archive_path: &Path) -> Result<fs::File, AppError> {
     fs::File::open(archive_path)
         .map_err(|e| AppError::io("Failed to open archive", e, ErrorCode::Corrupt))
+}
+
+/// 파싱해 둔 ZIP 중앙 디렉터리. 경로, 수정 시각, 크기가 모두 같을 때만 다시 쓴다.
+struct ZipIndex {
+    path: PathBuf,
+    modified: Option<SystemTime>,
+    len: u64,
+    metadata: Arc<zip::read::ZipArchiveMetadata>,
+}
+
+/// 최근에 연 아카이브 몇 개의 중앙 디렉터리. 추출물이 없는 페이지를 열거나
+/// 배치 워커가 각자 핸들을 열 때 수천 엔트리의 디렉터리를 다시 파싱하지 않는다.
+static ZIP_INDEXES: Mutex<Vec<ZipIndex>> = Mutex::new(Vec::new());
+const MAX_ZIP_INDEXES: usize = 4;
+
+/// ZIP을 연다. 같은 파일의 중앙 디렉터리가 캐시에 있으면 파싱을 건너뛴다.
+fn open_zip(archive_path: &Path) -> Result<zip::ZipArchive<fs::File>, AppError> {
+    let file = open_archive_file(archive_path)?;
+    // 방금 연 핸들에서 읽으므로 캐시 판정과 실제 읽을 파일이 어긋나지 않는다.
+    let identity = file
+        .metadata()
+        .ok()
+        .map(|meta| (meta.modified().ok(), meta.len()));
+    let cached = identity.and_then(|(modified, len)| {
+        let indexes = ZIP_INDEXES.lock().ok()?;
+        indexes
+            .iter()
+            .find(|index| {
+                index.path == archive_path && index.modified == modified && index.len == len
+            })
+            .map(|index| Arc::clone(&index.metadata))
+    });
+    if let Some(metadata) = cached {
+        // SAFETY: 이 함수의 `unsafe`는 메모리 안전성이 아니라 reader와 메타데이터가
+        // 같은 파일의 것이어야 한다는 계약이다. 메타데이터는 경로, 수정 시각,
+        // 크기가 방금 연 핸들과 같은 파일에서 파싱한 것만 꺼냈다.
+        return Ok(unsafe { zip::ZipArchive::unsafe_new_with_metadata(file, metadata) });
+    }
+
+    let archive = zip::ZipArchive::new(file)
+        .map_err(|e| AppError::corrupt(format!("Failed to read ZIP: {e}")))?;
+    if let (Some((modified, len)), Ok(mut indexes)) = (identity, ZIP_INDEXES.lock()) {
+        indexes.retain(|index| index.path != archive_path);
+        if indexes.len() >= MAX_ZIP_INDEXES {
+            indexes.remove(0);
+        }
+        indexes.push(ZipIndex {
+            path: archive_path.to_path_buf(),
+            modified,
+            len,
+            metadata: archive.metadata(),
+        });
+    }
+    Ok(archive)
 }
 
 fn write_extracted(out_path: &Path, buf: &[u8]) -> Result<(), AppError> {
@@ -183,11 +282,8 @@ fn list_zip_images(archive_path: &Path) -> Result<Vec<String>, AppError> {
 
 /// ZIP/CBZ: 디렉터리·숨김 파일을 건너뛰고 이미지/전체 엔트리를 분류한다.
 fn collect_zip_entries(archive_path: &Path) -> Result<ArchiveEntries, AppError> {
-    let file = open_archive_file(archive_path)?;
-    let mut archive = zip::ZipArchive::new(file)
-        .map_err(|e| AppError::corrupt(format!("Failed to read ZIP: {e}")))?;
+    let mut archive = open_zip(archive_path)?;
 
-    let mut images: Vec<String> = Vec::new();
     let mut all: Vec<String> = Vec::new();
     for i in 0..archive.len() {
         let entry = archive
@@ -204,45 +300,12 @@ fn collect_zip_entries(archive_path: &Path) -> Result<ArchiveEntries, AppError> 
         {
             continue;
         }
-        all.push(name.clone());
-
-        // 엔트리 이름을 Path로 변환하여 이미지 확장자 확인
-        let entry_path = Path::new(&name);
-        if is_image_file(entry_path) {
-            images.push(name);
-        }
+        all.push(name);
     }
 
     // 같은 이름의 엔트리가 여러 번 들어 있으면 추출(`by_name`)은 항상 첫
     // 번째만 돌려준다. 목록에도 한 번만 노출해 페이지 수와 실제 내용을 맞춘다.
-    Ok(finish_entries(images, all))
-}
-
-fn extract_zip_image(
-    archive_path: &Path,
-    entry_name: &str,
-    out_path: &Path,
-) -> Result<(), AppError> {
-    // 이미 추출됐으면 아카이브를 다시 열지 않는다 (페이지 넘김 가속).
-    if out_path.is_file() {
-        crate::process_temp::touch_cache_file(out_path);
-        return Ok(());
-    }
-    let file = open_archive_file(archive_path)?;
-    let mut archive = zip::ZipArchive::new(file)
-        .map_err(|e| AppError::corrupt(format!("Failed to read ZIP: {e}")))?;
-
-    let mut entry = archive
-        .by_name(entry_name)
-        .map_err(|e| AppError::not_found(format!("Entry not found: {e}")))?;
-
-    check_entry_size(entry.size())?;
-
-    let buf = read_bounded(&mut entry, MAX_ENTRY_BYTES, "Failed to read entry data")?;
-
-    write_extracted(out_path, &buf)?;
-
-    Ok(())
+    Ok(finish_entries(all))
 }
 
 /// 아카이브 엔트리 하나를 `limit` 바이트까지 메모리로 읽는다.
@@ -264,9 +327,7 @@ fn read_zip_entry_bounded(
     entry_name: &str,
     limit: u64,
 ) -> Result<Vec<u8>, AppError> {
-    let file = open_archive_file(archive_path)?;
-    let mut archive = zip::ZipArchive::new(file)
-        .map_err(|e| AppError::corrupt(format!("Failed to read ZIP: {e}")))?;
+    let mut archive = open_zip(archive_path)?;
     let mut entry = archive
         .by_name(entry_name)
         .map_err(|e| AppError::not_found(format!("Entry not found: {e}")))?;
@@ -338,13 +399,12 @@ fn write_zip_with_entry(
     out.sync_all().map_err(io_err)
 }
 
-/// 이웃 페이지를 아카이브 오픈 1회로 선추출. FE 프리패치용 fire-and-forget.
+/// 이웃 페이지 선추출. FE 프리패치용 fire-and-forget.
 pub fn prefetch_archive_images(
     archive_path: &Path,
     entry_names: &[String],
     temp_dir: &Path,
 ) -> usize {
-    let ext = archive_ext(archive_path);
     // 이미 있는 항목만 걸러낸다.
     let missing: Vec<&String> = entry_names
         .iter()
@@ -358,58 +418,16 @@ pub fn prefetch_archive_images(
             }
         })
         .collect();
-    if missing.is_empty() {
-        return 0;
-    }
-    match ext.as_str() {
-        "cbz" | "zip" => prefetch_zip_images(archive_path, &missing, temp_dir),
-        _ => 0,
-    }
-}
-
-/// 디코드 결과가 이미 모인 바이트를 파일별 락 아래에서 발행한다.
-fn prefetch_write_bytes(buf: &[u8], out_path: &Path) -> bool {
-    let key = out_path.to_string_lossy().into_owned();
-    crate::sidecar::with_file_lock(&key, "archive extraction lock", || {
-        if out_path.is_file() {
-            return Ok(false);
-        }
-        write_extracted(out_path, buf).map(|_| true)
-    })
-    .unwrap_or(false)
-}
-
-fn prefetch_zip_images(archive_path: &Path, entry_names: &[&String], temp_dir: &Path) -> usize {
-    let file = match fs::File::open(archive_path) {
-        Ok(f) => f,
-        Err(_) => return 0,
-    };
-    let mut archive = match zip::ZipArchive::new(file) {
-        Ok(a) => a,
-        Err(_) => return 0,
-    };
-    let mut done = 0;
-    for name in entry_names {
-        let out_path = extraction_out_path(temp_dir, name);
-        if out_path.is_file() {
-            continue;
-        }
-        let mut entry = match archive.by_name(name) {
-            Ok(e) => e,
-            Err(_) => continue,
-        };
-        if entry.size() > MAX_ENTRY_BYTES {
-            continue;
-        }
-        let buf = match read_bounded(&mut entry, MAX_ENTRY_BYTES, "Failed to read entry data") {
-            Ok(buf) => buf,
-            Err(_) => continue,
-        };
-        if prefetch_write_bytes(&buf, &out_path) {
-            done += 1;
-        }
-    }
-    done
+    // 압축 해제는 엔트리끼리 독립이라 워커마다 핸들을 따로 열어 병렬로 푼다.
+    // 같은 엔트리의 동시 추출은 추출기의 파일별 락이 한쪽만 하게 막는다.
+    crate::thumbnail::map_with_worker_state(
+        &missing,
+        || ArchiveExtractor::new(archive_path, temp_dir),
+        |extractor, name| extractor.extract(name, false).is_ok(),
+    )
+    .into_iter()
+    .filter(|extracted| *extracted)
+    .count()
 }
 
 #[cfg(test)]
@@ -540,6 +558,50 @@ mod tests {
         assert_ne!(first, second);
         assert_eq!(fs::read(&first).unwrap(), b"first-bytes");
         assert_eq!(fs::read(&second).unwrap(), b"second-bytes");
+    }
+
+    #[test]
+    fn extractor_reuses_one_handle_and_prefetch_runs_in_parallel() {
+        use std::io::Write as _;
+        let dir = tempfile::tempdir().unwrap();
+        let archive_path = dir.path().join("many.cbz");
+        let mut writer = zip::ZipWriter::new(fs::File::create(&archive_path).unwrap());
+        let options = zip::write::SimpleFileOptions::default();
+        let names: Vec<String> = (0..24).map(|i| format!("p{i:03}.png")).collect();
+        for name in &names {
+            writer.start_file(name.as_str(), options).unwrap();
+            writer.write_all(name.repeat(64).as_bytes()).unwrap();
+        }
+        writer.finish().unwrap();
+
+        let out_dir = dir.path().join("out");
+        fs::create_dir_all(&out_dir).unwrap();
+        let mut extractor = ArchiveExtractor::new(&archive_path, &out_dir);
+        for name in &names[..2] {
+            let path = extractor.extract(name, false).expect("extract");
+            assert_eq!(fs::read(path).unwrap(), name.repeat(64).as_bytes());
+        }
+        assert!(extractor.extract("nope.png", false).is_err());
+
+        // 이미 있는 2개는 세지 않고 나머지를 모두 추출한다.
+        assert_eq!(prefetch_archive_images(&archive_path, &names, &out_dir), 22);
+        assert_eq!(prefetch_archive_images(&archive_path, &names, &out_dir), 0);
+        for name in &names {
+            let path = extraction_out_path(&out_dir, name);
+            assert_eq!(fs::read(path).unwrap(), name.repeat(64).as_bytes());
+        }
+    }
+
+    #[test]
+    fn zip_index_is_not_reused_after_the_archive_changes() {
+        let dir = tempfile::tempdir().unwrap();
+        let archive_path = write_zip_fixture(dir.path(), "comic.cbz");
+        assert_eq!(list_archive_images(&archive_path).unwrap().len(), 2);
+
+        replace_archive_entry(&archive_path, "003.png", b"added-page").expect("add");
+        assert_eq!(list_archive_images(&archive_path).unwrap().len(), 3);
+        let page = read_archive_entry_bounded(&archive_path, "003.png", 1024).expect("read");
+        assert_eq!(page, b"added-page");
     }
 
     #[test]

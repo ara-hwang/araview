@@ -79,6 +79,30 @@ pub fn sniff_file(path: &Path) -> Option<&'static str> {
     sniff_mime(&head[..filled])
 }
 
+/// Sniff `path` and, for a PNG, report whether it is animated, opening the
+/// file once. The image load path asks both questions for every PNG.
+pub fn sniff_file_with_animation(path: &Path) -> (Option<&'static str>, bool) {
+    let Ok(file) = std::fs::File::open(path) else {
+        return (None, false);
+    };
+    let mut file = std::io::BufReader::new(file);
+    let mut head = [0u8; HEAD_LEN];
+    let mut filled = 0;
+    while filled < HEAD_LEN {
+        match file.read(&mut head[filled..]) {
+            Ok(0) => break,
+            Ok(n) => filled += n,
+            Err(_) => return (None, false),
+        }
+    }
+    let mime = sniff_mime(&head[..filled]);
+    let animated = mime == Some("image/png")
+        // Rewind to just past the 8-byte signature; this stays inside the buffer.
+        && file.seek_relative(8 - filled as i64).is_ok()
+        && png_chunks_animated(&mut file) == Some(true);
+    (mime, animated)
+}
+
 /// Chunks walked before giving up on a PNG that never reaches `IDAT`.
 const PNG_MAX_CHUNKS: usize = 256;
 
@@ -92,6 +116,11 @@ pub fn png_is_animated(path: &Path) -> Option<bool> {
     if signature != [0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A] {
         return None;
     }
+    png_chunks_animated(&mut file)
+}
+
+/// Walk chunk headers from just past the PNG signature.
+fn png_chunks_animated(file: &mut std::io::BufReader<std::fs::File>) -> Option<bool> {
     for _ in 0..PNG_MAX_CHUNKS {
         let mut header = [0u8; 8];
         file.read_exact(&mut header).ok()?;
@@ -184,6 +213,23 @@ mod tests {
         std::fs::write(&other, b"GIF89a").unwrap();
         assert_eq!(png_is_animated(&other), None);
         assert_eq!(png_is_animated(&dir.path().join("missing.png")), None);
+
+        assert_eq!(
+            sniff_file_with_animation(&sample),
+            (Some("image/png"), true)
+        );
+        assert_eq!(
+            sniff_file_with_animation(&still),
+            (Some("image/png"), false)
+        );
+        assert_eq!(
+            sniff_file_with_animation(&other),
+            (Some("image/gif"), false)
+        );
+        assert_eq!(
+            sniff_file_with_animation(&dir.path().join("missing.png")),
+            (None, false)
+        );
     }
 
     #[test]

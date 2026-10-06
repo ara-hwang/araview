@@ -142,7 +142,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 - 입력: `file_path`, `options?: DirListOptions`(`sortKey: name | date | size`, `descending`, `recursive`).
 - 부모 폴더 기준으로 정렬 목록을 만들고, `current_index`는 요청 경로의 위치(없으면 0)이다.
 - 이름순은 탐색기와 같은 자연 정렬이다(`src-tauri/src/natural_sort.rs`): 숫자 구간은 값으로 비교해 `2.jpg`가 `10.jpg`보다 앞이고, 대소문자는 무시하며, 기호와 비ASCII 문자는 사용자 로캘 규칙을 따른다. 경로는 폴더 단위로 나눠 비교한다. `date`/`size` 정렬의 동률과 아카이브 엔트리 순서에도 같은 규칙을 쓴다.
-- 재귀가 켜지면 하위 폴더 이미지를 포함한다.
+- 재귀가 켜지면 하위 폴더 이미지를 포함한다. 재귀 목록이 캐시에서 올 때만 항목별 존재를 다시 확인해(256개 이상은 병렬) 워처 이벤트가 오기 전에 지워진 파일을 뺀다. 방금 스캔한 목록은 다시 확인하지 않는다.
 - 디렉토리 목록은 캐시되며 상한이 있다.
 - 응답 `availability`는 `images`와 같은 순서의 `local` | `cloud_only` | `unknown` 배열이다. Windows Files On-Demand placeholder는 `cloud_only`로 표시한다. 아카이브 목록은 빈 배열이다.
 
@@ -205,6 +205,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 - `webtoonShowProgress`를 켜면 읽기 영역에 현재 장 번호, 전체 장 수, 스크롤 진행률을 작은 표시로 보여준다.
 - `webtoonThumbnailJump`를 켜면 읽기 영역의 썸네일 버튼으로 그리드를 열어 원하는 장으로 바로 이동할 수 있다. 현재 위치 표시를 꺼도 이 버튼은 유지된다.
 - 웹툰 중앙 이미지 변경은 전체 reload 없이 인덱스 동기화와 정보 교체로 처리한다.
+- 웹툰 페이지는 뷰포트 위아래 2화면 안에 들어오면 로드하고, 4화면 밖으로 나가면 이미지를 내려놓는다. 내려놓은 페이지는 같은 너비와 종횡비의 자리 표시로 남아 스크롤 위치가 변하지 않고, 다시 가까워지면 로드한다. 현재 페이지 판정은 근처 페이지만 측정한다.
 
 ## 7. 뷰어 조작
 
@@ -251,11 +252,12 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 
 진실: `src-tauri/src/archive.rs`, `src-tauri/src/archive_index.rs`, `src-tauri/src/commands/archive.rs`, `src/hooks/useImageLoader.ts`, `src/store/archiveProgressStore.ts`.
 
-- 아카이브 커맨드(`get_archive_images`, `load_archive_image`, `archive_prefetch`, `get_comic_info`, `set_comic_cover_pages`, `generate_archive_thumbnail`, `generate_archive_file_thumbnail(s)_batch`)는 모두 비동기 커맨드로 `spawn_blocking`에서 실행되어 메인 스레드를 막지 않는다. `archive_prefetch`는 fire-and-forget 성격에 맞게 조인 실패도 흡수해 `Ok(0)`을 반환한다.
+- 아카이브 커맨드(`get_archive_images`, `load_archive_image`, `archive_prefetch`, `get_comic_info`, `set_comic_cover_pages`, `generate_archive_thumbnail`, `generate_archive_thumbnails_batch`, `generate_archive_file_thumbnail(s)_batch`)는 모두 비동기 커맨드로 `spawn_blocking`에서 실행되어 메인 스레드를 막지 않는다. `archive_prefetch`는 fire-and-forget 성격에 맞게 조인 실패도 흡수해 `Ok(0)`을 반환한다.
 - 엔트리 인덱스 캐시(`archive_index.rs`): 아카이브별 이미지/전체 엔트리 목록을 canonical 경로 + mtime + size 검증으로 캐시한다(최대 64개 LRU). `get_archive_images`, `get_comic_info`, `generate_archive_file_thumbnail(s)_batch`가 공유해 아카이브당 전체 스캔이 1회로 수렴한다. `clear_cache` 시 함께 비워진다.
 - `get_archive_images`: 내부 이미지 엔트리 목록 + `current_index: 0`. 비어 있으면 `not_found`.
 - `load_archive_image`: 활성 파생 이미지 캐시 루트의 `archives/` 아래에 추출 후 표시 가능한 경로로 반환한다.
-- `archive_prefetch`: 이웃 선추출용 fire-and-forget 명령이다.
+- `archive_prefetch`: 이웃 선추출용 fire-and-forget 명령이다. 엔트리마다 압축 해제가 독립이라 썸네일 배치와 같은 워커 수로 병렬 추출한다.
+- ZIP 중앙 디렉터리 캐시(`archive.rs`): 최근에 연 아카이브 4개의 파싱 결과를 경로 + mtime + size가 같을 때만 재사용한다. 추출물이 없는 페이지를 열거나 배치 워커가 각자 핸들을 열 때 디렉터리를 다시 파싱하지 않는다. 파일 핸들은 캐시에 남기지 않는다.
 - 선추출 거리는 뷰 모드에 따라 보정되며 상한이 있다.
 - 이어보기: 아카이브 경로별 마지막 엔트리와 위치(엔트리명/인덱스/전체 페이지)를 최대 100개 LRU로 저장한다. `resumeReading`이 true이고 목록에 저장된 항목이 있으면 거기서 시작하며, 저장 위치에서 시작할 때 "이어보기" 토스트와 "처음부터" 동작을 함께 제공한다. 설정이 false면 항상 첫 페이지에서 열고 열기만으로 저장 위치를 0페이지로 덮지 않는다. 양쪽 모드에서는 저장 위치가 쌍 중간이면 쌍 시작으로 맞춰 연다.
 - `get_comic_info`: CBZ/ZIP의 `ComicInfo.xml`(ComicRack/Komga/Kavita 스키마)을 메타데이터로 반환한다. 탐색은 엔트리 basename이 `comicinfo.xml`인 항목(대소문자 무시)이며 루트를 우선하고 없으면 첫 중첩 경로를 쓴다. 상한 1 MiB, UTF-8(BOM 허용)과 UTF-16 LE/BE BOM을 지원한다. XML 부재나 지원하지 않는 확장자는 `null`, 깨진 XML/디코딩 실패는 `corrupt`, 크기 초과는 `too_large`다. 필드 누락과 빈 값은 `null`로 정규화하고, 엔트리는 `read_archive_entry_bounded`(`archive.rs`)로 1 MiB 상한 아래에서 메모리로 읽는다. `pages`는 `image` 오름차순으로 최대 1000개까지 담는다.
@@ -305,12 +307,13 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 - HEIC/HEIF/AVIF/PSD/TGA/DDS/EXR/QOI는 썸네일용 JPEG sidecar 경로를 쓴다(AVIF는 표시만 네이티브이고 썸네일은 libheif로 디코드한다).
 - 디코드 불가 입력(SVG 등)이나 아카이브 엔트리명은 에러를 내고, 프론트는 원본으로 폴백한다.
 - 배치 조회와 아카이브 엔트리용 썸네일 API를 별도로 제공한다. 아카이브 썸네일은 추출물과 캐시를 재사용해 풀사이즈 로드를 피한다.
+- 도크와 그리드의 아카이브 엔트리는 청크마다 `generate_archive_thumbnails_batch` 1회로 요청한다. 추출 디렉터리 식별은 배치당 한 번만 계산하고, 워커마다 아카이브를 한 번만 열어 자기 몫의 엔트리를 추출·축소한다. 실패한 엔트리와 배치 자체의 실패는 프론트가 원본 로드로 폴백한다.
 - JPEG는 DCT 단계에서 1/2, 1/4, 1/8로 줄여 디코드한다(요청 크기보다 작아지지 않는 가장 작은 배율). CMYK 등 이 경로가 다루지 않는 JPEG는 풀해상도 디코드로 처리한다.
 - 배치 내부 워커 수는 논리 코어의 절반이며 4~8로 묶는다.
 - 그리드는 보이는 창의 경로만 썸네일을 요청하고, 화면에 걸친 행을 미리 그려 두는 행보다 먼저 요청한다.
 - 도크와 그리드는 보이는 창을 8개 청크로 지연 없이 요청해 끝난 청크부터 그린다. 창이 바뀌어 큐가 다시 시작돼도 이미 보낸 요청의 응답은 그대로 쓰고, 요청 중인 경로는 다시 요청하지 않는다.
 - `get_cached_thumbnail`: 생성 없이 캐시에 있는 썸네일(256/128/96/72/48/32)만 반환한다. 큰 이미지(2MP 또는 1.5MB 이상)를 열 때 풀사이즈 디코드와 병행 조회해 첫 페인트 프리뷰로 쓰고, 원본 `onLoad`에서 걷는다. GIF는 제외한다.
-- 생성된 썸네일·sidecar·축소본 캐시 hit은 파일 modification time을 갱신해 이후 LRU 정리에서 최근 사용 파일이 먼저 삭제되지 않게 한다.
+- 생성된 썸네일·sidecar·축소본 캐시 hit은 파일 modification time을 갱신해 이후 LRU 정리에서 최근 사용 파일이 먼저 삭제되지 않게 한다. 갱신한 지 60초가 지나지 않은 파일은 다시 갱신하지 않는다.
 
 ### 9.4 표시 해상도 제한
 
@@ -350,6 +353,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 
 - 입력 `file_path`, 반환 `Histogram`(16절).
 - 디코드 불가 포맷(SVG, AVIF 등)은 에러를 내고, 프론트는 차트 대신 안내 문구를 표시한다.
+- 최대 변 256px로 줄여 집계한다. JPEG는 썸네일과 같은 DCT 축소 디코드로 풀해상도 디코드를 건너뛴다.
 - 렌더는 신규 의존성 없이 SVG 영역 차트이다.
 
 ### 10.2 파일 상세 `get_image_details`
@@ -552,6 +556,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 | `get_cache_stats`                        | 없음                                                                                           | `CacheStats`                           |
 | `clear_cache`                            | `scope`                                                                                        | `CacheClearResult`                     |
 | `generate_archive_thumbnail`             | `archivePath`, `entryName`, `maxSide?`                                                         | `ThumbnailInfo`                        |
+| `generate_archive_thumbnails_batch`      | `archivePath`, `entryNames`, `maxSide?`                                                        | `BatchThumb[]`(source=엔트리 이름)     |
 | `generate_archive_file_thumbnail`        | `archivePath`, `maxSide?`                                                                      | `ThumbnailInfo`(첫 이미지 엔트리 기준) |
 | `generate_archive_file_thumbnails_batch` | `archivePaths`, `maxSide?`                                                                     | `BatchThumb[]`(source=아카이브 경로)   |
 | `get_file_associations`                  | 없음                                                                                           | `FileAssociation[]`                    |

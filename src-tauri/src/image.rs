@@ -44,14 +44,31 @@ pub const SUPPORTED_EXTENSIONS: &[&str] = &[
 
 #[derive(Serialize)]
 pub struct DirectoryImages {
-    pub images: Vec<String>,
+    /// 목록 캐시와 문자열을 공유한다. 수천 장 폴더에서 호출마다 복사하지 않는다.
+    pub images: Vec<std::sync::Arc<str>>,
     pub current_index: usize,
-    /// Same order as `images`. Empty for archive listings.
+    /// Same order as `images`.
+    pub availability: Vec<FileAvailability>,
+}
+
+/// 아카이브 엔트리 목록. FE에는 `DirectoryImages`와 같은 모양으로 직렬화된다.
+/// 엔트리 인덱스 캐시의 목록을 복사 없이 그대로 내보낸다.
+#[derive(Serialize)]
+pub struct ArchiveImages {
+    pub images: std::sync::Arc<Vec<String>>,
+    pub current_index: usize,
+    /// Always empty: archive entries have no cloud availability.
     pub availability: Vec<FileAvailability>,
 }
 
 pub fn get_mime_type(path: &Path) -> Option<&'static str> {
-    match path.extension()?.to_str()?.to_lowercase().as_str() {
+    // 목록 스캔에서 파일마다 불리므로 String 할당 없이 스택에서 소문자화한다.
+    let ext = path.extension()?.to_str()?.as_bytes();
+    let mut lowered = [0u8; 8];
+    let lowered = lowered.get_mut(..ext.len())?;
+    lowered.copy_from_slice(ext);
+    lowered.make_ascii_lowercase();
+    match std::str::from_utf8(lowered).ok()? {
         "png" => Some("image/png"),
         "apng" => Some("image/apng"),
         "jpg" | "jpeg" => Some("image/jpeg"),
@@ -82,11 +99,9 @@ pub fn resolve_mime(path: &Path) -> Option<&'static str> {
     if by_ext.is_some_and(|m| m.starts_with("application/") || m == "image/svg+xml") {
         return by_ext;
     }
-    let sniffed = crate::sniff::sniff_file(path);
     // APNG는 PNG와 시그니처가 같다. 확장자가 밝혔거나 `acTL` 청크가 있으면 APNG다.
-    if sniffed == Some("image/png")
-        && (by_ext == Some("image/apng") || crate::sniff::png_is_animated(path) == Some(true))
-    {
+    let (sniffed, animated) = crate::sniff::sniff_file_with_animation(path);
+    if sniffed == Some("image/png") && (by_ext == Some("image/apng") || animated) {
         return Some("image/apng");
     }
     sniffed.or(by_ext)
