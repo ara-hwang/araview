@@ -97,8 +97,11 @@ pub fn generate_thumbnail(source: &Path, max_side: u32) -> Result<ThumbnailInfo,
             let thumb = if is_svg_source(source) {
                 image::DynamicImage::ImageRgb8(crate::svg_raster::rasterize(source, max_side)?)
             } else {
-                let img = image::open(source)
-                    .map_err(|e| AppError::image_error("Failed to decode image", e))?;
+                let img = match decode_jpeg_scaled(source, max_side) {
+                    Some(img) => img,
+                    None => image::open(source)
+                        .map_err(|e| AppError::image_error("Failed to decode image", e))?,
+                };
                 let img = crate::orientation::apply_to_image(
                     img,
                     crate::orientation::read_orientation(source),
@@ -122,6 +125,35 @@ pub fn generate_thumbnail(source: &Path, max_side: u32) -> Result<ThumbnailInfo,
     })
 }
 
+/// JPEG는 DCT 단계에서 1/2, 1/4, 1/8로 줄여 디코드한다. 결과는 `max_side`보다
+/// 작아지지 않는 가장 작은 배율이라 화질 손실 없이 풀해상도 디코드와 큰 버퍼를
+/// 피한다. JPEG가 아니거나 CMYK처럼 여기서 다루지 않는 입력은 `None`을 돌려
+/// 호출자가 `image::open`으로 처리한다.
+fn decode_jpeg_scaled(source: &Path, max_side: u32) -> Option<image::DynamicImage> {
+    use jpeg_decoder::PixelFormat;
+
+    if crate::image::resolve_mime(source) != Some("image/jpeg") {
+        return None;
+    }
+    let side = u16::try_from(max_side).ok()?;
+    let mut decoder =
+        jpeg_decoder::Decoder::new(std::io::BufReader::new(fs::File::open(source).ok()?));
+    decoder.read_info().ok()?;
+    let (width, height) = decoder.scale(side, side).ok()?;
+    let format = decoder.info()?.pixel_format;
+    let pixels = decoder.decode().ok()?;
+    let (width, height) = (u32::from(width), u32::from(height));
+    match format {
+        PixelFormat::RGB24 => {
+            image::RgbImage::from_raw(width, height, pixels).map(image::DynamicImage::ImageRgb8)
+        }
+        PixelFormat::L8 => {
+            image::GrayImage::from_raw(width, height, pixels).map(image::DynamicImage::ImageLuma8)
+        }
+        _ => None,
+    }
+}
+
 fn is_svg_source(source: &Path) -> bool {
     source
         .extension()
@@ -136,8 +168,13 @@ pub struct BatchThumb {
     pub error: Option<String>,
 }
 
-/// 썸네일 배치 내부 병렬 워커 수. FE의 ARCHIVE_THUMB_CONCURRENCY와 같은 상한.
-const BATCH_WORKERS: usize = 4;
+/// 썸네일 배치 내부 병렬 워커 수. 논리 코어의 절반을 쓰되 4~8로 묶어, 본문
+/// 이미지 디코드와 UI가 쓸 코어를 남긴다.
+fn batch_workers() -> usize {
+    std::thread::available_parallelism()
+        .map_or(4, |n| n.get() / 2)
+        .clamp(4, 8)
+}
 
 /// 항목별 독립 작업을 bounded 워커에 나눠 입력 순서대로 모은다.
 /// 생성 경로는 `with_file_lock`이 파일별로 직렬화하므로 디코드만 병렬화된다.
@@ -151,7 +188,7 @@ where
     let next = std::sync::atomic::AtomicUsize::new(0);
     let results = Mutex::new(Vec::<(usize, T)>::with_capacity(items.len()));
     std::thread::scope(|scope| {
-        for _ in 0..BATCH_WORKERS.min(items.len()) {
+        for _ in 0..batch_workers().min(items.len()) {
             scope.spawn(|| loop {
                 let index = next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                 if index >= items.len() {
@@ -238,6 +275,31 @@ mod tests {
 
         let bytes = fs::read(&thumb.file_path).unwrap();
         assert_eq!(&bytes[..2], &[0xFF, 0xD8]);
+    }
+
+    #[test]
+    fn large_jpeg_thumbnail_keeps_aspect_through_scaled_decode() {
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("photo.jpg");
+        write_png(&source.with_extension("png"), 1600, 800);
+        image::open(source.with_extension("png"))
+            .unwrap()
+            .save(&source)
+            .unwrap();
+
+        let scaled = decode_jpeg_scaled(&source, 128).expect("scaled decode");
+        assert_eq!((scaled.width(), scaled.height()), (200, 100));
+
+        let thumb = generate_thumbnail(&source, 128).expect("generate");
+        assert_eq!((thumb.width, thumb.height), (128, 64));
+    }
+
+    #[test]
+    fn scaled_decode_skips_non_jpeg() {
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("plain.png");
+        write_png(&source, 64, 64);
+        assert!(decode_jpeg_scaled(&source, 32).is_none());
     }
 
     #[test]

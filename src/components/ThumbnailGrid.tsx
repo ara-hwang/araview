@@ -49,7 +49,9 @@ export function ThumbnailGrid({
   const scrollRef = useRef<HTMLDivElement>(null)
   const timerRef = useRef(0)
   const [query, setQuery] = useState("")
-  const [scrollTop, setScrollTop] = useState(0)
+  // 처음 중앙 정렬이 끝나기 전에는 null이다. 그동안은 중앙 위치를 바로 계산해
+  // 써서, 열자마자 맨 윗줄 썸네일을 헛되이 요청하지 않는다.
+  const [scrollTop, setScrollTop] = useState<number | null>(null)
   const [viewport, setViewport] = useState({ width: 0, height: 0 })
   // 화면에 떠 있는 페이지들. 양쪽 보기는 쌍 두 장이 함께 떠 있어 둘 다 강조한다.
   const currentIndices = useCurrentPageIndices()
@@ -86,26 +88,37 @@ export function ThumbnailGrid({
     }
   }, [viewport.width, filtered.length])
 
-  const gridWindow = useMemo(
-    () =>
-      computeGridWindow({
-        scrollTop,
-        viewportHeight: viewport.height,
-        itemCount: filtered.length,
-        columns: layout.columns,
-        cellHeight: layout.cellHeight,
-        gap: GAP,
-        padding: PADDING,
-        overscanRows: OVERSCAN_ROWS
-      }),
-    [scrollTop, viewport.height, filtered.length, layout]
-  )
-
   const initialScrollDone = useRef(false)
   // 처음에는 필터가 비어 있으므로 선택 위치는 현재 인덱스와 같다.
   const [selectedPos, setSelectedPos] = useState(() =>
     Math.max(0, Math.min(dirImages.current_index, dirImages.images.length - 1))
   )
+
+  const windowScrollTop =
+    scrollTop ??
+    gridScrollTopToCenter({
+      index: selectedPos,
+      viewportHeight: viewport.height,
+      columns: layout.columns,
+      cellHeight: layout.cellHeight,
+      gap: GAP,
+      padding: PADDING
+    })
+  const [gridWindow, viewWindow] = useMemo(() => {
+    const input = {
+      scrollTop: windowScrollTop,
+      viewportHeight: viewport.height,
+      itemCount: filtered.length,
+      columns: layout.columns,
+      cellHeight: layout.cellHeight,
+      gap: GAP,
+      padding: PADDING
+    }
+    return [
+      computeGridWindow({ ...input, overscanRows: OVERSCAN_ROWS }),
+      computeGridWindow({ ...input, overscanRows: 0 })
+    ]
+  }, [windowScrollTop, viewport.height, filtered.length, layout])
 
   // 열리면 그리드에 포커스를 둬 방향키 탐색을 바로 쓸 수 있게 한다.
   useEffect(() => {
@@ -152,8 +165,9 @@ export function ThumbnailGrid({
           gap: GAP,
           padding: PADDING
         })
+    const isInitial = !initialScrollDone.current
     initialScrollDone.current = true
-    if (top === scroller.scrollTop) return
+    if (!isInitial && top === scroller.scrollTop) return
     scroller.scrollTop = top
     setScrollTop(top)
   }, [selectedPos, viewport.height, layout, filtered.length])
@@ -275,7 +289,22 @@ export function ThumbnailGrid({
     () => filtered.slice(gridWindow.startIndex, gridWindow.endIndex),
     [filtered, gridWindow.startIndex, gridWindow.endIndex]
   )
-  const visiblePaths = useMemo(() => visibleItems.map((item) => item.path), [visibleItems])
+  // 화면에 걸친 행을 먼저 요청하고, 미리 그려 두는 행(아래, 위 순)은 그 뒤에 요청한다.
+  const loadPaths = useMemo(
+    () =>
+      [
+        ...filtered.slice(viewWindow.startIndex, viewWindow.endIndex),
+        ...filtered.slice(viewWindow.endIndex, gridWindow.endIndex),
+        ...filtered.slice(gridWindow.startIndex, viewWindow.startIndex)
+      ].map((item) => item.path),
+    [
+      filtered,
+      gridWindow.startIndex,
+      gridWindow.endIndex,
+      viewWindow.startIndex,
+      viewWindow.endIndex
+    ]
+  )
   const cloudOnlySet = useMemo(() => cloudOnlyPathSet(dirImages), [dirImages])
   const thumbnailOptions = useMemo(
     () => ({
@@ -289,7 +318,7 @@ export function ThumbnailGrid({
     urls,
     failed: thumbFailed,
     retry
-  } = useThumbnailSrcs(visiblePaths, getOrLoadImage, thumbnailOptions)
+  } = useThumbnailSrcs(loadPaths, getOrLoadImage, thumbnailOptions)
 
   const locationName = useMemo(() => {
     if (archivePath) return basenameOf(archivePath)
