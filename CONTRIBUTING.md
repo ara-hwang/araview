@@ -6,7 +6,7 @@ AraView에 관심을 가져 주셔서 감사합니다. 버그 제보와 제안�
 
 코드를 보내기 전에 이슈로 먼저 방향을 이야기해 주세요. 제품 범위와 맞지 않는 변경은 받지 못할 수 있습니다. 작은 수정(오타, 명확한 버그 수정)은 바로 PR을 열어도 됩니다.
 
-개발 환경과 구조는 [docs/development.md](docs/development.md)를 봅니다. 제품 방향은 [PRODUCT.md](PRODUCT.md), 기능 명세는 [SPEC.md](SPEC.md)가 기준입니다.
+개발 환경과 구조는 [docs/development.md](docs/development.md), 코드 작성 규칙은 [CODING_STANDARDS.md](CODING_STANDARDS.md)를 봅니다. 제품 방향은 [PRODUCT.md](PRODUCT.md), 기능 명세는 [SPEC.md](SPEC.md)가 기준입니다.
 
 ## PR 전에 확인할 것
 

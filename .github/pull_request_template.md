@@ -25,7 +25,7 @@
 <!-- Delete this section if nothing applies. -->
 
 - [ ] `SPEC.md` updated for behavior changes (see §22 for which sections)
-- [ ] `README.md`, `docs/`, `AGENTS.md` updated where relevant
+- [ ] `README.md`, `docs/`, `AGENTS.md`, `CODING_STANDARDS.md` updated where relevant
 
 ## Notes for reviewers
 

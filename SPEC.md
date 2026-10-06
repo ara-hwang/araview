@@ -1,7 +1,7 @@
 # SPEC.md - AraView 기능/기술 명세
 
 > 한국어 스펙 문서. 구현 진실(source of truth)은 코드이며, 본 문서는 현재 코드베이스의 동작을 요약한다.
-> 관련 문서: `PRODUCT.md`(제품 정의), `DESIGN.md`(비주얼 시스템), `README.md`(소개/문서 허브), `docs/usage.md`(사용법), `docs/development.md`(개발 안내), `docs/releasing.md`(릴리스/업데이트), `AGENTS.md`(AI 작업 지침).
+> 관련 문서: `PRODUCT.md`(제품 정의), `DESIGN.md`(비주얼 시스템), `README.md`(소개/문서 허브), `docs/usage.md`(사용법), `docs/development.md`(개발 안내), `docs/releasing.md`(릴리스/업데이트), `AGENTS.md`(AI 작업 지침), `CODING_STANDARDS.md`(코드 작성 규칙), `docs/playbooks.md`(작업별 절차).
 
 ## 0. 문서 규약
 
@@ -15,7 +15,7 @@
 - Windows 11 x64 전용 오프라인 데스크톱 이미지/코믹 뷰어. 로컬 파일만 다루며 라이브러리 가져오기, 계정, 네트워크를 쓰지 않는다(수동 업데이트 확인 제외).
 - 창은 프레임리스(`decorations: false`)이며 커스텀 타이틀바/툴바(`src/components/Header.tsx`)를 쓴다. Windows 11에서는 최대화 버튼 호버로 OS Snap Layouts 플라이아웃이 뜬다(§20).
 - 다이얼로그/시트가 열려 있어도 타이틀바(최소화/최대화/닫기)는 계속 동작한다. Dialog/Sheet는 `modal="trap-focus"`로 포커스만 가두고, 오버레이는 헤더 아래(`--header-height`)에서 시작한다. Base UI의 투명 전체화면 백드롭(`modal=true`일 때만 렌더)이 창 제어를 가로채는 것을 막기 위한 선택이다. dimmed 영역 클릭과 `Esc`로 닫히고, 키보드 포커스는 다이얼로그 안에 갇힌다.
-- 기술 스택과 플러그인 목록은 `docs/development.md`와 `AGENTS.md`를 따른다.
+- 기술 스택과 플러그인 목록은 `docs/development.md`를 따른다.
 
 ## 2. 지원 포맷
 
@@ -672,7 +672,7 @@ Rust와 TypeScript는 같은 모양을 유지한다.
 - 진입점: 설정 일반 탭의 `지금 확인` 버튼, 명령 팔레트의 `업데이트 확인`.
 - 흐름: 업데이트 확인 → 없으면 최신 안내, 있으면 다운로드 및 설치. 다운로드가 끝나면 Dialog가 설치 인계를 안내하고, NSIS 설치 관리자를 실행한 뒤 앱이 종료된다. 설치와 새 버전 재실행은 NSIS가 담당하므로 수동 재시작 UI는 없다. 중복 확인은 무시한다.
 - HTTP 타임아웃: 확인 요청은 30초, 다운로드 요청은 10분(본문 수신을 포함한 요청 전체 기한)이다. 초과하면 각각 확인 실패 토스트, Dialog의 다운로드 실패 상태로 처리한다.
-- 설정: updater 아티팩트 생성과 릴리스 피드 endpoint, 서명 공개키를 둔다. 소스 저장소가 비공개라 당분간 공개 저장소 피드를 쓰는 임시 구성이다.
+- 설정: updater 아티팩트 생성과 릴리스 피드 endpoint, 서명 공개키를 둔다. 소스 저장소가 공개이므로 원본 저장소(`ara-hwang/araview`)의 릴리스가 곧 피드다.
 - 키 발급, 서명 빌드, 로컬 릴리스 절차는 `docs/releasing.md`를 따른다.
 
 ### 20.2 PSD 탐색기 썸네일 (IThumbnailProvider)
@@ -693,7 +693,7 @@ Windows 파일 탐색기에서 `.psd` 축소판을 표시한다. 미리보기 �
 
 ## 22. 변경 시 동기화 체크리스트
 
-작업 절차는 `AGENTS.md`를 따른다. 변경 후 아래 SPEC 절을 갱신한다.
+작업 절차는 `AGENTS.md`와 `docs/playbooks.md`를, 코드 작성 규칙은 `CODING_STANDARDS.md`를 따른다. 변경 후 아래 SPEC 절을 갱신한다.
 
 - 포맷 추가: 2절 + 필요 시 15/16절, `src-tauri/tauri.conf.json` 파일 연결, `samples/` 검증.
 - 백엔드 명령 추가: 15절 IPC 표 + 16절 데이터 모델.
