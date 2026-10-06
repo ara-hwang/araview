@@ -1,7 +1,7 @@
 # SPEC.md - AraView 기능/기술 명세
 
 > 한국어 스펙 문서. 구현 진실(source of truth)은 코드이며, 본 문서는 현재 코드베이스의 동작을 요약한다.
-> 관련 문서: `PRODUCT.md`(제품 정의), `DESIGN.md`(비주얼 시스템), `README.md`(소개/문서 허브), `docs/usage.md`(사용법), `docs/development.md`(개발 안내), `docs/releasing.md`(릴리스/업데이트), `AGENTS.md`(AI 작업 지침).
+> 관련 문서: `PRODUCT.md`(제품 정의), `DESIGN.md`(비주얼 시스템), `README.md`(소개/문서 허브), `docs/usage.md`(사용법), `docs/development.md`(개발 안내), `docs/releasing.md`(릴리스/업데이트), `AGENTS.md`(AI 작업 지침), `CODING_STANDARDS.md`(코드 작성 규칙), `docs/playbooks.md`(작업별 절차).
 
 ## 0. 문서 규약
 
@@ -693,7 +693,7 @@ Windows 파일 탐색기에서 `.psd` 축소판을 표시한다. 미리보기 �
 
 ## 22. 변경 시 동기화 체크리스트
 
-작업 절차는 `AGENTS.md`를 따른다. 변경 후 아래 SPEC 절을 갱신한다.
+작업 절차는 `AGENTS.md`와 `docs/playbooks.md`를, 코드 작성 규칙은 `CODING_STANDARDS.md`를 따른다. 변경 후 아래 SPEC 절을 갱신한다.
 
 - 포맷 추가: 2절 + 필요 시 15/16절, `src-tauri/tauri.conf.json` 파일 연결, `samples/` 검증.
 - 백엔드 명령 추가: 15절 IPC 표 + 16절 데이터 모델.

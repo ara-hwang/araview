@@ -6,7 +6,7 @@ disable-model-invocation: true
 
 <!-- Vendored from emilkowalski/skills (MIT) at commit 85e8e23. The upstream
      "Initial Response" greeting block was removed so opencode can auto-invoke
-     this skill. See AGENTS.md before updating from upstream. -->
+     this skill. See docs/playbooks.md before updating from upstream. -->
 
 # Reviewing Animations
 

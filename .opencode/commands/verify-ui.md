@@ -6,7 +6,8 @@ Tauri MCP를 이용한 UI 런타임 검증을 수행한다. `$ARGUMENTS`가 있�
 해당 화면이나 조작에 집중하고, 없으면 아래 기본 체크리스트를 전부 수행한다.
 폴백 경로는 없다. 2단계의 `driver-session start`가 실패하면
 `get_setup_instructions`로 브리지를 복구하거나 세션을 재시작하고, 그래도
-안 되면 검증을 조용히 건너뛰지 말고 실패 원인을 그대로 보고한다.
+안 되면 검증을 조용히 건너뛰지 말고 실패 원인을 그대로 보고한다. MCP가 없어 보일 때의
+점검 순서는 `docs/playbooks.md`의 "When Tauri MCP looks missing"을 따른다.
 
 1. 기동: `npm run dev:up`을 실행한다. 이미 실행 중이면 즉시 READY가 반환된다.
    dev 브리지 포트는 `:9323` 고정이다(`src-tauri/src/lib.rs`). 기본값 9223을

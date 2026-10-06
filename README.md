@@ -25,6 +25,8 @@ npm run tauri dev
 - 개발 안내(환경, 실행, 스크립트, 구조): `docs/development.md`
 - 릴리스와 업데이트(maintainer): `docs/releasing.md`
 - 기여 안내: `CONTRIBUTING.md`
+- 코드 작성 규칙: `CODING_STANDARDS.md`
+- 작업별 절차(포맷 추가, 백엔드 명령 추가, Tauri MCP 문제 해결): `docs/playbooks.md`
 - 제품 정의: `PRODUCT.md`
 - 기능/기술 명세: `SPEC.md`
 - 비주얼 시스템: `DESIGN.md`
