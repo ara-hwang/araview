@@ -1,6 +1,12 @@
 {
   "version": 1,
   "skills": {
+    "agent-memory-repo": {
+      "source": "AgentMemoryRepo/agentmemoryrepo",
+      "sourceType": "github",
+      "skillPath": "skills/agent-memory-repo/SKILL.md",
+      "computedHash": "f99545fa6de516f12d37db6d3c75633688cee287a979043db95a6f121bf1efa5"
+    },
     "animate": {
       "source": "emilkowalski/skills",
       "sourceType": "github",
