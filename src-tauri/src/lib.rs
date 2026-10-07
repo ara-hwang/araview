@@ -2,6 +2,7 @@ pub mod app_error;
 pub mod archive;
 pub mod archive_index;
 pub mod cache;
+pub mod clipboard_png;
 pub mod comic_info;
 pub mod commands;
 pub mod dir_cache;
@@ -28,11 +29,11 @@ pub mod transcode;
 
 use app_error::AppError;
 use commands::{
-    archive_prefetch, clear_cache, detect_pixel_art, generate_archive_file_thumbnail,
-    generate_archive_file_thumbnails_batch, generate_archive_thumbnail,
-    generate_archive_thumbnails_batch, generate_thumbnail, generate_thumbnails_batch,
-    get_archive_images, get_cache_stats, get_cached_thumbnail, get_comic_info,
-    get_directory_images, get_exif_data, get_file_associations, get_image_details,
+    archive_prefetch, clear_cache, detect_pixel_art, export_clipboard_png,
+    generate_archive_file_thumbnail, generate_archive_file_thumbnails_batch,
+    generate_archive_thumbnail, generate_archive_thumbnails_batch, generate_thumbnail,
+    generate_thumbnails_batch, get_archive_images, get_cache_stats, get_cached_thumbnail,
+    get_comic_info, get_directory_images, get_exif_data, get_file_associations, get_image_details,
     get_image_histogram, get_license_bundle, load_archive_image, load_image,
     open_default_apps_settings, rename_file, resolve_dropped_path, set_comic_cover_pages,
     set_file_association, trash_file,
@@ -177,6 +178,7 @@ pub fn run() {
             unregister_psd_thumbnail,
             trash_file,
             rename_file,
+            export_clipboard_png,
             frontend_ready
         ])
         .setup(|app| {

@@ -148,7 +148,7 @@ pub(crate) fn render_dimensions(
 
 /// EXIF orientation을 적용하는 표시 포맷. HEIC/HEIF/PSD는 sidecar 디코더가
 /// 변환을 반영하므로 여기서 다루지 않는다.
-fn is_exif_orientation_format(mime: &str) -> bool {
+pub(crate) fn is_exif_orientation_format(mime: &str) -> bool {
     matches!(mime, "image/jpeg")
 }
 

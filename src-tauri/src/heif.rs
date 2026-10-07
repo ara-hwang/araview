@@ -22,8 +22,21 @@ pub(crate) fn primary_dimensions(source: &Path) -> Option<(u32, u32)> {
     Some((handle.width(), handle.height()))
 }
 
-pub(crate) fn decode_primary_rgb8(source: &Path) -> Result<Rgb8, AppError> {
-    use libheif_rs::{ColorSpace, HeifContext, LibHeif, RgbChroma};
+/// 인터리브 평면과 원본 ICC 프로파일(nclx만 있으면 `None`).
+struct Interleaved {
+    width: u32,
+    height: u32,
+    bytes: Vec<u8>,
+    icc: Option<Vec<u8>>,
+}
+
+/// 인터리브 평면을 통째로 꺼낸다. 행 패딩(stride)이 있으면 행 단위로 모은다.
+fn decode_interleaved(
+    source: &Path,
+    chroma: libheif_rs::RgbChroma,
+    bytes_per_pixel: usize,
+) -> Result<Interleaved, AppError> {
+    use libheif_rs::{ColorSpace, HeifContext, LibHeif};
 
     let path = source
         .to_str()
@@ -37,17 +50,18 @@ pub(crate) fn decode_primary_rgb8(source: &Path) -> Result<Rgb8, AppError> {
     if u64::from(handle.width()).saturating_mul(u64::from(handle.height())) > MAX_DECODE_PIXELS {
         return Err(AppError::too_large("HEIF image dimensions are too large"));
     }
+    let icc = handle.color_profile_raw().map(|profile| profile.data);
     let image = lib_heif
-        .decode(&handle, ColorSpace::Rgb(RgbChroma::Rgb), None)
+        .decode(&handle, ColorSpace::Rgb(chroma), None)
         .map_err(|e| AppError::corrupt(format!("Failed to decode image: {e}")))?;
     let width = image.width();
     let height = image.height();
     let planes = image.planes();
     let plane = planes
         .interleaved
-        .ok_or_else(|| AppError::corrupt("HEIF decode produced no interleaved RGB plane"))?;
+        .ok_or_else(|| AppError::corrupt("HEIF decode produced no interleaved plane"))?;
     let stride = plane.stride;
-    let row_bytes = width as usize * 3;
+    let row_bytes = width as usize * bytes_per_pixel;
     let capacity = row_bytes
         .checked_mul(height as usize)
         .ok_or_else(|| AppError::corrupt("HEIF image dimensions overflow"))?;
@@ -58,10 +72,11 @@ pub(crate) fn decode_primary_rgb8(source: &Path) -> Result<Rgb8, AppError> {
             .get(..capacity)
             .ok_or_else(|| AppError::corrupt("HEIF plane data is shorter than expected"))?
             .to_vec();
-        return Ok(Rgb8 {
+        return Ok(Interleaved {
             width,
             height,
             bytes,
+            icc,
         });
     }
     let mut bytes = Vec::with_capacity(capacity);
@@ -78,11 +93,38 @@ pub(crate) fn decode_primary_rgb8(source: &Path) -> Result<Rgb8, AppError> {
             .ok_or_else(|| AppError::corrupt("HEIF plane data is shorter than expected"))?;
         bytes.extend_from_slice(row);
     }
+    Ok(Interleaved {
+        width,
+        height,
+        bytes,
+        icc,
+    })
+}
+
+pub(crate) fn decode_primary_rgb8(source: &Path) -> Result<Rgb8, AppError> {
+    let Interleaved {
+        width,
+        height,
+        bytes,
+        ..
+    } = decode_interleaved(source, libheif_rs::RgbChroma::Rgb, 3)?;
     Ok(Rgb8 {
         width,
         height,
         bytes,
     })
+}
+
+/// 클립보드 복사용: 알파 채널을 보존해 RGBA로 디코드하고 ICC 프로파일을 함께
+/// 돌려준다. 컨테이너 변환(irot/imir)은 libheif가 반영하므로 별도의 EXIF 회전은
+/// 적용하지 않는다.
+pub(crate) fn decode_primary_rgba(
+    source: &Path,
+) -> Result<(image::RgbaImage, Option<Vec<u8>>), AppError> {
+    let decoded = decode_interleaved(source, libheif_rs::RgbChroma::Rgba, 4)?;
+    let image = image::RgbaImage::from_raw(decoded.width, decoded.height, decoded.bytes)
+        .ok_or_else(|| AppError::corrupt("HEIF decode produced invalid buffer"))?;
+    Ok((image, decoded.icc))
 }
 
 #[cfg(test)]

@@ -628,9 +628,7 @@
     "copy": {
       "empty": "복사할 이미지가 없습니다",
       "done": "이미지 복사 완료",
-      "fail": "이미지 복사 실패",
-      "canvasFail": "Canvas 2D context 생성 실패",
-      "pngFail": "PNG 변환 실패"
+      "fail": "이미지 복사 실패"
     },
     "assoc": {
       "loadFail": "확장자 연결 상태를 불러오지 못했습니다",

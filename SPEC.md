@@ -303,7 +303,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 
 ### 9.3 썸네일
 
-- `generate_thumbnail`: 기본 256px, JPEG 캐시 후 재사용한다. 상한(500MB)을 넘기면 오래된 것부터 상한의 90%까지 제거한다. 상한 초과는 새로 쓴 파일 크기를 누적해 판단하므로, 쓸 때마다 폴더 전체를 다시 훑지 않는다(HEIC/PSD sidecar의 `paint/`, 축소본의 `scaled/`도 같다).
+- `generate_thumbnail`: 기본 256px, JPEG 캐시 후 재사용한다. 상한(500MB)을 넘기면 오래된 것부터 상한의 90%까지 제거한다. 상한 초과는 새로 쓴 파일 크기를 누적해 판단하므로, 쓸 때마다 폴더 전체를 다시 훑지 않는다(HEIC/PSD sidecar의 `paint/`, 축소본의 `scaled/`, 클립보드 복사용 PNG의 `clipboard/`도 같다. 11.3절).
 - HEIC/HEIF/AVIF/PSD/TGA/DDS/EXR/QOI는 썸네일용 JPEG sidecar 경로를 쓴다(AVIF는 표시만 네이티브이고 썸네일은 libheif로 디코드한다).
 - 디코드 불가 입력(SVG 등)이나 아카이브 엔트리명은 에러를 내고, 프론트는 원본으로 폴백한다.
 - 배치 조회와 아카이브 엔트리용 썸네일 API를 별도로 제공한다. 아카이브 썸네일은 추출물과 캐시를 재사용해 풀사이즈 로드를 피한다.
@@ -367,7 +367,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 
 ## 11. 파일 작업
 
-진실: `src/hooks/useFileOperations.ts`, `src-tauri/src/commands/file_ops.rs`, `src/hooks/useCopyImage.ts`.
+진실: `src/hooks/useFileOperations.ts`, `src-tauri/src/commands/file_ops.rs`, `src-tauri/src/clipboard_png.rs`, `src/hooks/useCopyImage.ts`.
 
 공통: 아카이브 모드(전체/미리보기)면 원본 아카이브 경로를 대상으로 삼는다. 단, 휴지통/이름 변경은 아카이브에서 차단된다. 파일 작업은 렌더 경로(`file_path`)가 아니라 사용자가 연 원본(`source_path`)을 대상으로 한다(9.4절).
 
@@ -391,8 +391,13 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 
 ### 11.3 클립보드 복사 `Ctrl+C`
 
-- 현재 이미지를 PNG로 클립보드에 복사한다.
-- 이미지가 없거나 변환 실패 시 에러 안내를 표시한다.
+- `export_clipboard_png`: 렌더 바이트(`file_path`)를 백엔드가 디코드해 PNG로 재인코딩하고, 파생 이미지 캐시의 `clipboard/` 아래 발행해 경로를 반환한다. 클립보드 쓰기는 프론트가 `navigator.clipboard.write`로 담당한다. 웹뷰 메모리에 풀사이즈 픽셀을 올리지 않는다.
+- 표시와 같은 내용을 복사한다: EXIF Orientation은 표시와 같은 기준으로 JPEG에만 픽셀에 반영하고(§18), GIF/APNG/움직이는 WebP는 첫 프레임만 담는다. SVG는 내재 치수로 래스터화하되 긴 변 8192px 상한을 둔다.
+- 알파는 렌더 바이트에 있는 만큼 유지한다(AVIF는 libheif RGBA 디코드, SVG는 resvg 래스터화). AVIF는 8비트로 디코드하므로 10비트/HDR 원본은 8비트로 내려간다.
+- 일반 래스터는 1억 픽셀(할당 1GiB)을 넘으면 `TooLarge`로 거부한다. HEIC/HEIF/PSD 등 JPEG sidecar로 표시하는 포맷은 sidecar를 복사하므로 알파가 없다.
+- 픽셀 값은 색 변환하지 않고, 렌더 바이트의 ICC 프로파일을 PNG에 옮겨 싣는다(JPEG/PNG/WebP/AVIF). 디코드 결과와 색 공간이 다른 프로파일(CMYK 등)은 싣지 않는다.
+- 결과 PNG는 원본 식별 해시 기준으로 캐시되며, 상한(500MB)을 넘기면 오래된 것부터 상한의 90%까지 제거한다(9절). `clear_cache`에서는 기타(other) 범주다.
+- 이미지가 없거나 변환·복사 실패 시 에러 안내를 표시한다.
 
 ### 11.4 경로/외부 열기
 
@@ -568,6 +573,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 | `unregister_psd_thumbnail`               | 없음                                                                                           | `PsdThumbStatus`                       |
 | `trash_file`                             | `filePath`                                                                                     | 없음                                   |
 | `rename_file`                            | `oldPath`, `newName`, `maxSide?`, `imageScalingMode?`, `autoDetectPixelArt?`                   | `ImageInfo`                            |
+| `export_clipboard_png`                   | `filePath`                                                                                     | `ClipboardPng`                         |
 | `frontend_ready`                         | 없음                                                                                           | 없음 (`PendingOpenFile` flush)         |
 
 `load_image`, `load_archive_image`, `rename_file`은 표시 정책에 따라 선택적으로 `imageScalingMode`(`auto | smooth | pixelated`)와 `autoDetectPixelArt`를 받는다.
@@ -599,6 +605,7 @@ Rust와 TypeScript는 같은 모양을 유지한다.
 
 - `DirectoryImages`: `{ images: string[], current_index: number, availability: ("local"|"cloud_only"|"unknown")[] }`.
 - `ThumbnailInfo`: `{ file_path: string, width: number, height: number }`.
+- `ClipboardPng`: `{ file_path: string }`. 클립보드에 쓸 PNG의 파생 이미지 캐시 경로다(11.3절).
 - `ExifData`: `Record<string, string>`.
 - `Histogram`: `{ r: number[256], g: number[256], b: number[256], sampled_pixels: number }`.
 - `ImageDetails`: 16.2 모양 그대로. 색상 모드, 비트/채널, 생성/수정 시각, DPI, ICC 상태를 포함한다.
