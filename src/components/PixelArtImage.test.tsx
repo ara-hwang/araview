@@ -69,8 +69,8 @@ describe("PixelArtImage", () => {
           resolveDetection = resolve
         })
     )
-    // 16px 원본을 64px로 표시 = 4x 확대.
-    const restore = mockImageMetrics(16, 64)
+    // 16px 원본을 24px로 표시 = 1.5x 확대: 2x 미만이라 감지 결과가 필요하다.
+    const restore = mockImageMetrics(16, 24)
 
     try {
       render(
@@ -96,6 +96,31 @@ describe("PixelArtImage", () => {
         method: "hybrid"
       })
       await waitFor(() => expect(image.className).toContain("image-rendering-pixelated"))
+    } finally {
+      restore()
+    }
+  })
+
+  it("자동 모드는 2x 이상 확대에서 분석 없이 바로 픽셀 보존을 적용한다", async () => {
+    invoke.mockResolvedValue(null)
+    // 16px 원본을 64px로 표시 = 4x 확대.
+    const restore = mockImageMetrics(16, 64)
+
+    try {
+      render(
+        <PixelArtImage
+          filePath="/sprite.png"
+          scalingMode="auto"
+          autoDetectPixelArt
+          src="/sprite.png"
+          alt="sprite"
+        />
+      )
+      const image = screen.getByAltText("sprite")
+      fireEvent.load(image)
+      expect(image.className).toContain("image-rendering-pixelated")
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      expect(invoke).not.toHaveBeenCalledWith("detect_pixel_art", expect.anything())
     } finally {
       restore()
     }

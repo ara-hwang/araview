@@ -87,10 +87,21 @@ describe("ImageContainer 픽셀 아트 판정", () => {
   it("확대 배율로 바뀌면 판정을 요청한다", async () => {
     setSingleImage(0.25)
     renderContainer()
-    act(() => useAppStore.setState({ zoom: 2 }))
+    // 1.5x 확대는 2x 미만이라 감지 결과가 필요하다.
+    act(() => useAppStore.setState({ zoom: 1.5 }))
     await waitFor(() =>
       expect(invoke).toHaveBeenCalledWith("detect_pixel_art", { filePath: "/pics/photo.png" })
     )
+  })
+
+  it("2x 이상 확대에서는 감지 없이 픽셀 보존으로 전환한다", async () => {
+    setSingleImage(0.5)
+    renderContainer()
+    invoke.mockClear()
+    act(() => useAppStore.setState({ zoom: 2 }))
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(invoke).not.toHaveBeenCalledWith("detect_pixel_art", expect.anything())
+    expect(screen.getByAltText("photo.png").className).toContain("image-rendering-pixelated")
   })
 })
 

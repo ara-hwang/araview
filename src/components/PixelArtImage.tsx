@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState, type ImgHTMLAttributes } from
 import { usePixelArtDetection } from "@/hooks/usePixelArtDetection"
 import { cn } from "@/lib/utils"
 import type { ImageScalingMode } from "@/store/settingsStore"
-import { isMagnifiedDisplay, resolveImageRenderingMode } from "@/utils/imageRendering"
+import { AUTO_PIXELATED_MIN_SCALE, resolveImageRenderingMode } from "@/utils/imageRendering"
 
 type PixelArtImageProps = ImgHTMLAttributes<HTMLImageElement> & {
   src: string
@@ -81,8 +81,10 @@ export function PixelArtImage({
 }: PixelArtImageProps) {
   const [imgRef, measure, displayScale] = useMeasuredDisplayScale()
   // 판정은 원본을 백엔드에서 한 번 더 디코드한다. 결과는 확대 표시에서만
-  // 쓰이므로 실측 배율이 1x 이상인 이미지만 요청한다. 실측 전에는 배율을
-  // 모르므로 기다린다(양쪽 보기의 만화 페이지는 대개 축소 표시다).
+  // 쓰이므로 실측 배율이 1~2x인 이미지만 요청한다. 실측 전에는 배율을
+  // 모르므로 기다린다(양쪽 보기의 만화 페이지는 대개 축소 표시다). 축소와
+  // 2x 이상 확대는 결과를 쓰지 않는다(축소는 smooth 강제, 2x 이상은 감지
+  // 없이 pixelated).
   const detection = usePixelArtDetection(
     detectionPath ?? filePath,
     fileSize,
@@ -90,7 +92,8 @@ export function PixelArtImage({
       autoDetectPixelArt &&
       detectionEnabled &&
       displayScale !== null &&
-      isMagnifiedDisplay(displayScale),
+      displayScale >= 1 &&
+      displayScale < AUTO_PIXELATED_MIN_SCALE,
     detectionPriority
   )
   // 축소 배율에서는 nearest 보간이 스크린톤 같은 주기 패턴을 깨뜨리므로
