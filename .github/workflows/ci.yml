@@ -45,27 +45,30 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
-      - name: Frontend lint
-        run: npm run lint
+      # 서로 독립적인 검사라 한 그룹으로 동시에 돌린다. 그룹 끝에 암묵적 wait가 있어
+      # 하나라도 실패하면 잡이 실패하고, 실패한 검사의 로그는 스텝별로 따로 남는다.
+      # 가장 오래 걸리는 테스트도 같은 그룹에 넣어, 잡 시간이 가장 느린 검사 하나로 정해진다.
+      - parallel:
+          - name: Frontend lint
+            run: npm run lint
 
-      - name: Type check
-        run: npx tsc --noEmit
+          - name: Type check
+            run: npx tsc --noEmit
 
-      - name: Format check
-        run: npm run format:check
+          - name: Format check
+            run: npm run format:check
 
-      # 문서-코드 정합성 (확장자, IPC, 설정, 플러그인, 버전, plan, i18n 잔재).
-      - name: Docs consistency
-        run: npm run docs:check
+          # 문서-코드 정합성 (확장자, IPC, 설정, 플러그인, 버전, plan, i18n 잔재).
+          - name: Docs consistency
+            run: npm run docs:check
 
-      # moderate 이상 새 자문이 있으면 실패한다. 업스트림 패치가 아직 없는
-      # 자문만 scripts/audit-frontend.mjs의 허용 목록에 이유와 추적 링크를 남긴다.
-      - name: Frontend dependency audit
-        run: npm run audit:frontend
+          # moderate 이상 새 자문이 있으면 실패한다. 업스트림 패치가 아직 없는
+          # 자문만 scripts/audit-frontend.mjs의 허용 목록에 이유와 추적 링크를 남긴다.
+          - name: Frontend dependency audit
+            run: npm run audit:frontend
 
-      # 가장 오래 걸리는 단계라 빠른 검사들 뒤에 둔다. 사소한 오류는 여기 오기 전에 드러난다.
-      - name: Frontend tests with coverage
-        run: npm run test:coverage
+          - name: Frontend tests with coverage
+            run: npm run test:coverage
 
   # Rust 쪽 파일이 바뀐 PR과 main 푸시에서만 rust-check를 돌리기 위한 판별 잡.
   # 태그(릴리스)는 rust 잡이 맡으므로 제외한다. workflow_call에서는 event_name이
@@ -138,6 +141,30 @@ jobs:
         with:
           cache-key: verify
 
+      # cargo-deny는 백그라운드 검사가 쓰기 전에 설치해 둔다.
+      - name: Install cargo-deny
+        uses: taiki-e/install-action@83ac0ad63c0167e6f06796fab0fce28db1bf3db0 # v2
+        with:
+          tool: cargo-deny@0.20.2
+
+      # 컴파일이 필요 없는 감사와 라이선스 검사는 백그라운드로 시작해, 오래 걸리는
+      # cargo test와 clippy 뒤에 숨긴다. 실패는 아래 wait 시점에 잡이 실패로 전파된다.
+      # RustSec 자문 DB 대조. 발견 시 실패한다. 정보성 자문은 통과.
+      - name: Rust dependency audit
+        id: rust-audit
+        background: true
+        uses: rustsec/audit-check@69366f33c96575abad1ee0dba8212993eecbe998 # v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          working-directory: src-tauri
+
+      # 허용 목록 밖의 라이선스(GPL 등), 알 수 없는 레지스트리/git 소스가 들어오면 실패한다.
+      # 설정: src-tauri/deny.toml.
+      - name: Rust license and source check
+        id: rust-deny
+        background: true
+        run: cd src-tauri && cargo deny check licenses bans sources
+
       - name: Cargo fmt
         run: cd src-tauri && cargo fmt --check
 
@@ -147,19 +174,5 @@ jobs:
       - name: Cargo clippy
         run: cd src-tauri && cargo clippy --workspace --no-default-features --all-targets -- -D warnings
 
-      # RustSec 자문 DB 대조. 발견 시 실패한다. 정보성 자문은 통과.
-      - name: Rust dependency audit
-        uses: rustsec/audit-check@69366f33c96575abad1ee0dba8212993eecbe998 # v2
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          working-directory: src-tauri
-
-      # 허용 목록 밖의 라이선스(GPL 등), 알 수 없는 레지스트리/git 소스가 들어오면 실패한다.
-      # 설정: src-tauri/deny.toml.
-      - name: Install cargo-deny
-        uses: taiki-e/install-action@83ac0ad63c0167e6f06796fab0fce28db1bf3db0 # v2
-        with:
-          tool: cargo-deny@0.20.2
-
-      - name: Rust license and source check
-        run: cd src-tauri && cargo deny check licenses bans sources
+      - name: Wait for audit and license checks
+        wait: [rust-audit, rust-deny]
