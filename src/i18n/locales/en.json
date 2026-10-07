@@ -628,9 +628,7 @@
     "copy": {
       "empty": "No image to copy",
       "done": "Image copied",
-      "fail": "Failed to copy image",
-      "canvasFail": "Failed to create Canvas 2D context",
-      "pngFail": "Failed to convert to PNG"
+      "fail": "Failed to copy image"
     },
     "assoc": {
       "loadFail": "Failed to load associations",

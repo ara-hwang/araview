@@ -5,6 +5,13 @@ export type ImageRenderingMode = "smooth" | "pixelated"
 
 const PIXEL_ART_CONFIDENCE = 0.65
 
+/**
+ * 자동 모드에서 픽셀 보존으로 전환하는 최소 표시 배율. 이 배율 이상이면
+ * 원본 픽셀이 화면에 드러나므로, 자동 감지 결과와 무관하게 보간 없이
+ * 픽셀을 그대로 보여준다(확대 시 bilinear 블러 대신 픽셀).
+ */
+export const AUTO_PIXELATED_MIN_SCALE = 2
+
 export function getPixelArtDetectionPath(info: ImageInfo): string {
   return info.file_path !== info.source_path ? info.file_path : info.source_path
 }
@@ -32,6 +39,11 @@ export function resolveImageRenderingMode(
     detection?.classification === "pixel_art" &&
     detection.confidence >= PIXEL_ART_CONFIDENCE
   ) {
+    return "pixelated"
+  }
+  // 자동 모드에서 배율 2x 이상 확대는 자동 감지와 무관하게 픽셀을 보존한다.
+  // 감지 결과는 1x~2x 확대 구간에서만 판정에 들어간다.
+  if (displayScale !== null && displayScale >= AUTO_PIXELATED_MIN_SCALE) {
     return "pixelated"
   }
   return "smooth"

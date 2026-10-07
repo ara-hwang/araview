@@ -21,8 +21,8 @@ import type { ImageInfo } from "@/types"
 import { classifyError } from "@/utils/appError"
 import { animationMimeOf, canControlGif } from "@/utils/gifPlayback"
 import {
+  AUTO_PIXELATED_MIN_SCALE,
   getPixelArtDetectionPath,
-  isMagnifiedDisplay,
   isSvgImageInfo,
   resolveImageRenderingMode
 } from "@/utils/imageRendering"
@@ -170,15 +170,16 @@ export function ImageContainer({
   // 단일 보기 배율은 imageSize(표시 바이트 기준 크기)에 대한 zoom이다.
   // 축소 표시에서는 pixelated 판정을 끄고 항상 부드럽게 보간한다.
   const displayScale = app.imageSize.width > 0 ? app.zoom : null
-  // 판정은 원본을 백엔드에서 한 번 더 디코드한다. 축소 표시에서는 결과를 쓰지
-  // 않으므로 요청하지 않고, 확대로 바뀌면 그때 요청한다.
+  // 판정은 원본을 백엔드에서 한 번 더 디코드한다. 축소 표시와 2x 이상 확대에서는
+  // 결과를 쓰지 않으므로(축소는 smooth 강제, 2x 이상은 감지 없이 pixelated)
+  // 요청하지 않고, 1~2x 확대일 때만 요청한다. 단일 보기는 치수가 없어도 요청한다.
   const currentPixelArtDetection = usePixelArtDetection(
     app.imageInfo ? getPixelArtDetectionPath(app.imageInfo) : null,
     app.imageInfo?.file_size,
     !isMulti &&
       webtoonSettings.imageScalingMode === "auto" &&
       webtoonSettings.autoDetectPixelArt &&
-      isMagnifiedDisplay(displayScale),
+      (displayScale === null || (displayScale >= 1 && displayScale < AUTO_PIXELATED_MIN_SCALE)),
     !isMulti
   )
   const imageRendering = resolveImageRenderingMode(

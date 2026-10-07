@@ -29,6 +29,20 @@ describe("resolveImageRenderingMode", () => {
     expect(resolveImageRenderingMode("auto", true, { ...pixelArt, confidence: 0.5 })).toBe("smooth")
   })
 
+  it("자동 모드는 2x 이상 확대에서 감지 결과와 무관하게 픽셀을 보존한다", () => {
+    expect(resolveImageRenderingMode("auto", true, null, 2)).toBe("pixelated")
+    expect(resolveImageRenderingMode("auto", true, null, 6)).toBe("pixelated")
+    expect(resolveImageRenderingMode("auto", false, null, 2)).toBe("pixelated")
+    expect(resolveImageRenderingMode("auto", true, uncertain, 2)).toBe("pixelated")
+  })
+
+  it("자동 모드는 1x~2x 확대에서만 감지 결과로 판정한다", () => {
+    expect(resolveImageRenderingMode("auto", true, null, 1)).toBe("smooth")
+    expect(resolveImageRenderingMode("auto", true, null, 1.5)).toBe("smooth")
+    expect(resolveImageRenderingMode("auto", true, pixelArt, 1.5)).toBe("pixelated")
+    expect(resolveImageRenderingMode("auto", true, null, null)).toBe("smooth")
+  })
+
   it("축소 배율에서는 설정과 감지와 무관하게 항상 부드럽게 표시한다", () => {
     // nearest 축소는 스크린톤 같은 주기 패턴을 계단·무아레로 깨뜨린다.
     expect(resolveImageRenderingMode("pixelated", false, null, 0.5)).toBe("smooth")

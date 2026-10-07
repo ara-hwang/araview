@@ -4,6 +4,7 @@ use std::fs;
 use std::path::Path;
 
 use crate::app_error::{AppError, ErrorCode};
+use crate::clipboard_png::ClipboardPng;
 use crate::image::{is_supported_file, ImageInfo};
 
 use super::load::parse_image_scaling_mode;
@@ -44,6 +45,23 @@ pub async fn rename_file(
         let info = rename_file_impl_with_mode(&old_path, &new_name, max_side, mode)?;
         allow_asset_path(&app, Path::new(&info.file_path))?;
         Ok(info)
+    })
+    .await
+}
+
+/// 현재 이미지를 클립보드 복사용 PNG로 변환해 경로를 돌려준다(§11.3).
+/// 디코드·인코딩은 백엔드가 맡고, 클립보드 쓰기는 프론트가 한다.
+#[tauri::command]
+pub async fn export_clipboard_png(
+    app: tauri::AppHandle,
+    file_path: String,
+) -> Result<ClipboardPng, AppError> {
+    run_blocking("clipboard png", move || {
+        let png = crate::clipboard_png::export_clipboard_png(Path::new(&file_path))?;
+        // 발행 경로는 파생 캐시 루트 아래라 대부분 이미 허용돼 있다. 세션 폴백
+        // 루트 등 경로 차이에 대비해 멱등하게 한 번 더 거친다.
+        allow_asset_path(&app, Path::new(&png.file_path))?;
+        Ok(png)
     })
     .await
 }

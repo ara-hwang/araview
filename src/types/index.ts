@@ -34,6 +34,11 @@ export type ThumbnailInfo = {
   height: number
 }
 
+export type ClipboardPng = {
+  /** 클립보드에 쓸 PNG의 파생 이미지 캐시 경로(SPEC §11.3). */
+  file_path: string
+}
+
 export type CacheStorageMode = "temporary" | "persistent"
 
 export type CacheCategoryKey = "thumbnails" | "converted" | "scaled" | "archives" | "other"

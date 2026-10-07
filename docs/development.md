@@ -108,6 +108,7 @@ src/
 src-tauri/
   src/commands/      # Tauri command (도메인별 모듈, mod.rs에서 재내보내기)
   src/file_assoc.rs  # Windows 확장자 연결(레지스트리)
+  src/clipboard_png.rs # 클립보드 복사용 PNG 재인코딩 캐시(clipboard/)
   src/image.rs       # MIME/확장자 판별(resolve_mime), load_viewable
   src/sniff.rs       # 파일 선두 시그니처 기반 포맷 판별
   src/heif.rs        # HEIC/HEIF 디코드 및 JPEG sidecar
@@ -146,6 +147,7 @@ src-tauri/
 ## 픽셀 보존 표시와 축소
 
 - 픽셀 보존(`pixelated`)은 확대 배율에서만 적용됩니다. 축소 배율에서는 nearest 계열 보간이 스크린톤 같은 주기 패턴을 계단·무아레로 깨뜨리므로 설정과 감지 결과와 무관하게 항상 smooth로 렌더합니다(`src/utils/imageRendering.ts`의 배율 게이트).
+- 자동 모드(`auto`)는 2x 이상 확대에서 감지 결과와 무관하게 pixelated로 렌더합니다. 보간 없이 원본 픽셀을 그대로 보여주기 위함입니다. 자동 감지 결과는 1x~2x 확대에서만 판정에 들어가며, 2x 이상과 축소 배율에서는 원본 재디코드 분석을 요청하지 않습니다(`AUTO_PIXELATED_MIN_SCALE`).
 - 표시 해상도 상한 축소 sidecar(`src-tauri/src/scaled.rs`)도 감지 결과와 무관하게 항상 보간 필터(`Triangle`)를 사용합니다. 축소는 픽셀을 버리는 연산이므로 픽셀 보존 판정이 의미가 없습니다.
 
 ## 픽셀 아트 감지 참고 자료

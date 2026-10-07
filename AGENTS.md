@@ -34,7 +34,7 @@ Each command must exit 0.
 
 1. `npm test`
 2. `cd src-tauri && cargo test` (Rust sources changed)
-3. Runtime: run every item of `.opencode/commands/verify-ui.md` against the dev app through Tauri MCP.
+3. Runtime: run every item of `.opencode/commands/verify-ui.md` against the dev app with the `tauri-mcp` CLI from the shell. It is not a session MCP tool, so its absence from the tool list means nothing.
    - Confirm the target first: `ipc-get-backend-state` reports `environment.debug: true` and identifier `com.araview.viewer.dev`. `debug: false` with `com.araview.viewer` is the installed build: stop and report.
    - A UI change also needs a click-through of every interactive element on each view it touches.
    - Tauri MCP is the only runtime path, with no browser-automation fallback. When the dev app or bridge will not start, report the exact failure.
