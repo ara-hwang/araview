@@ -14,8 +14,6 @@ type BatchThumb = {
 }
 
 const THUMB_MAX_SIDE = 128
-/** 아카이브 엔트리 썸네일 동시 추출 수. 압축 해제 경합을 제한한다. */
-const ARCHIVE_THUMB_CONCURRENCY = 4
 /** 로딩 청크 크기. 청크가 끝날 때마다 그려서 먼저 끝난 썸네일부터 보인다. */
 const DEFAULT_CHUNK_SIZE = 8
 /** 배경 청크 사이 지연(ms). 스트립 전체를 천천히 채우기 위한 간격. */
@@ -200,7 +198,7 @@ export function useThumbnailSrcs(
   )
 
   /**
-   * 청크 하나를 로드한다. 아카이브는 동시 4개, 일반은 1회 배치 + 폴백.
+   * 청크 하나를 로드한다. 아카이브와 일반 모두 1회 배치 + 폴백.
    * 큐가 취소돼도 보낸 요청은 끝까지 받아 결과를 반영한다.
    */
   const loadChunk = useCallback(
@@ -211,30 +209,20 @@ export function useThumbnailSrcs(
 
       try {
         if (archivePath) {
-          // 아카이브: 엔트리별 추출+리사이즈. 동시성을 제한하고 실패분만 폴백한다.
-          const fallback: string[] = []
-          let cursor = 0
-          const worker = async () => {
-            while (!isStale()) {
-              const index = cursor
-              cursor += 1
-              if (index >= list.length) return
-              const path = list[index]
-              try {
-                const thumb = await invoke<ThumbnailInfo>("generate_archive_thumbnail", {
-                  archivePath,
-                  entryName: path,
-                  maxSide
-                })
-                put(path, thumb.file_path, ctx)
-              } catch {
-                fallback.push(path)
-              }
-            }
+          // 아카이브: 청크를 1회 배치로 보낸다. 백엔드가 아카이브를 워커당 한 번만
+          // 열어 추출+리사이즈하고, 실패분(배치 자체의 실패 포함)만 폴백한다.
+          const results = await invoke<BatchThumb[]>("generate_archive_thumbnails_batch", {
+            archivePath,
+            entryNames: list,
+            maxSide
+          }).catch((): BatchThumb[] => [])
+          const loaded = new Set<string>()
+          for (const r of results) {
+            if (!r.thumb) continue
+            put(r.source, r.thumb.file_path, ctx)
+            loaded.add(r.source)
           }
-          await Promise.all(
-            Array.from({ length: Math.min(ARCHIVE_THUMB_CONCURRENCY, list.length) }, worker)
-          )
+          const fallback = list.filter((path) => !loaded.has(path))
           if (isStale() || fallback.length === 0) return
           await loadFallbacks(fallback, ctx)
           return

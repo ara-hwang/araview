@@ -203,16 +203,24 @@ fn analyze_rgba(rgba: &[u8], width: u32, height: u32) -> PixelArtDetection {
         return PixelArtDetection::unsupported();
     }
 
-    let palette = palette_stats(rgba, width, height);
+    // 세 분석은 같은 픽셀을 읽기만 하고 서로 독립이라 동시에 돌린다. 각 분석
+    // 내부의 누적 순서는 그대로라 결과는 순차 실행과 비트 단위로 같다.
+    let (palette, (neighbors, edge)) = rayon::join(
+        || palette_stats(rgba, width, height),
+        || {
+            rayon::join(
+                || neighbor_stats(rgba, width, height),
+                || edge_stats(rgba, width, height),
+            )
+        },
+    );
     if palette.opaque < 16 {
         return PixelArtDetection::unsupported();
     }
 
-    let neighbors = neighbor_stats(rgba, width, height);
     let flatness = neighbors.flatness;
     let detail = neighbors.detail;
     let grid = grid_stats(&neighbors.horizontal_runs, &neighbors.vertical_runs);
-    let edge = edge_stats(rgba, width, height);
 
     // Palette and flatness identify native 1x pixel art. Grid/edge signals
     // identify an already-upscaled sprite. A completely flat image has no
@@ -454,15 +462,19 @@ fn edge_stats(rgba: &[u8], width: u32, height: u32) -> EdgeStats {
 }
 
 fn grayscale(rgba: &[u8], width: u32, height: u32) -> Vec<f32> {
-    let mut gray = vec![0.0; (width as usize) * (height as usize)];
-    for y in 0..height {
-        for x in 0..width {
-            let index = pixel_index(x, y, width);
-            gray[(y as usize) * (width as usize) + x as usize] = 0.299 * rgba[index] as f32
-                + 0.587 * rgba[index + 1] as f32
-                + 0.114 * rgba[index + 2] as f32;
-        }
-    }
+    use rayon::prelude::*;
+
+    let w = width as usize;
+    let mut gray = vec![0.0; w * (height as usize)];
+    // 픽셀마다 독립이라 행 단위로 나눠 채운다.
+    gray.par_chunks_mut(w)
+        .zip(rgba.par_chunks(w * 4))
+        .for_each(|(gray_row, rgba_row)| {
+            for (value, pixel) in gray_row.iter_mut().zip(rgba_row.as_chunks::<4>().0) {
+                *value =
+                    0.299 * pixel[0] as f32 + 0.587 * pixel[1] as f32 + 0.114 * pixel[2] as f32;
+            }
+        });
     gray
 }
 

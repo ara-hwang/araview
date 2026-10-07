@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 vi.mock("@tauri-apps/api/core", () => ({
@@ -140,5 +140,71 @@ describe("WebtoonContinuousView", () => {
     fireEvent.click(await screen.findByRole("button", { name: "viewer.archivePreview.open" }))
     expect(onOpenArchive).toHaveBeenCalledWith("/pics/comic.cbz")
     expect(load).not.toHaveBeenCalledWith("/pics/comic.cbz")
+  })
+
+  it("옵저버를 페이지끼리 공유하고, 멀리 지나간 페이지는 자리만 남기고 이미지를 내려놓는다", async () => {
+    type Callback = (entries: { target: Element; isIntersecting: boolean }[]) => void
+    const observers: {
+      root?: Element | null
+      rootMargin?: string
+      emit: (target: Element, inside: boolean) => void
+    }[] = []
+    vi.stubGlobal(
+      "IntersectionObserver",
+      class {
+        constructor(callback: Callback, options?: { root?: Element | null; rootMargin?: string }) {
+          observers.push({
+            root: options?.root,
+            rootMargin: options?.rootMargin,
+            emit: (target, inside) => callback([{ target, isIntersecting: inside }])
+          })
+        }
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      }
+    )
+
+    const { container } = render(
+      <WebtoonContinuousView
+        images={["/comic/page-1.jpg", "/comic/page-2.jpg", "/comic/page-3.jpg"]}
+        currentIndex={0}
+        getOrLoadImage={getOrLoadImage}
+        onCenterChange={vi.fn()}
+        scrollTarget={null}
+        imageGap={0}
+        showPageBoundaries={false}
+        fitWidth={false}
+        showProgress={false}
+        thumbnailJump={false}
+      />
+    )
+
+    // 페이지 수와 무관하게 로드용과 유지용 옵저버 하나씩만 만든다.
+    expect(observers.map((o) => o.rootMargin)).toEqual(["200% 0px", "400% 0px"])
+    // root가 스크롤 컨테이너여야 여백이 컨테이너 밖 페이지까지 닿는다.
+    const scroller = container.querySelector("[data-webtoon-scroll-region]")
+    expect(observers.map((o) => o.root)).toEqual([scroller, scroller])
+    const [near, keep] = observers
+    const page = container.querySelector('[data-webtoon-index="1"]') as HTMLElement
+
+    expect(screen.queryByAltText("page-2.jpg")).toBeNull()
+    act(() => near.emit(page, true))
+    expect(await screen.findByAltText("page-2.jpg")).toBeTruthy()
+
+    // 로드 범위만 벗어나면 그대로 두고, 유지 범위까지 벗어나면 내려놓는다.
+    act(() => near.emit(page, false))
+    expect(screen.queryByAltText("page-2.jpg")).not.toBeNull()
+    act(() => keep.emit(page, false))
+    expect(screen.queryByAltText("page-2.jpg")).toBeNull()
+    const placeholder = page.firstElementChild as HTMLElement
+    expect(placeholder.style.getPropertyValue("--webtoon-page-width")).toBe("800px")
+    expect(placeholder.style.getPropertyValue("--webtoon-page-ratio")).toBe("800 / 1200")
+
+    // 유지 범위 보고가 로드 범위 보고보다 늦게 와도 다시 로드한다.
+    act(() => near.emit(page, true))
+    expect(await screen.findByAltText("page-2.jpg")).toBeTruthy()
+    act(() => keep.emit(page, true))
+    expect(screen.queryByAltText("page-2.jpg")).not.toBeNull()
   })
 })

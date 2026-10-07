@@ -26,6 +26,8 @@ pub enum CacheStorageMode {
 
 struct ActiveCacheRoot {
     path: PathBuf,
+    /// `is_canonical_cache_path`가 호출마다 루트를 canonicalize하지 않게 한 번만 구한다.
+    canonical: PathBuf,
     /// Keep the session directory alive for the lifetime of the process.
     _temporary: Option<tempfile::TempDir>,
     mode: CacheStorageMode,
@@ -83,6 +85,7 @@ pub fn initialize(app: &tauri::AppHandle, mode: CacheStorageMode) -> Result<Path
             let path = temp.path().to_path_buf();
             set_active_root(ActiveCacheRoot {
                 path: path.clone(),
+                canonical: canonical_or_raw(&path),
                 _temporary: Some(temp),
                 mode,
                 persistent_available: true,
@@ -103,6 +106,7 @@ pub fn initialize(app: &tauri::AppHandle, mode: CacheStorageMode) -> Result<Path
             remove_stale_temp_files(&root);
             let path = root.clone();
             set_active_root(ActiveCacheRoot {
+                canonical: canonical_or_raw(&path),
                 path,
                 _temporary: None,
                 mode,
@@ -121,6 +125,7 @@ pub fn initialize_temporary_fallback() -> Result<PathBuf, AppError> {
     let path = temp.path().to_path_buf();
     set_active_root(ActiveCacheRoot {
         path: path.clone(),
+        canonical: canonical_or_raw(&path),
         _temporary: Some(temp),
         mode: CacheStorageMode::Temporary,
         persistent_available: false,
@@ -179,6 +184,7 @@ pub fn process_temp_dir() -> Result<PathBuf, AppError> {
             let path = temp.path().to_path_buf();
             *guard = Some(ActiveCacheRoot {
                 path: path.clone(),
+                canonical: canonical_or_raw(&path),
                 _temporary: Some(temp),
                 mode: CacheStorageMode::Temporary,
                 persistent_available: false,
@@ -208,17 +214,21 @@ pub fn cleanup_on_exit() {
     }
 }
 
-pub(crate) fn is_cache_path(path: &Path) -> bool {
-    let Some(root) = ACTIVE_CACHE_ROOT
+fn canonical_or_raw(path: &Path) -> PathBuf {
+    fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
+}
+
+/// 이미 canonicalize한 경로가 활성 캐시 루트 아래인지 본다.
+pub(crate) fn is_canonical_cache_path(canonical: &Path) -> bool {
+    ACTIVE_CACHE_ROOT
         .lock()
         .ok()
-        .and_then(|guard| guard.as_ref().map(|root| root.path.clone()))
-    else {
-        return false;
-    };
-    let path = fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
-    let root = fs::canonicalize(&root).unwrap_or(root);
-    path.starts_with(root)
+        .and_then(|guard| {
+            guard
+                .as_ref()
+                .map(|root| canonical.starts_with(&root.canonical))
+        })
+        .unwrap_or(false)
 }
 
 fn cleanup_old_versions(base: &Path, keep: Option<&Path>) -> Result<(), AppError> {
@@ -311,6 +321,9 @@ pub(crate) fn is_inflight_temp_path(path: &Path) -> bool {
         && counter.bytes().all(|b| b.is_ascii_digit())
 }
 
+/// A cache hit within this window of the last touch skips the touch.
+const TOUCH_MIN_INTERVAL: std::time::Duration = std::time::Duration::from_secs(60);
+
 /// Best-effort LRU touch for persistent cache hits. Reopening the file and
 /// setting its current length updates its modification time without adding a
 /// platform-specific timestamp dependency.
@@ -318,6 +331,16 @@ pub(crate) fn touch_cache_file(path: &Path) {
     let Ok(metadata) = fs::metadata(path) else {
         return;
     };
+    // 방금 갱신한 파일은 다시 열지 않는다. 축출은 오래된 순서라 이 정도 오차는
+    // 순서를 바꾸지 않고, 스크롤 중 반복 hit마다 쓰기 오픈을 하지 않게 된다.
+    let fresh = metadata
+        .modified()
+        .ok()
+        .and_then(|modified| modified.elapsed().ok())
+        .is_some_and(|age| age < TOUCH_MIN_INTERVAL);
+    if fresh {
+        return;
+    }
     if let Ok(file) = fs::OpenOptions::new().write(true).open(path) {
         let _ = file.set_len(metadata.len());
     }

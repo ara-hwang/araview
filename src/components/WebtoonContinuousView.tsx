@@ -26,6 +26,58 @@ const STALE = Symbol("webtoon-stale-load")
 
 type GetOrLoadImage = (filePath: string) => Promise<ImageInfo>
 
+/** 요소가 관측 영역에 들어오고 나갈 때 알린다. 반환값은 관측 해제 함수다. */
+type ViewportWatch = (element: Element, onChange: (inside: boolean) => void) => () => void
+
+type ViewportWatcher = { watch: ViewportWatch; disconnect: () => void }
+
+/**
+ * 페이지들이 함께 쓰는 IntersectionObserver 하나를 만든다. 페이지마다 인스턴스를
+ * 두면 수백 쪽 아카이브에서 옵저버도 수백 개가 된다.
+ *
+ * root는 스크롤 컨테이너여야 한다. root를 생략하면 페이지가 먼저 컨테이너의
+ * 보이는 영역으로 잘려서 `rootMargin`이 효과가 없다. 컨테이너는 첫 관측 시점에야
+ * DOM에 있으므로 옵저버를 그때 만든다.
+ */
+function createViewportWatcher(
+  rootMargin: string,
+  getRoot: () => Element | null
+): ViewportWatcher | null {
+  if (typeof IntersectionObserver === "undefined") return null
+  const handlers = new Map<Element, (inside: boolean) => void>()
+  let observer: IntersectionObserver | null = null
+  return {
+    watch: (element, onChange) => {
+      observer ??= new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries) handlers.get(entry.target)?.(entry.isIntersecting)
+        },
+        { root: getRoot(), rootMargin }
+      )
+      handlers.set(element, onChange)
+      observer.observe(element)
+      return () => {
+        handlers.delete(element)
+        observer?.unobserve(element)
+      }
+    },
+    disconnect: () => {
+      handlers.clear()
+      observer?.disconnect()
+      observer = null
+    }
+  }
+}
+
+type WebtoonWatchers = {
+  /** 로드와 픽셀아트 판정을 시작하는 범위. */
+  near: ViewportWatcher | null
+  /** 이 범위를 벗어난 페이지는 이미지를 내려놓는다. `near`보다 넓어 경계에서 반복 로드하지 않는다. */
+  keep: ViewportWatcher | null
+}
+
+type PageSize = { width: number; height: number }
+
 export type WebtoonScrollTarget = {
   index: number
   nonce: number
@@ -36,6 +88,8 @@ function WebtoonLazyPage({
   index,
   getOrLoadImage,
   registerRef,
+  watchers,
+  onNearChange,
   fitWidth,
   imageScalingMode,
   autoDetectPixelArt,
@@ -49,6 +103,8 @@ function WebtoonLazyPage({
   index: number
   getOrLoadImage: GetOrLoadImage
   registerRef: (index: number, el: HTMLDivElement | null) => void
+  watchers: WebtoonWatchers
+  onNearChange: (index: number, near: boolean) => void
   fitWidth: boolean
   imageScalingMode: ImageScalingMode
   autoDetectPixelArt: boolean
@@ -62,6 +118,8 @@ function WebtoonLazyPage({
   const wrapRef = useRef<HTMLDivElement>(null)
   const nearRef = useRef(false)
   const [info, setInfo] = useState<ImageInfo | null>(null)
+  // 내려놓은 페이지가 자리를 그대로 차지하도록 마지막으로 본 크기를 기억한다.
+  const [lastSize, setLastSize] = useState<PageSize | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isNearViewport, setIsNearViewport] = useState(false)
   const [nonce, setNonce] = useState(0)
@@ -79,6 +137,8 @@ function WebtoonLazyPage({
     if (!el || isArchive) return
     let cancelled = false
     let loaded = false
+    // 유지 범위 안인지. 옵저버의 첫 보고 전에는 안에 있다고 본다.
+    let kept = true
 
     const load = async () => {
       if (loaded) return
@@ -92,10 +152,17 @@ function WebtoonLazyPage({
           }
           return getOrLoadImage(path)
         })
-        if (!cancelled) {
-          setInfo(data)
-          setError(null)
+        if (cancelled) return
+        if (!kept) {
+          // 로드 중에 멀리 지나갔다. 그리지 않고 다음 접근 때 다시 로드한다.
+          loaded = false
+          return
         }
+        setInfo(data)
+        if (data.width && data.height) {
+          setLastSize({ width: data.width, height: data.height })
+        }
+        setError(null)
       } catch (e) {
         loaded = false
         if (!cancelled && e !== STALE) {
@@ -104,7 +171,7 @@ function WebtoonLazyPage({
       }
     }
 
-    if (typeof IntersectionObserver === "undefined") {
+    if (!watchers.near) {
       nearRef.current = true
       setIsNearViewport(priority)
       void load()
@@ -113,23 +180,32 @@ function WebtoonLazyPage({
       }
     }
 
-    const io = new IntersectionObserver(
-      (entries) => {
-        const near = entries.some((entry) => entry.isIntersecting)
-        nearRef.current = near
-        setIsNearViewport(near)
-        if (near) {
-          void load()
-        }
-      },
-      { rootMargin: "200% 0px" }
-    )
-    io.observe(el)
+    const unwatchNear = watchers.near.watch(el, (near) => {
+      nearRef.current = near
+      setIsNearViewport(near)
+      onNearChange(index, near)
+      if (near) {
+        // 로드 범위는 유지 범위 안이다. 두 옵저버의 보고 순서가 엇갈려도
+        // 방금 받은 결과를 버리지 않게 여기서 함께 맞춘다.
+        kept = true
+        void load()
+      }
+    })
+    // 멀리 지나간 페이지는 이미지를 내려놓는다. 풀해상 <img>가 본 만큼 쌓여
+    // WebView 메모리를 차지하지 않게 하고, 자리는 `lastSize`로 유지한다.
+    const unwatchKeep = watchers.keep?.watch(el, (inside) => {
+      if (inside || nearRef.current) return
+      kept = false
+      loaded = false
+      setInfo(null)
+    })
     return () => {
       cancelled = true
-      io.disconnect()
+      unwatchNear()
+      unwatchKeep?.()
+      onNearChange(index, false)
     }
-  }, [path, getOrLoadImage, nonce, priority, isArchive])
+  }, [path, index, getOrLoadImage, nonce, priority, isArchive, watchers, onNearChange])
 
   return (
     <div
@@ -177,6 +253,7 @@ function WebtoonLazyPage({
           decoding="async"
           onError={() => {
             setInfo(null)
+            setLastSize(null)
             setError(t("error.corrupt.title"))
           }}
           onDoubleClick={onImageDoubleClick}
@@ -197,6 +274,21 @@ function WebtoonLazyPage({
             {t("viewer.error.retry")}
           </Button>
         </div>
+      ) : lastSize ? (
+        // 내려놓은 페이지: <img>와 같은 상자(너비, 종횡비)라 스크롤 위치가 변하지 않는다.
+        <div
+          aria-hidden="true"
+          className={cn(
+            "aspect-(--webtoon-page-ratio) max-w-full rounded bg-muted/40",
+            fitWidth ? "w-full" : "w-(--webtoon-page-width)"
+          )}
+          style={
+            {
+              "--webtoon-page-width": `${lastSize.width}px`,
+              "--webtoon-page-ratio": `${lastSize.width} / ${lastSize.height}`
+            } as React.CSSProperties
+          }
+        />
       ) : (
         <div
           aria-hidden="true"
@@ -212,6 +304,8 @@ type WebtoonPageListProps = {
   currentIndex: number
   getOrLoadImage: GetOrLoadImage
   registerRef: (index: number, el: HTMLDivElement | null) => void
+  watchers: WebtoonWatchers
+  onNearChange: (index: number, near: boolean) => void
   imageGap: number
   showPageBoundaries: boolean
   fitWidth: boolean
@@ -226,6 +320,8 @@ const WebtoonPageList = memo(function WebtoonPageList({
   currentIndex,
   getOrLoadImage,
   registerRef,
+  watchers,
+  onNearChange,
   imageGap,
   showPageBoundaries,
   fitWidth,
@@ -246,6 +342,8 @@ const WebtoonPageList = memo(function WebtoonPageList({
           index={index}
           getOrLoadImage={getOrLoadImage}
           registerRef={registerRef}
+          watchers={watchers}
+          onNearChange={onNearChange}
           fitWidth={fitWidth}
           imageScalingMode={imageScalingMode}
           autoDetectPixelArt={autoDetectPixelArt}
@@ -324,6 +422,25 @@ export function WebtoonContinuousView({
   const onCenterRef = useRef(onCenterChange)
   onCenterRef.current = onCenterChange
   const rafRef = useRef(0)
+  const scheduleMeasureRef = useRef<(() => void) | null>(null)
+  // 뷰포트 근처 페이지 인덱스. 스크롤 측정이 전체 페이지를 훑지 않게 한다.
+  const nearIndexesRef = useRef(new Set<number>())
+  const [watchers] = useState<WebtoonWatchers>(() => ({
+    near: createViewportWatcher("200% 0px", () => scrollRef.current),
+    keep: createViewportWatcher("400% 0px", () => scrollRef.current)
+  }))
+  useEffect(
+    () => () => {
+      watchers.near?.disconnect()
+      watchers.keep?.disconnect()
+    },
+    [watchers]
+  )
+  const onNearChange = useRef((index: number, near: boolean) => {
+    if (near) nearIndexesRef.current.add(index)
+    else nearIndexesRef.current.delete(index)
+    scheduleMeasureRef.current?.()
+  }).current
   const initialIndex = Math.max(0, Math.min(currentIndex, images.length - 1))
   const lastReportedIndexRef = useRef(initialIndex)
   const [scrollMetrics, setScrollMetrics] = useState<WebtoonScrollMetrics>({
@@ -380,10 +497,27 @@ export function WebtoonContinuousView({
     const measure = () => {
       rafRef.current = 0
       const viewport = container.getBoundingClientRect()
-      const pages: WebtoonPageRect[] = []
-      for (const [index, element] of itemRefs.current) {
+      const viewportBottom = viewport.top + viewport.height
+      // 근처 페이지만 잰다. 수백 쪽 목록을 프레임마다 전부 재지 않는다.
+      let pages: WebtoonPageRect[] = []
+      let anyVisible = false
+      for (const index of nearIndexesRef.current) {
+        const element = itemRefs.current.get(index)
+        if (!element) continue
         const rect = element.getBoundingClientRect()
         pages.push({ index, top: rect.top, height: rect.height })
+        if (rect.top + rect.height >= viewport.top && rect.top <= viewportBottom) {
+          anyVisible = true
+        }
+      }
+      // 큰 점프 직후처럼 옵저버 보고가 아직 오지 않아 보이는 페이지가 근처
+      // 집합에 없으면, 그 프레임만 전체를 재서 현재 페이지를 잘못 고르지 않는다.
+      if (!anyVisible) {
+        pages = []
+        for (const [index, element] of itemRefs.current) {
+          const rect = element.getBoundingClientRect()
+          pages.push({ index, top: rect.top, height: rect.height })
+        }
       }
 
       const metrics = calculateWebtoonScrollMetrics({
@@ -411,6 +545,7 @@ export function WebtoonContinuousView({
       if (rafRef.current !== 0) return
       rafRef.current = requestAnimationFrame(measure)
     }
+    scheduleMeasureRef.current = scheduleMeasure
 
     const observer =
       typeof ResizeObserver === "undefined" ? null : new ResizeObserver(scheduleMeasure)
@@ -429,6 +564,7 @@ export function WebtoonContinuousView({
       window.removeEventListener("resize", scheduleMeasure)
       observer?.disconnect()
       resizeObserverRef.current = null
+      scheduleMeasureRef.current = null
       if (rafRef.current !== 0) cancelAnimationFrame(rafRef.current)
       rafRef.current = 0
     }
@@ -463,6 +599,8 @@ export function WebtoonContinuousView({
           currentIndex={displayIndex}
           getOrLoadImage={getOrLoadImage}
           registerRef={registerRef}
+          watchers={watchers}
+          onNearChange={onNearChange}
           imageGap={imageGap}
           showPageBoundaries={showPageBoundaries}
           fitWidth={fitWidth}

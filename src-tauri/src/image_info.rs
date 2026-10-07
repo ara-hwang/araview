@@ -45,6 +45,11 @@ fn decode_rgb8(path: &Path) -> Result<image::RgbImage, AppError> {
     if crate::image::get_mime_type(path) == Some("image/svg+xml") {
         return crate::svg_raster::rasterize(path, HISTOGRAM_MAX_SIDE);
     }
+    // JPEG는 집계 크기까지 DCT 단계에서 줄여 디코드한다. 어차피 256px로
+    // 다운샘플하므로 풀해상도 디코드와 큰 버퍼를 건너뛴다.
+    if let Some(scaled) = crate::thumbnail::decode_jpeg_scaled(path, HISTOGRAM_MAX_SIDE) {
+        return Ok(scaled.into_rgb8());
+    }
     let dyn_img =
         image::open(path).map_err(|e| AppError::image_error("Cannot compute histogram", e))?;
     Ok(dyn_img.to_rgb8())

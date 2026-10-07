@@ -40,9 +40,13 @@ static ALLOWED_ASSET_DIRS: LazyLock<Mutex<HashSet<PathBuf>>> =
 /// 허용할 때도 canonicalize한 경로를 등록한다.
 pub(crate) fn allow_asset_path(app: &tauri::AppHandle, path: &Path) -> Result<(), AppError> {
     if let Ok(temp) = process_temp_dir() {
+        // 캐시 산출물은 대부분 루트 경로 그대로 만들어져 문자열 비교로 끝난다.
+        if path.starts_with(&temp) {
+            return Ok(());
+        }
         let temp_canon = fs::canonicalize(&temp).unwrap_or(temp.clone());
         let path_canon = fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
-        if path_canon.starts_with(&temp_canon) || path.starts_with(&temp) {
+        if path_canon.starts_with(&temp_canon) {
             return Ok(());
         }
     }

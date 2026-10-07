@@ -24,13 +24,13 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, LazyLock, Mutex};
-use std::time::{Instant, SystemTime};
+use std::time::{Duration, Instant, SystemTime};
 
 use crate::app_error::{AppError, ErrorCode};
 use crate::commands::{DirListOptions, DirSortKey};
 use crate::file_availability::FileAvailability;
 use crate::image::is_supported_file;
-use crate::natural_sort::natural_key;
+use crate::natural_sort::sort_by_natural_path;
 
 /// Upper bound for cached directory listings; oldest entry evicted past this.
 const MAX_CACHE_ENTRIES: usize = 128;
@@ -40,7 +40,8 @@ const MAX_WATCHED_DIRS: usize = 64;
 
 #[derive(Debug, Clone)]
 pub(crate) struct ImageEntry {
-    pub(crate) path: String,
+    /// IPC 응답이 문자열을 복사하지 않고 참조만 늘리도록 공유한다.
+    pub(crate) path: Arc<str>,
     pub(crate) modified: Option<SystemTime>,
     pub(crate) size: u64,
     pub(crate) availability: FileAvailability,
@@ -104,10 +105,27 @@ fn dir_mtime(dir: &Path) -> Option<SystemTime> {
 }
 
 /// Sorted image entries for `parent`, served from cache when valid.
+#[cfg(test)]
 pub(crate) fn get_sorted_images(
     parent: &Path,
     opts: &DirListOptions,
 ) -> Result<Arc<Vec<ImageEntry>>, AppError> {
+    get_sorted_images_with_source(parent, opts).map(|(images, _)| images)
+}
+
+/// 목록이 어디서 왔는지. 방금 스캔한 목록은 디스크 상태 그대로라 호출자가
+/// 항목별 존재 확인을 다시 할 필요가 없다.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ListingSource {
+    Scanned,
+    Cached,
+}
+
+/// [`get_sorted_images`]에 목록의 출처를 더해 돌려준다.
+pub(crate) fn get_sorted_images_with_source(
+    parent: &Path,
+    opts: &DirListOptions,
+) -> Result<(Arc<Vec<ImageEntry>>, ListingSource), AppError> {
     // `canonical`은 캐시 키/워처 식별에만 쓴다. Windows canonicalize는
     // `\\?\D:\...` 확장 경로를 돌려주는데, 그 문자열이 그대로 FE까지 가면
     // 탐색기 열기(`/select,`)와 경로 표시가 깨진다. 스캔은 호출자가 준
@@ -119,7 +137,7 @@ pub(crate) fn get_sorted_images(
             if let Some(entry) = cache.get_mut(&cache_key(&canonical, opts)) {
                 if entry.dir_mtime == current {
                     entry.last_access = Instant::now();
-                    return Ok(Arc::clone(&entry.images));
+                    return Ok((Arc::clone(&entry.images), ListingSource::Cached));
                 }
             }
         }
@@ -129,7 +147,7 @@ pub(crate) fn get_sorted_images(
         ensure_watched(&canonical, false);
         let images = Arc::new(images);
         insert_cache(canonical, opts, current, Arc::clone(&images));
-        Ok(images)
+        Ok((images, ListingSource::Scanned))
     } else {
         let key = cache_key(&canonical, opts);
         // 재귀 목록은 부모 mtime으로 검증할 수 없어 워처가 살아 있을 때만
@@ -141,7 +159,7 @@ pub(crate) fn get_sorted_images(
             if let Ok(mut cache) = DIR_CACHE.lock() {
                 if let Some(entry) = cache.get_mut(&key) {
                     entry.last_access = Instant::now();
-                    return Ok(Arc::clone(&entry.images));
+                    return Ok((Arc::clone(&entry.images), ListingSource::Cached));
                 }
             }
         }
@@ -152,7 +170,7 @@ pub(crate) fn get_sorted_images(
         if watched {
             insert_cache(canonical, opts, None, Arc::clone(&images));
         }
-        Ok(images)
+        Ok((images, ListingSource::Scanned))
     }
 }
 
@@ -334,22 +352,42 @@ fn unwatch_if_unused(canonical_parent: &Path) {
     }
 }
 
+/// 직전 이벤트의 부모 폴더 해석 결과. 대량 복사·삭제는 같은 폴더의 이벤트가
+/// 연달아 오므로 이벤트마다 canonicalize하지 않게 잠깐만 재사용한다.
+static LAST_EVENT_PARENT: Mutex<Option<(PathBuf, Instant, String)>> = Mutex::new(None);
+const EVENT_PARENT_TTL: Duration = Duration::from_secs(1);
+
+fn canonical_event_parent(parent: &Path) -> Option<String> {
+    let mut last = LAST_EVENT_PARENT.lock().ok()?;
+    if let Some((path, at, key)) = last.as_ref() {
+        if path == parent && at.elapsed() < EVENT_PARENT_TTL {
+            return Some(key.clone());
+        }
+    }
+    let canonical = fs::canonicalize(parent).ok()?;
+    let key = with_trailing_sep(canonical.to_string_lossy().to_lowercase());
+    *last = Some((parent.to_path_buf(), Instant::now(), key.clone()));
+    Some(key)
+}
+
 fn invalidate_for_path(path: &Path) {
     // 이벤트 경로는 raw/canonical 어느 쪽으로 와도 매칭되게 후보를 모은다.
     // 삭제된 파일은 canonicalize가 실패하므로 부모 기준도 함께 검사한다.
     // 후보에도 구분자를 붙여야 `C:\foo`가 `C:\foobar`에 걸리지 않으면서
     // 감시 중인 디렉터리 자신에 대한 이벤트(삭제·이름 변경)까지 잡힌다.
+    // 무효화할 목록이 없으면 경로 해석(syscall)도 필요 없다. 대량 변경은 첫
+    // 이벤트가 목록을 비운 뒤 나머지가 여기서 끝난다.
+    if DIR_CACHE.lock().is_ok_and(|cache| cache.is_empty()) {
+        return;
+    }
     let mut candidates = vec![with_trailing_sep(path.to_string_lossy().to_lowercase())];
     if let Ok(canonical) = fs::canonicalize(path) {
         candidates.push(with_trailing_sep(
             canonical.to_string_lossy().to_lowercase(),
         ));
     }
-    if let Some(parent) = path
-        .parent()
-        .and_then(|parent| fs::canonicalize(parent).ok())
-    {
-        candidates.push(with_trailing_sep(parent.to_string_lossy().to_lowercase()));
+    if let Some(parent) = path.parent().and_then(canonical_event_parent) {
+        candidates.push(parent);
     }
     // Watcher-callback thread: touch DIR_CACHE only, never WATCHER.
     let Ok(mut cache) = DIR_CACHE.lock() else {
@@ -401,10 +439,12 @@ fn collect_images(dir: &Path, recursive: bool, out: &mut Vec<ImageEntry>) -> Res
                 }
                 continue;
             }
-            if !file_type.is_file() || !entry_path.is_file() || !is_supported_file(&entry_path) {
+            // `file_type`은 디렉터리 열거 결과라 추가 조회가 없다. 그 사이 사라진
+            // 파일은 아래 `metadata` 실패나 로드 시점의 not_found로 드러난다.
+            if !file_type.is_file() || !is_supported_file(&entry_path) {
                 continue;
             }
-            let Some(path_str) = entry_path.to_str().map(str::to_string) else {
+            let Some(path_str) = entry_path.to_str().map(Arc::<str>::from) else {
                 continue;
             };
             let (availability, modified, size) = match entry.metadata() {
@@ -445,14 +485,21 @@ fn is_reparse_point(entry: &fs::DirEntry) -> bool {
 }
 
 fn sort_images(images: &mut [ImageEntry], opts: &DirListOptions) {
-    // 정렬 키 계산(Win32 호출)이 비교마다 반복되지 않도록 한 번만 계산한다.
+    let by_name = |group: &mut [ImageEntry]| sort_by_natural_path(group, |e| &e.path);
     match opts.sort_key {
-        DirSortKey::Name => images.sort_by_cached_key(|e| natural_key(&e.path)),
+        DirSortKey::Name => by_name(images),
+        // 이름 키(Win32 호출)는 날짜나 크기가 같은 묶음에만 계산한다.
         DirSortKey::Date => {
-            images.sort_by_cached_key(|e| (e.modified, natural_key(&e.path)));
+            images.sort_unstable_by_key(|e| e.modified);
+            for group in images.chunk_by_mut(|a, b| a.modified == b.modified) {
+                by_name(group);
+            }
         }
         DirSortKey::Size => {
-            images.sort_by_cached_key(|e| (e.size, natural_key(&e.path)));
+            images.sort_unstable_by_key(|e| e.size);
+            for group in images.chunk_by_mut(|a, b| a.size == b.size) {
+                by_name(group);
+            }
         }
     }
     if opts.descending {
@@ -513,7 +560,7 @@ mod tests {
         entries
             .iter()
             .map(|e| {
-                Path::new(&e.path)
+                Path::new(&*e.path)
                     .file_name()
                     .unwrap()
                     .to_str()
@@ -570,7 +617,7 @@ mod tests {
         let entries = get_sorted_images(&dir, &opts).expect("scan");
         let expected = dir.join("a.png").to_string_lossy().to_string();
         assert_eq!(entries.len(), 1);
-        assert_eq!(entries[0].path, expected);
+        assert_eq!(&*entries[0].path, expected);
         assert!(!entries[0].path.starts_with(r"\\?\"));
         fs::remove_dir_all(&dir).ok();
     }
