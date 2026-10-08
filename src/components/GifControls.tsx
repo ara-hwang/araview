@@ -1,4 +1,5 @@
 import { CaretLeft, CaretRight, Pause, Play } from "@phosphor-icons/react"
+import type { CSSProperties } from "react"
 import { useTranslation } from "react-i18next"
 import { useShallow } from "zustand/react/shallow"
 
@@ -68,10 +69,18 @@ export function GifControls() {
         </Button>
       </AppTooltip>
       <ButtonGroupText
-        className="tabular-nums no-drag"
+        className="shrink-0 whitespace-nowrap tabular-nums no-drag"
         aria-label={t("header.gifFrame", { index: frame + 1, total: frameCount })}
       >
-        {frame + 1}/{frameCount}
+        <span>
+          <span
+            className="inline-block w-[calc(var(--gif-digits)*1ch)] text-right"
+            style={{ "--gif-digits": String(frameCount).length } as CSSProperties}
+          >
+            {frame + 1}
+          </span>
+          /{frameCount}
+        </span>
       </ButtonGroupText>
     </ButtonGroup>
   )

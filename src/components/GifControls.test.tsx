@@ -26,6 +26,10 @@ beforeEach(() => {
   useGifStore.getState().reset()
 })
 
+// 번호 칸이 별도 span이라 카운터 전체 textContent로 찾는다
+const counter = (text: string) => (_: string, el: Element | null) =>
+  el?.getAttribute("data-slot") === "button-group-text" && el.textContent === text
+
 describe("GifControls", () => {
   it("제어 불가 이미지에서는 컨트롤을 렌더하지 않는다", () => {
     render(<GifControls />)
@@ -44,7 +48,7 @@ describe("GifControls", () => {
 
     expect(screen.getByLabelText(prevLabel)).toBeTruthy()
     expect(screen.getByLabelText(nextLabel)).toBeTruthy()
-    expect(screen.getByText("1/4")).toBeTruthy()
+    expect(screen.getByText(counter("1/4"))).toBeTruthy()
 
     screen.getByLabelText(pauseLabel).click()
     expect(useGifStore.getState().playing).toBe(false)
@@ -52,7 +56,7 @@ describe("GifControls", () => {
 
     screen.getByLabelText(nextLabel).click()
     expect(useGifStore.getState().frame).toBe(1)
-    expect(await screen.findByText("2/4")).toBeTruthy()
+    expect(await screen.findByText(counter("2/4"))).toBeTruthy()
 
     screen.getByLabelText(prevLabel).click()
     expect(useGifStore.getState().frame).toBe(0)
