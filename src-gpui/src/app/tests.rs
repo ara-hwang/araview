@@ -12,7 +12,8 @@ use gpui_kit::{
 
 use super::AraView;
 use super::settings_panel::SettingsPanel;
-use crate::settings::{SettingsStore, ViewMode};
+use crate::settings::{ArchiveProgress, SettingsStore, ViewMode};
+use crate::toast::{TOAST_DURATION, Toast, WindowToast};
 
 fn sample(name: &str) -> String {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -411,6 +412,57 @@ fn dual_view_pairs_pages_and_keeps_cover_and_wide_pages_alone(cx: &mut TestAppCo
         assert_eq!(this.shown, [4, 5]);
         assert_eq!(this.dual_rects(cx)[0].0, 5);
     });
+}
+
+#[gpui_kit::test]
+fn resumed_archive_notification_autohides_after_five_seconds(cx: &mut TestAppContext) {
+    use std::time::Duration;
+
+    let (_dir, paths) = temp_copy(&["sample-comicinfo.cbz"]);
+    let archive = paths[0].clone();
+    let (view, cx) = open_app(cx);
+    cx.update(|_, cx| {
+        SettingsStore::set_archive_progress(
+            cx,
+            &archive,
+            ArchiveProgress {
+                entry: "002.jpg".to_owned(),
+                index: 1,
+                total: 5,
+            },
+        );
+    });
+
+    open(&view, archive, cx);
+    assert_eq!(view.read_with(cx, |this, _| this.index), 1);
+    assert_eq!(cx.update(|window, cx| window.notifications(cx).len()), 1);
+
+    cx.executor().advance_clock(TOAST_DURATION);
+    cx.run_until_parked();
+    cx.executor().advance_clock(Duration::from_millis(300));
+    settle(cx);
+    assert_eq!(cx.update(|window, cx| window.notifications(cx).len()), 0);
+}
+
+#[gpui_kit::test]
+fn regular_toasts_share_the_timed_autohide(cx: &mut TestAppContext) {
+    use std::time::Duration;
+
+    let (_view, cx) = open_app(cx);
+    cx.update(|window, cx| window.toast(Toast::info("temporary toast"), cx));
+    assert_eq!(cx.update(|window, cx| window.notifications(cx).len()), 1);
+
+    cx.executor()
+        .advance_clock(TOAST_DURATION - Duration::from_secs(1));
+    cx.run_until_parked();
+    settle(cx);
+    assert_eq!(cx.update(|window, cx| window.notifications(cx).len()), 1);
+
+    cx.executor().advance_clock(Duration::from_secs(1));
+    cx.run_until_parked();
+    cx.executor().advance_clock(Duration::from_millis(300));
+    settle(cx);
+    assert_eq!(cx.update(|window, cx| window.notifications(cx).len()), 0);
 }
 
 #[gpui_kit::test]

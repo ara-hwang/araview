@@ -8,11 +8,10 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Instant;
 
-use crate::toast::{Toast, WindowToast};
+use crate::toast::{Toast, WindowToast, push_timed_notification};
 use araview_core::app_error::AppError;
 use araview_core::image::{ImageInfo, is_archive_file};
 use araview_core::ops;
-use gpui_kit::component::WindowExt as _;
 use gpui_kit::*;
 
 use super::{AraView, Listing};
@@ -205,7 +204,8 @@ impl AraView {
         }
         if listing.resumed {
             let entity = cx.entity();
-            window.push_notification(
+            push_timed_notification(
+                window,
                 gpui_kit::component::notification::Notification::info(t_with(
                     "toast.archive.resumed",
                     &[("index", &(index + 1)), ("total", &self.list.len())],

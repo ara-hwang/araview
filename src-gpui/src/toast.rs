@@ -4,11 +4,19 @@
 //! 있으면 토스트가 가려진다. 그래서 다이얼로그가 열려 있을 때는 같은 내용을 그 위에
 //! 쌓이는 경고창으로 보여주고, 그렇지 않을 때만 일반 토스트를 쓴다.
 
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::time::Duration;
+
 use gpui_kit::component::WindowExt as _;
 use gpui_kit::component::notification::Notification;
 
 use crate::i18n::t;
 use gpui_kit::{App, SharedString, Window};
+
+pub(crate) const TOAST_DURATION: Duration = Duration::from_secs(5);
+static NEXT_TOAST_ID: AtomicUsize = AtomicUsize::new(0);
+
+struct TimedToast;
 
 #[derive(Clone, Copy)]
 enum Tone {
@@ -68,6 +76,29 @@ impl Toast {
     }
 }
 
+/// 알림 스택의 hover/focus에 영향받지 않고 지정 시간 뒤 토스트를 닫는다.
+pub(crate) fn push_timed_notification(
+    window: &mut Window,
+    notification: Notification,
+    cx: &mut App,
+) {
+    let id = NEXT_TOAST_ID.fetch_add(1, Ordering::Relaxed);
+    let window_handle = window.window_handle();
+    window.push_notification(notification.id1::<TimedToast>(id).autohide(false), cx);
+
+    cx.spawn(async move |cx| {
+        cx.background_executor().timer(TOAST_DURATION).await;
+        // 타이머가 끝나기 전에 창을 닫았다면 남은 알림도 없다.
+        let result = window_handle.update(cx, |_, window, cx| {
+            window.remove_notification1::<TimedToast>(id, cx);
+        });
+        if let Err(error) = result {
+            log::debug!("[toast] window closed before timeout: {error}");
+        }
+    })
+    .detach();
+}
+
 pub trait WindowToast {
     fn toast(&mut self, toast: Toast, cx: &mut App);
 }
@@ -85,7 +116,7 @@ impl WindowToast for Window {
                 }
             });
         } else {
-            self.push_notification(toast.notification(), cx);
+            push_timed_notification(self, toast.notification(), cx);
         }
     }
 }
