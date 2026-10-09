@@ -1,31 +1,12 @@
-pub mod app_error;
-pub mod archive;
-pub mod archive_index;
-pub mod cache;
-pub mod clipboard_png;
-pub mod comic_info;
 pub mod commands;
-pub mod dir_cache;
-pub mod file_assoc;
-pub mod file_availability;
-pub mod heif;
-pub mod image;
-pub mod image_info;
-pub mod natural_sort;
-pub mod orientation;
-pub mod pixel_art;
-pub mod process_temp;
-pub mod psd_sidecar;
-pub mod raster_sidecar;
-pub mod scaled;
-pub mod sidecar;
-pub mod sniff;
-pub mod stable_hash;
-pub mod svg_raster;
-pub mod svg_size;
-pub mod thumb_shell;
-pub mod thumbnail;
-pub mod transcode;
+
+// 도메인 모듈은 `araview-core`에 있다. 기존 `araview_lib::<module>` 경로를 유지한다.
+pub use araview_core::{
+    app_error, archive, archive_index, cache, clipboard_png, comic_info, dir_cache, file_assoc,
+    file_availability, heif, image, image_info, natural_sort, orientation, pixel_art, process_temp,
+    psd_sidecar, raster_sidecar, scaled, sidecar, sniff, stable_hash, svg_raster, svg_size,
+    thumb_shell, thumbnail, transcode,
+};
 
 use app_error::AppError;
 use commands::{
@@ -34,15 +15,15 @@ use commands::{
     generate_archive_thumbnail, generate_archive_thumbnails_batch, generate_thumbnail,
     generate_thumbnails_batch, get_archive_images, get_cache_stats, get_cached_thumbnail,
     get_comic_info, get_directory_images, get_exif_data, get_file_associations, get_image_details,
-    get_image_histogram, get_license_bundle, load_archive_image, load_image,
-    open_default_apps_settings, rename_file, resolve_dropped_path, set_comic_cover_pages,
-    set_file_association, trash_file,
+    get_image_histogram, get_license_bundle, get_psd_thumbnail_status, load_archive_image,
+    load_image, open_default_apps_settings, register_psd_thumbnail, rename_file,
+    resolve_dropped_path, set_comic_cover_pages, set_file_association, trash_file,
+    unregister_psd_thumbnail,
 };
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use tauri::{Emitter, Manager};
 use tauri_plugin_store::StoreExt;
-use thumb_shell::{get_psd_thumbnail_status, register_psd_thumbnail, unregister_psd_thumbnail};
 
 /// 시작 시/두 번째 실행에서 받은 파일 경로를 프론트 준비 전까지 보관한다.
 #[derive(Default)]
@@ -184,7 +165,13 @@ pub fn run() {
         .setup(|app| {
             app.manage(PendingOpenFile::default());
             let requested_mode = requested_cache_storage_mode(app.handle());
-            let cache_root = match process_temp::initialize(app.handle(), requested_mode) {
+            let app_cache = app
+                .path()
+                .app_cache_dir()
+                .map_err(|e| AppError::unknown(format!("Failed to resolve app cache dir: {e}")));
+            let cache_root = match app_cache
+                .and_then(|dir| process_temp::initialize(&dir, requested_mode))
+            {
                 Ok(root) => root,
                 Err(e) => {
                     log::warn!("[cache] persistent cache unavailable, using session cache: {e}");

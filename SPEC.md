@@ -5,7 +5,7 @@
 
 ## 0. 문서 규약
 
-- 경로 별칭 `@/...`는 `src/` 기준, 백엔드 경로는 `src-tauri/src/` 기준이다.
+- 경로 별칭 `@/...`는 `src/` 기준이다. 백엔드 도메인 모듈과 커맨드 구현(`ops/`)은 `src-tauri/crates/araview-core/src/`에, Tauri 커맨드 래퍼와 앱 조립은 `src-tauri/src/`에 있다.
 - `invoke()` 인자 변환(최상위 camelCase, 중첩 옵션 camelCase, 응답 snake_case) 상세는 15~16절을 따른다.
 - 에러는 구조화 에러 `{ code, message }`를 우선한다.
 - base64 이미지 페이로드는 사용하지 않는다. 렌더링은 항상 파일 경로 기반이다.
@@ -19,7 +19,7 @@
 
 ## 2. 지원 포맷
 
-총 19개 확장자(이미지 17종 + 아카이브 2종). 프론트 진실은 `src/constants/imageExtensions.ts`, 백엔드 진실은 `src-tauri/src/image.rs` (`SUPPORTED_EXTENSIONS`, `get_mime_type`).
+총 19개 확장자(이미지 17종 + 아카이브 2종). 프론트 진실은 `src/constants/imageExtensions.ts`, 백엔드 진실은 `src-tauri/crates/araview-core/src/image.rs` (`SUPPORTED_EXTENSIONS`, `get_mime_type`).
 
 ### 2.1 순수 이미지 17종
 
@@ -135,13 +135,13 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 
 ## 5. 디렉토리 목록과 탐색
 
-진실: `src-tauri/src/commands/directory.rs`, `src-tauri/src/dir_cache.rs`, `src/hooks/useDirectoryNavigation.ts`, `src/utils/directoryOptions.ts`.
+진실: `src-tauri/crates/araview-core/src/ops/directory.rs`, `src-tauri/crates/araview-core/src/dir_cache.rs`, `src/hooks/useDirectoryNavigation.ts`, `src/utils/directoryOptions.ts`.
 
 ### 5.1 `get_directory_images`
 
 - 입력: `file_path`, `options?: DirListOptions`(`sortKey: name | date | size`, `descending`, `recursive`).
 - 부모 폴더 기준으로 정렬 목록을 만들고, `current_index`는 요청 경로의 위치(없으면 0)이다.
-- 이름순은 탐색기와 같은 자연 정렬이다(`src-tauri/src/natural_sort.rs`): 숫자 구간은 값으로 비교해 `2.jpg`가 `10.jpg`보다 앞이고, 대소문자는 무시하며, 기호와 비ASCII 문자는 사용자 로캘 규칙을 따른다. 경로는 폴더 단위로 나눠 비교한다. `date`/`size` 정렬의 동률과 아카이브 엔트리 순서에도 같은 규칙을 쓴다.
+- 이름순은 탐색기와 같은 자연 정렬이다(`src-tauri/crates/araview-core/src/natural_sort.rs`): 숫자 구간은 값으로 비교해 `2.jpg`가 `10.jpg`보다 앞이고, 대소문자는 무시하며, 기호와 비ASCII 문자는 사용자 로캘 규칙을 따른다. 경로는 폴더 단위로 나눠 비교한다. `date`/`size` 정렬의 동률과 아카이브 엔트리 순서에도 같은 규칙을 쓴다.
 - 재귀가 켜지면 하위 폴더 이미지를 포함한다. 재귀 목록이 캐시에서 올 때만 항목별 존재를 다시 확인해(256개 이상은 병렬) 워처 이벤트가 오기 전에 지워진 파일을 뺀다. 방금 스캔한 목록은 다시 확인하지 않는다.
 - 디렉토리 목록은 캐시되며 상한이 있다.
 - 응답 `availability`는 `images`와 같은 순서의 `local` | `cloud_only` | `unknown` 배열이다. Windows Files On-Demand placeholder는 `cloud_only`로 표시한다. 아카이브 목록은 빈 배열이다.
@@ -250,7 +250,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 
 ## 8. 아카이브
 
-진실: `src-tauri/src/archive.rs`, `src-tauri/src/archive_index.rs`, `src-tauri/src/commands/archive.rs`, `src/hooks/useImageLoader.ts`, `src/store/archiveProgressStore.ts`.
+진실: `src-tauri/crates/araview-core/src/archive.rs`, `src-tauri/crates/araview-core/src/archive_index.rs`, `src-tauri/crates/araview-core/src/ops/archive.rs`, `src/hooks/useImageLoader.ts`, `src/store/archiveProgressStore.ts`.
 
 - 아카이브 커맨드(`get_archive_images`, `load_archive_image`, `archive_prefetch`, `get_comic_info`, `set_comic_cover_pages`, `generate_archive_thumbnail`, `generate_archive_thumbnails_batch`, `generate_archive_file_thumbnail(s)_batch`)는 모두 비동기 커맨드로 `spawn_blocking`에서 실행되어 메인 스레드를 막지 않는다. `archive_prefetch`는 fire-and-forget 성격에 맞게 조인 실패도 흡수해 `Ok(0)`을 반환한다.
 - 엔트리 인덱스 캐시(`archive_index.rs`): 아카이브별 이미지/전체 엔트리 목록을 canonical 경로 + mtime + size 검증으로 캐시한다(최대 64개 LRU). `get_archive_images`, `get_comic_info`, `generate_archive_file_thumbnail(s)_batch`가 공유해 아카이브당 전체 스캔이 1회로 수렴한다. `clear_cache` 시 함께 비워진다.
@@ -274,7 +274,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 
 ## 9. 캐시/썸네일/프리페치
 
-진실: `src/utils/cacheConfig.ts`, `src/hooks/useImageCache.ts`, `src/store/cacheInvalidationStore.ts`, `src-tauri/src/process_temp.rs`, `src-tauri/src/cache.rs`, `src-tauri/src/thumbnail.rs`.
+진실: `src/utils/cacheConfig.ts`, `src/hooks/useImageCache.ts`, `src/store/cacheInvalidationStore.ts`, `src-tauri/crates/araview-core/src/process_temp.rs`, `src-tauri/crates/araview-core/src/cache.rs`, `src-tauri/crates/araview-core/src/thumbnail.rs`.
 
 ### 9.1 이미지 캐시 모드
 
@@ -317,7 +317,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 
 ### 9.4 표시 해상도 제한
 
-진실: `src-tauri/src/scaled.rs`, `src/hooks/useImageCache.ts`, `src/hooks/useImageLoader.ts`, `src/utils/resolutionLimit.ts`.
+진실: `src-tauri/crates/araview-core/src/scaled.rs`, `src/hooks/useImageCache.ts`, `src/hooks/useImageLoader.ts`, `src/utils/resolutionLimit.ts`.
 
 - 설정 `maxResolution`(기본 `original`)이 켜져 있으면 긴 변이 상한(4k=3840px, 1080p=1920px)을 넘는 래스터를 `scaled/` sidecar로 한 번만 축소해 렌더한다. 원본 파일은 바뀌지 않는다.
 - 적용 대상은 `image` 크레이트가 디코드할 수 있는 래스터(PNG/JPEG/BMP/ICO/정지 WebP)이며, EXIF Orientation(5~8)은 픽셀에 반영한 뒤 축소한다. 알파 채널이 있으면 투명도 보존을 위해 PNG로 저장한다.
@@ -338,7 +338,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 
 ## 10. EXIF/파일 정보
 
-진실: `src-tauri/src/commands/metadata.rs`, `src-tauri/src/image_info.rs`, `src/hooks/useExifLoader.ts`, `src/components/ExifPanel.tsx`, `src/components/HistogramChart.tsx`.
+진실: `src-tauri/crates/araview-core/src/ops/metadata.rs`, `src-tauri/crates/araview-core/src/image_info.rs`, `src/hooks/useExifLoader.ts`, `src/components/ExifPanel.tsx`, `src/components/HistogramChart.tsx`.
 
 - `get_exif_data`는 문자열 맵을 반환한다. EXIF가 없거나 읽을 수 없는 파일은 오류가 아니라 빈 맵이고, 프론트는 이를 "EXIF 없음" 상태로 보여준다. 파일이 없으면 `not_found` 오류다.
 - 파일 없음이면 `not_found`, EXIF 없으면 `unsupported`.
@@ -367,7 +367,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 
 ## 11. 파일 작업
 
-진실: `src/hooks/useFileOperations.ts`, `src-tauri/src/commands/file_ops.rs`, `src-tauri/src/clipboard_png.rs`, `src/hooks/useCopyImage.ts`.
+진실: `src/hooks/useFileOperations.ts`, `src-tauri/crates/araview-core/src/ops/file_ops.rs`, `src-tauri/crates/araview-core/src/clipboard_png.rs`, `src/hooks/useCopyImage.ts`.
 
 공통: 아카이브 모드(전체/미리보기)면 원본 아카이브 경로를 대상으로 삼는다. 단, 휴지통/이름 변경은 아카이브에서 차단된다. 파일 작업은 렌더 경로(`file_path`)가 아니라 사용자가 연 원본(`source_path`)을 대상으로 한다(9.4절).
 
@@ -539,7 +539,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 
 ## 15. 백엔드 IPC 계약
 
-진실: `src-tauri/src/lib.rs` `invoke_handler`, `src-tauri/src/commands/`, `src-tauri/src/cache.rs`, `src-tauri/src/thumb_shell.rs`.
+진실: `src-tauri/src/lib.rs` `invoke_handler`, `src-tauri/src/commands.rs`, `src-tauri/crates/araview-core/src/ops/`, `src-tauri/crates/araview-core/src/cache.rs`, `src-tauri/crates/araview-core/src/thumb_shell.rs`.
 
 | 명령                                     | 입력 (JS camelCase)                                                                            | 반환                                   |
 | ---------------------------------------- | ---------------------------------------------------------------------------------------------- | -------------------------------------- |
@@ -586,7 +586,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 
 ## 16. 데이터 모델
 
-진실: `src/types/index.ts`, `src-tauri/src/image.rs`, `src-tauri/src/thumbnail.rs`, `src-tauri/src/file_assoc.rs`.
+진실: `src/types/index.ts`, `src-tauri/crates/araview-core/src/image.rs`, `src-tauri/crates/araview-core/src/thumbnail.rs`, `src-tauri/crates/araview-core/src/file_assoc.rs`.
 
 ### 16.1 `ImageInfo`
 
@@ -621,7 +621,7 @@ Rust와 TypeScript는 같은 모양을 유지한다.
 
 ## 17. 에러 모델
 
-진실: `src-tauri/src/app_error.rs`, `src/utils/appError.ts`.
+진실: `src-tauri/crates/araview-core/src/app_error.rs`, `src/utils/appError.ts`.
 
 백엔드 `ErrorCode` 8종(snake_case 직렬화):
 

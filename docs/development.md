@@ -94,6 +94,33 @@ cd src-tauri && cargo clippy
 - 백엔드는 파일 경로/메타데이터를 반환하고, 프론트는 `convertFileSrc`로 렌더링합니다.
 - 파일 연동으로 앱이 실행되면 `open-file` 이벤트를 통해 대상 파일을 자동 오픈합니다.
 
+## GPUI 재작성 앱 (진행 중)
+
+`src-gpui/`는 [GPUI Kit](https://github.com/longbridge/gpui-kit)으로 다시 쓰는 앱이다. Tauri 앱과 `araview-core`를 공유하고, 워크스페이스와 `Cargo.lock`은 따로 둔다. 릴리스 대상은 아직 Tauri 앱이다.
+
+```bash
+cd src-gpui
+cargo run -- "C:/path/to/image.png"
+```
+
+- libheif 런타임 DLL은 `src-gpui/build.rs`가 `VCPKG_ROOT`에서 실행 파일 옆으로 복사한다.
+- 설정(`%APPDATA%`)과 캐시(`%LOCALAPPDATA%`)는 식별자 `com.araview.viewer.gpui`(디버그 빌드는 `.dev`) 아래에 따로 둔다. `settings.json`의 `settings`/`recentFiles`/`archiveProgress` 모양은 Tauri 앱과 같고, `theme`와 `window`(창 위치·크기) 키가 더 있다.
+- 검사: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`. CI의 `rust-check`와 `rust` 잡에도 들어 있다.
+- 단일 인스턴스: 두 번째 실행은 명명된 파이프(`\\.\pipe\<식별자>`)로 첫 인자를 기존 창에 넘기고 종료한다.
+- 런타임 확인: 디버그 빌드는 실행 중인 창에 `araview-gpui.exe action:<동작 ID>`로 동작을 실행시킬 수 있다(`src/app/menu.rs`의 `run_action`, 단축키 동작 ID와 `openSettings`, `viewLtr` 등). 릴리스 빌드에는 이 통로가 없다.
+- 설치 프로그램: `pwsh scripts/Build-GpuiInstaller.ps1`이 릴리스 빌드와 NSIS 설치 프로그램(`src-gpui/target/AraView-GPUI-<버전>-setup.exe`)을 만든다. 서명과 업로드는 하지 않는다.
+
+Tauri 앱과 다른 점:
+
+- 렌더링: 웹뷰 대신 `araview-core`의 `display.rs`가 디코드한 프레임을 GPU 타일로 그린다. GPUI 텍스처는 한 변 16384px 제한과 밉맵 없는 선형 보간뿐이라, 큰 이미지는 타일로 나누고 축소 단계를 CPU에서 만든다. 픽셀 보존 표시는 보이는 영역만 최근접 확대한 래스터로 그린다.
+- 단축키: GPUI 키맵 대신 뷰어 루트의 키 입력에서 설정 맵을 직접 찾는다(`src/keys.rs`).
+- 파일 열기 대화상자: GPUI의 경로 선택 창에는 형식 필터가 없어 `rfd`의 네이티브 대화상자를 쓴다.
+- 고대비: Windows 대비 테마 여부를 시작할 때, 테마를 바꿀 때, 창이 다시 활성화될 때 읽어 글자·테두리 대비를 올린다.
+- 업데이트: 피드는 `latest-gpui.json`(Tauri의 `latest.json`과 같은 모양, 같은 minisign 키)이다. 새 버전이 있으면 설치 프로그램을 내려받아 서명을 확인한 뒤 실행하고 앱을 종료한다. 릴리스 파이프라인은 아직 이 피드와 GPUI 설치 프로그램을 올리지 않으므로, 그 전까지는 확인 결과가 항상 "최신"이다(피드 404). 다운로드 진행률 표시는 없고 토스트로만 알린다.
+- 서드파티 라이선스: `node scripts/generate-license-data.mjs --gpui`가 GPUI 앱의 Rust 의존성을 `src-gpui/THIRD_PARTY_LICENSES.json`에 모으고, 앱이 이 파일을 컴파일 시점에 포함한다. 의존성을 바꾸면 다시 생성한다. 루트의 `THIRD_PARTY_LICENSES.*`는 Tauri 앱 것이다.
+- 업데이트 로컬 검증: `cargo run --example local_update_feed -- <setup.exe> <출력 폴더> http://127.0.0.1:8765`가 임시 키로 서명한 피드를 만든다. 그 폴더를 `python -m http.server 8765 --bind 127.0.0.1`로 띄우고, 디버그 빌드를 `ARAVIEW_UPDATE_FEED`(피드 주소)와 `ARAVIEW_UPDATE_PUBKEY`(`pubkey.txt` 내용)를 준 채 실행한 뒤 `action:checkUpdates`나 `action:installUpdate`를 보낸다. 릴리스 빌드는 두 환경 변수를 읽지 않는다.
+- UI 통합 테스트: `src/app/tests.rs`가 헤드리스 창에서 키, 휠, 드래그, 드롭, 우클릭, 다이얼로그 경로를 거친다(`cargo test`에 포함). 네이티브 대화상자와 실제 OS 클립보드·휴지통은 여기서 다루지 않는다.
+
 ## 프로젝트 구조
 
 ```text
@@ -106,34 +133,61 @@ src/
   types/             # 공용 타입
 
 src-tauri/
-  src/commands/      # Tauri command (도메인별 모듈, mod.rs에서 재내보내기)
-  src/file_assoc.rs  # Windows 확장자 연결(레지스트리)
-  src/clipboard_png.rs # 클립보드 복사용 PNG 재인코딩 캐시(clipboard/)
-  src/image.rs       # MIME/확장자 판별(resolve_mime), load_viewable
-  src/sniff.rs       # 파일 선두 시그니처 기반 포맷 판별
-  src/heif.rs        # HEIC/HEIF 디코드 및 JPEG sidecar
-  src/psd_sidecar.rs # PSD 합성 디코드(`psd` 크레이트) 및 JPEG sidecar (읽기 전용)
-  src/raster_sidecar.rs # TGA/DDS/EXR/QOI 디코드(`image` 크레이트) 및 JPEG sidecar (읽기 전용)
-  src/transcode.rs # 포맷(resolve_mime)별 sidecar 디코더 디스패치
-  src/process_temp.rs # 임시/영구 파생 이미지 캐시 루트, 보호, 상한, 시작 정리
-  src/cache.rs        # 캐시 통계 및 종류별/전체 삭제
-  src/archive.rs      # 아카이브 목록/추출 처리 (cbz/zip)
-  src/archive_index.rs # 아카이브 엔트리 목록 캐시 (mtime+size 검증 LRU)
-  src/comic_info.rs  # CBZ/ZIP ComicInfo.xml 파싱, 표지 지정 쓰기
-  src/thumbnail.rs   # 썸네일 생성/캐시
-  src/svg_raster.rs  # SVG 래스터화(resvg, 썸네일/히스토그램 전용)
-  src/svg_size.rs    # SVG 헤더(width/height/viewBox) 치수 파서
-  src/sidecar.rs     # sidecar/썸네일/추출물 공용 헬퍼(해시, 락, 원자 발행)
-  src/scaled.rs      # 표시 해상도 제한 축소본
-  src/thumb_shell.rs # PSD 탐색기 썸네일 셸 연동 명령
-  src/app_error.rs   # 구조화 에러 코드 매핑
-  src/dir_cache.rs    # 디렉토리 목록 캐시
-  src/file_availability.rs # Files On-Demand availability 판별
-  src/image_info.rs  # 이미지 상세/파일 정보 조회
-  src/stable_hash.rs # 영속 캐시 파일명용 안정 해시
-  src/orientation.rs # EXIF Orientation 읽기/적용 (JPEG 표시·썸네일 정합)
-  src/pixel_art.rs   # 표시용 픽셀 아트 휴리스틱 감지
-  src/lib.rs         # Tauri 앱 설정 및 command 등록
+  src/lib.rs         # Tauri 앱 조립(플러그인, invoke_handler, 캐시 초기화)
+  src/commands.rs    # Tauri command 래퍼(blocking 풀 전환, asset scope 허용)
+  crates/araview-core/src/  # UI 비의존 코어. Tauri 앱과 GPUI 앱이 함께 쓴다
+    ops/             # 커맨드 구현(도메인별 동기 함수, mod.rs에서 재내보내기)
+    display.rs       # 표시용 RGBA 프레임 디코드(GPUI 앱 전용 렌더 경로)
+    file_assoc.rs  # Windows 확장자 연결(레지스트리)
+    clipboard_png.rs # 클립보드 복사용 PNG 재인코딩 캐시(clipboard/)
+    image.rs       # MIME/확장자 판별(resolve_mime), load_viewable
+    sniff.rs       # 파일 선두 시그니처 기반 포맷 판별
+    heif.rs        # HEIC/HEIF 디코드 및 JPEG sidecar
+    psd_sidecar.rs # PSD 합성 디코드(`psd` 크레이트) 및 JPEG sidecar (읽기 전용)
+    raster_sidecar.rs # TGA/DDS/EXR/QOI 디코드(`image` 크레이트) 및 JPEG sidecar (읽기 전용)
+    transcode.rs # 포맷(resolve_mime)별 sidecar 디코더 디스패치
+    process_temp.rs # 임시/영구 파생 이미지 캐시 루트, 보호, 상한, 시작 정리
+    cache.rs        # 캐시 통계 및 종류별/전체 삭제
+    archive.rs      # 아카이브 목록/추출 처리 (cbz/zip)
+    archive_index.rs # 아카이브 엔트리 목록 캐시 (mtime+size 검증 LRU)
+    comic_info.rs  # CBZ/ZIP ComicInfo.xml 파싱, 표지 지정 쓰기
+    thumbnail.rs   # 썸네일 생성/캐시
+    svg_raster.rs  # SVG 래스터화(resvg, 썸네일/히스토그램 전용)
+    svg_size.rs    # SVG 헤더(width/height/viewBox) 치수 파서
+    sidecar.rs     # sidecar/썸네일/추출물 공용 헬퍼(해시, 락, 원자 발행)
+    scaled.rs      # 표시 해상도 제한 축소본
+    thumb_shell.rs # PSD 탐색기 썸네일 셸 연동 명령
+    app_error.rs   # 구조화 에러 코드 매핑
+    dir_cache.rs    # 디렉토리 목록 캐시
+    file_availability.rs # Files On-Demand availability 판별
+    image_info.rs  # 이미지 상세/파일 정보 조회
+    stable_hash.rs # 영속 캐시 파일명용 안정 해시
+    orientation.rs # EXIF Orientation 읽기/적용 (JPEG 표시·썸네일 정합)
+    pixel_art.rs   # 표시용 픽셀 아트 휴리스틱 감지
+
+src-gpui/            # GPUI Kit 재작성 앱(진행 중, 별도 워크스페이스)
+  src/main.rs        # 부트스트랩: 단일 인스턴스, 설정 로드, 캐시 초기화, 창 생성
+  src/app.rs         # 메인 뷰 조립: 상태, 헤더, 홈, 상태바, 키 입력
+  src/app/pages.rs   # 목록 열기, 페이지 캐시와 프리페치, 이동
+  src/app/viewport.rs # 단일·양쪽·웹툰 배치, 줌/팬, 픽셀 보존 표시
+  src/app/dock.rs    # 이미지 목록 도크와 썸네일 요청
+  src/app/grid.rs    # 썸네일 그리드 오버레이
+  src/app/menu.rs    # 동작 실행, 컨텍스트 메뉴, 명령 팔레트, 표지 지정
+  src/app/info_panel.rs # 정보 패널(만화 정보, 파일, 히스토그램, EXIF)
+  src/app/file_ops.rs # 휴지통 이동, 이름 변경
+  src/app/settings_panel.rs # 설정 다이얼로그
+  src/app/system.rs  # 설정 반영, 테마, 항상 위, 두 번째 실행 전달, 창 상태
+  src/app/update.rs  # 업데이트 확인·설치, 라이선스 화면
+  src/app/tests.rs   # UI 통합 테스트
+  src/layout.rs      # 이동 인덱스와 양쪽 보기 화면 배치 계산
+  src/picture.rs     # 디코드 프레임을 GPU 타일과 축소 단계로 변환
+  src/geometry.rs    # 줌/팬/맞춤 계산
+  src/settings.rs    # 설정, 최근 파일, 이어보기 기록 영속화
+  src/keys.rs        # 단축키 표기와 매칭
+  src/platform.rs    # 창 핸들, 항상 위, 단일 인스턴스(Win32)
+  src/i18n.rs        # 번역(프런트의 locales JSON 공유)
+  src/assets.rs      # 아이콘 자산 소스
+  installer/         # NSIS 설치 스크립트
 ```
 
 ## 파생 이미지 캐시
@@ -148,11 +202,11 @@ src-tauri/
 
 - 픽셀 보존(`pixelated`)은 확대 배율에서만 적용됩니다. 축소 배율에서는 nearest 계열 보간이 스크린톤 같은 주기 패턴을 계단·무아레로 깨뜨리므로 설정과 감지 결과와 무관하게 항상 smooth로 렌더합니다(`src/utils/imageRendering.ts`의 배율 게이트).
 - 자동 모드(`auto`)는 2x 이상 확대에서 감지 결과와 무관하게 pixelated로 렌더합니다. 보간 없이 원본 픽셀을 그대로 보여주기 위함입니다. 자동 감지 결과는 1x~2x 확대에서만 판정에 들어가며, 2x 이상과 축소 배율에서는 원본 재디코드 분석을 요청하지 않습니다(`AUTO_PIXELATED_MIN_SCALE`).
-- 표시 해상도 상한 축소 sidecar(`src-tauri/src/scaled.rs`)도 감지 결과와 무관하게 항상 보간 필터(`Triangle`)를 사용합니다. 축소는 픽셀을 버리는 연산이므로 픽셀 보존 판정이 의미가 없습니다.
+- 표시 해상도 상한 축소 sidecar(`src-tauri/crates/araview-core/src/scaled.rs`)도 감지 결과와 무관하게 항상 보간 필터(`Triangle`)를 사용합니다. 축소는 픽셀을 버리는 연산이므로 픽셀 보존 판정이 의미가 없습니다.
 
 ## 픽셀 아트 감지 참고 자료
 
-`src-tauri/src/pixel_art.rs`의 감지는 AraView에서 작성한 경량 휴리스틱입니다. 외부 모델이나 네트워크를 사용하지 않으며, 다음 공개 자료의 개념을 참고했습니다.
+`src-tauri/crates/araview-core/src/pixel_art.rs`의 감지는 AraView에서 작성한 경량 휴리스틱입니다. 외부 모델이나 네트워크를 사용하지 않으며, 다음 공개 자료의 개념을 참고했습니다.
 
 - [unfake.js](https://github.com/jenissimo/unfake.js), MIT License: 동일 색상 run과 반복 길이 기반 스케일 탐지, Sobel 경계 프로파일과 주기성 분석의 실용적인 조합
 - Johannes Kopf and Dani Lischinski, [Depixelizing Pixel Art](https://johanneskopf.de/publications/pixelart/paper/pixel.pdf): 작은 팔레트, 픽셀 단위 경계, 평탄한 색상 영역의 특징

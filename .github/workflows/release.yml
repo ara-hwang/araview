@@ -164,3 +164,71 @@ jobs:
           # `tauri build`는 --no-default-features를 자체 옵션으로 받지 않는다.
           # -- 뒤에 두면 cargo로 그대로 전달되어 dev-mcp가 릴리스에서 빠진다.
           args: -- --no-default-features
+
+  # GPUI 재작성 앱의 설치 프로그램과 업데이트 피드(latest-gpui.json)를 같은 릴리스에 올린다.
+  # 저장소 변수 PUBLISH_GPUI가 'true'일 때만 돈다. 기본은 꺼져 있어 릴리스 대상은 Tauri 앱뿐이다.
+  publish-gpui:
+    needs: publish-tauri
+    if: vars.PUBLISH_GPUI == 'true'
+    permissions:
+      contents: write
+    runs-on: windows-latest
+    timeout-minutes: 90
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: npm
+
+      # 서명에 Tauri CLI의 signer를 쓴다.
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Setup Rust and native dependencies
+        uses: ./.github/actions/setup-rust-native
+        with:
+          cache-key: release-gpui
+
+      # GPUI 앱의 버전은 릴리스 스크립트가 올리는 버전 파일에 없으므로 태그에 맞춘다.
+      # 앱은 이 버전을 피드의 버전과 비교한다.
+      - name: Align GPUI version with tag
+        run: |
+          $tag = "${{ github.ref_name }}".TrimStart("v")
+          $manifest = "src-gpui/Cargo.toml"
+          $text = Get-Content $manifest -Raw
+          $updated = [regex]::Replace($text, '(?m)^version = "[^"]+"', "version = `"$tag`"", 1)
+          Set-Content -Path $manifest -Value $updated -NoNewline -Encoding utf8
+
+      - name: Build installer
+        run: pwsh -NoProfile -File scripts/Build-GpuiInstaller.ps1
+
+      - name: Sign installer and write feed
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+          $tag = "${{ github.ref_name }}"
+          $version = $tag.TrimStart("v")
+          $installer = "src-gpui/target/AraView-GPUI-$version-setup.exe"
+          npx tauri signer sign $installer
+          if ($LASTEXITCODE -ne 0) { Write-Error "설치 프로그램 서명 실패"; exit 1 }
+          $notes = gh release view $tag --repo "${{ github.repository }}" --json body --jq .body
+          $feed = [ordered]@{
+            version = $version
+            notes = ($notes -join "`n")
+            pub_date = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+            platforms = @{
+              "windows-x86_64" = [ordered]@{
+                signature = (Get-Content "$installer.sig" -Raw).Trim()
+                url = "https://github.com/${{ github.repository }}/releases/download/$tag/AraView-GPUI-$version-setup.exe"
+              }
+            }
+          }
+          $feed | ConvertTo-Json -Depth 5 | Set-Content -Path latest-gpui.json -Encoding utf8
+          gh release upload $tag $installer latest-gpui.json --repo "${{ github.repository }}" --clobber

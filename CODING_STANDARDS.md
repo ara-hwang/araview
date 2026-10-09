@@ -7,7 +7,7 @@ Conventions the code does not confess on its own. Read the sections your change 
 - Declare shapes with `type`.
 - Domain logic lives in hooks in `src/hooks/`; components stay presentational.
 - Group Zustand subscriptions with selectors + `useShallow`.
-- `src/constants/commands.ts` holds command palette (`Ctrl+K`) commands; Tauri commands live in `src-tauri/src/commands/`.
+- `src/constants/commands.ts` holds command palette (`Ctrl+K`) commands; Tauri command wrappers live in `src-tauri/src/commands.rs` and their implementations in `src-tauri/crates/araview-core/src/ops/`.
 
 ## Component stack (shadcn/ui on `@base-ui/react`)
 

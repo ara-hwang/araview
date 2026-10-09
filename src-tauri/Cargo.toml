@@ -41,21 +41,8 @@ tauri-plugin-single-instance = "2"
 tauri-plugin-snap-layout = "1"
 log = "0.4"
 env_logger = "0.11"
-exif = { package = "kamadak-exif", version = "0.6" }
-zip = "8"
-tempfile = "3"
-jpeg-encoder = "0.7"
-jpeg-decoder = { version = "0.3", default-features = false }
-libheif-rs = { version = "3", default-features = false, features = ["v1_17"] }
-winreg = "0.56.0"
+araview-core = { path = "crates/araview-core" }
 tauri-plugin-mcp-bridge = { version = "0.13", optional = true }
-trash = "5"
-image = { version = "0.25", default-features = false, features = ["rayon", "avif", "bmp", "dds", "exr", "ff", "gif", "hdr", "ico", "jpeg", "png", "pnm", "qoi", "tga", "webp"] }
-psd = "0.3"
-resvg = { version = "0.48", default-features = false, features = ["text", "system-fonts"] }
-notify = "8"
-rayon = "1"
-quick-xml = { version = "0.42", features = ["serialize"] }
 
 [lints.rust]
 unsafe_op_in_unsafe_fn = "deny"
@@ -73,4 +60,4 @@ dependencies = ["libheif[core,aom]"]
 x86_64-pc-windows-msvc = { triplet = "x64-windows", dependencies = ["libheif[core,aom]"] }
 
 [workspace]
-members = ["crates/araview-thumb"]
+members = ["crates/araview-core", "crates/araview-thumb"]

@@ -26,7 +26,9 @@ runs:
     - name: Rust cache
       uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
       with:
-        workspaces: "./src-tauri -> target"
+        workspaces: |
+          ./src-tauri -> target
+          ./src-gpui -> target
         shared-key: ${{ inputs.cache-key }}
 
     # VCPKG_INSTALLATION_ROOT는 러너가 프로세스 환경에만 넣어 주는 값이라 `env` 컨텍스트에

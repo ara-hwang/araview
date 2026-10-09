@@ -72,3 +72,16 @@ npm run tauri build -- --no-sign
 ```
 
 updater 서명을 건너뜁니다. `.sig`가 없으므로 릴리스 배포에는 쓸 수 없습니다.
+
+## GPUI 앱 게시 (기본 꺼짐)
+
+`release.yml`의 `publish-gpui` 잡은 저장소 변수 `PUBLISH_GPUI`가 `true`일 때만 돕니다. 기본은 꺼져 있어 릴리스에는 Tauri 앱만 올라갑니다.
+
+켜면 Tauri 게시가 끝난 뒤 다음을 수행합니다.
+
+1. `src-gpui/Cargo.toml`의 버전을 태그에 맞춥니다(릴리스 스크립트가 올리는 버전 파일에는 없음).
+2. `scripts/Build-GpuiInstaller.ps1`로 설치 프로그램을 만듭니다.
+3. `npx tauri signer sign`으로 Tauri 앱과 같은 키(`TAURI_SIGNING_PRIVATE_KEY`)로 서명합니다.
+4. `latest-gpui.json`(버전, 릴리스 노트, 서명, 다운로드 주소)을 만들어 설치 프로그램과 함께 같은 릴리스에 올립니다.
+
+GPUI 앱은 이 피드로 업데이트를 확인합니다. 피드가 없으면(잡이 꺼져 있으면) 확인 결과는 항상 "최신"입니다. 서명 형식과 앱의 검증이 맞물리는지는 `docs/development.md`의 "업데이트 로컬 검증" 절차로 확인할 수 있습니다.

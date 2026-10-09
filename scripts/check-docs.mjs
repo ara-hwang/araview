@@ -113,7 +113,7 @@ function srcFiles(dir) {
   const front = [...read("src/constants/imageExtensions.ts").matchAll(/"([a-z0-9]+)"/g)].map(
     (m) => m[1]
   )
-  const imageRs = read("src-tauri/src/image.rs")
+  const imageRs = read("src-tauri/crates/araview-core/src/image.rs")
   const arrStart = imageRs.indexOf("SUPPORTED_EXTENSIONS")
   const arrEnd = imageRs.indexOf("];", arrStart)
   const back = [...imageRs.slice(arrStart, arrEnd).matchAll(/"([a-z0-9]+)"/g)].map((m) => m[1])
@@ -138,14 +138,7 @@ function srcFiles(dir) {
   const invoked = [...handlerBlock.matchAll(/^\s*([a-z][a-z0-9_]*)\s*,?\s*$/gm)].map((m) => m[1])
   checkSetEqual("IPC 표/등록", "SPEC.md §15", specCommands, "invoke_handler", invoked)
   const defined = []
-  const commandFiles = [
-    ...readdirSync(join(root, "src-tauri/src/commands"))
-      .filter((name) => name.endsWith(".rs"))
-      .map((name) => `src-tauri/src/commands/${name}`),
-    "src-tauri/src/cache.rs",
-    "src-tauri/src/thumb_shell.rs",
-    "src-tauri/src/lib.rs"
-  ]
+  const commandFiles = ["src-tauri/src/commands.rs", "src-tauri/src/lib.rs"]
   for (const rel of commandFiles) {
     const text = read(rel)
     const attr = "#[tauri::command]"

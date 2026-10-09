@@ -4,7 +4,7 @@ Task-specific procedures for agents, reached from `../AGENTS.md`. Read the secti
 
 ## Add a supported format
 
-1. Add the extension and MIME mapping, with tests, in `src-tauri/src/image.rs`
+1. Add the extension and MIME mapping, with tests, in `src-tauri/crates/araview-core/src/image.rs`
 2. Add the extension to `src/constants/imageExtensions.ts`
 3. Add the file association to `src-tauri/tauri.conf.json`
 4. Add a sample file to `samples/`, generated with tools installed on the PC and outside the repo's dependencies: raster/vector via `sharp` in a temp dir, HEIC/HEIF via Python `pillow-heif`, CBZ via `Compress-Archive`. If the PC has no encoder, install one on the PC.
@@ -13,7 +13,7 @@ Task-specific procedures for agents, reached from `../AGENTS.md`. Read the secti
 
 ## Add a backend command
 
-1. Implement it in the matching `src-tauri/src/commands/<domain>.rs` with `#[tauri::command]`
+1. Implement it as a sync function in the matching `src-tauri/crates/araview-core/src/ops/<domain>.rs`, then add the `#[tauri::command]` wrapper in `src-tauri/src/commands.rs`
 2. Register it in `src-tauri/src/lib.rs` `invoke_handler`
 3. Update `src/types/index.ts` when the payload or response shape changes
 4. Add the row to the `SPEC.md` §15 table and any new type to §16
