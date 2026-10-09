@@ -648,7 +648,6 @@ impl AraView {
     ) -> Button {
         Button::new(id)
             .ghost()
-            .small()
             .icon(icon)
             .tooltip(t(tooltip_key))
             .on_click(cx.listener(move |this, _, window, cx| this.run_action(action, window, cx)))
@@ -678,13 +677,12 @@ impl AraView {
         let mode_button = |id: &'static str, icon: IconName, key: &'static str, value: ViewMode| {
             Button::new(id)
                 .ghost()
-                .small()
                 .icon(icon)
                 .tooltip(t(key))
                 .selected(mode == value)
         };
 
-        TitleBar::new().child(
+        TitleBar::new().h(px(36.)).child(
             h_flex()
                 .w_full()
                 .gap_2()
@@ -695,7 +693,6 @@ impl AraView {
                         .child(
                             Button::new("home")
                                 .ghost()
-                                .small()
                                 .icon(IconName::House)
                                 .tooltip(t("header.home"))
                                 .on_click(
@@ -705,7 +702,6 @@ impl AraView {
                         .child(
                             Button::new("open")
                                 .ghost()
-                                .small()
                                 .icon(IconName::FolderOpen)
                                 .label(t("header.open"))
                                 .on_click(
@@ -962,7 +958,6 @@ impl AraView {
                             row.child(
                                 Button::new("hide-bar")
                                     .ghost()
-                                    .small()
                                     .icon(if settings.menu_bar_hidden {
                                         IconName::Eye
                                     } else {
