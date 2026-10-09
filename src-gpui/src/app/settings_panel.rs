@@ -16,7 +16,7 @@ use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
 
 use super::{AraView, format_bytes};
-use crate::dialog::{ALERT_HEIGHT, centered_margin_top};
+use crate::dialog::{ALERT_HEIGHT, centered};
 use crate::i18n::{Language, t, t_with};
 use crate::keys;
 use crate::settings::{
@@ -714,8 +714,7 @@ impl SettingsPanel {
         // 같은 모양의 `Dialog`로 쌓는다(버튼 생김새·동작은 경고창과 같다).
         window.open_dialog(cx, move |dialog, window, _cx| {
             let panel = panel.clone();
-            dialog
-                .margin_top(centered_margin_top(window, ALERT_HEIGHT))
+            centered(dialog, window, ALERT_HEIGHT)
                 .close_button(false)
                 .overlay_closable(false)
                 .title(t("confirm.cache.clearAll.title"))
@@ -1012,8 +1011,7 @@ impl SettingsPanel {
             let panel = panel.clone();
             let action = action.clone();
             let spec = spec.clone();
-            dialog
-                .margin_top(centered_margin_top(window, ALERT_HEIGHT))
+            centered(dialog, window, ALERT_HEIGHT)
                 .close_button(false)
                 .overlay_closable(false)
                 .title(t("settings.shortcuts.conflictTitle"))
@@ -1508,8 +1506,7 @@ impl SettingsPanel {
         let panel = cx.entity();
         window.open_dialog(cx, move |dialog, window, _cx| {
             let panel = panel.clone();
-            dialog
-                .margin_top(centered_margin_top(window, ALERT_HEIGHT))
+            centered(dialog, window, ALERT_HEIGHT)
                 .close_button(false)
                 .overlay_closable(false)
                 .title(t("confirm.resetSettings.title"))

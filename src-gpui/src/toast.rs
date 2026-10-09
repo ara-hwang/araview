@@ -12,7 +12,7 @@ use gpui_kit::component::button::{Button, ButtonVariants as _};
 use gpui_kit::component::dialog::{DialogDescription, DialogFooter};
 use gpui_kit::component::notification::Notification;
 
-use crate::dialog::{ALERT_HEIGHT, centered_margin_top};
+use crate::dialog::{ALERT_HEIGHT, centered};
 use crate::i18n::t;
 use gpui_kit::{App, ParentElement as _, SharedString, Window};
 
@@ -118,8 +118,7 @@ impl WindowToast for Window {
                     Some(title) => (title, Some(message.clone())),
                     None => (message.clone(), None),
                 };
-                let mut out = dialog
-                    .margin_top(centered_margin_top(window, ALERT_HEIGHT))
+                let mut out = centered(dialog, window, ALERT_HEIGHT)
                     .close_button(false)
                     .overlay_closable(false)
                     .title(title_text);

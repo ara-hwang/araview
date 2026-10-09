@@ -10,7 +10,7 @@ use gpui_kit::*;
 
 use super::AraView;
 use super::settings_panel::{Effect, SettingsPanel};
-use crate::dialog::{SETTINGS_HEIGHT, centered_margin_top};
+use crate::dialog::{SETTINGS_HEIGHT, centered};
 use crate::i18n::{self, t};
 use crate::platform;
 use crate::settings::{SettingsStore, ThemeChoice, WindowState};
@@ -125,8 +125,7 @@ impl AraView {
         let view = cx.entity().downgrade();
         let panel = cx.new(|cx| SettingsPanel::new(view, cx));
         window.open_dialog(cx, move |dialog, window, _| {
-            dialog
-                .margin_top(centered_margin_top(window, SETTINGS_HEIGHT))
+            centered(dialog, window, SETTINGS_HEIGHT)
                 .title(t("settings.title"))
                 .width(px(760.))
                 .child(panel.clone())

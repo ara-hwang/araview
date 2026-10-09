@@ -12,7 +12,7 @@ use gpui_kit::component::{WindowExt as _, v_flex};
 use gpui_kit::*;
 
 use super::AraView;
-use crate::dialog::{ALERT_HEIGHT, RENAME_HEIGHT, centered_margin_top};
+use crate::dialog::{ALERT_HEIGHT, RENAME_HEIGHT, centered};
 use crate::i18n::{t, t_with};
 use crate::settings::SettingsStore;
 
@@ -35,8 +35,7 @@ impl AraView {
         window.open_dialog(cx, move |dialog, window, _cx| {
             let entity = entity.clone();
             let path = path.clone();
-            dialog
-                .margin_top(centered_margin_top(window, ALERT_HEIGHT))
+            centered(dialog, window, ALERT_HEIGHT)
                 .close_button(false)
                 .overlay_closable(false)
                 .title(t("confirm.trash.title"))
@@ -134,8 +133,7 @@ impl AraView {
             let entity = entity.clone();
             let input = input.clone();
             let old_path = old_path.clone();
-            dialog
-                .margin_top(centered_margin_top(window, RENAME_HEIGHT))
+            centered(dialog, window, RENAME_HEIGHT)
                 .title(t("dialog.rename.title"))
                 .child(
                     v_flex()

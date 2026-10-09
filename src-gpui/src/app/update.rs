@@ -15,7 +15,7 @@ use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
 
 use super::AraView;
-use crate::dialog::{UPDATE_HEIGHT, centered_margin_top};
+use crate::dialog::{UPDATE_HEIGHT, centered};
 use crate::i18n::{t, t_with};
 
 /// 확인 요청은 30초, 다운로드 요청은 10분이 전체 기한이다.
@@ -196,8 +196,7 @@ impl AraView {
             let view = view.clone();
             let asset = asset.clone();
             let download_version = version.clone();
-            dialog
-                .margin_top(centered_margin_top(window, UPDATE_HEIGHT))
+            centered(dialog, window, UPDATE_HEIGHT)
                 .title(t_with(
                     "dialog.update.availableTitle",
                     &[("version", &version)],
