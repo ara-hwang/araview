@@ -22,6 +22,7 @@ use crate::geometry::{
 };
 use crate::i18n::{t, t_with};
 use crate::picture::Picture;
+use crate::platform;
 use crate::settings::{
     ImageScalingMode, MouseAction, SettingsStore, ViewMode, ViewerBackground, WheelAction,
 };
@@ -172,6 +173,27 @@ impl AraView {
         } else {
             self.image_size()
         }
+    }
+
+    /// 단일·양쪽 보기에서 팬 여유가 있는지.
+    fn can_pan(&self, cx: &App) -> bool {
+        let Some(extent) = self.pan_extent(cx) else {
+            return false;
+        };
+        let max = position_bounds(self.container(), extent, self.zoom);
+        max.x > 0.0 || max.y > 0.0
+    }
+
+    /// 웹툰 전체 높이가 읽기 영역을 넘는지.
+    fn webtoon_scrollable(&self) -> bool {
+        let height = self.container().h;
+        if height <= 0.0 || self.list.is_empty() {
+            return false;
+        }
+        let total: f32 = (0..self.list.len())
+            .map(|index| self.webtoon_size(index).1)
+            .sum();
+        total > height + 0.5
     }
 
     pub(super) fn pan_by(&mut self, dx: f32, dy: f32, window: &mut Window, cx: &mut Context<Self>) {
@@ -328,6 +350,28 @@ impl AraView {
                 self.run_mouse_action(mouse.double_click, event.position, window, cx);
             }
             MouseButton::Left if mouse.left_drag == MouseAction::Pan => {
+                // 팬·스크롤 여유가 없으면 이미지 드래그가 창 이동이 된다.
+                // 더블클릭은 위 분기에서 먼저 처리되므로 여기로 오지 않는다.
+                let webtoon = self.view_mode(cx) == ViewMode::Webtoon;
+                let content_movable = if webtoon {
+                    self.webtoon_scrollable()
+                } else {
+                    self.can_pan(cx)
+                };
+                let has_content = if webtoon {
+                    !self.list.is_empty()
+                } else {
+                    self.picture.is_some()
+                };
+                if !content_movable
+                    && has_content
+                    && !window.is_fullscreen()
+                    && !window.is_maximized()
+                {
+                    self.drag = None;
+                    platform::start_window_drag(window);
+                    return;
+                }
                 self.drag = Some(DragState {
                     start: event.position,
                     origin: self.position,

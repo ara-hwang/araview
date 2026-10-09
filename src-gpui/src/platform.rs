@@ -70,6 +70,28 @@ pub fn hwnd(window: &Window) -> isize {
     }
 }
 
+/// 이미지를 움직일 여유가 없을 때 왼쪽 드래그로 창을 옮긴다.
+/// `WM_NCLBUTTONDOWN` + `HTCAPTION`으로 OS 이동 루프에 진입하므로
+/// 더블클릭은 호출 전에 걸러야 한다.
+pub fn start_window_drag(window: &Window) {
+    const WM_NCLBUTTONDOWN: u32 = 0x00A1;
+    const HTCAPTION: usize = 2;
+    #[link(name = "user32")]
+    unsafe extern "system" {
+        fn ReleaseCapture() -> i32;
+        fn SendMessageW(hwnd: Handle, msg: u32, wparam: usize, lparam: isize) -> isize;
+    }
+    let hwnd = hwnd(window);
+    if hwnd == 0 {
+        return;
+    }
+    // SAFETY: 살아 있는 창의 HWND에 캡션 드래그 메시지만 보낸다.
+    unsafe {
+        ReleaseCapture();
+        SendMessageW(hwnd, WM_NCLBUTTONDOWN, HTCAPTION, 0);
+    }
+}
+
 /// 창을 항상 위에 두거나 해제한다. 성공 여부를 돌려준다.
 pub fn set_always_on_top(window: &Window, on_top: bool) -> bool {
     let hwnd = hwnd(window);

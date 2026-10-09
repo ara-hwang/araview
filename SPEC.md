@@ -225,6 +225,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 
 - 키보드 팬은 1회 48px이며 컨테이너 경계로 clamp한다.
 - 마우스 왼쪽 드래그는 기본 팬이다(`pan` 또는 `none`만 허용).
+- 팬·스크롤 여유가 없으면 왼쪽 드래그가 창 이동이 된다. 단일·양쪽 보기에서 팬 한계가 0이거나 웹툰 전체 높이가 읽기 영역을 넘지 않을 때가 대상이며, 전체화면·최대화 상태에서는 창을 옮기지 않는다. 더블클릭 동작이 우선한다.
 
 ### 7.3 회전/반전
 
@@ -664,6 +665,7 @@ UI 분류 5종:
 
 - 창: 제목 기본값 `AraView`(이미지가 열리면 파일명, 아니면 앱 이름), 1024x768, 최소 500x400, 프레임리스. 최소 너비 500은 Windows 11 Snap Layouts의 모든 배치에 창이 들어가기 위한 상한이다(Microsoft 권장 ≤500epx).
 - 창 위치와 크기를 `settings.json`의 `window`에 저장하고 다음 실행에 복원한다.
+- 읽기 영역 드래그는 팬·스크롤 여유가 없을 때 창 이동이 된다(§7.2).
 - Windows 11 Snap Layouts: gpui-kit 타이틀바의 최대화 버튼은 창 컨트롤 영역(`WindowControlArea::Max`)으로 등록돼 있어 Windows가 `HTMAXBUTTON`으로 처리한다. 앱이 따로 오버레이를 두지 않는다. 헤더의 일반 버튼은 `.occlude()`로 묶어 캡션 드래그 영역으로 취급되지 않게 한다.
 - 설치 프로그램: NSIS 하나만 만든다(`pwsh scripts/Build-Installer.ps1`, 결과물 `target/AraView-<버전>-setup.exe`). 1.x(Tauri) 설치본과 같은 정체성(설치 폴더 `%LOCALAPPDATA%\AraView`, 실행 파일 `araview.exe`, 제거 항목 `AraView`, 시작 메뉴 바로가기)을 써서 같은 자리에 덮어쓴다. 설치 중 앱이 실행 중이면 종료를 요청한다.
 - 릴리스 파이프라인: `npm run release -- <버전>`(`scripts/release.mjs`)이 `src-gpui/Cargo.toml`과 `Cargo.lock`의 버전을 올려 커밋하고 `vX.Y.Z` 태그와 함께 푸시한다. 태그 푸시를 `.github/workflows/release.yml`이 받아 태그와 버전 파일의 일치, 서명 키 Secrets를 확인한 뒤 검증(cargo fmt/test/clippy, 보안 감사, 라이선스 검사), 설치 프로그램 빌드, 서명, `latest-gpui.json` 생성, 원본 저장소 `ara-hwang/araview` 릴리스 생성까지 자동으로 수행한다. `ci.yml`이 검증을 담당하고 릴리스가 이를 재사용한다. 권한과 절차 상세는 `docs/releasing.md`를 따른다.
