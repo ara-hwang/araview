@@ -200,7 +200,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 - 도크와 썸네일 그리드는 화면에 떠 있는 페이지를 모두 현재로 표시한다(`useCurrentPageIndices`). 양쪽 모드는 쌍 두 장이 함께 하이라이트되고, 단독 화면(표지, 표지 바로 앞 페이지, 넓은 페이지, 마지막 홀수 장)이나 단일/웹툰 모드는 현재 장만 하이라이트한다. 쌍의 기준 장은 도크의 `data-dock-current`로 한 개만 표시해 그리드 닫기 시 포커스 복귀 지점을 유지한다. 계산은 `dualPageIndices`가 뷰어 로드 대상과 같은 목록을 돌려준다.
 - 웹툰 모드에서 `ArrowLeft/ArrowRight`는 이전/다음 이미지 스크롤 이동이다.
 - 웹툰 모드에서 `ArrowUp/ArrowDown`은 연속 스크롤 컨테이너를 일정량씩 스크롤한다.
-- 웹툰 이미지 사이 간격(`webtoonImageGap`, 기본 8px)과 페이지 경계선(`webtoonPageBoundaries`)을 설정한다.
+- 웹툰 이미지는 간격 없이 이어 붙고, 페이지 경계선(`webtoonPageBoundaries`)을 설정한다.
 - `webtoonFitWidth`를 켜면 작은 이미지도 읽기 영역 너비까지 확대하고, 끄면 원본 크기를 유지한 채 너비만 제한한다.
 - `webtoonShowProgress`를 켜면 읽기 영역에 현재 장 번호, 전체 장 수, 스크롤 진행률을 작은 표시로 보여준다.
 - `webtoonThumbnailJump`를 켜면 읽기 영역의 썸네일 버튼으로 그리드를 열어 원하는 장으로 바로 이동할 수 있다. 현재 위치 표시를 꺼도 이 버튼은 유지된다.
@@ -437,7 +437,6 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 | `imageScalingMode`      | `auto \| smooth \| pixelated` 이미지 보간 방식                          | `auto`                             |
 | `autoDetectPixelArt`    | 자동 모드에서 픽셀 아트 감지 사용                                       | `true`                             |
 | `viewMode`              | `single \| left-to-right \| right-to-left \| webtoon`                   | `single`                           |
-| `webtoonImageGap`       | 웹툰 이미지 사이 간격(px, 0~64)                                         | `8`                                |
 | `webtoonPageBoundaries` | 웹툰 페이지 경계선 표시                                                 | `false`                            |
 | `webtoonFitWidth`       | 웹툰 이미지를 읽기 영역 너비까지 확대                                   | `false`                            |
 | `webtoonShowProgress`   | 웹툰 현재 장 번호와 스크롤 진행률 표시                                  | `true`                             |

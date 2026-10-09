@@ -143,7 +143,6 @@ pub struct AraView {
     wt_animating: bool,
     wt_frame: Instant,
     wt_zoom: f32,
-    wt_gap: f32,
     wt_fit_width: bool,
     wt_dims: HashMap<usize, (u32, u32)>,
 
@@ -221,7 +220,6 @@ impl AraView {
             wt_animating: false,
             wt_frame: Instant::now(),
             wt_zoom: 1.0,
-            wt_gap: 8.0,
             wt_fit_width: false,
             wt_dims: HashMap::new(),
             thumbs: HashMap::new(),

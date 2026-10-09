@@ -188,8 +188,7 @@
     },
     "webtoon": {
       "title": "Webtoon details",
-      "desc": "Set image spacing, page boundaries, Fit width, and the reading position display.",
-      "imageGap": "Image gap",
+      "desc": "Images are stacked without gaps. Set page boundaries, Fit width, and the reading position display.",
       "pageBoundaries": "Show page boundaries",
       "fitWidth": "Fit width",
       "showProgress": "Show current position",

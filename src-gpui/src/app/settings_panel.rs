@@ -341,7 +341,6 @@ impl SettingsPanel {
 
     fn view_tab(&mut self, cx: &mut Context<Self>) -> Div {
         let s = SettingsStore::global(cx).settings.clone();
-        let gap = s.webtoon_image_gap;
         v_flex()
             .gap_4()
             .child(setting_row(
@@ -396,69 +395,25 @@ impl SettingsPanel {
             ))
             .child(heading(t("settings.webtoon.title")))
             .child(setting_row(
-                t("settings.webtoon.imageGap"),
+                t("settings.webtoon.pageBoundaries"),
                 Some(t("settings.webtoon.desc")),
-                h_flex()
-                    .gap_2()
-                    .items_center()
-                    .child(
-                        Button::new("gap-minus")
-                            .small()
-                            .outline()
-                            .label("−")
-                            .on_click(cx.listener(|this, _, window, cx| {
-                                this.apply(
-                                    |settings| {
-                                        settings.webtoon_image_gap =
-                                            settings.webtoon_image_gap.saturating_sub(4)
-                                    },
-                                    Effect::Redraw,
-                                    window,
-                                    cx,
-                                )
-                            })),
-                    )
-                    .child(
-                        div()
-                            .w(px(44.))
-                            .text_center()
-                            .text_sm()
-                            .child(format!("{gap}px")),
-                    )
-                    .child(
-                        Button::new("gap-plus")
-                            .small()
-                            .outline()
-                            .label("+")
-                            .on_click(cx.listener(|this, _, window, cx| {
-                                this.apply(
-                                    |settings| {
-                                        settings.webtoon_image_gap =
-                                            (settings.webtoon_image_gap + 4).min(64)
-                                    },
-                                    Effect::Redraw,
-                                    window,
-                                    cx,
-                                )
-                            })),
-                    ),
+                self.toggle(
+                    "wt-boundaries",
+                    s.webtoon_page_boundaries,
+                    |settings, value| settings.webtoon_page_boundaries = value,
+                    Effect::Redraw,
+                    cx,
+                ),
                 cx,
             ))
             .children(
                 [
                     (
-                        "wt-boundaries",
-                        "settings.webtoon.pageBoundaries",
-                        s.webtoon_page_boundaries,
-                        (|settings, value| settings.webtoon_page_boundaries = value)
-                            as fn(&mut Settings, bool),
-                        Effect::Redraw,
-                    ),
-                    (
                         "wt-fit",
                         "settings.webtoon.fitWidth",
                         s.webtoon_fit_width,
-                        |settings, value| settings.webtoon_fit_width = value,
+                        (|settings, value| settings.webtoon_fit_width = value)
+                            as fn(&mut Settings, bool),
                         Effect::Redraw,
                     ),
                     (

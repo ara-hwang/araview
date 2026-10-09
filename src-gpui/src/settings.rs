@@ -350,7 +350,6 @@ pub struct Settings {
     pub image_scaling_mode: ImageScalingMode,
     pub auto_detect_pixel_art: bool,
     pub view_mode: ViewMode,
-    pub webtoon_image_gap: u32,
     pub webtoon_page_boundaries: bool,
     pub webtoon_fit_width: bool,
     pub webtoon_show_progress: bool,
@@ -393,7 +392,6 @@ impl Default for Settings {
             image_scaling_mode: ImageScalingMode::Auto,
             auto_detect_pixel_art: true,
             view_mode: ViewMode::Single,
-            webtoon_image_gap: 8,
             webtoon_page_boundaries: false,
             webtoon_fit_width: false,
             webtoon_show_progress: true,
@@ -428,7 +426,6 @@ impl Default for Settings {
 
 impl Settings {
     fn sanitized(mut self) -> Self {
-        self.webtoon_image_gap = self.webtoon_image_gap.min(64);
         self.shortcuts = sanitize_shortcuts(std::mem::take(&mut self.shortcuts));
         // 왼쪽 드래그는 pan 또는 none만 허용한다(SPEC §14.3).
         if !matches!(self.mouse.left_drag, MouseAction::Pan | MouseAction::None) {
@@ -706,12 +703,12 @@ mod tests {
         let saved = serde_json::json!({
             "viewMode": "webtoon",
             "cacheStorageMode": "nonsense",
-            "webtoonImageGap": 24,
+            "webtoonFitWidth": true,
         });
         let settings = restore_settings(saved);
         assert_eq!(settings.view_mode, ViewMode::Webtoon);
         assert_eq!(settings.cache_storage_mode, CacheStorageMode::Persistent);
-        assert_eq!(settings.webtoon_image_gap, 24);
+        assert!(settings.webtoon_fit_width);
     }
 
     #[test]

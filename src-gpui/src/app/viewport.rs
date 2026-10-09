@@ -571,21 +571,20 @@ impl AraView {
         if total == 0 || container.is_empty() {
             return out;
         }
-        let gap = self.wt_gap;
         let center_x = container.w / 2.0;
         // 기준 페이지 위쪽으로 먼저 채운다.
         let mut y = -self.wt_offset;
         let mut index = self.wt_anchor.min(total - 1);
         while index > 0 && y > -above {
             index -= 1;
-            y -= self.webtoon_size(index).1 + gap;
+            y -= self.webtoon_size(index).1;
         }
         while index < total && y < container.h + below {
             let (w, h) = self.webtoon_size(index);
             if y + h > -above {
                 out.push((index, rect(center_x - w / 2.0, y, w, h)));
             }
-            y += h + gap;
+            y += h;
             index += 1;
         }
         out
@@ -601,10 +600,9 @@ impl AraView {
         if total == 0 {
             return;
         }
-        let gap = self.wt_gap;
         self.wt_anchor = self.wt_anchor.min(total - 1);
         loop {
-            let height = self.webtoon_size(self.wt_anchor).1 + gap;
+            let height = self.webtoon_size(self.wt_anchor).1;
             if self.wt_offset >= height && self.wt_anchor + 1 < total {
                 self.wt_offset -= height;
                 self.wt_anchor += 1;
@@ -614,7 +612,7 @@ impl AraView {
         }
         while self.wt_offset < 0.0 && self.wt_anchor > 0 {
             self.wt_anchor -= 1;
-            self.wt_offset += self.webtoon_size(self.wt_anchor).1 + gap;
+            self.wt_offset += self.webtoon_size(self.wt_anchor).1;
         }
         if self.wt_offset < 0.0 {
             self.wt_offset = 0.0;
@@ -682,14 +680,12 @@ impl AraView {
         if dy > 0.0 {
             // 마지막 페이지 아래로는 내려가지 않는다.
             let viewport_h = self.container().h;
-            let gap = self.wt_gap;
             let mut remaining = -self.wt_offset;
             let mut index = self.wt_anchor;
             while index < self.list.len() && remaining < viewport_h {
-                remaining += self.webtoon_size(index).1 + gap;
+                remaining += self.webtoon_size(index).1;
                 index += 1;
             }
-            remaining -= gap;
             if index == self.list.len() && remaining < viewport_h {
                 self.wt_offset -= viewport_h - remaining;
                 self.webtoon_normalize();
@@ -718,7 +714,6 @@ impl AraView {
     /// 현재 페이지로 삼는다. 현재 페이지가 바뀌어도 전체를 다시 로드하지 않는다.
     pub(super) fn webtoon_sync(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let settings = &SettingsStore::global(cx).settings;
-        self.wt_gap = settings.webtoon_image_gap as f32;
         self.wt_fit_width = settings.webtoon_fit_width;
         self.webtoon_normalize();
         let viewport_h = self.container().h.max(1.0);
@@ -991,7 +986,7 @@ impl AraView {
                 self.drop_pixel_view(window, cx);
                 for (index, bounds) in self.webtoon_rects() {
                     if settings.webtoon_page_boundaries && index > 0 {
-                        boundaries.push(bounds.top() - px(self.wt_gap / 2.0));
+                        boundaries.push(bounds.top());
                     }
                     match self.pages.get(&index) {
                         Some(page) => items.push(PaintItem {
