@@ -129,7 +129,7 @@ jobs:
       # 허용 목록 밖의 라이선스(GPL 등), 알 수 없는 레지스트리/git 소스가 들어오면 실패한다.
       # 설정: deny.toml.
       - name: Install cargo-deny
-        uses: taiki-e/install-action@83ac0ad63c0167e6f06796fab0fce28db1bf3db0 # v2
+        uses: taiki-e/install-action@f7e5d7c961414b23f5b25b2da9294395d08513ad # v2
         with:
           tool: cargo-deny@0.20.2
 
