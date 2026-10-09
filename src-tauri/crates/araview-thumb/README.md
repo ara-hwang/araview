@@ -26,7 +26,7 @@ so Explorer renders real PSD thumbnails instead.
 A published CLSID is baked into users' registries. Dev and release use
 separate IDs so the dev build never steals the installed build's
 thumbnails. The strings are duplicated in the main app
-(`src-tauri/src/thumb_shell.rs`, which avoids the `windows` dependency).
+(`src-tauri/crates/araview-core/src/thumb_shell.rs`, which avoids the `windows` dependency).
 Keep both in sync.
 
 - Release: `{FD6BD976-2DF4-4656-94F2-1D166163EC59}`

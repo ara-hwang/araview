@@ -116,7 +116,10 @@ Tauri 앱과 다른 점:
 - 단축키: GPUI 키맵 대신 뷰어 루트의 키 입력에서 설정 맵을 직접 찾는다(`src/keys.rs`).
 - 파일 열기 대화상자: GPUI의 경로 선택 창에는 형식 필터가 없어 `rfd`의 네이티브 대화상자를 쓴다.
 - 고대비: Windows 대비 테마 여부를 시작할 때, 테마를 바꿀 때, 창이 다시 활성화될 때 읽어 글자·테두리 대비를 올린다.
-- 업데이트: 피드는 `latest-gpui.json`(Tauri의 `latest.json`과 같은 모양, 같은 minisign 키)이다. 새 버전이 있으면 설치 프로그램을 내려받아 서명을 확인한 뒤 실행하고 앱을 종료한다. 릴리스 파이프라인은 아직 이 피드와 GPUI 설치 프로그램을 올리지 않으므로, 그 전까지는 확인 결과가 항상 "최신"이다(피드 404). 다운로드 진행률 표시는 없고 토스트로만 알린다.
+- 업데이트: 피드는 `latest-gpui.json`(Tauri의 `latest.json`과 같은 모양, 같은 minisign 키)이다. 새 버전이 있으면 설치 프로그램을 내려받아 서명을 확인한 뒤 실행하고 앱을 종료한다. 릴리스 파이프라인의 `publish-gpui` 잡이 이 피드와 설치 프로그램을 올리며 기본은 꺼져 있다(`docs/releasing.md`). 꺼져 있는 동안은 피드가 404라 확인 결과가 항상 "최신"이다. 다운로드 진행률 표시는 없고 시작과 실패를 토스트로만 알린다.
+- 스크롤: GPUI에는 휠 스크롤 감속이 없어 `src/smooth.rs`의 `SmoothScroll`이 홈, 설정, 정보 패널, 라이선스 창의 휠 입력을 목표 오프셋으로 쌓아 프레임마다 따라가게 한다. 웹툰 보기는 `pages`/`viewport.rs`가 같은 방식으로 휠과 위·아래 키 스크롤을 나눠 반영한다. 격자 보기는 가상 목록이라 적용하지 않았다.
+- 알림: GPUI 알림 레이어는 다이얼로그보다 아래에 그려지므로, 다이얼로그가 열려 있으면 `src/toast.rs`가 같은 내용을 경고창으로 띄운다.
+- 로딩 표시: 파일을 여는 중(200ms 이상)에는 홈 위에, 그림이 아직 없을 때는 가운데에, 그림이 떠 있는 채 새 페이지나 웹툰 페이지가 늦어지면(페이지 이동은 300ms 이상) 오른쪽 위에 스피너를 보인다.
 - 서드파티 라이선스: `node scripts/generate-license-data.mjs --gpui`가 GPUI 앱의 Rust 의존성을 `src-gpui/THIRD_PARTY_LICENSES.json`에 모으고, 앱이 이 파일을 컴파일 시점에 포함한다. 의존성을 바꾸면 다시 생성한다. 루트의 `THIRD_PARTY_LICENSES.*`는 Tauri 앱 것이다.
 - 업데이트 로컬 검증: `cargo run --example local_update_feed -- <setup.exe> <출력 폴더> http://127.0.0.1:8765`가 임시 키로 서명한 피드를 만든다. 그 폴더를 `python -m http.server 8765 --bind 127.0.0.1`로 띄우고, 디버그 빌드를 `ARAVIEW_UPDATE_FEED`(피드 주소)와 `ARAVIEW_UPDATE_PUBKEY`(`pubkey.txt` 내용)를 준 채 실행한 뒤 `action:checkUpdates`나 `action:installUpdate`를 보낸다. 릴리스 빌드는 두 환경 변수를 읽지 않는다.
 - UI 통합 테스트: `src/app/tests.rs`가 헤드리스 창에서 키, 휠, 드래그, 드롭, 우클릭, 다이얼로그 경로를 거친다(`cargo test`에 포함). 네이티브 대화상자와 실제 OS 클립보드·휴지통은 여기서 다루지 않는다.
@@ -177,12 +180,15 @@ src-gpui/            # GPUI Kit 재작성 앱(진행 중, 별도 워크스페이
   src/app/file_ops.rs # 휴지통 이동, 이름 변경
   src/app/settings_panel.rs # 설정 다이얼로그
   src/app/system.rs  # 설정 반영, 테마, 항상 위, 두 번째 실행 전달, 창 상태
-  src/app/update.rs  # 업데이트 확인·설치, 라이선스 화면
+  src/app/update.rs  # 업데이트 확인·설치
+  src/app/licenses.rs # 오픈소스 라이선스 창(목록과 원문)
   src/app/tests.rs   # UI 통합 테스트
   src/layout.rs      # 이동 인덱스와 양쪽 보기 화면 배치 계산
   src/picture.rs     # 디코드 프레임을 GPU 타일과 축소 단계로 변환
   src/geometry.rs    # 줌/팬/맞춤 계산
   src/settings.rs    # 설정, 최근 파일, 이어보기 기록 영속화
+  src/smooth.rs      # 휠 스크롤을 감속시키는 스크롤 영역
+  src/toast.rs       # 토스트(다이얼로그가 열려 있으면 경고창)
   src/keys.rs        # 단축키 표기와 매칭
   src/platform.rs    # 창 핸들, 항상 위, 단일 인스턴스(Win32)
   src/i18n.rs        # 번역(프런트의 locales JSON 공유)
