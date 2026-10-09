@@ -30,6 +30,8 @@ pub(super) struct Page {
 }
 
 /// 새 이미지가 디코드될 때까지 이전 이미지를 붙잡는 최대 시간(SPEC §3.3).
+/// 열기가 이 시간보다 길어지면 로딩 표시를 보인다.
+pub(super) const LOADING_DELAY: std::time::Duration = std::time::Duration::from_millis(200);
 pub(super) const PREVIOUS_HOLD: std::time::Duration = std::time::Duration::from_millis(300);
 
 /// 캐시 모드별 프리페치 거리(SPEC §9.1).
@@ -103,8 +105,15 @@ impl AraView {
         self.open_seq += 1;
         let seq = self.open_seq;
         self.opening = true;
+        self.opening_started = Instant::now();
         self.error = None;
         cx.notify();
+        // 금방 끝나는 열기에는 표시가 깜빡이지 않게, 늦어질 때만 보이도록 한 번 깨운다.
+        cx.spawn(async move |this, cx| {
+            cx.background_executor().timer(LOADING_DELAY).await;
+            this.update(cx, |_, cx| cx.notify()).ok();
+        })
+        .detach();
         let source = path.clone();
         let task = cx.background_spawn(async move {
             let file = Path::new(&source);
@@ -276,6 +285,11 @@ impl AraView {
         self.grid_open = false;
         window.set_window_title(&t("app.title"));
         cx.notify();
+    }
+
+    /// 파일이나 아카이브를 여는 데 시간이 걸려 로딩 표시를 보여야 하는지.
+    pub(super) fn opening_visible(&self) -> bool {
+        self.opening && self.opening_started.elapsed() >= LOADING_DELAY
     }
 
     /// 현재 설정으로 페이지를 다시 디코드한다(재시도, 해상도·표시 정책 변경).

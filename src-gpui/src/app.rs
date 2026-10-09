@@ -32,6 +32,7 @@ use araview_core::ops::{self, DirListOptions, DirSortKey};
 use gpui_kit::assets::IconName;
 use gpui_kit::component::button::{Button, ButtonVariants as _};
 use gpui_kit::component::menu::ContextMenuExt as _;
+use gpui_kit::component::spinner::Spinner;
 use gpui_kit::component::{
     ActiveTheme as _, Icon, Selectable as _, Sizable as _, TitleBar, WindowExt as _, h_flex, v_flex,
 };
@@ -107,6 +108,7 @@ pub struct AraView {
     nav_started: Instant,
     open_seq: u64,
     opening: bool,
+    opening_started: Instant,
     error: Option<AppError>,
 
     /// 기준 그림과 그 정보(단일 보기의 표시 대상, 정보 패널·파일 작업의 대상).
@@ -193,6 +195,7 @@ impl AraView {
             nav_started: Instant::now(),
             open_seq: 0,
             opening: false,
+            opening_started: Instant::now(),
             error: None,
             info: None,
             picture: None,
@@ -1098,7 +1101,20 @@ impl Render for AraView {
             div()
                 .flex_1()
                 .min_h_0()
+                .relative()
                 .child(self.render_home(cx))
+                .when(self.opening_visible(), |home| {
+                    home.child(
+                        div()
+                            .absolute()
+                            .top_4()
+                            .left_0()
+                            .right_0()
+                            .flex()
+                            .justify_center()
+                            .child(loading_badge(t("home.list.loading"), cx)),
+                    )
+                })
                 .into_any_element()
         };
 
@@ -1141,6 +1157,22 @@ impl Render for AraView {
                     .child(header)
             }))
     }
+}
+
+/// 작은 스피너와 문구로 된 로딩 표시.
+fn loading_badge(label: impl Into<SharedString>, cx: &App) -> Div {
+    h_flex()
+        .gap_2()
+        .items_center()
+        .px_3()
+        .py_2()
+        .rounded_md()
+        .border_1()
+        .border_color(cx.theme().border)
+        .bg(cx.theme().popover)
+        .text_sm()
+        .child(Spinner::new().small())
+        .child(label.into())
 }
 
 fn format_bytes(bytes: u64) -> String {

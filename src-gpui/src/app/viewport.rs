@@ -1102,6 +1102,12 @@ impl AraView {
         .size_full();
 
         let waiting = self.picture.is_none() && (self.opening || self.pending_commit);
+        // 이미 그림이 떠 있을 때는 새 페이지나 파일이 늦어질 때만 모서리에 작게 알린다.
+        let busy = !waiting
+            && (self.opening_visible()
+                || (self.pending_commit
+                    && self.nav_started.elapsed() >= super::pages::PREVIOUS_HOLD)
+                || (mode == ViewMode::Webtoon && !self.page_loading.is_empty()));
         // 디코드가 길어지면 이미 받아 둔 썸네일을 저해상 미리보기로 먼저 깐다.
         let preview_thumb = (mode == ViewMode::Single
             && self.pending_commit
@@ -1182,9 +1188,16 @@ impl AraView {
                         .flex()
                         .items_center()
                         .justify_center()
-                        .text_sm()
-                        .text_color(cx.theme().muted_foreground)
-                        .child(t("viewer.loading")),
+                        .child(super::loading_badge(t("viewer.loading"), cx)),
+                )
+            })
+            .when(busy, |area| {
+                area.child(
+                    div()
+                        .absolute()
+                        .top_3()
+                        .right_3()
+                        .child(super::loading_badge(t("viewer.loading"), cx)),
                 )
             })
             .when_some(preview, |area, name| {
