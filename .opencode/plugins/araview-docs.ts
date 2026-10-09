@@ -47,20 +47,20 @@ type PluginContextLike = {
 }
 
 const CHECK_TIMEOUT_MS = 120_000
-const TAURI_CONFIG = "src-tauri/tauri.conf.json"
+const ROOT_MARKER = "src-gpui/Cargo.toml"
 
 /** 저장소 루트를 찾는다. 세션 디렉터리 기준으로 위로 한 번 확인한다. */
 function resolveRoot(start: string): { root: string; error?: string } {
   let dir = resolve(start)
   for (let depth = 0; depth < 4; depth++) {
-    if (existsSync(join(dir, TAURI_CONFIG))) return { root: dir }
+    if (existsSync(join(dir, ROOT_MARKER))) return { root: dir }
     const parent = dirname(dir)
     if (parent === dir) break
     dir = parent
   }
   return {
     root: resolve(start),
-    error: `AraView 저장소를 찾지 못했다: ${start} 및 상위 디렉터리에서 ${TAURI_CONFIG} 없음`
+    error: `AraView 저장소를 찾지 못했다: ${start} 및 상위 디렉터리에서 ${ROOT_MARKER} 없음`
   }
 }
 

@@ -1,13 +1,13 @@
 name: CI
 
-# 프론트엔드 검사는 PR과 main 푸시에서 자동으로 돈다.
+# 문서 정합성은 PR과 main 푸시에서 자동으로 돈다.
 # Rust는 두 단계다. 전체 검증(rust 잡: fmt, test, clippy, audit, deny)은 비용이
 # 커서 Actions 탭 수동 실행(workflow_dispatch)과 릴리스(release.yml이
-# workflow_call로 호출)에서만 돈다. 대신 PR에서 src-tauri나 Cargo.lock이 바뀌면
-# 가벼운 rust-check 잡(cargo check, 기본 feature와 --no-default-features)이 돌아
-# 의존성 업데이트가 빌드를 깨는 것을 병합 전에 잡는다. main 푸시에서도 같은 조건으로
-# 돌리는 이유는 캐시다. PR은 자기 ref와 main의 캐시만 복원할 수 있어서, main이
-# 캐시를 저장해 두지 않으면 모든 PR이 빈 캐시로 시작한다.
+# workflow_call로 호출)에서만 돈다. 대신 Rust 쪽 파일이 바뀐 PR에서는 가벼운
+# rust-check 잡(cargo check)이 돌아 의존성 업데이트가 빌드를 깨는 것을 병합 전에
+# 잡는다. main 푸시에서도 같은 조건으로 돌리는 이유는 캐시다. PR은 자기 ref와
+# main의 캐시만 복원할 수 있어서, main이 캐시를 저장해 두지 않으면 모든 PR이 빈
+# 캐시로 시작한다.
 # 릴리스 검증은 이 파일을 그대로 재사용하므로 검증 항목은 여기서만 고친다.
 on:
   pull_request:
@@ -29,9 +29,9 @@ env:
   VCPKG_BINARY_SOURCES: clear;x-gha,readwrite
 
 jobs:
-  frontend:
-    runs-on: windows-latest
-    timeout-minutes: 20
+  docs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -40,32 +40,10 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 24
-          cache: npm
 
-      - name: Install frontend dependencies
-        run: npm ci
-
-      - name: Frontend lint
-        run: npm run lint
-
-      - name: Type check
-        run: npx tsc --noEmit
-
-      - name: Format check
-        run: npm run format:check
-
-      # 문서-코드 정합성 (확장자, IPC, 설정, 플러그인, 버전, plan, i18n 잔재).
+      # 문서-코드 정합성 (버전, 지원 확장자, 설정 키, plan 잔류).
       - name: Docs consistency
-        run: npm run docs:check
-
-      # moderate 이상 새 자문이 있으면 실패한다. 업스트림 패치가 아직 없는
-      # 자문만 scripts/audit-frontend.mjs의 허용 목록에 이유와 추적 링크를 남긴다.
-      - name: Frontend dependency audit
-        run: npm run audit:frontend
-
-      # 가장 오래 걸리는 단계라 빠른 검사들 뒤에 둔다. 사소한 오류는 여기 오기 전에 드러난다.
-      - name: Frontend tests with coverage
-        run: npm run test:coverage
+        run: node scripts/check-docs.mjs
 
   # Rust 쪽 파일이 바뀐 PR과 main 푸시에서만 rust-check를 돌리기 위한 판별 잡.
   # 태그(릴리스)는 rust 잡이 맡으므로 제외한다. workflow_call에서는 event_name이
@@ -90,15 +68,13 @@ jobs:
           # 비교 대상을 못 찾으면(새 브랜치의 0 커밋, 강제 푸시 등) 안전하게 돌린다.
           if ! files=$(git diff --name-only "$BASE_SHA" HEAD 2>/dev/null); then
             echo "rust=true" >> "$GITHUB_OUTPUT"
-          elif echo "$files" | grep -Eq '^(src-tauri/|src-gpui/|\.github/actions/setup-rust-native/|\.github/workflows/ci\.yml$)'; then
+          elif echo "$files" | grep -Eq '^(crates/|src-gpui/|Cargo\.(toml|lock)$|rust-toolchain\.toml$|deny\.toml$|\.cargo/|\.github/actions/setup-rust-native/|\.github/workflows/ci\.yml$)'; then
             echo "rust=true" >> "$GITHUB_OUTPUT"
           else
             echo "rust=false" >> "$GITHUB_OUTPUT"
           fi
 
-  # 풀 검증(rust 잡)보다 훨씬 싼 컴파일 검사. 기본 feature(dev-mcp 포함)와
-  # 릴리스 feature를 모두 확인한다. 풀 검증은 --no-default-features만 보기 때문에
-  # mcp-bridge가 tauri와 어긋나는 문제는 여기서만 잡힌다.
+  # 풀 검증(rust 잡)보다 훨씬 싼 컴파일 검사.
   rust-check:
     needs: changes
     if: needs.changes.outputs.rust == 'true'
@@ -113,15 +89,8 @@ jobs:
         with:
           cache-key: check
 
-      - name: Cargo check (default features, dev-mcp)
-        run: cd src-tauri && cargo check --workspace --all-targets
-
-      - name: Cargo check (release features)
-        run: cd src-tauri && cargo check --workspace --all-targets --no-default-features
-
-      # GPUI 재작성 앱은 별도 워크스페이스다.
-      - name: Cargo check (GPUI app)
-        run: cd src-gpui && cargo check --all-targets
+      - name: Cargo check
+        run: cargo check --workspace --all-targets
 
   rust:
     # PR과 main 푸시에서는 건너뛴다. workflow_call에서는 event_name이 호출자(태그 푸시)
@@ -143,36 +112,26 @@ jobs:
           cache-key: verify
 
       - name: Cargo fmt
-        run: cd src-tauri && cargo fmt --check
+        run: cargo fmt --all --check
 
       - name: Cargo test
-        run: cd src-tauri && cargo test --workspace --no-default-features
+        run: cargo test --workspace
 
       - name: Cargo clippy
-        run: cd src-tauri && cargo clippy --workspace --no-default-features --all-targets -- -D warnings
-
-      - name: Cargo fmt (GPUI app)
-        run: cd src-gpui && cargo fmt --check
-
-      - name: Cargo test (GPUI app)
-        run: cd src-gpui && cargo test
-
-      - name: Cargo clippy (GPUI app)
-        run: cd src-gpui && cargo clippy --all-targets -- -D warnings
+        run: cargo clippy --workspace --all-targets -- -D warnings
 
       # RustSec 자문 DB 대조. 발견 시 실패한다. 정보성 자문은 통과.
       - name: Rust dependency audit
         uses: rustsec/audit-check@69366f33c96575abad1ee0dba8212993eecbe998 # v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          working-directory: src-tauri
 
       # 허용 목록 밖의 라이선스(GPL 등), 알 수 없는 레지스트리/git 소스가 들어오면 실패한다.
-      # 설정: src-tauri/deny.toml.
+      # 설정: deny.toml.
       - name: Install cargo-deny
         uses: taiki-e/install-action@83ac0ad63c0167e6f06796fab0fce28db1bf3db0 # v2
         with:
           tool: cargo-deny@0.20.2
 
       - name: Rust license and source check
-        run: cd src-tauri && cargo deny check licenses bans sources
+        run: cargo deny check licenses bans sources

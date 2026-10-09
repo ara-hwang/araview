@@ -1,6 +1,6 @@
 # AraView
 
-Tauri 2 + React 19 + TypeScript 기반의 Windows 데스크톱 이미지 뷰어
+Rust와 [GPUI Kit](https://github.com/longbridge/gpui-kit)으로 만든 Windows 데스크톱 이미지 뷰어
 
 - 일반 이미지 포맷과 만화 아카이브 포맷 지원
 - 양쪽 보기, 웹툰 보기 모드 지원
@@ -8,16 +8,17 @@ Tauri 2 + React 19 + TypeScript 기반의 Windows 데스크톱 이미지 뷰어
 
 ## 요구 사항
 
-- Windows 11 (x64), Node.js `>= 24.15`, npm `>= 11.7`, Rust stable
+- Windows 11 (x64), Rust stable(`rust-toolchain.toml`), vcpkg의 `libheif[core,aom]:x64-windows`, Node.js `>= 24`(릴리스·문서 검사 스크립트용)
 
 ## 로컬 개발
 
 ```bash
 git clone https://github.com/ara-hwang/araview.git
 cd araview
-npm install
-npm run tauri dev
+cargo run -p araview-gpui -- "C:/path/to/image.png"
 ```
+
+`VCPKG_ROOT`가 vcpkg 설치 위치를 가리켜야 합니다. 자세한 환경은 `docs/development.md`를 봅니다.
 
 ## 문서
 
@@ -26,7 +27,7 @@ npm run tauri dev
 - 릴리스와 업데이트(maintainer): `docs/releasing.md`
 - 기여 안내: `CONTRIBUTING.md`
 - 코드 작성 규칙: `CODING_STANDARDS.md`
-- 작업별 절차(포맷 추가, 백엔드 명령 추가, Tauri MCP 문제 해결): `docs/playbooks.md`
+- 작업별 절차(포맷 추가, 런타임 확인): `docs/playbooks.md`
 - 제품 정의: `PRODUCT.md`
 - 기능/기술 명세: `SPEC.md`
 - 비주얼 시스템: `DESIGN.md`

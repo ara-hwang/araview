@@ -1,45 +1,10 @@
 {
-  // rust-analyzer: Tauri workspace는 src-tauri/에 있어 자동 탐색된다.
-  // dev 빌드(기본 features(dev-mcp 포함))와 동일한 해석을 사용한다.
-  // 릴리스 검증(--no-default-features)은 CI(release.yml)가 담당한다.
+  // rust-analyzer: 루트 워크스페이스(crates/*, src-gpui)를 자동 탐색한다.
   "rust-analyzer.check.command": "clippy",
   // analyzer용 check 산출물을 분리해 `cargo build`와 Cargo.lock 경합을 피한다.
   "rust-analyzer.cargo.targetDir": true,
-  // 저장 시 oxlint 자동 수정. formatOnSave(포맷)와 함께 동작한다.
-  "editor.codeActionsOnSave": {
-    "source.fixAll": "explicit"
-  },
   "[rust]": {
     "editor.defaultFormatter": "rust-lang.rust-analyzer",
-    "editor.formatOnSave": true
-  },
-  // Oxfmt: JS/TS/JSON/CSS 기본 포매터. `oxfmt`가 devDependencies에 있어 LSP로 동작한다.
-  "[javascript]": {
-    "editor.defaultFormatter": "oxc.oxc-vscode",
-    "editor.formatOnSave": true
-  },
-  "[javascriptreact]": {
-    "editor.defaultFormatter": "oxc.oxc-vscode",
-    "editor.formatOnSave": true
-  },
-  "[typescript]": {
-    "editor.defaultFormatter": "oxc.oxc-vscode",
-    "editor.formatOnSave": true
-  },
-  "[typescriptreact]": {
-    "editor.defaultFormatter": "oxc.oxc-vscode",
-    "editor.formatOnSave": true
-  },
-  "[json]": {
-    "editor.defaultFormatter": "oxc.oxc-vscode",
-    "editor.formatOnSave": true
-  },
-  "[jsonc]": {
-    "editor.defaultFormatter": "oxc.oxc-vscode",
-    "editor.formatOnSave": true
-  },
-  "[css]": {
-    "editor.defaultFormatter": "oxc.oxc-vscode",
     "editor.formatOnSave": true
   }
 }

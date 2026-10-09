@@ -1,0 +1,18 @@
+[workspace]
+resolver = "3"
+members = ["crates/araview-core", "crates/araview-thumb", "src-gpui"]
+
+[profile.release]
+codegen-units = 1
+lto = "fat"
+
+# GPUI는 디버그 빌드에서 느려지는 부분이 많아 핵심 크레이트만 최적화한다.
+[profile.dev.package]
+gpui-pre = { opt-level = 3 }
+gpui-pre-platform = { opt-level = 3 }
+gpui-pre-macros = { opt-level = 3 }
+resvg = { opt-level = 3 }
+rustybuzz = { opt-level = 3 }
+taffy = { opt-level = 3 }
+ttf-parser = { opt-level = 3 }
+image = { opt-level = 3 }

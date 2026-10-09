@@ -20,15 +20,12 @@ const ROW_HEIGHT: f32 = 52.;
 const LIST_WIDTH: f32 = 288.;
 const BODY_HEIGHT: f32 = 520.;
 
-/// 동봉된 라이선스 문서 폴더. 설치본은 실행 파일 옆, 개발 빌드는 Tauri 빌드가 모아 둔 폴더다.
+/// 동봉된 라이선스 문서 폴더. 실행 파일 옆 `licenses/`다(`build.rs`가 빌드 폴더에 모아 둔다).
 fn licenses_dir() -> PathBuf {
-    let bundled = std::env::current_exe()
+    std::env::current_exe()
         .ok()
-        .and_then(|exe| exe.parent().map(|dir| dir.join("licenses")));
-    match bundled {
-        Some(dir) if dir.is_dir() => dir,
-        _ => PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../src-tauri/generated/licenses"),
-    }
+        .and_then(|exe| exe.parent().map(|dir| dir.join("licenses")))
+        .unwrap_or_default()
 }
 
 /// libheif 등 네이티브 라이브러리의 라이선스 원문(패키지 데이터 JSON은 제외).

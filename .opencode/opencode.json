@@ -1,16 +1,8 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "instructions": ["AGENTS.md"],
-  "formatter": {
-    "oxfmt-json": {
-      "command": ["npx", "oxfmt", "$FILE"],
-      "extensions": [".json", ".jsonc"]
-    },
-    "oxfmt-css": {
-      "command": ["npx", "oxfmt", "$FILE"],
-      "extensions": [".css"]
-    }
-  },
+  "instructions": [
+    "AGENTS.md"
+  ],
   "permission": {
     "websearch": "allow",
     "webfetch": "allow",
@@ -22,16 +14,6 @@
     },
     "skill": {
       "agent-browser": "deny"
-    }
-  },
-  "mcp": {
-    "tauri": {
-      "type": "local",
-      "command": ["npx", "-y", "@hypothesi/tauri-mcp-server"],
-      "environment": {
-        "MCP_BRIDGE_PORT": "9323"
-      },
-      "enabled": true
     }
   }
 }

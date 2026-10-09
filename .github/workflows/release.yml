@@ -1,15 +1,21 @@
 name: Release
 
-# `vX.Y.Z` 태그를 푸시하면 검증, 서명 빌드, GitHub 릴리스 생성까지 자동으로 돈다.
-#   npm run release -- 1.0.1   (버전 올리기, 커밋, 태그, 푸시)
-# 태그는 버전을 올린 커밋(package.json, Cargo.toml, Cargo.lock, tauri.conf.json 4곳
-# 일치)에 붙여야 하며, 어긋나면 첫 단계에서 실패한다. 실패하면 Actions에서 재실행하거나
-# 태그를 지우고 다시 푸시한다. 릴리스 자산은 이 저장소에 게시되고 updater endpoint가
-# 그 `latest.json`을 가리킨다. 서명 키는 Secrets TAURI_SIGNING_PRIVATE_KEY(_PASSWORD).
+# `vX.Y.Z` 태그를 푸시하면 검증, 설치 프로그램 빌드와 서명, GitHub 릴리스 생성까지 자동으로 돈다.
+#   npm run release -- 2.0.1   (버전 올리기, 커밋, 태그, 푸시)
+# 태그는 버전을 올린 커밋(src-gpui/Cargo.toml, Cargo.lock 2곳 일치)에 붙여야 하며,
+# 어긋나면 첫 단계에서 실패한다. 실패하면 Actions에서 재실행하거나 태그를 지우고 다시
+# 푸시한다. 릴리스 자산은 이 저장소에 게시되고 앱의 업데이트 확인이 그 `latest-gpui.json`을
+# 본다. 서명 키는 Secrets TAURI_SIGNING_PRIVATE_KEY(_PASSWORD)다(이름은 예전 Tauri 시절
+# 그대로 두었다. 키 형식은 minisign이다).
+#
+# Actions 탭에서 수동 실행(workflow_dispatch)하면 릴리스를 만들지 않고 같은 과정을 끝까지
+# 돌려 설치 프로그램, 서명, 피드를 아티팩트로만 남긴다. 태그를 달기 전에 파이프라인을
+# 시험할 때 쓴다.
 on:
   push:
     tags:
       - "v[0-9]+.[0-9]+.[0-9]+"
+  workflow_dispatch:
 
 # 같은 태그의 실행이 겹치면 이전 실행을 취소하지 않고 줄 세운다(릴리스 도중 취소 방지).
 concurrency:
@@ -31,28 +37,32 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # 태그와 버전 파일이 어긋난 채 릴리스되면 updater가 잘못된 버전을 안내한다.
-      # 서명 키가 없으면 빌드는 통과하지만 .sig와 latest.json이 빠져 업데이트가 깨진다.
+      # 태그와 버전 파일이 어긋난 채 릴리스되면 업데이트 확인이 잘못된 버전을 안내한다.
+      # 서명 키가 없으면 빌드는 통과하지만 서명과 피드가 빠져 업데이트가 깨진다.
       - name: Verify tag matches version files and signing key
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         run: |
-          $tag = "${{ github.ref_name }}".TrimStart("v")
-          $pkg = (Get-Content package.json -Raw | ConvertFrom-Json).version
-          $tauri = (Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version
-          $cargo = (Select-String -Path src-tauri/Cargo.toml -Pattern '^version = "(.+)"' | Select-Object -First 1).Matches.Groups[1].Value
-          $lock = (Select-String -Path src-tauri/Cargo.lock -Pattern 'name = "araview"' -Context 0,1 | Select-Object -First 1).Context.PostContext[0] -replace '.*"(.+)".*','$1'
-          Write-Host "tag=$tag package.json=$pkg tauri.conf.json=$tauri Cargo.toml=$cargo Cargo.lock=$lock"
-          if (($pkg, $tauri, $cargo, $lock | Where-Object { $_ -ne $tag }).Count -gt 0) {
-            Write-Error "태그 v$tag 와 버전 파일이 일치하지 않는다."
+          $cargo = (Select-String -Path src-gpui/Cargo.toml -Pattern '^version = "(.+)"' | Select-Object -First 1).Matches.Groups[1].Value
+          $lock = (Select-String -Path Cargo.lock -Pattern 'name = "araview-gpui"' -Context 0,1 | Select-Object -First 1).Context.PostContext[0] -replace '.*"(.+)".*','$1'
+          Write-Host "Cargo.toml=$cargo Cargo.lock=$lock"
+          if ($cargo -ne $lock) {
+            Write-Error "Cargo.toml($cargo)과 Cargo.lock($lock)의 버전이 다르다."
             exit 1
+          }
+          if ("${{ github.ref_type }}" -eq "tag") {
+            $tag = "${{ github.ref_name }}".TrimStart("v")
+            if ($cargo -ne $tag) {
+              Write-Error "태그 v$tag 와 버전 파일($cargo)이 일치하지 않는다."
+              exit 1
+            }
           }
           if ([string]::IsNullOrWhiteSpace($env:TAURI_SIGNING_PRIVATE_KEY)) {
             Write-Error "Secrets TAURI_SIGNING_PRIVATE_KEY 가 비어 있다."
             exit 1
           }
 
-  # 검증은 ci.yml을 그대로 재사용한다. 실패하면 publish-tauri는 시작하지 않는다.
+  # 검증은 ci.yml을 그대로 재사용한다. 실패하면 publish는 시작하지 않는다.
   verify:
     needs: preflight
     permissions:
@@ -61,7 +71,7 @@ jobs:
       checks: write
     uses: ./.github/workflows/ci.yml
 
-  publish-tauri:
+  publish:
     needs: verify
     permissions:
       contents: write
@@ -74,33 +84,38 @@ jobs:
         with:
           fetch-depth: 0
 
+      # 서명에 Tauri CLI의 signer를 쓴다(npx로 받아 쓰고 저장소에는 의존성을 두지 않는다).
       - name: Setup Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 24
-          cache: npm
 
-      - name: Install frontend dependencies
-        run: npm ci
-
-      # PSD 썸네일 DLL도 이 단계에서 스테이징된다.
       - name: Setup Rust and native dependencies
         uses: ./.github/actions/setup-rust-native
         with:
           cache-key: release
           sccache: "true"
 
-      # ------------------------------------------------------------------
-      # 릴리스. verify 잡을 통과한 뒤에만 실행된다.
-      # ------------------------------------------------------------------
+      - name: Resolve version
+        id: version
+        run: |
+          $version = (Select-String -Path src-gpui/Cargo.toml -Pattern '^version = "(.+)"' | Select-Object -First 1).Matches.Groups[1].Value
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          # 수동 실행에는 태그가 없으므로 노트의 기준을 현재 커밋으로 한다.
+          $tag = if ("${{ github.ref_type }}" -eq "tag") { "${{ github.ref_name }}" } else { "HEAD" }
+          "tag=$tag" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Build installer
+        env:
+          RUSTC_WRAPPER: sccache
+        run: pwsh -NoProfile -File scripts/Build-Installer.ps1
+
       # 릴리스 노트: 이전 태그 이후 커밋 목록으로 본문을 만든다.
-      # tauri-action은 파일을 읽지 못하므로 multiline output으로 전달한다.
       - name: Generate release notes
-        id: notes
         run: |
           # git 한글 커밋 메시지가 깨지지 않게 stdout을 UTF-8로 디코드한다.
           [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-          $tag = "${{ github.ref_name }}"
+          $tag = "${{ steps.version.outputs.tag }}"
           $prev = git describe --tags --abbrev=0 "$tag^" 2>$null
           if ($LASTEXITCODE -ne 0) { $prev = "" }
           if ([string]::IsNullOrWhiteSpace($prev)) {
@@ -137,98 +152,58 @@ jobs:
           # 본문 형식은 .github/RELEASE_TEMPLATE.md에서 고친다.
           $body = (Get-Content .github/RELEASE_TEMPLATE.md -Raw -Encoding utf8).TrimEnd()
           $body = $body.Replace("{{CHANGES}}", $changes).Replace("{{COMPARE}}", $compareLine)
-          "body<<EOF" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
-          $body | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
-          "EOF" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          Set-Content -Path release-notes.md -Value $body -Encoding utf8
+          # 앱의 업데이트 대화상자에는 설치 안내를 뺀 변경 목록만 보여준다.
+          Set-Content -Path feed-notes.md -Value $changes -Encoding utf8
 
-      # Updater 서명: maintainer는 한 번만 키를 만들고 Secrets에 등록한다.
-      #   npm run tauri signer generate -- -w ~/.tauri/araview.key
-      # 공개키는 src-tauri/tauri.conf.json plugins.updater.pubkey에,
-      # 비밀키와 비밀번호는 repo Secrets TAURI_SIGNING_PRIVATE_KEY(_PASSWORD)에 넣는다.
-      # 키가 없으면 위 검증 단계에서 먼저 실패한다.
-      - name: Build and release
-        uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # v1.0.0
-        env:
-          # RELEASE_TOKEN(contents: write PAT)이 등록돼 있으면 그것을 쓰고, 없으면 GITHUB_TOKEN을 쓴다.
-          # 저장소 기본 워크플로 권한을 read로 유지하려면 RELEASE_TOKEN이 필요하다.
-          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
-          RUSTC_WRAPPER: sccache
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        with:
-          tagName: ${{ github.ref_name }}
-          releaseName: "AraView v__VERSION__"
-          releaseBody: ${{ steps.notes.outputs.body }}
-          releaseDraft: false
-          prerelease: false
-          # `tauri build`는 --no-default-features를 자체 옵션으로 받지 않는다.
-          # -- 뒤에 두면 cargo로 그대로 전달되어 dev-mcp가 릴리스에서 빠진다.
-          args: -- --no-default-features
-
-  # GPUI 재작성 앱의 설치 프로그램과 업데이트 피드(latest-gpui.json)를 같은 릴리스에 올린다.
-  # 저장소 변수 PUBLISH_GPUI가 'true'일 때만 돈다. 기본은 꺼져 있어 릴리스 대상은 Tauri 앱뿐이다.
-  publish-gpui:
-    needs: publish-tauri
-    if: vars.PUBLISH_GPUI == 'true'
-    permissions:
-      contents: write
-    runs-on: windows-latest
-    timeout-minutes: 90
-
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: 24
-          cache: npm
-
-      # 서명에 Tauri CLI의 signer를 쓴다.
-      - name: Install frontend dependencies
-        run: npm ci
-
-      - name: Setup Rust and native dependencies
-        uses: ./.github/actions/setup-rust-native
-        with:
-          cache-key: release-gpui
-
-      # GPUI 앱의 버전은 릴리스 스크립트가 올리는 버전 파일에 없으므로 태그에 맞춘다.
-      # 앱은 이 버전을 피드의 버전과 비교한다.
-      - name: Align GPUI version with tag
-        run: |
-          $tag = "${{ github.ref_name }}".TrimStart("v")
-          $manifest = "src-gpui/Cargo.toml"
-          $text = Get-Content $manifest -Raw
-          $updated = [regex]::Replace($text, '(?m)^version = "[^"]+"', "version = `"$tag`"", 1)
-          Set-Content -Path $manifest -Value $updated -NoNewline -Encoding utf8
-
-      - name: Build installer
-        run: pwsh -NoProfile -File scripts/Build-GpuiInstaller.ps1
-
+      # 업데이트 서명: maintainer는 한 번만 키를 만들고 Secrets에 등록한다(docs/releasing.md).
+      # 공개키는 src-gpui/update-pubkey.txt에, 비밀키와 비밀번호는 repo Secrets에 넣는다.
       - name: Sign installer and write feed
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-          $tag = "${{ github.ref_name }}"
-          $version = $tag.TrimStart("v")
-          $installer = "src-gpui/target/AraView-GPUI-$version-setup.exe"
-          npx tauri signer sign $installer
+          $version = "${{ steps.version.outputs.version }}"
+          $installer = "target/AraView-$version-setup.exe"
+          npx --yes @tauri-apps/cli@2.11.4 signer sign $installer
           if ($LASTEXITCODE -ne 0) { Write-Error "설치 프로그램 서명 실패"; exit 1 }
-          $notes = gh release view $tag --repo "${{ github.repository }}" --json body --jq .body
           $feed = [ordered]@{
             version = $version
-            notes = ($notes -join "`n")
+            notes = (Get-Content feed-notes.md -Raw -Encoding utf8).Trim()
             pub_date = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
             platforms = @{
               "windows-x86_64" = [ordered]@{
                 signature = (Get-Content "$installer.sig" -Raw).Trim()
-                url = "https://github.com/${{ github.repository }}/releases/download/$tag/AraView-GPUI-$version-setup.exe"
+                url = "https://github.com/${{ github.repository }}/releases/download/v$version/AraView-$version-setup.exe"
               }
             }
           }
           $feed | ConvertTo-Json -Depth 5 | Set-Content -Path latest-gpui.json -Encoding utf8
-          gh release upload $tag $installer latest-gpui.json --repo "${{ github.repository }}" --clobber
+
+      - name: Publish release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          $version = "${{ steps.version.outputs.version }}"
+          gh release create "${{ github.ref_name }}" `
+            "target/AraView-$version-setup.exe" latest-gpui.json `
+            --repo "${{ github.repository }}" `
+            --title "AraView v$version" `
+            --notes-file release-notes.md
+          if ($LASTEXITCODE -ne 0) { Write-Error "릴리스 생성 실패"; exit 1 }
+
+      # 수동 실행(시험)에서는 릴리스 대신 산출물을 아티팩트로 남긴다.
+      - name: Upload dry-run artifacts
+        if: github.ref_type != 'tag'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-dry-run
+          path: |
+            target/AraView-*-setup.exe
+            target/AraView-*-setup.exe.sig
+            latest-gpui.json
+            release-notes.md
+            feed-notes.md
+          retention-days: 7
