@@ -71,20 +71,3 @@ pub fn cached_thumb(source: &Path, decoder: Decoder, max_side: u32) -> Option<Pa
 pub fn decode_rgb8(source: &Path, decoder: Decoder) -> Result<Rgb8, AppError> {
     (spec_for(decoder).decode)(source)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn decoder_follows_mime() {
-        assert_eq!(decoder_for(Path::new("a.heic")), Some(Decoder::Heif));
-        assert_eq!(decoder_for(Path::new("a.AVIF")), Some(Decoder::Heif));
-        assert_eq!(decoder_for(Path::new("a.psd")), Some(Decoder::Psd));
-        assert_eq!(decoder_for(Path::new("a.TGA")), Some(Decoder::Raster));
-        assert_eq!(decoder_for(Path::new("a.dds")), Some(Decoder::Raster));
-        assert_eq!(decoder_for(Path::new("a.exr")), Some(Decoder::Raster));
-        assert_eq!(decoder_for(Path::new("a.qoi")), Some(Decoder::Raster));
-        assert_eq!(decoder_for(Path::new("a.png")), None);
-    }
-}

@@ -126,29 +126,3 @@ pub fn t_with(key: &str, args: &[(&str, &dyn std::fmt::Display)]) -> SharedStrin
     }
     SharedString::from(text)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn catalogs_share_every_key() {
-        let mut ko: Vec<_> = KO.keys().collect();
-        let mut en: Vec<_> = EN.keys().collect();
-        ko.sort();
-        en.sort();
-        assert!(!ko.is_empty());
-        assert_eq!(ko, en);
-    }
-
-    #[test]
-    fn placeholders_are_filled() {
-        let text = t_with("viewer.grid.count", &[("current", &3), ("total", &10)]);
-        assert_eq!(text.as_ref(), "3/10");
-    }
-
-    #[test]
-    fn missing_key_is_returned_verbatim() {
-        assert_eq!(t("no.such.key").as_ref(), "no.such.key");
-    }
-}

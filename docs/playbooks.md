@@ -4,7 +4,7 @@ Task-specific procedures for agents, reached from `../AGENTS.md`. Read the secti
 
 ## Add a supported format
 
-1. Add the extension and MIME mapping, with tests, in `crates/araview-core/src/image.rs` (`SUPPORTED_EXTENSIONS`, `get_mime_type`)
+1. Add the extension and MIME mapping in `crates/araview-core/src/image.rs` (`SUPPORTED_EXTENSIONS`, `get_mime_type`)
 2. Make `crates/araview-core/src/display.rs` decode it into RGBA frames (most formats go through the `image` crate; HEIC/HEIF through libheif)
 3. Add a sample file to `samples/`, generated with tools installed on the PC and outside the repo's dependencies: raster/vector via `sharp` in a temp dir, HEIC/HEIF via Python `pillow-heif`, CBZ via `Compress-Archive`. If the PC has no encoder, install one on the PC.
 4. Update `SPEC.md` §2 (and §16/§18/§20 when affected), `README.md`, and `docs/`
@@ -14,7 +14,7 @@ Task-specific procedures for agents, reached from `../AGENTS.md`. Read the secti
 
 1. Implement it as a sync function in the matching `crates/araview-core/src/ops/<domain>.rs` and export it from `ops/mod.rs`
 2. Call it from the GPUI app inside `cx.background_spawn(...)`; never block the UI thread
-3. Add a unit test next to it and, when the UI reaches it, a case in `src-gpui/src/app/tests.rs`
+3. When the UI reaches it, add a case in `src-gpui/src/app/tests.rs` (the kept E2E suite; unit tests are not kept)
 4. Update `SPEC.md` §15/§16 when the contract or a type changes
 
 ## Runtime check

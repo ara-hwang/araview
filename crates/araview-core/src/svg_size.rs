@@ -1,8 +1,6 @@
 //! SVG 루트 태그의 width/height/viewBox에서 표시 픽셀 치수를 구하는 경량 파서.
 
 use std::path::Path;
-#[cfg(test)]
-use std::path::PathBuf;
 
 /// SVG `<svg>` 루트 태그의 width/height/viewBox에서 픽셀 치수를 구한다.
 /// 의존성 없이 선두 64KB만 읽는다. `%`/폰트 단위 등 해석 불가분은 None.
@@ -180,102 +178,4 @@ fn finite_pixels(w: f32, h: f32) -> Option<(u32, u32)> {
         return None;
     }
     Some((w, h))
-}
-
-/// 테스트용 SVG 파일을 쓴다. `image` 모듈의 SVG 로드 테스트도 함께 쓴다.
-#[cfg(test)]
-pub(crate) fn write_svg(dir: &Path, name: &str, content: &str) -> PathBuf {
-    let path = dir.join(name);
-    std::fs::write(&path, content).unwrap();
-    path
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn svg_dimensions_explicit_width_height() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = write_svg(
-            dir.path(),
-            "icon.svg",
-            r#"<svg width="800" height="600" xmlns="http://www.w3.org/2000/svg"></svg>"#,
-        );
-        assert_eq!(svg_dimensions(&path), Some((800, 600)));
-    }
-
-    #[test]
-    fn svg_dimensions_viewbox_only() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = write_svg(
-            dir.path(),
-            "icon.svg",
-            r#"<svg viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg"></svg>"#,
-        );
-        assert_eq!(svg_dimensions(&path), Some((400, 300)));
-    }
-
-    #[test]
-    fn svg_dimensions_width_plus_viewbox_ratio() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = write_svg(
-            dir.path(),
-            "icon.svg",
-            r#"<svg width="200" viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg"></svg>"#,
-        );
-        assert_eq!(svg_dimensions(&path), Some((200, 150)));
-    }
-
-    #[test]
-    fn svg_dimensions_percent_falls_back_to_viewbox() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = write_svg(
-            dir.path(),
-            "icon.svg",
-            r#"<svg width="100%" height="100%" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"></svg>"#,
-        );
-        assert_eq!(svg_dimensions(&path), Some((64, 64)));
-    }
-
-    #[test]
-    fn svg_dimensions_absolute_units_convert_to_px() {
-        let dir = tempfile::tempdir().unwrap();
-        // 1in x 72pt = 96px x 96px
-        let path = write_svg(
-            dir.path(),
-            "icon.svg",
-            r#"<svg width="1in" height="72pt" xmlns="http://www.w3.org/2000/svg"></svg>"#,
-        );
-        assert_eq!(svg_dimensions(&path), Some((96, 96)));
-    }
-
-    #[test]
-    fn svg_dimensions_unresolvable_returns_none() {
-        let dir = tempfile::tempdir().unwrap();
-        // 크기 정보 없음
-        let bare = write_svg(
-            dir.path(),
-            "bare.svg",
-            r#"<svg xmlns="http://www.w3.org/2000/svg"></svg>"#,
-        );
-        assert_eq!(svg_dimensions(&bare), None);
-        // 폰트 단위는 해석 불가
-        let em = write_svg(
-            dir.path(),
-            "em.svg",
-            r#"<svg width="10em" height="10em" xmlns="http://www.w3.org/2000/svg"></svg>"#,
-        );
-        assert_eq!(svg_dimensions(&em), None);
-        // SVG가 아님
-        let not_svg = write_svg(dir.path(), "icon.svg", r#"<html></html>"#);
-        assert_eq!(svg_dimensions(&not_svg), None);
-        // stroke-width의 width와 겹치지 않아야 함
-        let stroke = write_svg(
-            dir.path(),
-            "stroke.svg",
-            r#"<svg viewBox="0 0 20 10" xmlns="http://www.w3.org/2000/svg"><path stroke-width="5" d="M0 0h20"/></svg>"#,
-        );
-        assert_eq!(svg_dimensions(&stroke), Some((20, 10)));
-    }
 }

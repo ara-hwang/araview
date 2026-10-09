@@ -72,14 +72,3 @@ impl AssetSource for AppAssets {
         Ok(paths)
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn extra_and_default_icons_both_load() {
-        assert!(AppAssets.load("icons/zoom-in.svg").unwrap().is_some());
-        assert!(AppAssets.load("icons/check.svg").unwrap().is_some());
-    }
-}

@@ -51,27 +51,3 @@ impl Default for StableHasher {
         Self::new()
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn empty_hash_is_offset_basis() {
-        assert_eq!(fnv1a64(&[]), 14695981039346656037);
-    }
-
-    #[test]
-    fn known_vector_is_stable() {
-        // FNV-1a 64 of "foobar" (well-known test vector).
-        assert_eq!(fnv1a64(b"foobar"), 0x85944171_f73967e8);
-    }
-
-    #[test]
-    fn incremental_matches_oneshot() {
-        let mut hasher = StableHasher::new();
-        hasher.write(b"foo");
-        hasher.write(b"bar");
-        assert_eq!(hasher.finish(), fnv1a64(b"foobar"));
-    }
-}

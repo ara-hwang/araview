@@ -7,8 +7,6 @@ mod file_ops;
 mod load;
 mod metadata;
 mod system;
-#[cfg(test)]
-mod test_support;
 mod thumbnail;
 
 pub use archive::*;

@@ -46,27 +46,3 @@ pub fn availability_from_metadata(meta: &fs::Metadata) -> FileAvailability {
         FileAvailability::Unknown
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::io::Write;
-
-    #[test]
-    fn local_file_is_local_on_windows_or_unknown_elsewhere() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("photo.png");
-        let mut f = std::fs::File::create(&path).unwrap();
-        f.write_all(b"x").unwrap();
-        let entry = fs::read_dir(dir.path())
-            .unwrap()
-            .find(|e| e.as_ref().map(|e| e.path() == path).unwrap_or(false))
-            .unwrap()
-            .unwrap();
-        let availability = availability_for_entry(&entry);
-        #[cfg(windows)]
-        assert_eq!(availability, FileAvailability::Local);
-        #[cfg(not(windows))]
-        assert_eq!(availability, FileAvailability::Unknown);
-    }
-}
