@@ -139,7 +139,7 @@ Dark mode inverts the room: surfaces go ink, text goes paper (the dark theme).
 
 ## Layout
 
-Single-window app shell: a thin top toolbar (8px padding, grouped controls separated by vertical rules), a content well that owns all remaining space, and optional side/bottom layers (EXIF panel, thumbnail strip, nav bar). The toolbar sheds controls in priority order instead of overlapping the caption buttons: text labels below 1440px, then the view-mode cluster below 1024px, then the rotate/flip cluster below 840px; wide text labels inside those clusters appear only on very wide windows (1950px and up). Even at the 600px minimum window width the remaining controls fit. The reading well never scrolls the page itself except in webtoon mode, where vertical scroll is the content. Spacing rhythm is 8px in chrome, 16px in dialogs and panels.
+Single-window app shell: a thin top toolbar (8px padding, grouped controls separated by vertical rules), a content well that owns all remaining space, and optional side/bottom layers (EXIF panel, thumbnail strip, nav bar). The toolbar keeps its controls from overlapping the caption buttons: text labels appear only once the toolbar is wide enough for them (about 1340px for the main groups and 1850px once the view-mode, transform, and state labels join in; the animation cluster's width is reserved first when one is visible). The view-mode and rotate/flip clusters are currently always visible; shedding them below 1024px and 840px as the Tauri shell did is not yet ported. The reading well never scrolls the page itself except in webtoon mode, where vertical scroll is the content. Spacing rhythm is 8px in chrome, 16px in dialogs and panels.
 
 ### Layer Stack
 

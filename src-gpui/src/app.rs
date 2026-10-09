@@ -51,10 +51,13 @@ const CHECKER_BASE: u32 = 0xffffff;
 const CHECKER_ALT: u32 = 0xc7c7c7;
 /// 좁은 창에서는 헤더의 애니메이션 컨트롤을 숨긴다(SPEC §7.5).
 const GIF_CONTROLS_MIN_WIDTH: f32 = 1024.0;
-/// 이 폭(논리 px) 이상이면 헤더 기본 버튼에 라벨을 붙인다(DESIGN.md 툴바 규칙).
-const HEADER_LABELS_MIN_WIDTH: f32 = 1440.0;
-/// 이 폭 이상이면 보기 모드/변형/상태 버튼에도 라벨을 붙인다.
-const HEADER_EXTRA_LABELS_MIN_WIDTH: f32 = 1950.0;
+/// 이 폭(논리 px) 이상이면 헤더 기본 버튼에 라벨을 붙인다.
+/// 캡처로 잰 최소 필요 폭(1313px)에 여유를 더한 값이다.
+const HEADER_LABELS_MIN_WIDTH: f32 = 1340.0;
+/// 이 폭 이상이면 보기 모드/변형/상태 버튼에도 라벨을 붙인다(최소 필요 1824px).
+const HEADER_EXTRA_LABELS_MIN_WIDTH: f32 = 1850.0;
+/// 애니메이션 클러스터가 차지하는 폭(버튼 3개 + 카운터 + 간격).
+const GIF_CLUSTER_BASE_WIDTH: f32 = 112.0;
 /// 숨긴 크롬을 다시 보여주는 가장자리 영역(px).
 const PEEK_EDGE: f32 = 6.0;
 const PEEK_TOP_KEEP: f32 = 48.0;
@@ -666,12 +669,6 @@ impl AraView {
         let has_image = self.picture.is_some();
         let mode = self.view_mode(cx);
         let single = mode == ViewMode::Single;
-        // DESIGN.md 툴바 규칙: 기본 버튼 라벨은 1440px부터, 보기/변형/상태 버튼
-        // 라벨은 1950px부터 붙인다.
-        let width = f32::from(window.viewport_size().width);
-        let wide_window = width >= GIF_CONTROLS_MIN_WIDTH;
-        let wide_labels = width >= HEADER_LABELS_MIN_WIDTH;
-        let extra_labels = width >= HEADER_EXTRA_LABELS_MIN_WIDTH;
         let animated = self.has_animation(cx);
         let frames = self
             .picture
@@ -680,6 +677,17 @@ impl AraView {
             .unwrap_or(1);
         // 프레임 카운터는 자릿수가 바뀌어도 옆 버튼이 밀리지 않게 폭을 고정한다.
         let counter_width = 16.0 + 14.0 * (frames.to_string().len() as f32);
+        // 라벨은 실제로 들어갈 폭이 되면 바로 붙인다. 애니메이션 클러스터가
+        // 보이면 그 폭만큼 자리를 비워 두고 판단한다.
+        let width = f32::from(window.viewport_size().width);
+        let wide_window = width >= GIF_CONTROLS_MIN_WIDTH;
+        let gif_width = if animated && wide_window {
+            GIF_CLUSTER_BASE_WIDTH + counter_width
+        } else {
+            0.0
+        };
+        let wide_labels = width >= HEADER_LABELS_MIN_WIDTH + gif_width;
+        let extra_labels = width >= HEADER_EXTRA_LABELS_MIN_WIDTH + gif_width;
         // 창 드래그 가능 표시 그립(Tauri 시절 DotsNine 자리). 빈 div라
         // 타이틀바 드래그 영역에 포함돼 그립을 잡고 창을 옮길 수 있다.
         let grip_dot = cx.theme().muted_foreground;
