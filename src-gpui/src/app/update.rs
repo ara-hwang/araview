@@ -15,6 +15,7 @@ use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
 
 use super::AraView;
+use crate::dialog::{UPDATE_HEIGHT, centered_margin_top};
 use crate::i18n::{t, t_with};
 
 /// 확인 요청은 30초, 다운로드 요청은 10분이 전체 기한이다.
@@ -186,7 +187,7 @@ impl AraView {
         let version = feed.version;
         let notes = feed.notes;
         let notes_scroll = SmoothScroll::default();
-        window.open_dialog(cx, move |dialog, _, cx| {
+        window.open_dialog(cx, move |dialog, window, cx| {
             let notes = if notes.trim().is_empty() {
                 t("dialog.update.noNotes").to_string()
             } else {
@@ -196,6 +197,7 @@ impl AraView {
             let asset = asset.clone();
             let download_version = version.clone();
             dialog
+                .margin_top(centered_margin_top(window, UPDATE_HEIGHT))
                 .title(t_with(
                     "dialog.update.availableTitle",
                     &[("version", &version)],

@@ -4,7 +4,8 @@ use crate::toast::{Toast, WindowToast};
 use araview_core::cache::{CacheCategory, CacheScope, CacheStats};
 use araview_core::file_assoc::FileAssociation;
 use araview_core::thumb_shell::PsdThumbStatus;
-use gpui_kit::component::button::{Button, ButtonVariant, ButtonVariants as _};
+use gpui_kit::component::button::{Button, ButtonVariants as _};
+use gpui_kit::component::dialog::{DialogDescription, DialogFooter};
 use gpui_kit::component::switch::Switch;
 use gpui_kit::component::tab::{Tab, TabBar};
 use gpui_kit::component::{
@@ -15,6 +16,7 @@ use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
 
 use super::{AraView, format_bytes};
+use crate::dialog::{ALERT_HEIGHT, centered_margin_top};
 use crate::i18n::{Language, t, t_with};
 use crate::keys;
 use crate::settings::{
@@ -708,19 +710,35 @@ impl SettingsPanel {
 
     fn confirm_clear_all(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let panel = cx.entity();
-        window.open_alert_dialog(cx, move |alert, _, _| {
+        // `AlertDialog`에는 상단 오프셋이 없어 가운데 배치가 안 되니,
+        // 같은 모양의 `Dialog`로 쌓는다(버튼 생김새·동작은 경고창과 같다).
+        window.open_dialog(cx, move |dialog, window, _cx| {
             let panel = panel.clone();
-            alert
+            dialog
+                .margin_top(centered_margin_top(window, ALERT_HEIGHT))
+                .close_button(false)
+                .overlay_closable(false)
                 .title(t("confirm.cache.clearAll.title"))
-                .description(t("confirm.cache.clearAll.message"))
-                .confirm()
-                .ok_text(t("settings.cacheManagement.clearAll"))
-                .ok_variant(ButtonVariant::Danger)
-                .cancel_text(t("dialog.cancel"))
-                .on_ok(move |_, window, cx| {
-                    panel.update(cx, |this, cx| this.clear_cache(CacheScope::All, window, cx));
-                    true
-                })
+                .child(DialogDescription::new().child(t("confirm.cache.clearAll.message")))
+                .footer(
+                    DialogFooter::new()
+                        .child(
+                            Button::new("clear-cache-cancel")
+                                .label(t("dialog.cancel"))
+                                .on_click(|_, window, cx| window.close_dialog(cx)),
+                        )
+                        .child(
+                            Button::new("clear-cache-ok")
+                                .danger()
+                                .label(t("settings.cacheManagement.clearAll"))
+                                .on_click(move |_, window, cx| {
+                                    panel.update(cx, |this, cx| {
+                                        this.clear_cache(CacheScope::All, window, cx)
+                                    });
+                                    window.close_dialog(cx);
+                                }),
+                        ),
+                )
         });
     }
 
@@ -990,25 +1008,38 @@ impl SettingsPanel {
         let other_label = keys::label_key(&other).map(t).unwrap_or_default();
         let panel = cx.entity();
         let pressed = spec.clone();
-        window.open_alert_dialog(cx, move |alert, _, _| {
+        window.open_dialog(cx, move |dialog, window, _cx| {
             let panel = panel.clone();
             let action = action.clone();
             let spec = spec.clone();
-            alert
+            dialog
+                .margin_top(centered_margin_top(window, ALERT_HEIGHT))
+                .close_button(false)
+                .overlay_closable(false)
                 .title(t("settings.shortcuts.conflictTitle"))
-                .description(t_with(
+                .child(DialogDescription::new().child(t_with(
                     "settings.shortcuts.conflictDesc",
                     &[("key", &pressed), ("action", &other_label)],
-                ))
-                .confirm()
-                .ok_text(t("settings.shortcuts.replace"))
-                .cancel_text(t("settings.shortcuts.cancel"))
-                .on_ok(move |_, window, cx| {
-                    panel.update(cx, |this, cx| {
-                        this.set_shortcut(action.clone(), spec.clone(), window, cx)
-                    });
-                    true
-                })
+                )))
+                .footer(
+                    DialogFooter::new()
+                        .child(
+                            Button::new("shortcut-conflict-cancel")
+                                .label(t("settings.shortcuts.cancel"))
+                                .on_click(|_, window, cx| window.close_dialog(cx)),
+                        )
+                        .child(
+                            Button::new("shortcut-conflict-ok")
+                                .primary()
+                                .label(t("settings.shortcuts.replace"))
+                                .on_click(move |_, window, cx| {
+                                    panel.update(cx, |this, cx| {
+                                        this.set_shortcut(action.clone(), spec.clone(), window, cx)
+                                    });
+                                    window.close_dialog(cx);
+                                }),
+                        ),
+                )
         });
     }
 
@@ -1475,38 +1506,57 @@ impl SettingsPanel {
 
     fn confirm_reset(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let panel = cx.entity();
-        window.open_alert_dialog(cx, move |alert, _, _| {
+        window.open_dialog(cx, move |dialog, window, _cx| {
             let panel = panel.clone();
-            alert
+            dialog
+                .margin_top(centered_margin_top(window, ALERT_HEIGHT))
+                .close_button(false)
+                .overlay_closable(false)
                 .title(t("confirm.resetSettings.title"))
-                .description(t("confirm.resetSettings.message"))
-                .confirm()
-                .ok_text(t("settings.reset"))
-                .ok_variant(ButtonVariant::Danger)
-                .cancel_text(t("dialog.cancel"))
-                .on_ok(move |_, window, cx| {
-                    panel.update(cx, |this, cx| {
-                        this.apply(
-                            |settings| {
-                                // 언어 설정은 유지한다.
-                                let language = settings.language;
-                                *settings = Settings::default();
-                                settings.language = language;
-                            },
-                            Effect::Reload,
-                            window,
-                            cx,
-                        );
-                        this.view
-                            .update(cx, |view, cx| {
-                                view.settings_changed(Effect::AlwaysOnTop, window, cx);
-                                view.settings_changed(Effect::Relist, window, cx);
-                            })
-                            .ok();
-                        window.toast(Toast::success(t("toast.settings.resetDone")), cx);
-                    });
-                    true
-                })
+                .child(DialogDescription::new().child(t("confirm.resetSettings.message")))
+                .footer(
+                    DialogFooter::new()
+                        .child(
+                            Button::new("reset-settings-cancel")
+                                .label(t("dialog.cancel"))
+                                .on_click(|_, window, cx| window.close_dialog(cx)),
+                        )
+                        .child(
+                            Button::new("reset-settings-ok")
+                                .danger()
+                                .label(t("settings.reset"))
+                                .on_click(move |_, window, cx| {
+                                    panel.update(cx, |this, cx| {
+                                        this.apply(
+                                            |settings| {
+                                                // 언어 설정은 유지한다.
+                                                let language = settings.language;
+                                                *settings = Settings::default();
+                                                settings.language = language;
+                                            },
+                                            Effect::Reload,
+                                            window,
+                                            cx,
+                                        );
+                                        this.view
+                                            .update(cx, |view, cx| {
+                                                view.settings_changed(
+                                                    Effect::AlwaysOnTop,
+                                                    window,
+                                                    cx,
+                                                );
+                                                view.settings_changed(Effect::Relist, window, cx);
+                                            })
+                                            .ok();
+                                        window.toast(
+                                            Toast::success(t("toast.settings.resetDone")),
+                                            cx,
+                                        );
+                                    });
+                                    window.close_dialog(cx);
+                                }),
+                        ),
+                )
         });
     }
 }

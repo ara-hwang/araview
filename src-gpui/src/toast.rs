@@ -8,10 +8,13 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
 use gpui_kit::component::WindowExt as _;
+use gpui_kit::component::button::{Button, ButtonVariants as _};
+use gpui_kit::component::dialog::{DialogDescription, DialogFooter};
 use gpui_kit::component::notification::Notification;
 
+use crate::dialog::{ALERT_HEIGHT, centered_margin_top};
 use crate::i18n::t;
-use gpui_kit::{App, SharedString, Window};
+use gpui_kit::{App, ParentElement as _, SharedString, Window};
 
 pub(crate) const TOAST_DURATION: Duration = Duration::from_secs(5);
 static NEXT_TOAST_ID: AtomicUsize = AtomicUsize::new(0);
@@ -107,13 +110,30 @@ impl WindowToast for Window {
     fn toast(&mut self, toast: Toast, cx: &mut App) {
         if self.has_active_dialog(cx) {
             // 제목이 있으면 제목과 설명으로, 없으면 메시지를 제목으로 보여준다.
+            // `AlertDialog`에는 상단 오프셋이 없어 가운데 배치가 안 되니,
+            // 같은 모양의 `Dialog`로 쌓는다.
             let Toast { title, message, .. } = toast;
-            self.open_alert_dialog(cx, move |alert, _, _| {
-                let alert = alert.ok_text(t("settings.confirm"));
-                match title.clone() {
-                    Some(title) => alert.title(title).description(message.clone()),
-                    None => alert.title(message.clone()),
+            self.open_dialog(cx, move |dialog, window, _| {
+                let (title_text, desc): (SharedString, Option<SharedString>) = match title.clone() {
+                    Some(title) => (title, Some(message.clone())),
+                    None => (message.clone(), None),
+                };
+                let mut out = dialog
+                    .margin_top(centered_margin_top(window, ALERT_HEIGHT))
+                    .close_button(false)
+                    .overlay_closable(false)
+                    .title(title_text);
+                if let Some(desc) = desc {
+                    out = out.child(DialogDescription::new().child(desc));
                 }
+                out.footer(
+                    DialogFooter::new().child(
+                        Button::new("toast-ok")
+                            .primary()
+                            .label(t("settings.confirm"))
+                            .on_click(|_, window, cx| window.close_dialog(cx)),
+                    ),
+                )
             });
         } else {
             push_timed_notification(self, toast.notification(), cx);

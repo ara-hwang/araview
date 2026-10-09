@@ -10,6 +10,7 @@ use araview_core::ops;
 
 use super::AraView;
 use super::viewport::WT_KEY_SCROLL;
+use crate::dialog::{PALETTE_HEIGHT, centered_margin_top};
 use crate::geometry::{PAN_STEP, ZOOM_STEP};
 use crate::i18n::{t, t_en};
 use crate::keys;
@@ -319,12 +320,13 @@ impl AraView {
         let state = cx.new(|cx| CommandState::new(window, cx));
         let view = cx.entity();
         let search = state.clone();
-        window.open_dialog(cx, move |dialog, _, _| {
+        window.open_dialog(cx, move |dialog, window, _| {
             let state = state.clone();
             let groups = groups.clone();
             let shortcuts = shortcuts.clone();
             let view = view.clone();
             dialog
+                .margin_top(centered_margin_top(window, PALETTE_HEIGHT))
                 .close_button(false)
                 .p_0()
                 .content(move |content, _, _| {

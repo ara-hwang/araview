@@ -9,6 +9,7 @@ use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
 
 use super::AraView;
+use crate::dialog::{LICENSES_HEIGHT, centered_margin_top};
 use crate::i18n::t;
 use crate::smooth::SmoothScroll;
 use crate::toast::{Toast, WindowToast};
@@ -343,8 +344,9 @@ impl AraView {
                     return;
                 }
                 let view = cx.new(|_| LicensesView::new(bundle));
-                window.open_dialog(cx, move |dialog, _, _| {
+                window.open_dialog(cx, move |dialog, window, _| {
                     dialog
+                        .margin_top(centered_margin_top(window, LICENSES_HEIGHT))
                         .title(t("settings.licenses.title"))
                         .width(px(920.))
                         .child(view.clone())

@@ -5,13 +5,14 @@ use std::sync::Arc;
 use crate::toast::{Toast, WindowToast};
 use araview_core::app_error::AppError;
 use araview_core::ops;
-use gpui_kit::component::button::{Button, ButtonVariant, ButtonVariants as _};
-use gpui_kit::component::dialog::DialogFooter;
+use gpui_kit::component::button::{Button, ButtonVariants as _};
+use gpui_kit::component::dialog::{DialogDescription, DialogFooter};
 use gpui_kit::component::input::{Input, InputEvent, InputState};
 use gpui_kit::component::{WindowExt as _, v_flex};
 use gpui_kit::*;
 
 use super::AraView;
+use crate::dialog::{ALERT_HEIGHT, RENAME_HEIGHT, centered_margin_top};
 use crate::i18n::{t, t_with};
 use crate::settings::SettingsStore;
 
@@ -29,20 +30,39 @@ impl AraView {
         let name = info.file_name.clone();
         let path = info.source_path.clone();
         let entity = cx.entity();
-        window.open_alert_dialog(cx, move |alert, _, _| {
+        // `AlertDialog`에는 상단 오프셋이 없어 가운데 배치가 안 되니,
+        // 같은 모양의 `Dialog`로 쌓는다(버튼 생김새·동작은 경고창과 같다).
+        window.open_dialog(cx, move |dialog, window, _cx| {
             let entity = entity.clone();
             let path = path.clone();
-            alert
+            dialog
+                .margin_top(centered_margin_top(window, ALERT_HEIGHT))
+                .close_button(false)
+                .overlay_closable(false)
                 .title(t("confirm.trash.title"))
-                .description(t_with("confirm.trash.message", &[("name", &name)]))
-                .confirm()
-                .ok_text(t("menu.trash"))
-                .ok_variant(ButtonVariant::Danger)
-                .cancel_text(t("dialog.cancel"))
-                .on_ok(move |_, window, cx| {
-                    entity.update(cx, |this, cx| this.trash(path.clone(), window, cx));
-                    true
-                })
+                .child(
+                    DialogDescription::new()
+                        .child(t_with("confirm.trash.message", &[("name", &name)])),
+                )
+                .footer(
+                    DialogFooter::new()
+                        .child(
+                            Button::new("trash-cancel")
+                                .label(t("dialog.cancel"))
+                                .on_click(|_, window, cx| window.close_dialog(cx)),
+                        )
+                        .child(
+                            Button::new("trash-ok")
+                                .danger()
+                                .label(t("menu.trash"))
+                                .on_click(move |_, window, cx| {
+                                    entity.update(cx, |this, cx| {
+                                        this.trash(path.clone(), window, cx)
+                                    });
+                                    window.close_dialog(cx);
+                                }),
+                        ),
+                )
         });
     }
 
@@ -110,11 +130,12 @@ impl AraView {
         };
         submit_on_enter.detach();
         let name_input = input.clone();
-        window.open_dialog(cx, move |dialog, _, _| {
+        window.open_dialog(cx, move |dialog, window, _| {
             let entity = entity.clone();
             let input = input.clone();
             let old_path = old_path.clone();
             dialog
+                .margin_top(centered_margin_top(window, RENAME_HEIGHT))
                 .title(t("dialog.rename.title"))
                 .child(
                     v_flex()

@@ -3,6 +3,7 @@
 
 mod app;
 mod assets;
+mod dialog;
 mod geometry;
 mod i18n;
 mod keys;
