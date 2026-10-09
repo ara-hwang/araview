@@ -671,6 +671,24 @@ impl AraView {
             .unwrap_or(1);
         // 프레임 카운터는 자릿수가 바뀌어도 옆 버튼이 밀리지 않게 폭을 고정한다.
         let counter_width = 16.0 + 14.0 * (frames.to_string().len() as f32);
+        // 창 드래그 가능 표시 그립(Tauri 시절 DotsNine 자리). 빈 div라
+        // 타이틀바 드래그 영역에 포함돼 그립을 잡고 창을 옮길 수 있다.
+        let grip_dot = cx.theme().muted_foreground;
+        let grip = div()
+            .flex()
+            .flex_col()
+            .h_full()
+            .justify_center()
+            .items_center()
+            .gap(px(2.))
+            .px(px(10.))
+            .children((0..3).map(|_| {
+                div()
+                    .flex()
+                    .flex_row()
+                    .gap(px(2.))
+                    .children((0..3).map(|_| div().size(px(2.)).rounded(px(1.)).bg(grip_dot)))
+            }));
         // 타이틀 바 본문은 창 드래그 영역이다. 버튼 묶음이 마우스를 막지 않으면
         // Windows가 클릭을 캡션 드래그로 처리해 버튼이 눌리지 않는다.
         let group = || h_flex().gap_0p5().items_center().occlude();
@@ -977,7 +995,8 @@ impl AraView {
                                     })),
                             )
                         }),
-                ),
+                )
+                .child(grip),
         )
     }
 
