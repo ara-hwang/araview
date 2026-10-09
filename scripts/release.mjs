@@ -7,8 +7,8 @@
  *   npm run release -- patch --dry-run  파일과 git을 건드리지 않고 계획만 출력
  *   npm run release -- patch --yes    확인 질문 생략
  *
- * 태그(vX.Y.Z)가 푸시되면 .github/workflows/release.yml이 검증, 서명 빌드,
- * GitHub 릴리스 생성을 이어받는다. 이 스크립트는 빌드나 릴리스를 직접 하지 않는다.
+ * 태그(vX.Y.Z)가 푸시되면 .github/workflows/release.yml이 검증, 설치 프로그램 빌드와
+ * 서명, GitHub 릴리스 생성을 이어받는다. 이 스크립트는 빌드나 릴리스를 직접 하지 않는다.
  * 의존성 없이 Node 표준 라이브러리만 쓴다.
  */
 import { execFileSync, spawnSync } from "node:child_process"
@@ -55,21 +55,14 @@ function nextVersion(current, request) {
 // 버전 파일마다 "현재 값을 찾는 정규식"과 "바꿀 위치"를 한곳에 둔다.
 // 첫 번째 캡처 그룹 앞, 두 번째 캡처 그룹 뒤를 보존하고 가운데 버전만 교체한다.
 const FILES = [
-  { path: "package.json", pattern: /^(\s*"version":\s*")([^"]+)(")/m, expected: 1 },
   {
-    path: "package-lock.json",
-    pattern: /("name": "araview",\s*"version": ")([^"]+)(")/g,
-    expected: 2
-  },
-  { path: "src-tauri/tauri.conf.json", pattern: /^(\s*"version":\s*")([^"]+)(")/m, expected: 1 },
-  {
-    path: "src-tauri/Cargo.toml",
+    path: "src-gpui/Cargo.toml",
     pattern: /(\[package\][\s\S]*?^version = ")([^"]+)(")/m,
     expected: 1
   },
   {
-    path: "src-tauri/Cargo.lock",
-    pattern: /(\[\[package\]\]\r?\nname = "araview"\r?\nversion = ")([^"]+)(")/g,
+    path: "Cargo.lock",
+    pattern: /(\[\[package\]\]\r?\nname = "araview-gpui"\r?\nversion = ")([^"]+)(")/g,
     expected: 1
   }
 ]
@@ -149,7 +142,6 @@ function run(command, commandArgs, options = {}) {
 
 // Cargo.lock이 Cargo.toml과 맞는지, 문서-코드 정합성이 깨지지 않았는지 확인한다.
 run("cargo", ["metadata", "--locked", "--no-deps", "--format-version", "1"], {
-  cwd: join(ROOT, "src-tauri"),
   stdio: "ignore"
 })
 run(process.execPath, [join(ROOT, "scripts", "check-docs.mjs")], { stdio: "ignore" })

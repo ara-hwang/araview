@@ -9,12 +9,12 @@ rust-version = "1.97"
 publish = false
 
 [[bin]]
-name = "araview-gpui"
+name = "araview"
 path = "src/main.rs"
 
 [dependencies]
 gpui-kit = "0.7.1"
-araview-core = { path = "../src-tauri/crates/araview-core" }
+araview-core = { path = "../crates/araview-core" }
 anyhow = "1"
 image = { version = "0.25", default-features = false }
 log = "0.4"
@@ -35,19 +35,3 @@ minisign = "0.10"
 
 [build-dependencies]
 embed-resource = "3"
-
-[profile.dev.package]
-gpui-pre = { opt-level = 3 }
-gpui-pre-platform = { opt-level = 3 }
-gpui-pre-macros = { opt-level = 3 }
-resvg = { opt-level = 3 }
-rustybuzz = { opt-level = 3 }
-taffy = { opt-level = 3 }
-ttf-parser = { opt-level = 3 }
-image = { opt-level = 3 }
-
-[profile.release]
-codegen-units = 1
-lto = "fat"
-
-[workspace]

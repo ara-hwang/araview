@@ -9,18 +9,11 @@ lerna-debug.log*
 
 node_modules
 dist
-dist-ssr
 *.local
-
-# Test coverage report
-coverage
 
 # Environment variables
 .env
 .env.*
-
-# TypeScript build cache
-*.tsbuildinfo
 
 # Editor directories and files
 .vscode/*
@@ -41,7 +34,7 @@ coverage
 !.cursor/mcp.json
 
 # Rust / Cargo
-# (build artifacts and generated files are covered by src-tauri/.gitignore)
+/target
 **/*.rs.bk
 
 .vcpkg/

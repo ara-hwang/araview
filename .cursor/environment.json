@@ -1,5 +1,0 @@
-{
-  "name": "araview",
-  "install": "npm ci",
-  "user": "ubuntu"
-}

@@ -1,2 +1,2 @@
 // 실행 파일과 창 아이콘. GPUI는 리소스 ID 1의 아이콘을 창 아이콘으로 쓴다.
-1 ICON "../../src-tauri/icons/icon.ico"
+1 ICON "icon.ico"

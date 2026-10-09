@@ -2,39 +2,25 @@
 
 Conventions the code does not confess on its own. Read the sections your change touches. Behavior is specified in `SPEC.md`, the visual system in `DESIGN.md`.
 
-## TypeScript / React
+## Rust
 
-- Declare shapes with `type`.
-- Domain logic lives in hooks in `src/hooks/`; components stay presentational.
-- Group Zustand subscriptions with selectors + `useShallow`.
-- `src/constants/commands.ts` holds command palette (`Ctrl+K`) commands; Tauri command wrappers live in `src-tauri/src/commands.rs` and their implementations in `src-tauri/crates/araview-core/src/ops/`.
+- `unsafe_op_in_unsafe_fn` is denied and `undocumented_unsafe_blocks` warns: every `unsafe` block carries a `// SAFETY:` comment.
+- Shared logic (decode, archives, cache, thumbnails, file operations) lives in `crates/araview-core`; the app in `src-gpui` stays presentation and input. New file or image logic goes in `araview-core/src/ops/` as a sync function.
+- Never block the UI thread: run file, decode, and network work in `cx.background_spawn(...)` and apply the result with `update`/`update_in`.
+- `cargo clippy --workspace --all-targets -- -D warnings` must pass; fix warnings instead of allowing them.
 
-## Component stack (shadcn/ui on `@base-ui/react`)
+## GPUI app (`src-gpui`)
 
-- `src/components/ui/` primitives are generated: change behavior at the call site.
-- Icons are Phosphor (`@phosphor-icons/react`). Newly added shadcn components arrive with `lucide-react` imports: swap them to Phosphor equivalents on arrival.
+- UI text goes through `t("key")` / `t_with(...)` (`src/i18n.rs`); the strings live in `src-gpui/locales/{ko,en}.json`. Add a key to both languages.
+- Viewer shortcuts are resolved in the root key handler from the settings map (`src/keys.rs`), not through GPUI's keymap. A new action id goes in `run_action` (`src/app/menu.rs`) so keys, the context menu, and the command palette share one dispatcher.
+- Scroll areas that should ease use `SmoothScroll` (`src/smooth.rs`). It turns native scrolling off (`overflow_y_hidden`) and handles the wheel itself, so do not add a second wheel handler to the same element.
+- User-visible results go through `window.toast(...)` (`src/toast.rs`), not `push_notification`, so they stay visible when a dialog is open.
+- Header and title-bar buttons live in groups that call `.occlude()`; a control outside such a group is treated as part of the window drag area and does not receive clicks.
+- Settings keys are camelCase in `settings.json` and match `SPEC.md` §13 (`npm run docs:check` compares them).
 
-## Rust / Tauri
+## Dialogs
 
-- Run blocking work in commands through `run_blocking`.
-
-## Dialogs and Sheets
-
-Every Dialog/Sheet call site passes `modal="trap-focus"`, which keeps the focus trap, `Esc`, outside `aria-hidden`, and backdrop-click dismissal. `modal={true}` makes Base UI render a transparent full-window `InternalBackdrop` that swallows clicks on the titlebar, so minimize/maximize/close would do nothing while a dialog is open.
-
-## Snap Layouts
-
-The Rust `button_id` in `src-tauri/src/lib.rs` and the DOM id of the maximize caption button (`caption-maximize`) stay identical. A native overlay owns the mouse over that button, so its hover wash and tooltip are mirrored in `src/hooks/useSnapLayout.ts` (mechanism: `SPEC.md` §20).
-
-## Browser support
-
-WebView2 is the only frontend runtime. Use Baseline Widely available features without fallbacks; feature-detect Baseline Newly available ones and degrade gracefully. A fallback is custom code of roughly 20 lines or fewer, with no polyfill or compatibility dependency.
-
-## Motion
-
-- Use the `ease-motion-*` utilities from `src/App.css` (`@theme`): `--ease-motion-out` (entrances, exits), `--ease-motion-in-out` (on-screen movement), `--ease-motion-drawer` (sheets, drawers). The built-in `ease-out`/`ease-in-out` stay untouched.
-- Durations come from the duration table in `.agents/skills/review-animations/STANDARDS.md`.
-- Reduced-motion and hover gating ship in the same change as the motion (`DESIGN.md`, "The Same-Change Gating Rule").
+Dialogs and sheets use gpui-kit's `open_dialog`. Dialogs paint above the notification layer; keep dialog bodies at a fixed height (or a `max_h`) so scroll areas inside them have a bounded size.
 
 ## Design non-negotiables
 

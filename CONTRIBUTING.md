@@ -11,14 +11,13 @@ AraView에 관심을 가져 주셔서 감사합니다. 버그 제보와 제안�
 ## PR 전에 확인할 것
 
 ```bash
-npx tsc --noEmit
-npm run lint
-npm run format:check
-npm test
-cd src-tauri && cargo fmt --check && cargo clippy && cargo test
+cargo fmt --all --check
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace
+npm run docs:check
 ```
 
-- 지원 포맷이나 IPC 명령, 설정 키를 바꾸면 `npm run docs:check`가 통과하도록 `SPEC.md`와 문서도 함께 고칩니다.
+- 지원 포맷이나 설정 키를 바꾸면 `npm run docs:check`가 통과하도록 `SPEC.md`와 문서도 함께 고칩니다.
 - 화면을 바꾼 PR은 변경 전후 스크린샷을 첨부해 주세요.
 - 하나의 PR에는 하나의 목적만 담아 주세요.
 

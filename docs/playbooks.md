@@ -4,33 +4,31 @@ Task-specific procedures for agents, reached from `../AGENTS.md`. Read the secti
 
 ## Add a supported format
 
-1. Add the extension and MIME mapping, with tests, in `src-tauri/crates/araview-core/src/image.rs`
-2. Add the extension to `src/constants/imageExtensions.ts`
-3. Add the file association to `src-tauri/tauri.conf.json`
-4. Add a sample file to `samples/`, generated with tools installed on the PC and outside the repo's dependencies: raster/vector via `sharp` in a temp dir, HEIC/HEIF via Python `pillow-heif`, CBZ via `Compress-Archive`. If the PC has no encoder, install one on the PC.
-5. Update `SPEC.md` §2 (and §15/§16/§18/§20 when affected), `README.md`, and `docs/`
-6. Done when `npm run docs:check` exits 0 and the sample opens in the dev app: `load_image` succeeds, and for an EXIF-bearing format `get_exif_data` succeeds too
+1. Add the extension and MIME mapping, with tests, in `crates/araview-core/src/image.rs` (`SUPPORTED_EXTENSIONS`, `get_mime_type`)
+2. Make `crates/araview-core/src/display.rs` decode it into RGBA frames (most formats go through the `image` crate; HEIC/HEIF through libheif)
+3. Add a sample file to `samples/`, generated with tools installed on the PC and outside the repo's dependencies: raster/vector via `sharp` in a temp dir, HEIC/HEIF via Python `pillow-heif`, CBZ via `Compress-Archive`. If the PC has no encoder, install one on the PC.
+4. Update `SPEC.md` §2 (and §16/§18/§20 when affected), `README.md`, and `docs/`
+5. Done when `npm run docs:check` exits 0 and the sample opens in the dev app (see "Runtime check")
 
-## Add a backend command
+## Add an `araview-core` operation
 
-1. Implement it as a sync function in the matching `src-tauri/crates/araview-core/src/ops/<domain>.rs`, then add the `#[tauri::command]` wrapper in `src-tauri/src/commands.rs`
-2. Register it in `src-tauri/src/lib.rs` `invoke_handler`
-3. Update `src/types/index.ts` when the payload or response shape changes
-4. Add the row to the `SPEC.md` §15 table and any new type to §16
-5. Done when `npm run docs:check` exits 0
+1. Implement it as a sync function in the matching `crates/araview-core/src/ops/<domain>.rs` and export it from `ops/mod.rs`
+2. Call it from the GPUI app inside `cx.background_spawn(...)`; never block the UI thread
+3. Add a unit test next to it and, when the UI reaches it, a case in `src-gpui/src/app/tests.rs`
+4. Update `SPEC.md` §15/§16 when the contract or a type changes
 
-## When Tauri MCP looks missing
+## Runtime check
 
-"Missing" is usually a misdiagnosis. Run these checks in order before concluding anything is broken:
+`cargo run -p araview-gpui` opens the dev build (identifier `com.araview.viewer.dev`; the installed build uses `com.araview.viewer`). The dev build accepts debug-only controls through its single-instance pipe:
 
-1. Names: the repo name `mcp-server-tauri` is not an npm name. The MCP server is `@hypothesi/tauri-mcp-server` (stdio, prints nothing for `--help`/`--version` by design), the terminal CLI is `@hypothesi/tauri-mcp-cli` (`tauri-mcp` binary, no `--version`), the Rust bridge is `tauri-plugin-mcp-bridge`. Probe with `npm ls -g @hypothesi/tauri-mcp-cli` and `tauri-mcp --help`; `npm view mcp-server-tauri` (404) and `tauri-mcp --version` (unknown option) fail by design.
-2. Installed vs connected: the CLI responding means installed. Connecting additionally needs `npm run dev:up` plus `driver-session start --port 9323`. The bridge exists only in dev builds (`dev-mcp` feature, `src-tauri/src/lib.rs`); release builds (`--no-default-features`, used by CI) have no bridge, so a connection failure there is expected.
-3. Fresh-session flake: MCP loads at session start and the first `npx -y` download can time out. Repair with `get_setup_instructions` or restart the session.
+- `araview.exe action:<id>` runs a viewer action in the running window (`run_action` in `src-gpui/src/app/menu.rs`: shortcut action ids, `openSettings`, `viewLtr`, and so on). Release builds have no such channel.
+- Screenshots: capture the window with `PrintWindow`; post key and wheel messages with `PostMessage` (client area only). Caption-area hit testing needs a real cursor, so ask before moving the user's mouse.
+- Headless checks: `cargo test -p araview-gpui` drives keys, wheel, drag, drop, context menus, and dialogs through `VisualTestContext` (`src-gpui/src/app/tests.rs`).
 
-## After bumping a frontend dependency
+## Update the third-party license data
 
-Kill the old dev processes, then check the bundle is fresh (`node_modules/.vite/deps` timestamps and `page.url` chunk hashes). `dev:up` is idempotent by port, so a stale Vite server keeps serving the old optimized bundle, and its phantom errors from the previous library version look exactly like a real bug.
+Run `node scripts/generate-license-data.mjs` after changing dependencies (needs `cargo install cargo-about --locked --features cli` and network). It rewrites `src-gpui/THIRD_PARTY_LICENSES.json` (embedded in the app) and the section 2 table of `THIRD_PARTY_LICENSES.md`.
 
-## Update vendored skills
+## Test the installer without touching the real install
 
-`animate` and `review-animations` under `.agents/skills/` are copied from `emilkowalski/skills` (provenance in each `SKILL.md` header comment and `skills-lock.json`), with the upstream "Initial Response" greeting block removed so opencode can auto-invoke them. `npx skills@latest update` overwrites that edit: review its diff and re-apply the greeting-block removal.
+`pwsh scripts/Build-Installer.ps1 -Suffix " Test" -OutFile target/AraView-Test-setup.exe` builds an installer whose install folder, uninstall entry, and shortcut carry the suffix, so installing it leaves a real AraView install alone.

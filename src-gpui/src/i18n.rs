@@ -1,4 +1,4 @@
-//! UI 문구. 번역 원본은 Tauri 프런트와 같은 `src/i18n/locales/*.json`이다.
+//! UI 문구. 번역 원본은 `src-gpui/locales/*.json`이다.
 
 use std::collections::HashMap;
 use std::sync::LazyLock;
@@ -17,10 +17,8 @@ pub enum Language {
 
 type Catalog = HashMap<String, String>;
 
-static KO: LazyLock<Catalog> =
-    LazyLock::new(|| flatten(include_str!("../../src/i18n/locales/ko.json")));
-static EN: LazyLock<Catalog> =
-    LazyLock::new(|| flatten(include_str!("../../src/i18n/locales/en.json")));
+static KO: LazyLock<Catalog> = LazyLock::new(|| flatten(include_str!("../locales/ko.json")));
+static EN: LazyLock<Catalog> = LazyLock::new(|| flatten(include_str!("../locales/en.json")));
 
 static CURRENT: AtomicU8 = AtomicU8::new(0);
 

@@ -27,8 +27,8 @@ const RELEASE_PAGE: &str = "https://github.com/ara-hwang/araview/releases/latest
 const PLATFORM: &str = "windows-x86_64";
 /// 설치 프로그램 크기 상한. 넘으면 받지 않는다.
 const MAX_INSTALLER_BYTES: u64 = 512 * 1024 * 1024;
-/// 서명 공개키는 Tauri 설정의 updater 키를 그대로 쓴다.
-const TAURI_CONFIG: &str = include_str!("../../../src-tauri/tauri.conf.json");
+/// 업데이트 서명 공개키(minisign, base64). 기존 1.x 릴리스와 같은 키를 쓴다.
+const UPDATE_PUBKEY: &str = include_str!("../../update-pubkey.txt");
 
 #[derive(Clone, serde::Deserialize)]
 struct Asset {
@@ -94,14 +94,11 @@ fn release_public_key() -> Result<String, String> {
     {
         return Ok(key);
     }
-    serde_json::from_str::<serde_json::Value>(TAURI_CONFIG)
-        .ok()
-        .and_then(|config| {
-            config["plugins"]["updater"]["pubkey"]
-                .as_str()
-                .map(str::to_owned)
-        })
-        .ok_or_else(|| "updater public key is missing".to_owned())
+    let key = UPDATE_PUBKEY.trim();
+    if key.is_empty() {
+        return Err("updater public key is missing".to_owned());
+    }
+    Ok(key.to_owned())
 }
 
 fn agent(timeout: Duration) -> ureq::Agent {
