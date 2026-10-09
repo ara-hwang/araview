@@ -2,12 +2,12 @@
 
 use std::sync::Arc;
 
+use crate::toast::{Toast, WindowToast};
 use araview_core::app_error::AppError;
 use araview_core::ops;
 use gpui_kit::component::button::{Button, ButtonVariant, ButtonVariants as _};
 use gpui_kit::component::dialog::DialogFooter;
 use gpui_kit::component::input::{Input, InputEvent, InputState};
-use gpui_kit::component::notification::Notification;
 use gpui_kit::component::{WindowExt as _, v_flex};
 use gpui_kit::*;
 
@@ -19,11 +19,11 @@ impl AraView {
     /// 확인 다이얼로그를 거쳐 현재 파일을 OS 휴지통으로 보낸다.
     pub(super) fn confirm_trash(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self.archive.is_some() {
-            window.push_notification(Notification::warning(t("toast.trash.noArchive")), cx);
+            window.toast(Toast::warning(t("toast.trash.noArchive")), cx);
             return;
         }
         let Some(info) = &self.info else {
-            window.push_notification(Notification::warning(t("toast.trash.empty")), cx);
+            window.toast(Toast::warning(t("toast.trash.empty")), cx);
             return;
         };
         let name = info.file_name.clone();
@@ -53,10 +53,9 @@ impl AraView {
             let result = task.await;
             this.update_in(cx, |this, window, cx| match result {
                 Ok(()) => this.after_trash(&path, window, cx),
-                Err(error) => window.push_notification(
-                    Notification::error(error.message).title(t("toast.trash.fail")),
-                    cx,
-                ),
+                Err(error) => {
+                    window.toast(Toast::error(error.message).title(t("toast.trash.fail")), cx)
+                }
             })
             .ok();
         })
@@ -66,7 +65,7 @@ impl AraView {
     /// 목록과 최근 파일에서 지운 항목을 빼고, 남은 목록의 같은 자리(끝이면 앞)를 연다.
     fn after_trash(&mut self, path: &str, window: &mut Window, cx: &mut Context<Self>) {
         SettingsStore::remove_recent(cx, path);
-        window.push_notification(Notification::success(t("toast.trash.done")), cx);
+        window.toast(Toast::success(t("toast.trash.done")), cx);
         let mut items = (*self.list).clone();
         let removed = items
             .iter()
@@ -86,11 +85,11 @@ impl AraView {
 
     pub(super) fn open_rename_dialog(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self.archive.is_some() {
-            window.push_notification(Notification::warning(t("toast.rename.noArchive")), cx);
+            window.toast(Toast::warning(t("toast.rename.noArchive")), cx);
             return;
         }
         let Some(info) = &self.info else {
-            window.push_notification(Notification::warning(t("toast.rename.empty")), cx);
+            window.toast(Toast::warning(t("toast.rename.empty")), cx);
             return;
         };
         let old_path = info.source_path.clone();
@@ -157,7 +156,7 @@ impl AraView {
         cx: &mut Context<Self>,
     ) {
         if name.trim().is_empty() {
-            window.push_notification(Notification::warning(t("toast.rename.blank")), cx);
+            window.toast(Toast::warning(t("toast.rename.blank")), cx);
             return;
         }
         let settings = &SettingsStore::global(cx).settings;
@@ -188,11 +187,11 @@ impl AraView {
                     window.set_window_title(&info.file_name);
                     // 표시 경로가 원본 자체였다면 이름과 함께 바뀌었으므로 정보만 교체한다.
                     this.info = Some(info);
-                    window.push_notification(Notification::success(t("toast.rename.done")), cx);
+                    window.toast(Toast::success(t("toast.rename.done")), cx);
                     cx.notify();
                 }
-                Err(error) => window.push_notification(
-                    Notification::error(error.message).title(t("toast.rename.fail")),
+                Err(error) => window.toast(
+                    Toast::error(error.message).title(t("toast.rename.fail")),
                     cx,
                 ),
             })

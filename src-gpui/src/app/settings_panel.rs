@@ -1,11 +1,10 @@
 //! 설정 다이얼로그(SPEC §9.5, §13, §14.3, §20.2).
 
+use crate::toast::{Toast, WindowToast};
 use araview_core::cache::{CacheCategory, CacheScope, CacheStats};
 use araview_core::file_assoc::FileAssociation;
 use araview_core::thumb_shell::PsdThumbStatus;
 use gpui_kit::component::button::{Button, ButtonVariant, ButtonVariants as _};
-use gpui_kit::component::notification::Notification;
-use gpui_kit::component::scroll::ScrollableElement as _;
 use gpui_kit::component::switch::Switch;
 use gpui_kit::component::tab::{Tab, TabBar};
 use gpui_kit::component::{
@@ -23,6 +22,7 @@ use crate::settings::{
     MouseAction, Settings, SettingsStore, SortKey, ThemeChoice, ViewMode, ViewerBackground,
     WheelAction, default_shortcuts,
 };
+use crate::smooth::SmoothScroll;
 
 /// 설정 변경 뒤 뷰어가 따라 해야 할 일.
 #[derive(Clone, Copy, PartialEq)]
@@ -52,6 +52,7 @@ pub(super) struct SettingsPanel {
     view: WeakEntity<AraView>,
     tab: usize,
     focus: FocusHandle,
+    scroll: SmoothScroll,
     /// 키 입력을 기다리는 단축키 동작 ID.
     pub(super) capturing: Option<String>,
     cache: Loadable<CacheStats>,
@@ -95,7 +96,8 @@ fn setting_row(
                     )
                 }),
         )
-        .child(div().flex_none().child(control))
+        // 선택지가 많은 컨트롤이 제목을 짓누르지 않도록 폭을 제한해 줄바꿈시킨다.
+        .child(div().flex_none().max_w(relative(0.62)).child(control))
 }
 
 fn heading(title: SharedString) -> Div {
@@ -108,6 +110,7 @@ impl SettingsPanel {
             view,
             tab: 0,
             focus: cx.focus_handle(),
+            scroll: SmoothScroll::default(),
             capturing: None,
             cache: Loadable::Idle,
             associations: Loadable::Idle,
@@ -725,8 +728,8 @@ impl SettingsPanel {
                     } else {
                         "toast.cache.cleared"
                     };
-                    window.push_notification(
-                        Notification::success(t_with(
+                    window.toast(
+                        Toast::success(t_with(
                             key,
                             &[("size", &format_bytes(cleared.removed_bytes))],
                         )),
@@ -740,7 +743,7 @@ impl SettingsPanel {
                     cx.notify();
                 }
                 Err(error) => {
-                    window.push_notification(Notification::error(error.message), cx);
+                    window.toast(Toast::error(error.message), cx);
                 }
             })
             .ok();
@@ -950,10 +953,7 @@ impl SettingsPanel {
                             cx,
                         );
                         // 저장 방식은 다음 실행부터 적용된다.
-                        window.push_notification(
-                            Notification::info(t("toast.cache.storagePending")),
-                            cx,
-                        );
+                        window.toast(Toast::info(t("toast.cache.storagePending")), cx);
                     })),
                 cx,
             ))
@@ -1019,7 +1019,7 @@ impl SettingsPanel {
             return;
         }
         if event.keystroke.key == "tab" {
-            window.push_notification(Notification::warning(t("settings.shortcuts.reserved")), cx);
+            window.toast(Toast::warning(t("settings.shortcuts.reserved")), cx);
             return;
         }
         let Some(spec) = keys::spec_from_keystroke(&event.keystroke) else {
@@ -1309,8 +1309,8 @@ impl SettingsPanel {
                 this.associations = match associations {
                     Ok(list) => Loadable::Ready(list),
                     Err(error) => {
-                        window.push_notification(
-                            Notification::error(error.message).title(t("toast.assoc.loadFail")),
+                        window.toast(
+                            Toast::error(error.message).title(t("toast.assoc.loadFail")),
                             cx,
                         );
                         Loadable::Failed
@@ -1351,8 +1351,8 @@ impl SettingsPanel {
                     }
                     cx.notify();
                 }
-                Err(error) => window.push_notification(
-                    Notification::error(error.message).title(t("toast.assoc.openFail")),
+                Err(error) => window.toast(
+                    Toast::error(error.message).title(t("toast.assoc.openFail")),
                     cx,
                 ),
             })
@@ -1378,7 +1378,7 @@ impl SettingsPanel {
                     } else {
                         "toast.thumb.doneDisabled"
                     };
-                    window.push_notification(Notification::success(t(key)), cx);
+                    window.toast(Toast::success(t(key)), cx);
                     this.psd = Loadable::Ready(status);
                     cx.notify();
                 }
@@ -1388,7 +1388,7 @@ impl SettingsPanel {
                     } else {
                         "toast.thumb.unregisterFail"
                     };
-                    window.push_notification(Notification::error(error.message).title(t(key)), cx);
+                    window.toast(Toast::error(error.message).title(t(key)), cx);
                 }
             })
             .ok();
@@ -1492,8 +1492,8 @@ impl SettingsPanel {
                             if let Err(error) =
                                 araview_core::file_assoc::open_default_apps_settings()
                             {
-                                window.push_notification(
-                                    Notification::error(error.message)
+                                window.toast(
+                                    Toast::error(error.message)
                                         .title(t("toast.assoc.settingsFail")),
                                     cx,
                                 );
@@ -1509,6 +1509,7 @@ impl SettingsPanel {
     pub(super) fn select_tab(&mut self, tab: usize, window: &mut Window, cx: &mut Context<Self>) {
         self.tab = tab;
         self.capturing = None;
+        self.scroll.reset();
         match tab {
             3 => self.load_cache_stats(window, cx),
             5 => self.load_extensions(window, cx),
@@ -1547,10 +1548,7 @@ impl SettingsPanel {
                                 view.settings_changed(Effect::Relist, window, cx);
                             })
                             .ok();
-                        window.push_notification(
-                            Notification::success(t("toast.settings.resetDone")),
-                            cx,
-                        );
+                        window.toast(Toast::success(t("toast.settings.resetDone")), cx);
                     });
                     true
                 })
@@ -1584,13 +1582,10 @@ impl Render for SettingsPanel {
                     .children(TABS.iter().map(|key| Tab::new().label(t(key)))),
             )
             .child(
-                div()
-                    .id("settings-body")
+                self.scroll
+                    .area("settings-body", div().pr_3().child(body))
                     .flex_1()
-                    .min_h_0()
-                    .overflow_y_scrollbar()
-                    .pr_3()
-                    .child(body),
+                    .min_h_0(),
             )
             .child(
                 h_flex()

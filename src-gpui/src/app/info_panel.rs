@@ -6,7 +6,6 @@ use std::path::Path;
 use araview_core::comic_info::ComicInfo;
 use araview_core::image_info::{Histogram, IccStatus, ImageDetails};
 use araview_core::ops;
-use gpui_kit::component::scroll::ScrollableElement as _;
 use gpui_kit::component::{ActiveTheme as _, StyledExt as _, h_flex, v_flex};
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
@@ -265,37 +264,44 @@ impl AraView {
                     .child(div().text_xs().text_color(muted).child(t("exif.desc"))),
             )
             .child(
-                v_flex()
-                    .id("info-scroll")
+                self.info_scroll
+                    .area(
+                        "info-scroll",
+                        v_flex()
+                            .px_3()
+                            .pb_3()
+                            .gap_4()
+                            .when(loading, |panel| {
+                                panel.child(
+                                    div().text_xs().text_color(muted).child(t("exif.loading")),
+                                )
+                            })
+                            .when_some(
+                                self.archive
+                                    .as_ref()
+                                    .filter(|_| show_comic)
+                                    .and(self.comic.as_ref()),
+                                |panel, comic| panel.child(self.render_comic(comic, cx)),
+                            )
+                            .when(
+                                self.archive.is_some() && show_comic && self.comic_failed,
+                                |panel| {
+                                    panel.child(section(
+                                        t("comic.section"),
+                                        div()
+                                            .text_xs()
+                                            .text_color(muted)
+                                            .child(t("comic.loadFail")),
+                                        cx,
+                                    ))
+                                },
+                            )
+                            .child(self.render_details(cx))
+                            .child(self.render_histogram(cx))
+                            .children(self.render_exif(cx)),
+                    )
                     .flex_1()
-                    .min_h_0()
-                    .overflow_y_scrollbar()
-                    .px_3()
-                    .pb_3()
-                    .gap_4()
-                    .when(loading, |panel| {
-                        panel.child(div().text_xs().text_color(muted).child(t("exif.loading")))
-                    })
-                    .when_some(
-                        self.archive
-                            .as_ref()
-                            .filter(|_| show_comic)
-                            .and(self.comic.as_ref()),
-                        |panel, comic| panel.child(self.render_comic(comic, cx)),
-                    )
-                    .when(
-                        self.archive.is_some() && show_comic && self.comic_failed,
-                        |panel| {
-                            panel.child(section(
-                                t("comic.section"),
-                                div().text_xs().text_color(muted).child(t("comic.loadFail")),
-                                cx,
-                            ))
-                        },
-                    )
-                    .child(self.render_details(cx))
-                    .child(self.render_histogram(cx))
-                    .children(self.render_exif(cx)),
+                    .min_h_0(),
             )
     }
 

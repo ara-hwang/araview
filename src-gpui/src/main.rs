@@ -10,6 +10,8 @@ mod layout;
 mod picture;
 mod platform;
 mod settings;
+mod smooth;
+mod toast;
 
 use std::path::PathBuf;
 

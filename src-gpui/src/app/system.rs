@@ -3,8 +3,8 @@
 use std::sync::mpsc::{Receiver, TryRecvError};
 use std::time::Duration;
 
+use crate::toast::{Toast, WindowToast};
 use gpui_kit::component::WindowExt as _;
-use gpui_kit::component::notification::Notification;
 use gpui_kit::component::theme::{Theme, ThemeMode};
 use gpui_kit::*;
 
@@ -108,7 +108,7 @@ impl AraView {
     pub(super) fn apply_always_on_top(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let on_top = SettingsStore::global(cx).settings.always_on_top;
         if !platform::set_always_on_top(window, on_top) {
-            window.push_notification(Notification::error(t("toast.alwaysOnTop.fail")), cx);
+            window.toast(Toast::error(t("toast.alwaysOnTop.fail")), cx);
         }
     }
 

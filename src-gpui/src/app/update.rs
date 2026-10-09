@@ -5,12 +5,12 @@ use std::io::Read as _;
 use std::path::PathBuf;
 use std::time::Duration;
 
+use crate::smooth::SmoothScroll;
+use crate::toast::{Toast, WindowToast};
 use base64::Engine as _;
 use gpui_kit::component::button::{Button, ButtonVariants as _};
 use gpui_kit::component::dialog::DialogFooter;
-use gpui_kit::component::notification::Notification;
-use gpui_kit::component::scroll::ScrollableElement as _;
-use gpui_kit::component::{ActiveTheme as _, StyledExt as _, WindowExt as _, h_flex, v_flex};
+use gpui_kit::component::{ActiveTheme as _, WindowExt as _, v_flex};
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
 
@@ -29,8 +29,6 @@ const PLATFORM: &str = "windows-x86_64";
 const MAX_INSTALLER_BYTES: u64 = 512 * 1024 * 1024;
 /// 서명 공개키는 Tauri 설정의 updater 키를 그대로 쓴다.
 const TAURI_CONFIG: &str = include_str!("../../../src-tauri/tauri.conf.json");
-/// `node scripts/generate-license-data.mjs --gpui`가 만든 GPUI 앱의 패키지별 라이선스 데이터.
-const LICENSE_DATA: &str = include_str!("../../THIRD_PARTY_LICENSES.json");
 
 #[derive(Clone, serde::Deserialize)]
 struct Asset {
@@ -157,64 +155,6 @@ fn download_installer(asset: &Asset, public_key: &str) -> Result<PathBuf, String
     Ok(path)
 }
 
-/// 동봉된 라이선스 문서 폴더. 설치본은 실행 파일 옆, 개발 빌드는 Tauri 빌드가 모아 둔 폴더다.
-fn licenses_dir() -> PathBuf {
-    let bundled = std::env::current_exe()
-        .ok()
-        .and_then(|exe| exe.parent().map(|dir| dir.join("licenses")));
-    match bundled {
-        Some(dir) if dir.is_dir() => dir,
-        _ => PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../src-tauri/generated/licenses"),
-    }
-}
-
-/// libheif 등 네이티브 라이브러리의 라이선스 원문(패키지 데이터 JSON은 제외).
-fn bundled_documents() -> Vec<(String, String)> {
-    let Ok(entries) = std::fs::read_dir(licenses_dir()) else {
-        return Vec::new();
-    };
-    let mut documents: Vec<(String, String)> = entries
-        .flatten()
-        .filter_map(|entry| {
-            let name = entry.file_name().to_string_lossy().into_owned();
-            let is_document = name.ends_with("-copyright.txt");
-            let content = is_document
-                .then(|| std::fs::read(entry.path()).ok())
-                .flatten()?;
-            Some((name, String::from_utf8_lossy(&content).into_owned()))
-        })
-        .collect();
-    documents.sort();
-    documents
-}
-
-#[derive(Clone)]
-struct Package {
-    name: String,
-    version: String,
-    license: String,
-}
-
-fn packages() -> Vec<Package> {
-    let Ok(data) = serde_json::from_str::<serde_json::Value>(LICENSE_DATA) else {
-        return Vec::new();
-    };
-    data["packages"]
-        .as_array()
-        .map(|list| {
-            list.iter()
-                .filter_map(|item| {
-                    Some(Package {
-                        name: item["name"].as_str()?.to_owned(),
-                        version: item["version"].as_str()?.to_owned(),
-                        license: item["license"].as_str().unwrap_or("unknown").to_owned(),
-                    })
-                })
-                .collect()
-        })
-        .unwrap_or_default()
-}
-
 impl AraView {
     /// 수동 업데이트 확인. 시작 시 자동 확인이나 백그라운드 폴링은 없다.
     pub(super) fn check_updates(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -232,12 +172,10 @@ impl AraView {
                     Ok(Some(feed)) if is_newer(&feed.version, env!("CARGO_PKG_VERSION")) => {
                         this.show_update(feed, window, cx)
                     }
-                    Ok(_) => window
-                        .push_notification(Notification::success(t("toast.update.latest")), cx),
-                    Err(error) => window.push_notification(
-                        Notification::error(error).title(t("toast.update.checkFail")),
-                        cx,
-                    ),
+                    Ok(_) => window.toast(Toast::success(t("toast.update.latest")), cx),
+                    Err(error) => {
+                        window.toast(Toast::error(error).title(t("toast.update.checkFail")), cx)
+                    }
                 }
             })
             .ok();
@@ -250,6 +188,7 @@ impl AraView {
         let asset = feed.platforms.get(PLATFORM).cloned();
         let version = feed.version;
         let notes = feed.notes;
+        let notes_scroll = SmoothScroll::default();
         window.open_dialog(cx, move |dialog, _, cx| {
             let notes = if notes.trim().is_empty() {
                 t("dialog.update.noNotes").to_string()
@@ -274,13 +213,12 @@ impl AraView {
                                 .child(t("dialog.update.availableDesc")),
                         )
                         .child(
-                            div()
-                                .id("update-notes")
-                                .max_h(px(280.))
-                                .overflow_y_scrollbar()
-                                .text_sm()
-                                .whitespace_normal()
-                                .child(notes),
+                            notes_scroll
+                                .area(
+                                    "update-notes",
+                                    div().pr_3().text_sm().whitespace_normal().child(notes),
+                                )
+                                .h(px(220.)),
                         ),
                 )
                 .footer(
@@ -333,8 +271,8 @@ impl AraView {
             return;
         }
         self.update_checking = true;
-        window.push_notification(
-            Notification::info(t_with(
+        window.toast(
+            Toast::info(t_with(
                 "dialog.update.downloadingDesc",
                 &[("version", &version)],
             ))
@@ -354,16 +292,16 @@ impl AraView {
                 });
                 match launched {
                     Ok(_) => {
-                        window.push_notification(
-                            Notification::info(t("dialog.update.installingDesc"))
+                        window.toast(
+                            Toast::info(t("dialog.update.installingDesc"))
                                 .title(t("dialog.update.installingTitle")),
                             cx,
                         );
                         crate::settings::SettingsStore::flush(cx);
                         cx.quit();
                     }
-                    Err(error) => window.push_notification(
-                        Notification::error(error).title(t("dialog.update.downloadFail")),
+                    Err(error) => window.toast(
+                        Toast::error(error).title(t("dialog.update.downloadFail")),
                         cx,
                     ),
                 }
@@ -389,89 +327,6 @@ impl AraView {
         })
         .detach();
     }
-
-    pub(super) fn open_licenses(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let task = cx.background_spawn(async { (packages(), bundled_documents()) });
-        cx.spawn_in(window, async move |_, cx| {
-            let (packages, documents) = task.await;
-            cx.update(|window, cx| {
-                if packages.is_empty() && documents.is_empty() {
-                    window.push_notification(
-                        Notification::error(t("settings.licenses.loadFail")),
-                        cx,
-                    );
-                    return;
-                }
-                show_licenses(packages, documents, window, cx);
-            })
-            .ok();
-        })
-        .detach();
-    }
-}
-
-fn show_licenses(
-    packages: Vec<Package>,
-    documents: Vec<(String, String)>,
-    window: &mut Window,
-    cx: &mut App,
-) {
-    window.open_dialog(cx, move |dialog, _, cx| {
-        let muted = cx.theme().muted_foreground;
-        dialog
-            .title(t("settings.licenses.title"))
-            .width(px(760.))
-            .child(
-                v_flex()
-                    .id("licenses")
-                    .max_h(px(480.))
-                    .overflow_y_scrollbar()
-                    .gap_4()
-                    .child(
-                        div()
-                            .text_sm()
-                            .font_semibold()
-                            .child(t("settings.licenses.listLabel")),
-                    )
-                    .child(v_flex().gap_0p5().children(packages.iter().map(|package| {
-                        h_flex()
-                            .gap_3()
-                            .text_xs()
-                            .child(
-                                div()
-                                    .flex_1()
-                                    .min_w_0()
-                                    .child(format!("{} {}", package.name, package.version)),
-                            )
-                            .child(
-                                div()
-                                    .flex_none()
-                                    .text_color(muted)
-                                    .child(package.license.clone()),
-                            )
-                    })))
-                    .when(!documents.is_empty(), |column| {
-                        column.child(
-                            div()
-                                .text_sm()
-                                .font_semibold()
-                                .child(t("settings.licenses.documentsGroup")),
-                        )
-                    })
-                    .children(documents.iter().map(|(name, content)| {
-                        v_flex()
-                            .gap_1()
-                            .child(div().text_xs().font_semibold().child(name.clone()))
-                            .child(
-                                div()
-                                    .text_xs()
-                                    .text_color(muted)
-                                    .whitespace_normal()
-                                    .child(content.clone()),
-                            )
-                    })),
-            )
-    });
 }
 
 #[cfg(test)]
@@ -482,7 +337,7 @@ mod tests {
     use base64::Engine as _;
 
     use super::{
-        Asset, PLATFORM, download_installer, fetch_feed, is_newer, packages, release_public_key,
+        Asset, PLATFORM, download_installer, fetch_feed, is_newer, release_public_key,
         verify_signature,
     };
 
@@ -529,13 +384,6 @@ mod tests {
         assert!(!is_newer("1.2.2", "1.2.2"));
         assert!(!is_newer("1.2.1", "1.2.2"));
         assert!(!is_newer("garbage", "1.0.0"));
-    }
-
-    #[test]
-    fn embedded_license_data_lists_the_gpui_dependencies() {
-        let packages = packages();
-        assert!(packages.iter().any(|package| package.name == "gpui-kit"));
-        assert!(packages.iter().all(|package| !package.license.is_empty()));
     }
 
     #[test]

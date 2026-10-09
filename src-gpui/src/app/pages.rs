@@ -8,11 +8,11 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Instant;
 
+use crate::toast::{Toast, WindowToast};
 use araview_core::app_error::AppError;
 use araview_core::image::{ImageInfo, is_archive_file};
 use araview_core::ops;
 use gpui_kit::component::WindowExt as _;
-use gpui_kit::component::notification::Notification;
 use gpui_kit::*;
 
 use super::{AraView, Listing};
@@ -161,10 +161,7 @@ impl AraView {
                         } else {
                             "toast.load.imageFail"
                         };
-                        window.push_notification(
-                            Notification::error(error.message.clone()).title(t(key)),
-                            cx,
-                        );
+                        window.toast(Toast::error(error.message.clone()).title(t(key)), cx);
                         this.error = Some(error);
                         cx.notify();
                     }
@@ -200,7 +197,7 @@ impl AraView {
         if listing.resumed {
             let entity = cx.entity();
             window.push_notification(
-                Notification::info(t_with(
+                gpui_kit::component::notification::Notification::info(t_with(
                     "toast.archive.resumed",
                     &[("index", &(index + 1)), ("total", &self.list.len())],
                 ))
@@ -260,6 +257,7 @@ impl AraView {
         self.wt_dims.clear();
         self.wt_anchor = 0;
         self.wt_offset = 0.0;
+        self.wt_pending = 0.0;
     }
 
     pub(super) fn close_image(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -606,15 +604,15 @@ impl AraView {
             if let Some(next) = layout::step_index(self.index, total, 1, looped, self.last_forward)
                 .filter(|next| !self.page_failed.contains_key(next))
             {
-                window.push_notification(Notification::warning(t("toast.load.skipped")), cx);
+                window.toast(Toast::warning(t("toast.load.skipped")), cx);
                 self.index = next;
                 self.sync_pages(window, cx);
                 return;
             }
         }
         self.pending_commit = false;
-        window.push_notification(
-            Notification::error(error.message.clone()).title(t("toast.load.imageFail")),
+        window.toast(
+            Toast::error(error.message.clone()).title(t("toast.load.imageFail")),
             cx,
         );
         self.error = Some(error);

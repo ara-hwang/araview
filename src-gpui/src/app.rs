@@ -4,6 +4,7 @@ mod dock;
 mod file_ops;
 mod grid;
 mod info_panel;
+mod licenses;
 mod menu;
 mod pages;
 mod settings_panel;
@@ -21,6 +22,8 @@ use std::sync::Arc;
 use std::sync::mpsc::Receiver;
 use std::time::Instant;
 
+use crate::smooth::SmoothScroll;
+use crate::toast::{Toast, WindowToast};
 use araview_core::app_error::{AppError, ErrorCode};
 use araview_core::comic_info::ComicInfo;
 use araview_core::file_availability::FileAvailability;
@@ -29,7 +32,6 @@ use araview_core::ops::{self, DirListOptions, DirSortKey};
 use gpui_kit::assets::IconName;
 use gpui_kit::component::button::{Button, ButtonVariants as _};
 use gpui_kit::component::menu::ContextMenuExt as _;
-use gpui_kit::component::notification::Notification;
 use gpui_kit::component::{
     ActiveTheme as _, Icon, Selectable as _, Sizable as _, TitleBar, WindowExt as _, h_flex, v_flex,
 };
@@ -134,6 +136,10 @@ pub struct AraView {
     /// 웹툰 스크롤 위치: 화면 맨 위에 걸친 페이지와 그 안에서 내려간 거리.
     wt_anchor: usize,
     wt_offset: f32,
+    /// 부드러운 스크롤이 아직 반영하지 못한 남은 거리(px).
+    wt_pending: f32,
+    wt_animating: bool,
+    wt_frame: Instant,
     wt_zoom: f32,
     wt_gap: f32,
     wt_fit_width: bool,
@@ -147,6 +153,8 @@ pub struct AraView {
     context_page: Option<usize>,
 
     info_open: bool,
+    home_scroll: SmoothScroll,
+    info_scroll: SmoothScroll,
     info_data: info_panel::InfoData,
     info_seq: u64,
     update_checking: bool,
@@ -206,6 +214,9 @@ impl AraView {
             pixel_view: None,
             wt_anchor: 0,
             wt_offset: 0.0,
+            wt_pending: 0.0,
+            wt_animating: false,
+            wt_frame: Instant::now(),
             wt_zoom: 1.0,
             wt_gap: 8.0,
             wt_fit_width: false,
@@ -216,6 +227,8 @@ impl AraView {
             grid_open: false,
             context_page: None,
             info_open: false,
+            home_scroll: SmoothScroll::default(),
+            info_scroll: SmoothScroll::default(),
             info_data: info_panel::InfoData::default(),
             info_seq: 0,
             update_checking: false,
@@ -289,12 +302,12 @@ impl AraView {
             this.update_in(cx, |this, window, cx| {
                 let count = resolved.len();
                 let Some(first) = resolved.into_iter().next() else {
-                    window.push_notification(Notification::error(t("toast.drop.fail")), cx);
+                    window.toast(Toast::error(t("toast.drop.fail")), cx);
                     return;
                 };
                 if count > 1 {
-                    window.push_notification(
-                        Notification::info(t_with("toast.drop.firstOf", &[("count", &count)])),
+                    window.toast(
+                        Toast::info(t_with("toast.drop.firstOf", &[("count", &count)])),
                         cx,
                     );
                 }
@@ -344,16 +357,16 @@ impl AraView {
 
     fn copy_path(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let Some(path) = self.target_path() else {
-            window.push_notification(Notification::warning(t("toast.path.empty")), cx);
+            window.toast(Toast::warning(t("toast.path.empty")), cx);
             return;
         };
         cx.write_to_clipboard(ClipboardItem::new_string(path));
-        window.push_notification(Notification::success(t("toast.path.done")), cx);
+        window.toast(Toast::success(t("toast.path.done")), cx);
     }
 
     fn copy_image(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let Some(info) = &self.info else {
-            window.push_notification(Notification::warning(t("toast.copy.empty")), cx);
+            window.toast(Toast::warning(t("toast.copy.empty")), cx);
             return;
         };
         let path = PathBuf::from(&info.file_path);
@@ -370,12 +383,11 @@ impl AraView {
                         ImageFormat::Png,
                         bytes,
                     )));
-                    window.push_notification(Notification::success(t("toast.copy.done")), cx);
+                    window.toast(Toast::success(t("toast.copy.done")), cx);
                 }
-                Err(error) => window.push_notification(
-                    Notification::error(error.message).title(t("toast.copy.fail")),
-                    cx,
-                ),
+                Err(error) => {
+                    window.toast(Toast::error(error.message).title(t("toast.copy.fail")), cx)
+                }
             })
             .ok();
         })
@@ -385,14 +397,14 @@ impl AraView {
     fn reveal(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         match self.target_path() {
             Some(path) => cx.reveal_path(Path::new(&path)),
-            None => window.push_notification(Notification::warning(t("toast.reveal.empty")), cx),
+            None => window.toast(Toast::warning(t("toast.reveal.empty")), cx),
         }
     }
 
     fn open_external(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         match self.target_path() {
             Some(path) => cx.open_with_system(Path::new(&path)),
-            None => window.push_notification(Notification::warning(t("toast.external.empty")), cx),
+            None => window.toast(Toast::warning(t("toast.external.empty")), cx),
         }
     }
 
@@ -404,65 +416,70 @@ impl AraView {
             Vec::new()
         };
         let muted = cx.theme().muted_foreground;
-        v_flex()
-            .size_full()
-            .items_center()
-            .justify_center()
-            .gap_4()
-            .p_6()
-            .child(Icon::new(IconName::Image).size_12().text_color(muted))
-            .child(div().text_sm().text_color(muted).child(t("home.emptyDesc")))
-            .child(
-                Button::new("home-open")
-                    .primary()
-                    .icon(IconName::FolderOpen)
-                    .label(t("home.openFile"))
-                    .on_click(cx.listener(|this, _, window, cx| this.prompt_open(window, cx))),
-            )
-            .when(!recent.is_empty(), |home| {
-                home.child(
-                    v_flex()
-                        .w_full()
-                        .max_w(px(560.))
-                        .gap_1()
-                        .child(
-                            h_flex()
-                                .justify_between()
-                                .items_center()
-                                .child(
-                                    div()
-                                        .text_sm()
-                                        .child(t_with("home.recent", &[("count", &recent.len())])),
-                                )
-                                .child(
-                                    Button::new("recent-clear")
-                                        .ghost()
-                                        .xsmall()
-                                        .label(t("home.clearAll"))
-                                        .on_click(cx.listener(|_, _, _, cx| {
-                                            SettingsStore::clear_recent(cx);
-                                            cx.notify();
-                                        })),
-                                ),
-                        )
-                        .children(recent.into_iter().enumerate().map(|(ix, path)| {
-                            let file = Path::new(&path);
-                            let name = file
-                                .file_name()
-                                .map(|name| name.to_string_lossy().into_owned())
-                                .unwrap_or_else(|| path.clone());
-                            let parent = file
-                                .parent()
-                                .map(|dir| dir.to_string_lossy().into_owned())
-                                .unwrap_or_default();
-                            let icon = if is_archive_file(file) {
-                                IconName::BookOpen
-                            } else {
-                                IconName::Image
-                            };
-                            // 아카이브는 읽기 진도를 함께 보여준다.
-                            let progress =
-                                SettingsStore::global(cx)
+        // 최근 파일이 많아 창보다 커져도 잘리지 않게 스크롤 영역 안에 둔다.
+        // 내용이 작을 때는 가운데에 놓인다.
+        self.home_scroll.area(
+            "home",
+            v_flex()
+                .w_full()
+                .min_h_full()
+                .items_center()
+                .justify_center()
+                .gap_4()
+                .p_6()
+                .child(Icon::new(IconName::Image).size_12().text_color(muted))
+                .child(div().text_sm().text_color(muted).child(t("home.emptyDesc")))
+                .child(
+                    Button::new("home-open")
+                        .primary()
+                        .icon(IconName::FolderOpen)
+                        .label(t("home.openFile"))
+                        .on_click(cx.listener(|this, _, window, cx| this.prompt_open(window, cx))),
+                )
+                .when(!recent.is_empty(), |home| {
+                    home.child(
+                        v_flex()
+                            .w_full()
+                            .max_w(px(560.))
+                            .gap_1()
+                            .child(
+                                h_flex()
+                                    .justify_between()
+                                    .items_center()
+                                    .child(
+                                        div().text_sm().child(t_with(
+                                            "home.recent",
+                                            &[("count", &recent.len())],
+                                        )),
+                                    )
+                                    .child(
+                                        Button::new("recent-clear")
+                                            .ghost()
+                                            .xsmall()
+                                            .label(t("home.clearAll"))
+                                            .on_click(cx.listener(|_, _, _, cx| {
+                                                SettingsStore::clear_recent(cx);
+                                                cx.notify();
+                                            })),
+                                    ),
+                            )
+                            .children(recent.into_iter().enumerate().map(|(ix, path)| {
+                                let file = Path::new(&path);
+                                let name = file
+                                    .file_name()
+                                    .map(|name| name.to_string_lossy().into_owned())
+                                    .unwrap_or_else(|| path.clone());
+                                let parent = file
+                                    .parent()
+                                    .map(|dir| dir.to_string_lossy().into_owned())
+                                    .unwrap_or_default();
+                                let icon = if is_archive_file(file) {
+                                    IconName::BookOpen
+                                } else {
+                                    IconName::Image
+                                };
+                                // 아카이브는 읽기 진도를 함께 보여준다.
+                                let progress = SettingsStore::global(cx)
                                     .archive_progress(&path)
                                     .map(|progress| {
                                         t_with(
@@ -473,71 +490,72 @@ impl AraView {
                                             ],
                                         )
                                     });
-                            let removed = path.clone();
-                            h_flex()
-                                .w_full()
-                                .gap_1()
-                                .items_center()
-                                .child(
-                                    h_flex()
-                                        .id(("recent", ix))
-                                        .flex_1()
-                                        .min_w_0()
-                                        .gap_3()
-                                        .px_2()
-                                        .py_1()
-                                        .rounded_md()
-                                        .cursor_pointer()
-                                        .hover(|style| style.bg(cx.theme().muted))
-                                        .child(Icon::new(icon).text_color(muted))
-                                        .child(
-                                            v_flex()
-                                                .flex_1()
-                                                .min_w_0()
-                                                .child(
-                                                    div()
-                                                        .text_sm()
-                                                        .overflow_hidden()
-                                                        .text_ellipsis()
-                                                        .whitespace_nowrap()
-                                                        .child(name),
-                                                )
-                                                .when_some(progress, |column, text| {
-                                                    column.child(
+                                let removed = path.clone();
+                                h_flex()
+                                    .w_full()
+                                    .gap_1()
+                                    .items_center()
+                                    .child(
+                                        h_flex()
+                                            .id(("recent", ix))
+                                            .flex_1()
+                                            .min_w_0()
+                                            .gap_3()
+                                            .px_2()
+                                            .py_1()
+                                            .rounded_md()
+                                            .cursor_pointer()
+                                            .hover(|style| style.bg(cx.theme().muted))
+                                            .child(Icon::new(icon).text_color(muted))
+                                            .child(
+                                                v_flex()
+                                                    .flex_1()
+                                                    .min_w_0()
+                                                    .child(
+                                                        div()
+                                                            .text_sm()
+                                                            .overflow_hidden()
+                                                            .text_ellipsis()
+                                                            .whitespace_nowrap()
+                                                            .child(name),
+                                                    )
+                                                    .when_some(progress, |column, text| {
+                                                        column.child(
+                                                            div()
+                                                                .text_xs()
+                                                                .text_color(muted)
+                                                                .child(text),
+                                                        )
+                                                    })
+                                                    .child(
                                                         div()
                                                             .text_xs()
                                                             .text_color(muted)
-                                                            .child(text),
-                                                    )
-                                                })
-                                                .child(
-                                                    div()
-                                                        .text_xs()
-                                                        .text_color(muted)
-                                                        .overflow_hidden()
-                                                        .text_ellipsis()
-                                                        .whitespace_nowrap()
-                                                        .child(parent),
-                                                ),
-                                        )
-                                        .on_click(cx.listener(move |this, _, window, cx| {
-                                            this.open_path(path.clone(), window, cx)
-                                        })),
-                                )
-                                .child(
-                                    Button::new(("recent-remove", ix))
-                                        .ghost()
-                                        .xsmall()
-                                        .icon(IconName::X)
-                                        .tooltip(t("home.card.remove"))
-                                        .on_click(cx.listener(move |_, _, _, cx| {
-                                            SettingsStore::remove_recent(cx, &removed);
-                                            cx.notify();
-                                        })),
-                                )
-                        })),
-                )
-            })
+                                                            .overflow_hidden()
+                                                            .text_ellipsis()
+                                                            .whitespace_nowrap()
+                                                            .child(parent),
+                                                    ),
+                                            )
+                                            .on_click(cx.listener(move |this, _, window, cx| {
+                                                this.open_path(path.clone(), window, cx)
+                                            })),
+                                    )
+                                    .child(
+                                        Button::new(("recent-remove", ix))
+                                            .ghost()
+                                            .xsmall()
+                                            .icon(IconName::X)
+                                            .tooltip(t("home.card.remove"))
+                                            .on_click(cx.listener(move |_, _, _, cx| {
+                                                SettingsStore::remove_recent(cx, &removed);
+                                                cx.notify();
+                                            })),
+                                    )
+                            })),
+                    )
+                }),
+        )
     }
 
     fn render_error(&self, error: &AppError, cx: &mut Context<Self>) -> impl IntoElement {

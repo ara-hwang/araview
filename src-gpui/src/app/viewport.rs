@@ -32,6 +32,8 @@ const WT_UNKNOWN_WIDTH: f32 = 720.0;
 const WT_MIN_WIDTH: f32 = 64.0;
 /// 웹툰 `↑/↓` 1회 스크롤량(px).
 pub(super) const WT_KEY_SCROLL: f32 = 120.0;
+/// 웹툰 스크롤이 목표 위치로 수렴하는 감속 시간 상수(초).
+const WT_SMOOTH_TIME: f32 = 0.08;
 /// 양쪽·웹툰 보기의 상대 배율 범위.
 const RELATIVE_ZOOM_MIN: f32 = 0.25;
 const RELATIVE_ZOOM_MAX: f32 = 4.0;
@@ -305,7 +307,7 @@ impl AraView {
         let (action, plain) = Self::wheel_action(event, delta > px(0.), cx);
         if plain && self.view_mode(cx) == ViewMode::Webtoon {
             // 웹툰의 일반 휠은 연속 스크롤이다.
-            self.webtoon_scroll(-f32::from(delta), window, cx);
+            self.webtoon_scroll_smooth(-f32::from(delta), window, cx);
             return;
         }
         let anchor = self.anchor_at(event.position);
@@ -616,6 +618,58 @@ impl AraView {
         }
         if self.wt_offset < 0.0 {
             self.wt_offset = 0.0;
+        }
+    }
+
+    /// 거리를 쌓아 두고 프레임마다 감속하며 나눠 스크롤한다.
+    pub(super) fn webtoon_scroll_smooth(
+        &mut self,
+        dy: f32,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if dy == 0.0 || self.list.is_empty() {
+            return;
+        }
+        self.wt_pending += dy;
+        if !self.wt_animating {
+            self.wt_animating = true;
+            self.wt_frame = Instant::now();
+            self.webtoon_next_frame(window, cx);
+        }
+    }
+
+    fn webtoon_next_frame(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let view = cx.entity();
+        window.on_next_frame(move |window, cx| {
+            view.update(cx, |this, cx| this.webtoon_smooth_frame(window, cx));
+        });
+    }
+
+    fn webtoon_smooth_frame(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let now = Instant::now();
+        let dt = now
+            .duration_since(std::mem::replace(&mut self.wt_frame, now))
+            .as_secs_f32()
+            .min(0.05);
+        let mut step = self.wt_pending * (1.0 - (-dt / WT_SMOOTH_TIME).exp());
+        // 거의 다 왔으면 남은 거리를 한 번에 반영하고 끝낸다.
+        let settled = self.wt_pending.abs() < 1.0;
+        if settled {
+            step = self.wt_pending;
+        }
+        self.wt_pending -= step;
+        let before = (self.wt_anchor, self.wt_offset);
+        self.webtoon_scroll(step, window, cx);
+        // 끝에 닿아 더 움직이지 못하면 남은 거리를 버린다.
+        if (self.wt_anchor, self.wt_offset) == before {
+            self.wt_pending = 0.0;
+        }
+        if settled || self.wt_pending == 0.0 {
+            self.wt_pending = 0.0;
+            self.wt_animating = false;
+        } else {
+            self.webtoon_next_frame(window, cx);
         }
     }
 

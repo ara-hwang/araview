@@ -53,6 +53,20 @@ fn settle(cx: &mut VisualTestContext) {
     cx.run_until_parked();
 }
 
+/// 웹툰의 부드러운 스크롤이 목표 위치에 닿을 때까지 프레임을 진행한다.
+fn finish_webtoon_scroll(view: &Entity<AraView>, cx: &mut VisualTestContext) {
+    for _ in 0..600 {
+        cx.update(|window, cx| window.simulate_next_frame(cx));
+        settle(cx);
+        if !view.read_with(cx, |this, _| this.wt_animating) {
+            return;
+        }
+        // 감속은 실제 경과 시간을 쓰므로 프레임 사이에 시간을 흘려보낸다.
+        std::thread::sleep(std::time::Duration::from_millis(16));
+    }
+    panic!("webtoon scroll did not settle");
+}
+
 fn open(view: &Entity<AraView>, path: String, cx: &mut VisualTestContext) {
     view.update_in(cx, |this, window, cx| this.open_path(path, window, cx));
     settle(cx);
@@ -416,6 +430,7 @@ fn webtoon_scrolls_continuously_and_tracks_the_center_page(cx: &mut TestAppConte
     for _ in 0..40 {
         wheel(center, -60.0, false, cx);
     }
+    finish_webtoon_scroll(&view, cx);
     view.read_with(cx, |this, _| {
         // 끝까지 내리면 마지막 장에서 멈춘다.
         assert_eq!(this.index, this.list.len() - 1);
@@ -426,6 +441,7 @@ fn webtoon_scrolls_continuously_and_tracks_the_center_page(cx: &mut TestAppConte
     for _ in 0..80 {
         wheel(center, 60.0, false, cx);
     }
+    finish_webtoon_scroll(&view, cx);
     view.read_with(cx, |this, _| {
         assert_eq!((this.wt_anchor, this.wt_offset), (0, 0.0));
     });

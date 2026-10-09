@@ -1,8 +1,8 @@
 //! 동작 실행, 컨텍스트 메뉴, 명령 팔레트, 표지 지정(SPEC §8, §14).
 
+use crate::toast::{Toast, WindowToast};
 use gpui_kit::component::command::{Command, CommandGroup, CommandItem, CommandState};
 use gpui_kit::component::menu::{PopupMenu, PopupMenuItem};
-use gpui_kit::component::notification::Notification;
 use gpui_kit::component::{ActiveTheme as _, WindowExt as _, v_flex};
 use gpui_kit::*;
 
@@ -104,8 +104,8 @@ impl AraView {
             "jumpLast" => self.jump_to(self.list.len().saturating_sub(1), window, cx),
             "panLeft" => self.pan_by(PAN_STEP, 0.0, window, cx),
             "panRight" => self.pan_by(-PAN_STEP, 0.0, window, cx),
-            "panUp" if webtoon => self.webtoon_scroll(-WT_KEY_SCROLL, window, cx),
-            "panDown" if webtoon => self.webtoon_scroll(WT_KEY_SCROLL, window, cx),
+            "panUp" if webtoon => self.webtoon_scroll_smooth(-WT_KEY_SCROLL, window, cx),
+            "panDown" if webtoon => self.webtoon_scroll_smooth(WT_KEY_SCROLL, window, cx),
             "panUp" => self.pan_by(0.0, PAN_STEP, window, cx),
             "panDown" => self.pan_by(0.0, -PAN_STEP, window, cx),
             "zoomIn" => {
@@ -271,15 +271,14 @@ impl AraView {
                         } else {
                             "toast.cover.set"
                         };
-                        window.push_notification(Notification::success(t(key)), cx);
+                        window.toast(Toast::success(t(key)), cx);
                         // 배치가 바뀌었으므로 그 페이지의 쌍 시작으로 다시 맞춘다.
                         this.index = index;
                         this.view_mode_changed(window, cx);
                     }
-                    Err(error) => window.push_notification(
-                        Notification::error(error.message).title(t("toast.cover.fail")),
-                        cx,
-                    ),
+                    Err(error) => {
+                        window.toast(Toast::error(error.message).title(t("toast.cover.fail")), cx)
+                    }
                 }
             })
             .ok();
