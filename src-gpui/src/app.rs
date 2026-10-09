@@ -51,6 +51,10 @@ const CHECKER_BASE: u32 = 0xffffff;
 const CHECKER_ALT: u32 = 0xc7c7c7;
 /// 좁은 창에서는 헤더의 애니메이션 컨트롤을 숨긴다(SPEC §7.5).
 const GIF_CONTROLS_MIN_WIDTH: f32 = 1024.0;
+/// 이 폭(논리 px) 이상이면 헤더 기본 버튼에 라벨을 붙인다(DESIGN.md 툴바 규칙).
+const HEADER_LABELS_MIN_WIDTH: f32 = 1440.0;
+/// 이 폭 이상이면 보기 모드/변형/상태 버튼에도 라벨을 붙인다.
+const HEADER_EXTRA_LABELS_MIN_WIDTH: f32 = 1950.0;
 /// 숨긴 크롬을 다시 보여주는 가장자리 영역(px).
 const PEEK_EDGE: f32 = 6.0;
 const PEEK_TOP_KEEP: f32 = 48.0;
@@ -662,7 +666,12 @@ impl AraView {
         let has_image = self.picture.is_some();
         let mode = self.view_mode(cx);
         let single = mode == ViewMode::Single;
-        let wide_window = f32::from(window.viewport_size().width) >= GIF_CONTROLS_MIN_WIDTH;
+        // DESIGN.md 툴바 규칙: 기본 버튼 라벨은 1440px부터, 보기/변형/상태 버튼
+        // 라벨은 1950px부터 붙인다.
+        let width = f32::from(window.viewport_size().width);
+        let wide_window = width >= GIF_CONTROLS_MIN_WIDTH;
+        let wide_labels = width >= HEADER_LABELS_MIN_WIDTH;
+        let extra_labels = width >= HEADER_EXTRA_LABELS_MIN_WIDTH;
         let animated = self.has_animation(cx);
         let frames = self
             .picture
@@ -698,6 +707,7 @@ impl AraView {
                 .icon(icon)
                 .tooltip(t(key))
                 .selected(mode == value)
+                .when(extra_labels, |button| button.label(t(key)))
         };
 
         TitleBar::new().h(px(36.)).child(
@@ -713,6 +723,7 @@ impl AraView {
                                 .ghost()
                                 .icon(IconName::House)
                                 .tooltip(t("header.home"))
+                                .when(wide_labels, |button| button.label(t("header.home")))
                                 .on_click(
                                     cx.listener(|this, _, window, cx| this.close_image(window, cx)),
                                 ),
@@ -721,7 +732,8 @@ impl AraView {
                             Button::new("open")
                                 .ghost()
                                 .icon(IconName::FolderOpen)
-                                .label(t("header.open"))
+                                .tooltip(t("header.open"))
+                                .when(wide_labels, |button| button.label(t("header.open")))
                                 .on_click(
                                     cx.listener(|this, _, window, cx| this.prompt_open(window, cx)),
                                 ),
@@ -739,6 +751,7 @@ impl AraView {
                                         "fitWidth",
                                         cx,
                                     )
+                                    .when(wide_labels, |button| button.label(t("header.fitWidth")))
                                     .selected(
                                         self.fit_locked && settings.fit_mode == FitMode::Width,
                                     ),
@@ -751,6 +764,7 @@ impl AraView {
                                         "fitHeight",
                                         cx,
                                     )
+                                    .when(wide_labels, |button| button.label(t("header.fitHeight")))
                                     .selected(
                                         self.fit_locked && settings.fit_mode == FitMode::Height,
                                     ),
@@ -763,6 +777,7 @@ impl AraView {
                                         "fitScreen",
                                         cx,
                                     )
+                                    .when(wide_labels, |button| button.label(t("header.fitScreen")))
                                     .selected(
                                         self.fit_locked && settings.fit_mode == FitMode::Screen,
                                     ),
@@ -771,13 +786,16 @@ impl AraView {
                     })
                     .child(
                         group()
-                            .child(Self::icon_button(
-                                "zoom-out",
-                                IconName::ZoomOut,
-                                "header.zoomOut",
-                                "zoomOut",
-                                cx,
-                            ))
+                            .child(
+                                Self::icon_button(
+                                    "zoom-out",
+                                    IconName::ZoomOut,
+                                    "header.zoomOut",
+                                    "zoomOut",
+                                    cx,
+                                )
+                                .when(wide_labels, |button| button.label(t("header.zoomOut"))),
+                            )
                             .child(
                                 div()
                                     .w(px(48.))
@@ -785,13 +803,16 @@ impl AraView {
                                     .text_center()
                                     .child(format!("{}%", self.zoom_percent(cx))),
                             )
-                            .child(Self::icon_button(
-                                "zoom-in",
-                                IconName::ZoomIn,
-                                "header.zoomIn",
-                                "zoomIn",
-                                cx,
-                            )),
+                            .child(
+                                Self::icon_button(
+                                    "zoom-in",
+                                    IconName::ZoomIn,
+                                    "header.zoomIn",
+                                    "zoomIn",
+                                    cx,
+                                )
+                                .when(wide_labels, |button| button.label(t("header.zoomIn"))),
+                            ),
                     )
                     .child(
                         group()
@@ -851,20 +872,30 @@ impl AraView {
                     .when(single, |row| {
                         row.child(
                             group()
-                                .child(Self::icon_button(
-                                    "rotate-ccw",
-                                    IconName::RotateCcw,
-                                    "header.rotateCcw",
-                                    "rotateCCW",
-                                    cx,
-                                ))
-                                .child(Self::icon_button(
-                                    "rotate-cw",
-                                    IconName::RotateCw,
-                                    "header.rotateCw",
-                                    "rotateCW",
-                                    cx,
-                                ))
+                                .child(
+                                    Self::icon_button(
+                                        "rotate-ccw",
+                                        IconName::RotateCcw,
+                                        "header.rotateCcw",
+                                        "rotateCCW",
+                                        cx,
+                                    )
+                                    .when(extra_labels, |button| {
+                                        button.label(t("header.rotateCcw"))
+                                    }),
+                                )
+                                .child(
+                                    Self::icon_button(
+                                        "rotate-cw",
+                                        IconName::RotateCw,
+                                        "header.rotateCw",
+                                        "rotateCW",
+                                        cx,
+                                    )
+                                    .when(extra_labels, |button| {
+                                        button.label(t("header.rotateCw"))
+                                    }),
+                                )
                                 .child(
                                     Self::icon_button(
                                         "flip-h",
@@ -873,6 +904,7 @@ impl AraView {
                                         "flipH",
                                         cx,
                                     )
+                                    .when(extra_labels, |button| button.label(t("header.flipH")))
                                     .selected(self.orientation.flip_h),
                                 )
                                 .child(
@@ -883,6 +915,7 @@ impl AraView {
                                         "flipV",
                                         cx,
                                     )
+                                    .when(extra_labels, |button| button.label(t("header.flipV")))
                                     .selected(self.orientation.flip_v),
                                 ),
                         )
@@ -937,6 +970,7 @@ impl AraView {
                                 "toggleExif",
                                 cx,
                             )
+                            .when(wide_labels, |button| button.label(t("header.info")))
                             .selected(self.info_open),
                         ),
                     )
@@ -944,20 +978,26 @@ impl AraView {
                 .child(div().flex_1())
                 .child(
                     group()
-                        .child(Self::icon_button(
-                            "palette",
-                            IconName::Search,
-                            "palette.open",
-                            "togglePalette",
-                            cx,
-                        ))
-                        .child(Self::icon_button(
-                            "settings",
-                            IconName::Settings,
-                            "header.settings",
-                            "openSettings",
-                            cx,
-                        ))
+                        .child(
+                            Self::icon_button(
+                                "palette",
+                                IconName::Search,
+                                "palette.open",
+                                "togglePalette",
+                                cx,
+                            )
+                            .when(wide_labels, |button| button.label(t("palette.open"))),
+                        )
+                        .child(
+                            Self::icon_button(
+                                "settings",
+                                IconName::Settings,
+                                "header.settings",
+                                "openSettings",
+                                cx,
+                            )
+                            .when(wide_labels, |button| button.label(t("header.settings"))),
+                        )
                         .child(
                             Self::icon_button(
                                 "on-top",
@@ -970,6 +1010,7 @@ impl AraView {
                                 "toggleAlwaysOnTop",
                                 cx,
                             )
+                            .when(extra_labels, |button| button.label(t("header.onTop")))
                             .selected(settings.always_on_top),
                         )
                         .when(has_image, |row| {
@@ -986,6 +1027,13 @@ impl AraView {
                                     } else {
                                         "header.hideMenuBar"
                                     }))
+                                    .when(extra_labels, |button| {
+                                        button.label(t(if settings.menu_bar_hidden {
+                                            "header.showBar"
+                                        } else {
+                                            "header.hideBar"
+                                        }))
+                                    })
                                     .on_click(cx.listener(|this, _, _, cx| {
                                         SettingsStore::update(cx, |settings| {
                                             settings.menu_bar_hidden = !settings.menu_bar_hidden
