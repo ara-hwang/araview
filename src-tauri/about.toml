@@ -27,3 +27,6 @@ targets = ["x86_64-pc-windows-msvc"]
 ignore-dev-dependencies = true
 ignore-build-dependencies = false
 workarounds = []
+
+# 저장소 자체 크레이트(publish = false)는 서드파티가 아니므로 고지 대상에서 뺀다.
+private = { ignore = true }

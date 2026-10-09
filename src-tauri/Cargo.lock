@@ -145,7 +145,27 @@ checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
 name = "araview"
 version = "1.2.2"
 dependencies = [
+ "araview-core",
  "env_logger",
+ "log",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-dialog",
+ "tauri-plugin-mcp-bridge",
+ "tauri-plugin-opener",
+ "tauri-plugin-single-instance",
+ "tauri-plugin-snap-layout",
+ "tauri-plugin-store",
+ "tauri-plugin-updater",
+ "tauri-plugin-window-state",
+]
+
+[[package]]
+name = "araview-core"
+version = "1.2.2"
+dependencies = [
  "image",
  "jpeg-decoder",
  "jpeg-encoder",
@@ -159,16 +179,6 @@ dependencies = [
  "resvg",
  "serde",
  "serde_json",
- "tauri",
- "tauri-build",
- "tauri-plugin-dialog",
- "tauri-plugin-mcp-bridge",
- "tauri-plugin-opener",
- "tauri-plugin-single-instance",
- "tauri-plugin-snap-layout",
- "tauri-plugin-store",
- "tauri-plugin-updater",
- "tauri-plugin-window-state",
  "tempfile",
  "trash",
  "winreg 0.56.0",

@@ -22,6 +22,10 @@ import { fileURLToPath } from "node:url"
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 const LICENSE_FILE = /^(licen[sc]e|copying|unlicense|notice)/i
+// `--gpui`: GPUI 앱(src-gpui)의 Rust 의존성만 모아 src-gpui/THIRD_PARTY_LICENSES.json에 쓴다.
+// 루트의 고지 문서와 데이터는 건드리지 않는다.
+const gpui = process.argv.includes("--gpui")
+const cargoDir = join(root, gpui ? "src-gpui" : "src-tauri")
 
 const texts = new Map()
 
@@ -35,7 +39,7 @@ function addText(raw) {
 // --- Rust (cargo-about) ---------------------------------------------------
 const aboutOut = join(mkdtempSync(join(tmpdir(), "araview-about-")), "about.json")
 execFileSync("cargo", ["about", "generate", "--format", "json", "-o", aboutOut], {
-  cwd: join(root, "src-tauri"),
+  cwd: cargoDir,
   stdio: ["ignore", "inherit", "inherit"]
 })
 const about = JSON.parse(readFileSync(aboutOut, "utf8"))
@@ -100,7 +104,8 @@ function npmLicenseFiles(dir) {
 }
 
 const manifest = JSON.parse(readFileSync(join(root, "package.json"), "utf8"))
-for (const name of Object.keys(manifest.dependencies ?? {})) {
+// GPUI 앱은 npm 패키지를 번들하지 않는다.
+for (const name of gpui ? [] : Object.keys(manifest.dependencies ?? {})) {
   const dir = join(root, "node_modules", name)
   if (!existsSync(dir)) throw new Error(`node_modules missing: ${name}. Run npm install first.`)
   const pkg = JSON.parse(readFileSync(join(dir, "package.json"), "utf8"))
@@ -125,7 +130,7 @@ const out = {
   texts: Object.fromEntries([...texts].sort(([a], [b]) => a.localeCompare(b))),
   packages
 }
-writeFileSync(join(root, "THIRD_PARTY_LICENSES.json"), JSON.stringify(out) + "\n")
+writeFileSync(join(gpui ? cargoDir : root, "THIRD_PARTY_LICENSES.json"), JSON.stringify(out) + "\n")
 const missing = packages.filter((p) => p.files.length === 0)
 console.log(
   `${packages.length} packages, ${texts.size} unique texts, ${missing.length} without a license text`
@@ -137,6 +142,8 @@ if (templated.length > 0) {
     `template text only (add to EXTRA_LICENSES): ${templated.map((p) => `${p.name}@${p.version}`).join(", ")}`
   )
 }
+
+if (gpui) process.exit(0)
 
 // --- THIRD_PARTY_LICENSES.md 표 갱신 -----------------------------------------
 const mdPath = join(root, "THIRD_PARTY_LICENSES.md")

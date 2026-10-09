@@ -1,0 +1,32 @@
+# cargo-about 설정. 서드파티 라이선스 자료 생성: node ../scripts/generate-license-data.mjs --gpui
+# 허용 목록은 deny.toml의 licenses.allow와 같게 유지한다.
+accepted = [
+  "0BSD",
+  "Apache-2.0",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "bzip2-1.0.6",
+  "CC0-1.0",
+  "CDLA-Permissive-2.0",
+  "IJG",
+  "ISC",
+  "Apache-2.0 WITH LLVM-exception",
+  "MIT",
+  "MIT-0",
+  # 약한 카피레프트(파일 단위). THIRD_PARTY_LICENSES.md 고지 참고.
+  "MPL-2.0",
+  "NCSA",
+  "Unicode-3.0",
+  "Unlicense",
+  "Zlib"
+]
+
+# 배포 대상(Windows x64)에서 쓰이는 크레이트만 모은다. 개발 전용 의존성은 제외,
+# 빌드 의존성은 보수적으로 포함한다.
+targets = ["x86_64-pc-windows-msvc"]
+ignore-dev-dependencies = true
+ignore-build-dependencies = false
+workarounds = []
+
+# 저장소 자체 크레이트(publish = false)는 서드파티가 아니므로 고지 대상에서 뺀다.
+private = { ignore = true }
