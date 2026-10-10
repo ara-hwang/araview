@@ -126,7 +126,7 @@ fn header_groups_hide_in_order_as_window_narrows(cx: &mut TestAppContext) {
 /// 겹치지 않는지 확인한다. `with` 조건이 처음 참이 되는 폭을 돌려준다.
 fn assert_header_clears_captions(cx: &mut VisualTestContext, with: &'static str) -> Option<u32> {
     let mut first_shown = None;
-    for width in (500..=2000).step_by(2) {
+    for width in (500..=2400).step_by(4) {
         cx.simulate_resize(gpui_kit::size(px(width as f32), px(500.)));
         settle(cx);
         let info = cx.debug_bounds("header-center-info").expect("info");
@@ -148,20 +148,39 @@ fn assert_header_clears_captions(cx: &mut VisualTestContext, with: &'static str)
     first_shown
 }
 
+/// 현재 언어를 바꿨다가 테스트가 끝나면(실패해도) 기본값인 한국어로 되돌린다.
+struct LanguageGuard;
+
+impl LanguageGuard {
+    fn set(language: crate::i18n::Language) -> Self {
+        crate::i18n::set_language(language);
+        Self
+    }
+}
+
+impl Drop for LanguageGuard {
+    fn drop(&mut self) {
+        crate::i18n::set_language(crate::i18n::Language::Ko);
+    }
+}
+
+/// 헤더는 어떤 폭에서도 캡션 버튼과 겹치지 않아야 한다. 라벨 길이가 언어마다 다르므로 한국어와
+/// 영어를 모두 확인한다. 언어는 프로세스 전역이라 한 테스트 안에서 차례로 바꾼다.
 #[gpui_kit::test]
 fn header_never_overlaps_caption_controls(cx: &mut TestAppContext) {
     let (view, cx) = open_app(cx);
-    open(&view, sample("sample.jpg"), cx);
-    assert_header_clears_captions(cx, "header-zoom").expect("zoom group never shown");
-}
-
-#[gpui_kit::test]
-fn animated_header_never_overlaps_caption_controls(cx: &mut TestAppContext) {
-    let (view, cx) = open_app(cx);
-    open(&view, sample("sample.apng"), cx);
-    // 애니메이션 클러스터는 들어갈 폭이 될 때만 나타나야 한다.
-    assert_header_clears_captions(cx, "header-gif-controls")
-        .expect("animation controls never shown");
+    let dir = tempfile::tempdir().expect("temp dir");
+    for language in [crate::i18n::Language::Ko, crate::i18n::Language::En] {
+        let _language = LanguageGuard::set(language);
+        open(&view, sample("sample.jpg"), cx);
+        assert_header_clears_captions(cx, "header-zoom").expect("zoom group never shown");
+        // 프레임이 두 자리와 세 자리일 때 카운터 폭이 다르다.
+        for frames in [12, 120] {
+            open(&view, write_animated_gif(dir.path(), frames), cx);
+            assert_header_clears_captions(cx, "header-gif-controls")
+                .unwrap_or_else(|| panic!("animation controls never shown ({frames} frames)"));
+        }
+    }
 }
 
 /// 1x1 픽셀 프레임이 `frames`개인 애니메이션 GIF를 임시 폴더에 쓴다.

@@ -55,11 +55,14 @@ const CHECKER_ALT: u32 = 0xc7c7c7;
 /// 애니메이션 컨트롤은 클러스터 폭(`GIF_CLUSTER_BASE_WIDTH` + 카운터)을 더한 폭 이상일 때만
 /// 보인다(SPEC §7.5). 이 값은 클러스터를 뺀 헤더가 캡션 버튼 앞에 들어가는 폭이다.
 const GIF_CONTROLS_MIN_WIDTH: f32 = 950.0;
-/// 이 폭(논리 px) 이상이면 헤더 기본 버튼에 라벨을 붙인다.
-/// 캡처로 잰 최소 필요 폭(1313px)에 여유를 더한 값이다.
-const HEADER_LABELS_MIN_WIDTH: f32 = 1340.0;
-/// 이 폭 이상이면 보기 모드/변형/상태 버튼에도 라벨을 붙인다(최소 필요 1824px).
-const HEADER_EXTRA_LABELS_MIN_WIDTH: f32 = 1850.0;
+/// 이 폭(논리 px) 이상이면 헤더 기본 버튼에 라벨을 붙인다. 라벨 길이가 언어마다 달라
+/// 한국어와 영어의 경계를 따로 둔다. 각 값은 캡션 버튼 앞에 들어가는 최소 폭에 약 30px
+/// 여유를 더한 값이고, `*_header_never_overlaps_caption_controls` 테스트가 이를 지킨다.
+const HEADER_LABELS_MIN_WIDTH_KO: f32 = 1340.0;
+const HEADER_LABELS_MIN_WIDTH_EN: f32 = 1640.0;
+/// 이 폭 이상이면 보기 모드/변형/상태 버튼에도 라벨을 붙인다.
+const HEADER_EXTRA_LABELS_MIN_WIDTH_KO: f32 = 1850.0;
+const HEADER_EXTRA_LABELS_MIN_WIDTH_EN: f32 = 2190.0;
 /// 좁은 창에서 우선 숨길 도구 그룹의 경계(논리 px). 그룹이 보일 때 우측 메뉴와 그립이
 /// Windows 캡션 버튼 3개(34px씩 102px) 앞에 들어가는 최소 폭에 약 30px 여유를 더한 값이다.
 /// `header_never_overlaps_caption_controls` 테스트가 500~2000px 전체에서 이를 지킨다.
@@ -700,8 +703,16 @@ impl AraView {
         } else {
             0.0
         };
-        let wide_labels = width >= HEADER_LABELS_MIN_WIDTH + gif_width;
-        let extra_labels = width >= HEADER_EXTRA_LABELS_MIN_WIDTH + gif_width;
+        let (labels_min, extra_labels_min) = match crate::i18n::language() {
+            crate::i18n::Language::Ko => {
+                (HEADER_LABELS_MIN_WIDTH_KO, HEADER_EXTRA_LABELS_MIN_WIDTH_KO)
+            }
+            crate::i18n::Language::En => {
+                (HEADER_LABELS_MIN_WIDTH_EN, HEADER_EXTRA_LABELS_MIN_WIDTH_EN)
+            }
+        };
+        let wide_labels = width >= labels_min + gif_width;
+        let extra_labels = width >= extra_labels_min + gif_width;
         // Below the compact toolbar's natural width, hide secondary groups in order;
         // keep the left/right menus and native caption controls outside the shrinkable area.
         let show_zoom_controls = width >= HEADER_FIT_CONTROLS_MIN_WIDTH;
