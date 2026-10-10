@@ -60,7 +60,8 @@ function Send-Error {
 
 function New-TextContent {
   param($Value)
-  $text = if ($Value -is [string]) { $Value } else { $Value | ConvertTo-Json -Compress -Depth 10 }
+  # 파이프로 넘기면 빈 배열이 $null이 돼 text가 null로 나간다. -InputObject는 빈 배열도 '[]'로 만든다.
+  $text = if ($Value -is [string]) { $Value } else { ConvertTo-Json -InputObject $Value -Compress -Depth 10 }
   @{ type = 'text'; text = $text }
 }
 
