@@ -101,6 +101,17 @@ namespace AraViewControl
         private static extern bool PrintWindow(IntPtr hWnd, IntPtr hdc, uint flags);
 
         [DllImport("user32.dll")]
+        private static extern bool SetProcessDpiAwarenessContext(IntPtr context);
+
+        /// 이 프로세스를 모니터별 DPI 인식으로 만든다. 그렇지 않으면 창 크기와 클라이언트 위치가
+        /// 96dpi 기준으로 줄어 돌아오고, 125% 같은 배율에서 캡처가 오른쪽과 아래 약 20%를 잃는다.
+        /// 이미 설정돼 있으면 실패하지만 그때는 이미 인식 상태이므로 무시한다.
+        public static void EnableDpiAwareness()
+        {
+            try { SetProcessDpiAwarenessContext(new IntPtr(-4)); } catch (EntryPointNotFoundException) { }
+        }
+
+        [DllImport("user32.dll")]
         public static extern bool IsWindow(IntPtr hWnd);
         [DllImport("user32.dll")]
         public static extern bool SetForegroundWindow(IntPtr hWnd);
@@ -403,6 +414,9 @@ namespace AraViewControl
 '@
 }
 
+# 창 좌표와 캡처 크기가 실제 물리 px와 맞도록 가장 먼저 DPI 인식을 켠다.
+if ([AraViewControl.Win32].GetMethod('EnableDpiAwareness')) { [AraViewControl.Win32]::EnableDpiAwareness() }
+
 # ----- 내부 도우미 -----
 
 function Get-AraViewIdentifier {
@@ -690,6 +704,28 @@ function Send-AraViewAction {
   )
   $reply = Invoke-AraViewRequest -Request @{ cmd = 'action'; id = $Id; waitMs = $WaitMs } -Identity $Identity
   return (Assert-AraViewReply $reply "action $Id").state
+}
+
+function Set-AraViewWindowSize {
+  <#
+  .SYNOPSIS
+    창의 내용 크기를 논리 px로 바꾼다. 한쪽만 주면 다른 쪽은 그대로 둔다.
+    플랫폼이 비동기로 바꾸므로 기본 300ms 기다린 뒤 상태(`window`)를 돌려준다.
+    최대화나 전체화면에서는 앱이 거절한다. 실제 크기는 OS가 보정할 수 있으니 `window`로 읽는다.
+  #>
+  [CmdletBinding()]
+  param(
+    [Nullable[double]]$Width = $null,
+    [Nullable[double]]$Height = $null,
+    [ValidateSet('dev', 'release')][string]$Identity = 'dev',
+    [ValidateRange(0, 10000)][int]$WaitMs = 300
+  )
+  if ($null -eq $Width -and $null -eq $Height) { throw '너비나 높이 중 하나는 필요합니다.' }
+  $request = @{ cmd = 'resize'; waitMs = $WaitMs }
+  if ($null -ne $Width) { $request.width = [double]$Width }
+  if ($null -ne $Height) { $request.height = [double]$Height }
+  $reply = Invoke-AraViewRequest -Request $request -Identity $Identity
+  return (Assert-AraViewReply $reply 'resize').state
 }
 
 function Open-AraViewPath {
@@ -1017,7 +1053,7 @@ function Test-AraViewControl {
 
 Export-ModuleMember -Function @(
   'Get-AraViewWindow', 'Get-AraViewTarget', 'Get-AraViewState',
-  'Send-AraViewKey', 'Send-AraViewText', 'Send-AraViewMouse', 'Send-AraViewDrop', 'Send-AraViewAction',
+  'Send-AraViewKey', 'Send-AraViewText', 'Send-AraViewMouse', 'Send-AraViewDrop', 'Send-AraViewAction', 'Set-AraViewWindowSize',
   'Open-AraViewPath', 'Enable-AraViewWindow', 'Invoke-AraViewRequest',
   'Get-AraViewShot', 'Wait-AraView', 'Start-AraViewApp', 'Test-AraViewControl'
 )

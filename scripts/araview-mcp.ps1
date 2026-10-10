@@ -111,6 +111,11 @@ $script:Tools = @(
       savePath = @{ type = 'string'; description = 'PNG로 저장할 경로(선택)' }
       method   = @{ type = 'string'; enum = @('auto', 'render', 'print', 'screen'); description = '캡처 방법(기본 auto)' }
     }),
+  (New-Tool -Name 'araview_resize' -Description '창 내용 크기를 논리 px로 바꾼다(너비 500~8000, 높이 400~8000). 한쪽만 주면 다른 쪽은 그대로다. 좁은 창에서 헤더 그룹이 숨는지 같은 반응형 확인에 쓴다. 응답 state.window에 실제로 바뀐 크기가 실린다(모니터보다 크면 OS가 줄이고, 배율 때문에 소수 오차가 날 수 있다). 최대화나 전체화면 상태에서는 거절한다.' -Properties @{
+      width  = @{ type = 'number'; description = '내용 너비(논리 px)' }
+      height = @{ type = 'number'; description = '내용 높이(논리 px)' }
+      waitMs = @{ type = 'integer'; description = '결과를 읽기 전 대기(ms, 기본 300)' }
+    }),
   (New-Tool -Name 'araview_open' -Description '파일이나 폴더를 실행 중인 창에서 연다.' -Properties @{
       path   = @{ type = 'string'; description = '열 경로' }
       waitMs = @{ type = 'integer'; description = '결과를 읽기 전 대기(ms, 기본 400)' }
@@ -201,6 +206,11 @@ function Invoke-AraViewTool {
         @{ type = 'image'; data = [Convert]::ToBase64String($shot.Png); mimeType = 'image/png' },
         (New-TextContent $summary)
       )
+    }
+    'araview_resize' {
+      $state = Set-AraViewWindowSize -Width (Get-Field $Arguments 'width' $null) -Height (Get-Field $Arguments 'height' $null) `
+        -Identity $script:Identity -WaitMs ([int](Get-Field $Arguments 'waitMs' 300))
+      return @(New-TextContent $state)
     }
     'araview_open' {
       $state = Open-AraViewPath -Path (Get-Field $Arguments 'path' $null) -Identity $script:Identity `

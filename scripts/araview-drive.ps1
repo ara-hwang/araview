@@ -17,6 +17,8 @@
 .EXAMPLE
   pwsh scripts/araview-drive.ps1 wheel 320 200 -3 -Modifiers ctrl -Logical
 .EXAMPLE
+  pwsh scripts/araview-drive.ps1 resize 780 700
+.EXAMPLE
   pwsh scripts/araview-drive.ps1 shot -Out target/araview-shot.png
 .EXAMPLE
   pwsh scripts/araview-drive.ps1 selftest
@@ -68,6 +70,7 @@ AraView 제어 CLI
   windows                                     실행 중인 AraView 창 목록
   state                                       현재 상태(열린 파일, 인덱스, 배율, 패널)
   activate                                    창을 앞으로 가져온다
+  resize <너비> <높이>                        창 내용 크기를 논리 px로 바꾼다(한쪽만 주려면 -Width/-Height)
   shot [-Out <png>] [-Method auto|render|print|screen]
                                               창을 캡처한다(기본 저장: target/araview-shot.png)
   key <spec>                                  단축키 (예: right, enter, ctrl-shift-c)
@@ -103,6 +106,13 @@ switch ($Command.ToLowerInvariant()) {
 
   'activate' {
     Write-Json (Enable-AraViewWindow -Identity $Identity)
+    break
+  }
+
+  'resize' {
+    $width = if ($Arguments.Count -ge 1) { Get-Number $Arguments 0 '너비' } else { $null }
+    $height = if ($Arguments.Count -ge 2) { Get-Number $Arguments 1 '높이' } else { $null }
+    Write-Json (Set-AraViewWindowSize -Width $width -Height $height -Identity $Identity -WaitMs ([math]::Max($WaitMs, 300)))
     break
   }
 
@@ -168,7 +178,8 @@ switch ($Command.ToLowerInvariant()) {
 
   'open' {
     if ($Arguments.Count -lt 1 -and -not $Path) { throw "open <경로> 형식으로 쓰세요." }
-    Write-Json (Open-AraViewPath -Path ($Path ?? $Arguments[0]) -Identity $Identity -WaitMs ([math]::Max($WaitMs, 400)))
+    $target = if ($Path) { $Path } else { $Arguments[0] }
+    Write-Json (Open-AraViewPath -Path $target -Identity $Identity -WaitMs ([math]::Max($WaitMs, 400)))
     break
   }
 

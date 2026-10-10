@@ -792,6 +792,43 @@ fn control_bridge_reports_state_and_drives_input(cx: &mut TestAppContext) {
     assert_eq!(home["state"]["kind"], "home");
     assert_eq!(home["state"]["count"], 0u64);
 
+    // 창 크기 요청은 값이 없거나 범위를 벗어나면 거절한다.
+    for bad in [
+        serde_json::json!({ "cmd": "resize" }),
+        serde_json::json!({ "cmd": "resize", "width": 10 }),
+        serde_json::json!({ "cmd": "resize", "width": 499 }),
+        serde_json::json!({ "cmd": "resize", "height": 399 }),
+        serde_json::json!({ "cmd": "resize", "width": 8001 }),
+        serde_json::json!({ "cmd": "resize", "height": "tall" }),
+    ] {
+        assert_eq!(send_control(&view, bad, cx)["ok"], false);
+    }
+    let resized = send_control(
+        &view,
+        serde_json::json!({ "cmd": "resize", "width": 900, "height": 600 }),
+        cx,
+    );
+    assert_eq!(resized["ok"], true);
+
+    // 전체화면에서는 상태가 어긋나므로 거절한다.
+    let fullscreen = send_control(
+        &view,
+        serde_json::json!({ "cmd": "action", "id": "toggleFullscreen" }),
+        cx,
+    );
+    assert_eq!(fullscreen["state"]["fullscreen"], true);
+    let blocked = send_control(
+        &view,
+        serde_json::json!({ "cmd": "resize", "width": 800, "height": 600 }),
+        cx,
+    );
+    assert_eq!(blocked["ok"], false);
+    send_control(
+        &view,
+        serde_json::json!({ "cmd": "action", "id": "toggleFullscreen" }),
+        cx,
+    );
+
     // 알 수 없는 명령은 이유만 돌려주고 창은 그대로 둔다.
     let unknown = send_control(&view, serde_json::json!({ "cmd": "nope" }), cx);
     assert_eq!(unknown["ok"], false);

@@ -129,6 +129,7 @@ fn apply_control(
     match command {
         "state" => {}
         "activate" => window.activate_window(),
+        "resize" => apply_resize(request, window)?,
         "key" | "text" | "mouse" => apply_input(request, window, cx)?,
         "drop" => apply_drop(request, window, cx)?,
         "action" => {
@@ -142,6 +143,42 @@ fn apply_control(
         "wait" => {}
         other => return Err(format!("unknown cmd {other:?}")),
     }
+    Ok(())
+}
+
+/// 창의 내용 크기를 논리 px로 바꾼다. 한쪽만 주면 다른 쪽은 지금 값을 유지한다.
+/// 플랫폼이 창 크기를 비동기로 바꾸므로 결과는 `waitMs` 뒤 상태의 `window`로 확인한다.
+/// 모니터보다 큰 값은 OS가 줄이고, 배율이 125%처럼 정수가 아니면 물리 px 반올림 오차가 난다.
+/// 최대화나 전체화면에서는 창이 그 상태를 유지한 채 크기만 줄어 상태가 어긋나므로 거절한다.
+fn apply_resize(request: &Value, window: &mut Window) -> Result<(), String> {
+    /// 창을 이 범위 밖으로 만들지 않는다(논리 px). 아래쪽은 앱의 최소 창 크기다.
+    const MAX_SIDE: f32 = 8000.0;
+
+    if window.is_fullscreen() || window.is_maximized() {
+        return Err("resize is unavailable while the window is maximized or fullscreen".to_owned());
+    }
+    let current = window.viewport_size();
+    let dimension = |name: &str, current: Pixels, min: f32| -> Result<f32, String> {
+        let value = match number_field(request, name) {
+            Ok(value) => value,
+            Err(_) if request.get(name).is_none() => return Ok(f32::from(current)),
+            Err(_) => return Err(format!("{name} must be a number")),
+        };
+        if (min..=MAX_SIDE).contains(&value) {
+            Ok(value)
+        } else {
+            Err(format!(
+                "{name} must be between {min} and {MAX_SIDE} logical px"
+            ))
+        }
+    };
+    let (min_width, min_height) = crate::MIN_SIZE;
+    let width = dimension("width", current.width, min_width)?;
+    let height = dimension("height", current.height, min_height)?;
+    if request.get("width").is_none() && request.get("height").is_none() {
+        return Err("resize needs width or height".to_owned());
+    }
+    window.resize(size(px(width), px(height)));
     Ok(())
 }
 
