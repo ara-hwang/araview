@@ -45,6 +45,81 @@ fn open_app(cx: &mut TestAppContext) -> (Entity<AraView>, &mut VisualTestContext
     (view.expect("view"), cx)
 }
 
+/// Windows 캡션 버튼(최소화/최대화/닫기) 3개가 차지하는 폭.
+const CAPTION_CONTROLS_WIDTH: f32 = 3.0 * 34.0;
+const HEADER_BUTTON_MIN_WIDTH: f32 = 28.0;
+
+fn header_viewport_width(cx: &mut VisualTestContext) -> f32 {
+    f32::from(cx.update(|window, _| window.viewport_size().width))
+}
+
+#[gpui_kit::test]
+fn compact_header_keeps_menus_within_caption_area(cx: &mut TestAppContext) {
+    let (view, cx) = open_app(cx);
+    cx.simulate_resize(gpui_kit::size(px(500.), px(400.)));
+    open(&view, sample("sample.jpg"), cx);
+
+    let left = cx.debug_bounds("header-left-menu").expect("left menu");
+    let right = cx.debug_bounds("header-right-menu").expect("right menu");
+    let right_edge = f32::from(right.right());
+
+    assert!(f32::from(left.left()) >= 0.0);
+    assert!(
+        right_edge <= header_viewport_width(cx) - CAPTION_CONTROLS_WIDTH,
+        "right menu bounds: {right:?}"
+    );
+    assert!(right_edge > f32::from(left.right()));
+    // 보이는 그룹은 버튼 폭만큼 자리를 유지해야 한다(압축돼 사라지지 않음).
+    assert!(f32::from(left.size.width) >= 2.0 * HEADER_BUTTON_MIN_WIDTH);
+    assert!(
+        f32::from(right.size.width) >= 4.0 * HEADER_BUTTON_MIN_WIDTH,
+        "right menu bounds: {right:?}"
+    );
+}
+
+#[gpui_kit::test]
+fn wide_header_pushes_right_menu_to_the_edge(cx: &mut TestAppContext) {
+    let (view, cx) = open_app(cx);
+    cx.simulate_resize(gpui_kit::size(px(1400.), px(600.)));
+    open(&view, sample("sample.jpg"), cx);
+
+    let info = cx.debug_bounds("header-center-info").expect("info");
+    let right = cx.debug_bounds("header-right-menu").expect("right menu");
+    let viewport = header_viewport_width(cx);
+
+    // 우측 메뉴는 캡션 버튼 바로 앞(그립 포함 여유 안)에 붙고, 정보 버튼과는 떨어져 있다.
+    assert!(
+        f32::from(right.right()) >= viewport - CAPTION_CONTROLS_WIDTH - 80.0,
+        "right menu bounds: {right:?}"
+    );
+    assert!(f32::from(right.left()) - f32::from(info.right()) > 100.0);
+}
+
+#[gpui_kit::test]
+fn header_groups_hide_in_order_as_window_narrows(cx: &mut TestAppContext) {
+    let (view, cx) = open_app(cx);
+    open(&view, sample("sample.jpg"), cx);
+
+    let has = |cx: &mut VisualTestContext, id: &'static str| cx.debug_bounds(id).is_some();
+    for (width, zoom, modes, transform) in [
+        (1100.0, true, true, true),
+        (900.0, true, true, false),
+        (700.0, true, false, false),
+        (600.0, false, false, false),
+    ] {
+        cx.simulate_resize(gpui_kit::size(px(width), px(500.)));
+        cx.run_until_parked();
+        assert_eq!(has(cx, "header-zoom"), zoom, "zoom at {width}");
+        assert_eq!(has(cx, "header-view-modes"), modes, "modes at {width}");
+        assert_eq!(
+            has(cx, "header-transform"),
+            transform,
+            "transform at {width}"
+        );
+        assert!(has(cx, "header-left-menu") && has(cx, "header-right-menu"));
+    }
+}
+
 /// 백그라운드 작업과 그 결과로 생긴 재렌더를 끝까지 돌린다.
 fn settle(cx: &mut VisualTestContext) {
     for _ in 0..4 {

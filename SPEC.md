@@ -247,7 +247,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 - 단일 보기에서 GIF와 APNG는 프레임을 디코드해 재생/정지(`P`), 프레임 이동(`,`/`.`), 프레임 카운터를 제공한다. 정지 GIF/PNG와 양쪽/웹툰 보기에서는 첫 프레임을 정지 상태로 보여준다.
 - 재생은 이미지 진입 시 자동 시작하며, OS 모션 최소화(`prefers-reduced-motion: reduce`)면 정지 상태로 시작한다.
 - 단일/다중 프레임 판정과 반복 횟수는 디코더 트랙 정보를 따르고, 유한 반복 GIF는 마지막 회차에서 멈춘다.
-- 헤더 컨트롤은 좁은 창(1024px 미만)에서 숨는다. 단축키와 명령 팔레트는 항상 쓸 수 있다.
+- 좁은 창에서 헤더는 500 논리 px 최소 폭에서도 좌측 파일 메뉴, 우측 팔레트/설정/항상 위 메뉴와 창 최소화·최대화·닫기 캡션 버튼을 유지한다. 620px 미만에서는 맞춤/줌, 760px 미만에서는 보기 모드, 단일 보기 980px 미만에서는 회전/반전 그룹을 차례로 숨기고, 애니메이션 그룹은 1024px 미만에서 숨긴다. 단축키와 명령 팔레트는 항상 쓸 수 있다.
 
 ## 8. 아카이브
 
@@ -666,7 +666,7 @@ UI 분류 5종:
 - 창: 제목 기본값 `AraView`(이미지가 열리면 파일명, 아니면 앱 이름), 1024x768, 최소 500x400, 프레임리스. 최소 너비 500은 Windows 11 Snap Layouts의 모든 배치에 창이 들어가기 위한 상한이다(Microsoft 권장 ≤500epx).
 - 창 위치와 크기를 `settings.json`의 `window`에 저장하고 다음 실행에 복원한다.
 - 읽기 영역 드래그는 팬·스크롤 여유가 없을 때 창 이동이 된다(§7.2).
-- Windows 11 Snap Layouts: gpui-kit 타이틀바의 최대화 버튼은 창 컨트롤 영역(`WindowControlArea::Max`)으로 등록돼 있어 Windows가 `HTMAXBUTTON`으로 처리한다. 앱이 따로 오버레이를 두지 않는다. 헤더의 일반 버튼은 `.occlude()`로 묶어 캡션 드래그 영역으로 취급되지 않게 한다.
+- Windows 11 Snap Layouts: gpui-kit 타이틀바의 최대화 버튼은 창 컨트롤 영역(`WindowControlArea::Max`)으로 등록돼 있어 Windows가 `HTMAXBUTTON`으로 처리한다. 앱이 따로 오버레이를 두지 않는다. 헤더의 일반 버튼은 `.occlude()`로 묶어 캡션 드래그 영역으로 취급되지 않게 한다. 최소 폭 500 논리 px에서 좌우 메뉴와 캡션 버튼을 보존하도록 헤더의 보조 그룹은 폭에 따라 단계적으로 접고 버튼 그룹은 줄어들지 않는다.
 - 설치 프로그램: NSIS 하나만 만든다(`pwsh scripts/Build-Installer.ps1`, 결과물 `target/AraView-<버전>-setup.exe`). 1.x(Tauri) 설치본과 같은 정체성(설치 폴더 `%LOCALAPPDATA%\AraView`, 실행 파일 `araview.exe`, 제거 항목 `AraView`, 시작 메뉴 바로가기)을 써서 같은 자리에 덮어쓴다. 설치 중 앱이 실행 중이면 종료를 요청한다.
 - 릴리스 파이프라인: `npm run release -- <버전>`(`scripts/release.mjs`)이 `src-gpui/Cargo.toml`과 `Cargo.lock`의 버전을 올려 커밋하고 `vX.Y.Z` 태그와 함께 푸시한다. 태그 푸시를 `.github/workflows/release.yml`이 받아 태그와 버전 파일의 일치, 서명 키 Secrets를 확인한 뒤 검증(cargo fmt/test/clippy, 보안 감사, 라이선스 검사), 설치 프로그램 빌드, 서명, `latest-gpui.json` 생성, 원본 저장소 `ara-hwang/araview` 릴리스 생성까지 자동으로 수행한다. `ci.yml`이 검증을 담당하고 릴리스가 이를 재사용한다. 권한과 절차 상세는 `docs/releasing.md`를 따른다.
 - 파일 연결 3그룹:

@@ -59,6 +59,10 @@ const GIF_CONTROLS_MIN_WIDTH: f32 = 1024.0;
 const HEADER_LABELS_MIN_WIDTH: f32 = 1340.0;
 /// 이 폭 이상이면 보기 모드/변형/상태 버튼에도 라벨을 붙인다(최소 필요 1824px).
 const HEADER_EXTRA_LABELS_MIN_WIDTH: f32 = 1850.0;
+/// 좁은 창에서 우선 숨길 도구 그룹의 경계(논리 px).
+const HEADER_FIT_CONTROLS_MIN_WIDTH: f32 = 620.0;
+const HEADER_VIEW_MODES_MIN_WIDTH: f32 = 760.0;
+const HEADER_TRANSFORM_CONTROLS_MIN_WIDTH: f32 = 980.0;
 /// 애니메이션 클러스터가 차지하는 폭(버튼 3개 + 카운터 + 간격).
 const GIF_CLUSTER_BASE_WIDTH: f32 = 112.0;
 /// 숨긴 크롬을 다시 보여주는 가장자리 영역(px).
@@ -694,6 +698,12 @@ impl AraView {
         };
         let wide_labels = width >= HEADER_LABELS_MIN_WIDTH + gif_width;
         let extra_labels = width >= HEADER_EXTRA_LABELS_MIN_WIDTH + gif_width;
+        // Below the compact toolbar's natural width, hide secondary groups in order;
+        // keep the left/right menus and native caption controls outside the shrinkable area.
+        let show_zoom_controls = width >= HEADER_FIT_CONTROLS_MIN_WIDTH;
+        let show_fit_controls = single && show_zoom_controls;
+        let show_view_modes = width >= HEADER_VIEW_MODES_MIN_WIDTH;
+        let show_transform_controls = single && width >= HEADER_TRANSFORM_CONTROLS_MIN_WIDTH;
         // 창 드래그 가능 표시 그립(Tauri 시절 DotsNine 자리). 빈 div라
         // 타이틀바 드래그 영역에 포함돼 그립을 잡고 창을 옮길 수 있다.
         let grip_dot = cx.theme().muted_foreground;
@@ -714,7 +724,7 @@ impl AraView {
             }));
         // 타이틀 바 본문은 창 드래그 영역이다. 버튼 묶음이 마우스를 막지 않으면
         // Windows가 클릭을 캡션 드래그로 처리해 버튼이 눌리지 않는다.
-        let group = || h_flex().gap_0p5().items_center().occlude();
+        let group = || h_flex().gap_0p5().items_center().occlude().flex_none();
         let mode_button = |id: &'static str, icon: IconName, key: &'static str, value: ViewMode| {
             Button::new(id)
                 .ghost()
@@ -727,11 +737,13 @@ impl AraView {
         TitleBar::new().h(px(36.)).child(
             h_flex()
                 .w_full()
+                .min_w_0()
                 .gap_2()
                 .pr_2()
                 .items_center()
                 .child(
                     group()
+                        .debug_selector(|| "header-left-menu".to_owned())
                         .child(
                             Button::new("home")
                                 .ghost()
@@ -754,7 +766,7 @@ impl AraView {
                         ),
                 )
                 .when(has_image, |row| {
-                    row.when(single, |row| {
+                    row.when(show_fit_controls, |row| {
                         row.child(
                             group()
                                 .child(
@@ -798,94 +810,101 @@ impl AraView {
                                 ),
                         )
                     })
-                    .child(
-                        group()
-                            .child(
-                                Self::icon_button(
-                                    "zoom-out",
-                                    IconName::ZoomOut,
-                                    "header.zoomOut",
-                                    "zoomOut",
-                                    cx,
-                                )
-                                .when(wide_labels, |button| button.label(t("header.zoomOut"))),
-                            )
-                            .child(
-                                div()
-                                    .w(px(48.))
-                                    .text_xs()
-                                    .text_center()
-                                    .child(format!("{}%", self.zoom_percent(cx))),
-                            )
-                            .child(
-                                Self::icon_button(
-                                    "zoom-in",
-                                    IconName::ZoomIn,
-                                    "header.zoomIn",
-                                    "zoomIn",
-                                    cx,
-                                )
-                                .when(wide_labels, |button| button.label(t("header.zoomIn"))),
-                            ),
-                    )
-                    .child(
-                        group()
-                            .child(
-                                mode_button(
-                                    "view-single",
-                                    IconName::Image,
-                                    "header.viewSingle",
-                                    ViewMode::Single,
-                                )
-                                .on_click(cx.listener(
-                                    |this, _, window, cx| {
-                                        this.set_view_mode(ViewMode::Single, window, cx)
-                                    },
-                                )),
-                            )
-                            .child(
-                                mode_button(
-                                    "view-ltr",
-                                    IconName::BookOpen,
-                                    "header.viewLtr",
-                                    ViewMode::LeftToRight,
-                                )
-                                .on_click(cx.listener(
-                                    |this, _, window, cx| {
-                                        this.set_view_mode(ViewMode::LeftToRight, window, cx)
-                                    },
-                                )),
-                            )
-                            .child(
-                                mode_button(
-                                    "view-rtl",
-                                    IconName::BookOpenText,
-                                    "header.viewRtl",
-                                    ViewMode::RightToLeft,
-                                )
-                                .on_click(cx.listener(
-                                    |this, _, window, cx| {
-                                        this.set_view_mode(ViewMode::RightToLeft, window, cx)
-                                    },
-                                )),
-                            )
-                            .child(
-                                mode_button(
-                                    "view-webtoon",
-                                    IconName::GalleryVertical,
-                                    "header.viewWebtoon",
-                                    ViewMode::Webtoon,
-                                )
-                                .on_click(cx.listener(
-                                    |this, _, window, cx| {
-                                        this.set_view_mode(ViewMode::Webtoon, window, cx)
-                                    },
-                                )),
-                            ),
-                    )
-                    .when(single, |row| {
+                    .when(show_zoom_controls, |row| {
                         row.child(
                             group()
+                                .debug_selector(|| "header-zoom".to_owned())
+                                .child(
+                                    Self::icon_button(
+                                        "zoom-out",
+                                        IconName::ZoomOut,
+                                        "header.zoomOut",
+                                        "zoomOut",
+                                        cx,
+                                    )
+                                    .when(wide_labels, |button| button.label(t("header.zoomOut"))),
+                                )
+                                .child(
+                                    div()
+                                        .w(px(48.))
+                                        .text_xs()
+                                        .text_center()
+                                        .child(format!("{}%", self.zoom_percent(cx))),
+                                )
+                                .child(
+                                    Self::icon_button(
+                                        "zoom-in",
+                                        IconName::ZoomIn,
+                                        "header.zoomIn",
+                                        "zoomIn",
+                                        cx,
+                                    )
+                                    .when(wide_labels, |button| button.label(t("header.zoomIn"))),
+                                ),
+                        )
+                    })
+                    .when(show_view_modes, |row| {
+                        row.child(
+                            group()
+                                .debug_selector(|| "header-view-modes".to_owned())
+                                .child(
+                                    mode_button(
+                                        "view-single",
+                                        IconName::Image,
+                                        "header.viewSingle",
+                                        ViewMode::Single,
+                                    )
+                                    .on_click(cx.listener(
+                                        |this, _, window, cx| {
+                                            this.set_view_mode(ViewMode::Single, window, cx)
+                                        },
+                                    )),
+                                )
+                                .child(
+                                    mode_button(
+                                        "view-ltr",
+                                        IconName::BookOpen,
+                                        "header.viewLtr",
+                                        ViewMode::LeftToRight,
+                                    )
+                                    .on_click(cx.listener(
+                                        |this, _, window, cx| {
+                                            this.set_view_mode(ViewMode::LeftToRight, window, cx)
+                                        },
+                                    )),
+                                )
+                                .child(
+                                    mode_button(
+                                        "view-rtl",
+                                        IconName::BookOpenText,
+                                        "header.viewRtl",
+                                        ViewMode::RightToLeft,
+                                    )
+                                    .on_click(cx.listener(
+                                        |this, _, window, cx| {
+                                            this.set_view_mode(ViewMode::RightToLeft, window, cx)
+                                        },
+                                    )),
+                                )
+                                .child(
+                                    mode_button(
+                                        "view-webtoon",
+                                        IconName::GalleryVertical,
+                                        "header.viewWebtoon",
+                                        ViewMode::Webtoon,
+                                    )
+                                    .on_click(cx.listener(
+                                        |this, _, window, cx| {
+                                            this.set_view_mode(ViewMode::Webtoon, window, cx)
+                                        },
+                                    )),
+                                ),
+                        )
+                    })
+                    .when(show_transform_controls, |row| {
+                        row.child(
+                            group()
+                                .debug_selector(|| "header-transform".to_owned())
                                 .child(
                                     Self::icon_button(
                                         "rotate-ccw",
@@ -976,22 +995,25 @@ impl AraView {
                         )
                     })
                     .child(
-                        group().child(
-                            Self::icon_button(
-                                "info",
-                                IconName::Info,
-                                "header.info",
-                                "toggleExif",
-                                cx,
-                            )
-                            .when(wide_labels, |button| button.label(t("header.info")))
-                            .selected(self.info_open),
-                        ),
+                        group()
+                            .debug_selector(|| "header-center-info".to_owned())
+                            .child(
+                                Self::icon_button(
+                                    "info",
+                                    IconName::Info,
+                                    "header.info",
+                                    "toggleExif",
+                                    cx,
+                                )
+                                .when(wide_labels, |button| button.label(t("header.info")))
+                                .selected(self.info_open),
+                            ),
                     )
                 })
-                .child(div().flex_1())
+                .child(div().flex_1().min_w_0())
                 .child(
                     group()
+                        .debug_selector(|| "header-right-menu".to_owned())
                         .child(
                             Self::icon_button(
                                 "palette",
@@ -1058,7 +1080,7 @@ impl AraView {
                             )
                         }),
                 )
-                .child(grip),
+                .child(grip.flex_shrink_0()),
         )
     }
 
