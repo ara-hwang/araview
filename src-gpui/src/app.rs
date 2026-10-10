@@ -52,16 +52,19 @@ use crate::settings::{DockPosition, FitMode, MouseAction, SettingsStore, SortKey
 const CHECKER_CELL: f32 = 20.0;
 const CHECKER_BASE: u32 = 0xffffff;
 const CHECKER_ALT: u32 = 0xc7c7c7;
-/// 좁은 창에서는 헤더의 애니메이션 컨트롤을 숨긴다(SPEC §7.5).
-const GIF_CONTROLS_MIN_WIDTH: f32 = 1024.0;
+/// 애니메이션 컨트롤은 클러스터 폭(`GIF_CLUSTER_BASE_WIDTH` + 카운터)을 더한 폭 이상일 때만
+/// 보인다(SPEC §7.5). 이 값은 클러스터를 뺀 헤더가 캡션 버튼 앞에 들어가는 폭이다.
+const GIF_CONTROLS_MIN_WIDTH: f32 = 950.0;
 /// 이 폭(논리 px) 이상이면 헤더 기본 버튼에 라벨을 붙인다.
 /// 캡처로 잰 최소 필요 폭(1313px)에 여유를 더한 값이다.
 const HEADER_LABELS_MIN_WIDTH: f32 = 1340.0;
 /// 이 폭 이상이면 보기 모드/변형/상태 버튼에도 라벨을 붙인다(최소 필요 1824px).
 const HEADER_EXTRA_LABELS_MIN_WIDTH: f32 = 1850.0;
-/// 좁은 창에서 우선 숨길 도구 그룹의 경계(논리 px).
-const HEADER_FIT_CONTROLS_MIN_WIDTH: f32 = 620.0;
-const HEADER_VIEW_MODES_MIN_WIDTH: f32 = 760.0;
+/// 좁은 창에서 우선 숨길 도구 그룹의 경계(논리 px). 그룹이 보일 때 우측 메뉴와 그립이
+/// Windows 캡션 버튼 3개(34px씩 102px) 앞에 들어가는 최소 폭에 약 30px 여유를 더한 값이다.
+/// `header_never_overlaps_caption_controls` 테스트가 500~2000px 전체에서 이를 지킨다.
+const HEADER_FIT_CONTROLS_MIN_WIDTH: f32 = 670.0;
+const HEADER_VIEW_MODES_MIN_WIDTH: f32 = 810.0;
 const HEADER_TRANSFORM_CONTROLS_MIN_WIDTH: f32 = 980.0;
 /// 애니메이션 클러스터가 차지하는 폭(버튼 3개 + 카운터 + 간격).
 const GIF_CLUSTER_BASE_WIDTH: f32 = 112.0;
@@ -690,9 +693,10 @@ impl AraView {
         // 라벨은 실제로 들어갈 폭이 되면 바로 붙인다. 애니메이션 클러스터가
         // 보이면 그 폭만큼 자리를 비워 두고 판단한다.
         let width = f32::from(window.viewport_size().width);
-        let wide_window = width >= GIF_CONTROLS_MIN_WIDTH;
-        let gif_width = if animated && wide_window {
-            GIF_CLUSTER_BASE_WIDTH + counter_width
+        let gif_cluster_width = GIF_CLUSTER_BASE_WIDTH + counter_width;
+        let show_gif_controls = animated && width >= GIF_CONTROLS_MIN_WIDTH + gif_cluster_width;
+        let gif_width = if show_gif_controls {
+            gif_cluster_width
         } else {
             0.0
         };
@@ -953,9 +957,10 @@ impl AraView {
                                 ),
                         )
                     })
-                    .when(animated && wide_window, |row| {
+                    .when(show_gif_controls, |row| {
                         row.child(
                             group()
+                                .debug_selector(|| "header-gif-controls".to_owned())
                                 .child(Self::icon_button(
                                     "gif-prev",
                                     IconName::SkipBack,
@@ -1080,7 +1085,10 @@ impl AraView {
                             )
                         }),
                 )
-                .child(grip.flex_shrink_0()),
+                .child(
+                    grip.debug_selector(|| "header-grip".to_owned())
+                        .flex_shrink_0(),
+                ),
         )
     }
 

@@ -105,6 +105,8 @@ fn header_groups_hide_in_order_as_window_narrows(cx: &mut TestAppContext) {
         (1100.0, true, true, true),
         (900.0, true, true, false),
         (700.0, true, false, false),
+        (800.0, true, false, false),
+        (660.0, false, false, false),
         (600.0, false, false, false),
     ] {
         cx.simulate_resize(gpui_kit::size(px(width), px(500.)));
@@ -118,6 +120,48 @@ fn header_groups_hide_in_order_as_window_narrows(cx: &mut TestAppContext) {
         );
         assert!(has(cx, "header-left-menu") && has(cx, "header-right-menu"));
     }
+}
+
+/// 최소 폭(500)부터 라벨이 모두 붙는 폭까지 훑으며, 우측 메뉴가 정보 버튼이나 캡션 버튼에
+/// 겹치지 않는지 확인한다. `with` 조건이 처음 참이 되는 폭을 돌려준다.
+fn assert_header_clears_captions(cx: &mut VisualTestContext, with: &'static str) -> Option<u32> {
+    let mut first_shown = None;
+    for width in (500..=2000).step_by(2) {
+        cx.simulate_resize(gpui_kit::size(px(width as f32), px(500.)));
+        settle(cx);
+        let info = cx.debug_bounds("header-center-info").expect("info");
+        let right = cx.debug_bounds("header-right-menu").expect("right menu");
+        let grip = cx.debug_bounds("header-grip").expect("grip");
+        let viewport = header_viewport_width(cx);
+        assert!(
+            f32::from(grip.right()) <= viewport - CAPTION_CONTROLS_WIDTH,
+            "right menu reaches caption controls at {width}: {right:?} {grip:?}"
+        );
+        assert!(
+            f32::from(info.right()) <= f32::from(right.left()),
+            "info overlaps right menu at {width}: {info:?} {right:?}"
+        );
+        if first_shown.is_none() && cx.debug_bounds(with).is_some() {
+            first_shown = Some(width);
+        }
+    }
+    first_shown
+}
+
+#[gpui_kit::test]
+fn header_never_overlaps_caption_controls(cx: &mut TestAppContext) {
+    let (view, cx) = open_app(cx);
+    open(&view, sample("sample.jpg"), cx);
+    assert_header_clears_captions(cx, "header-zoom").expect("zoom group never shown");
+}
+
+#[gpui_kit::test]
+fn animated_header_never_overlaps_caption_controls(cx: &mut TestAppContext) {
+    let (view, cx) = open_app(cx);
+    open(&view, sample("sample.apng"), cx);
+    // 애니메이션 클러스터는 들어갈 폭이 될 때만 나타나야 한다.
+    assert_header_clears_captions(cx, "header-gif-controls")
+        .expect("animation controls never shown");
 }
 
 /// 백그라운드 작업과 그 결과로 생긴 재렌더를 끝까지 돌린다.
