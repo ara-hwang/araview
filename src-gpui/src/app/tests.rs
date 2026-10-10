@@ -164,6 +164,44 @@ fn animated_header_never_overlaps_caption_controls(cx: &mut TestAppContext) {
         .expect("animation controls never shown");
 }
 
+/// 1x1 픽셀 프레임이 `frames`개인 애니메이션 GIF를 임시 폴더에 쓴다.
+fn write_animated_gif(dir: &Path, frames: usize) -> String {
+    let mut bytes = b"GIF89a".to_vec();
+    // 화면 1x1, 전역 색상표 2칸(흑백), 무한 반복.
+    bytes.extend([1, 0, 1, 0, 0x80, 0, 0, 0, 0, 0, 255, 255, 255]);
+    bytes.extend([0x21, 0xff, 0x0b]);
+    bytes.extend(b"NETSCAPE2.0");
+    bytes.extend([3, 1, 0, 0, 0]);
+    for _ in 0..frames {
+        // 지연 100ms, 이미지 1x1, LZW 최소 코드 크기 2.
+        bytes.extend([0x21, 0xf9, 4, 0, 10, 0, 0, 0]);
+        bytes.extend([0x2c, 0, 0, 0, 0, 1, 0, 1, 0, 0]);
+        bytes.extend([2, 2, 0x44, 0x01, 0]);
+    }
+    bytes.push(0x3b);
+    let path = dir.join(format!("frames-{frames}.gif"));
+    std::fs::write(&path, bytes).expect("write gif");
+    path.to_string_lossy().into_owned()
+}
+
+#[gpui_kit::test]
+fn animation_controls_wait_for_wider_frame_counter(cx: &mut TestAppContext) {
+    let (view, cx) = open_app(cx);
+    let dir = tempfile::tempdir().expect("temp dir");
+
+    // 프레임 수가 세 자리가 되면 카운터가 한 자리만큼 넓어져 컨트롤이 늦게 나타난다.
+    open(&view, write_animated_gif(dir.path(), 12), cx);
+    let two_digits = assert_header_clears_captions(cx, "header-gif-controls")
+        .expect("controls never shown for 12 frames");
+    open(&view, write_animated_gif(dir.path(), 120), cx);
+    let three_digits = assert_header_clears_captions(cx, "header-gif-controls")
+        .expect("controls never shown for 120 frames");
+    assert!(
+        three_digits >= two_digits + 12,
+        "{three_digits} should be one digit (14px) wider than {two_digits}"
+    );
+}
+
 /// 백그라운드 작업과 그 결과로 생긴 재렌더를 끝까지 돌린다.
 fn settle(cx: &mut VisualTestContext) {
     for _ in 0..4 {
