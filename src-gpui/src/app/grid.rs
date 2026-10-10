@@ -1,7 +1,6 @@
 //! 썸네일 그리드 오버레이(SPEC §3.2, §14.1).
 
 use araview_core::file_availability::FileAvailability;
-use gpui_kit::assets::IconName;
 use gpui_kit::base::TestSupportExt as _;
 use gpui_kit::component::button::{Button, ButtonVariants as _};
 use gpui_kit::component::input::{Input, InputEvent, InputState};
@@ -10,6 +9,7 @@ use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
 
 use super::{AraView, ThumbState};
+use crate::assets::Ph;
 use crate::i18n::{t, t_with};
 
 const CELL: f32 = 148.0;
@@ -242,7 +242,7 @@ impl AraView {
                                 .gap_1()
                                 .text_xs()
                                 .text_color(muted)
-                                .child(Icon::new(IconName::ImageOff))
+                                .child(Icon::new(Ph::WarningCircle))
                                 .child(t("viewer.grid.failed")),
                         ),
                         None => cell,
@@ -253,7 +253,7 @@ impl AraView {
                                 .absolute()
                                 .top_1()
                                 .right_1()
-                                .child(Icon::new(IconName::Cloud).small().text_color(muted)),
+                                .child(Icon::new(Ph::Cloud).small().text_color(muted)),
                         )
                     }),
             )
@@ -348,7 +348,7 @@ impl AraView {
                         Button::new("grid-close")
                             .ghost()
                             .small()
-                            .icon(IconName::X)
+                            .icon(Ph::X)
                             .tooltip(t("viewer.grid.close"))
                             .on_click(
                                 cx.listener(|this, _, window, cx| this.close_grid(window, cx)),

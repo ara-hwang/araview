@@ -32,7 +32,6 @@ use araview_core::comic_info::ComicInfo;
 use araview_core::file_availability::FileAvailability;
 use araview_core::image::{ImageInfo, is_archive_file};
 use araview_core::ops::{self, DirListOptions, DirSortKey};
-use gpui_kit::assets::IconName;
 use gpui_kit::component::button::{Button, ButtonVariants as _};
 use gpui_kit::component::menu::ContextMenuExt as _;
 use gpui_kit::component::spinner::Spinner;
@@ -42,6 +41,7 @@ use gpui_kit::component::{
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
 
+use crate::assets::Ph;
 use crate::geometry::Offset;
 use crate::i18n::{t, t_with};
 use crate::keys;
@@ -451,12 +451,12 @@ impl AraView {
                 .justify_center()
                 .gap_4()
                 .p_6()
-                .child(Icon::new(IconName::Image).size_12().text_color(muted))
+                .child(Icon::new(Ph::Image).size_12().text_color(muted))
                 .child(div().text_sm().text_color(muted).child(t("home.emptyDesc")))
                 .child(
                     Button::new("home-open")
                         .primary()
-                        .icon(IconName::FolderOpen)
+                        .icon(Ph::FolderOpen)
                         .label(t("home.openFile"))
                         .on_click(cx.listener(|this, _, window, cx| this.prompt_open(window, cx))),
                 )
@@ -498,9 +498,9 @@ impl AraView {
                                     .map(|dir| dir.to_string_lossy().into_owned())
                                     .unwrap_or_default();
                                 let icon = if is_archive_file(file) {
-                                    IconName::BookOpen
+                                    Ph::FileArchive
                                 } else {
-                                    IconName::Image
+                                    Ph::FileImage
                                 };
                                 // 아카이브는 읽기 진도를 함께 보여준다.
                                 let progress = SettingsStore::global(cx)
@@ -569,7 +569,7 @@ impl AraView {
                                         Button::new(("recent-remove", ix))
                                             .ghost()
                                             .xsmall()
-                                            .icon(IconName::X)
+                                            .icon(Ph::X)
                                             .tooltip(t("home.card.remove"))
                                             .on_click(cx.listener(move |_, _, _, cx| {
                                                 SettingsStore::remove_recent(cx, &removed);
@@ -597,7 +597,7 @@ impl AraView {
             .gap_3()
             .p_6()
             .child(
-                Icon::new(IconName::TriangleAlert)
+                Icon::new(Ph::WarningCircle)
                     .size_8()
                     .text_color(cx.theme().danger),
             )
@@ -664,7 +664,7 @@ impl AraView {
 
     fn icon_button(
         id: &'static str,
-        icon: IconName,
+        icon: Ph,
         tooltip_key: &'static str,
         action: &'static str,
         cx: &mut Context<Self>,
@@ -740,7 +740,7 @@ impl AraView {
         // 타이틀 바 본문은 창 드래그 영역이다. 버튼 묶음이 마우스를 막지 않으면
         // Windows가 클릭을 캡션 드래그로 처리해 버튼이 눌리지 않는다.
         let group = || h_flex().gap_0p5().items_center().occlude().flex_none();
-        let mode_button = |id: &'static str, icon: IconName, key: &'static str, value: ViewMode| {
+        let mode_button = |id: &'static str, icon: Ph, key: &'static str, value: ViewMode| {
             Button::new(id)
                 .ghost()
                 .icon(icon)
@@ -762,7 +762,7 @@ impl AraView {
                         .child(
                             Button::new("home")
                                 .ghost()
-                                .icon(IconName::House)
+                                .icon(Ph::House)
                                 .tooltip(t("header.home"))
                                 .when(wide_labels, |button| button.label(t("header.home")))
                                 .on_click(
@@ -772,7 +772,7 @@ impl AraView {
                         .child(
                             Button::new("open")
                                 .ghost()
-                                .icon(IconName::FolderOpen)
+                                .icon(Ph::FolderOpen)
                                 .tooltip(t("header.open"))
                                 .when(wide_labels, |button| button.label(t("header.open")))
                                 .on_click(
@@ -787,7 +787,7 @@ impl AraView {
                                 .child(
                                     Self::icon_button(
                                         "fit-width",
-                                        IconName::MoveHorizontal,
+                                        Ph::ArrowsHorizontal,
                                         "header.fitWidth",
                                         "fitWidth",
                                         cx,
@@ -800,7 +800,7 @@ impl AraView {
                                 .child(
                                     Self::icon_button(
                                         "fit-height",
-                                        IconName::MoveVertical,
+                                        Ph::ArrowsVertical,
                                         "header.fitHeight",
                                         "fitHeight",
                                         cx,
@@ -813,7 +813,7 @@ impl AraView {
                                 .child(
                                     Self::icon_button(
                                         "fit-screen",
-                                        IconName::Maximize,
+                                        Ph::ArrowsOut,
                                         "header.fitScreen",
                                         "fitScreen",
                                         cx,
@@ -832,7 +832,7 @@ impl AraView {
                                 .child(
                                     Self::icon_button(
                                         "zoom-out",
-                                        IconName::ZoomOut,
+                                        Ph::MagnifyingGlassMinus,
                                         "header.zoomOut",
                                         "zoomOut",
                                         cx,
@@ -849,7 +849,7 @@ impl AraView {
                                 .child(
                                     Self::icon_button(
                                         "zoom-in",
-                                        IconName::ZoomIn,
+                                        Ph::MagnifyingGlassPlus,
                                         "header.zoomIn",
                                         "zoomIn",
                                         cx,
@@ -865,7 +865,7 @@ impl AraView {
                                 .child(
                                     mode_button(
                                         "view-single",
-                                        IconName::Image,
+                                        Ph::Image,
                                         "header.viewSingle",
                                         ViewMode::Single,
                                     )
@@ -878,7 +878,7 @@ impl AraView {
                                 .child(
                                     mode_button(
                                         "view-ltr",
-                                        IconName::BookOpen,
+                                        Ph::BookOpenText,
                                         "header.viewLtr",
                                         ViewMode::LeftToRight,
                                     )
@@ -891,7 +891,7 @@ impl AraView {
                                 .child(
                                     mode_button(
                                         "view-rtl",
-                                        IconName::BookOpenText,
+                                        Ph::BookOpenTextMirrored,
                                         "header.viewRtl",
                                         ViewMode::RightToLeft,
                                     )
@@ -904,7 +904,7 @@ impl AraView {
                                 .child(
                                     mode_button(
                                         "view-webtoon",
-                                        IconName::GalleryVertical,
+                                        Ph::ArrowsDownUp,
                                         "header.viewWebtoon",
                                         ViewMode::Webtoon,
                                     )
@@ -923,7 +923,7 @@ impl AraView {
                                 .child(
                                     Self::icon_button(
                                         "rotate-ccw",
-                                        IconName::RotateCcw,
+                                        Ph::ArrowCounterClockwise,
                                         "header.rotateCcw",
                                         "rotateCCW",
                                         cx,
@@ -935,7 +935,7 @@ impl AraView {
                                 .child(
                                     Self::icon_button(
                                         "rotate-cw",
-                                        IconName::RotateCw,
+                                        Ph::ArrowClockwise,
                                         "header.rotateCw",
                                         "rotateCW",
                                         cx,
@@ -947,7 +947,7 @@ impl AraView {
                                 .child(
                                     Self::icon_button(
                                         "flip-h",
-                                        IconName::FlipHorizontal2,
+                                        Ph::FlipHorizontal,
                                         "header.flipH",
                                         "flipH",
                                         cx,
@@ -958,7 +958,7 @@ impl AraView {
                                 .child(
                                     Self::icon_button(
                                         "flip-v",
-                                        IconName::FlipVertical2,
+                                        Ph::FlipVertical,
                                         "header.flipV",
                                         "flipV",
                                         cx,
@@ -974,18 +974,14 @@ impl AraView {
                                 .debug_selector(|| "header-gif-controls".to_owned())
                                 .child(Self::icon_button(
                                     "gif-prev",
-                                    IconName::SkipBack,
+                                    Ph::CaretLeft,
                                     "menu.gifPrevFrame",
                                     "gifPrevFrame",
                                     cx,
                                 ))
                                 .child(Self::icon_button(
                                     "gif-play",
-                                    if self.playing {
-                                        IconName::Pause
-                                    } else {
-                                        IconName::Play
-                                    },
+                                    if self.playing { Ph::Pause } else { Ph::Play },
                                     if self.playing {
                                         "menu.gifPause"
                                     } else {
@@ -996,7 +992,7 @@ impl AraView {
                                 ))
                                 .child(Self::icon_button(
                                     "gif-next",
-                                    IconName::SkipForward,
+                                    Ph::CaretRight,
                                     "menu.gifNextFrame",
                                     "gifNextFrame",
                                     cx,
@@ -1016,7 +1012,7 @@ impl AraView {
                             .child(
                                 Self::icon_button(
                                     "info",
-                                    IconName::Info,
+                                    Ph::Info,
                                     "header.info",
                                     "toggleExif",
                                     cx,
@@ -1033,7 +1029,7 @@ impl AraView {
                         .child(
                             Self::icon_button(
                                 "palette",
-                                IconName::Search,
+                                Ph::MagnifyingGlass,
                                 "palette.open",
                                 "togglePalette",
                                 cx,
@@ -1043,7 +1039,7 @@ impl AraView {
                         .child(
                             Self::icon_button(
                                 "settings",
-                                IconName::Settings,
+                                Ph::Gear,
                                 "header.settings",
                                 "openSettings",
                                 cx,
@@ -1054,9 +1050,9 @@ impl AraView {
                             Self::icon_button(
                                 "on-top",
                                 if settings.always_on_top {
-                                    IconName::Pin
+                                    Ph::PushPinFill
                                 } else {
-                                    IconName::PinOff
+                                    Ph::PushPin
                                 },
                                 "header.alwaysOnTop",
                                 "toggleAlwaysOnTop",
@@ -1070,9 +1066,9 @@ impl AraView {
                                 Button::new("hide-bar")
                                     .ghost()
                                     .icon(if settings.menu_bar_hidden {
-                                        IconName::Eye
+                                        Ph::CaretDown
                                     } else {
-                                        IconName::EyeOff
+                                        Ph::CaretUp
                                     })
                                     .tooltip(t(if settings.menu_bar_hidden {
                                         "header.showMenuBar"

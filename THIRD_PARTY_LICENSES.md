@@ -601,3 +601,9 @@ is reproduced here for provenance:
 > SOFTWARE.
 | zustand | 5.0.15 | MIT |
 
+
+## 4. Bundled icon artwork
+
+| Asset | Version | License | Note |
+| ----- | ------- | ------- | ---- |
+| Phosphor Icons (regular, bold, fill weights) | 2.1.10 | MIT | viewer UI icons in `src-gpui/resources/phosphor/`; Copyright (c) 2020 Phosphor Icons |

@@ -7,7 +7,6 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use araview_core::pixel_art::PixelArtClassification;
-use gpui_kit::assets::IconName;
 use gpui_kit::component::button::{Button, ButtonVariants as _};
 use gpui_kit::component::{ActiveTheme as _, Sizable as _, h_flex};
 use gpui_kit::prelude::FluentBuilder as _;
@@ -16,6 +15,7 @@ use image::{Frame, RgbaImage};
 use smallvec::SmallVec;
 
 use super::{AraView, DragState, paint_checker};
+use crate::assets::Ph;
 use crate::geometry::{
     self, MAX_ZOOM, MAX_ZOOM_VECTOR, Offset, Size2, ZOOM_STEP, clamp_position, position_bounds,
     zoom_about, zoom_for_fit,
@@ -1263,7 +1263,7 @@ impl AraView {
                                     Button::new("open-archive")
                                         .primary()
                                         .small()
-                                        .icon(IconName::BookOpen)
+                                        .icon(Ph::BookOpen)
                                         .label(t("viewer.archivePreview.open"))
                                         .tooltip(t("viewer.archivePreview.openTitle"))
                                         .on_click(cx.listener(|this, _, window, cx| {
@@ -1293,7 +1293,7 @@ impl AraView {
                                 Button::new("webtoon-grid")
                                     .ghost()
                                     .xsmall()
-                                    .icon(IconName::LayoutGrid)
+                                    .icon(Ph::SquaresFour)
                                     .tooltip(t("viewer.webtoon.openThumbnails"))
                                     .on_click(cx.listener(|this, _, window, cx| {
                                         this.toggle_grid(window, cx)

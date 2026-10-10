@@ -201,6 +201,7 @@ Toolbar buttons with a quiet, tactile press (1px downward shift on active, excep
 - **Outline:** paper fill, hairline rule border, used for window-level actions (open, info, settings).
 - **Ghost:** borderless, used for in-canvas adjustments (fit, zoom, rotate, flip); hover shows muted wash.
 - **Icon:** 32px square ghost/outline for canvas transforms; every icon button carries an accessible label.
+- **Icon family:** viewer UI icons are Phosphor (regular weight; fill for the active pin and play/pause), the set the Tauri app used, bundled as SVG in `src-gpui/resources/phosphor/` and referenced through the `Ph` enum in `src-gpui/src/assets.rs`. Icons that only gpui-kit components draw internally stay on its default Lucide set.
 - **Window controls:** minimize, maximize/restore, and close are native-style caption buttons pinned to the top-right corner: 48px wide, full titlebar height (edge to edge, no gaps, square corners, no border), glyphs Minus/Square/Copy/X. Hover shows the muted wash; close hovers to alarm fill with paper glyph; focus uses a 2px inset ring so it is never clipped at the window edge. On Windows 11, hovering the maximize/restore button shows the OS Snap Layouts flyout (the maximize button is registered as the window's maximize control area, so Windows handles the hit test natively).
 - **Hover / Focus:** muted wash hover; visible focus ring on all variants; disabled at 50% opacity.
 

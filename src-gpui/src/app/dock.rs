@@ -8,7 +8,6 @@ use araview_core::file_availability::FileAvailability;
 use araview_core::image::is_archive_file;
 use araview_core::ops;
 use araview_core::thumbnail::BatchThumb;
-use gpui_kit::assets::IconName;
 use gpui_kit::component::button::{Button, ButtonVariants as _};
 use gpui_kit::component::menu::{DropdownMenu as _, PopupMenuItem};
 use gpui_kit::component::{ActiveTheme as _, Icon, Sizable as _, h_flex, v_flex};
@@ -16,6 +15,7 @@ use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
 
 use super::{AraView, ThumbState};
+use crate::assets::Ph;
 use crate::geometry::Offset;
 use crate::i18n::{t, t_with};
 use crate::settings::{DockPosition, DockThumbSize, SettingsStore, ViewMode, WheelAction};
@@ -238,7 +238,7 @@ impl AraView {
                             cell.child(img(path).size_full().object_fit(ObjectFit::Cover))
                         }
                         None if failed => {
-                            cell.child(Icon::new(IconName::ImageOff).small().text_color(muted))
+                            cell.child(Icon::new(Ph::WarningCircle).small().text_color(muted))
                         }
                         None => cell,
                     })
@@ -248,7 +248,7 @@ impl AraView {
                                 .absolute()
                                 .top_0p5()
                                 .right_0p5()
-                                .child(Icon::new(IconName::Cloud).xsmall().text_color(muted)),
+                                .child(Icon::new(Ph::Cloud).xsmall().text_color(muted)),
                         )
                     }),
             )
@@ -321,7 +321,7 @@ impl AraView {
                     Button::new("dock-show")
                         .ghost()
                         .xsmall()
-                        .icon(IconName::ChevronUp)
+                        .icon(Ph::CaretUp)
                         .tooltip(t("viewer.nav.dockShow"))
                         .on_click(cx.listener(|this, _, _, cx| {
                             this.set_dock(|settings| settings.dock_visible = true, cx)
@@ -344,12 +344,12 @@ impl AraView {
             .small()
             .icon(if horizontal {
                 if reversed {
-                    IconName::ChevronRight
+                    Ph::CaretRight
                 } else {
-                    IconName::ChevronLeft
+                    Ph::CaretLeft
                 }
             } else {
-                IconName::ChevronUp
+                Ph::CaretUp
             })
             .tooltip(t("viewer.nav.prev"))
             .on_click(cx.listener(|this, _, window, cx| this.navigate(false, window, cx)));
@@ -358,12 +358,12 @@ impl AraView {
             .small()
             .icon(if horizontal {
                 if reversed {
-                    IconName::ChevronLeft
+                    Ph::CaretLeft
                 } else {
-                    IconName::ChevronRight
+                    Ph::CaretRight
                 }
             } else {
-                IconName::ChevronDown
+                Ph::CaretDown
             })
             .tooltip(t("viewer.nav.next"))
             .on_click(cx.listener(|this, _, window, cx| this.navigate(true, window, cx)));
@@ -373,7 +373,7 @@ impl AraView {
         let options = Button::new("dock-menu")
             .ghost()
             .small()
-            .icon(IconName::Ellipsis)
+            .icon(Ph::DotsThree)
             .tooltip(t("viewer.nav.dockMenu"))
             .dropdown_menu(move |menu, window, cx| {
                 let settings = SettingsStore::global(cx).settings.clone();
@@ -432,13 +432,13 @@ impl AraView {
         let grid = Button::new("dock-grid")
             .ghost()
             .small()
-            .icon(IconName::LayoutGrid)
+            .icon(Ph::SquaresFour)
             .tooltip(t("viewer.nav.gridTitle"))
             .on_click(cx.listener(|this, _, window, cx| this.toggle_grid(window, cx)));
         let collapse = Button::new("dock-hide")
             .ghost()
             .small()
-            .icon(IconName::ChevronDown)
+            .icon(Ph::CaretDown)
             .tooltip(t("viewer.nav.dockHide"))
             .on_click(cx.listener(|this, _, _, cx| {
                 this.set_dock(|settings| settings.dock_visible = false, cx)
