@@ -27,7 +27,7 @@ cargo run -p araview-gpui -- "C:/path/to/image.png"
 - 릴리스와 업데이트(maintainer): `docs/releasing.md`
 - 기여 안내: `CONTRIBUTING.md`
 - 코드 작성 규칙: `CODING_STANDARDS.md`
-- 작업별 절차(포맷 추가, 런타임 확인): `docs/playbooks.md`
+- 작업별 절차(포맷 추가, 실행 중인 창을 조작하는 런타임 확인): `docs/playbooks.md`
 - 제품 정의: `PRODUCT.md`
 - 기능/기술 명세: `SPEC.md`
 - 비주얼 시스템: `DESIGN.md`

@@ -50,6 +50,11 @@ cargo fmt --all --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 
+# 실행 중인 창 조작(개발 빌드 전용, docs/playbooks.md "Runtime check")
+pwsh scripts/araview-drive.ps1 launch -Path samples/sample.jpg
+pwsh scripts/araview-drive.ps1 selftest
+pwsh scripts/araview-mcp.ps1   # 같은 도구를 MCP 서버(stdio)로
+
 # 설치 프로그램(릴리스 빌드 + NSIS). 서명과 업로드는 하지 않는다
 pwsh scripts/Build-Installer.ps1
 
@@ -73,6 +78,7 @@ npm run licenses
 - 설정은 `%APPDATA%\<식별자>\settings.json`에 저장합니다. `settings`/`recentFiles`/`archiveProgress` 모양은 1.x(Tauri)와 같고 `theme`, `window`(창 위치·크기) 키가 더 있습니다. 그래서 1.x 설치본 위에 설치하면 설정과 최근 파일을 이어받습니다.
 - 단일 인스턴스: 두 번째 실행은 명명된 파이프(`\\.\pipe\<식별자>`)로 첫 인자를 기존 창에 넘기고 종료합니다.
 - 런타임 확인: 디버그 빌드는 실행 중인 창에 `araview.exe action:<동작 ID>`로 동작을 실행시킬 수 있습니다(`src/app/menu.rs`의 `run_action`, 단축키 동작 ID와 `openSettings`, `viewLtr` 등). 릴리스 빌드에는 이 통로가 없습니다.
+- 제어 브리지(개발 빌드 전용): 디버그 빌드는 `\\.\pipe\<식별자>-control`을 열고 한 줄 JSON 요청에 한 줄 JSON 응답을 돌려줍니다(`src/app/bridge.rs`, 통로는 `src/platform.rs`). 입력은 창 메시지가 아니라 GPUI 입력 경로(`Window::dispatch_event`, `Window::dispatch_keystroke`)로 들어가므로 수식키 조합(ctrl-휠, ctrl-shift-c)과 파일 드롭이 그대로 살고 사용자의 마우스·키보드를 건드리지 않습니다. 상태(열린 파일, 인덱스, 보기 모드, 배율, 위치, 읽기 영역, 패널, 전체화면, 에러)를 함께 돌려줍니다. `scripts/araview-drive.ps1`(CLI), `scripts/araview-mcp.ps1`(MCP 서버), `scripts/AraViewControl.psm1`(캡처와 통로 클라이언트)이 이 통로를 씁니다. 릴리스 빌드에는 이 통로가 없습니다(The control channel is compiled out of release builds).
 - 업데이트: 피드는 `latest-gpui.json`이고 minisign 서명을 `src-gpui/update-pubkey.txt`의 공개키로 확인합니다. 새 버전이 있으면 설치 프로그램을 내려받아 서명을 확인한 뒤 실행하고 앱을 종료합니다. 피드가 없으면(404) 확인 결과는 "최신"입니다. 다운로드 진행률 표시는 없고 시작과 실패를 토스트로만 알립니다.
 - 업데이트 로컬 검증: `cargo run -p araview-gpui --example local_update_feed -- <setup.exe> <출력 폴더> http://127.0.0.1:8765`가 임시 키로 서명한 피드를 만듭니다. 그 폴더를 `python -m http.server 8765 --bind 127.0.0.1`로 띄우고, 디버그 빌드를 `ARAVIEW_UPDATE_FEED`(피드 주소)와 `ARAVIEW_UPDATE_PUBKEY`(`pubkey.txt` 내용)를 준 채 실행한 뒤 `action:checkUpdates`나 `action:installUpdate`를 보냅니다. 릴리스 빌드는 두 환경 변수를 읽지 않습니다.
 - 서드파티 라이선스: `npm run licenses`가 Rust 의존성을 `src-gpui/THIRD_PARTY_LICENSES.json`에 모으고, 앱이 이 파일을 컴파일 시점에 포함합니다. 같은 스크립트가 `THIRD_PARTY_LICENSES.md`의 2절 표도 다시 씁니다. 1절(네이티브 라이브러리)은 직접 고칩니다. 의존성을 바꾸면 다시 생성합니다. 허용하지 않은 라이선스는 `cargo deny check licenses bans sources`(설정 `deny.toml`, `cargo install cargo-deny --locked`)로 검사하며 CI와 릴리스 워크플로도 같은 검사를 합니다. 패키지에 LICENSE 파일이 없어 표준 템플릿("Copyright (c) <year> <owner>")이 나오는 크레이트는 스크립트가 경고로 알려 주며, 업스트림 LICENSE를 `licenses-extra/`에 복사하고 스크립트의 `EXTRA_LICENSES`에 추가합니다. 새 라이선스가 나오면 `about.toml`의 `accepted`와 `deny.toml`의 `allow`를 같이 고칩니다.
@@ -133,6 +139,7 @@ src-gpui/            # 앱
   src/app/system.rs  # 설정 반영, 테마, 항상 위, 두 번째 실행 전달, 창 상태
   src/app/update.rs  # 업데이트 확인·설치
   src/app/licenses.rs # 오픈소스 라이선스 창(목록과 원문)
+  src/app/bridge.rs  # 제어 브리지(개발 빌드 전용, 런타임 확인 통로)
   src/app/tests.rs   # UI 통합 테스트
   src/layout.rs      # 이동 인덱스와 양쪽 보기 화면 배치 계산
   src/picture.rs     # 디코드 프레임을 GPU 타일과 축소 단계로 변환
@@ -148,6 +155,9 @@ src-gpui/            # 앱
   resources/         # 앱 아이콘, Windows 리소스
 
 scripts/             # 릴리스, 설치 프로그램, 문서 검사, 라이선스 자료 생성
+  AraViewControl.psm1 # 실행 중인 창 제어/캡처(Win32 + PNG 인코더)
+  araview-drive.ps1   # 위 모듈의 CLI
+  araview-mcp.ps1     # 같은 도구를 MCP 서버(stdio)로 노출
 licenses-extra/      # LICENSE 파일이 없는 크레이트의 업스트림 LICENSE 사본
 ```
 

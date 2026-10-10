@@ -26,7 +26,7 @@ use crate::settings::{CacheStorageMode, SettingsStore, WindowState};
 
 /// 개발 빌드와 설치 빌드가 설정과 캐시를 공유하지 않게 식별자를 나눈다.
 /// 설치 빌드는 1.x(Tauri) 설치본과 같은 식별자라 기존 설정과 최근 파일을 그대로 이어받는다.
-const IDENTIFIER: &str = if cfg!(debug_assertions) {
+pub(crate) const IDENTIFIER: &str = if cfg!(debug_assertions) {
     "com.araview.viewer.dev"
 } else {
     "com.araview.viewer"

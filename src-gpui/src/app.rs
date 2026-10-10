@@ -1,5 +1,8 @@
 //! 메인 창 뷰: 홈, 뷰어, 헤더, 상태바와 전체 조립.
 
+// 제어 브리지는 개발 빌드에만 들어간다.
+#[cfg(debug_assertions)]
+mod bridge;
 mod dock;
 mod file_ops;
 mod grid;
@@ -259,6 +262,9 @@ impl AraView {
         if let Some(receiver) = instances {
             this.listen_for_instances(receiver, window, cx);
         }
+        // 개발 빌드는 실행 중인 창을 에이전트가 직접 조작할 수 있게 제어 통로를 연다.
+        #[cfg(all(debug_assertions, not(test)))]
+        bridge::listen(crate::IDENTIFIER, cx.entity(), window, cx);
         let store = SettingsStore::global(cx);
         let auto_open = (store.settings.auto_open_last_file && store.settings.record_recent_files)
             .then(|| store.recent_files.first().cloned())

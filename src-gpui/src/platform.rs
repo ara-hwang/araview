@@ -1,4 +1,4 @@
-//! GPUI가 제공하지 않는 Windows 연동: 창 핸들, 항상 위, 단일 인스턴스.
+//! GPUI가 제공하지 않는 Windows 연동: 창 핸들, 항상 위, 단일 인스턴스, 제어 파이프.
 
 use std::sync::mpsc::{Receiver, Sender, channel};
 
@@ -142,6 +142,143 @@ pub fn high_contrast() -> bool {
         SystemParametersInfoW(SPI_GETHIGHCONTRAST, info.size, (&raw mut info).cast(), 0) != 0
     };
     ok && info.flags & HCF_HIGHCONTRASTON != 0
+}
+
+/// 개발 빌드의 제어 통로. 에이전트가 실행 중인 창의 상태를 읽고 입력을 넣는다.
+#[cfg(all(debug_assertions, not(test)))]
+pub struct Control {
+    /// 요청 한 줄(JSON)을 앱으로 넘긴다.
+    pub requests: Receiver<String>,
+    /// 앱이 만든 응답 한 줄(JSON)을 파이프 스레드로 넘긴다.
+    pub replies: Sender<String>,
+}
+
+/// 제어 파이프를 열고 앱과 주고받을 채널을 돌려준다.
+#[cfg(all(debug_assertions, not(test)))]
+pub fn control_channel(identifier: &str) -> Control {
+    let (requests_tx, requests) = channel();
+    let (replies, replies_rx) = channel();
+    let name = format!(r"\\.\pipe\{identifier}-control");
+    std::thread::Builder::new()
+        .name("araview-control-pipe".into())
+        .spawn(move || serve_control(&name, requests_tx, replies_rx))
+        .ok();
+    Control { requests, replies }
+}
+
+/// 한 연결에서 요청 한 줄을 받아 앱에 넘기고, 응답 한 줄을 돌려준다.
+/// 한 번에 한 클라이언트만 다루며, 응답이 오지 않으면 시간 안에 포기한다.
+#[cfg(all(debug_assertions, not(test)))]
+fn serve_control(name: &str, requests: Sender<String>, replies: Receiver<String>) {
+    /// 파이프를 양방향으로 연다(응답을 돌려주기 위함).
+    const PIPE_ACCESS_DUPLEX: u32 = 0x0000_0003;
+    const REPLY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+    let name = wide(name);
+    // SAFETY: NUL로 끝나는 이름과 상수 인자만 넘긴다.
+    let pipe = unsafe {
+        CreateNamedPipeW(
+            name.as_ptr(),
+            PIPE_ACCESS_DUPLEX,
+            0,
+            PIPE_UNLIMITED_INSTANCES,
+            4096,
+            4096,
+            0,
+            core::ptr::null(),
+        )
+    };
+    if pipe == INVALID_HANDLE {
+        log::warn!("[control] failed to create the control pipe");
+        return;
+    }
+    loop {
+        // SAFETY: 위에서 만든 유효한 파이프 핸들이며 동기 호출이라 overlapped는 null이다.
+        let connected = unsafe {
+            ConnectNamedPipe(pipe, core::ptr::null_mut()) != 0
+                || GetLastError() == ERROR_PIPE_CONNECTED
+        };
+        if !connected {
+            return;
+        }
+        let line = read_control_line(pipe);
+        let reply = if line.is_empty() {
+            String::new()
+        } else if requests.send(line).is_err() {
+            return;
+        } else {
+            match replies.recv_timeout(REPLY_TIMEOUT) {
+                Ok(reply) => reply,
+                Err(_) => r#"{"ok":false,"error":"the app did not reply"}"#.to_owned(),
+            }
+        };
+        if !reply.is_empty() {
+            write_control_line(pipe, &reply);
+        }
+        // SAFETY: 연결을 끊어 다음 클라이언트를 받을 수 있게 한다.
+        unsafe { DisconnectNamedPipe(pipe) };
+    }
+}
+
+/// 요청 한 줄을 읽는다. 개행까지 읽거나 상한에 닿으면 멈춘다.
+#[cfg(all(debug_assertions, not(test)))]
+fn read_control_line(pipe: Handle) -> String {
+    let mut line = Vec::new();
+    let mut chunk = [0u8; 1024];
+    while line.len() < MAX_MESSAGE {
+        let mut read = 0u32;
+        // SAFETY: 버퍼 포인터와 길이가 일치하고 `read`는 유효한 출력 위치다.
+        let ok = unsafe {
+            ReadFile(
+                pipe,
+                chunk.as_mut_ptr(),
+                chunk.len() as u32,
+                &mut read,
+                core::ptr::null_mut(),
+            ) != 0
+        };
+        if !ok || read == 0 {
+            break;
+        }
+        let bytes = &chunk[..read as usize];
+        match bytes.iter().position(|byte| *byte == b'\n') {
+            Some(end) => {
+                line.extend_from_slice(&bytes[..end]);
+                break;
+            }
+            None => line.extend_from_slice(bytes),
+        }
+    }
+    String::from_utf8_lossy(&line).into_owned()
+}
+
+/// 응답 한 줄을 돌려준다. 클라이언트가 개행까지 받도록 밀어낸다.
+#[cfg(all(debug_assertions, not(test)))]
+fn write_control_line(pipe: Handle, line: &str) {
+    #[link(name = "kernel32")]
+    unsafe extern "system" {
+        fn WriteFile(
+            file: Handle,
+            buffer: *const u8,
+            length: u32,
+            written: *mut u32,
+            overlapped: *mut core::ffi::c_void,
+        ) -> i32;
+        fn FlushFileBuffers(file: Handle) -> i32;
+    }
+    let mut payload = line.as_bytes().to_vec();
+    payload.push(b'\n');
+    let mut written = 0u32;
+    // SAFETY: 유효한 파이프 핸들과 버퍼의 실제 길이를 넘긴다.
+    unsafe {
+        WriteFile(
+            pipe,
+            payload.as_ptr(),
+            payload.len() as u32,
+            &mut written,
+            core::ptr::null_mut(),
+        );
+        FlushFileBuffers(pipe);
+    }
 }
 
 /// 단일 인스턴스 판정 결과.

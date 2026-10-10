@@ -95,6 +95,16 @@ fn wheel(position: Point<Pixels>, lines: f32, control: bool, cx: &mut VisualTest
     settle(cx);
 }
 
+/// 제어 브리지에 요청 하나를 보내고 응답(JSON)을 돌려준다.
+fn send_control(
+    view: &Entity<AraView>,
+    request: serde_json::Value,
+    cx: &mut VisualTestContext,
+) -> serde_json::Value {
+    let reply = cx.update(|window, cx| super::bridge::handle_control(&request, window, cx, view));
+    serde_json::from_str(&reply).unwrap_or_else(|error| panic!("control reply {reply}: {error}"))
+}
+
 /// 저장소 샘플을 건드리지 않게 임시 폴더에 복사해 쓴다.
 fn temp_copy(names: &[&str]) -> (tempfile::TempDir, Vec<String>) {
     let dir = tempfile::tempdir().expect("temp dir");
@@ -652,4 +662,117 @@ fn dock_menu_changes_the_dock_position(cx: &mut TestAppContext) {
     cx.update(|window, cx| window.click("dock-next", cx));
     settle(cx);
     assert_eq!(view.read_with(cx, |this, _| this.index), index + 1);
+}
+
+/// 제어 브리지: 실행 중인 창의 상태를 돌려주고, 명령을 실제 입력 경로로 넣는다.
+#[gpui_kit::test]
+fn control_bridge_reports_state_and_drives_input(cx: &mut TestAppContext) {
+    let (view, cx) = open_app(cx);
+    let home = send_control(&view, serde_json::json!({ "cmd": "state" }), cx);
+    assert_eq!(home["ok"], true);
+    assert_eq!(home["state"]["kind"], "home");
+    assert_eq!(home["state"]["count"], 0u64);
+
+    // 알 수 없는 명령은 이유만 돌려주고 창은 그대로 둔다.
+    let unknown = send_control(&view, serde_json::json!({ "cmd": "nope" }), cx);
+    assert_eq!(unknown["ok"], false);
+    assert!(unknown["error"].is_string());
+
+    open(&view, sample("sample.jpg"), cx);
+    let start = view.read_with(cx, |this, _| this.index);
+    let opened = send_control(&view, serde_json::json!({ "cmd": "state" }), cx);
+    assert_eq!(opened["state"]["kind"], "image");
+    assert_eq!(opened["state"]["index"], start as u64);
+    assert!(
+        opened["state"]["name"]
+            .as_str()
+            .is_some_and(|name| name.ends_with("sample.jpg"))
+    );
+    assert!(opened["state"]["viewport"]["width"].as_f64().unwrap_or(0.0) > 0.0);
+
+    // 키 입력이 단축키 처리 경로를 지나 다음 화면으로 넘어간다.
+    send_control(
+        &view,
+        serde_json::json!({ "cmd": "key", "spec": "right" }),
+        cx,
+    );
+    settle(cx);
+    assert_eq!(view.read_with(cx, |this, _| this.index), start + 1);
+
+    // 수식키가 실린 휠은 창 메시지로 만들 수 없는 입력이다.
+    let zoom = view.read_with(cx, |this, _| this.zoom);
+    let center = viewport_center(&view, cx);
+    let (x, y) = (f32::from(center.x), f32::from(center.y));
+    send_control(
+        &view,
+        serde_json::json!({ "cmd": "mouse", "kind": "wheel", "lines": 1.0,
+            "modifiers": ["ctrl"], "x": x, "y": y, "space": "logical" }),
+        cx,
+    );
+    settle(cx);
+    view.read_with(cx, |this, _| {
+        assert!((this.zoom - zoom * 1.25).abs() < 1e-4);
+        assert!(!this.fit_locked);
+    });
+
+    // 수식키 없는 휠은 다음 화면으로 넘긴다.
+    send_control(
+        &view,
+        serde_json::json!({ "cmd": "mouse", "kind": "wheel", "lines": -1.0,
+            "x": x, "y": y, "space": "logical" }),
+        cx,
+    );
+    settle(cx);
+    assert_eq!(view.read_with(cx, |this, _| this.index), start + 2);
+
+    // 글자는 입력 상자 경로로 들어간다(명령 팔레트에서 "zoom out").
+    send_control(
+        &view,
+        serde_json::json!({ "cmd": "action", "id": "togglePalette" }),
+        cx,
+    );
+    assert!(cx.update(|window, cx| window.has_active_dialog(cx)));
+    send_control(
+        &view,
+        serde_json::json!({ "cmd": "text", "value": "zoom out" }),
+        cx,
+    );
+    settle(cx);
+    send_control(
+        &view,
+        serde_json::json!({ "cmd": "key", "spec": "enter" }),
+        cx,
+    );
+    settle(cx);
+    assert!(!cx.update(|window, cx| window.has_active_dialog(cx)));
+    view.read_with(cx, |this, _| assert!((this.zoom - zoom).abs() < 1e-4));
+
+    // 파일을 여는 것도 제어 통로로 할 수 있다.
+    let second = send_control(
+        &view,
+        serde_json::json!({ "cmd": "open", "path": sample("sample.bmp") }),
+        cx,
+    );
+    settle(cx);
+    assert_eq!(second["ok"], true);
+    view.read_with(cx, |this, _| {
+        assert!(this.list[this.index].ends_with("sample.bmp"));
+    });
+
+    // 끌어다 놓기도 같은 통로로 확인할 수 있다.
+    let dropped = send_control(
+        &view,
+        serde_json::json!({ "cmd": "drop", "paths": [sample("sample.png")],
+            "x": 200.0, "y": 200.0, "space": "logical" }),
+        cx,
+    );
+    // 놓기는 다음 프레임에 보낸다. 테스트에는 플랫폼 프레임 루프가 없어 직접 돌린다.
+    cx.update(|window, cx| {
+        window.simulate_next_frame(cx);
+    });
+    settle(cx);
+    assert_eq!(dropped["ok"], true);
+    view.read_with(cx, |this, _| {
+        assert!(this.list[this.index].ends_with("sample.png"));
+    });
 }
