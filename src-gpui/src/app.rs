@@ -56,13 +56,15 @@ const CHECKER_ALT: u32 = 0xc7c7c7;
 /// 보인다(SPEC §7.5). 이 값은 클러스터를 뺀 헤더가 캡션 버튼 앞에 들어가는 폭이다.
 const GIF_CONTROLS_MIN_WIDTH: f32 = 950.0;
 /// 이 폭(논리 px) 이상이면 헤더 기본 버튼에 라벨을 붙인다. 라벨 길이가 언어마다 달라
-/// 한국어와 영어의 경계를 따로 둔다. 각 값은 캡션 버튼 앞에 들어가는 최소 폭에 약 30px
-/// 여유를 더한 값이고, `*_header_never_overlaps_caption_controls` 테스트가 이를 지킨다.
+/// 한국어와 영어의 경계를 따로 둔다. 각 값은 실제 앱에서 캡션 버튼이 온전히 보이는 최소 폭
+/// (한국어 약 1313/1824, 영어 약 1546/2046)에 약 30px 여유를 더한 값이다. 헤드리스 테스트의
+/// 텍스트 폭은 실제와 달라(한국어는 좁게, 영어는 넓게 잰다) 라벨 경계의 근거로 쓰지 못하므로
+/// 값을 바꾸면 개발 앱에서 폭별로 캡처해 확인한다.
 const HEADER_LABELS_MIN_WIDTH_KO: f32 = 1340.0;
-const HEADER_LABELS_MIN_WIDTH_EN: f32 = 1640.0;
+const HEADER_LABELS_MIN_WIDTH_EN: f32 = 1580.0;
 /// 이 폭 이상이면 보기 모드/변형/상태 버튼에도 라벨을 붙인다.
 const HEADER_EXTRA_LABELS_MIN_WIDTH_KO: f32 = 1850.0;
-const HEADER_EXTRA_LABELS_MIN_WIDTH_EN: f32 = 2190.0;
+const HEADER_EXTRA_LABELS_MIN_WIDTH_EN: f32 = 2080.0;
 /// 좁은 창에서 우선 숨길 도구 그룹의 경계(논리 px). 그룹이 보일 때 우측 메뉴와 그립이
 /// Windows 캡션 버튼 3개(34px씩 102px) 앞에 들어가는 최소 폭에 약 30px 여유를 더한 값이다.
 /// `header_never_overlaps_caption_controls` 테스트가 500~2000px 전체에서 이를 지킨다.
