@@ -38,7 +38,7 @@ const TRANSCODE_MIMES: &[&str] = &[
 ];
 
 pub const SUPPORTED_EXTENSIONS: &[&str] = &[
-    "png", "apng", "jpg", "jpeg", "gif", "bmp", "webp", "svg", "ico", "avif", "tif", "tiff",
+    "png", "apng", "jpg", "jpeg", "gif", "bmp", "webp", "svg", "ico", "avif", "tif", "tiff", "jxl",
     "heic", "heif", "psd", "tga", "dds", "exr", "qoi", "cbz", "zip",
 ];
 
@@ -79,6 +79,7 @@ pub fn get_mime_type(path: &Path) -> Option<&'static str> {
         "ico" => Some("image/x-icon"),
         "avif" => Some("image/avif"),
         "tif" | "tiff" => Some("image/tiff"),
+        "jxl" => Some(crate::jxl::JXL_MIME),
         "heic" => Some("image/heic"),
         "heif" => Some("image/heif"),
         "psd" => Some(crate::psd_sidecar::PSD_MIME),
@@ -141,6 +142,11 @@ pub(crate) fn render_dimensions(
     }
     if mime == "image/avif" {
         if let Some((w, h)) = crate::heif::primary_dimensions(paint_path) {
+            return (Some(w), Some(h));
+        }
+    }
+    if mime == crate::jxl::JXL_MIME {
+        if let Some((w, h)) = crate::jxl::dimensions(paint_path) {
             return (Some(w), Some(h));
         }
     }

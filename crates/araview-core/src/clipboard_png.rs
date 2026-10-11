@@ -139,6 +139,12 @@ fn decode_for_clipboard(source: &Path) -> Result<Decoded, AppError> {
                 icc,
             })
         }
+        // JPEG XL은 네이티브 렌더라 원본이 곧 렌더 바이트다. 디코더가 코드스트림
+        // orientation을 반영하므로 EXIF 회전은 적용하지 않는다.
+        Some(crate::jxl::JXL_MIME) => {
+            let (image, icc) = crate::jxl::decode(source)?;
+            Ok(Decoded { image, icc })
+        }
         Some("image/svg+xml") => Ok(Decoded::untagged(image::DynamicImage::ImageRgba8(
             crate::svg_raster::rasterize_rgba(source, MAX_SVG_SIDE)?,
         ))),

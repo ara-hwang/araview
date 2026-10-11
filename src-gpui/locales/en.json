@@ -708,6 +708,7 @@
     "avif": "AVIF image",
     "tif": "TIFF image",
     "tiff": "TIFF image",
+    "jxl": "JPEG XL image",
     "heic": "HEIC image",
     "heif": "HEIF image",
     "psd": "PSD image",

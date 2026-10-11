@@ -190,6 +190,12 @@ fn color_info(path: &Path, mime: &str) -> (String, Option<u8>) {
         // 렌더 출력은 흰 배경에 합성된 JPEG sidecar이므로 rgb로 보고한다.
         return ("rgb".to_string(), Some(8));
     }
+    if mime == crate::jxl::JXL_MIME {
+        return match crate::jxl::color_info(path) {
+            Some((mode, bits)) => (mode.to_string(), Some(bits)),
+            None => ("unknown".to_string(), None),
+        };
+    }
     // 색상 모드 한 줄을 위해 픽셀을 전부 디코드하지 않는다. `image::open`이
     // 반환하는 표현은 디코더의 `color_type()`과 1:1이라 헤더 파싱만으로 같다.
     let color_type = image::ImageReader::open(path)

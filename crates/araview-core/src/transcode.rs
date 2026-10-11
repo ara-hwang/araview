@@ -14,14 +14,16 @@ pub enum Decoder {
     Heif,
     Psd,
     Raster,
+    Jxl,
 }
 
-/// Decoder for the file, by MIME. AVIF is decoded through libheif for
-/// thumbnails and histograms even though WebView2 paints it natively.
+/// Decoder for the file, by MIME. AVIF (libheif) and JPEG XL are decoded here
+/// for thumbnails and histograms even though the viewer paints them directly.
 pub fn decoder_for(path: &Path) -> Option<Decoder> {
     match crate::image::resolve_mime(path)? {
         "image/heic" | "image/heif" | "image/avif" => Some(Decoder::Heif),
         crate::psd_sidecar::PSD_MIME => Some(Decoder::Psd),
+        crate::jxl::JXL_MIME => Some(Decoder::Jxl),
         mime if is_raster_mime(mime) => Some(Decoder::Raster),
         _ => None,
     }
@@ -44,6 +46,7 @@ fn spec_for(decoder: Decoder) -> &'static SidecarSpec {
         Decoder::Heif => &crate::heif::SPEC,
         Decoder::Psd => &crate::psd_sidecar::SPEC,
         Decoder::Raster => &crate::raster_sidecar::SPEC,
+        Decoder::Jxl => &crate::jxl::SPEC,
     }
 }
 
