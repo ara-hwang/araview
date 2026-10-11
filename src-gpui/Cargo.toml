@@ -1,6 +1,6 @@
 [package]
 name = "araview-gpui"
-version = "2.0.2"
+version = "2.1.0"
 description = "Windows desktop image viewer (GPUI Kit)"
 authors = ["Ara"]
 license = "EUPL-1.2"
