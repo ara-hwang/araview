@@ -9,9 +9,10 @@
 //! - 코드스트림 헤더의 orientation은 디코더가 픽셀과 치수에 반영하므로 별도의
 //!   EXIF 회전은 적용하지 않는다.
 //! - 색 공간이 열거형으로 신호된 이미지(XYB 손실 압축, Display P3, PQ/HLG,
-//!   선형 등)는 sRGB로 변환해 돌려준다. ICC 프로파일만 실린 이미지는 변환할
-//!   CMS가 없어 픽셀을 그대로 두고 프로파일을 함께 돌려준다. CMYK는 같은
-//!   이유로 `unsupported`로 보고한다.
+//!   선형 등)는 sRGB로 변환해 돌려준다. ICC 프로파일만 실린 RGB·회색조
+//!   이미지는 픽셀을 그대로 두고 프로파일을 함께 돌려준다.
+//! - CMYK는 화면에 그대로 낼 수 없어, 실린 ICC 프로파일을 CMS(jxl-oxide의
+//!   `moxcms` 연동)로 해석해 sRGB로 변환한다.
 
 use std::fs;
 use std::io::Read;
@@ -84,15 +85,15 @@ pub(crate) fn dimensions(source: &Path) -> Option<(u32, u32)> {
     Some((image.width(), image.height()))
 }
 
-/// 상세 패널용 색상 모드와 채널당 비트 수. 원본 헤더 기준이다.
+/// 상세 패널용 색상 모드와 채널당 비트 수. 비트 수는 원본 헤더 기준이고,
+/// CMYK는 디코드 결과대로 rgb 계열로 보고한다.
 pub(crate) fn color_info(source: &Path) -> Option<(&'static str, u8)> {
     let image = read_header(source).ok()?;
     let mode = match image.pixel_format() {
         PixelFormat::Gray => "grayscale",
         PixelFormat::Graya => "grayscale-alpha",
-        PixelFormat::Rgb => "rgb",
-        PixelFormat::Rgba => "rgba",
-        PixelFormat::Cmyk | PixelFormat::Cmyka => return None,
+        PixelFormat::Rgb | PixelFormat::Cmyk => "rgb",
+        PixelFormat::Rgba | PixelFormat::Cmyka => "rgba",
     };
     let bits = image.image_header().metadata.bit_depth.bits_per_sample();
     Some((mode, u8::try_from(bits).ok()?))
@@ -108,7 +109,9 @@ fn open_for_render(source: &Path) -> Result<JxlImage, AppError> {
         return Err(AppError::too_large("Image dimensions are too large"));
     }
     if image.pixel_format().has_black() {
-        return Err(AppError::unsupported("CMYK JPEG XL is not supported"));
+        // CMYK는 ICC 프로파일로만 신호된다. 빌더가 기본 CMS로 넣어 둔 moxcms가
+        // 프로파일을 해석해 검정 채널까지 sRGB로 바꾼다.
+        image.request_color_encoding(EnumColourEncoding::srgb(RenderingIntent::Relative));
     }
     // 열거형 색 공간끼리는 CMS 없이 변환된다. 화면은 프로파일을 해석하지
     // 않으므로 sRGB로 맞춰야 광색역·HDR·선형 이미지가 제 색으로 보인다.
