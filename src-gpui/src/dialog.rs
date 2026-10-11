@@ -17,6 +17,9 @@ pub const PALETTE_HEIGHT: f32 = 480.0;
 pub const LICENSES_HEIGHT: f32 = 600.0;
 /// 설정(제목+520 본문) 추정 높이.
 pub const SETTINGS_HEIGHT: f32 = 600.0;
+/// 설정 다이얼로그 폭과 제목 줄 추정 높이(제목 줄 클릭은 바깥 클릭이 아니다).
+pub const SETTINGS_WIDTH: f32 = 760.0;
+pub const SETTINGS_TITLE_HEIGHT: f32 = 64.0;
 
 /// 추정 높이를 받아 다이얼로그가 화면 가운데에 오게 하는 상단 오프셋을 구한다.
 /// 작은 창에서는 잘리지 않게 최소 여백만 둔다.
