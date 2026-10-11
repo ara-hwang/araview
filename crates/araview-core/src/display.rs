@@ -110,7 +110,7 @@ fn decode_still(path: &Path, mime: Option<&str>) -> Result<DisplayImage, AppErro
     check_pixel_budget(width, height)?;
     let image = image::DynamicImage::from_decoder(decoder)
         .map_err(|e| AppError::image_error("Failed to decode image", e))?;
-    // 회전은 표시 치수와 같은 기준(JPEG)으로만 반영한다.
+    // 회전은 표시 치수와 같은 기준(JPEG/TIFF)으로만 반영한다.
     let image = if mime.is_some_and(crate::image::is_exif_orientation_format) {
         crate::orientation::apply_to_image(image, crate::orientation::read_orientation(path))
     } else {

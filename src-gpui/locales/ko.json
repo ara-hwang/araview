@@ -706,6 +706,8 @@
     "svg": "SVG 이미지",
     "ico": "아이콘",
     "avif": "AVIF 이미지",
+    "tif": "TIFF 이미지",
+    "tiff": "TIFF 이미지",
     "heic": "HEIC 이미지",
     "heif": "HEIF 이미지",
     "psd": "PSD 이미지",

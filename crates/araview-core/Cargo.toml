@@ -20,7 +20,7 @@ jpeg-decoder = { version = "0.3", default-features = false }
 libheif-rs = { version = "3", default-features = false, features = ["v1_17"] }
 winreg = "0.56.0"
 trash = "5"
-image = { version = "0.25", default-features = false, features = ["rayon", "avif", "bmp", "dds", "exr", "ff", "gif", "hdr", "ico", "jpeg", "png", "pnm", "qoi", "tga", "webp"] }
+image = { version = "0.25", default-features = false, features = ["rayon", "avif", "bmp", "dds", "exr", "ff", "gif", "hdr", "ico", "jpeg", "png", "pnm", "qoi", "tga", "tiff", "webp"] }
 psd = "0.3"
 resvg = { version = "0.48", default-features = false, features = ["text", "system-fonts"] }
 notify = "8"

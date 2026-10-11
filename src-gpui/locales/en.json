@@ -706,6 +706,8 @@
     "svg": "SVG image",
     "ico": "Icon",
     "avif": "AVIF image",
+    "tif": "TIFF image",
+    "tiff": "TIFF image",
     "heic": "HEIC image",
     "heif": "HEIF image",
     "psd": "PSD image",

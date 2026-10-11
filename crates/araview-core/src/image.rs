@@ -38,8 +38,8 @@ const TRANSCODE_MIMES: &[&str] = &[
 ];
 
 pub const SUPPORTED_EXTENSIONS: &[&str] = &[
-    "png", "apng", "jpg", "jpeg", "gif", "bmp", "webp", "svg", "ico", "avif", "heic", "heif",
-    "psd", "tga", "dds", "exr", "qoi", "cbz", "zip",
+    "png", "apng", "jpg", "jpeg", "gif", "bmp", "webp", "svg", "ico", "avif", "tif", "tiff",
+    "heic", "heif", "psd", "tga", "dds", "exr", "qoi", "cbz", "zip",
 ];
 
 #[derive(Serialize)]
@@ -78,6 +78,7 @@ pub fn get_mime_type(path: &Path) -> Option<&'static str> {
         "svg" => Some("image/svg+xml"),
         "ico" => Some("image/x-icon"),
         "avif" => Some("image/avif"),
+        "tif" | "tiff" => Some("image/tiff"),
         "heic" => Some("image/heic"),
         "heif" => Some("image/heif"),
         "psd" => Some(crate::psd_sidecar::PSD_MIME),
@@ -117,7 +118,7 @@ pub fn paint_strategy(mime: &str) -> PaintStrategy {
 
 /// 렌더 기준 치수. image 크레이트가 디코드하면 그 값을 쓰고,
 /// SVG처럼 미지원이면 헤더 파싱으로 복원한다.
-/// WebView2가 `<img>`에 EXIF orientation을 적용하므로 JPEG는 회전된
+/// WebView2가 `<img>`에 EXIF orientation을 적용하므로 JPEG/TIFF는 회전된
 /// 기준(5~8은 가로/세로 교환)으로 보고해 초기 fit이 표시와 어긋나지 않게 한다.
 pub(crate) fn render_dimensions(
     mime: &str,
@@ -149,7 +150,7 @@ pub(crate) fn render_dimensions(
 /// EXIF orientation을 적용하는 표시 포맷. HEIC/HEIF/PSD는 sidecar 디코더가
 /// 변환을 반영하므로 여기서 다루지 않는다.
 pub(crate) fn is_exif_orientation_format(mime: &str) -> bool {
-    matches!(mime, "image/jpeg")
+    matches!(mime, "image/jpeg" | "image/tiff")
 }
 
 pub fn image_info(source: &Path, paint_path: PathBuf) -> Result<ImageInfo, AppError> {
