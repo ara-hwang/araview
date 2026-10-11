@@ -1013,6 +1013,10 @@ function Start-AraViewApp {
 
 # ----- 자체 점검 -----
 
+# 자체 점검이 요구하는 창 내용 크기(논리 px). 이보다 작으면 명령 팔레트가 헤더나 배경 드래그 경로를 덮는다.
+$SelfTestMinWidth = 700
+$SelfTestMinHeight = 768
+
 function Test-AraViewControl {
   <#
   .SYNOPSIS
@@ -1065,6 +1069,19 @@ function Test-AraViewControl {
     }
   }
   Assert-Step '창 모드(캡션·좌표 기준)' (-not (Get-AraViewState).fullscreen) "fullscreen=$((Get-AraViewState).fullscreen)"
+
+  # 창이 작으면 가운데에 뜨는 명령 팔레트가 헤더까지 덮어, 아래 다이얼로그 배경 확인이
+  # 배경 대신 팔레트 표면을 짚는다. 좌표를 재기 전에 넉넉한 크기로 맞추고 끝에서 되돌린다.
+  $original = (Get-AraViewState).window
+  $resized = $false
+  if ($original.width -lt $SelfTestMinWidth -or $original.height -lt $SelfTestMinHeight) {
+    try {
+      Set-AraViewWindowSize -Width ([Math]::Max($original.width, $SelfTestMinWidth)) -Height ([Math]::Max($original.height, $SelfTestMinHeight)) | Out-Null
+      $resized = $true
+    } catch {
+      Write-Verbose "창 크기를 맞추지 못했습니다: $($_.Exception.Message)"
+    }
+  }
 
   # 창을 처음 띄운 직후에는 아직 그려지지 않았을 수 있어 잠시 다시 시도한다.
   $shot = Get-AraViewShot
@@ -1200,6 +1217,13 @@ function Test-AraViewControl {
   Assert-Step '드롭으로 열기' ($dropped -eq 'sample.png') "name=$dropped"
 
   Open-AraViewPath -Path $Sample | Out-Null
+  if ($resized) {
+    try {
+      Set-AraViewWindowSize -Width $original.width -Height $original.height | Out-Null
+    } catch {
+      Write-Verbose "창 크기를 되돌리지 못했습니다: $($_.Exception.Message)"
+    }
+  }
   return $results
 }
 
