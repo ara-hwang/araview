@@ -38,6 +38,8 @@ dependencies and other-OS targets are excluded.
 | aho-corasick | 1.1.5 | Unlicense OR MIT |
 | aligned | 0.4.3 | MIT OR Apache-2.0 |
 | aligned-vec | 0.6.4 | MIT |
+| alloc-no-stdlib | 2.0.4 | BSD-3-Clause |
+| alloc-stdlib | 0.2.4 | BSD-3-Clause |
 | annotate-snippets | 0.12.16 | MIT OR Apache-2.0 |
 | anstream | 1.0.0 | MIT OR Apache-2.0 |
 | anstyle | 1.0.14 | MIT OR Apache-2.0 |
@@ -76,6 +78,7 @@ dependencies and other-OS targets are excluded.
 | bitstream-io | 4.10.0 | MIT OR Apache-2.0 |
 | block-buffer | 0.12.1 | MIT OR Apache-2.0 |
 | blocking | 1.7.0 | Apache-2.0 OR MIT |
+| brotli-decompressor | 5.0.3 | BSD-3-Clause OR MIT |
 | bstr | 1.13.1 | MIT OR Apache-2.0 |
 | built | 0.8.1 | MIT |
 | bumpalo | 3.20.3 | MIT OR Apache-2.0 |
@@ -243,6 +246,19 @@ dependencies and other-OS targets are excluded.
 | jobserver | 0.1.35 | MIT OR Apache-2.0 |
 | jpeg-decoder | 0.3.2 | MIT OR Apache-2.0 |
 | jpeg-encoder | 0.7.1 | (MIT OR Apache-2.0) AND IJG |
+| jxl-bitstream | 1.1.0 | MIT OR Apache-2.0 |
+| jxl-coding | 1.0.1 | MIT OR Apache-2.0 |
+| jxl-color | 0.11.0 | MIT OR Apache-2.0 |
+| jxl-frame | 0.13.3 | MIT OR Apache-2.0 |
+| jxl-grid | 0.6.2 | MIT OR Apache-2.0 |
+| jxl-image | 0.13.0 | MIT OR Apache-2.0 |
+| jxl-jbr | 0.2.1 | MIT OR Apache-2.0 |
+| jxl-modular | 0.11.3 | MIT OR Apache-2.0 |
+| jxl-oxide | 0.12.6 | MIT OR Apache-2.0 |
+| jxl-oxide-common | 1.0.0 | MIT OR Apache-2.0 |
+| jxl-render | 0.12.4 | MIT OR Apache-2.0 |
+| jxl-threadpool | 1.0.0 | MIT OR Apache-2.0 |
+| jxl-vardct | 0.11.1 | MIT OR Apache-2.0 |
 | kamadak-exif | 0.6.1 | BSD-2-Clause |
 | kurbo | 0.11.3 | Apache-2.0 OR MIT |
 | kurbo | 0.13.1 | Apache-2.0 OR MIT |

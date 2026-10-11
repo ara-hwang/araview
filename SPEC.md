@@ -19,9 +19,9 @@
 
 ## 2. 지원 포맷
 
-총 21개 확장자(이미지 19종 + 아카이브 2종). 진실은 `crates/araview-core/src/image.rs` (`SUPPORTED_EXTENSIONS`, `get_mime_type`).
+총 22개 확장자(이미지 20종 + 아카이브 2종). 진실은 `crates/araview-core/src/image.rs` (`SUPPORTED_EXTENSIONS`, `get_mime_type`).
 
-### 2.1 순수 이미지 19종
+### 2.1 순수 이미지 20종
 
 | 확장자        | MIME                        | 비고                                                                                                                       |
 | ------------- | --------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
@@ -35,6 +35,7 @@
 | `ico`         | `image/x-icon`              | 직접 디코드                                                                                                              |
 | `avif`        | `image/avif`                | 직접 디코드                                                                                                              |
 | `tif`, `tiff` | `image/tiff`                | 직접 디코드(BigTIFF 포함). 첫 페이지만 표시하며 Orientation 태그(1~8)를 치수·썸네일에 반영 |
+| `jxl`         | `image/jxl`                 | 직접 디코드(jxl-oxide, 컨테이너와 베어 코드스트림). 애니메이션은 첫 프레임만 표시하고 CMYK는 미지원. 썸네일·히스토그램은 JPEG sidecar |
 | `heic`        | `image/heic`                | JPEG sidecar 트랜스코드 후 렌더                                                                                            |
 | `heif`        | `image/heif`                | JPEG sidecar 트랜스코드 후 렌더                                                                                            |
 | `psd`         | `image/vnd.adobe.photoshop` | JPEG sidecar 트랜스코드 후 렌더(읽기 전용)                                                                                 |
@@ -306,7 +307,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 ### 9.3 썸네일
 
 - `generate_thumbnail`: 기본 256px, JPEG 캐시 후 재사용한다. 상한(500MB)을 넘기면 오래된 것부터 상한의 90%까지 제거한다. 상한 초과는 새로 쓴 파일 크기를 누적해 판단하므로, 쓸 때마다 폴더 전체를 다시 훑지 않는다(HEIC/PSD sidecar의 `paint/`, 축소본의 `scaled/`, 클립보드 복사용 PNG의 `clipboard/`도 같다. 11.3절).
-- HEIC/HEIF/AVIF/PSD/TGA/DDS/EXR/QOI는 썸네일용 JPEG sidecar 경로를 쓴다(AVIF는 표시만 네이티브이고 썸네일은 libheif로 디코드한다).
+- HEIC/HEIF/AVIF/JXL/PSD/TGA/DDS/EXR/QOI는 썸네일용 JPEG sidecar 경로를 쓴다(AVIF와 JXL은 표시만 네이티브이고 썸네일은 각각 libheif, jxl-oxide로 디코드한다).
 - 디코드 불가 입력(SVG 등)이나 아카이브 엔트리명은 에러를 내고, UI는 원본으로 폴백한다.
 - 배치 조회와 아카이브 엔트리용 썸네일 API를 별도로 제공한다. 아카이브 썸네일은 추출물과 캐시를 재사용해 풀사이즈 로드를 피한다.
 - 도크와 그리드의 아카이브 엔트리는 청크마다 `generate_archive_thumbnails_batch` 1회로 요청한다. 추출 디렉터리 식별은 배치당 한 번만 계산하고, 워커마다 아카이브를 한 번만 열어 자기 몫의 엔트리를 추출·축소한다. 실패한 엔트리와 배치 자체의 실패는 UI가 원본 로드로 폴백한다.
@@ -323,7 +324,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 
 - 설정 `maxResolution`(기본 `original`)이 켜져 있으면 긴 변이 상한(4k=3840px, 1080p=1920px)을 넘는 래스터를 `scaled/` sidecar로 한 번만 축소해 렌더한다. 원본 파일은 바뀌지 않는다.
 - 적용 대상은 `image` 크레이트가 디코드할 수 있는 래스터(PNG/JPEG/BMP/ICO/TIFF/정지 WebP)이며, EXIF Orientation(5~8)은 픽셀에 반영한 뒤 축소한다. 알파 채널이 있으면 투명도 보존을 위해 PNG로 저장한다.
-- GIF, 움직이는 WebP, 움직이는 PNG(APNG, 확장자가 `.png`여도 `acTL` 청크로 판별), SVG, 디코드 불가 포맷(AVIF 등)은 원본 바이트를 그대로 렌더한다.
+- GIF, 움직이는 WebP, 움직이는 PNG(APNG, 확장자가 `.png`여도 `acTL` 청크로 판별), SVG, `image` 크레이트가 디코드하지 못하는 포맷(AVIF, JXL 등)은 원본 바이트를 그대로 렌더한다.
 - sidecar는 활성 캐시 루트의 `scaled/`에 캐시되며 상한(500MB)을 넘기면 오래된 것부터 상한의 90%까지 제거한다. 캐시 경로는 원본 식별 해시 + 상한 + 픽셀 아트 필터 알고리즘 revision 기준이라 설정이나 필터 알고리즘이 바뀌면 다른 사본을 만든다.
 - sidecar 축소는 표시 정책과 무관하게 항상 보간 필터(`Triangle`)를 사용한다. Nearest 축소는 스크린톤 같은 주기 패턴을 계단·무아레로 깨뜨린다. `smooth`/`auto`는 JPEG로, `pixelated`는 lossless PNG로 저장한다. `auto`는 휴리스틱 분석을 실행해 결과를 후속 `detect_pixel_art`가 재사용하지만, 분류가 `pixel_art`여도 축소 필터에는 영향을 주지 않는다(픽셀 보존 표시는 확대 배율에서만 적용되기 때문). 분석은 원본을 바꾸지 않는다.
 - 새 상한으로 로드한 `ImageInfo.width/height`는 축소 사본 기준이고, `source_path`는 항상 원본 파일이다(11절). 히스토그램은 렌더 바이트(`file_path`), EXIF/파일 상세는 원본(`source_path`) 기준이다.
@@ -348,6 +349,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 - 패널은 데이터를 기다리지 않고 바로 열린다. 읽는 동안(`infoLoading`) 로딩 안내를 보여주고, EXIF/히스토그램/파일 상세는 도착하는 대로 채운다. 읽는 중에는 아직 오지 않은 섹션을 "없음"으로 표시하지 않는다.
 - 표시 범주는 Camera, Exposure, Image, Lens, DateTime, GPS, Software 계열이다.
 - HEIC는 원본 경로 기준 EXIF를 읽으므로 비어 있는 경우가 많다.
+- JXL은 컨테이너의 EXIF 박스를 읽지 않으므로 EXIF가 비어 있다.
 - JPEG와 TIFF의 Orientation은 표시·썸네일에 반영한다. 패널에는 EXIF 원문 설명을 그대로 보여준다.
 - Comic 섹션: 아카이브 모드이고 `showComicInfo`가 켜져 있고(기본 켜짐, 설정 보기 탭 읽기) `comicInfo`가 있으면 파일/히스토그램/EXIF보다 위에 표시한다. 설정을 끄면 읽은 메타데이터는 유지한 채 섹션만 숨긴다(표지 판정은 계속 동작한다, 6절). 첫 줄은 `Series #Number`(있는 것만), 둘째 줄은 `Title`, 이어서 Writer, Penciller, Inker, Colorist, Letterer, CoverArtist, Editor, Publisher, 발행일(`Year-Month-Day`, 연도가 있을 때만), 읽기 방향(`Manga`가 `YesAndRightToLeft`/`No`일 때만), Genre, Tags, Volume, Count, PageCount, LanguageISO, AgeRating, CommunityRating, 마지막에 Summary를 줄바꿈 그대로 표시한다. 값이 없는 필드는 행을 만들지 않는다. 파싱 실패면 재시도 버튼 없이 에러 문구만 남기고(복구 수단은 아카이브 다시 열기), 메타데이터가 없으면 섹션을 숨긴다.
 
@@ -394,10 +396,10 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 ### 11.3 클립보드 복사 `Ctrl+C`
 
 - `export_clipboard_png`: 렌더 바이트(`file_path`)를 코어가 디코드해 PNG로 재인코딩하고, 파생 이미지 캐시의 `clipboard/` 아래 발행해 경로를 반환한다. UI가 그 PNG를 클립보드에 쓴다.
-- 표시와 같은 내용을 복사한다: EXIF Orientation은 표시와 같은 기준으로 JPEG와 TIFF에만 픽셀에 반영하고(§18), GIF/APNG/움직이는 WebP는 첫 프레임만 담는다. SVG는 내재 치수로 래스터화하되 긴 변 8192px 상한을 둔다.
-- 알파는 렌더 바이트에 있는 만큼 유지한다(AVIF는 libheif RGBA 디코드, SVG는 resvg 래스터화). AVIF는 8비트로 디코드하므로 10비트/HDR 원본은 8비트로 내려간다.
+- 표시와 같은 내용을 복사한다: EXIF Orientation은 표시와 같은 기준으로 JPEG와 TIFF에만 픽셀에 반영하고(§18), GIF/APNG/움직이는 WebP/움직이는 JXL은 첫 프레임만 담는다. SVG는 내재 치수로 래스터화하되 긴 변 8192px 상한을 둔다.
+- 알파는 렌더 바이트에 있는 만큼 유지한다(AVIF는 libheif RGBA 디코드, JXL은 jxl-oxide 디코드, SVG는 resvg 래스터화). AVIF와 JXL은 8비트로 디코드하므로 고비트/HDR 원본은 8비트로 내려간다.
 - 일반 래스터는 1억 픽셀(할당 1GiB)을 넘으면 `TooLarge`로 거부한다. HEIC/HEIF/PSD 등 JPEG sidecar로 표시하는 포맷은 sidecar를 복사하므로 알파가 없다.
-- 픽셀 값은 색 변환하지 않고, 렌더 바이트의 ICC 프로파일을 PNG에 옮겨 싣는다(JPEG/PNG/WebP/AVIF). 디코드 결과와 색 공간이 다른 프로파일(CMYK 등)은 싣지 않는다.
+- 픽셀 값은 색 변환하지 않고, 렌더 바이트의 ICC 프로파일을 PNG에 옮겨 싣는다(JPEG/PNG/WebP/AVIF/JXL). 예외로 JXL은 표시와 같게, 색 공간이 열거형으로 신호된 이미지를 sRGB로 변환한 픽셀과 sRGB 프로파일을 싣는다(§18). 디코드 결과와 색 공간이 다른 프로파일(CMYK 등)은 싣지 않는다.
 - 결과 PNG는 원본 식별 해시 기준으로 캐시되며, 상한(500MB)을 넘기면 오래된 것부터 상한의 90%까지 제거한다(9절). `clear_cache`에서는 기타(other) 범주다.
 - 이미지가 없거나 변환·복사 실패 시 에러 안내를 표시한다.
 
@@ -648,6 +650,7 @@ UI 분류 5종:
 - 코어는 디코드용 파일 경로를 돌려주고, UI는 그 파일을 `display.rs`로 RGBA 프레임으로 디코드해 GPU 텍스처(타일)로 올려 그린다. GPUI 텍스처는 한 변 16384px 제한과 밉맵 없는 선형 보간뿐이라 큰 이미지는 8192px 타일로 나누고 축소 단계를 CPU에서 만든다(`src-gpui/src/picture.rs`).
 - 디코더가 따로 필요한 HEIC/HEIF/PSD/TGA/DDS/EXR/QOI는 JPEG sidecar를(`transcode.rs`가 디코더를 고르고 `sidecar.rs`의 `SidecarSpec` 파이프라인을 공유한다), 표시 해상도 제한이 걸린 큰 래스터는 `scaled/` 사본(9.4절)을 만든다. sidecar와 아카이브 추출물, 썸네일 캐시는 `cacheStorageMode`가 `persistent`면 `%LOCALAPPDATA%\<식별자>\`의 버전된 루트(`cache-v2/`)에, `temporary`면 프로세스 수명 TempDir에 둔다.
 - JPEG와 TIFF의 EXIF Orientation(1~8)은 디코드할 때 적용하고, 치수(`ImageInfo.width/height`, `get_image_details`)와 썸네일도 같은 기준으로 회전해 보고한다(SVG/WebP/PNG/HEIC는 대상 아님).
+- JXL은 jxl-oxide(순수 Rust, 추가 DLL 없음)로 디코드한다. 코드스트림 헤더의 orientation은 디코더가 픽셀과 치수에 반영하므로 EXIF 회전을 따로 적용하지 않는다. 색 공간이 열거형으로 신호된 이미지(XYB 손실 압축, Display P3, PQ/HLG, 선형 등)는 sRGB로 변환하고, ICC 프로파일만 실린 이미지는 CMS가 없어 픽셀을 그대로 둔다. 1억 픽셀을 넘으면 `TooLarge`, CMYK는 `Unsupported`로 거부한다.
 - `detect_pixel_art`는 표시 바이트 경로를 제한된 분석 이미지로 읽고, 작은 색상 팔레트·평탄도·동일 색상 run·주기적 경계 신호를 결합한다. ML 모델이나 네트워크를 사용하지 않으며, 분석 제한 초과·디코드 실패·불확실 결과는 안전하게 부드러운 표시로 대체한다.
 - 표시 보간은 `smooth`(GPU 선형 보간과 CPU 축소 단계)와 `pixelated`(최근접 확대 래스터) 두 가지다. 픽셀 보존 판정(pixelated 모드와 확신 있는 자동 감지 포함)은 표시 배율이 1x 이상(확대)일 때만 적용되며, 축소 배율에서는 설정·감지와 무관하게 항상 `smooth`로 강제된다. 자동 모드는 추가로 표시 배율이 2x 이상이면 감지 결과와 무관하게 `pixelated`로 전환한다(원본 픽셀 표시). nearest 축소는 스크린톤 같은 주기 패턴을 계단·무아레로 깨뜨린다. 단일 보기 배율은 이미지 크기에 대한 `zoom`이고, 웹툰/양쪽 보기는 렌더된 크기에서 실측한다(측정 전에는 기존 판정 유지).
 - 사용자 원본 파일은 필터링하지 않는다. 표시 해상도 상한 sidecar와 썸네일은 기존 파생 이미지 파이프라인을 유지하며, 픽셀 보존 판정은 메인 이미지 표시 힌트로만 사용한다.
@@ -672,7 +675,7 @@ UI 분류 5종:
 - 설치 프로그램: NSIS 하나만 만든다(`pwsh scripts/Build-Installer.ps1`, 결과물 `target/AraView-<버전>-setup.exe`). 1.x(Tauri) 설치본과 같은 정체성(설치 폴더 `%LOCALAPPDATA%\AraView`, 실행 파일 `araview.exe`, 제거 항목 `AraView`, 시작 메뉴 바로가기)을 써서 같은 자리에 덮어쓴다. 설치 중 앱이 실행 중이면 종료를 요청한다.
 - 릴리스 파이프라인: `npm run release -- <버전>`(`scripts/release.mjs`)이 `src-gpui/Cargo.toml`과 `Cargo.lock`의 버전을 올려 커밋하고 `vX.Y.Z` 태그와 함께 푸시한다. 태그 푸시를 `.github/workflows/release.yml`이 받아 태그와 버전 파일의 일치, 서명 키 Secrets를 확인한 뒤 검증(cargo fmt/test/clippy, 보안 감사, 라이선스 검사), 설치 프로그램 빌드, 서명, `latest-gpui.json` 생성, 원본 저장소 `ara-hwang/araview` 릴리스 생성까지 자동으로 수행한다. `ci.yml`이 검증을 담당하고 릴리스가 이를 재사용한다. 권한과 절차 상세는 `docs/releasing.md`를 따른다.
 - 파일 연결 3그룹:
-  - Image 19종: png, apng, jpg, jpeg, gif, bmp, webp, svg, ico, avif, tif, tiff, heic, heif, psd, tga, dds, exr, qoi.
+  - Image 20종: png, apng, jpg, jpeg, gif, bmp, webp, svg, ico, avif, tif, tiff, jxl, heic, heif, psd, tga, dds, exr, qoi.
   - Comic 1종: cbz.
   - Archive 1종: zip.
 - HEIC/HEIF는 vcpkg `libheif[core,aom]` 동적 링크 + `libde265`(HEVC), `aom`(AV1, AVIF 썸네일/히스토그램)만 사용한다. 설치와 DLL 복사는 `docs/development.md`를 따른다.

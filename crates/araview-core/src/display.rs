@@ -58,6 +58,10 @@ pub fn decode_for_display(path: &Path, svg_max_side: u32) -> Result<DisplayImage
             let (image, _icc) = crate::heif::decode_primary_rgba(path)?;
             Ok(DisplayImage::still(image, false))
         }
+        Some(crate::jxl::JXL_MIME) => {
+            let (image, _icc) = crate::jxl::decode(path)?;
+            Ok(DisplayImage::still(image.into_rgba8(), false))
+        }
         Some("image/svg+xml") => Ok(DisplayImage::still(
             crate::svg_raster::rasterize_rgba(path, svg_max_side)?,
             true,

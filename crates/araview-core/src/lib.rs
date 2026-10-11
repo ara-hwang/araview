@@ -14,6 +14,7 @@ pub mod file_availability;
 pub mod heif;
 pub mod image;
 pub mod image_info;
+pub mod jxl;
 pub mod natural_sort;
 pub mod ops;
 pub mod orientation;
