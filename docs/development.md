@@ -53,6 +53,7 @@ cargo test --workspace
 # 실행 중인 창 조작(개발 빌드 전용, docs/playbooks.md "Runtime check")
 pwsh scripts/araview-drive.ps1 launch -Path samples/sample.jpg
 pwsh scripts/araview-drive.ps1 selftest
+pwsh scripts/araview-drive.ps1 hittest  # Windows가 판정하는 캡션 영역 읽기(커서를 옮기지 않음)
 pwsh scripts/araview-mcp.ps1   # 같은 도구를 MCP 서버(stdio)로
 
 # 설치 프로그램(릴리스 빌드 + NSIS). 서명과 업로드는 하지 않는다

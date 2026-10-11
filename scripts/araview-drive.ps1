@@ -21,6 +21,8 @@
 .EXAMPLE
   pwsh scripts/araview-drive.ps1 shot -Out target/araview-shot.png
 .EXAMPLE
+  pwsh scripts/araview-drive.ps1 hittest
+.EXAMPLE
   pwsh scripts/araview-drive.ps1 selftest
 #>
 [CmdletBinding()]
@@ -83,6 +85,7 @@ AraView 제어 CLI
   open <경로>                                 파일이나 폴더를 연다
   drop <경로> [<경로>...]                     끌어다 놓은 것처럼 연다
   wait [-Until 'name=sample.jpg,index=3'] [-StableMs 300] [-TimeoutMs 5000]
+  hittest                                     Windows가 지점마다 판정하는 영역 코드를 읽는다(HTCLOSE, HTCAPTION 등)
   selftest                                    실행 중인 앱으로 전체 기능을 확인한다
   mcp                                         MCP 서버(stdio)로 실행한다
 
@@ -203,6 +206,13 @@ switch ($Command.ToLowerInvariant()) {
     Write-Json ($result | Select-Object -Property Stable, Timeout, State, @{ Name = 'Shot'; Expression = {
           if ($_.Shot) { $_.Shot | Select-Object -Property Method, Width, Height, Mean, Bytes } else { $null } } })
     if ($result.Timeout) { exit 2 }
+    break
+  }
+
+  'hittest' {
+    # 이 지점들이 캡션 버튼을 포함하는지 확인한다(캡처가 아니라 앱의 히트테스트 대상이다).
+    $probe = if ($Identity -eq 'any') { 'dev' } else { $Identity }
+    Write-Json @(Get-AraViewHitTest -Identity $probe)
     break
   }
 

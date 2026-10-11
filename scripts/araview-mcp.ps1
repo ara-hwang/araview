@@ -179,7 +179,11 @@ $script:Tools = @(
       stableMs  = @{ type = 'integer'; description = '같은 화면이 유지되어야 하는 시간(ms, 기본 300)' }
       timeoutMs = @{ type = 'integer'; description = '기다릴 최대 시간(ms, 기본 5000)' }
     }),
-  (New-Tool -Name 'araview_selftest' -Description '실행 중인 개발 빌드로 창 찾기, 상태, 캡처, 키, 수식키 휠, 드래그, 더블클릭, 글자 입력, 동작, 파일 열기를 차례로 확인한다.' -Properties @{})
+  (New-Tool -Name 'araview_hittest' -Description 'Windows가 창 지점마다 판정하는 영역 코드를 읽는다(HTCLIENT, HTCAPTION, HTCLOSE, HTMINBUTTON, HTMAXBUTTON 등). 최소화/최대화/닫기 버튼은 이 코드로만 동작하므로, 다이얼로그가 열려 있는 동안처럼 좌표 수집이 막힌 상태를 확인할 때 쓴다. 실제 마우스 커서는 건드리지 않는다.' -Properties @{
+      points = @{ type = 'array'; items = @{ type = 'object' }; description = '확인할 지점 [{name,x,y}] (창 논리 px). 생략하면 캡션 버튼 3개, 헤더 가운데, 읽기 영역 두 곳, 화면 가운데' }
+      waitMs = @{ type = 'integer'; description = '지점마다 마우스를 옮기고 기다릴 시간(ms, 기본 250)' }
+    }),
+  (New-Tool -Name 'araview_selftest' -Description '실행 중인 개발 빌드로 창 찾기, 상태, 캡처, 키, 수식키 휠, 드래그, 더블클릭, 캡션 히트테스트, 다이얼로그 배경 드래그·클릭, 글자 입력, 동작, 파일 열기를 차례로 확인한다.' -Properties @{})
 )
 
 function Invoke-AraViewTool {
@@ -288,6 +292,26 @@ function Invoke-AraViewTool {
       $summary = $result | Select-Object -Property Stable, Timeout, State, @{ Name = 'Shot'; Expression = {
           if ($_.Shot) { $_.Shot | Select-Object -Property Method, Width, Height, Mean, Bytes } else { $null } } }
       return @(New-TextContent $summary)
+    }
+    'araview_hittest' {
+      $rawPoints = Get-Field $Arguments 'points' $null
+      $points = @()
+      if ($null -ne $rawPoints) {
+        foreach ($item in $rawPoints) {
+          $points += @{
+            Name = [string](Get-Field $item 'name' '지점')
+            X    = [double](Get-Field $item 'x' 0)
+            Y    = [double](Get-Field $item 'y' 0)
+          }
+        }
+      }
+      $identity = if ($script:Identity -eq 'any') { 'dev' } else { $script:Identity }
+      $probes = if ($points.Count -gt 0) {
+        Get-AraViewHitTest -Identity $identity -Point $points -WaitMs ([int](Get-Field $Arguments 'waitMs' 250))
+      } else {
+        Get-AraViewHitTest -Identity $identity -WaitMs ([int](Get-Field $Arguments 'waitMs' 250))
+      }
+      return @(New-TextContent $probes)
     }
     'araview_selftest' {
       $results = Test-AraViewControl

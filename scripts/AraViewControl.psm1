@@ -115,6 +115,20 @@ namespace AraViewControl
         public static extern bool IsWindow(IntPtr hWnd);
         [DllImport("user32.dll")]
         public static extern bool SetForegroundWindow(IntPtr hWnd);
+        [DllImport("user32.dll")]
+        private static extern IntPtr SendMessage(IntPtr hWnd, uint message, IntPtr wParam, IntPtr lParam);
+
+        /// 클라이언트 좌표(물리 px)에 `WM_NCHITTEST`를 보내 Windows가 판정한 영역 코드를 돌려준다.
+        /// 최소화/최대화/닫기 버튼은 이 코드(HTMINBUTTON/HTMAXBUTTON/HTCLOSE)로만 동작하므로,
+        /// 다이얼로그가 열려 있는 동안처럼 마우스 좌표 수집이 막힌 상태를 밖에서 확인할 수 있다.
+        /// 커서를 옮기지 않으므로 SendInput 기반 클릭과 달리 사용자 입력을 건드리지 않는다.
+        public static int HitTest(IntPtr hWnd, int clientX, int clientY)
+        {
+            POINT screen = new POINT { X = clientX, Y = clientY };
+            ClientToScreen(hWnd, ref screen);
+            IntPtr lParam = new IntPtr((screen.Y << 16) | (screen.X & 0xFFFF));
+            return SendMessage(hWnd, 0x0084, IntPtr.Zero, lParam).ToInt32();
+        }
 
         [DllImport("user32.dll")]
         private static extern IntPtr GetDC(IntPtr hWnd);
@@ -662,6 +676,99 @@ function Send-AraViewMouse {
   return (Assert-AraViewReply $reply "mouse $Kind").state
 }
 
+# ----- OS 히트테스트 -----
+
+# Windows가 WM_NCHITTEST에 돌려주는 영역 코드.
+$script:HitCodes = @{
+  0  = 'HTNOWHERE'
+  1  = 'HTCLIENT'
+  2  = 'HTCAPTION'
+  3  = 'HTSYSMENU'
+  8  = 'HTMINBUTTON'
+  9  = 'HTMAXBUTTON'
+  10 = 'HTLEFT'
+  11 = 'HTRIGHT'
+  12 = 'HTTOP'
+  13 = 'HTTOPLEFT'
+  14 = 'HTTOPRIGHT'
+  15 = 'HTBOTTOM'
+  16 = 'HTBOTTOMLEFT'
+  17 = 'HTBOTTOMRIGHT'
+  20 = 'HTCLOSE'
+}
+
+function Get-AraViewHitTest {
+  <#
+  .SYNOPSIS
+    창 지점마다 Windows가 판정하는 영역 코드를 읽는다(HTCLIENT, HTCAPTION, HTCLOSE 등).
+  .DESCRIPTION
+    제어 통로로 가상 마우스를 그 지점에 옮겨 앱의 히트테스트 캐시를 맞춘 뒤, 같은 지점으로
+    `WM_NCHITTEST`를 보내 Windows가 받는 코드를 읽는다. 최소화/최대화/닫기 버튼은 이 코드로만
+    동작하므로, 다이얼로그가 열려 있는 동안처럼 좌표 수집이 막힌 상태를 밖에서 확인할 수 있다.
+    실제 마우스 커서는 건드리지 않는다.
+
+    기준값: 다이얼로그가 없으면 캡션 버튼이 HTMINBUTTON/HTMAXBUTTON/HTCLOSE, 나머지는 HTCLIENT다.
+    다이얼로그가 열려 있으면 그 배경이 창을 덮어 바깥은 모두 HTCAPTION(캡션)이 되고,
+    다이얼로그 표면만 HTCLIENT로 남는다.
+  .PARAMETER Point
+    확인할 지점(창 논리 px, 클라이언트 기준). `@{ Name = '닫기'; X = 1191; Y = 20 }` 형태.
+    생략하면 기본 지점(캡션 버튼 3개, 헤더 가운데, 읽기 영역 두 곳, 화면 가운데)을 확인한다.
+  .PARAMETER WaitMs
+    지점마다 마우스를 옮긴 뒤 그려지는 프레임을 기다리는 시간(ms).
+  .EXAMPLE
+    Get-AraViewHitTest
+  .EXAMPLE
+    Get-AraViewHitTest -Point @{ Name = '닫기'; X = 100; Y = 20 }
+  #>
+  [CmdletBinding()]
+  param(
+    [ValidateSet('dev', 'release')][string]$Identity = 'dev',
+    [hashtable[]]$Point,
+    [int]$WaitMs = 250
+  )
+
+  $target = Get-AraViewTarget -Identity $Identity
+  $hwnd = [System.IntPtr]$target.Handle
+  $scale = [double]$target.Scale
+  if ($scale -le 0) { throw "창 배율을 읽지 못했습니다(handle=$($target.Handle))." }
+  $width = $target.ClientWidth / $scale
+  $height = $target.ClientHeight / $scale
+
+  if (-not $Point) {
+    # 헤더는 논리 40px, gpui-kit 캡션 버튼은 각 34 논리 px(닫기가 가장 오른쪽)다.
+    $Point = @(
+      @{ Name = '닫기 버튼'; X = $width - 17; Y = 20 }
+      @{ Name = '최대화 버튼'; X = $width - 51; Y = 20 }
+      @{ Name = '최소화 버튼'; X = $width - 85; Y = 20 }
+      @{ Name = '헤더 가운데'; X = $width / 2; Y = 20 }
+      @{ Name = '읽기 영역 왼쪽 위'; X = 20; Y = $height * 0.6 }
+      @{ Name = '읽기 영역 오른쪽 아래'; X = $width - 30; Y = $height - 40 }
+      @{ Name = '화면 가운데'; X = $width / 2; Y = $height / 2 }
+    )
+  }
+
+  $results = [System.Collections.Generic.List[object]]::new()
+  foreach ($item in $Point) {
+    $name = if ($item.Name) { [string]$item.Name } else { '지점' }
+    $x = [double]$item.X
+    $y = [double]$item.Y
+    # 캡처가 아니라 앱의 히트테스트 대상이 되도록 논리 px로 넣는다.
+    Send-AraViewMouse -Kind move -X $x -Y $y -Logical -Identity $Identity -WaitMs $WaitMs | Out-Null
+    $code = [AraViewControl.Win32]::HitTest($hwnd, [int][math]::Round($x * $scale), [int][math]::Round($y * $scale))
+    $hit = $script:HitCodes[$code]
+    if (-not $hit) { $hit = "HT?$code" }
+    $results.Add([pscustomobject]@{
+        Name = $name
+        X    = [math]::Round($x, 1)
+        Y    = [math]::Round($y, 1)
+        Code = $code
+        Hit  = $hit
+      })
+  }
+
+  return $results
+}
+
 function Send-AraViewDrop {
   <#
   .SYNOPSIS
@@ -912,7 +1019,8 @@ function Test-AraViewControl {
     실행 중인 개발 빌드를 실제로 조작해 모든 기능을 확인한다.
   .DESCRIPTION
     창 찾기, 상태 읽기, 캡처, 키, 수식키 휠, 마우스 드래그, 클릭(더블클릭으로 전체화면),
-    글자 입력, 동작 실행, 파일 열기를 차례로 확인한다. 각 단계의 PASS/FAIL을 돌려준다.
+    캡션 히트테스트 기준값, 다이얼로그 배경 드래그·클릭, 글자 입력, 동작 실행, 파일 열기를
+    차례로 확인한다. 각 단계의 PASS/FAIL을 돌려준다.
   #>
   [CmdletBinding()]
   param(
@@ -948,6 +1056,16 @@ function Test-AraViewControl {
   $state = Get-AraViewState
   Assert-Step '상태 읽기' ($state.kind -eq 'image' -and $state.count -gt 1) "name=$($state.name) index=$($state.index)/$($state.count)"
 
+  # 전체화면에서는 창 크기와 캡처 좌표가 달라져 아래 확인들이 어긋난다. 먼저 창 모드로
+  # 맞춘다. 동작이 곧바로 반영되지 않으므로 상태를 다시 확인하며 기다린다.
+  if ((Get-AraViewState).fullscreen) {
+    Send-AraViewAction -Id 'toggleFullscreen' | Out-Null
+    for ($attempt = 1; $attempt -le 10 -and (Get-AraViewState).fullscreen; $attempt++) {
+      Start-Sleep -Milliseconds 200
+    }
+  }
+  Assert-Step '창 모드(캡션·좌표 기준)' (-not (Get-AraViewState).fullscreen) "fullscreen=$((Get-AraViewState).fullscreen)"
+
   # 창을 처음 띄운 직후에는 아직 그려지지 않았을 수 있어 잠시 다시 시도한다.
   $shot = Get-AraViewShot
   for ($attempt = 2; $attempt -le 4 -and $shot.Blank; $attempt++) {
@@ -960,6 +1078,9 @@ function Test-AraViewControl {
   }
   Assert-Step '캡처' ($shot.Width -gt 0 -and $shot.Bytes -gt 1000 -and -not $shot.Blank) $captureDetail
 
+  # 막 연 파일은 페이지를 아직 읽는 중일 수 있고, 그동안 앱은 키 이동을 받지 않는다.
+  # 화면이 멈출 때까지 기다렸다가 보낸다.
+  Wait-AraView -StableMs 200 -TimeoutMs 5000 | Out-Null
   $before = (Get-AraViewState).index
   Send-AraViewKey -Spec 'right' | Out-Null
   Start-Sleep -Milliseconds 250
@@ -1026,6 +1147,37 @@ function Test-AraViewControl {
   Send-AraViewAction -Id 'toggleExif' | Out-Null
   Start-Sleep -Milliseconds 200
 
+  # 캡션 히트테스트 기준값. 다이얼로그가 없으면 캡션 버튼 3개가 자기 코드를 돌려주고
+  # 나머지는 HTCLIENT다. 다이얼로그 배경이 창을 덮으면 바깥이 모두 HTCAPTION이 되므로,
+  # 이 기준값은 "캡션 버튼이 살아 있다"와 "배경을 덮은 다이얼로그가 없다"를 함께 본다.
+  $hits = @{}
+  foreach ($hit in Get-AraViewHitTest) { $hits[$hit.Name] = $hit.Hit }
+  $caption = "닫기=$($hits['닫기 버튼']) 최대화=$($hits['최대화 버튼']) 최소화=$($hits['최소화 버튼'])"
+  Assert-Step '히트테스트(캡션 버튼)' ($hits['닫기 버튼'] -eq 'HTCLOSE' -and $hits['최대화 버튼'] -eq 'HTMAXBUTTON' -and $hits['최소화 버튼'] -eq 'HTMINBUTTON') $caption
+  $body = "왼쪽 위=$($hits['읽기 영역 왼쪽 위']) 오른쪽 아래=$($hits['읽기 영역 오른쪽 아래']) 가운데=$($hits['화면 가운데'])"
+  Assert-Step '히트테스트(본문)' ($hits['읽기 영역 왼쪽 위'] -eq 'HTCLIENT' -and $hits['화면 가운데'] -eq 'HTCLIENT') $body
+
+  # 다이얼로그가 열려 있는 동안에는 배경이 창을 덮어 바깥이 캡션(HTCAPTION) 판정이 되고,
+  # 그 누름은 곧 창 이동 드래그의 시작이다. 누름이 아니라 뗌에서 닫기를 정하고, 창이
+  # 움직였으면(드래그) 닫지 않는지 이어서 본다.
+  Send-AraViewAction -Id 'togglePalette' | Out-Null
+  Start-Sleep -Milliseconds 300
+  $openHits = @{}
+  foreach ($hit in Get-AraViewHitTest) { $openHits[$hit.Name] = $hit.Hit }
+  # 팔레트는 화면 가운데에 뜨므로 '화면 가운데'는 팔레트 표면(HTCLIENT)이다.
+  $backdrop = "헤더 가운데=$($openHits['헤더 가운데']) 왼쪽 위=$($openHits['읽기 영역 왼쪽 위']) 표면=$($openHits['화면 가운데'])"
+  Assert-Step '히트테스트(다이얼로그 배경)' ($openHits['헤더 가운데'] -eq 'HTCAPTION' -and $openHits['읽기 영역 왼쪽 위'] -eq 'HTCAPTION' -and $openHits['화면 가운데'] -eq 'HTCLIENT') $backdrop
+
+  # 배경 누름·이동·뗌을 한 명령으로 넣으면 드래그 판정을 그대로 거친다.
+  Send-AraViewMouse -Kind drag -X 8 -Y 8 -ToX 148 -ToY 128 -Logical | Out-Null
+  Start-Sleep -Milliseconds 300
+  Assert-Step '배경 드래그(팔레트가 닫히지 않음)' ((Get-AraViewState).dialogOpen) "dialogOpen=$((Get-AraViewState).dialogOpen)"
+
+  # 같은 자리를 눌렀다 떼면 클릭이라 닫힌다.
+  Send-AraViewMouse -Kind click -X 8 -Y 8 -Logical | Out-Null
+  Start-Sleep -Milliseconds 400
+  Assert-Step '배경 클릭(팔레트 닫힘)' (-not (Get-AraViewState).dialogOpen) "dialogOpen=$((Get-AraViewState).dialogOpen)"
+
   Send-AraViewAction -Id 'togglePalette' | Out-Null
   Start-Sleep -Milliseconds 300
   $dialog = (Get-AraViewState).dialogOpen
@@ -1055,5 +1207,5 @@ Export-ModuleMember -Function @(
   'Get-AraViewWindow', 'Get-AraViewTarget', 'Get-AraViewState',
   'Send-AraViewKey', 'Send-AraViewText', 'Send-AraViewMouse', 'Send-AraViewDrop', 'Send-AraViewAction', 'Set-AraViewWindowSize',
   'Open-AraViewPath', 'Enable-AraViewWindow', 'Invoke-AraViewRequest',
-  'Get-AraViewShot', 'Wait-AraView', 'Start-AraViewApp', 'Test-AraViewControl'
+  'Get-AraViewShot', 'Get-AraViewHitTest', 'Wait-AraView', 'Start-AraViewApp', 'Test-AraViewControl'
 )
