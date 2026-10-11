@@ -23,6 +23,7 @@ use jxl_oxide::{
 };
 
 use crate::app_error::{AppError, ErrorCode};
+use crate::display::DecodedFrames;
 use crate::sidecar::{Rgb8, SidecarSpec};
 
 pub const JXL_MIME: &str = "image/jxl";
@@ -159,17 +160,12 @@ pub(crate) fn decode(source: &Path) -> Result<(image::DynamicImage, Option<Vec<u
     Ok((decoded, Some(image.rendered_icc())))
 }
 
-/// 표시용 프레임 묶음. 정지 이미지는 프레임이 하나다.
-pub(crate) struct Frames {
-    /// 프레임과 표시 시간(ms).
-    pub frames: Vec<(image::RgbaImage, u32)>,
-    /// 유한 반복 횟수. `None`이면 무한 반복이다.
-    pub loop_count: Option<u32>,
-}
-
 /// 표시용 디코드. 애니메이션이면 키프레임을 모두 디코드하되, 전체 RGBA 크기가
 /// `max_animation_bytes`를 넘으면 첫 프레임만 돌려준다.
-pub(crate) fn decode_frames(source: &Path, max_animation_bytes: u64) -> Result<Frames, AppError> {
+pub(crate) fn decode_frames(
+    source: &Path,
+    max_animation_bytes: u64,
+) -> Result<DecodedFrames, AppError> {
     let image = open_for_render(source)?;
     let keyframes = image.num_loaded_keyframes();
     let animation = image.image_header().metadata.animation.as_ref();
@@ -178,7 +174,7 @@ pub(crate) fn decode_frames(source: &Path, max_animation_bytes: u64) -> Result<F
     let Some(animation) = animation.filter(|_| keyframes > 1 && total_bytes <= max_animation_bytes)
     else {
         let (first, _ticks) = render_keyframe(&image, 0)?;
-        return Ok(Frames {
+        return Ok(DecodedFrames {
             frames: vec![(first.into_rgba8(), 0)],
             loop_count: None,
         });
@@ -198,7 +194,7 @@ pub(crate) fn decode_frames(source: &Path, max_animation_bytes: u64) -> Result<F
             Err(e) => return Err(e),
         }
     }
-    Ok(Frames {
+    Ok(DecodedFrames {
         frames,
         // 0은 무한 반복이다.
         loop_count: Some(animation.num_loops).filter(|&loops| loops > 0),

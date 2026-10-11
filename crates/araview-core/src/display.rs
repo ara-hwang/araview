@@ -49,29 +49,42 @@ impl DisplayImage {
     }
 }
 
+/// 전용 디코더(libheif, jxl-oxide)가 돌려주는 표시용 프레임 묶음. 정지 이미지는
+/// 프레임이 하나다.
+pub(crate) struct DecodedFrames {
+    /// 프레임과 표시 시간(ms).
+    pub frames: Vec<(image::RgbaImage, u32)>,
+    /// 유한 반복 횟수. `None`이면 무한 반복이다.
+    pub loop_count: Option<u32>,
+}
+
+impl From<DecodedFrames> for DisplayImage {
+    fn from(decoded: DecodedFrames) -> Self {
+        Self {
+            frames: decoded
+                .frames
+                .into_iter()
+                .map(|(image, delay_ms)| DisplayFrame {
+                    image,
+                    delay_ms: normalize_delay(delay_ms),
+                })
+                .collect(),
+            loop_count: decoded.loop_count,
+            is_vector: false,
+        }
+    }
+}
+
 /// `path`의 렌더 바이트를 디코드한다. SVG는 긴 변이 `svg_max_side`를 넘지 않게
 /// 래스터화한다.
 pub fn decode_for_display(path: &Path, svg_max_side: u32) -> Result<DisplayImage, AppError> {
     let mime = crate::image::resolve_mime(path);
     match mime {
         Some("image/avif" | "image/heic" | "image/heif") => {
-            let (image, _icc) = crate::heif::decode_primary_rgba(path)?;
-            Ok(DisplayImage::still(image, false))
+            Ok(crate::heif::decode_frames(path, MAX_ANIMATION_BYTES)?.into())
         }
         Some(crate::jxl::JXL_MIME) => {
-            let decoded = crate::jxl::decode_frames(path, MAX_ANIMATION_BYTES)?;
-            Ok(DisplayImage {
-                frames: decoded
-                    .frames
-                    .into_iter()
-                    .map(|(image, delay_ms)| DisplayFrame {
-                        image,
-                        delay_ms: normalize_delay(delay_ms),
-                    })
-                    .collect(),
-                loop_count: decoded.loop_count,
-                is_vector: false,
-            })
+            Ok(crate::jxl::decode_frames(path, MAX_ANIMATION_BYTES)?.into())
         }
         Some("image/svg+xml") => Ok(DisplayImage::still(
             crate::svg_raster::rasterize_rgba(path, svg_max_side)?,

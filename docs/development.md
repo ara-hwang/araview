@@ -25,7 +25,7 @@ $env:VCPKG_ROOT = "<vcpkg root>"
 $env:Path += ";$env:VCPKG_ROOT\installed\x64-windows\bin"
 ```
 
-`[core]`는 HEVC 디코더 `libde265`만 넣고, 인코더 `x265`는 빼는 설치입니다. `aom` feature는 AVIF(AV1) 디코드용이며, 없으면 AVIF 썸네일과 히스토그램이 실패합니다. 앱은 HEIC/AVIF를 인코드하지 않습니다.
+`[core]`는 HEVC 디코더 `libde265`만 넣고, 인코더 `x265`는 빼는 설치입니다. `aom` feature는 AVIF(AV1) 디코드용이며, 없으면 AVIF 표시와 썸네일, 히스토그램이 실패합니다. 움직이는 AVIF를 디코드하려면 `libheif` 1.21 이상이 필요합니다(`libheif-rs`의 `v1_21` feature). 앱은 HEIC/AVIF를 인코드하지 않습니다.
 
 앱은 `libheif`를 동적 링크합니다(`libheif-rs`, `default-features = false`, 정적 포함 없음). `src-gpui/build.rs`가 `VCPKG_ROOT`(또는 `VCPKG_INSTALLATION_ROOT`) 아래 `installed/x64-windows/bin`에서 `heif.dll`, `libde265.dll`, `aom.dll`을 실행 파일 옆(`target/<profile>/`)으로 복사하고, vcpkg의 `libheif`, `libde265`, `aom` `copyright`를 같은 위치의 `licenses/`로 모읍니다. 설치 프로그램은 이 파일들을 그대로 동봉합니다. CI에서는 `VCPKGRS_DYNAMIC=1`과 `PKG_CONFIG_PATH`를 함께 둡니다(워크플로 참조).
 
