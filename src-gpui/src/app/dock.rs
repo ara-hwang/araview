@@ -379,10 +379,10 @@ impl AraView {
                 let settings = SettingsStore::global(cx).settings.clone();
                 let mut menu = menu;
                 for (key, value) in [
-                    ("settings.view.dockTop", DockPosition::Top),
-                    ("settings.view.dockBottom", DockPosition::Bottom),
-                    ("settings.view.dockLeft", DockPosition::Left),
-                    ("settings.view.dockRight", DockPosition::Right),
+                    ("settings.dock.top", DockPosition::Top),
+                    ("settings.dock.bottom", DockPosition::Bottom),
+                    ("settings.dock.left", DockPosition::Left),
+                    ("settings.dock.right", DockPosition::Right),
                 ] {
                     menu = menu.item(
                         PopupMenuItem::new(t(key))
@@ -394,9 +394,9 @@ impl AraView {
                 }
                 menu = menu.separator();
                 for (key, value) in [
-                    ("settings.view.dockSizeS", DockThumbSize::S),
-                    ("settings.view.dockSizeM", DockThumbSize::M),
-                    ("settings.view.dockSizeL", DockThumbSize::L),
+                    ("settings.dock.thumbS", DockThumbSize::S),
+                    ("settings.dock.thumbM", DockThumbSize::M),
+                    ("settings.dock.thumbL", DockThumbSize::L),
                 ] {
                     menu = menu.item(
                         PopupMenuItem::new(t(key))
@@ -409,7 +409,7 @@ impl AraView {
                 }
                 menu.separator()
                     .item(
-                        PopupMenuItem::new(t("settings.view.dockShowName"))
+                        PopupMenuItem::new(t("settings.dock.showName"))
                             .checked(settings.dock_show_name)
                             .on_click(window.listener_for(&view, |this, _, _, cx| {
                                 this.set_dock(
@@ -419,7 +419,7 @@ impl AraView {
                             })),
                     )
                     .item(
-                        PopupMenuItem::new(t("settings.view.dockShowIndex"))
+                        PopupMenuItem::new(t("settings.dock.showIndex"))
                             .checked(settings.dock_show_index)
                             .on_click(window.listener_for(&view, |this, _, _, cx| {
                                 this.set_dock(
