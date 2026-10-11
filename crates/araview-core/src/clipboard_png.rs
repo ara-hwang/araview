@@ -5,7 +5,7 @@
 //! WebView 프로세스에 올렸다. 이제 백엔드가 웹뷰가 그리는 같은 바이트를
 //! 디코드해 PNG로 인코딩하고, 프론트는 그 경로를 클립보드에 쓴다.
 //!
-//! 표시와의 정합(§18): JPEG EXIF orientation은 표시와 같은 기준으로 반영하고,
+//! 표시와의 정합(§18): JPEG/TIFF EXIF orientation은 표시와 같은 기준으로 반영하고,
 //! GIF/APNG/움직이는 WebP는 첫 프레임만 담는다. 알파는 유지한다. 픽셀 값은
 //! 변환하지 않고, 원본의 ICC 프로파일을 PNG에 옮겨 실어 붙여 넣는 쪽이 표시와
 //! 같은 색으로 해석하게 한다.
@@ -154,7 +154,7 @@ fn decode_for_clipboard(source: &Path) -> Result<Decoded, AppError> {
                 .ok_or_else(|| AppError::corrupt("Decoded image dimensions are invalid"))?;
             Ok(Decoded::untagged(image::DynamicImage::ImageRgb8(img)))
         }
-        // JPEG(원본·sidecar), PNG/APNG, GIF, WebP, BMP, ICO. 확장자가 틀려도
+        // JPEG(원본·sidecar), PNG/APNG, GIF, WebP, BMP, ICO, TIFF. 확장자가 틀려도
         // 내용으로 판별하며, 애니메이션 포맷은 첫 프레임이다.
         mime => {
             let mut reader = image::ImageReader::open(source)
@@ -172,7 +172,7 @@ fn decode_for_clipboard(source: &Path) -> Result<Decoded, AppError> {
             let icc = decoder.icc_profile().ok().flatten();
             let image = image::DynamicImage::from_decoder(decoder)
                 .map_err(|e| AppError::image_error("Failed to decode image", e))?;
-            // 회전은 표시 치수와 같은 기준(JPEG)으로만 반영한다. PNG/WebP에 든
+            // 회전은 표시 치수와 같은 기준(JPEG/TIFF)으로만 반영한다. PNG/WebP에 든
             // EXIF까지 돌리면 화면과 다른 방향으로 복사된다.
             let image = if mime.is_some_and(crate::image::is_exif_orientation_format) {
                 crate::orientation::apply_to_image(
