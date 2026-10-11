@@ -77,6 +77,77 @@ fn compact_header_keeps_menus_within_caption_area(cx: &mut TestAppContext) {
     );
 }
 
+/// 도구 버튼은 서로 4px, 타이틀바 위아래로 4px씩 여백을 둔다. 라벨이 붙는 폭에서는 버튼이
+/// 넓어져 이 방식으로 잴 수 없으므로 라벨이 붙기 전 폭에서 확인한다.
+#[gpui_kit::test]
+fn header_buttons_keep_their_breathing_room(cx: &mut TestAppContext) {
+    let (view, cx) = open_app(cx);
+    cx.simulate_resize(gpui_kit::size(px(1200.), px(600.)));
+    open(&view, sample("sample.jpg"), cx);
+
+    // 버튼이 하나뿐인 그룹이 버튼 폭을 알려준다.
+    let button = f32::from(
+        cx.debug_bounds("header-center-info")
+            .expect("info")
+            .size
+            .width,
+    );
+    let modes = cx.debug_bounds("header-view-modes").expect("view modes");
+    let gap = (f32::from(modes.size.width) - 4.0 * button) / 3.0;
+    assert!(
+        (super::HEADER_BUTTON_GAP..2.0 * super::HEADER_BUTTON_GAP).contains(&gap),
+        "button gap {gap} (button {button}, modes {modes:?})"
+    );
+
+    // 읽기 영역은 타이틀바 바로 아래에서 시작하므로 그 y가 타이틀바 높이다.
+    let top = view.read_with(cx, |this, _| f32::from(this.viewport.get().origin.y));
+    assert_eq!(top, super::HEADER_HEIGHT, "title bar height");
+    assert!(
+        top - button >= 2.0 * super::HEADER_BUTTON_GAP,
+        "vertical room around {button}px buttons in a {top}px bar"
+    );
+}
+
+/// 숨긴 헤더를 가장자리 호버로 잠깐 보여주는 peek 오버레이도 같은 높이를 쓴다.
+#[gpui_kit::test]
+fn peek_overlay_shows_the_same_header_height(cx: &mut TestAppContext) {
+    let (view, cx) = open_app(cx);
+    open(&view, sample("sample.jpg"), cx);
+    cx.update(|_, cx| {
+        SettingsStore::update(cx, |settings| settings.menu_bar_hidden = true);
+    });
+    settle(cx);
+    // 숨긴 헤더는 그려지지 않고 읽기 영역이 창 위에서 시작한다.
+    assert_eq!(
+        view.read_with(cx, |this, _| f32::from(this.viewport.get().origin.y)),
+        0.0
+    );
+    assert!(cx.debug_bounds("header-left-menu").is_none());
+
+    // 위쪽 가장자리로 포인터를 옮기면 헤더가 읽기 영역 위로 겹쳐 내려온다.
+    cx.simulate_mouse_move(
+        point(px(200.), px(2.)),
+        MouseButton::Left,
+        Modifiers::default(),
+    );
+    settle(cx);
+    let peek = cx.debug_bounds("header-left-menu").expect("peek header");
+    assert!(f32::from(peek.origin.y) >= 0.0);
+    assert!(
+        f32::from(peek.bottom()) <= super::HEADER_HEIGHT,
+        "peek header bounds: {peek:?}"
+    );
+
+    // 포인터가 가장자리를 벗어나면 다시 숨는다.
+    cx.simulate_mouse_move(
+        point(px(200.), px(400.)),
+        MouseButton::Left,
+        Modifiers::default(),
+    );
+    settle(cx);
+    assert!(cx.debug_bounds("header-left-menu").is_none());
+}
+
 #[gpui_kit::test]
 fn wide_header_pushes_right_menu_to_the_edge(cx: &mut TestAppContext) {
     let (view, cx) = open_app(cx);
@@ -762,9 +833,17 @@ fn context_menu_item_runs_its_action(cx: &mut TestAppContext) {
     view.update_in(cx, |this, window, _| {
         assert!(!this.focus.is_focused(window))
     });
-    // 메뉴는 커서 위치에 열려 커서 아래 항목(이미지 닫기)부터 선택이 이어진다.
-    // 한 칸 내리면 구분선 다음의 "확대"다.
-    for key in ["down", "enter"] {
+    // 열린 메뉴의 선택은 포인터 아래 항목부터 이어진다. 포인터를 메뉴 밖(왼쪽 아래)으로
+    // 옮겨 그 선택을 지우면 첫 항목(파일 열기)부터 세 번 내려 "확대"를 확정적으로 고를 수
+    // 있다. 커서가 항목 경계에 걸치는 위치에 기대지 않아 헤더 높이 같은 레이아웃 변경에
+    // 휘둘리지 않는다.
+    cx.simulate_mouse_move(
+        point(px(100.), px(500.)),
+        MouseButton::Right,
+        Modifiers::default(),
+    );
+    settle(cx);
+    for key in ["down", "down", "down", "enter"] {
         cx.simulate_keystrokes(key);
         settle(cx);
     }

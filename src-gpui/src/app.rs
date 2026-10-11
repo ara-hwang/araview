@@ -54,25 +54,31 @@ const CHECKER_BASE: u32 = 0xffffff;
 const CHECKER_ALT: u32 = 0xc7c7c7;
 /// 애니메이션 컨트롤은 클러스터 폭(`GIF_CLUSTER_BASE_WIDTH` + 카운터)을 더한 폭 이상일 때만
 /// 보인다(SPEC §7.5). 이 값은 클러스터를 뺀 헤더가 캡션 버튼 앞에 들어가는 폭이다.
-const GIF_CONTROLS_MIN_WIDTH: f32 = 950.0;
+const GIF_CONTROLS_MIN_WIDTH: f32 = 990.0;
 /// 이 폭(논리 px) 이상이면 헤더 기본 버튼에 라벨을 붙인다. 라벨 길이가 언어마다 달라
 /// 한국어와 영어의 경계를 따로 둔다. 각 값은 실제 앱에서 캡션 버튼이 온전히 보이는 최소 폭
-/// (한국어 약 1313/1824, 영어 약 1546/2046)에 약 30px 여유를 더한 값이다. 헤드리스 테스트의
+/// (한국어 약 1313/1824, 영어 약 1546/2046)에 버튼 사이 간격이 2px 늘어난 몫(그룹마다
+/// `버튼 수 - 1`개, 합계 약 40px)과 약 30px 여유를 더한 값이다. 헤드리스 테스트의
 /// 텍스트 폭은 실제와 달라(한국어는 좁게, 영어는 넓게 잰다) 라벨 경계의 근거로 쓰지 못하므로
 /// 값을 바꾸면 개발 앱에서 폭별로 캡처해 확인한다.
-const HEADER_LABELS_MIN_WIDTH_KO: f32 = 1340.0;
-const HEADER_LABELS_MIN_WIDTH_EN: f32 = 1580.0;
+const HEADER_LABELS_MIN_WIDTH_KO: f32 = 1380.0;
+const HEADER_LABELS_MIN_WIDTH_EN: f32 = 1620.0;
 /// 이 폭 이상이면 보기 모드/변형/상태 버튼에도 라벨을 붙인다.
-const HEADER_EXTRA_LABELS_MIN_WIDTH_KO: f32 = 1850.0;
-const HEADER_EXTRA_LABELS_MIN_WIDTH_EN: f32 = 2080.0;
+const HEADER_EXTRA_LABELS_MIN_WIDTH_KO: f32 = 1890.0;
+const HEADER_EXTRA_LABELS_MIN_WIDTH_EN: f32 = 2120.0;
 /// 좁은 창에서 우선 숨길 도구 그룹의 경계(논리 px). 그룹이 보일 때 우측 메뉴와 그립이
-/// Windows 캡션 버튼 3개(34px씩 102px) 앞에 들어가는 최소 폭에 약 30px 여유를 더한 값이다.
+/// Windows 캡션 버튼 3개(34px씩 102px) 앞에 들어가는 최소 폭에, 버튼 사이 간격이 늘어난
+/// 몫과 약 30px 여유를 더한 값이다.
 /// `header_never_overlaps_caption_controls` 테스트가 500~2000px 전체에서 이를 지킨다.
-const HEADER_FIT_CONTROLS_MIN_WIDTH: f32 = 670.0;
-const HEADER_VIEW_MODES_MIN_WIDTH: f32 = 810.0;
-const HEADER_TRANSFORM_CONTROLS_MIN_WIDTH: f32 = 980.0;
+const HEADER_FIT_CONTROLS_MIN_WIDTH: f32 = 690.0;
+const HEADER_VIEW_MODES_MIN_WIDTH: f32 = 840.0;
+const HEADER_TRANSFORM_CONTROLS_MIN_WIDTH: f32 = 1010.0;
 /// 애니메이션 클러스터가 차지하는 폭(버튼 3개 + 카운터 + 간격).
 const GIF_CLUSTER_BASE_WIDTH: f32 = 112.0;
+/// 타이틀바 높이(논리 px). 32px 도구 버튼 위아래로 4px씩 남아야 그룹이 눌리지 않는다.
+const HEADER_HEIGHT: f32 = 40.0;
+/// 그룹 안 도구 버튼 사이의 간격(논리 px). 그룹과 그룹 사이는 이보다 넓은 `gap_2`다.
+const HEADER_BUTTON_GAP: f32 = 4.0;
 /// 숨긴 크롬을 다시 보여주는 가장자리 영역(px).
 const PEEK_EDGE: f32 = 6.0;
 const PEEK_TOP_KEEP: f32 = 48.0;
@@ -741,7 +747,14 @@ impl AraView {
             }));
         // 타이틀 바 본문은 창 드래그 영역이다. 버튼 묶음이 마우스를 막지 않으면
         // Windows가 클릭을 캡션 드래그로 처리해 버튼이 눌리지 않는다.
-        let group = || h_flex().gap_0p5().items_center().occlude().flex_none();
+        // 그룹 안 버튼이 맞붙어 보이지 않게 간격을 두고, 창 드래그 영역에서는 뺀다.
+        let group = || {
+            h_flex()
+                .gap(px(HEADER_BUTTON_GAP))
+                .items_center()
+                .occlude()
+                .flex_none()
+        };
         let mode_button = |id: &'static str, icon: Ph, key: &'static str, value: ViewMode| {
             Button::new(id)
                 .ghost()
@@ -751,7 +764,7 @@ impl AraView {
                 .when(extra_labels, |button| button.label(t(key)))
         };
 
-        TitleBar::new().h(px(36.)).child(
+        TitleBar::new().h(px(HEADER_HEIGHT)).child(
             h_flex()
                 .w_full()
                 .min_w_0()
