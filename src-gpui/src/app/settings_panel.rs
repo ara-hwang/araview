@@ -14,6 +14,8 @@ use gpui_kit::component::{
 };
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
+use std::cell::Cell;
+use std::rc::Rc;
 
 use super::{AraView, format_bytes};
 use crate::dialog::{ALERT_HEIGHT, centered};
@@ -50,8 +52,19 @@ enum Loadable<T> {
     Failed,
 }
 
+/// 설정 위에 쌓인 확인 다이얼로그가 살아 있는 동안 개수를 센다. 다이얼로그 빌더 클로저가
+/// 이 값을 쥐고 있다가 닫히며 클로저가 버려질 때 줄어든다(Esc로 닫혀도 같다).
+pub(super) struct NestedGuard(Rc<Cell<usize>>);
+
+impl Drop for NestedGuard {
+    fn drop(&mut self) {
+        self.0.set(self.0.get().saturating_sub(1));
+    }
+}
+
 pub(super) struct SettingsPanel {
     view: WeakEntity<AraView>,
+    nested: Rc<Cell<usize>>,
     tab: usize,
     focus: FocusHandle,
     scroll: SmoothScroll,
@@ -110,6 +123,7 @@ impl SettingsPanel {
     pub(super) fn new(view: WeakEntity<AraView>, cx: &mut Context<Self>) -> Self {
         Self {
             view,
+            nested: Rc::default(),
             tab: 0,
             focus: cx.focus_handle(),
             scroll: SmoothScroll::default(),
@@ -118,6 +132,16 @@ impl SettingsPanel {
             associations: Loadable::Idle,
             psd: Loadable::Idle,
         }
+    }
+
+    /// 설정 위에 확인 다이얼로그가 떠 있는지. 떠 있으면 설정 바깥 클릭으로 닫지 않는다.
+    pub(super) fn has_nested_dialog(&self) -> bool {
+        self.nested.get() > 0
+    }
+
+    fn nested_guard(&self) -> Rc<NestedGuard> {
+        self.nested.set(self.nested.get() + 1);
+        Rc::new(NestedGuard(self.nested.clone()))
     }
 
     /// 설정을 고치고 저장한 뒤 뷰어에 알린다.
@@ -709,10 +733,12 @@ impl SettingsPanel {
     }
 
     fn confirm_clear_all(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let guard = self.nested_guard();
         let panel = cx.entity();
         // `AlertDialog`에는 상단 오프셋이 없어 가운데 배치가 안 되니,
         // 같은 모양의 `Dialog`로 쌓는다(버튼 생김새·동작은 경고창과 같다).
         window.open_dialog(cx, move |dialog, window, _cx| {
+            let _guard = &guard;
             let panel = panel.clone();
             centered(dialog, window, ALERT_HEIGHT)
                 .close_button(false)
@@ -1005,9 +1031,11 @@ impl SettingsPanel {
         };
         // 중복 바인딩은 교체 여부를 묻는다.
         let other_label = keys::label_key(&other).map(t).unwrap_or_default();
+        let guard = self.nested_guard();
         let panel = cx.entity();
         let pressed = spec.clone();
         window.open_dialog(cx, move |dialog, window, _cx| {
+            let _guard = &guard;
             let panel = panel.clone();
             let action = action.clone();
             let spec = spec.clone();
@@ -1503,8 +1531,10 @@ impl SettingsPanel {
     }
 
     fn confirm_reset(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let guard = self.nested_guard();
         let panel = cx.entity();
         window.open_dialog(cx, move |dialog, window, _cx| {
+            let _guard = &guard;
             let panel = panel.clone();
             centered(dialog, window, ALERT_HEIGHT)
                 .close_button(false)

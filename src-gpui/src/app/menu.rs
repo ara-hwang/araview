@@ -352,36 +352,45 @@ impl AraView {
                         }
                         command = command.group(group);
                     }
+                    let outside_view = view.clone();
+                    // 배경을 끈 다이얼로그라 바깥 클릭 닫기는 팔레트 영역 밖 클릭으로 직접 처리한다.
                     content.child(
-                        command
-                            .empty(|_, _, cx| {
-                                v_flex()
-                                    .items_center()
-                                    .gap_1()
-                                    .py_4()
-                                    .child(t("palette.noResult"))
-                                    .child(
-                                        div()
-                                            .text_xs()
-                                            .text_color(cx.theme().muted_foreground)
-                                            .child(t("palette.noResultHint")),
-                                    )
-                            })
-                            .on_confirm(move |index, window, cx| {
-                                let Some(id) = confirm_groups
-                                    .get(index.section)
-                                    .and_then(|(_, ids)| ids.get(index.row))
-                                    .copied()
-                                else {
-                                    return;
-                                };
+                        div()
+                            .on_mouse_down_out(move |_, window, cx| {
                                 window.close_dialog(cx);
-                                SettingsStore::push_palette_mru(cx, id);
-                                view.update(cx, |this, cx| {
-                                    this.focus.focus(window, cx);
-                                    this.run_action(id, window, cx);
-                                });
-                            }),
+                                outside_view.update(cx, |this, cx| this.focus.focus(window, cx));
+                            })
+                            .child(
+                                command
+                                    .empty(|_, _, cx| {
+                                        v_flex()
+                                            .items_center()
+                                            .gap_1()
+                                            .py_4()
+                                            .child(t("palette.noResult"))
+                                            .child(
+                                                div()
+                                                    .text_xs()
+                                                    .text_color(cx.theme().muted_foreground)
+                                                    .child(t("palette.noResultHint")),
+                                            )
+                                    })
+                                    .on_confirm(move |index, window, cx| {
+                                        let Some(id) = confirm_groups
+                                            .get(index.section)
+                                            .and_then(|(_, ids)| ids.get(index.row))
+                                            .copied()
+                                        else {
+                                            return;
+                                        };
+                                        window.close_dialog(cx);
+                                        SettingsStore::push_palette_mru(cx, id);
+                                        view.update(cx, |this, cx| {
+                                            this.focus.focus(window, cx);
+                                            this.run_action(id, window, cx);
+                                        });
+                                    }),
+                            ),
                     )
                 })
         });

@@ -10,7 +10,9 @@ use gpui_kit::*;
 
 use super::AraView;
 use super::settings_panel::{Effect, SettingsPanel};
-use crate::dialog::{SETTINGS_HEIGHT, centered};
+use crate::dialog::{
+    SETTINGS_HEIGHT, SETTINGS_TITLE_HEIGHT, SETTINGS_WIDTH, centered, centered_margin_top,
+};
 use crate::i18n::{self, t};
 use crate::platform;
 use crate::settings::{SettingsStore, ThemeChoice, WindowState};
@@ -124,11 +126,40 @@ impl AraView {
     pub(super) fn open_settings(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let view = cx.entity().downgrade();
         let panel = cx.new(|cx| SettingsPanel::new(view, cx));
+        let outside_view = cx.entity();
         window.open_dialog(cx, move |dialog, window, _| {
+            let panel = panel.clone();
+            let outside_view = outside_view.clone();
+            // 배경을 끈 다이얼로그라 바깥 클릭 닫기는 설정 영역 밖 클릭으로 직접 처리한다.
+            // 그 위에 확인 다이얼로그가 떠 있으면 그쪽 클릭이므로 건드리지 않는다.
             centered(dialog, window, SETTINGS_HEIGHT)
                 .title(t("settings.title"))
-                .width(px(760.))
-                .child(panel.clone())
+                .width(px(SETTINGS_WIDTH))
+                .child(
+                    div()
+                        .on_mouse_down_out({
+                            let panel = panel.clone();
+                            move |event, window, cx| {
+                                if panel.read(cx).has_nested_dialog() {
+                                    return;
+                                }
+                                // 제목 줄은 다이얼로그 안쪽이지만 감싼 영역 밖이다.
+                                let width = f32::from(window.viewport_size().width);
+                                let left = (width - SETTINGS_WIDTH) / 2.0;
+                                let top = f32::from(centered_margin_top(window, SETTINGS_HEIGHT));
+                                let (x, y) =
+                                    (f32::from(event.position.x), f32::from(event.position.y));
+                                if (left..left + SETTINGS_WIDTH).contains(&x)
+                                    && (top..top + SETTINGS_TITLE_HEIGHT).contains(&y)
+                                {
+                                    return;
+                                }
+                                window.close_dialog(cx);
+                                outside_view.update(cx, |this, cx| this.focus.focus(window, cx));
+                            }
+                        })
+                        .child(panel),
+                )
         });
     }
 
