@@ -14,11 +14,10 @@
 
 <!-- Check what you ran and report the result. Leave unchecked items with a reason. -->
 
-- [ ] `npx tsc --noEmit`, `npm run lint`, `npm run format:check`
-- [ ] `npm test`
-- [ ] `cargo fmt --check` and `cargo test` (Rust changes only)
-- [ ] `npm run docs:check` (extensions, IPC commands, settings keys, plugins, versions)
-- [ ] Runtime check in the dev build (`com.araview.viewer.dev`): what was opened, clicked, and observed
+- [ ] `cargo fmt --all` and `cargo clippy --workspace --all-targets -- -D warnings`
+- [ ] `cargo test --workspace`
+- [ ] `npm run docs:check` (versions, supported extensions, settings keys, leftover plans)
+- [ ] Runtime check in the dev build (`com.araview.viewer.dev`): each screen or action as PASS or FAIL, plus the `selftest` result (`pwsh scripts/araview-drive.ps1 selftest`)
 
 ## Docs
 
