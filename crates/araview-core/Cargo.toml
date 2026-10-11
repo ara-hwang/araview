@@ -26,7 +26,7 @@ resvg = { version = "0.48", default-features = false, features = ["text", "syste
 notify = "8"
 rayon = "1"
 quick-xml = { version = "0.42", features = ["serialize"] }
-jxl-oxide = "0.12"
+jxl-oxide = { version = "0.12", features = ["moxcms"] }
 
 [lints.rust]
 unsafe_op_in_unsafe_fn = "deny"
