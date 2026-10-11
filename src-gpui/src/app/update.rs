@@ -3,6 +3,8 @@
 use std::collections::HashMap;
 use std::io::Read as _;
 use std::path::PathBuf;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::Duration;
 
 use crate::smooth::SmoothScroll;
@@ -10,12 +12,13 @@ use crate::toast::{Toast, WindowToast};
 use base64::Engine as _;
 use gpui_kit::component::button::{Button, ButtonVariants as _};
 use gpui_kit::component::dialog::DialogFooter;
+use gpui_kit::component::progress::Progress;
 use gpui_kit::component::{ActiveTheme as _, WindowExt as _, v_flex};
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
 
 use super::AraView;
-use crate::dialog::{UPDATE_HEIGHT, centered};
+use crate::dialog::{DOWNLOAD_HEIGHT, UPDATE_HEIGHT, centered};
 use crate::i18n::{t, t_with};
 
 /// 확인 요청은 30초, 다운로드 요청은 10분이 전체 기한이다.
@@ -28,6 +31,10 @@ const RELEASE_PAGE: &str = "https://github.com/ara-hwang/araview/releases/latest
 const PLATFORM: &str = "windows-x86_64";
 /// 설치 프로그램 크기 상한. 넘으면 받지 않는다.
 const MAX_INSTALLER_BYTES: u64 = 512 * 1024 * 1024;
+/// 본문을 읽는 조각 크기. 조각마다 받은 양을 기록하고 취소를 확인한다.
+const DOWNLOAD_CHUNK: usize = 64 * 1024;
+/// 다운로드 대화상자의 진행 표시를 다시 그리는 간격.
+const PROGRESS_TICK: Duration = Duration::from_millis(100);
 /// 업데이트 서명 공개키(minisign, base64). 기존 1.x 릴리스와 같은 키를 쓴다.
 const UPDATE_PUBKEY: &str = include_str!("../../update-pubkey.txt");
 
@@ -44,6 +51,42 @@ struct UpdateFeed {
     notes: String,
     #[serde(default)]
     platforms: HashMap<String, Asset>,
+}
+
+/// 다운로드 작업과 진행 대화상자가 함께 보는 상태.
+#[derive(Default)]
+struct DownloadProgress {
+    received: AtomicU64,
+    /// 전체 크기. 서버가 알려주지 않으면 0이다.
+    total: AtomicU64,
+    cancelled: AtomicBool,
+}
+
+impl DownloadProgress {
+    /// 받은 비율(0~100). 전체 크기를 모르면 None이다.
+    fn percent(&self) -> Option<f32> {
+        let total = self.total.load(Ordering::Relaxed);
+        let received = self.received.load(Ordering::Relaxed);
+        (total > 0).then(|| (received as f32 / total as f32 * 100.).min(100.))
+    }
+
+    fn label(&self) -> SharedString {
+        let received = super::format_bytes(self.received.load(Ordering::Relaxed));
+        match self.percent() {
+            Some(percent) => t_with(
+                "dialog.update.downloadedOfTotal",
+                &[
+                    ("downloaded", &received),
+                    (
+                        "total",
+                        &super::format_bytes(self.total.load(Ordering::Relaxed)),
+                    ),
+                    ("pct", &format!("{percent:.0}")),
+                ],
+            ),
+            None => t_with("dialog.update.downloadedBytes", &[("size", &received)]),
+        }
+    }
 }
 
 /// `1.2.10` 같은 버전을 숫자 조각으로 비교한다. 앞의 `v`와 뒤의 접미사는 무시한다.
@@ -125,19 +168,49 @@ fn fetch_feed(url: &str) -> Result<Option<UpdateFeed>, String> {
         .map_err(|error| error.to_string())
 }
 
-/// 설치 프로그램을 내려받아 서명을 확인하고 임시 폴더에 저장한다.
-fn download_installer(asset: &Asset, public_key: &str) -> Result<PathBuf, String> {
+/// 본문을 조각 단위로 읽으며 받은 양을 기록한다. 도중에 취소되면 None이다.
+fn read_with_progress(
+    mut reader: impl std::io::Read,
+    progress: &DownloadProgress,
+) -> Result<Option<Vec<u8>>, String> {
+    let mut bytes = Vec::new();
+    let mut chunk = vec![0; DOWNLOAD_CHUNK];
+    loop {
+        if progress.cancelled.load(Ordering::Relaxed) {
+            return Ok(None);
+        }
+        let read = match reader.read(&mut chunk) {
+            Ok(0) => return Ok(Some(bytes)),
+            Ok(read) => read,
+            Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
+            Err(error) => return Err(error.to_string()),
+        };
+        bytes.extend_from_slice(&chunk[..read]);
+        progress
+            .received
+            .store(bytes.len() as u64, Ordering::Relaxed);
+    }
+}
+
+/// 설치 프로그램을 내려받아 서명을 확인하고 임시 폴더에 저장한다. 취소되면 None이다.
+fn download_installer(
+    asset: &Asset,
+    public_key: &str,
+    progress: &DownloadProgress,
+) -> Result<Option<PathBuf>, String> {
     let mut response = agent(DOWNLOAD_TIMEOUT)
         .get(&asset.url)
         .call()
         .map_err(|error| error.to_string())?;
-    let mut bytes = Vec::new();
-    response
+    let total = response.body().content_length().unwrap_or(0);
+    progress.total.store(total, Ordering::Relaxed);
+    let reader = response
         .body_mut()
         .as_reader()
-        .take(MAX_INSTALLER_BYTES + 1)
-        .read_to_end(&mut bytes)
-        .map_err(|error| error.to_string())?;
+        .take(MAX_INSTALLER_BYTES + 1);
+    let Some(bytes) = read_with_progress(reader, progress)? else {
+        return Ok(None);
+    };
     if bytes.len() as u64 > MAX_INSTALLER_BYTES {
         return Err("installer is larger than expected".to_owned());
     }
@@ -150,7 +223,7 @@ fn download_installer(asset: &Asset, public_key: &str) -> Result<PathBuf, String
         .unwrap_or("araview-update-setup.exe");
     let path = std::env::temp_dir().join(name);
     std::fs::write(&path, bytes).map_err(|error| error.to_string())?;
-    Ok(path)
+    Ok(Some(path))
 }
 
 impl AraView {
@@ -256,6 +329,60 @@ impl AraView {
         });
     }
 
+    /// 다운로드가 끝날 때까지 떠 있는 진행 대화상자. 닫는 길은 취소 버튼뿐이고,
+    /// 다운로드가 끝나면 `download_update`가 닫는다.
+    fn show_download(
+        progress: Arc<DownloadProgress>,
+        version: String,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        window.open_dialog(cx, move |dialog, window, cx| {
+            let percent = progress.percent();
+            let cancel = progress.clone();
+            centered(dialog, window, DOWNLOAD_HEIGHT)
+                .close_button(false)
+                .keyboard(false)
+                .title(t("dialog.update.downloading"))
+                .child(
+                    v_flex()
+                        .gap_3()
+                        .child(
+                            div()
+                                .text_sm()
+                                .text_color(cx.theme().muted_foreground)
+                                .child(t_with(
+                                    "dialog.update.downloadingDesc",
+                                    &[("version", &version)],
+                                )),
+                        )
+                        .child(
+                            Progress::new("update-progress")
+                                .accessibility_label(t("dialog.update.downloading"))
+                                .loading(percent.is_none())
+                                .value(percent.unwrap_or(0.)),
+                        )
+                        .child(
+                            div()
+                                .text_xs()
+                                .text_color(cx.theme().muted_foreground)
+                                .child(progress.label()),
+                        ),
+                )
+                .footer(
+                    DialogFooter::new().child(
+                        Button::new("update-cancel")
+                            .outline()
+                            .label(t("dialog.cancel"))
+                            .on_click(move |_, window, cx| {
+                                cancel.cancelled.store(true, Ordering::Relaxed);
+                                window.close_dialog(cx);
+                            }),
+                    ),
+                )
+        });
+    }
+
     /// 설치 프로그램을 내려받아 실행하고 앱을 종료한다. 설치와 새 버전 재실행은
     /// 설치 프로그램이 맡는다.
     fn download_update(
@@ -269,21 +396,33 @@ impl AraView {
             return;
         }
         self.update_checking = true;
-        window.toast(
-            Toast::info(t_with(
-                "dialog.update.downloadingDesc",
-                &[("version", &version)],
-            ))
-            .title(t("dialog.update.downloadingTitle")),
-            cx,
-        );
-        let task =
-            cx.background_spawn(async move { download_installer(&asset, &release_public_key()?) });
+        let progress = Arc::new(DownloadProgress::default());
+        Self::show_download(progress.clone(), version, window, cx);
+        // 받은 양은 배경 스레드가 기록하므로, 대화상자는 일정 간격으로 다시 그린다.
+        let refresh = cx.spawn_in(window, async move |_, cx| {
+            loop {
+                cx.background_executor().timer(PROGRESS_TICK).await;
+                if cx.update(|window, _| window.refresh()).is_err() {
+                    break;
+                }
+            }
+        });
+        let task = cx.background_spawn({
+            let progress = progress.clone();
+            async move { download_installer(&asset, &release_public_key()?, &progress) }
+        });
         cx.spawn_in(window, async move |this, cx| {
             let result = task.await;
+            drop(refresh);
             this.update_in(cx, |this, window, cx| {
                 this.update_checking = false;
+                // 취소 버튼은 대화상자를 직접 닫았다. 그때는 아래 다이얼로그를 건드리지 않는다.
+                if progress.cancelled.load(Ordering::Relaxed) {
+                    return;
+                }
+                window.close_dialog(cx);
                 let launched = result.and_then(|installer| {
+                    let installer = installer.ok_or("download was cancelled")?;
                     std::process::Command::new(&installer)
                         .spawn()
                         .map_err(|error| error.to_string())
@@ -324,5 +463,71 @@ impl AraView {
             .ok()
         })
         .detach();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    // `super::*`는 gpui의 `test` 매크로까지 끌어와 `#[test]`를 가린다.
+    use super::{AraView, Arc, DOWNLOAD_CHUNK, DownloadProgress, Ordering, read_with_progress};
+    use crate::app::tests::{open_app, settle};
+    use gpui_kit::TestAppContext;
+    use gpui_kit::component::WindowExt as _;
+    use gpui_kit::test::TestWindowExt as _;
+
+    #[test]
+    fn read_records_received_bytes() {
+        let progress = DownloadProgress::default();
+        let body = vec![7u8; DOWNLOAD_CHUNK * 2 + 5];
+        progress.total.store(body.len() as u64, Ordering::Relaxed);
+        let bytes = read_with_progress(body.as_slice(), &progress).unwrap();
+        assert_eq!(bytes, Some(body.clone()));
+        assert_eq!(progress.received.load(Ordering::Relaxed), body.len() as u64);
+        assert_eq!(progress.percent(), Some(100.));
+    }
+
+    #[test]
+    fn read_stops_when_cancelled() {
+        let progress = DownloadProgress::default();
+        progress.cancelled.store(true, Ordering::Relaxed);
+        assert_eq!(read_with_progress([1u8, 2].as_slice(), &progress), Ok(None));
+        assert_eq!(progress.received.load(Ordering::Relaxed), 0);
+    }
+
+    #[test]
+    fn percent_needs_a_known_total() {
+        let progress = DownloadProgress::default();
+        progress.received.store(50, Ordering::Relaxed);
+        assert_eq!(progress.percent(), None);
+        progress.total.store(200, Ordering::Relaxed);
+        assert_eq!(progress.percent(), Some(25.));
+    }
+
+    /// 다운로드 대화상자는 `Esc`로 닫히지 않고 취소 버튼으로만 닫힌다.
+    #[gpui_kit::test]
+    fn download_dialog_closes_only_by_cancel(cx: &mut TestAppContext) {
+        let (view, cx) = open_app(cx);
+        let progress = Arc::new(DownloadProgress::default());
+        progress.total.store(200, Ordering::Relaxed);
+        progress.received.store(50, Ordering::Relaxed);
+        view.update_in(cx, |_, window, cx| {
+            AraView::show_download(progress.clone(), "9.9.9".to_owned(), window, cx)
+        });
+        settle(cx);
+        assert!(cx.update(|window, cx| window.has_active_dialog(cx)));
+
+        cx.simulate_keystrokes("escape");
+        settle(cx);
+        assert!(cx.update(|window, cx| window.has_active_dialog(cx)));
+        assert!(!progress.cancelled.load(Ordering::Relaxed));
+
+        // 등장 애니메이션이 끝나야 버튼이 제자리에서 클릭을 받는다.
+        std::thread::sleep(std::time::Duration::from_millis(500));
+        cx.update(|window, cx| window.simulate_next_frame(cx));
+        settle(cx);
+        cx.update(|window, cx| window.click("update-cancel", cx));
+        settle(cx);
+        assert!(!cx.update(|window, cx| window.has_active_dialog(cx)));
+        assert!(progress.cancelled.load(Ordering::Relaxed));
     }
 }

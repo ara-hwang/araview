@@ -18,6 +18,8 @@ pub const ALERT_HEIGHT: f32 = 240.0;
 pub const RENAME_HEIGHT: f32 = 300.0;
 /// 업데이트(제목+설명+릴리스 노트+버튼) 추정 높이.
 pub const UPDATE_HEIGHT: f32 = 430.0;
+/// 업데이트 다운로드(제목+설명+진행 막대+버튼) 추정 높이.
+pub const DOWNLOAD_HEIGHT: f32 = 260.0;
 /// 명령 팔레트(검색+목록) 추정 높이.
 pub const PALETTE_HEIGHT: f32 = 480.0;
 /// 라이선스(제목+520 목록) 추정 높이.

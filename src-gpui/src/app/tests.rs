@@ -26,7 +26,7 @@ fn sample(name: &str) -> String {
         .to_owned()
 }
 
-fn open_app(cx: &mut TestAppContext) -> (Entity<AraView>, &mut VisualTestContext) {
+pub(super) fn open_app(cx: &mut TestAppContext) -> (Entity<AraView>, &mut VisualTestContext) {
     static CACHE: Once = Once::new();
     CACHE.call_once(|| {
         araview_core::process_temp::initialize_temporary_fallback().expect("cache root");
@@ -273,7 +273,7 @@ fn animation_controls_wait_for_wider_frame_counter(cx: &mut TestAppContext) {
 }
 
 /// 백그라운드 작업과 그 결과로 생긴 재렌더를 끝까지 돌린다.
-fn settle(cx: &mut VisualTestContext) {
+pub(super) fn settle(cx: &mut VisualTestContext) {
     for _ in 0..4 {
         cx.run_until_parked();
         cx.update(|window, cx| window.draw(cx).clear(cx));
