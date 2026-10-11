@@ -59,8 +59,19 @@ pub fn decode_for_display(path: &Path, svg_max_side: u32) -> Result<DisplayImage
             Ok(DisplayImage::still(image, false))
         }
         Some(crate::jxl::JXL_MIME) => {
-            let (image, _icc) = crate::jxl::decode(path)?;
-            Ok(DisplayImage::still(image.into_rgba8(), false))
+            let decoded = crate::jxl::decode_frames(path, MAX_ANIMATION_BYTES)?;
+            Ok(DisplayImage {
+                frames: decoded
+                    .frames
+                    .into_iter()
+                    .map(|(image, delay_ms)| DisplayFrame {
+                        image,
+                        delay_ms: normalize_delay(delay_ms),
+                    })
+                    .collect(),
+                loop_count: decoded.loop_count,
+                is_vector: false,
+            })
         }
         Some("image/svg+xml") => Ok(DisplayImage::still(
             crate::svg_raster::rasterize_rgba(path, svg_max_side)?,
@@ -202,16 +213,19 @@ fn collect_frames(frames: image::Frames<'_>, width: u32, height: u32) -> Option<
             return None;
         }
         let (numer, denom) = frame.delay().numer_denom_ms();
-        let delay_ms = numer.checked_div(denom).unwrap_or(0);
-        let delay_ms = if delay_ms < MIN_FRAME_DELAY_MS {
-            DEFAULT_FRAME_DELAY_MS
-        } else {
-            delay_ms
-        };
         out.push(DisplayFrame {
             image: frame.into_buffer(),
-            delay_ms,
+            delay_ms: normalize_delay(numer.checked_div(denom).unwrap_or(0)),
         });
     }
     Some(out)
+}
+
+/// 0이거나 너무 짧은 프레임 지연은 기본값으로 바꾼다.
+fn normalize_delay(delay_ms: u32) -> u32 {
+    if delay_ms < MIN_FRAME_DELAY_MS {
+        DEFAULT_FRAME_DELAY_MS
+    } else {
+        delay_ms
+    }
 }

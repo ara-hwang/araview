@@ -35,7 +35,7 @@
 | `ico`         | `image/x-icon`              | 직접 디코드                                                                                                              |
 | `avif`        | `image/avif`                | 직접 디코드                                                                                                              |
 | `tif`, `tiff` | `image/tiff`                | 직접 디코드(BigTIFF 포함). 첫 페이지만 표시하며 Orientation 태그(1~8)를 치수·썸네일에 반영 |
-| `jxl`         | `image/jxl`                 | 직접 디코드(jxl-oxide, 컨테이너와 베어 코드스트림). 애니메이션은 첫 프레임만 표시하고 CMYK는 미지원. 썸네일·히스토그램은 JPEG sidecar |
+| `jxl`         | `image/jxl`                 | 직접 디코드(jxl-oxide, 컨테이너와 베어 코드스트림). 애니메이션 재생 지원, CMYK는 미지원. 썸네일·히스토그램은 JPEG sidecar |
 | `heic`        | `image/heic`                | JPEG sidecar 트랜스코드 후 렌더                                                                                            |
 | `heif`        | `image/heif`                | JPEG sidecar 트랜스코드 후 렌더                                                                                            |
 | `psd`         | `image/vnd.adobe.photoshop` | JPEG sidecar 트랜스코드 후 렌더(읽기 전용)                                                                                 |
@@ -650,7 +650,7 @@ UI 분류 5종:
 - 코어는 디코드용 파일 경로를 돌려주고, UI는 그 파일을 `display.rs`로 RGBA 프레임으로 디코드해 GPU 텍스처(타일)로 올려 그린다. GPUI 텍스처는 한 변 16384px 제한과 밉맵 없는 선형 보간뿐이라 큰 이미지는 8192px 타일로 나누고 축소 단계를 CPU에서 만든다(`src-gpui/src/picture.rs`).
 - 디코더가 따로 필요한 HEIC/HEIF/PSD/TGA/DDS/EXR/QOI는 JPEG sidecar를(`transcode.rs`가 디코더를 고르고 `sidecar.rs`의 `SidecarSpec` 파이프라인을 공유한다), 표시 해상도 제한이 걸린 큰 래스터는 `scaled/` 사본(9.4절)을 만든다. sidecar와 아카이브 추출물, 썸네일 캐시는 `cacheStorageMode`가 `persistent`면 `%LOCALAPPDATA%\<식별자>\`의 버전된 루트(`cache-v2/`)에, `temporary`면 프로세스 수명 TempDir에 둔다.
 - JPEG와 TIFF의 EXIF Orientation(1~8)은 디코드할 때 적용하고, 치수(`ImageInfo.width/height`, `get_image_details`)와 썸네일도 같은 기준으로 회전해 보고한다(SVG/WebP/PNG/HEIC는 대상 아님).
-- JXL은 jxl-oxide(순수 Rust, 추가 DLL 없음)로 디코드한다. 코드스트림 헤더의 orientation은 디코더가 픽셀과 치수에 반영하므로 EXIF 회전을 따로 적용하지 않는다. 색 공간이 열거형으로 신호된 이미지(XYB 손실 압축, Display P3, PQ/HLG, 선형 등)는 sRGB로 변환하고, ICC 프로파일만 실린 이미지는 CMS가 없어 픽셀을 그대로 둔다. 1억 픽셀을 넘으면 `TooLarge`, CMYK는 `Unsupported`로 거부한다.
+- JXL은 jxl-oxide(순수 Rust, 추가 DLL 없음)로 디코드한다. 코드스트림 헤더의 orientation은 디코더가 픽셀과 치수에 반영하므로 EXIF 회전을 따로 적용하지 않는다. 색 공간이 열거형으로 신호된 이미지(XYB 손실 압축, Display P3, PQ/HLG, 선형 등)는 sRGB로 변환하고, ICC 프로파일만 실린 이미지는 CMS가 없어 픽셀을 그대로 둔다. 움직이는 JXL은 키프레임을 모두 디코드해 GIF/APNG/WebP와 같은 재생 경로를 타고, 전체 프레임이 애니메이션 예산(RGBA 512MB)을 넘으면 첫 프레임만 표시한다. 1억 픽셀을 넘으면 `TooLarge`, CMYK는 `Unsupported`로 거부한다.
 - `detect_pixel_art`는 표시 바이트 경로를 제한된 분석 이미지로 읽고, 작은 색상 팔레트·평탄도·동일 색상 run·주기적 경계 신호를 결합한다. ML 모델이나 네트워크를 사용하지 않으며, 분석 제한 초과·디코드 실패·불확실 결과는 안전하게 부드러운 표시로 대체한다.
 - 표시 보간은 `smooth`(GPU 선형 보간과 CPU 축소 단계)와 `pixelated`(최근접 확대 래스터) 두 가지다. 픽셀 보존 판정(pixelated 모드와 확신 있는 자동 감지 포함)은 표시 배율이 1x 이상(확대)일 때만 적용되며, 축소 배율에서는 설정·감지와 무관하게 항상 `smooth`로 강제된다. 자동 모드는 추가로 표시 배율이 2x 이상이면 감지 결과와 무관하게 `pixelated`로 전환한다(원본 픽셀 표시). nearest 축소는 스크린톤 같은 주기 패턴을 계단·무아레로 깨뜨린다. 단일 보기 배율은 이미지 크기에 대한 `zoom`이고, 웹툰/양쪽 보기는 렌더된 크기에서 실측한다(측정 전에는 기존 판정 유지).
 - 사용자 원본 파일은 필터링하지 않는다. 표시 해상도 상한 sidecar와 썸네일은 기존 파생 이미지 파이프라인을 유지하며, 픽셀 보존 판정은 메인 이미지 표시 힌트로만 사용한다.

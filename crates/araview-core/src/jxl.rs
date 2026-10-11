@@ -4,7 +4,8 @@
 //! (C 라이브러리나 DLL 추가 없음).
 //! - 표시와 클립보드는 원본을 RGBA로 직접 디코드하고, 썸네일과 히스토그램은
 //!   AVIF처럼 JPEG sidecar 규칙(`SPEC`)을 탄다.
-//! - 컨테이너와 베어 코드스트림을 모두 읽는다. 애니메이션은 첫 키프레임만 쓴다.
+//! - 컨테이너와 베어 코드스트림을 모두 읽는다. 애니메이션은 표시에서만 재생하고
+//!   클립보드·썸네일·히스토그램은 첫 키프레임을 쓴다.
 //! - 코드스트림 헤더의 orientation은 디코더가 픽셀과 치수에 반영하므로 별도의
 //!   EXIF 회전은 적용하지 않는다.
 //! - 색 공간이 열거형으로 신호된 이미지(XYB 손실 압축, Display P3, PQ/HLG,
@@ -96,15 +97,13 @@ pub(crate) fn color_info(source: &Path) -> Option<(&'static str, u8)> {
     Some((mode, u8::try_from(bits).ok()?))
 }
 
-/// 첫 키프레임을 8비트로 디코드하고, 픽셀을 설명하는 ICC 프로파일을 함께
-/// 돌려준다. 채널 구성은 원본을 따른다(회색조, 알파 유지).
-pub(crate) fn decode(source: &Path) -> Result<(image::DynamicImage, Option<Vec<u8>>), AppError> {
+/// 전체를 읽어 렌더할 준비를 한다: 예산 검사, 출력 색 공간 지정.
+fn open_for_render(source: &Path) -> Result<JxlImage, AppError> {
     let mut image = JxlImage::builder()
         .alloc_tracker(AllocTracker::with_limit(MAX_DECODE_ALLOC))
         .open(source)
         .map_err(decode_error)?;
-    let (width, height) = (image.width(), image.height());
-    if u64::from(width).saturating_mul(u64::from(height)) > MAX_DECODE_PIXELS {
+    if u64::from(image.width()).saturating_mul(u64::from(image.height())) > MAX_DECODE_PIXELS {
         return Err(AppError::too_large("Image dimensions are too large"));
     }
     if image.pixel_format().has_black() {
@@ -125,7 +124,13 @@ pub(crate) fn decode(source: &Path) -> Result<(image::DynamicImage, Option<Vec<u
     if image.num_loaded_keyframes() == 0 {
         return Err(AppError::corrupt("JPEG XL image has no complete frame"));
     }
-    let render = image.render_frame(0).map_err(decode_error)?;
+    Ok(image)
+}
+
+/// 키프레임 하나를 8비트로 렌더한다. 채널 구성은 원본을 따른다(회색조, 알파 유지).
+fn render_keyframe(image: &JxlImage, index: usize) -> Result<(image::DynamicImage, u32), AppError> {
+    let (width, height) = (image.width(), image.height());
+    let render = image.render_frame(index).map_err(decode_error)?;
     let mut stream = render.stream();
     let channels = stream.channels() as usize;
     let len = (width as usize)
@@ -134,7 +139,6 @@ pub(crate) fn decode(source: &Path) -> Result<(image::DynamicImage, Option<Vec<u
         .ok_or_else(|| AppError::corrupt("JPEG XL image dimensions overflow"))?;
     let mut bytes = vec![0u8; len];
     stream.write_to_buffer(&mut bytes);
-    let invalid = || AppError::corrupt("JPEG XL decode produced invalid buffer");
     let decoded = match channels {
         1 => image::GrayImage::from_raw(width, height, bytes).map(image::DynamicImage::ImageLuma8),
         2 => image::GrayAlphaImage::from_raw(width, height, bytes)
@@ -143,8 +147,62 @@ pub(crate) fn decode(source: &Path) -> Result<(image::DynamicImage, Option<Vec<u
         4 => image::RgbaImage::from_raw(width, height, bytes).map(image::DynamicImage::ImageRgba8),
         _ => None,
     }
-    .ok_or_else(invalid)?;
+    .ok_or_else(|| AppError::corrupt("JPEG XL decode produced invalid buffer"))?;
+    Ok((decoded, render.duration()))
+}
+
+/// 첫 키프레임을 8비트로 디코드하고, 픽셀을 설명하는 ICC 프로파일을 함께
+/// 돌려준다.
+pub(crate) fn decode(source: &Path) -> Result<(image::DynamicImage, Option<Vec<u8>>), AppError> {
+    let image = open_for_render(source)?;
+    let (decoded, _ticks) = render_keyframe(&image, 0)?;
     Ok((decoded, Some(image.rendered_icc())))
+}
+
+/// 표시용 프레임 묶음. 정지 이미지는 프레임이 하나다.
+pub(crate) struct Frames {
+    /// 프레임과 표시 시간(ms).
+    pub frames: Vec<(image::RgbaImage, u32)>,
+    /// 유한 반복 횟수. `None`이면 무한 반복이다.
+    pub loop_count: Option<u32>,
+}
+
+/// 표시용 디코드. 애니메이션이면 키프레임을 모두 디코드하되, 전체 RGBA 크기가
+/// `max_animation_bytes`를 넘으면 첫 프레임만 돌려준다.
+pub(crate) fn decode_frames(source: &Path, max_animation_bytes: u64) -> Result<Frames, AppError> {
+    let image = open_for_render(source)?;
+    let keyframes = image.num_loaded_keyframes();
+    let animation = image.image_header().metadata.animation.as_ref();
+    let frame_bytes = u64::from(image.width()) * u64::from(image.height()) * 4;
+    let total_bytes = frame_bytes.saturating_mul(keyframes as u64);
+    let Some(animation) = animation.filter(|_| keyframes > 1 && total_bytes <= max_animation_bytes)
+    else {
+        let (first, _ticks) = render_keyframe(&image, 0)?;
+        return Ok(Frames {
+            frames: vec![(first.into_rgba8(), 0)],
+            loop_count: None,
+        });
+    };
+    // 한 틱은 `tps_denominator / tps_numerator`초다.
+    let tick_ms = |ticks: u32| {
+        let ms = u64::from(ticks) * 1000 * u64::from(animation.tps_denominator)
+            / u64::from(animation.tps_numerator.max(1));
+        u32::try_from(ms).unwrap_or(u32::MAX)
+    };
+    let mut frames = Vec::with_capacity(keyframes);
+    for index in 0..keyframes {
+        match render_keyframe(&image, index) {
+            Ok((frame, ticks)) => frames.push((frame.into_rgba8(), tick_ms(ticks))),
+            // 뒤쪽 프레임만 깨진 파일은 읽은 데까지 재생한다.
+            Err(_) if !frames.is_empty() => break,
+            Err(e) => return Err(e),
+        }
+    }
+    Ok(Frames {
+        frames,
+        // 0은 무한 반복이다.
+        loop_count: Some(animation.num_loops).filter(|&loops| loops > 0),
+    })
 }
 
 /// 썸네일·히스토그램용 RGB8 디코드. 투명은 흰 배경에 합성한다
