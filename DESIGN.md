@@ -143,7 +143,7 @@ Single-window app shell: a thin top toolbar (40px tall, 32px buttons with 4px of
 
 ### Layer Stack
 
-Lowest to highest: reading content with in-canvas overlays (`z-10`), floating callouts (`z-20`), the thumbnail grid overlay (`z-40`), popovers, tooltips, dialogs, and sheets (`z-50`), toasts (`z-100`). Dialog and sheet scrims start at `--header-height` so the caption buttons stay clickable; the Windows Snap hit-test overlay is OS-owned and sits above the maximize button outside this scale.
+Lowest to highest: reading content with in-canvas overlays (`z-10`), floating callouts (`z-20`), the thumbnail grid overlay (`z-40`), popovers, tooltips, dialogs, and sheets (`z-50`), toasts (`z-100`). A dialog scrim covers the whole window at 20% black and never closes the dialog on click; the Windows Snap hit-test overlay is OS-owned and sits above the maximize button outside this scale. While a dialog is open the caption controls do not respond (SPEC §17).
 
 ## Elevation & Depth
 

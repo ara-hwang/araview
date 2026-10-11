@@ -10,11 +10,12 @@ use araview_core::ops;
 
 use super::AraView;
 use super::viewport::WT_KEY_SCROLL;
-use crate::dialog::{PALETTE_HEIGHT, centered};
+use crate::dialog::{BackdropClick, PALETTE_HEIGHT, centered, watch_backdrop_click};
 use crate::geometry::{PAN_STEP, ZOOM_STEP};
 use crate::i18n::{t, t_en};
 use crate::keys;
 use crate::layout;
+use crate::platform;
 use crate::settings::{FitMode, SettingsStore, ViewMode};
 
 /// 단축키가 없는 팔레트 전용 명령.
@@ -320,11 +321,14 @@ impl AraView {
         let state = cx.new(|cx| CommandState::new(window, cx));
         let view = cx.entity();
         let search = state.clone();
+        // 배경 누름 판정은 팔레트가 사는 동안 유지해야 한다(다이얼로그 빌더는 다시 돈다).
+        let backdrop = BackdropClick::default();
         window.open_dialog(cx, move |dialog, window, _| {
             let state = state.clone();
             let groups = groups.clone();
             let shortcuts = shortcuts.clone();
             let view = view.clone();
+            let backdrop = backdrop.clone();
             centered(dialog, window, PALETTE_HEIGHT)
                 .close_button(false)
                 .p_0()
@@ -353,12 +357,43 @@ impl AraView {
                         command = command.group(group);
                     }
                     let outside_view = view.clone();
-                    // 배경을 끈 다이얼로그라 바깥 클릭 닫기는 팔레트 영역 밖 클릭으로 직접 처리한다.
+                    // 다이얼로그 배경은 클릭으로 닫히지 않으므로(`centered`의
+                    // `overlay_closable(false)`), 바깥 클릭 닫기는 팔레트 영역 밖에서
+                    // 직접 처리한다. 누름에서는 닫지 않는다: 배경이 캡션 판정이라 그 누름이
+                    // 곧 창 이동 드래그의 시작일 수 있다.
+                    let close_palette = {
+                        let outside_view = outside_view.clone();
+                        move |window: &mut Window, cx: &mut App| {
+                            window.close_dialog(cx);
+                            outside_view.update(cx, |this, cx| this.focus.focus(window, cx));
+                        }
+                    };
+                    let press_backdrop = backdrop.clone();
+                    let release_backdrop = backdrop.clone();
                     content.child(
                         div()
-                            .on_mouse_down_out(move |_, window, cx| {
-                                window.close_dialog(cx);
-                                outside_view.update(cx, |this, cx| this.focus.focus(window, cx));
+                            .on_mouse_down_out({
+                                let close_palette = close_palette.clone();
+                                move |event, window, cx| {
+                                    if !press_backdrop
+                                        .press(event.position, platform::window_origin(window))
+                                    {
+                                        return;
+                                    }
+                                    watch_backdrop_click(
+                                        press_backdrop.clone(),
+                                        window,
+                                        cx,
+                                        close_palette.clone(),
+                                    );
+                                }
+                            })
+                            .on_mouse_up_out(MouseButton::Left, move |event, window, cx| {
+                                if release_backdrop
+                                    .release(Some(event.position), platform::window_origin(window))
+                                {
+                                    close_palette(window, cx);
+                                }
                             })
                             .child(
                                 command

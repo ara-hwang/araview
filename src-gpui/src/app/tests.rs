@@ -12,7 +12,7 @@ use gpui_kit::{
 
 use super::AraView;
 use super::settings_panel::SettingsPanel;
-use crate::settings::{ArchiveProgress, SettingsStore, ViewMode};
+use crate::settings::{ArchiveProgress, SettingsStore, ThemeChoice, ViewMode};
 use crate::toast::{TOAST_DURATION, Toast, WindowToast};
 
 fn sample(name: &str) -> String {
@@ -870,6 +870,133 @@ fn high_contrast_raises_text_and_border_contrast(cx: &mut TestAppContext) {
         assert_eq!(theme.ring, ink);
         assert_eq!(theme.border, ink.opacity(0.8));
     });
+}
+
+/// 다이얼로그가 창 뒤를 덮는 정도는 라이트·다크 모두 20% 검정이다. 라이트 테마 기본값은
+/// 5%라 앱이 같은 세기로 맞춘다(`apply_theme`). 모드를 바꾸면 팔레트가 테마 설정에서 다시
+/// 만들어지므로 설정 자체도 같이 고쳐야 유지된다.
+#[gpui_kit::test]
+fn dialogs_dim_the_window_at_the_same_strength_in_both_modes(cx: &mut TestAppContext) {
+    use gpui_kit::component::theme::Theme;
+
+    let (_view, cx) = open_app(cx);
+    let dim = gpui_kit::black().opacity(0.2);
+    for choice in [ThemeChoice::Light, ThemeChoice::Dark] {
+        cx.update(|window, cx| super::system::apply_theme(choice, window, cx));
+        cx.update(|_, cx| assert_eq!(Theme::global(cx).overlay, dim, "{choice:?}"));
+    }
+}
+
+/// 팔레트는 영역 밖 클릭으로 닫는다. 다이얼로그 배경을 켠 뒤에도 배경 클릭이 앱까지
+/// 전달되어야 이 동작이 유지된다.
+#[gpui_kit::test]
+fn palette_closes_when_a_click_lands_outside_it(cx: &mut TestAppContext) {
+    let (view, cx) = open_app(cx);
+    open(&view, sample("sample.jpg"), cx);
+    run(&view, "togglePalette", cx);
+    assert!(cx.update(|window, cx| window.has_active_dialog(cx)));
+
+    let outside = point(px(4.), px(4.));
+    cx.simulate_mouse_down(outside, MouseButton::Left, Modifiers::default());
+    cx.simulate_mouse_up(outside, MouseButton::Left, Modifiers::default());
+    settle(cx);
+    assert!(!cx.update(|window, cx| window.has_active_dialog(cx)));
+}
+
+/// 배경을 눌러 끌면(창 이동 드래그) 팔레트와 설정은 닫히지 않는다. 같은 누름도 뗀
+/// 자리가 누른 자리에서 멀면 클릭이 아니다. 창이 따라 움직이지 않는 합성 드래그는
+/// 이 자리 비교로 가른다.
+#[gpui_kit::test]
+fn dragging_a_dialog_backdrop_keeps_the_dialog_open(cx: &mut TestAppContext) {
+    let (view, cx) = open_app(cx);
+    open(&view, sample("sample.jpg"), cx);
+    let outside = point(px(4.), px(4.));
+    let far = point(px(120.), px(120.));
+
+    for (action, name) in [("togglePalette", "팔레트"), ("openSettings", "설정")] {
+        run(&view, action, cx);
+        assert!(
+            cx.update(|window, cx| window.has_active_dialog(cx)),
+            "{name}가 열리지 않았다"
+        );
+        cx.simulate_mouse_down(outside, MouseButton::Left, Modifiers::default());
+        cx.simulate_mouse_move(far, MouseButton::Left, Modifiers::default());
+        cx.simulate_mouse_up(far, MouseButton::Left, Modifiers::default());
+        settle(cx);
+        assert!(
+            cx.update(|window, cx| window.has_active_dialog(cx)),
+            "{name}가 배경 드래그로 닫혔다"
+        );
+        // 제자리에서 눌렀다 떼면 클릭이라 닫힌다.
+        cx.simulate_mouse_down(outside, MouseButton::Left, Modifiers::default());
+        cx.simulate_mouse_up(outside, MouseButton::Left, Modifiers::default());
+        settle(cx);
+        assert!(
+            !cx.update(|window, cx| window.has_active_dialog(cx)),
+            "{name}가 배경 클릭으로 닫히지 않았다"
+        );
+    }
+}
+
+/// 배경 누름 판정 자체를 본다. 창 원점은 OS에서 오므로 헤드리스 창에서는 얻을 수
+/// 없어 여기서 값으로 넣는다.
+#[test]
+fn backdrop_click_separates_a_click_from_a_window_drag() {
+    use crate::dialog::BackdropClick;
+
+    let press = BackdropClick::default();
+    let at = point(px(40.), px(40.));
+    let elsewhere = point(px(200.), px(40.));
+    let origin = Some((100, 100));
+
+    // 누름만으로는 정해지지 않고, 뗌이 와야 결정된다.
+    assert!(press.press(at, origin));
+    assert!(press.pending());
+    assert!(press.release(Some(at), origin), "제자리 뗌은 클릭이다");
+    assert!(!press.pending());
+    assert!(
+        !press.release(Some(at), origin),
+        "지켜보는 누름이 없으면 아무 일도 없다"
+    );
+
+    // 창이 움직였으면 OS 이동 루프를 돈 드래그다. 뗀 자리가 같아도 클릭이 아니다.
+    assert!(press.press(at, origin));
+    assert!(
+        !press.release(Some(at), Some((160, 100))),
+        "창이 움직였으면 드래그다"
+    );
+
+    // 뗀 자리가 멀면 클릭이 아니다.
+    assert!(press.press(at, origin));
+    assert!(!press.release(Some(elsewhere), origin));
+
+    // 뗀 자리를 모르는 경로(물리 버튼 확인)는 창 원점만 본다.
+    assert!(press.press(at, origin));
+    assert!(press.release(None, origin));
+    assert!(press.press(at, origin));
+    assert!(!press.release(None, Some((100, 160))));
+}
+
+/// 다이얼로그 배경을 눌러도 닫히지 않는다. 닫기는 `Esc`와 버튼 몫이고, 영역 밖 클릭으로
+/// 닫는 것은 명령 팔레트와 설정이 다이얼로그 안에서 직접 처리한다(SPEC §17).
+#[gpui_kit::test]
+fn pressing_the_dialog_backdrop_keeps_the_dialog_open(cx: &mut TestAppContext) {
+    let (_dir, paths) = temp_copy(&["sample.png"]);
+    let (view, cx) = open_app(cx);
+    open(&view, paths[0].clone(), cx);
+
+    cx.simulate_keystrokes("f2");
+    settle(cx);
+    assert!(cx.update(|window, cx| window.has_active_dialog(cx)));
+
+    // 이름 변경 다이얼로그는 가운데에 뜨므로 왼쪽 위 모서리는 배경이다.
+    cx.simulate_mouse_down(
+        point(px(4.), px(4.)),
+        MouseButton::Left,
+        Modifiers::default(),
+    );
+    settle(cx);
+    assert!(cx.update(|window, cx| window.has_active_dialog(cx)));
 }
 
 #[gpui_kit::test]

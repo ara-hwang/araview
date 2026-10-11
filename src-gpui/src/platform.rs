@@ -92,6 +92,52 @@ pub fn start_window_drag(window: &Window) {
     }
 }
 
+/// 마우스 왼쪽 버튼이 실제로 눌려 있는지 물리 상태로 본다.
+///
+/// 다이얼로그가 열려 있으면 배경이 Windows에게 캡션(`HTCAPTION`)이라, 배경을 누르면
+/// OS가 창 이동 루프를 돌리고 그 뗌(`WM_LBUTTONUP`)을 가져간다. 그래서 gpui는 그 뗌을
+/// 보지 못한다. 배경 누름이 언제 끝났는지 확인할 때 이 물리 상태를 쓴다.
+pub fn left_button_down() -> bool {
+    #[link(name = "user32")]
+    unsafe extern "system" {
+        fn GetAsyncKeyState(key: i32) -> i16;
+    }
+    const VK_LBUTTON: i32 = 0x01;
+    // SAFETY: 키보드·마우스의 물리 상태만 읽는다.
+    unsafe { GetAsyncKeyState(VK_LBUTTON) as u16 & 0x8000 != 0 }
+}
+
+/// 창 테두리의 화면 좌표. 얻지 못하면 None이다.
+///
+/// 다이얼로그 배경은 캡션 판정이라 배경을 잡아 끌면 OS 이동 루프가 창을 옮긴다.
+/// 누를 때와 견주면 그 누름이 창 이동 드래그였는지 알 수 있다.
+pub fn window_origin(window: &Window) -> Option<(i32, i32)> {
+    #[repr(C)]
+    struct Rect {
+        left: i32,
+        top: i32,
+        right: i32,
+        bottom: i32,
+    }
+    #[link(name = "user32")]
+    unsafe extern "system" {
+        fn GetWindowRect(hwnd: Handle, rect: *mut Rect) -> i32;
+    }
+    let hwnd = hwnd(window);
+    if hwnd == 0 {
+        return None;
+    }
+    let mut rect = Rect {
+        left: 0,
+        top: 0,
+        right: 0,
+        bottom: 0,
+    };
+    // SAFETY: 살아 있는 창의 HWND와 그 크기만큼의 버퍼를 넘긴다.
+    let ok = unsafe { GetWindowRect(hwnd, &raw mut rect) } != 0;
+    ok.then_some((rect.left, rect.top))
+}
+
 /// 창을 항상 위에 두거나 해제한다. 성공 여부를 돌려준다.
 pub fn set_always_on_top(window: &Window, on_top: bool) -> bool {
     let hwnd = hwnd(window);

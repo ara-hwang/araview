@@ -1,5 +1,6 @@
 //! 설정 반영, 항상 위, 업데이트 확인, 라이선스, 두 번째 실행 전달(SPEC §4.3, §20).
 
+use std::rc::Rc;
 use std::sync::mpsc::{Receiver, TryRecvError};
 use std::time::Duration;
 
@@ -11,7 +12,8 @@ use gpui_kit::*;
 use super::AraView;
 use super::settings_panel::{Effect, SettingsPanel};
 use crate::dialog::{
-    SETTINGS_HEIGHT, SETTINGS_TITLE_HEIGHT, SETTINGS_WIDTH, centered, centered_margin_top,
+    BackdropClick, SETTINGS_HEIGHT, SETTINGS_TITLE_HEIGHT, SETTINGS_WIDTH, centered,
+    centered_margin_top, watch_backdrop_click,
 };
 use crate::i18n::{self, t};
 use crate::platform;
@@ -20,12 +22,25 @@ use crate::settings::{SettingsStore, ThemeChoice, WindowState};
 /// 두 번째 실행이 넘긴 경로를 확인하는 주기.
 const INSTANCE_POLL: Duration = Duration::from_millis(150);
 
+/// 다이얼로그가 뒤 화면을 덮는 검정 불투명도. 라이트 테마 기본값(5%)이 너무 옅어
+/// 다크 기본값과 같은 세기로 맞춘다(SPEC §17).
+const DIALOG_DIM_ALPHA: f32 = 0.2;
+/// `DIALOG_DIM_ALPHA`의 `#RRGGBBAA` 표기. 테마 설정은 문자열 색만 받는다.
+const DIALOG_DIM_HEX: &str = "#00000033";
+
 pub fn apply_theme(choice: ThemeChoice, window: &mut Window, cx: &mut App) {
     match choice {
         ThemeChoice::System => Theme::sync_system_appearance(Some(window), cx),
         ThemeChoice::Light => Theme::change(ThemeMode::Light, Some(window), cx),
         ThemeChoice::Dark => Theme::change(ThemeMode::Dark, Some(window), cx),
     }
+    // 다이얼로그 딤은 모드와 무관하게 같은 세기로 둔다. 모드를 바꾸면 팔레트가 테마
+    // 설정에서 다시 만들어지므로 설정 자체를 고쳐 두고, 지금 팔레트에도 바로 반영한다.
+    let theme = Theme::global_mut(cx);
+    for config in [&mut theme.light_theme, &mut theme.dark_theme] {
+        Rc::make_mut(config).colors.overlay = Some(DIALOG_DIM_HEX.into());
+    }
+    theme.overlay = gpui_kit::black().opacity(DIALOG_DIM_ALPHA);
     if platform::high_contrast() {
         raise_contrast(cx);
         window.refresh();
@@ -127,18 +142,33 @@ impl AraView {
         let view = cx.entity().downgrade();
         let panel = cx.new(|cx| SettingsPanel::new(view, cx));
         let outside_view = cx.entity();
+        // 배경 누름 판정은 설정 창이 사는 동안 유지해야 한다(다이얼로그 빌더는 다시 돈다).
+        let backdrop = BackdropClick::default();
         window.open_dialog(cx, move |dialog, window, _| {
             let panel = panel.clone();
             let outside_view = outside_view.clone();
-            // 배경을 끈 다이얼로그라 바깥 클릭 닫기는 설정 영역 밖 클릭으로 직접 처리한다.
+            let backdrop = backdrop.clone();
+            // 다이얼로그 배경은 클릭으로 닫히지 않으므로(`centered`의 `overlay_closable(false)`)
+            // 바깥 클릭 닫기는 설정 영역 밖에서 직접 처리한다. 누름에서는 닫지 않는다:
+            // 배경이 캡션 판정이라 그 누름이 곧 창 이동 드래그의 시작일 수 있다.
             // 그 위에 확인 다이얼로그가 떠 있으면 그쪽 클릭이므로 건드리지 않는다.
             centered(dialog, window, SETTINGS_HEIGHT)
                 .title(t("settings.title"))
                 .width(px(SETTINGS_WIDTH))
-                .child(
+                .child({
+                    let close_settings = {
+                        let outside_view = outside_view.clone();
+                        move |window: &mut Window, cx: &mut App| {
+                            window.close_dialog(cx);
+                            outside_view.update(cx, |this, cx| this.focus.focus(window, cx));
+                        }
+                    };
+                    let press_backdrop = backdrop.clone();
+                    let release_backdrop = backdrop.clone();
                     div()
                         .on_mouse_down_out({
                             let panel = panel.clone();
+                            let close_settings = close_settings.clone();
                             move |event, window, cx| {
                                 if panel.read(cx).has_nested_dialog() {
                                     return;
@@ -154,12 +184,28 @@ impl AraView {
                                 {
                                     return;
                                 }
-                                window.close_dialog(cx);
-                                outside_view.update(cx, |this, cx| this.focus.focus(window, cx));
+                                if !press_backdrop
+                                    .press(event.position, platform::window_origin(window))
+                                {
+                                    return;
+                                }
+                                watch_backdrop_click(
+                                    press_backdrop.clone(),
+                                    window,
+                                    cx,
+                                    close_settings.clone(),
+                                );
                             }
                         })
-                        .child(panel),
-                )
+                        .on_mouse_up_out(MouseButton::Left, move |event, window, cx| {
+                            if release_backdrop
+                                .release(Some(event.position), platform::window_origin(window))
+                            {
+                                close_settings(window, cx);
+                            }
+                        })
+                        .child(panel)
+                })
         });
     }
 
