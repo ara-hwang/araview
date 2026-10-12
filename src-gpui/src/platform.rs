@@ -190,6 +190,30 @@ pub fn high_contrast() -> bool {
     ok && info.flags & HCF_HIGHCONTRASTON != 0
 }
 
+/// Windows "애니메이션 효과"가 꺼져 있는지(모션 최소화).
+pub fn reduced_motion() -> bool {
+    // 테스트는 실행하는 PC의 설정과 무관하게 재생 경로를 확인한다.
+    if cfg!(test) {
+        return false;
+    }
+    #[link(name = "user32")]
+    unsafe extern "system" {
+        fn SystemParametersInfoW(
+            action: u32,
+            param: u32,
+            data: *mut core::ffi::c_void,
+            update: u32,
+        ) -> i32;
+    }
+    const SPI_GETCLIENTAREAANIMATION: u32 = 0x1042;
+    let mut enabled: i32 = 1;
+    // SAFETY: 이 조회는 BOOL 하나만 쓰며, 그 크기의 유효한 버퍼를 넘긴다.
+    let ok = unsafe {
+        SystemParametersInfoW(SPI_GETCLIENTAREAANIMATION, 0, (&raw mut enabled).cast(), 0) != 0
+    };
+    ok && enabled == 0
+}
+
 /// 개발 빌드의 제어 통로. 에이전트가 실행 중인 창의 상태를 읽고 입력을 넣는다.
 #[cfg(all(debug_assertions, not(test)))]
 pub struct Control {

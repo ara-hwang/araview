@@ -190,6 +190,7 @@ impl AraView {
         self.comic_failed = listing.comic.is_err();
         self.comic = listing.comic.ok().flatten();
         let settings = &SettingsStore::global(cx).settings;
+        self.progress_held = self.archive.is_some() && !settings.resume_reading;
         self.comic_mode = self.archive.as_ref().and_then(|_| {
             layout::comic_view_mode(
                 settings.view_mode,
@@ -645,7 +646,9 @@ impl AraView {
         if let Some(oriented) = self.oriented.take() {
             Self::drop_picture(&oriented, window, cx);
         }
-        self.playing = picture.is_animated() && !self.view_mode(cx).is_dual();
+        self.playing = picture.is_animated()
+            && !self.view_mode(cx).is_dual()
+            && !crate::platform::reduced_motion();
         self.frame = 0;
         self.loops_done = 0;
         self.frame_started = Instant::now();
@@ -665,6 +668,12 @@ impl AraView {
     }
 
     pub(super) fn save_progress(&mut self, cx: &mut Context<Self>) {
+        if self.progress_held {
+            if self.index == 0 {
+                return;
+            }
+            self.progress_held = false;
+        }
         if let Some(archive) = self.archive.clone()
             && let Some(entry) = self.list.get(self.index)
         {

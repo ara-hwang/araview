@@ -237,8 +237,14 @@ fn write_extracted(out_path: &Path, buf: &[u8]) -> Result<(), AppError> {
     }
     // 직접 쓰면 동시 로더가 부분 파일을 읽을 수 있어 temp+rename으로 발행한다.
     let tmp = crate::sidecar::tmp_path_for(out_path);
-    fs::write(&tmp, buf)
-        .map_err(|e| AppError::io("Failed to write temp file", e, ErrorCode::Unknown))?;
+    if let Err(e) = fs::write(&tmp, buf) {
+        let _ = fs::remove_file(&tmp);
+        return Err(AppError::io(
+            "Failed to write temp file",
+            e,
+            ErrorCode::Unknown,
+        ));
+    }
     crate::sidecar::publish_atomic(&tmp, out_path, "Failed to publish temp file")?;
     crate::process_temp::touch_cache_file(out_path);
     // 엔트리마다 디렉터리를 다시 훑지 않도록 누적 바이트로 상한을 추적한다.

@@ -130,7 +130,7 @@ struct RawPages {
 #[derive(Deserialize, Debug, Default)]
 struct RawPage {
     #[serde(rename = "@Image")]
-    image: Option<u32>,
+    image: Option<String>,
     #[serde(rename = "@Type")]
     page_type: Option<String>,
 }
@@ -268,8 +268,9 @@ fn normalize_pages(pages: Option<RawPages>) -> Option<Vec<ComicPage>> {
     let mut normalized: Vec<ComicPage> = entries
         .into_iter()
         .filter_map(|page| {
-            // Image 속성이 없으면 페이지 순서를 알 수 없어 버린다.
-            page.image.map(|image| ComicPage {
+            // Image 속성이 없거나 숫자가 아니면 페이지 순서를 알 수 없어 버린다.
+            let image = normalize(page.image)?.parse::<u32>().ok()?;
+            Some(ComicPage {
                 image,
                 page_type: normalize(page.page_type),
             })
@@ -490,4 +491,22 @@ fn apply_cover_pages(xml: &str, covers: &BTreeSet<u32>) -> Result<String, AppErr
 
     String::from_utf8(writer.into_inner())
         .map_err(|_| AppError::corrupt("ComicInfo.xml is not valid UTF-8"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_bad_page_image_drops_only_that_page() {
+        let xml = r#"<ComicInfo><Title>T</Title><Pages>
+            <Page Image="1.5" Type="FrontCover"/>
+            <Page Image="2" Type="FrontCover"/>
+        </Pages></ComicInfo>"#;
+        let info = parse_comic_info(xml.as_bytes()).expect("parse");
+        assert_eq!(info.title.as_deref(), Some("T"));
+        let pages = info.pages.expect("pages");
+        assert_eq!(pages.len(), 1);
+        assert_eq!(pages[0].image, 2);
+    }
 }

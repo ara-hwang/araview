@@ -85,15 +85,13 @@ impl AraView {
     fn after_trash(&mut self, path: &str, window: &mut Window, cx: &mut Context<Self>) {
         SettingsStore::remove_recent(cx, path);
         window.toast(Toast::success(t("toast.trash.done")), cx);
+        // 그사이 다른 목록을 열었으면 지운 파일이 없으니 목록은 그대로 둔다.
+        let Some(removed) = self.list.iter().position(|item| **item == *path) else {
+            return;
+        };
         let mut items = (*self.list).clone();
-        let removed = items
-            .iter()
-            .position(|item| **item == *path)
-            .unwrap_or(self.index.min(items.len().saturating_sub(1)));
-        if removed < items.len() {
-            let gone = items.remove(removed);
-            self.thumbs.remove(&gone);
-        }
+        let gone = items.remove(removed);
+        self.thumbs.remove(&gone);
         if items.is_empty() {
             self.close_image(window, cx);
             return;
@@ -195,7 +193,9 @@ impl AraView {
                     window.close_dialog(cx);
                     let new_path: Arc<str> = Arc::from(info.source_path.as_str());
                     let mut items = (*this.list).clone();
-                    if let Some(slot) = items.iter_mut().find(|item| ***item == *old_path) {
+                    let renamed = items.iter().position(|item| **item == *old_path);
+                    if let Some(index) = renamed {
+                        let slot = &mut items[index];
                         if let Some(thumb) = this.thumbs.remove(slot) {
                             this.thumbs.insert(new_path.clone(), thumb);
                         }
@@ -203,9 +203,16 @@ impl AraView {
                     }
                     this.list = Arc::new(items);
                     SettingsStore::replace_recent(cx, &old_path, &info.source_path);
-                    window.set_window_title(&info.file_name);
                     // 표시 경로가 원본 자체였다면 이름과 함께 바뀌었으므로 정보만 교체한다.
-                    this.info = Some(info);
+                    // 페이지 캐시도 바꿔야 다른 장에 다녀와도 옛 경로로 돌아가지 않는다.
+                    if let Some(page) = renamed.and_then(|index| this.pages.get_mut(&index)) {
+                        page.info = info.clone();
+                    }
+                    // 그사이 다른 장으로 넘어갔으면 지금 보는 그림의 정보는 건드리지 않는다.
+                    if renamed == Some(this.index) {
+                        window.set_window_title(&info.file_name);
+                        this.info = Some(info);
+                    }
                     window.toast(Toast::success(t("toast.rename.done")), cx);
                     cx.notify();
                 }

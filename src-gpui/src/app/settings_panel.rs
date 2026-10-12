@@ -1037,6 +1037,7 @@ impl SettingsPanel {
         window.open_dialog(cx, move |dialog, window, _cx| {
             let _guard = &guard;
             let panel = panel.clone();
+            let cancelled = panel.clone();
             let action = action.clone();
             let spec = spec.clone();
             centered(dialog, window, ALERT_HEIGHT)
@@ -1052,7 +1053,14 @@ impl SettingsPanel {
                         .child(
                             Button::new("shortcut-conflict-cancel")
                                 .label(t("settings.shortcuts.cancel"))
-                                .on_click(|_, window, cx| window.close_dialog(cx)),
+                                .on_click(move |_, window, cx| {
+                                    // 취소하면 캡처도 끝낸다. 남겨 두면 다음 키가 바인딩된다.
+                                    cancelled.update(cx, |this, cx| {
+                                        this.capturing = None;
+                                        cx.notify();
+                                    });
+                                    window.close_dialog(cx);
+                                }),
                         )
                         .child(
                             Button::new("shortcut-conflict-ok")

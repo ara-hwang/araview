@@ -126,7 +126,7 @@ pub(crate) fn render_dimensions(
     source: &Path,
     paint_path: &Path,
 ) -> (Option<u32>, Option<u32>) {
-    let (width, height) = image::image_dimensions(paint_path).ok().unzip();
+    let (width, height) = sniffed_dimensions(paint_path).unzip();
     if width.is_some() && height.is_some() {
         if is_exif_orientation_format(mime)
             && crate::orientation::swaps_axes(crate::orientation::read_orientation(source))
@@ -151,6 +151,18 @@ pub(crate) fn render_dimensions(
         }
     }
     (width, height)
+}
+
+/// 헤더만 읽어 치수를 구한다. `image::image_dimensions`는 확장자만 믿어서,
+/// 내용과 확장자가 다른 파일(`.heic`인 PNG 등)의 치수를 놓친다. 판별은
+/// `resolve_mime`과 같이 내용을 먼저 본다.
+pub(crate) fn sniffed_dimensions(path: &Path) -> Option<(u32, u32)> {
+    image::ImageReader::open(path)
+        .ok()?
+        .with_guessed_format()
+        .ok()?
+        .into_dimensions()
+        .ok()
 }
 
 /// EXIF orientation을 적용하는 표시 포맷. HEIC/HEIF/PSD는 sidecar 디코더가

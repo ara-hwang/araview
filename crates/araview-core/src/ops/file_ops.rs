@@ -41,12 +41,15 @@ pub fn rename_file_impl_with_mode(
         .ok_or_else(|| AppError::not_found("Cannot get parent directory"))?;
     let new_path = parent.join(name);
 
-    // 대소문자만 바꾸는 경우 등 동일 파일이면 이동 생략
-    if new_path != old {
+    // 이름이 그대로면 이동을 생략한다.
+    let moved = new_path != old;
+    if moved {
         if !is_supported_file(&new_path) {
             return Err(AppError::unsupported("Unsupported image format"));
         }
-        if new_path.exists() {
+        // 대소문자만 다른 이름은 같은 파일을 가리키므로 중복으로 보지 않는다.
+        // `Path` 비교는 대소문자를 구분해 여기까지 오고, `exists()`는 자기 자신을 찾는다.
+        if !differs_only_in_case(old, &new_path) && new_path.exists() {
             return Err(AppError::already_exists(
                 "A file with that name already exists",
             ));
@@ -55,7 +58,21 @@ pub fn rename_file_impl_with_mode(
             .map_err(|e| AppError::io("Failed to rename", e, ErrorCode::Unknown))?;
     }
 
-    crate::image::load_viewable_with_limit_mode(&new_path, max_side, mode)
+    crate::image::load_viewable_with_limit_mode(&new_path, max_side, mode).inspect_err(|_| {
+        // 새 이름으로 읽지 못하면 되돌려, 실패 보고와 디스크 상태가 어긋나지 않게 한다.
+        if moved {
+            let _ = fs::rename(&new_path, old);
+        }
+    })
+}
+
+fn differs_only_in_case(old: &Path, new: &Path) -> bool {
+    match (old.file_name(), new.file_name()) {
+        (Some(old), Some(new)) => {
+            old.to_string_lossy().to_lowercase() == new.to_string_lossy().to_lowercase()
+        }
+        _ => false,
+    }
 }
 
 /// Windows가 장치 이름으로 예약해 `File::create`가 원인 불명 에러로

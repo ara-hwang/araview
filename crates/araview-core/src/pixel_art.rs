@@ -158,7 +158,7 @@ pub fn detect_file(path: &Path) -> PixelArtDetection {
 }
 
 fn detect_file_uncached(path: &Path) -> PixelArtDetection {
-    let Some((width, height)) = image::image_dimensions(path).ok() else {
+    let Some((width, height)) = crate::image::sniffed_dimensions(path) else {
         return PixelArtDetection::unsupported();
     };
     if width == 0 || height == 0 {

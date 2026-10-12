@@ -120,6 +120,9 @@ pub struct AraView {
     comic_failed: bool,
     /// 아카이브를 열 때 자동으로 정한 보기 모드. 직접 고르면 해제된다.
     comic_mode: Option<ViewMode>,
+    /// 이어보기를 끈 채 연 아카이브에서 첫 페이지를 벗어나기 전인지. 그동안은
+    /// 열기만으로 저장된 위치를 덮지 않도록 진행 상황을 저장하지 않는다.
+    progress_held: bool,
 
     pages: HashMap<usize, pages::Page>,
     page_loading: HashSet<usize>,
@@ -211,6 +214,7 @@ impl AraView {
             comic: None,
             comic_failed: false,
             comic_mode: None,
+            progress_held: false,
             pages: HashMap::new(),
             page_loading: HashSet::new(),
             page_failed: HashMap::new(),

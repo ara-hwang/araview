@@ -33,6 +33,9 @@ const PIXEL_ART_FILTER_REVISION: &[u8] = b"pixel-art-filter-v2";
 /// memory optimization, not a general preview downsizer.
 const MIN_MAX_SIDE: u32 = 512;
 const MAX_MAX_SIDE: u32 = 8192;
+/// 디코드 할당 상한. 표시·클립보드 경로와 같은 값이다. 지정하지 않으면 `image`
+/// 기본값(512MiB)이 걸려, 원본으로는 열리는 이미지가 상한을 켰을 때만 실패한다.
+const MAX_DECODE_ALLOC: u64 = 1024 * 1024 * 1024;
 
 /// 표시 설정에 따라 sidecar를 만들 때 사용할 보간 정책이다.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -135,10 +138,14 @@ pub fn ensure_scaled_sidecar_with_mode(
                 return Ok(dest.clone());
             }
         }
-        let img = image::ImageReader::open(source)
+        let mut reader = image::ImageReader::open(source)
             .map_err(|e| AppError::io("Failed to open image", e, ErrorCode::Corrupt))?
             .with_guessed_format()
-            .map_err(|e| AppError::io("Failed to guess image format", e, ErrorCode::Corrupt))?
+            .map_err(|e| AppError::io("Failed to guess image format", e, ErrorCode::Corrupt))?;
+        let mut limits = image::Limits::default();
+        limits.max_alloc = Some(MAX_DECODE_ALLOC);
+        reader.limits(limits);
+        let img = reader
             .decode()
             .map_err(|e| AppError::image_error("Failed to decode image", e))?;
         // JPEG EXIF orientation을 픽셀에 반영한다. sidecar JPEG에는 EXIF가
@@ -161,9 +168,12 @@ pub fn ensure_scaled_sidecar_with_mode(
             // JPEG는 픽셀 경계에 다시 아티팩트를 만들 수 있으므로 픽셀 보존 모드는
             // 알파 여부와 무관하게 lossless PNG sidecar로 보존한다.
             let tmp = crate::sidecar::tmp_path_for(&png_dest);
-            scaled
-                .save_with_format(&tmp, image::ImageFormat::Png)
-                .map_err(|e| AppError::unknown(format!("Failed to encode scaled PNG: {e}")))?;
+            if let Err(e) = scaled.save_with_format(&tmp, image::ImageFormat::Png) {
+                let _ = fs::remove_file(&tmp);
+                return Err(AppError::unknown(format!(
+                    "Failed to encode scaled PNG: {e}"
+                )));
+            }
             crate::sidecar::publish_atomic(&tmp, &png_dest, "Failed to publish scaled sidecar")?;
             if let Some(detection) = &detection {
                 crate::pixel_art::cache_detection(&png_dest, detection);

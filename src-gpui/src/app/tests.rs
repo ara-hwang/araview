@@ -606,6 +606,66 @@ fn rename_dialog_submits_with_enter(cx: &mut TestAppContext) {
         );
     });
     assert!(!cx.update(|window, cx| window.has_active_dialog(cx)));
+
+    // 다른 장에 다녀와도 페이지 캐시가 옛 이름으로 되돌리지 않는다.
+    cx.simulate_keystrokes("left");
+    settle(cx);
+    cx.simulate_keystrokes("right");
+    settle(cx);
+    view.read_with(cx, |this, _| {
+        let info = this.info.as_ref().expect("info");
+        assert_eq!(info.file_name, "renamed.png");
+        assert!(info.source_path.ends_with("renamed.png"));
+    });
+}
+
+#[gpui_kit::test]
+fn rename_accepts_a_case_only_change(cx: &mut TestAppContext) {
+    let (dir, paths) = temp_copy(&["sample.png"]);
+    let (view, cx) = open_app(cx);
+    open(&view, paths[0].clone(), cx);
+
+    cx.simulate_keystrokes("f2");
+    settle(cx);
+    cx.simulate_keystrokes("ctrl-a");
+    cx.simulate_input("Sample.PNG");
+    settle(cx);
+    cx.simulate_keystrokes("enter");
+    settle(cx);
+
+    let names: Vec<String> = std::fs::read_dir(dir.path())
+        .expect("read dir")
+        .map(|entry| {
+            entry
+                .expect("entry")
+                .file_name()
+                .to_string_lossy()
+                .into_owned()
+        })
+        .collect();
+    assert_eq!(names, ["Sample.PNG"]);
+    view.read_with(cx, |this, _| {
+        assert_eq!(
+            this.info.as_ref().map(|info| info.file_name.as_str()),
+            Some("Sample.PNG")
+        );
+    });
+}
+
+/// 확장자와 내용이 달라도 내용으로 판별해 치수까지 읽는다.
+#[gpui_kit::test]
+fn mismatched_extension_still_reports_dimensions(cx: &mut TestAppContext) {
+    let dir = tempfile::tempdir().expect("temp dir");
+    let target = dir.path().join("png-inside.heic");
+    std::fs::copy(sample("sample.png"), &target).expect("copy sample");
+    let (view, cx) = open_app(cx);
+    open(&view, target.to_string_lossy().into_owned(), cx);
+
+    view.read_with(cx, |this, _| {
+        let info = this.info.as_ref().expect("info");
+        assert_eq!(info.mime_type, "image/png");
+        assert_eq!((info.width, info.height), (Some(800), Some(600)));
+    });
 }
 
 #[gpui_kit::test]
@@ -679,6 +739,49 @@ fn resumed_archive_notification_autohides_after_five_seconds(cx: &mut TestAppCon
     cx.executor().advance_clock(Duration::from_millis(300));
     settle(cx);
     assert_eq!(cx.update(|window, cx| window.notifications(cx).len()), 0);
+}
+
+#[gpui_kit::test]
+fn opening_an_archive_with_resume_off_keeps_the_saved_position(cx: &mut TestAppContext) {
+    let (_dir, paths) = temp_copy(&["sample-comicinfo.cbz"]);
+    let archive = paths[0].clone();
+    let (view, cx) = open_app(cx);
+    cx.update(|_, cx| {
+        SettingsStore::update(cx, |settings| {
+            settings.resume_reading = false;
+            settings.view_mode = ViewMode::Single;
+            settings.comic_auto_dual_view = false;
+        });
+        SettingsStore::set_archive_progress(
+            cx,
+            &archive,
+            ArchiveProgress {
+                entry: "003.jpg".to_owned(),
+                index: 2,
+                total: 5,
+            },
+        );
+    });
+    let saved = |cx: &mut VisualTestContext| {
+        cx.update(|_, cx| {
+            SettingsStore::global(cx)
+                .archive_progress(&archive)
+                .map(|progress| progress.index)
+        })
+    };
+
+    // 첫 페이지에서 열리지만 열기만으로는 저장 위치를 덮지 않는다.
+    open(&view, archive.clone(), cx);
+    assert_eq!(view.read_with(cx, |this, _| this.index), 0);
+    assert_eq!(saved(cx), Some(2));
+
+    // 넘기기 시작하면 다시 기록한다.
+    cx.simulate_keystrokes("right");
+    settle(cx);
+    assert_eq!(saved(cx), Some(1));
+    cx.simulate_keystrokes("left");
+    settle(cx);
+    assert_eq!(saved(cx), Some(0));
 }
 
 #[gpui_kit::test]
