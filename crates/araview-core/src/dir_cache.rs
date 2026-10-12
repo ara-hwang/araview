@@ -58,7 +58,8 @@ struct CachedListing {
 
 static DIR_CACHE: LazyLock<Mutex<HashMap<String, CachedListing>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
-static WATCHED_DIRS: LazyLock<Mutex<HashMap<PathBuf, Instant>>> =
+/// 감시 중인 폴더의 마지막 사용 시각과 하위 폴더까지 감시하는지.
+static WATCHED_DIRS: LazyLock<Mutex<HashMap<PathBuf, (Instant, bool)>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 static WATCHER: LazyLock<Mutex<Option<notify::RecommendedWatcher>>> =
     LazyLock::new(|| Mutex::new(None));
@@ -231,9 +232,13 @@ fn ensure_watched(canonical_parent: &Path, recursive: bool) -> bool {
     if let Ok(mut watched) = WATCHED_DIRS.lock() {
         // 재방문마다 타임스탬프를 갱신해야 trim이 실제 LRU로 동작한다.
         // 갱신하지 않으면 가장 자주 쓰는 폴더가 먼저 해제된다.
-        if let Some(seen) = watched.get_mut(canonical_parent) {
+        if let Some((seen, watched_recursive)) = watched.get_mut(canonical_parent) {
             *seen = Instant::now();
-            return true;
+            // 비재귀로만 걸린 감시는 하위 폴더 이벤트를 주지 않는다. 재귀 목록이
+            // 그것을 믿으면 세션 내내 낡으므로 아래에서 재귀로 다시 건다.
+            if *watched_recursive || !recursive {
+                return true;
+            }
         }
     }
 
@@ -267,13 +272,21 @@ fn ensure_watched(canonical_parent: &Path, recursive: bool) -> bool {
             }
         }
     }
+    let upgrading = WATCHED_DIRS
+        .lock()
+        .is_ok_and(|watched| watched.contains_key(canonical_parent));
     if let Some(watcher) = guard.as_mut() {
+        if upgrading {
+            watcher.unwatch(canonical_parent).ok();
+        }
         match watcher.watch(canonical_parent, mode) {
             Ok(()) => {
                 drop(guard);
-                trim_watched();
+                if !upgrading {
+                    trim_watched();
+                }
                 if let Ok(mut watched) = WATCHED_DIRS.lock() {
-                    watched.insert(canonical_parent.to_path_buf(), Instant::now());
+                    watched.insert(canonical_parent.to_path_buf(), (Instant::now(), recursive));
                 }
                 return true;
             }
@@ -282,6 +295,11 @@ fn ensure_watched(canonical_parent: &Path, recursive: bool) -> bool {
                 canonical_parent.display()
             ),
         }
+    }
+    drop(guard);
+    if upgrading {
+        // 기존 감시를 이미 풀었으니 그 폴더의 목록도 함께 버린다.
+        unwatch(canonical_parent);
     }
     false
 }
@@ -294,7 +312,7 @@ fn trim_watched() {
         }
         watched
             .iter()
-            .min_by_key(|(_, instant)| *instant)
+            .min_by_key(|(_, (seen, _))| *seen)
             .map(|(path, _)| path.clone())
     });
     if let Some(path) = oldest {
