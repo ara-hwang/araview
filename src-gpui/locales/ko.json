@@ -700,6 +700,8 @@
     "apng": "APNG 이미지",
     "jpg": "JPEG 이미지",
     "jpeg": "JPEG 이미지",
+    "jpe": "JPEG 이미지",
+    "jfif": "JPEG 이미지",
     "gif": "GIF 이미지",
     "bmp": "BMP 이미지",
     "webp": "WebP 이미지",

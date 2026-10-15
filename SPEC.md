@@ -19,15 +19,15 @@
 
 ## 2. 지원 포맷
 
-총 22개 확장자(이미지 20종 + 아카이브 2종). 진실은 `crates/araview-core/src/image.rs` (`SUPPORTED_EXTENSIONS`, `get_mime_type`).
+총 24개 확장자(이미지 22종 + 아카이브 2종). 진실은 `crates/araview-core/src/image.rs` (`SUPPORTED_EXTENSIONS`, `get_mime_type`).
 
-### 2.1 순수 이미지 20종
+### 2.1 순수 이미지 22종
 
 | 확장자        | MIME                        | 비고                                                                                                                       |
 | ------------- | --------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | `png`         | `image/png`                 | 직접 디코드                                                                                                              |
 | `apng`        | `image/apng`                | 직접 디코드. PNG와 시그니처가 같아 확장자로 구분하며, 프레임을 디코드해 재생. 재생 제어는 GIF와 같다(7.5절) |
-| `jpg`, `jpeg` | `image/jpeg`                | 직접 디코드. EXIF Orientation(1~8)을 치수·썸네일에 반영                                            |
+| `jpg`, `jpeg`, `jpe`, `jfif` | `image/jpeg`   | 직접 디코드. EXIF Orientation(1~8)을 치수·썸네일에 반영                                            |
 | `gif`         | `image/gif`                 | 직접 디코드. 단일 보기에서 재생/정지·프레임 이동 지원                                                                  |
 | `bmp`         | `image/bmp`                 | 직접 디코드                                                                                                              |
 | `webp`        | `image/webp`                | 직접 디코드                                                                                                              |
@@ -677,7 +677,7 @@ UI 분류 5종:
 - 설치 프로그램: NSIS 하나만 만든다(`pwsh scripts/Build-Installer.ps1`, 결과물 `target/AraView-<버전>-setup.exe`). 1.x(Tauri) 설치본과 같은 정체성(설치 폴더 `%LOCALAPPDATA%\AraView`, 실행 파일 `araview.exe`, 제거 항목 `AraView`, 시작 메뉴 바로가기)을 써서 같은 자리에 덮어쓴다. 설치 중 앱이 실행 중이면 종료를 요청한다.
 - 릴리스 파이프라인: `npm run release -- <버전>`(`scripts/release.mjs`)이 `src-gpui/Cargo.toml`과 `Cargo.lock`의 버전을 올려 커밋하고 `vX.Y.Z` 태그와 함께 푸시한다. 태그 푸시를 `.github/workflows/release.yml`이 받아 태그와 버전 파일의 일치, 서명 키 Secrets를 확인한 뒤 검증(cargo fmt/test/clippy, 보안 감사, 라이선스 검사), 설치 프로그램 빌드, 서명, `latest-gpui.json` 생성, 원본 저장소 `ara-hwang/araview` 릴리스 생성까지 자동으로 수행한다. `ci.yml`이 검증을 담당하고 릴리스가 이를 재사용한다. 권한과 절차 상세는 `docs/releasing.md`를 따른다.
 - 파일 연결 3그룹:
-  - Image 20종: png, apng, jpg, jpeg, gif, bmp, webp, svg, ico, avif, tif, tiff, jxl, heic, heif, psd, tga, dds, exr, qoi.
+  - Image 22종: png, apng, jpg, jpeg, jpe, jfif, gif, bmp, webp, svg, ico, avif, tif, tiff, jxl, heic, heif, psd, tga, dds, exr, qoi.
   - Comic 1종: cbz.
   - Archive 1종: zip.
 - HEIC/HEIF는 vcpkg `libheif[core,aom]`(1.21 이상, AVIF 시퀀스 디코드에 필요) 동적 링크 + `libde265`(HEVC), `aom`(AV1, AVIF 표시/썸네일/히스토그램)만 사용한다. 설치와 DLL 복사는 `docs/development.md`를 따른다.
