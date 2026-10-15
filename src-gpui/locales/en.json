@@ -700,6 +700,8 @@
     "apng": "APNG image",
     "jpg": "JPEG image",
     "jpeg": "JPEG image",
+    "jpe": "JPEG image",
+    "jfif": "JPEG image",
     "gif": "GIF image",
     "bmp": "BMP image",
     "webp": "WebP image",

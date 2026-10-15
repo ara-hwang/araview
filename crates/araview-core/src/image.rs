@@ -38,8 +38,8 @@ const TRANSCODE_MIMES: &[&str] = &[
 ];
 
 pub const SUPPORTED_EXTENSIONS: &[&str] = &[
-    "png", "apng", "jpg", "jpeg", "gif", "bmp", "webp", "svg", "ico", "avif", "tif", "tiff", "jxl",
-    "heic", "heif", "psd", "tga", "dds", "exr", "qoi", "cbz", "zip",
+    "png", "apng", "jpg", "jpeg", "jpe", "jfif", "gif", "bmp", "webp", "svg", "ico", "avif", "tif",
+    "tiff", "jxl", "heic", "heif", "psd", "tga", "dds", "exr", "qoi", "cbz", "zip",
 ];
 
 #[derive(Serialize)]
@@ -71,7 +71,7 @@ pub fn get_mime_type(path: &Path) -> Option<&'static str> {
     match std::str::from_utf8(lowered).ok()? {
         "png" => Some("image/png"),
         "apng" => Some("image/apng"),
-        "jpg" | "jpeg" => Some("image/jpeg"),
+        "jpg" | "jpeg" | "jpe" | "jfif" => Some("image/jpeg"),
         "gif" => Some("image/gif"),
         "bmp" => Some("image/bmp"),
         "webp" => Some("image/webp"),
