@@ -35,11 +35,13 @@ const TRANSCODE_MIMES: &[&str] = &[
     "image/vnd.ms-dds",
     "image/x-exr",
     "image/qoi",
+    crate::raw::RAW_MIME,
 ];
 
 pub const SUPPORTED_EXTENSIONS: &[&str] = &[
     "png", "apng", "jpg", "jpeg", "jpe", "jfif", "gif", "bmp", "webp", "svg", "ico", "avif", "tif",
-    "tiff", "jxl", "heic", "heif", "psd", "tga", "dds", "exr", "qoi", "cbz", "zip",
+    "tiff", "jxl", "heic", "heif", "psd", "tga", "dds", "exr", "qoi", "cr2", "nef", "nrw", "arw",
+    "dng", "orf", "rw2", "pef", "srw", "cbz", "zip",
 ];
 
 #[derive(Serialize)]
@@ -87,6 +89,9 @@ pub fn get_mime_type(path: &Path) -> Option<&'static str> {
         "dds" => Some("image/vnd.ms-dds"),
         "exr" => Some("image/x-exr"),
         "qoi" => Some("image/qoi"),
+        "cr2" | "nef" | "nrw" | "arw" | "dng" | "orf" | "rw2" | "pef" | "srw" => {
+            Some(crate::raw::RAW_MIME)
+        }
         "cbz" => Some("application/vnd.comicbook+zip"),
         "zip" => Some("application/zip"),
         _ => None,
@@ -95,7 +100,9 @@ pub fn get_mime_type(path: &Path) -> Option<&'static str> {
 
 /// 확장자 판별에 파일 내용(매직 바이트) 판별을 겹친 MIME.
 /// 이름이 바뀐 파일(HEIC를 .jpg로 저장 등)도 올바른 렌더 경로를 타게 한다.
-/// 아카이브와 SVG는 시그니처가 불확실해 확장자를 따른다.
+/// 아카이브와 SVG는 시그니처가 불확실해 확장자를 따른다. RAW는 TIFF 컨테이너라
+/// 시그니처가 TIFF와 겹치므로, 확장자가 RAW이고 내용이 TIFF 계열이거나 불확실하면
+/// 확장자를 따른다.
 pub fn resolve_mime(path: &Path) -> Option<&'static str> {
     let by_ext = get_mime_type(path);
     if by_ext.is_some_and(|m| m.starts_with("application/") || m == "image/svg+xml") {
@@ -103,6 +110,9 @@ pub fn resolve_mime(path: &Path) -> Option<&'static str> {
     }
     // APNG는 PNG와 시그니처가 같다. 확장자가 밝혔거나 `acTL` 청크가 있으면 APNG다.
     let (sniffed, animated) = crate::sniff::sniff_file_with_animation(path);
+    if by_ext == Some(crate::raw::RAW_MIME) && matches!(sniffed, None | Some("image/tiff")) {
+        return by_ext;
+    }
     if sniffed == Some("image/png") && (by_ext == Some("image/apng") || animated) {
         return Some("image/apng");
     }

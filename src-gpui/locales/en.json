@@ -718,6 +718,15 @@
     "dds": "DDS texture",
     "exr": "OpenEXR image",
     "qoi": "QOI image",
+    "cr2": "Canon RAW image",
+    "nef": "Nikon RAW image",
+    "nrw": "Nikon RAW image",
+    "arw": "Sony RAW image",
+    "dng": "DNG RAW image",
+    "orf": "Olympus RAW image",
+    "rw2": "Panasonic RAW image",
+    "pef": "Pentax RAW image",
+    "srw": "Samsung RAW image",
     "cbz": "Comic archive",
     "zip": "ZIP archive"
   }
