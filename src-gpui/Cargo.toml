@@ -13,7 +13,7 @@ name = "araview"
 path = "src/main.rs"
 
 [dependencies]
-gpui-kit = "0.7.1"
+gpui-kit = "0.7.3"
 araview-core = { path = "../crates/araview-core" }
 anyhow = "1"
 image = { version = "0.25", default-features = false }
@@ -29,7 +29,7 @@ minisign-verify = "0.3"
 base64 = "0.23"
 
 [dev-dependencies]
-gpui-kit = { version = "0.7.1", features = ["test-support"] }
+gpui-kit = { version = "0.7.3", features = ["test-support"] }
 tempfile = "3"
 minisign = "0.10"
 
