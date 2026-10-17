@@ -78,7 +78,10 @@ const KEY_NAMES: &[(&str, &str)] = &[
 /// 조합(`Meta`, `Tab`, §14.3)이면 `None`이다.
 pub fn spec_from_keystroke(keystroke: &Keystroke) -> Option<String> {
     let modifiers = keystroke.modifiers;
-    if modifiers.platform || modifiers.function {
+    // macOS에서는 Cmd를 Ctrl 자리에 쓴다(`Ctrl+O`는 Cmd+O로도 눌린다). 그 밖의 OS에서
+    // 플랫폼 키(Windows 키, Super)는 쓰지 않는다.
+    let command = cfg!(target_os = "macos") && modifiers.platform;
+    if (modifiers.platform && !command) || modifiers.function {
         return None;
     }
     let key = keystroke.key.as_str();
@@ -94,7 +97,7 @@ pub fn spec_from_keystroke(keystroke: &Keystroke) -> Option<String> {
         None => return None,
     };
     let mut spec = String::new();
-    if modifiers.control {
+    if modifiers.control || command {
         spec.push_str("Ctrl+");
     }
     if modifiers.shift {

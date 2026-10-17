@@ -11,6 +11,8 @@
 //! The main app also drives the same keys from Settings
 //! (`src/thumb_shell.rs`) so users never touch the command line.
 
+// Windows Explorer 전용 크레이트라 다른 OS에서는 빈 크레이트로 빌드된다(워크스페이스 전체 빌드용).
+#![cfg(windows)]
 #![allow(non_snake_case)]
 
 mod bitmap;

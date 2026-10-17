@@ -93,9 +93,42 @@ fn common_dir_prefix_len<'a>(mut paths: impl Iterator<Item = &'a str>) -> usize 
         .map_or(0, |pos| pos + 1)
 }
 
+/// 숫자 구간 앞에 붙는 표지. 모든 글자 바이트(0x02 이상)보다 앞서므로 같은 자리에서
+/// 숫자가 글자보다 먼저 온다(탐색기와 같은 순서).
+const DIGIT_RUN_MARKER: u8 = 0x01;
+/// 숫자 구간 길이를 담는 두 바이트로 나타낼 수 있는 최댓값(7비트 × 2).
+const MAX_DIGIT_RUN: usize = 0x3FFF;
+
 /// 구성 요소 하나의 키를 0x00 종결자와 함께 `out`에 덧붙인다.
+///
+/// Win32 정렬 키를 쓸 수 없을 때(다른 OS, 키 계산 실패)의 순서다. 대소문자를 무시하고
+/// 숫자 구간은 값으로 비교한다: 구간 앞에 표지와 길이를 붙이고 앞쪽 0을 뗀 자릿수를
+/// 이어 붙이므로, 자릿수가 많으면 큰 수이고 자릿수가 같으면 사전순이 곧 수 순서다.
+/// 그 밖의 글자는 소문자의 UTF-8 바이트(코드포인트 순서)를 그대로 쓴다.
 fn push_fallback_key(part: &str, out: &mut Vec<u8>) {
-    out.extend(part.to_lowercase().bytes().filter(|b| *b != 0));
+    let lowered = part.to_lowercase();
+    let mut rest = lowered.as_str();
+    while let Some(first) = rest.chars().next() {
+        if first.is_ascii_digit() {
+            let end = rest
+                .find(|ch: char| !ch.is_ascii_digit())
+                .unwrap_or(rest.len());
+            let digits = rest[..end].trim_start_matches('0');
+            let digits = &digits[..digits.len().min(MAX_DIGIT_RUN)];
+            out.push(DIGIT_RUN_MARKER);
+            out.push(0x80 | (digits.len() >> 7) as u8);
+            out.push(0x80 | (digits.len() & 0x7F) as u8);
+            out.extend_from_slice(digits.as_bytes());
+            rest = &rest[end..];
+        } else {
+            let mut buffer = [0u8; 4];
+            // 0x00은 종결자와 겹치고, 0x01은 숫자 구간 표지와 겹친다.
+            if first as u32 >= 0x02 {
+                out.extend_from_slice(first.encode_utf8(&mut buffer).as_bytes());
+            }
+            rest = &rest[first.len_utf8()..];
+        }
+    }
     out.push(0);
 }
 
@@ -200,4 +233,55 @@ extern "system" {
         lp_reserved: *mut std::ffi::c_void,
         sort_handle: isize,
     ) -> i32;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn sorted(names: &[&str]) -> Vec<String> {
+        let mut items: Vec<String> = names.iter().map(|name| (*name).to_owned()).collect();
+        sort_by_natural_path(&mut items, |name| name.as_str());
+        items
+    }
+
+    #[test]
+    fn digit_runs_compare_by_value() {
+        assert_eq!(
+            sorted(&["10.jpg", "2.jpg", "1.jpg", "100.jpg", "20.jpg"]),
+            ["1.jpg", "2.jpg", "10.jpg", "20.jpg", "100.jpg"]
+        );
+    }
+
+    #[test]
+    fn case_is_ignored_and_leading_zeros_do_not_change_value() {
+        assert_eq!(
+            sorted(&["Page 10.png", "page 2.png", "PAGE 03.png"]),
+            ["page 2.png", "PAGE 03.png", "Page 10.png"]
+        );
+    }
+
+    #[test]
+    fn folders_sort_before_their_longer_siblings() {
+        assert_eq!(
+            sorted(&["b/2.png", "a/10.png", "a/9.png", "ab/1.png"]),
+            ["a/9.png", "a/10.png", "ab/1.png", "b/2.png"]
+        );
+    }
+
+    #[test]
+    fn hangul_sorts_in_dictionary_order() {
+        assert_eq!(
+            sorted(&["다.png", "가.png", "나2.png", "나10.png"]),
+            ["가.png", "나2.png", "나10.png", "다.png"]
+        );
+    }
+
+    #[test]
+    fn fallback_key_has_no_interior_terminator() {
+        let mut key = Vec::new();
+        push_fallback_key("a\0\u{1}b007", &mut key);
+        assert_eq!(key.iter().filter(|b| **b == 0).count(), 1);
+        assert_eq!(key.last(), Some(&0));
+    }
 }

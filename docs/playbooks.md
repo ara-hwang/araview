@@ -7,7 +7,7 @@ Task-specific procedures for agents, reached from `../AGENTS.md`. Read the secti
 1. Add the extension and MIME mapping in `crates/araview-core/src/image.rs` (`SUPPORTED_EXTENSIONS`, `get_mime_type`)
 2. Make `crates/araview-core/src/display.rs` decode it into RGBA frames (most formats go through the `image` crate; HEIC/HEIF through libheif)
 3. Add a sample file to `samples/`, generated with tools installed on the PC and outside the repo's dependencies: raster/vector via `sharp` in a temp dir, HEIC/HEIF via Python `pillow-heif`, CBZ via `Compress-Archive`. If the PC has no encoder, install one on the PC.
-4. Update `SPEC.md` §2 (and §16/§18/§20 when affected), `README.md`, and `docs/`
+4. Update `SPEC.md` §2 (and §16/§18/§20 when affected), `README.md`, `docs/`, and the packaging declarations in `src-gpui/packaging/` (macOS `Info.plist` extension list, Linux `.desktop` `MimeType`)
 5. Done when `npm run docs:check` exits 0 and the sample opens in the dev app (see "Runtime check")
 
 ## Add an `araview-core` operation
@@ -32,6 +32,24 @@ Two wrappers ship with it. Most commands need a running dev window; `launch` (CL
 
 `pwsh scripts/araview-drive.ps1 selftest` drives a running dev window through window discovery, state, capture, key, ctrl-wheel, plain wheel, drag pan, click in both coordinate spaces, double click, the caption hit-test baseline, backdrop drag and click with a dialog open, text input, action, file open, and file drop, and prints PASS/FAIL per step. A window smaller than 700x768 logical px is enlarged for the run and restored afterwards, because the centered palette would otherwise cover the points the backdrop steps probe. Use it as the runtime check evidence; read the rest of this section when a step fails.
 
+**Runtime check on macOS and Linux.** The PowerShell wrappers are Windows-only. The dev build opens a Unix domain socket instead of the pipe: `$XDG_RUNTIME_DIR/com.araview.viewer.dev-control.sock` (macOS and Linux without `XDG_RUNTIME_DIR` use the temp dir; a path over 100 bytes moves to `/tmp/araview-<uid>-<hash>.sock`, so list `/tmp/araview-*.sock` and `$XDG_RUNTIME_DIR` when unsure). It speaks the same one-line JSON requests and replies as the pipe, so any socket client works:
+
+```python
+import json, socket
+def call(request, path):
+    s = socket.socket(socket.AF_UNIX); s.connect(path)
+    s.sendall((json.dumps(request) + "\n").encode())
+    data = b""
+    while not data.endswith(b"\n"):
+        data += s.recv(65536)
+    return json.loads(data)
+
+call({"cmd": "state"}, path)            # path of the *-control.sock
+call({"cmd": "key", "spec": "right", "waitMs": 300}, path)
+```
+
+On a machine without a display, run the dev build under `Xvfb :99` with `DISPLAY=:99` and `mesa-vulkan-drivers` (software Vulkan), then capture with `import -window root shot.png` (ImageMagick). Report each checked screen as PASS or FAIL as on Windows; the Windows-only steps (caption hit testing, always on top, file associations, PSD thumbnails) do not exist there.
+
 **Single-instance pipe.** `araview.exe action:<id>` runs a viewer action in the running window (`run_action` in `src-gpui/src/app/menu.rs`: shortcut action ids, `openSettings`, `viewLtr`, and so on).
 
 - Headless checks: `cargo test -p araview-gpui` drives keys, wheel, drag, drop, context menus, and dialogs through `VisualTestContext` (`src-gpui/src/app/tests.rs`). The bridge's commands are covered there too (`control_bridge_reports_state_and_drives_input`).
@@ -40,6 +58,10 @@ Two wrappers ship with it. Most commands need a running dev window; `launch` (CL
 ## Update the third-party license data
 
 Run `node scripts/generate-license-data.mjs` after changing dependencies (needs `cargo install cargo-about --locked --features cli` and network). It rewrites `src-gpui/THIRD_PARTY_LICENSES.json` (embedded in the app) and the section 2 table of `THIRD_PARTY_LICENSES.md`.
+
+## Build the Linux and macOS packages
+
+`scripts/package-linux.sh` (tar.gz with `install.sh`, `.desktop`, icon) and `scripts/package-macos.sh` (`.app` with `Info.plist` document types, ad-hoc signed, packed into a dmg) build the release binary and package it; `--skip-build` reuses `target/release/araview`. Both statically link libheif from a vcpkg `x64-linux`/`arm64-osx` install (see `docs/development.md`). `src-gpui/packaging/macos/Info.plist` must list every extension in `SUPPORTED_EXTENSIONS` (a unit test in `src-gpui/src/platform/mod.rs` checks this), so a format change touches that file too. The `.desktop` `MimeType` list is separate; add the new MIME type there.
 
 ## Test the installer without touching the real install
 

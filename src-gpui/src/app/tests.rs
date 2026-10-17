@@ -45,9 +45,16 @@ pub(super) fn open_app(cx: &mut TestAppContext) -> (Entity<AraView>, &mut Visual
     (view.expect("view"), cx)
 }
 
-/// Windows 캡션 버튼(최소화/최대화/닫기) 3개가 차지하는 폭.
-const CAPTION_CONTROLS_WIDTH: f32 = 3.0 * 34.0;
+/// 타이틀바 오른쪽 캡션 버튼(최소화/최대화/닫기) 3개가 차지하는 폭. macOS는 신호등 버튼이
+/// 왼쪽 네이티브 영역에 있고, Linux 테스트 창은 서버 장식이라 오른쪽에 그리지 않는다.
+const CAPTION_CONTROLS_WIDTH: f32 = if cfg!(windows) { 3.0 * 34.0 } else { 0.0 };
 const HEADER_BUTTON_MIN_WIDTH: f32 = 28.0;
+/// 우측 메뉴 묶음의 버튼 수. 항상 위 버튼은 지원하는 OS에서만 있다.
+const HEADER_RIGHT_BUTTONS: usize = if crate::platform::ALWAYS_ON_TOP_SUPPORTED {
+    4
+} else {
+    3
+};
 
 fn header_viewport_width(cx: &mut VisualTestContext) -> f32 {
     f32::from(cx.update(|window, _| window.viewport_size().width))
@@ -72,7 +79,7 @@ fn compact_header_keeps_menus_within_caption_area(cx: &mut TestAppContext) {
     // 보이는 그룹은 버튼 폭만큼 자리를 유지해야 한다(압축돼 사라지지 않음).
     assert!(f32::from(left.size.width) >= 2.0 * HEADER_BUTTON_MIN_WIDTH);
     assert!(
-        f32::from(right.size.width) >= 4.0 * HEADER_BUTTON_MIN_WIDTH,
+        f32::from(right.size.width) >= HEADER_RIGHT_BUTTONS as f32 * HEADER_BUTTON_MIN_WIDTH,
         "right menu bounds: {right:?}"
     );
 }
@@ -889,7 +896,7 @@ fn every_settings_tab_renders_inside_the_dialog(cx: &mut TestAppContext) {
     cx.update(|window, cx| {
         window.open_dialog(cx, move |dialog, _, _| dialog.child(shown.clone()));
     });
-    for tab in 0..6 {
+    for tab in 0..super::settings_panel::TABS.len() {
         panel.update_in(cx, |panel, window, cx| panel.select_tab(tab, window, cx));
         settle(cx);
         assert!(cx.update(|window, cx| window.has_active_dialog(cx)));

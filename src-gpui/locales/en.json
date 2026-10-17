@@ -720,5 +720,27 @@
     "qoi": "QOI image",
     "cbz": "Comic archive",
     "zip": "ZIP archive"
+  },
+  "platform": {
+    "macos": {
+      "menu": {
+        "reveal": "Reveal in Finder"
+      },
+      "toast": {
+        "reveal": {
+          "fail": "Failed to reveal in Finder"
+        }
+      }
+    },
+    "linux": {
+      "menu": {
+        "reveal": "Show in File Manager"
+      },
+      "toast": {
+        "reveal": {
+          "fail": "Failed to show in File Manager"
+        }
+      }
+    }
   }
 }

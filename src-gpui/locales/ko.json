@@ -720,5 +720,27 @@
     "qoi": "QOI 이미지",
     "cbz": "만화 아카이브",
     "zip": "ZIP 아카이브"
+  },
+  "platform": {
+    "macos": {
+      "menu": {
+        "reveal": "Finder에서 보기"
+      },
+      "toast": {
+        "reveal": {
+          "fail": "Finder에서 보기 실패"
+        }
+      }
+    },
+    "linux": {
+      "menu": {
+        "reveal": "파일 관리자에서 보기"
+      },
+      "toast": {
+        "reveal": {
+          "fail": "파일 관리자에서 보기 실패"
+        }
+      }
+    }
   }
 }

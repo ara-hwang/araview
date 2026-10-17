@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleName</key>
+	<string>AraView</string>
+	<key>CFBundleDisplayName</key>
+	<string>AraView</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.araview.viewer</string>
+	<key>CFBundleExecutable</key>
+	<string>araview</string>
+	<key>CFBundleIconFile</key>
+	<string>AraView</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleVersion</key>
+	<string>@VERSION@</string>
+	<key>CFBundleShortVersionString</key>
+	<string>@VERSION@</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>11.0</string>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.graphics-design</string>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>NSSupportsAutomaticGraphicsSwitching</key>
+	<true/>
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Image and comic archive</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>CFBundleTypeExtensions</key>
+			<array>
+				<string>png</string>
+				<string>apng</string>
+				<string>jpg</string>
+				<string>jpeg</string>
+				<string>jpe</string>
+				<string>jfif</string>
+				<string>gif</string>
+				<string>bmp</string>
+				<string>webp</string>
+				<string>svg</string>
+				<string>ico</string>
+				<string>avif</string>
+				<string>tif</string>
+				<string>tiff</string>
+				<string>jxl</string>
+				<string>heic</string>
+				<string>heif</string>
+				<string>psd</string>
+				<string>tga</string>
+				<string>dds</string>
+				<string>exr</string>
+				<string>qoi</string>
+				<string>cbz</string>
+				<string>zip</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>

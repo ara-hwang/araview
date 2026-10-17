@@ -170,8 +170,10 @@ impl AraView {
     fn command_available(&self, id: &str, cx: &App) -> bool {
         let has_image = self.picture.is_some();
         match id {
-            "openFile" | "togglePalette" | "toggleFullscreen" | "toggleAlwaysOnTop"
-            | OPEN_SETTINGS | CHECK_UPDATES => true,
+            "openFile" | "togglePalette" | "toggleFullscreen" | OPEN_SETTINGS | CHECK_UPDATES => {
+                true
+            }
+            "toggleAlwaysOnTop" => platform::ALWAYS_ON_TOP_SUPPORTED,
             "navigatePrev" | "navigateNext" | "jumpPrev10" | "jumpNext10" | "jumpFirst"
             | "jumpLast" | "toggleGrid" | TOGGLE_DOCK => self.list.len() > 1,
             "toggleGifPlayback" | "gifPrevFrame" | "gifNextFrame" => self.has_animation(cx),
