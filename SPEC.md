@@ -19,9 +19,9 @@
 
 ## 2. 지원 포맷
 
-총 24개 확장자(이미지 22종 + 아카이브 2종). 진실은 `crates/araview-core/src/image.rs` (`SUPPORTED_EXTENSIONS`, `get_mime_type`).
+총 33개 확장자(이미지 31종 + 아카이브 2종). 진실은 `crates/araview-core/src/image.rs` (`SUPPORTED_EXTENSIONS`, `get_mime_type`).
 
-### 2.1 순수 이미지 22종
+### 2.1 순수 이미지 31종
 
 | 확장자        | MIME                        | 비고                                                                                                                       |
 | ------------- | --------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
@@ -43,6 +43,7 @@
 | `dds`         | `image/vnd.ms-dds`          | JPEG sidecar 트랜스코드 후 렌더(읽기 전용). DXT1/3/5(BC1~BC3)만 지원, 그 외는 `unsupported`                                |
 | `exr`         | `image/x-exr`               | JPEG sidecar 트랜스코드 후 렌더(읽기 전용). 선형 값을 clamp 후 sRGB 감마로 8비트화(노출 보정 없음)                         |
 | `qoi`         | `image/qoi`                 | JPEG sidecar 트랜스코드 후 렌더(읽기 전용). `image` 크레이트 디코드, 투명은 흰 배경 합성                                   |
+| `cr2`, `nef`, `nrw`, `arw`, `dng`, `orf`, `rw2`, `pef`, `srw` | `image/x-raw` | JPEG sidecar 트랜스코드 후 렌더(읽기 전용). 센서 데이터를 현상하지 않고 RAW에 든 카메라 제작 JPEG 미리보기를 꺼내 쓴다(2.3절). 방향은 IFD0 Orientation(1~8)을 따른다 |
 
 ### 2.2 아카이브 2종
 
@@ -63,10 +64,11 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 
 ### 2.3 제외 포맷
 
-- JXL, RAW(CR2/NEF/ARW 등), PSB는 제외 유지.
-  - JXL(`jxl-oxide`), RAW(`rawloader`): 디코더 크레이트는 있으나 아직 포함하지 않았다. 추가 시 `transcode.rs`에 디코더를 등록해 같은 sidecar 파이프라인(`SidecarSpec`)에 얹는다.
+- PSB, RAW 센서 데이터 현상, CR3·RAF 등 TIFF가 아닌 RAW 컨테이너는 제외 유지.
+  - RAW는 `raw.rs`가 TIFF 구조(IFD0, 다음 IFD, SubIFD)를 돌며 SOF0~2 JPEG를 모아 픽셀 수가 가장 큰 것을 쓴다. 무손실 JPEG(SOF3)인 센서 데이터는 거부한다. 구조에서 못 찾으면 파일 앞 256MiB를 훑어 JPEG를 찾고, 그래도 없으면 `unsupported`다. 미리보기가 제조사 전용 영역(MakerNote)에만 있는 기종은 이 훑기에 기대므로 일부 파일은 열리지 않을 수 있다.
+  - 센서 데이터 현상용 디코더 크레이트(rawler, rawloader는 LGPL-2.1, zenraw는 AGPL-3.0)는 `deny.toml`의 라이선스 정책에 맞지 않아 포함하지 않는다.
   - PSB: 실제 PSB는 `8BPS` + version 2인데 디코더가 없어 진입 차단한다(`psd` 크레이트는 PSD만 지원).
-- PSD, TGA, DDS, EXR, QOI는 JPEG sidecar 미리보기로만 표시한다(PSD는 합성 이미지, EXR은 8비트 변환). 앱은 어떤 포맷도 편집·저장하지 않는다.
+- PSD, TGA, DDS, EXR, QOI, RAW는 JPEG sidecar 미리보기로만 표시한다(PSD는 합성 이미지, EXR은 8비트 변환, RAW는 내장 JPEG 미리보기). 앱은 어떤 포맷도 편집·저장하지 않는다.
 
 ## 3. 화면
 
@@ -307,7 +309,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 ### 9.3 썸네일
 
 - `generate_thumbnail`: 기본 256px, JPEG 캐시 후 재사용한다. 상한(500MB)을 넘기면 오래된 것부터 상한의 90%까지 제거한다. 상한 초과는 새로 쓴 파일 크기를 누적해 판단하므로, 쓸 때마다 폴더 전체를 다시 훑지 않는다(HEIC/PSD sidecar의 `paint/`, 축소본의 `scaled/`, 클립보드 복사용 PNG의 `clipboard/`도 같다. 11.3절).
-- HEIC/HEIF/AVIF/JXL/PSD/TGA/DDS/EXR/QOI는 썸네일용 JPEG sidecar 경로를 쓴다(AVIF와 JXL은 표시만 네이티브이고 썸네일은 각각 libheif, jxl-oxide로 디코드한다).
+- HEIC/HEIF/AVIF/JXL/PSD/TGA/DDS/EXR/QOI/RAW는 썸네일용 JPEG sidecar 경로를 쓴다(AVIF와 JXL은 표시만 네이티브이고 썸네일은 각각 libheif, jxl-oxide로 디코드한다).
 - 디코드 불가 입력(SVG 등)이나 아카이브 엔트리명은 에러를 내고, UI는 원본으로 폴백한다.
 - 배치 조회와 아카이브 엔트리용 썸네일 API를 별도로 제공한다. 아카이브 썸네일은 추출물과 캐시를 재사용해 풀사이즈 로드를 피한다.
 - 도크와 그리드의 아카이브 엔트리는 청크마다 `generate_archive_thumbnails_batch` 1회로 요청한다. 추출 디렉터리 식별은 배치당 한 번만 계산하고, 워커마다 아카이브를 한 번만 열어 자기 몫의 엔트리를 추출·축소한다. 실패한 엔트리와 배치 자체의 실패는 UI가 원본 로드로 폴백한다.
@@ -649,8 +651,9 @@ UI 분류 5종:
 ## 18. 렌더링 경로
 
 - 코어는 디코드용 파일 경로를 돌려주고, UI는 그 파일을 `display.rs`로 RGBA 프레임으로 디코드해 GPU 텍스처(타일)로 올려 그린다. GPUI 텍스처는 한 변 16384px 제한과 밉맵 없는 선형 보간뿐이라 큰 이미지는 8192px 타일로 나누고 축소 단계를 CPU에서 만든다(`src-gpui/src/picture.rs`).
-- 디코더가 따로 필요한 HEIC/HEIF/PSD/TGA/DDS/EXR/QOI는 JPEG sidecar를(`transcode.rs`가 디코더를 고르고 `sidecar.rs`의 `SidecarSpec` 파이프라인을 공유한다), 표시 해상도 제한이 걸린 큰 래스터는 `scaled/` 사본(9.4절)을 만든다. sidecar와 아카이브 추출물, 썸네일 캐시는 `cacheStorageMode`가 `persistent`면 `%LOCALAPPDATA%\<식별자>\`의 버전된 루트(`cache-v2/`)에, `temporary`면 프로세스 수명 TempDir에 둔다.
+- 디코더가 따로 필요한 HEIC/HEIF/PSD/TGA/DDS/EXR/QOI/RAW는 JPEG sidecar를(`transcode.rs`가 디코더를 고르고 `sidecar.rs`의 `SidecarSpec` 파이프라인을 공유한다), 표시 해상도 제한이 걸린 큰 래스터는 `scaled/` 사본(9.4절)을 만든다. sidecar와 아카이브 추출물, 썸네일 캐시는 `cacheStorageMode`가 `persistent`면 `%LOCALAPPDATA%\<식별자>\`의 버전된 루트(`cache-v2/`)에, `temporary`면 프로세스 수명 TempDir에 둔다.
 - JPEG와 TIFF의 EXIF Orientation(1~8)은 디코드할 때 적용하고, 치수(`ImageInfo.width/height`, `get_image_details`)와 썸네일도 같은 기준으로 회전해 보고한다(SVG/WebP/PNG/HEIC는 대상 아님).
+- RAW(CR2/NEF/NRW/ARW/DNG/ORF/RW2/PEF/SRW)는 새 의존성 없이 `raw.rs`가 내장 JPEG 미리보기를 꺼내 디코드한다. 방향은 미리보기 JPEG가 아니라 RAW IFD0의 Orientation을 픽셀에 반영하고, 파일이 TIFF 시그니처를 가져도 확장자가 RAW이면 RAW로 본다(`resolve_mime`). 색상 모드는 `rgb` 8비트로 보고하며, 센서 쪽 정보(실제 비트 수, 색 프로파일)는 읽지 않는다.
 - JXL은 jxl-oxide(순수 Rust, 추가 DLL 없음)로 디코드한다. 코드스트림 헤더의 orientation은 디코더가 픽셀과 치수에 반영하므로 EXIF 회전을 따로 적용하지 않는다. 색 공간이 열거형으로 신호된 이미지(XYB 손실 압축, Display P3, PQ/HLG, 선형 등)는 sRGB로 변환하고, ICC 프로파일만 실린 RGB·회색조 이미지는 픽셀을 그대로 둔다. CMYK는 실린 ICC 프로파일을 moxcms(순수 Rust CMS)로 해석해 sRGB로 변환하고, 상세 패널에는 디코드 결과대로 RGB로 표시한다. 움직이는 JXL은 키프레임을 모두 디코드해 GIF/APNG/WebP와 같은 재생 경로를 타고, 전체 프레임이 애니메이션 예산(RGBA 512MB)을 넘으면 첫 프레임만 표시한다. 1억 픽셀을 넘으면 `TooLarge`로 거부한다.
 - AVIF는 libheif로 디코드한다. 이미지 시퀀스(움직이는 AVIF, `avis`)는 첫 영상 트랙의 프레임을 모두 디코드해 GIF/APNG/WebP와 같은 재생 경로를 타고, 프레임 지연은 트랙 타임스케일에서 계산한다. 전체 프레임이 애니메이션 예산(RGBA 512MB)을 넘으면 첫 프레임만 표시한다. edit list의 반복 횟수는 읽지 않고 항상 무한 반복한다. 썸네일·히스토그램·클립보드는 기본 이미지(정지 항목)를 쓴다.
 - `detect_pixel_art`는 표시 바이트 경로를 제한된 분석 이미지로 읽고, 작은 색상 팔레트·평탄도·동일 색상 run·주기적 경계 신호를 결합한다. ML 모델이나 네트워크를 사용하지 않으며, 분석 제한 초과·디코드 실패·불확실 결과는 안전하게 부드러운 표시로 대체한다.
@@ -677,7 +680,7 @@ UI 분류 5종:
 - 설치 프로그램: NSIS 하나만 만든다(`pwsh scripts/Build-Installer.ps1`, 결과물 `target/AraView-<버전>-setup.exe`). 1.x(Tauri) 설치본과 같은 정체성(설치 폴더 `%LOCALAPPDATA%\AraView`, 실행 파일 `araview.exe`, 제거 항목 `AraView`, 시작 메뉴 바로가기)을 써서 같은 자리에 덮어쓴다. 설치 중 앱이 실행 중이면 종료를 요청한다.
 - 릴리스 파이프라인: `npm run release -- <버전>`(`scripts/release.mjs`)이 `src-gpui/Cargo.toml`과 `Cargo.lock`의 버전을 올려 커밋하고 `vX.Y.Z` 태그와 함께 푸시한다. 태그 푸시를 `.github/workflows/release.yml`이 받아 태그와 버전 파일의 일치, 서명 키 Secrets를 확인한 뒤 검증(cargo fmt/test/clippy, 보안 감사, 라이선스 검사), 설치 프로그램 빌드, 서명, `latest-gpui.json` 생성, 원본 저장소 `ara-hwang/araview` 릴리스 생성까지 자동으로 수행한다. `ci.yml`이 검증을 담당하고 릴리스가 이를 재사용한다. 권한과 절차 상세는 `docs/releasing.md`를 따른다.
 - 파일 연결 3그룹:
-  - Image 22종: png, apng, jpg, jpeg, jpe, jfif, gif, bmp, webp, svg, ico, avif, tif, tiff, jxl, heic, heif, psd, tga, dds, exr, qoi.
+  - Image 31종: png, apng, jpg, jpeg, jpe, jfif, gif, bmp, webp, svg, ico, avif, tif, tiff, jxl, heic, heif, psd, tga, dds, exr, qoi, cr2, nef, nrw, arw, dng, orf, rw2, pef, srw.
   - Comic 1종: cbz.
   - Archive 1종: zip.
 - HEIC/HEIF는 vcpkg `libheif[core,aom]`(1.21 이상, AVIF 시퀀스 디코드에 필요) 동적 링크 + `libde265`(HEVC), `aom`(AV1, AVIF 표시/썸네일/히스토그램)만 사용한다. 설치와 DLL 복사는 `docs/development.md`를 따른다.

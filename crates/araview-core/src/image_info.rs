@@ -186,8 +186,9 @@ fn color_info(path: &Path, mime: &str) -> (String, Option<u8>) {
     if mime == "image/heic" || mime == "image/heif" {
         return ("rgb".to_string(), Some(8));
     }
-    if mime == crate::psd_sidecar::PSD_MIME {
-        // 렌더 출력은 흰 배경에 합성된 JPEG sidecar이므로 rgb로 보고한다.
+    if mime == crate::psd_sidecar::PSD_MIME || mime == crate::raw::RAW_MIME {
+        // 렌더 출력은 JPEG sidecar(PSD는 흰 배경 합성, RAW는 내장 미리보기)이므로
+        // rgb로 보고한다.
         return ("rgb".to_string(), Some(8));
     }
     if mime == crate::jxl::JXL_MIME {
