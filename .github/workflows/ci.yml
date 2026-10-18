@@ -139,6 +139,7 @@ jobs:
       # 허용 목록 밖의 라이선스(GPL 등), 알 수 없는 레지스트리/git 소스가 들어오면 실패한다.
       # 설정: deny.toml.
       - name: Install cargo-deny
+        if: matrix.os == 'windows-latest'
         uses: taiki-e/install-action@ab6895351a88b908e96a4697860d4ffea5e57dbe # v2
         with:
           tool: cargo-deny@0.20.2
