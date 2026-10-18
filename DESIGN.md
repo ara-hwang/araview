@@ -1,6 +1,6 @@
 ---
 name: araview
-description: Quiet offline image and comic viewer for Windows; the picture is the interface.
+description: Quiet offline image and comic viewer for the desktop; the picture is the interface.
 colors:
   ink: "oklch(0.205 0 0)"
   paper: "oklch(1 0 0)"

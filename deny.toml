@@ -1,7 +1,11 @@
 # cargo-deny 설정. 실행: cargo deny check licenses bans sources
 # 취약점 자문은 CI의 rustsec/audit-check가 맡는다.
 [graph]
-targets = ["x86_64-pc-windows-msvc"]
+targets = [
+    "x86_64-pc-windows-msvc",
+    "x86_64-unknown-linux-gnu",
+    "aarch64-apple-darwin",
+]
 
 [licenses]
 confidence-threshold = 0.8

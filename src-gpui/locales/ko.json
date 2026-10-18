@@ -700,6 +700,8 @@
     "apng": "APNG 이미지",
     "jpg": "JPEG 이미지",
     "jpeg": "JPEG 이미지",
+    "jpe": "JPEG 이미지",
+    "jfif": "JPEG 이미지",
     "gif": "GIF 이미지",
     "bmp": "BMP 이미지",
     "webp": "WebP 이미지",
@@ -716,7 +718,38 @@
     "dds": "DDS 텍스처",
     "exr": "OpenEXR 이미지",
     "qoi": "QOI 이미지",
+    "cr2": "Canon RAW 이미지",
+    "nef": "Nikon RAW 이미지",
+    "nrw": "Nikon RAW 이미지",
+    "arw": "Sony RAW 이미지",
+    "dng": "DNG RAW 이미지",
+    "orf": "Olympus RAW 이미지",
+    "rw2": "Panasonic RAW 이미지",
+    "pef": "Pentax RAW 이미지",
+    "srw": "Samsung RAW 이미지",
     "cbz": "만화 아카이브",
     "zip": "ZIP 아카이브"
+  },
+  "platform": {
+    "macos": {
+      "menu": {
+        "reveal": "Finder에서 보기"
+      },
+      "toast": {
+        "reveal": {
+          "fail": "Finder에서 보기 실패"
+        }
+      }
+    },
+    "linux": {
+      "menu": {
+        "reveal": "파일 관리자에서 보기"
+      },
+      "toast": {
+        "reveal": {
+          "fail": "파일 관리자에서 보기 실패"
+        }
+      }
+    }
   }
 }

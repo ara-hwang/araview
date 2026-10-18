@@ -75,12 +75,14 @@ pub(super) struct SettingsPanel {
     psd: Loadable<PsdThumbStatus>,
 }
 
-const TABS: &[&str] = &[
+pub(super) const TABS: &[&str] = &[
     "settings.tabs.general",
     "settings.tabs.view",
     "settings.tabs.list",
     "settings.tabs.performance",
     "settings.tabs.shortcuts",
+    // 확장자 연결과 PSD 썸네일은 Windows 셸 연동이라 다른 OS에서는 탭을 두지 않는다.
+    #[cfg(windows)]
     "settings.tabs.extensions",
 ];
 
@@ -320,18 +322,20 @@ impl SettingsPanel {
                 ),
                 cx,
             ))
-            .child(setting_row(
-                self.with_shortcut(t("settings.window.alwaysOnTop"), "toggleAlwaysOnTop", cx),
-                Some(t("settings.window.desc")),
-                self.toggle(
-                    "always-on-top",
-                    s.always_on_top,
-                    |settings, value| settings.always_on_top = value,
-                    Effect::AlwaysOnTop,
+            .when(crate::platform::ALWAYS_ON_TOP_SUPPORTED, |section| {
+                section.child(setting_row(
+                    self.with_shortcut(t("settings.window.alwaysOnTop"), "toggleAlwaysOnTop", cx),
+                    Some(t("settings.window.desc")),
+                    self.toggle(
+                        "always-on-top",
+                        s.always_on_top,
+                        |settings, value| settings.always_on_top = value,
+                        Effect::AlwaysOnTop,
+                        cx,
+                    ),
                     cx,
-                ),
-                cx,
-            ))
+                ))
+            })
             .child(setting_row(
                 t("settings.update.title"),
                 Some(t_with(

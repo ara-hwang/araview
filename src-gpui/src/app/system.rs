@@ -131,6 +131,10 @@ impl AraView {
     }
 
     pub(super) fn toggle_always_on_top(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        // 지원하지 않는 OS에서는 단축키(`T`)도 아무 일을 하지 않는다.
+        if !platform::ALWAYS_ON_TOP_SUPPORTED {
+            return;
+        }
         SettingsStore::update(cx, |settings| {
             settings.always_on_top = !settings.always_on_top
         });

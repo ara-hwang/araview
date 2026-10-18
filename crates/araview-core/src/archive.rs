@@ -295,7 +295,10 @@ fn collect_zip_entries(archive_path: &Path) -> Result<ArchiveEntries, AppError> 
         let entry = archive
             .by_index(i)
             .map_err(|e| AppError::corrupt(format!("Failed to read entry: {e}")))?;
-        let name = entry.name().to_string();
+        let name = entry
+            .name()
+            .map_err(|e| AppError::corrupt(format!("Failed to read entry: {e}")))?
+            .to_string();
 
         // 디렉토리 스킵, 숨김 파일(__MACOSX 등) 스킵
         if entry.is_dir()
@@ -392,7 +395,11 @@ fn write_zip_with_entry(
         let entry = archive
             .by_index_raw(i)
             .map_err(|e| AppError::corrupt(format!("Failed to read entry: {e}")))?;
-        if entry.name() == entry_name {
+        if entry
+            .name()
+            .map_err(|e| AppError::corrupt(format!("Failed to read entry: {e}")))?
+            == entry_name
+        {
             continue;
         }
         writer.raw_copy_file(entry).map_err(zip_err)?;

@@ -15,6 +15,7 @@ pub enum Decoder {
     Psd,
     Raster,
     Jxl,
+    Raw,
 }
 
 /// Decoder for the file, by MIME. AVIF (libheif) and JPEG XL are decoded here
@@ -24,6 +25,7 @@ pub fn decoder_for(path: &Path) -> Option<Decoder> {
         "image/heic" | "image/heif" | "image/avif" => Some(Decoder::Heif),
         crate::psd_sidecar::PSD_MIME => Some(Decoder::Psd),
         crate::jxl::JXL_MIME => Some(Decoder::Jxl),
+        crate::raw::RAW_MIME => Some(Decoder::Raw),
         mime if is_raster_mime(mime) => Some(Decoder::Raster),
         _ => None,
     }
@@ -47,6 +49,7 @@ fn spec_for(decoder: Decoder) -> &'static SidecarSpec {
         Decoder::Psd => &crate::psd_sidecar::SPEC,
         Decoder::Raster => &crate::raster_sidecar::SPEC,
         Decoder::Jxl => &crate::jxl::SPEC,
+        Decoder::Raw => &crate::raw::SPEC,
     }
 }
 
@@ -54,6 +57,7 @@ fn spec_for(decoder: Decoder) -> &'static SidecarSpec {
 pub fn ensure_paint(source: &Path, mime: &str) -> Result<PathBuf, AppError> {
     let decoder = match mime {
         crate::psd_sidecar::PSD_MIME => Decoder::Psd,
+        crate::raw::RAW_MIME => Decoder::Raw,
         mime if is_raster_mime(mime) => Decoder::Raster,
         _ => Decoder::Heif,
     };

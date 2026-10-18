@@ -12,22 +12,22 @@
 
 ## 1. 개요
 
-- Windows 11 x64 전용 오프라인 데스크톱 이미지/코믹 뷰어. 로컬 파일만 다루며 라이브러리 가져오기, 계정, 네트워크를 쓰지 않는다(수동 업데이트 확인 제외).
+- Windows 11 x64를 정식 지원하고 macOS, Linux x64는 실험적으로 지원하는 오프라인 데스크톱 이미지/코믹 뷰어. OS별 구현은 `src-gpui/src/platform/`와 `cfg`로 분리하고, 아래에서 OS를 밝히지 않은 동작은 세 OS 공통이다. 로컬 파일만 다루며 라이브러리 가져오기, 계정, 네트워크를 쓰지 않는다(수동 업데이트 확인 제외).
 - 창은 프레임리스이며 커스텀 타이틀바/툴바(`src-gpui/src/app.rs`의 헤더)를 쓴다. 헤더 버튼 묶음은 창 드래그 영역과 겹치지 않도록 마우스를 막아 클릭이 캡션 드래그로 처리되지 않게 한다. Windows 11에서는 최대화 버튼 호버로 OS Snap Layouts 플라이아웃이 뜬다(§20).
 - 열린 다이얼로그는 창 전체를 20% 검정으로 덮는다(어두운 정도는 테마 `overlay` 토큰이고 `apply_theme`가 라이트·다크 모두 같은 세기로 맞춘다). 배경 클릭으로는 닫지 않고(`dialog::centered`의 `overlay_closable(false)`) 명령 팔레트와 설정만 영역 밖 클릭으로 닫으며(설정 위에 확인 다이얼로그가 떠 있으면 닫지 않는다) `Esc`·버튼으로 닫는다. 이 닫기는 누름이 아니라 뗌에서 정해지고(`dialog::BackdropClick`), 누른 자리에서 거의 움직이지 않았고 그 사이 창도 움직이지 않았을 때만 클릭으로 본다: 배경 누름은 곧바로 창 이동 드래그의 시작일 수 있다. 배경이 캡션 판정이라 Windows가 이동 루프를 돌리면 그 뗌이 gpui로 오지 않으므로, 실제 창에서는 물리 왼쪽 버튼 상태로 뗌을 알아낸다(`dialog::watch_backdrop_click`). 키보드 포커스는 다이얼로그 안에 갇힌다. 배경이 창 전체에 `WindowControlArea::Drag` 히트 영역을 깔아 다이얼로그가 열려 있는 동안 Windows는 창 전체를 캡션으로 판정한다: 타이틀바 컨트롤(최소화/최대화/닫기)은 동작하지 않는다(gpui-kit 다이얼로그 호스트의 `occlude()`가 OS 히트테스트용 마우스 좌표 수집을 차단하기 때문이며, 앱 코드로는 고칠 수 없다. 라이브러리 벤더 패치가 필요). 대신 배경을 잡아 끌면 창이 움직이는데, 그 움직임이 위의 클릭 판정에서 드래그로 잡히므로 배경을 끌어 창을 옮긴 뒤에는 팔레트와 설정이 닫히지 않는다(배경 클릭은 gpui가 클라이언트 입력으로도 전달되어 닫힌다). 다이얼로그는 알림 레이어 위에 그려지므로, 열려 있는 동안의 결과 알림은 경고창으로 보여준다(`src-gpui/src/toast.rs`). 다이얼로그와 명령 팔레트는 화면 가운데에 배치한다(추정 높이로 상단 오프셋을 계산, `src-gpui/src/dialog.rs`).
 - 기술 스택과 플러그인 목록은 `docs/development.md`를 따른다.
 
 ## 2. 지원 포맷
 
-총 22개 확장자(이미지 20종 + 아카이브 2종). 진실은 `crates/araview-core/src/image.rs` (`SUPPORTED_EXTENSIONS`, `get_mime_type`).
+총 33개 확장자(이미지 31종 + 아카이브 2종). 진실은 `crates/araview-core/src/image.rs` (`SUPPORTED_EXTENSIONS`, `get_mime_type`).
 
-### 2.1 순수 이미지 20종
+### 2.1 순수 이미지 31종
 
 | 확장자        | MIME                        | 비고                                                                                                                       |
 | ------------- | --------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | `png`         | `image/png`                 | 직접 디코드                                                                                                              |
 | `apng`        | `image/apng`                | 직접 디코드. PNG와 시그니처가 같아 확장자로 구분하며, 프레임을 디코드해 재생. 재생 제어는 GIF와 같다(7.5절) |
-| `jpg`, `jpeg` | `image/jpeg`                | 직접 디코드. EXIF Orientation(1~8)을 치수·썸네일에 반영                                            |
+| `jpg`, `jpeg`, `jpe`, `jfif` | `image/jpeg`   | 직접 디코드. EXIF Orientation(1~8)을 치수·썸네일에 반영                                            |
 | `gif`         | `image/gif`                 | 직접 디코드. 단일 보기에서 재생/정지·프레임 이동 지원                                                                  |
 | `bmp`         | `image/bmp`                 | 직접 디코드                                                                                                              |
 | `webp`        | `image/webp`                | 직접 디코드                                                                                                              |
@@ -43,6 +43,7 @@
 | `dds`         | `image/vnd.ms-dds`          | JPEG sidecar 트랜스코드 후 렌더(읽기 전용). DXT1/3/5(BC1~BC3)만 지원, 그 외는 `unsupported`                                |
 | `exr`         | `image/x-exr`               | JPEG sidecar 트랜스코드 후 렌더(읽기 전용). 선형 값을 clamp 후 sRGB 감마로 8비트화(노출 보정 없음)                         |
 | `qoi`         | `image/qoi`                 | JPEG sidecar 트랜스코드 후 렌더(읽기 전용). `image` 크레이트 디코드, 투명은 흰 배경 합성                                   |
+| `cr2`, `nef`, `nrw`, `arw`, `dng`, `orf`, `rw2`, `pef`, `srw` | `image/x-raw` | JPEG sidecar 트랜스코드 후 렌더(읽기 전용). 센서 데이터를 현상하지 않고 RAW에 든 카메라 제작 JPEG 미리보기를 꺼내 쓴다(2.3절). 방향은 IFD0 Orientation(1~8)을 따른다 |
 
 ### 2.2 아카이브 2종
 
@@ -63,10 +64,11 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 
 ### 2.3 제외 포맷
 
-- JXL, RAW(CR2/NEF/ARW 등), PSB는 제외 유지.
-  - JXL(`jxl-oxide`), RAW(`rawloader`): 디코더 크레이트는 있으나 아직 포함하지 않았다. 추가 시 `transcode.rs`에 디코더를 등록해 같은 sidecar 파이프라인(`SidecarSpec`)에 얹는다.
+- PSB, RAW 센서 데이터 현상, CR3·RAF 등 TIFF가 아닌 RAW 컨테이너는 제외 유지.
+  - RAW는 `raw.rs`가 TIFF 구조(IFD0, 다음 IFD, SubIFD)를 돌며 SOF0~2 JPEG를 모아 픽셀 수가 가장 큰 것을 쓴다. 무손실 JPEG(SOF3)인 센서 데이터는 거부한다. 구조에서 못 찾으면 파일 앞 256MiB를 훑어 JPEG를 찾고, 그래도 없으면 `unsupported`다. 미리보기가 제조사 전용 영역(MakerNote)에만 있는 기종은 이 훑기에 기대므로 일부 파일은 열리지 않을 수 있다.
+  - 센서 데이터 현상용 디코더 크레이트(rawler, rawloader는 LGPL-2.1, zenraw는 AGPL-3.0)는 `deny.toml`의 라이선스 정책에 맞지 않아 포함하지 않는다.
   - PSB: 실제 PSB는 `8BPS` + version 2인데 디코더가 없어 진입 차단한다(`psd` 크레이트는 PSD만 지원).
-- PSD, TGA, DDS, EXR, QOI는 JPEG sidecar 미리보기로만 표시한다(PSD는 합성 이미지, EXR은 8비트 변환). 앱은 어떤 포맷도 편집·저장하지 않는다.
+- PSD, TGA, DDS, EXR, QOI, RAW는 JPEG sidecar 미리보기로만 표시한다(PSD는 합성 이미지, EXR은 8비트 변환, RAW는 내장 JPEG 미리보기). 앱은 어떤 포맷도 편집·저장하지 않는다.
 
 ## 3. 화면
 
@@ -130,9 +132,9 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 
 ### 4.3 OS 파일 연결 실행
 
-- Windows가 CLI 인자(`args[1]`)로 파일 경로를 넘긴다.
+- Windows와 Linux는 CLI 인자(`args[1]`)로 파일 경로를 넘긴다(Linux는 `.desktop`의 `Exec=... %F`). macOS는 Finder가 열기 이벤트(`open-document`, GPUI `on_open_urls`)로 파일 URL을 넘기고, 앱은 이를 첫 인스턴스의 수신 채널로 보낸다(`platform::open_urls`).
 - 시작 인자로 받은 경로는 창이 준비되면 한 번 연다(`src-gpui/src/main.rs`, `open_path`).
-- 두 번째 실행은 명명된 파이프(`\\.\pipe\<식별자>`)로 첫 인자를 기존 창에 넘기고 종료한다. 기존 창은 받은 경로를 바로 연다(`src-gpui/src/app/system.rs`).
+- 두 번째 실행은 첫 인자를 기존 창에 넘기고 종료한다. Windows는 명명된 파이프(`\\.\pipe\<식별자>`), Linux와 macOS는 유닉스 도메인 소켓(`$XDG_RUNTIME_DIR` 또는 임시 폴더의 `<식별자>.sock`, 경로가 100바이트를 넘으면 `/tmp/araview-<uid>-<해시>.sock`, 권한 0600)이다. 소켓 파일이 남아 있어도 연결에 실패하면 새로 만든다. 기존 창은 받은 경로를 바로 연다(`src-gpui/src/app/system.rs`).
 - 연결 프로그램으로 실행하든 두 번째 실행이든 같은 `open_path` 흐름을 탄다.
 
 ## 5. 디렉토리 목록과 탐색
@@ -143,10 +145,10 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 
 - 입력: `file_path`, `options?: DirListOptions`(`sortKey: name | date | size`, `descending`, `recursive`).
 - 부모 폴더 기준으로 정렬 목록을 만들고, `current_index`는 요청 경로의 위치(없으면 0)이다.
-- 이름순은 탐색기와 같은 자연 정렬이다(`crates/araview-core/src/natural_sort.rs`): 숫자 구간은 값으로 비교해 `2.jpg`가 `10.jpg`보다 앞이고, 대소문자는 무시하며, 기호와 비ASCII 문자는 사용자 로캘 규칙을 따른다. 경로는 폴더 단위로 나눠 비교한다. `date`/`size` 정렬의 동률과 아카이브 엔트리 순서에도 같은 규칙을 쓴다.
+- 이름순은 탐색기와 같은 자연 정렬이다(`crates/araview-core/src/natural_sort.rs`): 숫자 구간은 값으로 비교해 `2.jpg`가 `10.jpg`보다 앞이고, 대소문자는 무시한다. 기호와 비ASCII 문자는 Windows에서 사용자 로캘 규칙(`LCMapStringEx`)을, 다른 OS에서는 소문자 UTF-8 코드포인트 순서를 따른다(한글은 가나다순). 경로는 폴더 단위로 나눠 비교한다. `date`/`size` 정렬의 동률과 아카이브 엔트리 순서에도 같은 규칙을 쓴다.
 - 재귀가 켜지면 하위 폴더 이미지를 포함한다. 재귀 목록이 캐시에서 올 때만 항목별 존재를 다시 확인해(256개 이상은 병렬) 워처 이벤트가 오기 전에 지워진 파일을 뺀다. 방금 스캔한 목록은 다시 확인하지 않는다.
 - 디렉토리 목록은 캐시되며 상한이 있다.
-- 응답 `availability`는 `images`와 같은 순서의 `local` | `cloud_only` | `unknown` 배열이다. Windows Files On-Demand placeholder는 `cloud_only`로 표시한다. 아카이브 목록은 빈 배열이다.
+- 응답 `availability`는 `images`와 같은 순서의 `local` | `cloud_only` | `unknown` 배열이다. Windows Files On-Demand placeholder는 `cloud_only`로 표시한다(다른 OS는 판별하지 않고 항상 `unknown`). 아카이브 목록은 빈 배열이다.
 
 ### 5.2 목록 새로고침
 
@@ -240,7 +242,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 
 - `viewerBackground`: `theme | black | white | checker`. 기본 `theme`.
 - `B`: `theme → black → white → checker` 순환.
-- `T`: 항상 위 토글.
+- `T`: 항상 위 토글(Windows 전용).
 - `F11`: 전체화면 토글. 더블클릭 기본도 전체화면이다.
 - `autoHideUI`: true일 때 읽기 중 크롬 자동 숨김.
 
@@ -298,7 +300,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 ### 9.2 저장 방식
 
 - `cacheStorageMode`는 `temporary | persistent`이며 기본값은 `persistent`다.
-- `persistent`는 `%LOCALAPPDATA%\<식별자>\cache-v2\`를 사용하며 앱 재실행 뒤에도 썸네일, sidecar, 축소본, 아카이브 추출물을 재사용한다.
+- `persistent`는 OS 캐시 폴더(Windows `%LOCALAPPDATA%`, macOS `~/Library/Caches`, 그 밖은 `$XDG_CACHE_HOME` 또는 `~/.cache`) 아래 `<식별자>/cache-v2/`를 사용하며 앱 재실행 뒤에도 썸네일, sidecar, 축소본, 아카이브 추출물을 재사용한다.
 - `temporary`는 사용자 앱 캐시 디렉터리의 버전된 `session-v1/` 아래 프로세스별 `TempDir`를 사용한다. 정상 종료 이벤트와 다음 시작 시 이전 세션 루트를 정리해 종료·충돌 후에도 임시 파일을 남기지 않는다. 저장 방식 변경은 다음 실행부터 적용된다.
 - 영구 캐시는 OS가 지울 수 있는 best-effort 데이터다. 원본이나 렌더 결과의 진실 원본은 아니다.
 - 설치 빌드(`com.araview.viewer`)와 개발 빌드(`com.araview.viewer.dev`)는 식별자가 달라 캐시 루트가 분리된다.
@@ -307,7 +309,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 ### 9.3 썸네일
 
 - `generate_thumbnail`: 기본 256px, JPEG 캐시 후 재사용한다. 상한(500MB)을 넘기면 오래된 것부터 상한의 90%까지 제거한다. 상한 초과는 새로 쓴 파일 크기를 누적해 판단하므로, 쓸 때마다 폴더 전체를 다시 훑지 않는다(HEIC/PSD sidecar의 `paint/`, 축소본의 `scaled/`, 클립보드 복사용 PNG의 `clipboard/`도 같다. 11.3절).
-- HEIC/HEIF/AVIF/JXL/PSD/TGA/DDS/EXR/QOI는 썸네일용 JPEG sidecar 경로를 쓴다(AVIF와 JXL은 표시만 네이티브이고 썸네일은 각각 libheif, jxl-oxide로 디코드한다).
+- HEIC/HEIF/AVIF/JXL/PSD/TGA/DDS/EXR/QOI/RAW는 썸네일용 JPEG sidecar 경로를 쓴다(AVIF와 JXL은 표시만 네이티브이고 썸네일은 각각 libheif, jxl-oxide로 디코드한다).
 - 디코드 불가 입력(SVG 등)이나 아카이브 엔트리명은 에러를 내고, UI는 원본으로 폴백한다.
 - 배치 조회와 아카이브 엔트리용 썸네일 API를 별도로 제공한다. 아카이브 썸네일은 추출물과 캐시를 재사용해 풀사이즈 로드를 피한다.
 - 도크와 그리드의 아카이브 엔트리는 청크마다 `generate_archive_thumbnails_batch` 1회로 요청한다. 추출 디렉터리 식별은 배치당 한 번만 계산하고, 워커마다 아카이브를 한 번만 열어 자기 몫의 엔트리를 추출·축소한다. 실패한 엔트리와 배치 자체의 실패는 UI가 원본 로드로 폴백한다.
@@ -407,14 +409,14 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 ### 11.4 경로/외부 열기
 
 - `Ctrl+Shift+C`: 유효 경로를 텍스트로 복사한다.
-- `Ctrl+Shift+E`: 탐색기에 표시한다.
+- `Ctrl+Shift+E`: 파일 관리자(Windows 탐색기, macOS Finder, Linux 기본 파일 관리자)에 표시한다.
 - `Ctrl+Shift+O`: 기본 앱으로 연다.
 
 ## 12. 최근 파일/영속화
 
 진실: `src-gpui/src/settings.rs`.
 
-`settings.json` 키(`%APPDATA%\<식별자>\settings.json`):
+`settings.json` 키(설정 폴더 `<식별자>/settings.json`. Windows `%APPDATA%`, macOS `~/Library/Application Support`, 그 밖은 `$XDG_CONFIG_HOME` 또는 `~/.config` 아래):
 
 | 키                | 내용                                                    | 상한     |
 | ----------------- | ------------------------------------------------------- | -------- |
@@ -504,7 +506,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 | 항상 위                | `T`               |
 | 이미지 복사            | `Ctrl+C`          |
 | 휴지통                 | `Delete`          |
-| 탐색기에 표시          | `Ctrl+Shift+E`    |
+| 파일 관리자에 표시     | `Ctrl+Shift+E`    |
 | 기본 앱으로 열기       | `Ctrl+Shift+O`    |
 | 배경 순환              | `B`               |
 | 이름 변경              | `F2`              |
@@ -529,7 +531,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 
 ### 14.3 커스텀 규칙
 
-- 허용 수식키는 `Ctrl/Shift/Alt`이며 `Meta`와 `Tab`은 쓸 수 없다.
+- 허용 수식키는 `Ctrl/Shift/Alt`이며 `Meta`와 `Tab`은 쓸 수 없다. macOS에서는 Cmd를 `Ctrl`로 취급한다(Cmd+O와 Ctrl+O가 같은 `Ctrl+O`로 기록·매칭된다).
 - 빈 값은 바인딩 해제로 취급하고, 중복 바인딩은 검출한다.
 - 왼쪽 드래그는 `pan` 또는 `none`만 허용한다.
 - 다이얼로그/입력 포커스에서는 뷰어 단축키를 막는다(EXIF 패널의 `I` 닫기 예외 제외).
@@ -649,8 +651,9 @@ UI 분류 5종:
 ## 18. 렌더링 경로
 
 - 코어는 디코드용 파일 경로를 돌려주고, UI는 그 파일을 `display.rs`로 RGBA 프레임으로 디코드해 GPU 텍스처(타일)로 올려 그린다. GPUI 텍스처는 한 변 16384px 제한과 밉맵 없는 선형 보간뿐이라 큰 이미지는 8192px 타일로 나누고 축소 단계를 CPU에서 만든다(`src-gpui/src/picture.rs`).
-- 디코더가 따로 필요한 HEIC/HEIF/PSD/TGA/DDS/EXR/QOI는 JPEG sidecar를(`transcode.rs`가 디코더를 고르고 `sidecar.rs`의 `SidecarSpec` 파이프라인을 공유한다), 표시 해상도 제한이 걸린 큰 래스터는 `scaled/` 사본(9.4절)을 만든다. sidecar와 아카이브 추출물, 썸네일 캐시는 `cacheStorageMode`가 `persistent`면 `%LOCALAPPDATA%\<식별자>\`의 버전된 루트(`cache-v2/`)에, `temporary`면 프로세스 수명 TempDir에 둔다.
+- 디코더가 따로 필요한 HEIC/HEIF/PSD/TGA/DDS/EXR/QOI/RAW는 JPEG sidecar를(`transcode.rs`가 디코더를 고르고 `sidecar.rs`의 `SidecarSpec` 파이프라인을 공유한다), 표시 해상도 제한이 걸린 큰 래스터는 `scaled/` 사본(9.4절)을 만든다. sidecar와 아카이브 추출물, 썸네일 캐시는 `cacheStorageMode`가 `persistent`면 `%LOCALAPPDATA%\<식별자>\`의 버전된 루트(`cache-v2/`)에, `temporary`면 프로세스 수명 TempDir에 둔다.
 - JPEG와 TIFF의 EXIF Orientation(1~8)은 디코드할 때 적용하고, 치수(`ImageInfo.width/height`, `get_image_details`)와 썸네일도 같은 기준으로 회전해 보고한다(SVG/WebP/PNG/HEIC는 대상 아님).
+- RAW(CR2/NEF/NRW/ARW/DNG/ORF/RW2/PEF/SRW)는 새 의존성 없이 `raw.rs`가 내장 JPEG 미리보기를 꺼내 디코드한다. 방향은 미리보기 JPEG가 아니라 RAW IFD0의 Orientation을 픽셀에 반영하고, 파일이 TIFF 시그니처를 가져도 확장자가 RAW이면 RAW로 본다(`resolve_mime`). 색상 모드는 `rgb` 8비트로 보고하며, 센서 쪽 정보(실제 비트 수, 색 프로파일)는 읽지 않는다.
 - JXL은 jxl-oxide(순수 Rust, 추가 DLL 없음)로 디코드한다. 코드스트림 헤더의 orientation은 디코더가 픽셀과 치수에 반영하므로 EXIF 회전을 따로 적용하지 않는다. 색 공간이 열거형으로 신호된 이미지(XYB 손실 압축, Display P3, PQ/HLG, 선형 등)는 sRGB로 변환하고, ICC 프로파일만 실린 RGB·회색조 이미지는 픽셀을 그대로 둔다. CMYK는 실린 ICC 프로파일을 moxcms(순수 Rust CMS)로 해석해 sRGB로 변환하고, 상세 패널에는 디코드 결과대로 RGB로 표시한다. 움직이는 JXL은 키프레임을 모두 디코드해 GIF/APNG/WebP와 같은 재생 경로를 타고, 전체 프레임이 애니메이션 예산(RGBA 512MB)을 넘으면 첫 프레임만 표시한다. 1억 픽셀을 넘으면 `TooLarge`로 거부한다.
 - AVIF는 libheif로 디코드한다. 이미지 시퀀스(움직이는 AVIF, `avis`)는 첫 영상 트랙의 프레임을 모두 디코드해 GIF/APNG/WebP와 같은 재생 경로를 타고, 프레임 지연은 트랙 타임스케일에서 계산한다. 전체 프레임이 애니메이션 예산(RGBA 512MB)을 넘으면 첫 프레임만 표시한다. edit list의 반복 횟수는 읽지 않고 항상 무한 반복한다. 썸네일·히스토그램·클립보드는 기본 이미지(정지 항목)를 쓴다.
 - `detect_pixel_art`는 표시 바이트 경로를 제한된 분석 이미지로 읽고, 작은 색상 팔레트·평탄도·동일 색상 run·주기적 경계 신호를 결합한다. ML 모델이나 네트워크를 사용하지 않으며, 분석 제한 초과·디코드 실패·불확실 결과는 안전하게 부드러운 표시로 대체한다.
@@ -662,29 +665,34 @@ UI 분류 5종:
 진실: `src-gpui/src/i18n.rs`, `src-gpui/locales/ko.json`, `src-gpui/locales/en.json`.
 
 - 지원 언어: `ko`, `en`.
-- 시스템 감지: Windows 사용자 로캘 이름이 `ko`로 시작하면 `ko`, 아니면 `en`.
+- 시스템 감지: 로캘 이름이 `ko`로 시작하면 `ko`, 아니면 `en`. 로캘은 Windows는 사용자 로캘 이름(환경 변수 `LC_ALL`/`LANG`이 있으면 그것을 먼저), macOS는 `AppleLanguages`의 첫 항목(없으면 환경 변수), Linux는 `LC_ALL`, `LC_MESSAGES`, `LANG` 순이다.
+- OS별 문구: `locales/*.json`의 `platform.<windows|macos|linux>` 아래 같은 키가 해당 OS에서 기본 문구를 덮어쓴다(예: 탐색기 보기 → Finder, 파일 관리자).
 - 폴백: `ko`.
 - 설정 변경 즉시 적용된다.
 
 ## 20. 윈도우/배포
 
-진실: `src-gpui/installer/araview.nsi`, `scripts/Build-Installer.ps1`, `src-gpui/src/app/update.rs`, `docs/releasing.md`, `.github/workflows/release.yml`, `.github/workflows/ci.yml`.
+진실: `src-gpui/installer/araview.nsi`, `scripts/Build-Installer.ps1`, `scripts/package-linux.sh`, `scripts/package-macos.sh`, `src-gpui/packaging/`, `src-gpui/src/platform/`, `src-gpui/src/app/update.rs`, `docs/releasing.md`, `.github/workflows/release.yml`, `.github/workflows/ci.yml`.
 
 - 창: 제목 기본값 `AraView`(이미지가 열리면 파일명, 아니면 앱 이름), 1024x768, 최소 500x400, 프레임리스. 최소 너비 500은 Windows 11 Snap Layouts의 모든 배치에 창이 들어가기 위한 상한이다(Microsoft 권장 ≤500epx).
+- OS별 창 틀: 타이틀바는 gpui-kit이 그린다. Windows와 클라이언트 장식 Linux(Wayland 등)는 오른쪽에 최소화/최대화/닫기 버튼 3개(34px씩)를 두고 헤더 보조 그룹을 그 앞에서 접는다. 서버 장식 Linux(합성기 없는 X11)는 창 관리자가 틀을 그려 오른쪽 버튼이 없고, macOS는 왼쪽 신호등 버튼 자리(80px 패딩)를 둔다. 창 이동은 Windows가 `WM_NCLBUTTONDOWN`, 그 밖은 `Window::start_window_move`다.
+- 항상 위는 Windows(`SetWindowPos`)에서만 지원한다. 다른 OS에서는 헤더 버튼, 설정 행, 명령 팔레트 항목을 숨기고(`platform::ALWAYS_ON_TOP_SUPPORTED`) 시작할 때도 적용하지 않는다.
 - 창 위치와 크기를 `settings.json`의 `window`에 저장하고 다음 실행에 복원한다.
 - 읽기 영역 드래그는 팬·스크롤 여유가 없을 때 창 이동이 된다(§7.2).
 - Windows 11 Snap Layouts: gpui-kit 타이틀바의 최대화 버튼은 창 컨트롤 영역(`WindowControlArea::Max`)으로 등록돼 있어 Windows가 `HTMAXBUTTON`으로 처리한다. 앱이 따로 오버레이를 두지 않는다. 헤더의 일반 버튼은 `.occlude()`로 묶어 캡션 드래그 영역으로 취급되지 않게 한다. 최소 폭 500 논리 px에서 좌우 메뉴와 캡션 버튼을 보존하도록 헤더의 보조 그룹은 폭에 따라 단계적으로 접고 버튼 그룹은 줄어들지 않는다.
 - 설치 프로그램: NSIS 하나만 만든다(`pwsh scripts/Build-Installer.ps1`, 결과물 `target/AraView-<버전>-setup.exe`). 1.x(Tauri) 설치본과 같은 정체성(설치 폴더 `%LOCALAPPDATA%\AraView`, 실행 파일 `araview.exe`, 제거 항목 `AraView`, 시작 메뉴 바로가기)을 써서 같은 자리에 덮어쓴다. 설치 중 앱이 실행 중이면 종료를 요청한다.
 - 릴리스 파이프라인: `npm run release -- <버전>`(`scripts/release.mjs`)이 `src-gpui/Cargo.toml`과 `Cargo.lock`의 버전을 올려 커밋하고 `vX.Y.Z` 태그와 함께 푸시한다. 태그 푸시를 `.github/workflows/release.yml`이 받아 태그와 버전 파일의 일치, 서명 키 Secrets를 확인한 뒤 검증(cargo fmt/test/clippy, 보안 감사, 라이선스 검사), 설치 프로그램 빌드, 서명, `latest-gpui.json` 생성, 원본 저장소 `ara-hwang/araview` 릴리스 생성까지 자동으로 수행한다. `ci.yml`이 검증을 담당하고 릴리스가 이를 재사용한다. 권한과 절차 상세는 `docs/releasing.md`를 따른다.
-- 파일 연결 3그룹:
-  - Image 20종: png, apng, jpg, jpeg, gif, bmp, webp, svg, ico, avif, tif, tiff, jxl, heic, heif, psd, tga, dds, exr, qoi.
+- Linux 배포: `scripts/package-linux.sh`가 `target/AraView-<버전>-linux-<arch>.tar.gz`를 만든다(`bin/araview`, `bin/licenses/`, `share/applications/com.araview.viewer.desktop`, 아이콘, `install.sh`). `install.sh`는 `~/.local`(또는 `PREFIX`)에 관리자 권한 없이 설치하고 `--uninstall`로 제거한다. `.desktop`의 `MimeType`이 지원 형식을 선언하고 `StartupWMClass`와 창 `app_id`가 식별자 `com.araview.viewer`다. libheif는 vcpkg 정적 링크다. 실행에는 X11 또는 Wayland, Vulkan, `libxkbcommon`이 필요하다.
+- macOS 배포: `scripts/package-macos.sh`가 `AraView.app`(`Info.plist`의 `CFBundleDocumentTypes`가 지원 확장자를 `Viewer`/`Alternate`로 선언, `AraView.icns`)을 만들고 ad-hoc 서명해 `target/AraView-<버전>-macos-<arch>.dmg`로 묶는다. 공증하지 않으므로 첫 실행은 우클릭 > 열기다. CI는 Apple silicon(arm64)만 빌드한다.
+- 파일 연결(Windows): 연결은 OS 확인 없이 바꿀 수 없다. macOS와 Linux는 설정에 연결 UI가 없고(탭 자체가 없다) 번들·`.desktop` 선언이 "다음으로 열기" 목록을 채운다. 연결 3그룹:
+  - Image 31종: png, apng, jpg, jpeg, jpe, jfif, gif, bmp, webp, svg, ico, avif, tif, tiff, jxl, heic, heif, psd, tga, dds, exr, qoi, cr2, nef, nrw, arw, dng, orf, rw2, pef, srw.
   - Comic 1종: cbz.
   - Archive 1종: zip.
-- HEIC/HEIF는 vcpkg `libheif[core,aom]`(1.21 이상, AVIF 시퀀스 디코드에 필요) 동적 링크 + `libde265`(HEVC), `aom`(AV1, AVIF 표시/썸네일/히스토그램)만 사용한다. 설치와 DLL 복사는 `docs/development.md`를 따른다.
+- HEIC/HEIF는 vcpkg `libheif[core,aom]`(1.21 이상, AVIF 시퀀스 디코드에 필요) + `libde265`(HEVC), `aom`(AV1, AVIF 표시/썸네일/히스토그램)만 사용한다. Windows는 동적 링크(DLL 동봉), Linux와 macOS 배포는 정적 링크다. 설치와 DLL 복사는 `docs/development.md`를 따른다.
 
 ### 20.1 자동 업데이트
 
-수동 확인만 제공한다. 시작 시 자동 확인이나 백그라운드 폴링은 없다(오프라인 우선).
+수동 확인만 제공한다. 시작 시 자동 확인이나 백그라운드 폴링은 없다(오프라인 우선). 앱 안 설치는 Windows만 지원한다. macOS와 Linux는 새 버전이 있으면 안내 대화상자에 `GitHub 릴리스 페이지` 버튼만 두고(다운로드 버튼 없음, 피드에 해당 플랫폼 항목이 없다) 새 파일을 직접 받게 한다.
 
 - 진입점: 설정 일반 탭의 `새 버전 확인` 버튼, 명령 팔레트의 `업데이트 확인`.
 - 흐름: 업데이트 확인 → 없으면 최신 안내, 있으면 대화상자에서 다운로드를 시작한다. 내려받은 설치 프로그램은 서명을 앱에 내장한 공개키로 확인한 뒤에만 실행하고, 실행하면 앱이 종료된다. 설치와 새 버전 재실행은 NSIS가 담당하므로 수동 재시작 UI는 없다. 다운로드하는 동안에는 진행 대화상자를 띄워 진행 막대와 받은 크기/전체 크기(%)를 보여 준다. 서버가 전체 크기를 알려 주지 않으면 막대는 불확정 표시가 되고 받은 크기만 보인다. 이 대화상자는 `취소` 버튼으로만 닫히며(`Esc`와 닫기 버튼 없음) 취소하면 받던 내용을 버린다. 다운로드 실패는 알림으로 알린다. 중복 확인은 무시한다.
@@ -694,7 +702,7 @@ UI 분류 5종:
 
 ### 20.2 PSD 탐색기 썸네일 (IThumbnailProvider)
 
-Windows 파일 탐색기에서 `.psd` 축소판을 표시한다. 미리보기 창(`Alt+P`)은 범위 밖이며 썸네일만 제공한다.
+Windows 전용이다(macOS와 Linux에서는 `araview-thumb`가 빈 크레이트이고 설정 탭도 없다). Windows 파일 탐색기에서 `.psd` 축소판을 표시한다. 미리보기 창(`Alt+P`)은 범위 밖이며 썸네일만 제공한다.
 
 - 설정 UI(확장자 탭 하단)에서 켜고 끌 수 있다. DLL이 없으면 등록을 거부하고 안내한다. 적용 뒤 탐색기 재시작/썸네일 캐시 정리가 필요할 수 있다.
 - 등록은 HKCU라 관리자 권한이 필요 없다. PSB는 거부하고 탐색기가 기본 아이콘으로 폴백한다.

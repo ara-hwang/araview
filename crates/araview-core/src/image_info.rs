@@ -186,8 +186,9 @@ fn color_info(path: &Path, mime: &str) -> (String, Option<u8>) {
     if mime == "image/heic" || mime == "image/heif" {
         return ("rgb".to_string(), Some(8));
     }
-    if mime == crate::psd_sidecar::PSD_MIME {
-        // 렌더 출력은 흰 배경에 합성된 JPEG sidecar이므로 rgb로 보고한다.
+    if mime == crate::psd_sidecar::PSD_MIME || mime == crate::raw::RAW_MIME {
+        // 렌더 출력은 JPEG sidecar(PSD는 흰 배경 합성, RAW는 내장 미리보기)이므로
+        // rgb로 보고한다.
         return ("rgb".to_string(), Some(8));
     }
     if mime == crate::jxl::JXL_MIME {
@@ -281,7 +282,7 @@ fn icc_info(path: &Path) -> (IccStatus, Option<String>, Option<u64>) {
         .map(|e| e.to_lowercase())
         .unwrap_or_default();
     let found = match ext.as_str() {
-        "jpg" | "jpeg" => icc_from_jpeg(path),
+        "jpg" | "jpeg" | "jpe" | "jfif" => icc_from_jpeg(path),
         "png" | "apng" => icc_from_png(path),
         _ => return (IccStatus::Unchecked, None, None),
     };

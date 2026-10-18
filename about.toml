@@ -21,9 +21,13 @@ accepted = [
     "Zlib",
 ]
 
-# 배포 대상(Windows x64)에서 쓰이는 크레이트만 모은다. 개발 전용 의존성은 제외,
-# 빌드 의존성은 보수적으로 포함한다.
-targets = ["x86_64-pc-windows-msvc"]
+# 배포 대상(Windows x64, Linux x64, macOS arm64)에서 쓰이는 크레이트만 모은다. 개발 전용
+# 의존성은 제외, 빌드 의존성은 보수적으로 포함한다.
+targets = [
+    "x86_64-pc-windows-msvc",
+    "x86_64-unknown-linux-gnu",
+    "aarch64-apple-darwin",
+]
 ignore-dev-dependencies = true
 ignore-build-dependencies = false
 workarounds = []

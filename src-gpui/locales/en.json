@@ -700,6 +700,8 @@
     "apng": "APNG image",
     "jpg": "JPEG image",
     "jpeg": "JPEG image",
+    "jpe": "JPEG image",
+    "jfif": "JPEG image",
     "gif": "GIF image",
     "bmp": "BMP image",
     "webp": "WebP image",
@@ -716,7 +718,38 @@
     "dds": "DDS texture",
     "exr": "OpenEXR image",
     "qoi": "QOI image",
+    "cr2": "Canon RAW image",
+    "nef": "Nikon RAW image",
+    "nrw": "Nikon RAW image",
+    "arw": "Sony RAW image",
+    "dng": "DNG RAW image",
+    "orf": "Olympus RAW image",
+    "rw2": "Panasonic RAW image",
+    "pef": "Pentax RAW image",
+    "srw": "Samsung RAW image",
     "cbz": "Comic archive",
     "zip": "ZIP archive"
+  },
+  "platform": {
+    "macos": {
+      "menu": {
+        "reveal": "Reveal in Finder"
+      },
+      "toast": {
+        "reveal": {
+          "fail": "Failed to reveal in Finder"
+        }
+      }
+    },
+    "linux": {
+      "menu": {
+        "reveal": "Show in File Manager"
+      },
+      "toast": {
+        "reveal": {
+          "fail": "Failed to show in File Manager"
+        }
+      }
+    }
   }
 }

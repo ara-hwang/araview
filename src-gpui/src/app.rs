@@ -46,6 +46,7 @@ use crate::geometry::Offset;
 use crate::i18n::{t, t_with};
 use crate::keys;
 use crate::picture::{Orientation, Picture};
+use crate::platform;
 use crate::settings::{DockPosition, FitMode, MouseAction, SettingsStore, SortKey, ViewMode};
 
 /// 체커 배경은 두 테마 모두 20px 타일, 흰 바탕에 `#c7c7c7`로 고정한다(DESIGN.md).
@@ -270,7 +271,7 @@ impl AraView {
             high_contrast: crate::platform::high_contrast(),
         };
         system::apply_theme(SettingsStore::global(cx).theme, window, cx);
-        if SettingsStore::global(cx).settings.always_on_top {
+        if platform::ALWAYS_ON_TOP_SUPPORTED && SettingsStore::global(cx).settings.always_on_top {
             this.apply_always_on_top(window, cx);
         }
         cx.observe_window_bounds(window, |this, window, cx| this.remember_window(window, cx))
@@ -1065,21 +1066,23 @@ impl AraView {
                             )
                             .when(wide_labels, |button| button.label(t("header.settings"))),
                         )
-                        .child(
-                            Self::icon_button(
-                                "on-top",
-                                if settings.always_on_top {
-                                    Ph::PushPinFill
-                                } else {
-                                    Ph::PushPin
-                                },
-                                "header.alwaysOnTop",
-                                "toggleAlwaysOnTop",
-                                cx,
+                        .when(platform::ALWAYS_ON_TOP_SUPPORTED, |row| {
+                            row.child(
+                                Self::icon_button(
+                                    "on-top",
+                                    if settings.always_on_top {
+                                        Ph::PushPinFill
+                                    } else {
+                                        Ph::PushPin
+                                    },
+                                    "header.alwaysOnTop",
+                                    "toggleAlwaysOnTop",
+                                    cx,
+                                )
+                                .when(extra_labels, |button| button.label(t("header.onTop")))
+                                .selected(settings.always_on_top),
                             )
-                            .when(extra_labels, |button| button.label(t("header.onTop")))
-                            .selected(settings.always_on_top),
-                        )
+                        })
                         .when(has_image, |row| {
                             row.child(
                                 Button::new("hide-bar")
