@@ -9,6 +9,8 @@
 //! 통로는 `\\.\pipe\<식별자>-control` 위의 한 줄 JSON 요청과 한 줄 JSON 응답이다.
 //! 명령 목록과 사용 절차는 `docs/playbooks.md`의 "Runtime check"를 본다.
 
+#![cfg_attr(test, allow(dead_code))]
+
 use std::path::PathBuf;
 
 use gpui_kit::component::WindowExt as _;

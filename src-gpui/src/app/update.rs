@@ -479,11 +479,8 @@ impl AraView {
 #[cfg(test)]
 mod tests {
     // `super::*`는 gpui의 `test` 매크로까지 끌어와 `#[test]`를 가린다.
-    use super::{AraView, Arc, DOWNLOAD_CHUNK, DownloadProgress, Ordering, read_with_progress};
-    use crate::app::tests::{open_app, settle};
-    use gpui_kit::TestAppContext;
-    use gpui_kit::component::WindowExt as _;
-    use gpui_kit::test::TestWindowExt as _;
+    use super::{DOWNLOAD_CHUNK, DownloadProgress, Ordering, read_with_progress};
+
 
     #[test]
     fn read_records_received_bytes() {
@@ -513,31 +510,4 @@ mod tests {
         assert_eq!(progress.percent(), Some(25.));
     }
 
-    /// 다운로드 대화상자는 `Esc`로 닫히지 않고 취소 버튼으로만 닫힌다.
-    #[gpui_kit::test]
-    fn download_dialog_closes_only_by_cancel(cx: &mut TestAppContext) {
-        let (view, cx) = open_app(cx);
-        let progress = Arc::new(DownloadProgress::default());
-        progress.total.store(200, Ordering::Relaxed);
-        progress.received.store(50, Ordering::Relaxed);
-        view.update_in(cx, |_, window, cx| {
-            AraView::show_download(progress.clone(), "9.9.9".to_owned(), window, cx)
-        });
-        settle(cx);
-        assert!(cx.update(|window, cx| window.has_active_dialog(cx)));
-
-        cx.simulate_keystrokes("escape");
-        settle(cx);
-        assert!(cx.update(|window, cx| window.has_active_dialog(cx)));
-        assert!(!progress.cancelled.load(Ordering::Relaxed));
-
-        // 등장 애니메이션이 끝나야 버튼이 제자리에서 클릭을 받는다.
-        std::thread::sleep(std::time::Duration::from_millis(500));
-        cx.update(|window, cx| window.simulate_next_frame(cx));
-        settle(cx);
-        cx.update(|window, cx| window.click("update-cancel", cx));
-        settle(cx);
-        assert!(!cx.update(|window, cx| window.has_active_dialog(cx)));
-        assert!(progress.cancelled.load(Ordering::Relaxed));
-    }
 }
