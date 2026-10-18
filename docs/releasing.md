@@ -23,7 +23,7 @@ npm run release -- patch --dry-run  # 계획만 출력
 - 릴리스 자산은 `AraView-<버전>-setup.exe`(NSIS 설치 프로그램), `latest-gpui.json`(업데이트 피드), `AraView-<버전>-linux-x86_64.tar.gz`, `AraView-<버전>-macos-arm64.dmg`, `SHA256SUMS.txt`(Linux·macOS 파일 체크섬)입니다. 잡 구성은 `build-windows`(설치 프로그램, 서명, 피드), `build-linux`, `build-macos`가 각자 아티팩트를 올리고, 마지막 `release` 잡이 모아서 릴리스를 한 번에 만듭니다.
 - Linux와 macOS 패키지는 서명하지 않고 피드에도 넣지 않습니다. 앱의 업데이트 확인은 이 OS에서 릴리스 페이지로 안내만 합니다. macOS 앱은 ad-hoc 서명만 있고 공증하지 않으므로 첫 실행은 우클릭 > 열기가 필요합니다. 공증이 필요해지면 Apple Developer 계정과 `build-macos` 잡의 서명·공증 단계를 따로 추가해야 합니다.
 - Linux와 macOS 잡은 Actions에서 아직 돌려 본 적이 없다면 태그를 달기 전에 수동 실행으로 먼저 시험합니다(아래).
-- 릴리스 본문은 `.github/RELEASE_TEMPLATE.md`를 채워 만듭니다. `{{CHANGES}}`(이전 태그 이후 커밋을 접두사로 분류한 목록), `{{COMPARE}}`(비교 링크) 자리표시자를 워크플로가 치환하므로, 문구를 바꾸려면 이 파일만 고치면 됩니다. 앱의 업데이트 대화상자에는 설치 안내를 뺀 변경 목록만 보입니다.
+- 릴리스 본문은 `.github/RELEASE_TEMPLATE.md`를 채워 만듭니다. `{{CHANGES}}`(이전 태그 이후 커밋을 접두사로 분류한 목록), `{{COMPARE}}`(비교 링크) 자리표시자를 워크플로가 치환하므로, 문구를 바꾸려면 이 파일만 고치면 됩니다. 설치 안내는 본문에 넣지 않습니다. 앱의 업데이트 대화상자에는 변경 목록만 보입니다.
 - 릴리스 노트는 커밋 제목의 접두사로 자동 분류됩니다. `feat`는 "새 기능", `fix`는 "수정", `refactor`와 `perf`는 "개선", `feat!:`처럼 느낌표가 붙은 커밋은 "변경"에 들어갑니다. `docs`, `chore`, `ci`, `build`, `test`, `style`과 머지 커밋은 제외됩니다. 제목이 그대로 노출되므로 사용자에게 읽히는 문장으로 씁니다.
 - 저장소 Secrets에 `TAURI_SIGNING_PRIVATE_KEY`와 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`를 등록해야 합니다(아래 "서명키 발급과 등록"). 이름은 예전 Tauri 시절 그대로이고 키 형식은 minisign입니다.
 - 실패하면 Actions에서 해당 실행을 재실행합니다. 코드를 고쳐야 하면 태그를 지우고(`git push --delete origin vX.Y.Z`, `git tag -d vX.Y.Z`) 고친 커밋에 다시 붙입니다. 이미 만들어진 릴리스가 있으면 함께 지웁니다.
