@@ -1,6 +1,12 @@
 //! GPUI가 제공하지 않는 Windows 연동: 창 핸들, 항상 위, 단일 인스턴스, 제어 파이프.
 
-use std::sync::mpsc::{Receiver, Sender, channel};
+#[cfg(all(debug_assertions, not(test)))]
+use std::sync::mpsc::Receiver;
+use std::sync::mpsc::{Sender, channel};
+
+#[cfg(all(debug_assertions, not(test)))]
+use super::Control;
+use super::{Instance, MAX_MESSAGE};
 
 use gpui_kit::Window;
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
@@ -55,8 +61,6 @@ const ERROR_PIPE_CONNECTED: u32 = 535;
 const PIPE_ACCESS_INBOUND: u32 = 0x0000_0001;
 const PIPE_UNLIMITED_INSTANCES: u32 = 255;
 const INVALID_HANDLE: Handle = -1;
-/// 전달받는 경로 길이 상한(바이트).
-const MAX_MESSAGE: usize = 64 * 1024;
 
 fn wide(text: &str) -> Vec<u16> {
     text.encode_utf16().chain(std::iter::once(0)).collect()
@@ -138,6 +142,9 @@ pub fn window_origin(window: &Window) -> Option<(i32, i32)> {
     ok.then_some((rect.left, rect.top))
 }
 
+/// 항상 위 기능을 이 OS에서 쓸 수 있는지.
+pub const ALWAYS_ON_TOP_SUPPORTED: bool = true;
+
 /// 창을 항상 위에 두거나 해제한다. 성공 여부를 돌려준다.
 pub fn set_always_on_top(window: &Window, on_top: bool) -> bool {
     let hwnd = hwnd(window);
@@ -212,15 +219,6 @@ pub fn reduced_motion() -> bool {
         SystemParametersInfoW(SPI_GETCLIENTAREAANIMATION, 0, (&raw mut enabled).cast(), 0) != 0
     };
     ok && enabled == 0
-}
-
-/// 개발 빌드의 제어 통로. 에이전트가 실행 중인 창의 상태를 읽고 입력을 넣는다.
-#[cfg(all(debug_assertions, not(test)))]
-pub struct Control {
-    /// 요청 한 줄(JSON)을 앱으로 넘긴다.
-    pub requests: Receiver<String>,
-    /// 앱이 만든 응답 한 줄(JSON)을 파이프 스레드로 넘긴다.
-    pub replies: Sender<String>,
 }
 
 /// 제어 파이프를 열고 앱과 주고받을 채널을 돌려준다.
@@ -349,14 +347,6 @@ fn write_control_line(pipe: Handle, line: &str) {
         );
         FlushFileBuffers(pipe);
     }
-}
-
-/// 단일 인스턴스 판정 결과.
-pub enum Instance {
-    /// 첫 실행. 이후 실행이 넘기는 파일 경로(없으면 빈 문자열)를 받는다.
-    Primary(Receiver<String>),
-    /// 이미 실행 중인 창에 경로를 넘겼다. 이 프로세스는 종료한다.
-    Forwarded,
 }
 
 /// 두 번째 실행이면 경로를 기존 인스턴스에 넘기고, 첫 실행이면 수신 스레드를 띄운다.

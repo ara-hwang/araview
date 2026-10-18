@@ -18,7 +18,6 @@ tempfile = "3"
 jpeg-encoder = "0.7"
 jpeg-decoder = { version = "0.3", default-features = false }
 libheif-rs = { version = "3", default-features = false, features = ["v1_21"] }
-winreg = "0.56.0"
 trash = "5"
 image = { version = "0.25", default-features = false, features = ["rayon", "avif", "bmp", "dds", "exr", "ff", "gif", "hdr", "ico", "jpeg", "png", "pnm", "qoi", "tga", "tiff", "webp"] }
 psd = "0.3"
@@ -27,6 +26,9 @@ notify = "8"
 rayon = "1"
 quick-xml = { version = "0.42", features = ["serialize"] }
 jxl-oxide = { version = "0.12", features = ["moxcms"] }
+
+[target.'cfg(windows)'.dependencies]
+winreg = "0.56.0"
 
 [lints.rust]
 unsafe_op_in_unsafe_fn = "deny"

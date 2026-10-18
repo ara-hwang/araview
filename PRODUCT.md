@@ -2,29 +2,29 @@
 
 ## Platform
 
-desktop (Windows 11 x64, Rust + GPUI)
+desktop (Windows 11 x64; macOS and Linux x64 experimental; Rust + GPUI)
 
 ## Users
 
-Primary: Windows 11 (x64) desktop users viewing local images. Core job is fast photo/image inspection: open a file, move through a folder, zoom and fit. Secondary job is comic reading (CBZ archives, multi-page spreads, vertical webtoon scroll), including right-to-left reading. Interface languages: Korean and English. Users operate keyboard-first (arrow/page navigation, fullscreen) with mouse/touchpad for zoom and pan.
+Primary: Windows 11 (x64) desktop users viewing local images; macOS and Linux users get the same viewer as an experimental, not runtime-verified build. Core job is fast photo/image inspection: open a file, move through a folder, zoom and fit. Secondary job is comic reading (CBZ archives, multi-page spreads, vertical webtoon scroll), including right-to-left reading. Interface languages: Korean and English. Users operate keyboard-first (arrow/page navigation, fullscreen) with mouse/touchpad for zoom and pan.
 
 ## Product Purpose
 
-A lightweight offline image and comic viewer for Windows. It exists so opening any local image or comic is instant and stays out of the way: no library import, no account, no network. Success means a double-clicked file renders immediately, folder/archive navigation never stalls, and reading modes match the material (single page, spreads, webtoon).
+A lightweight offline image and comic viewer for the desktop. It exists so opening any local image or comic is instant and stays out of the way: no library import, no account, no network. Success means a double-clicked file renders immediately, folder/archive navigation never stalls, and reading modes match the material (single page, spreads, webtoon).
 
 ## Positioning
 
-A neighboring viewer cannot truthfully copy this combination: genuinely offline Windows viewer with first-class comic reading (CBZ archives plus single, left-to-right, right-to-left, and webtoon view modes) and a path-based rendering pipeline that keeps large images and archives responsive, including HEIC/HEIF/PSD via JPEG sidecar transcode.
+A neighboring viewer cannot truthfully copy this combination: genuinely offline desktop viewer with first-class comic reading (CBZ archives plus single, left-to-right, right-to-left, and webtoon view modes) and a path-based rendering pipeline that keeps large images and archives responsive, including HEIC/HEIF/PSD via JPEG sidecar transcode.
 
 ## Operating Context
 
-Local-filesystem workflows only: file picker, drag-and-drop of files or folders, and OS file-association launch (Windows passes the path as a CLI argument; the app opens it through the same path as the file picker). Frameless app window with a custom titlebar/toolbar; window state persists across launches. Viewer chrome auto-hides during reading. Fullscreen is a presentation context. Settings (viewer preferences, recent files) persist locally via Tauri Store. Supported inputs: png, apng, jpg, jpeg, jpe, jfif, gif, bmp, webp, svg, ico, avif, tif, tiff, jxl, heic, heif, psd/tga/dds/exr/qoi (read-only preview), cbz, zip. The only network use is an explicit manual update check (Settings or command palette); there is no background polling.
+Local-filesystem workflows only: file picker, drag-and-drop of files or folders, and OS file-association launch (Windows and Linux pass the path as a CLI argument and macOS Finder sends an open-document event; the app opens it through the same path as the file picker). Frameless app window with a custom titlebar/toolbar; window state persists across launches. Viewer chrome auto-hides during reading. Fullscreen is a presentation context. Settings (viewer preferences, recent files) persist locally via Tauri Store. Supported inputs: png, apng, jpg, jpeg, jpe, jfif, gif, bmp, webp, svg, ico, avif, tif, tiff, jxl, heic, heif, psd/tga/dds/exr/qoi (read-only preview), cbz, zip. The only network use is an explicit manual update check (Settings or command palette); there is no background polling.
 
 ## Capabilities and Constraints
 
 Confirmed capabilities: zoom, fit-to-width/height/screen, pan, rotate, flip; selectable smooth or pixel-preserving image scaling with conservative pixel-art detection; previous/next navigation, index jump, thumbnail strip/grid, optional loop navigation; multi-page view modes (single, left-to-right, right-to-left, webtoon) with page boundaries, fit-width, reading position, and thumbnail jumps; CBZ/ZIP ComicInfo.xml metadata and cover-alone dual paging; EXIF panel; fullscreen; copy image to clipboard as PNG; recent files; optional display resolution cap (4K/FHD) for very large images; temporary or persistent derived-image cache with usage stats and cache management; Korean/English UI.
 
-Constraints: Windows 11 x64 only. Offline by design. File associations can only open the Windows per-extension default-app picker; silent UserChoice registry writes are not possible. HEIC/HEIF/PSD/TGA/DDS/EXR/QOI and camera RAW (embedded JPEG preview only, no sensor development) render through JPEG sidecars and the display resolution cap adds a downscaled copy for display; the original file is never modified. Derived-image cache is local and can be temporary or persistent, with the persistent cache stored under the per-user application cache directory and managed from Settings. Backend responses carry file metadata (`file_path`, `source_path`, `mime_type`, `file_name`, `file_size`, `width`, `height`) plus directory, thumbnail, archive, EXIF, comic metadata, cache, and file-operation payloads; no base64 payloads. Comic metadata is read-only and CBZ/ZIP only. Undecided: any cloud or sharing features (out of scope unless explicitly requested).
+Constraints: Windows 11 x64 (supported); macOS and Linux x64 (experimental). Offline by design. File associations and PSD Explorer thumbnails are Windows-only: associations can only open the Windows per-extension default-app picker (silent UserChoice registry writes are not possible), and macOS/Linux rely on the app bundle or `.desktop` file declaring the supported types. In-app update installs are Windows-only; macOS and Linux point to the release page. HEIC/HEIF/PSD/TGA/DDS/EXR/QOI and camera RAW (embedded JPEG preview only, no sensor development) render through JPEG sidecars and the display resolution cap adds a downscaled copy for display; the original file is never modified. Derived-image cache is local and can be temporary or persistent, with the persistent cache stored under the per-user application cache directory and managed from Settings. Backend responses carry file metadata (`file_path`, `source_path`, `mime_type`, `file_name`, `file_size`, `width`, `height`) plus directory, thumbnail, archive, EXIF, comic metadata, cache, and file-operation payloads; no base64 payloads. Comic metadata is read-only and CBZ/ZIP only. Undecided: any cloud or sharing features (out of scope unless explicitly requested).
 
 ## Brand Commitments
 

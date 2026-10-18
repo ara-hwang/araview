@@ -115,6 +115,31 @@ fn format_tag_name(tag: &str) -> String {
 }
 
 /// 유닉스 초를 로컬 시각 문자열로 바꾼다.
+#[cfg(unix)]
+fn format_unix(seconds: i64) -> String {
+    // 32비트 `time_t`에서는 범위를 넘는 값이 잘리지만, 파일 시각으로 나올 수 없는 값이다.
+    #[allow(clippy::unnecessary_cast)]
+    let time = seconds as libc::time_t;
+    // SAFETY: `tm`은 모든 필드가 정수나 포인터라 0 초기화가 유효한 값이다.
+    let mut local: libc::tm = unsafe { std::mem::zeroed() };
+    // SAFETY: 두 포인터 모두 유효한 스택 값을 가리키고, 함수는 `local`에만 쓴다.
+    let converted = unsafe { libc::localtime_r(&time, &mut local) };
+    if converted.is_null() {
+        return String::new();
+    }
+    format!(
+        "{:04}-{:02}-{:02} {:02}:{:02}:{:02}",
+        local.tm_year + 1900,
+        local.tm_mon + 1,
+        local.tm_mday,
+        local.tm_hour,
+        local.tm_min,
+        local.tm_sec
+    )
+}
+
+/// 유닉스 초를 로컬 시각 문자열로 바꾼다.
+#[cfg(windows)]
 fn format_unix(seconds: i64) -> String {
     #[repr(C)]
     #[derive(Default)]

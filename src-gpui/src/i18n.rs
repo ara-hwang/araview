@@ -17,6 +17,15 @@ pub enum Language {
 
 type Catalog = HashMap<String, String>;
 
+/// 로캘 파일의 `platform` 아래에서 이 OS의 덮어쓰기 문구를 찾는 키.
+const PLATFORM_KEY: &str = if cfg!(windows) {
+    "windows"
+} else if cfg!(target_os = "macos") {
+    "macos"
+} else {
+    "linux"
+};
+
 static KO: LazyLock<Catalog> = LazyLock::new(|| flatten(include_str!("../locales/ko.json")));
 static EN: LazyLock<Catalog> = LazyLock::new(|| flatten(include_str!("../locales/en.json")));
 
@@ -44,8 +53,16 @@ fn flatten(source: &str) -> Catalog {
     let mut out = Catalog::new();
     // 번들에 포함된 고정 파일이라 파싱 실패는 빌드 결함이다. 키를 그대로 보여주는
     // 쪽으로 떨어지게 빈 카탈로그를 쓴다.
-    if let Ok(value) = serde_json::from_str::<serde_json::Value>(source) {
+    if let Ok(mut value) = serde_json::from_str::<serde_json::Value>(source) {
+        // `platform.<os>`는 해당 OS에서만 같은 키를 덮어쓰는 문구다(예: 탐색기 → Finder).
+        let overrides = value
+            .as_object_mut()
+            .and_then(|root| root.remove("platform"))
+            .and_then(|mut platforms| platforms.get_mut(PLATFORM_KEY).map(serde_json::Value::take));
         walk("", &value, &mut out);
+        if let Some(overrides) = overrides {
+            walk("", &overrides, &mut out);
+        }
     }
     out
 }
@@ -63,11 +80,18 @@ pub fn language() -> Language {
 
 /// 시스템 UI 언어가 한국어면 `ko`, 아니면 `en`.
 pub fn detect_system_language() -> Language {
-    let locale = std::env::var("LC_ALL")
-        .or_else(|_| std::env::var("LANG"))
-        .ok()
-        .or_else(windows_ui_locale)
-        .unwrap_or_default();
+    let from_env = || {
+        ["LC_ALL", "LC_MESSAGES", "LANG"]
+            .into_iter()
+            .find_map(|name| std::env::var(name).ok().filter(|value| !value.is_empty()))
+    };
+    // macOS의 GUI 앱은 로캘 환경 변수를 받지 못하거나 터미널 값이 시스템 언어와 다를 수 있어 OS 설정을 먼저 본다.
+    let locale = if cfg!(target_os = "macos") {
+        os_ui_locale().or_else(from_env)
+    } else {
+        from_env().or_else(os_ui_locale)
+    }
+    .unwrap_or_default();
     if locale.to_ascii_lowercase().starts_with("ko") {
         Language::Ko
     } else {
@@ -75,6 +99,29 @@ pub fn detect_system_language() -> Language {
     }
 }
 
+/// OS 설정의 UI 언어. 조회 수단이 없는 OS에서는 None이다.
+fn os_ui_locale() -> Option<String> {
+    #[cfg(windows)]
+    return windows_ui_locale();
+    #[cfg(target_os = "macos")]
+    return macos_ui_locale();
+    #[cfg(not(any(windows, target_os = "macos")))]
+    None
+}
+
+/// `defaults read -g AppleLanguages` 출력의 첫 항목(예: `"ko-KR"`).
+#[cfg(target_os = "macos")]
+fn macos_ui_locale() -> Option<String> {
+    let output = std::process::Command::new("defaults")
+        .args(["read", "-g", "AppleLanguages"])
+        .output()
+        .ok()?;
+    let text = String::from_utf8_lossy(&output.stdout);
+    let first = text.split('"').nth(1)?;
+    Some(first.to_owned())
+}
+
+#[cfg(windows)]
 fn windows_ui_locale() -> Option<String> {
     const LOCALE_NAME_MAX_LENGTH: usize = 85;
     #[link(name = "kernel32")]
@@ -267,6 +314,16 @@ mod tests {
             "카탈로그에 없는 번역 키:\n{}",
             missing.into_iter().collect::<Vec<_>>().join("\n")
         );
+    }
+
+    #[test]
+    fn platform_overrides_replace_explorer_wording_outside_windows() {
+        for catalog in [&*KO, &*EN] {
+            let reveal = &catalog["menu.reveal"];
+            let names_explorer = reveal.contains("Explorer") || reveal.contains("탐색기");
+            assert_eq!(names_explorer, cfg!(windows), "{reveal}");
+            assert!(catalog.keys().all(|key| !key.starts_with("platform.")));
+        }
     }
 
     #[test]

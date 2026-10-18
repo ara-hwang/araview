@@ -1,5 +1,5 @@
 // 서드파티 패키지별 라이선스 전문을 src-gpui/THIRD_PARTY_LICENSES.json으로 만든다.
-// cargo-about(about.toml)이 Windows 배포 대상 의존성의 라이선스 본문을 모은다.
+// cargo-about(about.toml)이 배포 대상(Windows, Linux, macOS) 의존성의 라이선스 본문을 모은다.
 // 패키지에 라이선스 파일이 없으면 cargo-about이 저장소나 표준 문구로 채운다.
 // 같은 본문은 한 번만 저장한다(texts), 패키지는 files로 id를 참조한다. 이 JSON은
 // 앱에 컴파일 시점에 포함돼 설정의 오픈소스 라이선스 창이 읽는다.

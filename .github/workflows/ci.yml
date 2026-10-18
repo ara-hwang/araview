@@ -78,7 +78,12 @@ jobs:
   rust-check:
     needs: changes
     if: needs.changes.outputs.rust == 'true'
-    runs-on: windows-latest
+    # 지원하는 세 OS 모두에서 컴파일되는지 본다. 한 OS가 깨져도 나머지 결과는 끝까지 본다.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 45
 
     steps:
@@ -87,7 +92,7 @@ jobs:
       - name: Setup Rust and native dependencies
         uses: ./.github/actions/setup-rust-native
         with:
-          cache-key: check
+          cache-key: check-${{ matrix.os }}
 
       - name: Cargo check
         run: cargo check --workspace --all-targets
@@ -96,7 +101,11 @@ jobs:
     # PR과 main 푸시에서는 건너뛴다. workflow_call에서는 event_name이 호출자(태그 푸시)
     # 것이라 ref_type으로 릴리스 호출을 구분한다.
     if: github.event_name == 'workflow_dispatch' || github.ref_type == 'tag'
-    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     permissions:
       contents: read
@@ -109,7 +118,7 @@ jobs:
       - name: Setup Rust and native dependencies
         uses: ./.github/actions/setup-rust-native
         with:
-          cache-key: verify
+          cache-key: verify-${{ matrix.os }}
 
       - name: Cargo fmt
         run: cargo fmt --all --check
@@ -122,6 +131,7 @@ jobs:
 
       # RustSec 자문 DB 대조. 발견 시 실패한다. 정보성 자문은 통과.
       - name: Rust dependency audit
+        if: matrix.os == 'windows-latest'
         uses: rustsec/audit-check@69366f33c96575abad1ee0dba8212993eecbe998 # v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -129,9 +139,11 @@ jobs:
       # 허용 목록 밖의 라이선스(GPL 등), 알 수 없는 레지스트리/git 소스가 들어오면 실패한다.
       # 설정: deny.toml.
       - name: Install cargo-deny
+        if: matrix.os == 'windows-latest'
         uses: taiki-e/install-action@f7e5d7c961414b23f5b25b2da9294395d08513ad # v2
         with:
           tool: cargo-deny@0.20.2
 
       - name: Rust license and source check
+        if: matrix.os == 'windows-latest'
         run: cargo deny check licenses bans sources

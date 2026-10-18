@@ -2,7 +2,7 @@
 
 maintainer용 안내입니다. 사용자용 업데이트 확인 방법은 `usage.md#업데이트-확인`을 봅니다. 배포 규격 진실은 `../SPEC.md` §20을 따릅니다.
 
-릴리스는 `npm run release -- <버전>` 한 줄로 시작합니다. 이 명령이 버전을 올려 커밋하고 `vX.Y.Z` 태그와 함께 푸시하면, `.github/workflows/release.yml`이 검증(fmt, test, clippy, 보안 감사, 라이선스 검사), 설치 프로그램 빌드, 서명, `latest-gpui.json` 생성, GitHub 릴리스 생성까지 자동으로 수행합니다. 공개 저장소라 GitHub 호스팅 표준 러너는 무료입니다. `.github/workflows/ci.yml`이 검증을 담당하며 릴리스 워크플로가 그대로 재사용합니다. PR과 main 푸시에서는 문서 정합성 검사가 자동으로 돌고, Rust 쪽 파일이 바뀌면 가벼운 `cargo check`도 돕니다. main 푸시에서 도는 것은 캐시 때문입니다. PR은 자기 ref와 main의 캐시만 복원할 수 있어서, main이 저장해 두어야 PR이 빈 캐시로 시작하지 않습니다. 전체 Rust 검사(cargo test/clippy, 보안 감사, 라이선스 검사)는 Actions 탭에서 수동 실행하거나 릴리스 때 돕니다.
+릴리스는 `npm run release -- <버전>` 한 줄로 시작합니다. 이 명령이 버전을 올려 커밋하고 `vX.Y.Z` 태그와 함께 푸시하면, `.github/workflows/release.yml`이 검증(Windows, Linux, macOS 각각 fmt, test, clippy와 한 번의 보안 감사, 라이선스 검사), 세 OS 빌드(Windows 설치 프로그램과 서명, Linux tar.gz, macOS dmg), `latest-gpui.json` 생성, GitHub 릴리스 생성까지 자동으로 수행합니다. 공개 저장소라 GitHub 호스팅 표준 러너는 무료입니다. `.github/workflows/ci.yml`이 검증을 담당하며 릴리스 워크플로가 그대로 재사용합니다. PR과 main 푸시에서는 문서 정합성 검사가 자동으로 돌고, Rust 쪽 파일이 바뀌면 세 OS에서 가벼운 `cargo check`도 돕니다. main 푸시에서 도는 것은 캐시 때문입니다. PR은 자기 ref와 main의 캐시만 복원할 수 있어서, main이 저장해 두어야 PR이 빈 캐시로 시작하지 않습니다. 전체 Rust 검사(cargo test/clippy, 보안 감사, 라이선스 검사)는 Actions 탭에서 수동 실행하거나 릴리스 때 돕니다.
 
 ## 태그로 자동 릴리스
 
@@ -20,7 +20,9 @@ npm run release -- patch --dry-run  # 계획만 출력
 
 - 트리거는 `v숫자.숫자.숫자` 형식의 태그 푸시뿐입니다(프리릴리스 접미사는 트리거하지 않습니다).
 - 첫 단계에서 태그와 `src-gpui/Cargo.toml`, `Cargo.lock`의 버전이 모두 같은지, `TAURI_SIGNING_PRIVATE_KEY` Secrets가 있는지 확인하고, 어긋나면 빌드 전에 실패합니다.
-- 릴리스 자산은 `AraView-<버전>-setup.exe`(NSIS 설치 프로그램)와 `latest-gpui.json`(업데이트 피드)입니다.
+- 릴리스 자산은 `AraView-<버전>-setup.exe`(NSIS 설치 프로그램), `latest-gpui.json`(업데이트 피드), `AraView-<버전>-linux-x86_64.tar.gz`, `AraView-<버전>-macos-arm64.dmg`, `SHA256SUMS.txt`(Linux·macOS 파일 체크섬)입니다. 잡 구성은 `build-windows`(설치 프로그램, 서명, 피드), `build-linux`, `build-macos`가 각자 아티팩트를 올리고, 마지막 `release` 잡이 모아서 릴리스를 한 번에 만듭니다.
+- Linux와 macOS 패키지는 서명하지 않고 피드에도 넣지 않습니다. 앱의 업데이트 확인은 이 OS에서 릴리스 페이지로 안내만 합니다. macOS 앱은 ad-hoc 서명만 있고 공증하지 않으므로 첫 실행은 우클릭 > 열기가 필요합니다. 공증이 필요해지면 Apple Developer 계정과 `build-macos` 잡의 서명·공증 단계를 따로 추가해야 합니다.
+- Linux와 macOS 잡은 Actions에서 아직 돌려 본 적이 없다면 태그를 달기 전에 수동 실행으로 먼저 시험합니다(아래).
 - 릴리스 본문은 `.github/RELEASE_TEMPLATE.md`를 채워 만듭니다. `{{CHANGES}}`(이전 태그 이후 커밋을 접두사로 분류한 목록), `{{COMPARE}}`(비교 링크) 자리표시자를 워크플로가 치환하므로, 문구를 바꾸려면 이 파일만 고치면 됩니다. 앱의 업데이트 대화상자에는 설치 안내를 뺀 변경 목록만 보입니다.
 - 릴리스 노트는 커밋 제목의 접두사로 자동 분류됩니다. `feat`는 "새 기능", `fix`는 "수정", `refactor`와 `perf`는 "개선", `feat!:`처럼 느낌표가 붙은 커밋은 "변경"에 들어갑니다. `docs`, `chore`, `ci`, `build`, `test`, `style`과 머지 커밋은 제외됩니다. 제목이 그대로 노출되므로 사용자에게 읽히는 문장으로 씁니다.
 - 저장소 Secrets에 `TAURI_SIGNING_PRIVATE_KEY`와 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`를 등록해야 합니다(아래 "서명키 발급과 등록"). 이름은 예전 Tauri 시절 그대로이고 키 형식은 minisign입니다.
@@ -29,7 +31,7 @@ npm run release -- patch --dry-run  # 계획만 출력
 
 ## 태그 없이 파이프라인 시험
 
-Actions 탭에서 Release 워크플로를 수동 실행(`workflow_dispatch`)하면 검증, 설치 프로그램 빌드, 서명, 피드 생성까지 같은 과정을 돌리고 릴리스는 만들지 않습니다. 설치 프로그램, `.sig`, `latest-gpui.json`, 릴리스 노트가 `release-dry-run` 아티팩트로 남습니다. 워크플로나 빌드 스크립트를 고친 뒤 태그를 달기 전에 쓰세요.
+Actions 탭에서 Release 워크플로를 수동 실행(`workflow_dispatch`)하면 검증, 세 OS 빌드, 서명, 피드 생성까지 같은 과정을 돌리고 릴리스는 만들지 않습니다. 설치 프로그램, `.sig`, `latest-gpui.json`, Linux tar.gz, macOS dmg, `SHA256SUMS.txt`, 릴리스 노트가 `release-dry-run` 아티팩트로 남습니다. 워크플로나 빌드 스크립트를 고친 뒤 태그를 달기 전에 쓰세요.
 
 ## 업데이트 피드
 

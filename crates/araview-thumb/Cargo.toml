@@ -11,6 +11,10 @@ license = "MIT OR Apache-2.0"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+psd = "0.3"
+image = { version = "0.25", default-features = false }
+
+[target.'cfg(windows)'.dependencies]
 windows-core = "0.62"
 windows = { version = "0.62", features = [
     "Win32_Foundation",
@@ -22,8 +26,6 @@ windows = { version = "0.62", features = [
     "Win32_UI_Shell_PropertiesSystem",
 ] }
 winreg = "0.56"
-psd = "0.3"
-image = { version = "0.25", default-features = false }
 
 [lints.rust]
 unsafe_op_in_unsafe_fn = "deny"
