@@ -481,7 +481,6 @@ mod tests {
     // `super::*`는 gpui의 `test` 매크로까지 끌어와 `#[test]`를 가린다.
     use super::{DOWNLOAD_CHUNK, DownloadProgress, Ordering, read_with_progress};
 
-
     #[test]
     fn read_records_received_bytes() {
         let progress = DownloadProgress::default();
@@ -509,5 +508,4 @@ mod tests {
         progress.total.store(200, Ordering::Relaxed);
         assert_eq!(progress.percent(), Some(25.));
     }
-
 }

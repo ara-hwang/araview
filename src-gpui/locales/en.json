@@ -355,8 +355,6 @@
       "retry": "Retry"
     },
     "nav": {
-      "prev": "Previous image",
-      "next": "Next image",
       "thumb": "Image {{index}}: {{name}}",
       "thumbError": "Failed image {{index}}: {{name}}",
       "thumbRetry": "Retry thumbnail {{index}}",
@@ -364,8 +362,7 @@
       "grid": "Thumbnail grid",
       "gridTitle": "Thumbnail grid (G)",
       "dockHide": "Hide image list",
-      "dockShow": "Show image list",
-      "dockMenu": "Image list options"
+      "dockShow": "Show image list"
     },
     "webtoon": {
       "scrollRegion": "Webtoon reading area",

@@ -355,8 +355,6 @@
       "retry": "다시 시도"
     },
     "nav": {
-      "prev": "이전 이미지",
-      "next": "다음 이미지",
       "thumb": "이미지 {{index}}: {{name}}",
       "thumbError": "읽기 실패한 이미지 {{index}}: {{name}}",
       "thumbRetry": "{{index}}번 썸네일 다시 시도",
@@ -364,8 +362,7 @@
       "grid": "썸네일 그리드",
       "gridTitle": "썸네일 그리드 (G)",
       "dockHide": "이미지 목록 숨기기",
-      "dockShow": "이미지 목록 보이기",
-      "dockMenu": "이미지 목록 설정"
+      "dockShow": "이미지 목록 보이기"
     },
     "webtoon": {
       "scrollRegion": "웹툰 읽기 영역",

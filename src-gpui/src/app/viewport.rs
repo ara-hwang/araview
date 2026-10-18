@@ -963,7 +963,10 @@ impl AraView {
     // ----- 렌더 -----
 
     /// 애니메이션 재생 제어를 뷰포트 우하단에 떠 있는 반투명 패널로 그린다.
-    pub(super) fn render_animation_overlay(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
+    pub(super) fn render_animation_overlay(
+        &self,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement + use<> {
         let frames = self
             .picture
             .as_ref()
@@ -1020,12 +1023,11 @@ impl AraView {
                         this.run_action("gifNextFrame", window, cx)
                     })),
             )
-            .child(
-                div()
-                    .w(px(counter_width))
-                    .text_center()
-                    .child(format!("{}/{}", self.frame + 1, frames)),
-            )
+            .child(div().w(px(counter_width)).text_center().child(format!(
+                "{}/{}",
+                self.frame + 1,
+                frames
+            )))
     }
 
     pub(super) fn render_viewport(

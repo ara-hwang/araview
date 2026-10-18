@@ -9,7 +9,6 @@ use araview_core::image::is_archive_file;
 use araview_core::ops;
 use araview_core::thumbnail::BatchThumb;
 use gpui_kit::component::button::{Button, ButtonVariants as _};
-use gpui_kit::component::menu::{DropdownMenu as _, PopupMenuItem};
 use gpui_kit::component::{ActiveTheme as _, Icon, Sizable as _, h_flex, v_flex};
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
@@ -18,7 +17,7 @@ use super::{AraView, ThumbState};
 use crate::assets::Ph;
 use crate::geometry::Offset;
 use crate::i18n::{t, t_with};
-use crate::settings::{DockPosition, DockThumbSize, SettingsStore, ViewMode, WheelAction};
+use crate::settings::{DockPosition, SettingsStore, ViewMode, WheelAction};
 
 /// 썸네일 생성 요청 한 변(px). 코어 캐시의 기본 크기와 같다.
 const THUMB_MAX_SIDE: u32 = 256;
@@ -26,8 +25,6 @@ const THUMB_MAX_SIDE: u32 = 256;
 const THUMB_CHUNK: usize = 8;
 const DOCK_GAP: f32 = 6.0;
 const DOCK_PADDING: f32 = 8.0;
-/// 도크 양 끝 버튼들이 차지하는 길이(px).
-const DOCK_CONTROLS: f32 = 200.0;
 const LABEL_HEIGHT: f32 = 16.0;
 
 fn file_label(item: &str) -> String {
@@ -153,7 +150,7 @@ impl AraView {
             } else {
                 labels as f32 * LABEL_HEIGHT
             };
-        let capacity = ((length - DOCK_PADDING * 2.0 - DOCK_CONTROLS) / (cell + DOCK_GAP))
+        let capacity = ((length - DOCK_PADDING * 2.0) / (cell + DOCK_GAP))
             .floor()
             .max(1.0) as usize;
         let total = self.list.len();
@@ -339,133 +336,45 @@ impl AraView {
         if reversed {
             cells.reverse();
         }
-        let prev = Button::new("dock-prev")
-            .ghost()
-            .small()
-            .icon(if horizontal {
-                if reversed {
-                    Ph::CaretRight
-                } else {
-                    Ph::CaretLeft
-                }
-            } else {
-                Ph::CaretUp
-            })
-            .tooltip(t("viewer.nav.prev"))
-            .on_click(cx.listener(|this, _, window, cx| this.navigate(false, window, cx)));
-        let next = Button::new("dock-next")
-            .ghost()
-            .small()
-            .icon(if horizontal {
-                if reversed {
-                    Ph::CaretLeft
-                } else {
-                    Ph::CaretRight
-                }
-            } else {
-                Ph::CaretDown
-            })
-            .tooltip(t("viewer.nav.next"))
-            .on_click(cx.listener(|this, _, window, cx| this.navigate(true, window, cx)));
-        let (first, last) = if reversed { (next, prev) } else { (prev, next) };
 
-        let view = cx.entity();
-        let options = Button::new("dock-menu")
-            .ghost()
-            .small()
-            .icon(Ph::DotsThree)
-            .tooltip(t("viewer.nav.dockMenu"))
-            .dropdown_menu(move |menu, window, cx| {
-                let settings = SettingsStore::global(cx).settings.clone();
-                let mut menu = menu;
-                for (key, value) in [
-                    ("settings.dock.top", DockPosition::Top),
-                    ("settings.dock.bottom", DockPosition::Bottom),
-                    ("settings.dock.left", DockPosition::Left),
-                    ("settings.dock.right", DockPosition::Right),
-                ] {
-                    menu = menu.item(
-                        PopupMenuItem::new(t(key))
-                            .checked(settings.dock_position == value)
-                            .on_click(window.listener_for(&view, move |this, _, _, cx| {
-                                this.set_dock(|settings| settings.dock_position = value, cx)
-                            })),
-                    );
-                }
-                menu = menu.separator();
-                for (key, value) in [
-                    ("settings.dock.thumbS", DockThumbSize::S),
-                    ("settings.dock.thumbM", DockThumbSize::M),
-                    ("settings.dock.thumbL", DockThumbSize::L),
-                ] {
-                    menu = menu.item(
-                        PopupMenuItem::new(t(key))
-                            .checked(settings.dock_thumb_size == value)
-                            .on_click(window.listener_for(&view, move |this, _, window, cx| {
-                                this.set_dock(|settings| settings.dock_thumb_size = value, cx);
-                                this.request_thumbs(window, cx);
-                            })),
-                    );
-                }
-                menu.separator()
-                    .item(
-                        PopupMenuItem::new(t("settings.dock.showName"))
-                            .checked(settings.dock_show_name)
-                            .on_click(window.listener_for(&view, |this, _, _, cx| {
-                                this.set_dock(
-                                    |settings| settings.dock_show_name = !settings.dock_show_name,
-                                    cx,
-                                )
-                            })),
-                    )
-                    .item(
-                        PopupMenuItem::new(t("settings.dock.showIndex"))
-                            .checked(settings.dock_show_index)
-                            .on_click(window.listener_for(&view, |this, _, _, cx| {
-                                this.set_dock(
-                                    |settings| settings.dock_show_index = !settings.dock_show_index,
-                                    cx,
-                                )
-                            })),
-                    )
-            });
+        base.p(px(DOCK_PADDING))
+            .on_scroll_wheel(cx.listener(Self::on_dock_wheel))
+            .children(cells)
+            .into_any_element()
+    }
+
+    /// 상태바 파일명 왼쪽에 두는 도크 컨트롤: 목록 접기·펼치기, 그리드 토글.
+    /// 이미지 목록 세부 설정은 설정 다이얼로그에서만 바꾼다.
+    pub(super) fn render_dock_controls(&self, cx: &mut Context<Self>) -> AnyElement {
+        let settings = SettingsStore::global(cx).settings.clone();
         let grid = Button::new("dock-grid")
             .ghost()
             .small()
             .icon(Ph::SquaresFour)
             .tooltip(t("viewer.nav.gridTitle"))
             .on_click(cx.listener(|this, _, window, cx| this.toggle_grid(window, cx)));
+        // 접기 버튼은 상태바에서 접힌 도크까지 되돌린다.
+        let (fold_icon, fold_label) = if settings.dock_visible {
+            (Ph::CaretDown, t("viewer.nav.dockHide"))
+        } else {
+            (Ph::CaretUp, t("viewer.nav.dockShow"))
+        };
         let collapse = Button::new("dock-hide")
             .ghost()
             .small()
-            .icon(Ph::CaretDown)
-            .tooltip(t("viewer.nav.dockHide"))
+            .icon(fold_icon)
+            .tooltip(fold_label)
             .on_click(cx.listener(|this, _, _, cx| {
-                this.set_dock(|settings| settings.dock_visible = false, cx)
+                this.set_dock(
+                    |settings| settings.dock_visible = !settings.dock_visible,
+                    cx,
+                )
             }));
-
-        let controls: AnyElement = if horizontal {
-            h_flex()
-                .gap_0p5()
-                .child(grid)
-                .child(options)
-                .child(collapse)
-                .into_any_element()
-        } else {
-            v_flex()
-                .gap_0p5()
-                .child(grid)
-                .child(options)
-                .child(collapse)
-                .into_any_element()
-        };
-
-        base.p(px(DOCK_PADDING))
-            .on_scroll_wheel(cx.listener(Self::on_dock_wheel))
-            .child(first)
-            .children(cells)
-            .child(last)
-            .child(controls)
+        h_flex()
+            .gap_0p5()
+            .flex_none()
+            .child(collapse)
+            .child(grid)
             .into_any_element()
     }
 }

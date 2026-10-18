@@ -643,14 +643,18 @@ impl AraView {
         h_flex()
             .w_full()
             .flex_none()
-            .h(px(24.))
+            .h(px(28.))
             .px_3()
             .gap_4()
             .items_center()
-            .text_xs()
+            .text_sm()
             .text_color(cx.theme().muted_foreground)
             .border_t_1()
             .border_color(cx.theme().border)
+            // 이미지 목록이 있을 때 도크 컨트롤을 파일명 왼쪽에 둔다.
+            .when(self.list.len() > 1 || self.has_animation(cx), |row| {
+                row.child(self.render_dock_controls(cx))
+            })
             .child(
                 div()
                     .flex_1()
