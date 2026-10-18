@@ -31,12 +31,18 @@ pub fn decoder_for(path: &Path) -> Option<Decoder> {
     }
 }
 
-/// TGA/DDS/EXR/QOI: formats the `image` crate decodes but WebView2 cannot paint.
+/// TGA/DDS/EXR/QOI/HDR/PNM: formats the `image` crate decodes but WebView2 cannot paint.
 pub const RASTER_MIMES: &[&str] = &[
     "image/x-tga",
     "image/vnd.ms-dds",
     "image/x-exr",
     "image/qoi",
+    "image/vnd.radiance",
+    "image/x-portable-anymap",
+    "image/x-portable-arbitrarymap",
+    "image/x-portable-pixmap",
+    "image/x-portable-graymap",
+    "image/x-portable-bitmap",
 ];
 
 pub fn is_raster_mime(mime: &str) -> bool {

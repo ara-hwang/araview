@@ -1,4 +1,4 @@
-//! TGA / DDS / OpenEXR / QOI 미리보기용 JPEG sidecar.
+//! TGA / DDS / OpenEXR / QOI / Radiance HDR / PNM(PBM·PGM·PPM·PNM·PAM) 미리보기용 JPEG sidecar.
 //!
 //! WebView2는 이 포맷들을 네이티브 렌더하지 못해 HEIC/PSD와 같은 전제로
 //! 디코드한 픽셀을 JPEG sidecar로 변환해 렌더한다.
@@ -6,6 +6,8 @@
 //! - DDS는 크레이트가 DXT1/3/5(BC1~BC3)만 지원한다. 그 외(BC7, 비압축)는
 //!   `unsupported`로 보고한다.
 //! - EXR은 선형 부동소수 값을 clamp 후 sRGB 감마로 8비트화한다(노출 보정 없음).
+//!   Radiance HDR도 같은 RGBE 선형 부동소수라 같은 변환을 쓴다.
+//! - PNM 계열(P1~P7)은 8비트·16비트 색상이며, 투명은 흰 배경에 합성한다.
 //! - QOI는 8비트 RGB/RGBA 손실 압축이며, 투명은 흰 배경에 합성한다.
 //! - 편집 저장은 지원하지 않는다(읽기 전용). `save.rs`에서 진입 차단.
 //!
@@ -37,6 +39,12 @@ pub fn format_for_mime(mime: &str) -> Option<ImageFormat> {
         "image/vnd.ms-dds" => Some(ImageFormat::Dds),
         "image/x-exr" => Some(ImageFormat::OpenExr),
         "image/qoi" => Some(ImageFormat::Qoi),
+        "image/vnd.radiance" => Some(ImageFormat::Hdr),
+        "image/x-portable-anymap"
+        | "image/x-portable-arbitrarymap"
+        | "image/x-portable-pixmap"
+        | "image/x-portable-graymap"
+        | "image/x-portable-bitmap" => Some(ImageFormat::Pnm),
         _ => None,
     }
 }
@@ -127,4 +135,52 @@ fn linear_to_srgb_rgba8(img: &image::Rgba32FImage) -> image::RgbaImage {
             (alpha * 255.0).round() as u8,
         ])
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::{Path, PathBuf};
+
+    use super::*;
+
+    fn sample(name: &str) -> PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../samples")
+            .join(name)
+    }
+
+    #[test]
+    fn pnm_family_decodes_to_rgb8() {
+        for name in [
+            "sample.pnm",
+            "sample.pam",
+            "sample.ppm",
+            "sample.pgm",
+            "sample.pbm",
+        ] {
+            let decoded = decode_rgb8(&sample(name)).unwrap();
+            assert_eq!((decoded.width, decoded.height), (16, 16), "{name}");
+            assert_eq!(decoded.bytes.len(), 16 * 16 * 3, "{name}");
+        }
+    }
+
+    #[test]
+    fn pam_alpha_blends_onto_white() {
+        // sample.pam의 첫 열은 알파 0이므로 흰 배경 합성 결과다.
+        let decoded = decode_rgb8(&sample("sample.pam")).unwrap();
+        assert_eq!(&decoded.bytes[..3], &[255, 255, 255]);
+    }
+
+    #[test]
+    fn radiance_hdr_clamps_overbright_and_applies_srgb_gamma() {
+        // sample.hdr: 32x16 선형 그라디언트, (0,0)은 2.0으로 경계를 넘는 값이다.
+        let decoded = decode_rgb8(&sample("sample.hdr")).unwrap();
+        assert_eq!((decoded.width, decoded.height), (32, 16));
+        // 경계를 넘는 첫 픽셀은 흰색으로 clamp된다.
+        assert_eq!(&decoded.bytes[..3], &[255, 255, 255]);
+        // 선형 0.03125는 sRGB 감마를 거쳐 49가 된다(둘째 줄의 (0, y)=1/32).
+        assert_eq!(decoded.bytes[32 * 3], 49);
+        // 오른쪽 끝 선형 1.0은 255다.
+        assert_eq!(&decoded.bytes[decoded.bytes.len() - 3..], &[255, 255, 255]);
+    }
 }

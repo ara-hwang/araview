@@ -1,4 +1,4 @@
-//! 카메라 RAW(CR2/NEF/NRW/ARW/DNG/ORF/RW2/PEF/SRW) 미리보기.
+//! 카메라 RAW(CR2/CR3/NEF/NRW/ARW/DNG/ORF/RW2/PEF/SRW/RAF/MRW/SR2/SRF/RWL/3FR/KDC/DCR/IIQ) 미리보기.
 //!
 //! 센서 데이터를 현상(디모자이크)하지 않고, RAW 안에 들어 있는 카메라 제작
 //! JPEG 미리보기를 꺼내 HEIC/PSD와 같은 JPEG sidecar 규칙(`SPEC`)에 얹는다.
@@ -7,6 +7,8 @@
 //! - 컨테이너는 TIFF다. IFD0에서 시작해 다음 IFD와 SubIFD(`0x014A`)를 폭 우선으로
 //!   돌며 JPEG 후보(`JPEGInterchangeFormat`, 단일 스트립 JPEG, RW2의 `JpgFromRaw`)를
 //!   모은다. 후보를 못 찾으면 파일을 앞에서부터 훑어 JPEG 시작 표지를 찾는다.
+//!   TIFF 기반이 아닌 CR3(ISO-BMFF), RAF, MRW는 IFD 순회 없이 이 스캔으로만
+//!   미리보기를 찾으므로 Orientation을 반영하지 않는다.
 //! - 후보는 JPEG 세그먼트를 직접 읽어 검증한다. CR2/DNG의 센서 데이터는 무손실
 //!   JPEG(SOF3)로 압축돼 있어 디코드할 수 없으므로 SOF0~2만 받고, 그중 픽셀 수가
 //!   가장 큰 것을 쓴다.
@@ -415,4 +417,66 @@ pub(crate) fn decode_rgb8(source: &Path) -> Result<Rgb8, AppError> {
         height: rgb.height(),
         bytes: rgb.into_raw(),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::{Path, PathBuf};
+
+    use super::*;
+
+    fn sample(name: &str) -> PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../samples")
+            .join(name)
+    }
+
+    #[test]
+    fn tiff_container_picks_the_largest_preview_with_ifd0_orientation() {
+        // sample.dng: 후보 중 가장 큰 미리보기 JPEG는 640x480이고 IFD0의
+        // Orientation 6(축 교환)를 반영해 480x640으로 나온다.
+        let decoded = decode_rgb8(&sample("sample.dng")).unwrap();
+        assert_eq!((decoded.width, decoded.height), (480, 640));
+    }
+
+    #[test]
+    fn tiff_based_raw_extensions_decode_the_preview() {
+        for name in [
+            "sample.sr2",
+            "sample.srf",
+            "sample.rwl",
+            "sample.3fr",
+            "sample.kdc",
+            "sample.dcr",
+            "sample.iiq",
+        ] {
+            let decoded = decode_rgb8(&sample(name)).unwrap();
+            assert_eq!((decoded.width, decoded.height), (64, 48), "{name}");
+        }
+    }
+
+    #[test]
+    fn non_tiff_raw_extensions_find_the_preview_by_scanning() {
+        for name in ["sample.cr3", "sample.raf", "sample.mrw"] {
+            let decoded = decode_rgb8(&sample(name)).unwrap();
+            assert_eq!((decoded.width, decoded.height), (64, 48), "{name}");
+        }
+    }
+
+    #[test]
+    fn raw_without_preview_reports_unsupported() {
+        // TIFF 머리글만 있고 JPEG 후보가 없는 파일은 unsupported로 돌아간다.
+        let mut path = std::env::temp_dir();
+        path.push(format!(
+            "araview-raw-no-preview-{}.tiff",
+            std::process::id()
+        ));
+        let mut bytes = b"II".to_vec();
+        bytes.extend_from_slice(&42u16.to_le_bytes());
+        bytes.extend_from_slice(&8u32.to_le_bytes());
+        std::fs::write(&path, bytes).unwrap();
+        let result = decode_rgb8(&path);
+        std::fs::remove_file(&path).ok();
+        assert_eq!(result.unwrap_err().code, ErrorCode::Unsupported);
+    }
 }

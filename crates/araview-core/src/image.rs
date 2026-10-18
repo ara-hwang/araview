@@ -35,13 +35,20 @@ const TRANSCODE_MIMES: &[&str] = &[
     "image/vnd.ms-dds",
     "image/x-exr",
     "image/qoi",
+    "image/vnd.radiance",
+    "image/x-portable-anymap",
+    "image/x-portable-arbitrarymap",
+    "image/x-portable-pixmap",
+    "image/x-portable-graymap",
+    "image/x-portable-bitmap",
     crate::raw::RAW_MIME,
 ];
 
 pub const SUPPORTED_EXTENSIONS: &[&str] = &[
     "png", "apng", "jpg", "jpeg", "jpe", "jfif", "gif", "bmp", "webp", "svg", "ico", "avif", "tif",
-    "tiff", "jxl", "heic", "heif", "psd", "tga", "dds", "exr", "qoi", "cr2", "nef", "nrw", "arw",
-    "dng", "orf", "rw2", "pef", "srw", "cbz", "zip",
+    "tiff", "jxl", "heic", "heif", "psd", "tga", "dds", "exr", "qoi", "hdr", "pnm", "pam", "ppm",
+    "pgm", "pbm", "cr2", "cr3", "nef", "nrw", "arw", "dng", "orf", "rw2", "pef", "srw", "raf",
+    "mrw", "sr2", "srf", "rwl", "3fr", "kdc", "dcr", "iiq", "cbz", "zip",
 ];
 
 #[derive(Serialize)]
@@ -89,7 +96,14 @@ pub fn get_mime_type(path: &Path) -> Option<&'static str> {
         "dds" => Some("image/vnd.ms-dds"),
         "exr" => Some("image/x-exr"),
         "qoi" => Some("image/qoi"),
-        "cr2" | "nef" | "nrw" | "arw" | "dng" | "orf" | "rw2" | "pef" | "srw" => {
+        "hdr" => Some("image/vnd.radiance"),
+        "pnm" => Some("image/x-portable-anymap"),
+        "pam" => Some("image/x-portable-arbitrarymap"),
+        "ppm" => Some("image/x-portable-pixmap"),
+        "pgm" => Some("image/x-portable-graymap"),
+        "pbm" => Some("image/x-portable-bitmap"),
+        "cr2" | "cr3" | "nef" | "nrw" | "arw" | "dng" | "orf" | "rw2" | "pef" | "srw" | "raf"
+        | "mrw" | "sr2" | "srf" | "rwl" | "3fr" | "kdc" | "dcr" | "iiq" => {
             Some(crate::raw::RAW_MIME)
         }
         "cbz" => Some("application/vnd.comicbook+zip"),

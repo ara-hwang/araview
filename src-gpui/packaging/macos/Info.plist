@@ -59,7 +59,14 @@
 				<string>dds</string>
 				<string>exr</string>
 				<string>qoi</string>
+				<string>hdr</string>
+				<string>pnm</string>
+				<string>pam</string>
+				<string>ppm</string>
+				<string>pgm</string>
+				<string>pbm</string>
 				<string>cr2</string>
+				<string>cr3</string>
 				<string>nef</string>
 				<string>nrw</string>
 				<string>arw</string>
@@ -68,6 +75,15 @@
 				<string>rw2</string>
 				<string>pef</string>
 				<string>srw</string>
+				<string>raf</string>
+				<string>mrw</string>
+				<string>sr2</string>
+				<string>srf</string>
+				<string>rwl</string>
+				<string>3fr</string>
+				<string>kdc</string>
+				<string>dcr</string>
+				<string>iiq</string>
 				<string>cbz</string>
 				<string>zip</string>
 			</array>
