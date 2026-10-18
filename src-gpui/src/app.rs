@@ -53,9 +53,6 @@ use crate::settings::{DockPosition, FitMode, MouseAction, SettingsStore, SortKey
 const CHECKER_CELL: f32 = 20.0;
 const CHECKER_BASE: u32 = 0xffffff;
 const CHECKER_ALT: u32 = 0xc7c7c7;
-/// 애니메이션 컨트롤은 클러스터 폭(`GIF_CLUSTER_BASE_WIDTH` + 카운터)을 더한 폭 이상일 때만
-/// 보인다(SPEC §7.5). 이 값은 클러스터를 뺀 헤더가 캡션 버튼 앞에 들어가는 폭이다.
-const GIF_CONTROLS_MIN_WIDTH: f32 = 990.0;
 /// 이 폭(논리 px) 이상이면 헤더 기본 버튼에 라벨을 붙인다. 라벨 길이가 언어마다 달라
 /// 한국어와 영어의 경계를 따로 둔다. 각 값은 실제 앱에서 캡션 버튼이 온전히 보이는 최소 폭
 /// (한국어 약 1313/1824, 영어 약 1546/2046)에 버튼 사이 간격이 2px 늘어난 몫(그룹마다
@@ -74,8 +71,6 @@ const HEADER_EXTRA_LABELS_MIN_WIDTH_EN: f32 = 2120.0;
 const HEADER_FIT_CONTROLS_MIN_WIDTH: f32 = 690.0;
 const HEADER_VIEW_MODES_MIN_WIDTH: f32 = 840.0;
 const HEADER_TRANSFORM_CONTROLS_MIN_WIDTH: f32 = 1010.0;
-/// 애니메이션 클러스터가 차지하는 폭(버튼 3개 + 카운터 + 간격).
-const GIF_CLUSTER_BASE_WIDTH: f32 = 112.0;
 /// 타이틀바 높이(논리 px). 32px 도구 버튼 위아래로 4px씩 남아야 그룹이 눌리지 않는다.
 const HEADER_HEIGHT: f32 = 40.0;
 /// 그룹 안 도구 버튼 사이의 간격(논리 px). 그룹과 그룹 사이는 이보다 넓은 `gap_2`다.
@@ -698,24 +693,7 @@ impl AraView {
         let has_image = self.picture.is_some();
         let mode = self.view_mode(cx);
         let single = mode == ViewMode::Single;
-        let animated = self.has_animation(cx);
-        let frames = self
-            .picture
-            .as_ref()
-            .map(|picture| picture.frame_count())
-            .unwrap_or(1);
-        // 프레임 카운터는 자릿수가 바뀌어도 옆 버튼이 밀리지 않게 폭을 고정한다.
-        let counter_width = 16.0 + 14.0 * (frames.to_string().len() as f32);
-        // 라벨은 실제로 들어갈 폭이 되면 바로 붙인다. 애니메이션 클러스터가
-        // 보이면 그 폭만큼 자리를 비워 두고 판단한다.
         let width = f32::from(window.viewport_size().width);
-        let gif_cluster_width = GIF_CLUSTER_BASE_WIDTH + counter_width;
-        let show_gif_controls = animated && width >= GIF_CONTROLS_MIN_WIDTH + gif_cluster_width;
-        let gif_width = if show_gif_controls {
-            gif_cluster_width
-        } else {
-            0.0
-        };
         let (labels_min, extra_labels_min) = match crate::i18n::language() {
             crate::i18n::Language::Ko => {
                 (HEADER_LABELS_MIN_WIDTH_KO, HEADER_EXTRA_LABELS_MIN_WIDTH_KO)
@@ -724,8 +702,8 @@ impl AraView {
                 (HEADER_LABELS_MIN_WIDTH_EN, HEADER_EXTRA_LABELS_MIN_WIDTH_EN)
             }
         };
-        let wide_labels = width >= labels_min + gif_width;
-        let extra_labels = width >= extra_labels_min + gif_width;
+        let wide_labels = width >= labels_min;
+        let extra_labels = width >= extra_labels_min;
         // Below the compact toolbar's natural width, hide secondary groups in order;
         // keep the left/right menus and native caption controls outside the shrinkable area.
         let show_zoom_controls = width >= HEADER_FIT_CONTROLS_MIN_WIDTH;
@@ -988,44 +966,6 @@ impl AraView {
                                 ),
                         )
                     })
-                    .when(show_gif_controls, |row| {
-                        row.child(
-                            group()
-                                .debug_selector(|| "header-gif-controls".to_owned())
-                                .child(Self::icon_button(
-                                    "gif-prev",
-                                    Ph::CaretLeft,
-                                    "menu.gifPrevFrame",
-                                    "gifPrevFrame",
-                                    cx,
-                                ))
-                                .child(Self::icon_button(
-                                    "gif-play",
-                                    if self.playing { Ph::Pause } else { Ph::Play },
-                                    if self.playing {
-                                        "menu.gifPause"
-                                    } else {
-                                        "menu.gifPlay"
-                                    },
-                                    "toggleGifPlayback",
-                                    cx,
-                                ))
-                                .child(Self::icon_button(
-                                    "gif-next",
-                                    Ph::CaretRight,
-                                    "menu.gifNextFrame",
-                                    "gifNextFrame",
-                                    cx,
-                                ))
-                                .child(
-                                    div()
-                                        .w(px(counter_width))
-                                        .text_xs()
-                                        .text_center()
-                                        .child(format!("{}/{}", self.frame + 1, frames)),
-                                ),
-                        )
-                    })
                     .child(
                         group()
                             .debug_selector(|| "header-center-info".to_owned())
@@ -1170,7 +1110,11 @@ impl Render for AraView {
         // 크롬 숨김은 이미지를 보고 있을 때만 적용한다. 홈에서는 항상 보인다.
         let hide_all = reading && settings.auto_hide_ui;
         let hide_header = reading && (settings.menu_bar_hidden || settings.auto_hide_ui);
-        let show_dock = reading && self.list.len() > 1 && (!hide_all || self.peek_bottom);
+        let animated = self.has_animation(cx);
+        // 애니메이션 컨트롤이 하단 독으로 이동했으므로, 애니메이션 이미지에서는
+        // 목록이 하나뿐이어도 독을 보여 컨트롤을 노출한다.
+        let show_dock =
+            reading && (self.list.len() > 1 || animated) && (!hide_all || self.peek_bottom);
         let show_status = reading && (!hide_all || self.peek_bottom);
         let dock_position = settings.dock_position;
         let context_menu = settings.mouse.right_click == MouseAction::ContextMenu;

@@ -443,6 +443,7 @@ impl AraView {
             .on_click(cx.listener(|this, _, _, cx| {
                 this.set_dock(|settings| settings.dock_visible = false, cx)
             }));
+
         let controls: AnyElement = if horizontal {
             h_flex()
                 .gap_0p5()

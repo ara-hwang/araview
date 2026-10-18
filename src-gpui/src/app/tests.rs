@@ -231,14 +231,8 @@ fn assert_header_clears_captions(cx: &mut VisualTestContext, with: &'static str)
 #[gpui_kit::test]
 fn header_never_overlaps_caption_controls(cx: &mut TestAppContext) {
     let (view, cx) = open_app(cx);
-    let dir = tempfile::tempdir().expect("temp dir");
     open(&view, sample("sample.jpg"), cx);
     assert_header_clears_captions(cx, "header-zoom").expect("zoom group never shown");
-    for frames in [12, 120] {
-        open(&view, write_animated_gif(dir.path(), frames), cx);
-        assert_header_clears_captions(cx, "header-gif-controls")
-            .unwrap_or_else(|| panic!("animation controls never shown ({frames} frames)"));
-    }
 }
 
 /// 1x1 픽셀 프레임이 `frames`개인 애니메이션 GIF를 임시 폴더에 쓴다.
@@ -262,21 +256,12 @@ fn write_animated_gif(dir: &Path, frames: usize) -> String {
 }
 
 #[gpui_kit::test]
-fn animation_controls_wait_for_wider_frame_counter(cx: &mut TestAppContext) {
+fn animation_controls_moved_to_dock(cx: &mut TestAppContext) {
     let (view, cx) = open_app(cx);
     let dir = tempfile::tempdir().expect("temp dir");
-
-    // 프레임 수가 세 자리가 되면 카운터가 한 자리만큼 넓어져 컨트롤이 늦게 나타난다.
     open(&view, write_animated_gif(dir.path(), 12), cx);
-    let two_digits = assert_header_clears_captions(cx, "header-gif-controls")
-        .expect("controls never shown for 12 frames");
-    open(&view, write_animated_gif(dir.path(), 120), cx);
-    let three_digits = assert_header_clears_captions(cx, "header-gif-controls")
-        .expect("controls never shown for 120 frames");
-    assert!(
-        three_digits >= two_digits + 12,
-        "{three_digits} should be one digit (14px) wider than {two_digits}"
-    );
+    // 독에 애니메이션 컨트롤이 노출된다.
+    assert!(cx.debug_bounds("dock-gif-controls").is_some());
 }
 
 /// 백그라운드 작업과 그 결과로 생긴 재렌더를 끝까지 돌린다.

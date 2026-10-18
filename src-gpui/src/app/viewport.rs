@@ -962,6 +962,72 @@ impl AraView {
 
     // ----- 렌더 -----
 
+    /// 애니메이션 재생 제어를 뷰포트 우하단에 떠 있는 반투명 패널로 그린다.
+    pub(super) fn render_animation_overlay(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
+        let frames = self
+            .picture
+            .as_ref()
+            .map(|picture| picture.frame_count())
+            .unwrap_or(1);
+        let counter_width = 16.0 + 14.0 * (frames.to_string().len() as f32);
+        h_flex()
+            .gap_2()
+            .px_2()
+            .py_1()
+            .rounded_md()
+            .border_1()
+            .border_color(cx.theme().border)
+            .bg(cx.theme().popover.opacity(0.75))
+            .text_xs()
+            .on_mouse_down(
+                MouseButton::Left,
+                cx.listener(|_this, _event, _window, cx| {
+                    cx.stop_propagation();
+                }),
+            )
+            .debug_selector(|| "dock-gif-controls".to_owned())
+            .child(
+                Button::new("gif-prev")
+                    .ghost()
+                    .xsmall()
+                    .icon(Ph::CaretLeft)
+                    .tooltip(t("menu.gifPrevFrame"))
+                    .on_click(cx.listener(|this, _, window, cx| {
+                        this.run_action("gifPrevFrame", window, cx)
+                    })),
+            )
+            .child(
+                Button::new("gif-play")
+                    .ghost()
+                    .xsmall()
+                    .icon(if self.playing { Ph::Pause } else { Ph::Play })
+                    .tooltip(t(if self.playing {
+                        "menu.gifPause"
+                    } else {
+                        "menu.gifPlay"
+                    }))
+                    .on_click(cx.listener(|this, _, window, cx| {
+                        this.run_action("toggleGifPlayback", window, cx)
+                    })),
+            )
+            .child(
+                Button::new("gif-next")
+                    .ghost()
+                    .xsmall()
+                    .icon(Ph::CaretRight)
+                    .tooltip(t("menu.gifNextFrame"))
+                    .on_click(cx.listener(|this, _, window, cx| {
+                        this.run_action("gifNextFrame", window, cx)
+                    })),
+            )
+            .child(
+                div()
+                    .w(px(counter_width))
+                    .text_center()
+                    .child(format!("{}/{}", self.frame + 1, frames)),
+            )
+    }
+
     pub(super) fn render_viewport(
         &mut self,
         window: &mut Window,
@@ -1300,6 +1366,15 @@ impl AraView {
                                     })),
                             )
                         }),
+                )
+            })
+            .when(self.has_animation(cx), |area| {
+                area.child(
+                    div()
+                        .absolute()
+                        .bottom_3()
+                        .right_3()
+                        .child(self.render_animation_overlay(cx)),
                 )
             })
     }
