@@ -160,7 +160,7 @@ jobs:
           $body = (Get-Content .github/RELEASE_TEMPLATE.md -Raw -Encoding utf8).TrimEnd()
           $body = $body.Replace("{{CHANGES}}", $changes).Replace("{{COMPARE}}", $compareLine)
           Set-Content -Path release-notes.md -Value $body -Encoding utf8
-          # 앱의 업데이트 대화상자에는 설치 안내를 뺀 변경 목록만 보여준다.
+          # 앱의 업데이트 대화상자에는 변경 목록만 보여준다.
           Set-Content -Path feed-notes.md -Value $changes -Encoding utf8
 
       # 업데이트 서명: maintainer는 한 번만 키를 만들고 Secrets에 등록한다(docs/releasing.md).
