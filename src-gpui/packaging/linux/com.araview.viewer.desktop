@@ -10,4 +10,4 @@ Icon=com.araview.viewer
 Terminal=false
 Categories=Graphics;Viewer;
 StartupWMClass=com.araview.viewer
-MimeType=image/png;image/apng;image/jpeg;image/gif;image/bmp;image/webp;image/svg+xml;image/vnd.microsoft.icon;image/x-icon;image/avif;image/tiff;image/jxl;image/heic;image/heif;image/vnd.adobe.photoshop;image/x-psd;image/x-tga;image/x-dds;image/x-exr;image/qoi;application/vnd.comicbook+zip;application/x-cbz;application/zip;
+MimeType=image/png;image/apng;image/jpeg;image/gif;image/bmp;image/webp;image/svg+xml;image/vnd.microsoft.icon;image/x-icon;image/avif;image/tiff;image/jxl;image/heic;image/heif;image/vnd.adobe.photoshop;image/x-psd;image/x-tga;image/x-dds;image/x-exr;image/qoi;image/x-canon-cr2;image/x-nikon-nef;image/x-nikon-nrw;image/x-sony-arw;image/x-adobe-dng;image/x-olympus-orf;image/x-panasonic-rw2;image/x-pentax-pef;image/x-samsung-srw;application/vnd.comicbook+zip;application/x-cbz;application/zip;

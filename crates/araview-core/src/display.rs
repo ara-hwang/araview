@@ -91,7 +91,9 @@ pub fn decode_for_display(path: &Path, svg_max_side: u32) -> Result<DisplayImage
             true,
         )),
         Some(mime)
-            if mime == crate::psd_sidecar::PSD_MIME || crate::transcode::is_raster_mime(mime) =>
+            if mime == crate::psd_sidecar::PSD_MIME
+                || mime == crate::raw::RAW_MIME
+                || crate::transcode::is_raster_mime(mime) =>
         {
             let decoder = crate::transcode::decoder_for(path)
                 .ok_or_else(|| AppError::unsupported("Unsupported image format"))?;

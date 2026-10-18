@@ -8,12 +8,12 @@
 - **공용 코어**: `crates/araview-core`(디코드, 아카이브, 캐시, 썸네일, 파일 작업)
 - **PSD 탐색기 썸네일**: `crates/araview-thumb`(COM DLL, Windows 전용. 다른 OS에서는 빈 크레이트로 빌드됩니다)
 - **배포 묶음**: Windows는 NSIS 설치 프로그램(`src-gpui/installer/araview.nsi`), Linux는 tar.gz(`scripts/package-linux.sh`), macOS는 dmg(`scripts/package-macos.sh`)
-- 지원 OS: Windows 11 x64, macOS(Apple silicon 기준), Linux x64(X11/Wayland). 창 틀은 GPUI Kit의 타이틀바가 OS별로 그립니다.
+- 지원 OS: Windows 11 x64(정식), macOS(Apple silicon 기준)와 Linux x64(X11/Wayland)는 실험적입니다(CI 빌드만 확인). 창 틀은 GPUI Kit의 타이틀바가 OS별로 그립니다.
 - 루트 `Cargo.toml`이 세 크레이트를 한 워크스페이스로 묶고 `Cargo.lock`도 하나입니다.
 
 ## 요구 사항
 
-- **OS**: Windows 11 (x64), macOS 11 이상, Linux x64
+- **OS**: Windows 11 (x64), macOS 11 이상(실험적), Linux x64(실험적)
 - **Rust**: stable (`rust-toolchain.toml`, `1.97` 이상)
 - **Node.js**: `>= 24` (`release`, `docs:check`, `licenses` 스크립트용. 의존성 설치는 없습니다)
 - **NSIS**: Windows 설치 프로그램을 만들 때만 필요합니다(`makensis`가 PATH에 있거나 `Program Files (x86)\NSIS`에 있어야 합니다)
@@ -142,6 +142,7 @@ crates/
     heif.rs          # HEIC/HEIF 디코드 및 JPEG sidecar
     psd_sidecar.rs   # PSD 합성 디코드(`psd` 크레이트) 및 JPEG sidecar (읽기 전용)
     raster_sidecar.rs # TGA/DDS/EXR/QOI 디코드(`image` 크레이트) 및 JPEG sidecar (읽기 전용)
+    raw.rs           # 카메라 RAW 내장 JPEG 미리보기 추출(TIFF IFD 순회) 및 JPEG sidecar (읽기 전용)
     transcode.rs     # 포맷(resolve_mime)별 sidecar 디코더 디스패치
     process_temp.rs  # 임시/영구 파생 이미지 캐시 루트, 보호, 상한, 시작 정리
     cache.rs         # 캐시 통계 및 종류별/전체 삭제

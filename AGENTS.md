@@ -1,6 +1,6 @@
 # AGENTS.md - AraView
 
-`araview` is a desktop image viewer written in Rust with GPUI Kit (gpui-kit). Supported OSes: Windows 11 x64, macOS and Linux x64. OS-specific code stays behind `src-gpui/src/platform/` and `cfg` gates; a change must keep all three building (CI builds each).
+`araview` is a desktop image viewer written in Rust with GPUI Kit (gpui-kit). Supported OS: Windows 11 x64 (verified). macOS and Linux x64 are experimental: they build in CI but are not runtime-tested. OS-specific code stays behind `src-gpui/src/platform/` and `cfg` gates; a change must keep all three building (CI builds each).
 
 ## Guardrails
 
