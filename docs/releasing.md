@@ -48,15 +48,15 @@ Actions 탭에서 Release 워크플로를 수동 실행(`workflow_dispatch`)하�
 서명은 Tauri CLI의 `signer`로 하고(저장소에는 의존성을 두지 않고 `npx`로 받아 씁니다), 키 형식은 minisign입니다. 기존 1.x와 같은 키를 그대로 씁니다. 새로 만들어야 하면 다음과 같이 합니다.
 
 ```powershell
-npx --yes @tauri-apps/cli@2.11.4 signer generate -w "$env:USERPROFILE\.tauri\araview.key"
+npx --yes @tauri-apps/cli@2.11.4 signer generate -w "<비밀키 경로>"
 ```
 
-- 키는 repo 밖(`$env:USERPROFILE\.tauri`)에 둡니다. 다른 폴더를 쓰려면 `$env:USERPROFILE` 대신 원하는 경로를 넣습니다. `*.key`는 `.gitignore`에 있습니다.
+- 비밀키는 maintainer가 repo 밖의 안전한 위치에 보관하고, 실제 경로는 이 문서나 커밋에 기록하지 않습니다. `*.key`는 `.gitignore`에 있습니다.
 - 공개키(`araview.key.pub` 내용)는 `src-gpui/update-pubkey.txt`에 넣습니다. 키를 바꾸면 이전 키로 서명한 설치본의 업데이트 확인이 새 릴리스를 거부하므로, 키 교체는 사용자가 직접 새 설치 프로그램을 받아야 하는 변경입니다.
 - 비밀키와 비밀번호는 repo Secrets에 등록합니다. CI에는 키 파일이 없으므로 비밀키는 파일 내용을 넣습니다.
 
 ```powershell
-gh secret set TAURI_SIGNING_PRIVATE_KEY --repo ara-hwang/araview --body ((Get-Content -Raw "$env:USERPROFILE\.tauri\araview.key").Trim())
+gh secret set TAURI_SIGNING_PRIVATE_KEY --repo ara-hwang/araview --body ((Get-Content -Raw "<비밀키 경로>").Trim())
 gh secret set TAURI_SIGNING_PRIVATE_KEY_PASSWORD --repo ara-hwang/araview
 ```
 
