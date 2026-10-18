@@ -588,6 +588,13 @@ fn grid_moves_with_arrows_and_enter_jumps(cx: &mut TestAppContext) {
     });
 }
 
+/// 텍스트 입력의 전체 선택 키. macOS는 Cmd+A, 그 밖은 Ctrl+A다.
+const SELECT_ALL: &str = if cfg!(target_os = "macos") {
+    "cmd-a"
+} else {
+    "ctrl-a"
+};
+
 #[gpui_kit::test]
 fn rename_dialog_submits_with_enter(cx: &mut TestAppContext) {
     let (dir, paths) = temp_copy(&["sample.png", "sample.jpg"]);
@@ -597,7 +604,7 @@ fn rename_dialog_submits_with_enter(cx: &mut TestAppContext) {
     cx.simulate_keystrokes("f2");
     settle(cx);
     assert!(cx.update(|window, cx| window.has_active_dialog(cx)));
-    cx.simulate_keystrokes("ctrl-a");
+    cx.simulate_keystrokes(SELECT_ALL);
     cx.simulate_input("renamed.png");
     settle(cx);
     cx.simulate_keystrokes("enter");
@@ -634,7 +641,7 @@ fn rename_accepts_a_case_only_change(cx: &mut TestAppContext) {
 
     cx.simulate_keystrokes("f2");
     settle(cx);
-    cx.simulate_keystrokes("ctrl-a");
+    cx.simulate_keystrokes(SELECT_ALL);
     cx.simulate_input("Sample.PNG");
     settle(cx);
     cx.simulate_keystrokes("enter");
