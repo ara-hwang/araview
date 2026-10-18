@@ -151,7 +151,9 @@ fn decode_for_clipboard(source: &Path) -> Result<Decoded, AppError> {
         // sidecar 디스패치 대상 원본이 곧장 오면(방어선) sidecar와 같은 디코더를
         // 쓴다. 실제 렌더 경로는 JPEG sidecar라 위 JPEG 분기로 간다.
         Some(mime)
-            if mime == crate::psd_sidecar::PSD_MIME || crate::transcode::is_raster_mime(mime) =>
+            if mime == crate::psd_sidecar::PSD_MIME
+                || mime == crate::raw::RAW_MIME
+                || crate::transcode::is_raster_mime(mime) =>
         {
             let decoder = crate::transcode::decoder_for(source)
                 .ok_or_else(|| AppError::unsupported("Unsupported image format"))?;
