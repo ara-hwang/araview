@@ -37,7 +37,7 @@ runs:
       run: |
         sudo apt-get update
         sudo apt-get install -y --no-install-recommends \
-          pkg-config cmake clang libclang-dev \
+          pkg-config cmake nasm clang libclang-dev \
           libxkbcommon-dev libxkbcommon-x11-dev libxcb1-dev libxcb-xkb-dev libx11-xcb-dev \
           libwayland-dev libfontconfig-dev libfreetype-dev
 
