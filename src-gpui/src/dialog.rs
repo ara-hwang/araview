@@ -7,7 +7,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Duration;
 
-use gpui_kit::component::dialog::Dialog;
+use gpui_kit::component::dialog::{Dialog, DialogEntrance};
 use gpui_kit::{App, Pixels, Point, Window, px};
 
 use crate::platform;
@@ -49,6 +49,7 @@ pub fn centered(dialog: Dialog, window: &mut Window, estimated_height: f32) -> D
     dialog
         .margin_top(centered_margin_top(window, estimated_height))
         .overlay_closable(false)
+        .entrance(DialogEntrance::Fade)
 }
 
 /// 누른 자리에서 이만큼(창 논리 px) 넘게 떨어져 떼면 클릭이 아니라 드래그로 본다.
