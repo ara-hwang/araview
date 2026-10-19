@@ -102,11 +102,9 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 - 도크 위 휠은 설정된 휠 동작(`wheel`)을 따른다(기본: 위=이전, 아래=다음, Ctrl+휠=확대/축소). 동작이 `none`이면 목록 스크롤로 넘긴다. 웹툰 모드에서도 도크 휠은 이동으로 동작한다.
 - `G`(기본, 재할당 가능)로 썸네일 그리드 오버레이를 연다. 열 때 현재 이미지를 중앙에 둔다.
 - 그리드: 뷰포트 기반 가상화, 클릭/`Enter`로 점프 후 닫기, `Esc`/`G`로 닫기, 파일명 필터, 실패 셀 배지와 재시도. 그리드가 열려 있는 동안 뷰어 단축키는 비활성이다. 셀은 현재 페이지와 키보드 선택(링)을 따로 표시한다.
-- 우클릭은 설정(`mouse.rightClick`)에 따라 컨텍스트 메뉴 또는 다른 동작이다. 홈에서는 우클릭을 막는다.
+- 우클릭은 설정(`mouse.rightClick`)에 따라 컨텍스트 메뉴 또는 다른 동작이다. 홈에서는 우클릭을 막는다. 컨텍스트 메뉴의 `이미지 표시` 하위 메뉴는 `imageScalingMode`(`자동`/`부드럽게`/`픽셀 보존`)를 고르며 현재 값에 체크가 붙는다. 보기 설정의 같은 항목과 같은 값을 저장한다. 해상도 상한(`maxResolution`)이 꺼져 있거나 sidecar 저장 형식이 그대로면 다시 로드하지 않고 배율과 위치를 유지한다.
 - `Esc` 닫기: 이름 변경 다이얼로그가 열려 있거나 입력 포커스 중이면 닫지 않는다.
-- 이미지 표시 설정은 `auto | smooth | pixelated`를 제공한다. `auto`는 픽셀 아트 자동 감지가 켜져 있고 분석 결과가 `pixel_art`로 분류되면 `pixelated`를 사용한다. 추가로 자동 모드는 표시 배율이 2x 이상이면 감지 결과와 무관하게 `pixelated`를 사용한다(확대 시 원본 픽셀 표시). 그 외에는 `smooth`를 사용한다. 수동 모드는 자동 감지와 배율 기반 전환보다 우선한다.
-- 픽셀 아트 자동 감지는 현재 이미지를 렌더한 뒤 백그라운드 작업(`detect_pixel_art`)으로 분석한다. 분석 전/실패/불확실은 `smooth`로 대체하며 원본과 파생 이미지는 변경하지 않는다.
-- 분석은 표시 바이트를 백엔드에서 다시 디코드하므로, 결과가 쓰이는 표시에서만 요청한다. `auto`에서 분석 결과가 판정에 들어가는 구간은 1x~2x 확대이거나 배율 미상일 때이므로, 축소와 2x 이상 확대에서는 요청하지 않는다. 단일 보기는 치수를 모를 때도 요청하고, 웹툰/양쪽 보기는 렌더된 크기를 실측해 1x~2x 확대일 때만 요청한다. 축소에서 확대로 바뀌면 그때 요청한다.
+- 이미지 표시 설정은 `auto | smooth | pixelated`를 제공한다. `auto`는 표시 배율이 2x 이상이면 `pixelated`를(확대 시 원본 픽셀 표시), 그 외에는 `smooth`를 사용한다. 이미지 내용을 분석하는 픽셀 아트 자동 감지는 없다. 수동 모드는 배율 기반 전환보다 우선한다.
 - 픽셀 보존 표시는 GPU의 선형 보간 대신, 보이는 영역만 CPU에서 최근접 확대한 래스터를 그려 원본 픽셀을 그대로 보여준다(`src-gpui/src/app/viewport.rs`의 픽셀 뷰). 양쪽/웹툰의 각 이미지는 같은 설정을 공유하되 판정은 이미지별이다.
 - `autoHideUI`가 true일 때만 읽기 중 크롬(상단바, 이미지 목록 도크, 상태바)을 숨기고 읽기 영역을 확장한다. 도크 상태(스크롤 위치, 로드한 썸네일)는 유지된다.
 - `menuBarHidden`이 true이면 상단바를 숨기고, 상단 호버 영역에서 peek 오버레이로 표시한다. 헤더 숨기기 버튼과 보기 설정 스위치로 토글한다. peek 시에는 읽기 영역 위로 겹쳐 내려오며, 포커스 이탈 시에는 즉시 닫힌다. 모션 토큰과 timing은 `DESIGN.md`를 따른다. `Esc`로는 닫히지 않는다(뷰어의 이미지 닫기와 충돌 방지).
@@ -336,8 +334,8 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 - 설정 `maxResolution`(기본 `original`)이 켜져 있으면 긴 변이 상한(4k=3840px, 1080p=1920px)을 넘는 래스터를 `scaled/` sidecar로 한 번만 축소해 렌더한다. 원본 파일은 바뀌지 않는다.
 - 적용 대상은 `image` 크레이트가 디코드할 수 있는 래스터(PNG/JPEG/BMP/ICO/TIFF/정지 WebP)이며, EXIF Orientation(5~8)은 픽셀에 반영한 뒤 축소한다. 알파 채널이 있으면 투명도 보존을 위해 PNG로 저장한다.
 - GIF, 움직이는 WebP, 움직이는 PNG(APNG, 확장자가 `.png`여도 `acTL` 청크로 판별), SVG, `image` 크레이트가 디코드하지 못하는 포맷(AVIF, JXL 등)은 원본 바이트를 그대로 렌더한다.
-- sidecar는 활성 캐시 루트의 `scaled/`에 캐시되며 상한(500MB)을 넘기면 오래된 것부터 상한의 90%까지 제거한다. 캐시 경로는 원본 식별 해시 + 상한 + 픽셀 아트 필터 알고리즘 revision 기준이라 설정이나 필터 알고리즘이 바뀌면 다른 사본을 만든다.
-- sidecar 축소는 표시 정책과 무관하게 항상 보간 필터(`Triangle`)를 사용한다. Nearest 축소는 스크린톤 같은 주기 패턴을 계단·무아레로 깨뜨린다. `smooth`/`auto`는 JPEG로, `pixelated`는 lossless PNG로 저장한다. `auto`는 휴리스틱 분석을 실행해 결과를 후속 `detect_pixel_art`가 재사용하지만, 분류가 `pixel_art`여도 축소 필터에는 영향을 주지 않는다(픽셀 보존 표시는 확대 배율에서만 적용되기 때문). 분석은 원본을 바꾸지 않는다.
+- sidecar는 활성 캐시 루트의 `scaled/`에 캐시되며 상한(500MB)을 넘기면 오래된 것부터 상한의 90%까지 제거한다. 캐시 경로는 원본 식별 해시 + 상한 + 저장 형식(`smooth`/`pixelated`) + 축소 필터 revision 기준이라 설정이나 필터 알고리즘이 바뀌면 다른 사본을 만든다.
+- sidecar 축소는 표시 정책과 무관하게 항상 보간 필터(`Triangle`)를 사용한다. Nearest 축소는 스크린톤 같은 주기 패턴을 계단·무아레로 깨뜨린다. `smooth`/`auto`는 JPEG로, `pixelated`는 lossless PNG로 저장한다(알파가 있으면 모두 PNG).
 - 새 상한으로 로드한 `ImageInfo.width/height`는 축소 사본 기준이고, `source_path`는 항상 원본 파일이다(11절). 히스토그램은 렌더 바이트(`file_path`), EXIF/파일 상세는 원본(`source_path`) 기준이다.
 - 해상도 상한이나 이미지 표시 정책을 바꾸면 UI는 페이지 캐시와 픽셀 보존 뷰를 비우고 현재 이미지를 새 기준으로 다시 로드한다.
 
@@ -451,7 +449,6 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 | `cacheStorageMode`      | `temporary \| persistent`                                               | `persistent`                       |
 | `maxResolution`         | `original \| 4k \| 1080p` (긴 변 상한, 9.4절)                           | `original`                         |
 | `imageScalingMode`      | `auto \| smooth \| pixelated` 이미지 보간 방식                          | `auto`                             |
-| `autoDetectPixelArt`    | 자동 모드에서 픽셀 아트 감지 사용                                       | `true`                             |
 | `viewMode`              | `single \| left-to-right \| right-to-left \| webtoon`                   | `single`                           |
 | `webtoonPageBoundaries` | 웹툰 페이지 경계선 표시                                                 | `false`                            |
 | `webtoonFitWidth`       | 웹툰 이미지를 읽기 영역 너비까지 확대                                   | `false`                            |
@@ -559,8 +556,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 
 | 연산                                     | 입력 (camelCase)                                                                            | 반환                                   |
 | ---------------------------------------- | ---------------------------------------------------------------------------------------------- | -------------------------------------- |
-| `load_image`                             | `filePath`, `maxSide?`, `imageScalingMode?`, `autoDetectPixelArt?`                             | `ImageInfo`                            |
-| `detect_pixel_art`                       | `filePath`                                                                                     | `PixelArtDetection`                    |
+| `load_image`                             | `filePath`, `maxSide?`, `imageScalingMode?`                                                    | `ImageInfo`                            |
 | `get_directory_images`                   | `filePath`, `options?`                                                                         | `DirectoryImages`                      |
 | `resolve_dropped_path`                   | `path`                                                                                         | 해석된 파일 경로 `string`              |
 | `get_exif_data`                          | `filePath`                                                                                     | `Record<string, string>`               |
@@ -569,7 +565,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 | `get_archive_images`                     | `filePath`                                                                                     | `DirectoryImages`(엔트리 목록)         |
 | `get_comic_info`                         | `filePath`                                                                                     | `ComicInfo \| null`                    |
 | `set_comic_cover_pages`                  | `filePath`, `coverPages`                                                                       | `ComicInfo`                            |
-| `load_archive_image`                     | `archivePath`, `entryName`, `maxSide?`, `protect?`, `imageScalingMode?`, `autoDetectPixelArt?` | `ImageInfo`                            |
+| `load_archive_image`                     | `archivePath`, `entryName`, `maxSide?`, `protect?`, `imageScalingMode?`                        | `ImageInfo`                            |
 | `archive_prefetch`                       | `archivePath`, `entryNames`                                                                    | 추출 개수 `number`                     |
 | `generate_thumbnail`                     | `filePath`, `maxSide?`                                                                         | `ThumbnailInfo`                        |
 | `generate_thumbnails_batch`              | `filePaths`, `maxSide?`                                                                        | `BatchThumb[]`                         |
@@ -588,10 +584,10 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 | `register_psd_thumbnail`                 | 없음                                                                                           | `PsdThumbStatus`                       |
 | `unregister_psd_thumbnail`               | 없음                                                                                           | `PsdThumbStatus`                       |
 | `trash_file`                             | `filePath`                                                                                     | 없음                                   |
-| `rename_file`                            | `oldPath`, `newName`, `maxSide?`, `imageScalingMode?`, `autoDetectPixelArt?`                   | `ImageInfo`                            |
+| `rename_file`                            | `oldPath`, `newName`, `maxSide?`, `imageScalingMode?`                                          | `ImageInfo`                            |
 | `export_clipboard_png`                   | `filePath`                                                                                     | `ClipboardPng`                         |
 
-`load_image`, `load_archive_image`, `rename_file`은 표시 정책에 따라 선택적으로 `imageScalingMode`(`auto | smooth | pixelated`)와 `autoDetectPixelArt`를 받는다.
+`load_image`, `load_archive_image`, `rename_file`은 표시 정책에 따라 선택적으로 `imageScalingMode`(`auto | smooth | pixelated`)를 받는다. 코어는 `pixelated`만 구분하고 `auto`는 `smooth`와 같은 sidecar를 쓴다.
 
 코어 함수 이름은 표의 연산 이름에 `_impl` 또는 `_blocking`을 붙인다(예: `get_directory_images_impl`). 응답은 snake_case 필드를 가진 Rust 타입이다. 설정 화면의 라이선스는 `get_license_bundle` 대신 컴파일 시점에 포함된 `src-gpui/THIRD_PARTY_LICENSES.json`을 읽는다.
 
@@ -614,7 +610,6 @@ Rust와 TypeScript는 같은 모양을 유지한다.
 - `file_size: number`
 - `width: number | null`, `height: number | null`: 렌더 바이트 기준 치수(축소 사본이면 사본 치수). SVG는 헤더 파싱으로 복원하며 해석 불가분만 null.
 
-- `PixelArtDetection`: `{ classification: "pixel_art" | "continuous" | "uncertain", confidence: number, pixel_scale: number | null, method: "runs" | "edges" | "hybrid" | "unsupported" }`. `pixel_scale`은 픽셀 아트로 분류된 경우의 추정 격자 주기이며, 분석은 표시 힌트일 뿐 원본 파일을 변경하지 않는다.
 
 ### 16.2 기타
 
@@ -666,8 +661,7 @@ UI 분류 5종:
 - RAW(CR2/CR3/NEF/NRW/ARW/DNG/ORF/RW2/PEF/SRW/RAF/MRW/SR2/SRF/RWL/3FR/KDC/DCR/IIQ)는 새 의존성 없이 `raw.rs`가 내장 JPEG 미리보기를 꺼내 디코드한다. 방향은 미리보기 JPEG가 아니라 RAW IFD0의 Orientation을 픽셀에 반영하고, TIFF 기반이 아닌 CR3/RAF는 JPEG 표지 훑기로만 미리보기를 찾아 IFD가 없으므로 방향을 적용하지 않는다. 1단계에서 미리보기를 못 찾으면 rawler(LGPL-2.1)로 폴백해 카메라 제작 미리보기 → 썸네일 → 센서 현상 순서로 디코드하고, 이때 방향은 rawler 메타데이터의 Orientation을 따른다(2.3절). 파일이 TIFF 시그니처를 가져도 확장자가 RAW이면 RAW로 본다(`resolve_mime`). 색상 모드는 `rgb` 8비트로 보고하며, 센서 쪽 정보(실제 비트 수, 색 프로파일)는 읽지 않는다.
 - JXL은 jxl-oxide(순수 Rust, 추가 DLL 없음)로 디코드한다. 코드스트림 헤더의 orientation은 디코더가 픽셀과 치수에 반영하므로 EXIF 회전을 따로 적용하지 않는다. 색 공간이 열거형으로 신호된 이미지(XYB 손실 압축, Display P3, PQ/HLG, 선형 등)는 sRGB로 변환하고, ICC 프로파일만 실린 RGB·회색조 이미지는 픽셀을 그대로 둔다. CMYK는 실린 ICC 프로파일을 moxcms(순수 Rust CMS)로 해석해 sRGB로 변환하고, 상세 패널에는 디코드 결과대로 RGB로 표시한다. 움직이는 JXL은 키프레임을 모두 디코드해 GIF/APNG/WebP와 같은 재생 경로를 타고, 전체 프레임이 애니메이션 예산(RGBA 512MB)을 넘으면 첫 프레임만 표시한다. 1억 픽셀을 넘으면 `TooLarge`로 거부한다.
 - AVIF는 libheif로 디코드한다. 이미지 시퀀스(움직이는 AVIF, `avis`)는 첫 영상 트랙의 프레임을 모두 디코드해 GIF/APNG/WebP와 같은 재생 경로를 타고, 프레임 지연은 트랙 타임스케일에서 계산한다. 전체 프레임이 애니메이션 예산(RGBA 512MB)을 넘으면 첫 프레임만 표시한다. edit list의 반복 횟수는 읽지 않고 항상 무한 반복한다. 썸네일·히스토그램·클립보드는 기본 이미지(정지 항목)를 쓴다.
-- `detect_pixel_art`는 표시 바이트 경로를 제한된 분석 이미지로 읽고, 작은 색상 팔레트·평탄도·동일 색상 run·주기적 경계 신호를 결합한다. ML 모델이나 네트워크를 사용하지 않으며, 분석 제한 초과·디코드 실패·불확실 결과는 안전하게 부드러운 표시로 대체한다.
-- 표시 보간은 `smooth`(GPU 선형 보간과 CPU 축소 단계)와 `pixelated`(최근접 확대 래스터) 두 가지다. 픽셀 보존 판정(pixelated 모드와 확신 있는 자동 감지 포함)은 표시 배율이 1x 이상(확대)일 때만 적용되며, 축소 배율에서는 설정·감지와 무관하게 항상 `smooth`로 강제된다. 자동 모드는 추가로 표시 배율이 2x 이상이면 감지 결과와 무관하게 `pixelated`로 전환한다(원본 픽셀 표시). nearest 축소는 스크린톤 같은 주기 패턴을 계단·무아레로 깨뜨린다. 단일 보기 배율은 이미지 크기에 대한 `zoom`이고, 웹툰/양쪽 보기는 렌더된 크기에서 실측한다(측정 전에는 기존 판정 유지).
+- 표시 보간은 `smooth`(GPU 선형 보간과 CPU 축소 단계)와 `pixelated`(최근접 확대 래스터) 두 가지다. 픽셀 보존 판정은 표시 배율이 1x 이상(확대)일 때만 적용되며, 축소 배율에서는 설정과 무관하게 항상 `smooth`로 강제된다. 자동 모드는 표시 배율이 2x 이상이면 `pixelated`로 전환한다(원본 픽셀 표시). nearest 축소는 스크린톤 같은 주기 패턴을 계단·무아레로 깨뜨린다. 단일 보기 배율은 이미지 크기에 대한 `zoom`이고, 웹툰/양쪽 보기는 렌더된 크기에서 실측한다(측정 전에는 기존 판정 유지).
 - 사용자 원본 파일은 필터링하지 않는다. 표시 해상도 상한 sidecar와 썸네일은 기존 파생 이미지 파이프라인을 유지하며, 픽셀 보존 판정은 메인 이미지 표시 힌트로만 사용한다.
 
 ## 19. 다국어

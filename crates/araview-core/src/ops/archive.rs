@@ -43,7 +43,6 @@ pub fn load_archive_image_blocking(
     max_side: Option<u32>,
     protect: Option<bool>,
     image_scaling_mode: Option<String>,
-    auto_detect_pixel_art: Option<bool>,
 ) -> Result<ImageInfo, AppError> {
     let arch_path = Path::new(archive_path);
 
@@ -60,7 +59,7 @@ pub fn load_archive_image_blocking(
         protect.unwrap_or(true),
     )?;
 
-    let mode = parse_image_scaling_mode(image_scaling_mode, auto_detect_pixel_art);
+    let mode = parse_image_scaling_mode(image_scaling_mode);
     let info = crate::image::load_viewable_with_limit_mode(&extracted_path, max_side, mode)?;
     Ok(info)
 }

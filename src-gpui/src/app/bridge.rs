@@ -472,7 +472,6 @@ impl AraView {
             "frame": self.frame,
             "loopsDone": self.loops_done,
             "opening": self.opening,
-            "pixelHint": self.pixel_hint,
             "pagesLoaded": self.pages.len(),
             "webtoon": { "anchor": self.wt_anchor, "offset": self.wt_offset },
             "error": self.error.clone(),

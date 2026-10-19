@@ -9,6 +9,7 @@ use gpui_kit::*;
 use araview_core::ops;
 
 use super::AraView;
+use super::settings_panel::Effect;
 use super::viewport::WT_KEY_SCROLL;
 use crate::dialog::{BackdropClick, PALETTE_HEIGHT, centered, watch_backdrop_click};
 use crate::geometry::{PAN_STEP, ZOOM_STEP};
@@ -16,13 +17,23 @@ use crate::i18n::{t, t_en};
 use crate::keys;
 use crate::layout;
 use crate::platform;
-use crate::settings::{FitMode, SettingsStore, ViewMode};
+use crate::settings::{FitMode, ImageScalingMode, SettingsStore, ViewMode};
 
 /// 단축키가 없는 팔레트 전용 명령.
 const OPEN_SETTINGS: &str = "openSettings";
 const CHECK_UPDATES: &str = "checkUpdates";
 const TOGGLE_DOCK: &str = "toggleDock";
 const TOGGLE_COVER: &str = "toggleCover";
+
+/// 우클릭 메뉴의 이미지 표시 하위 메뉴 항목. 설정 패널과 같은 라벨을 쓴다.
+const SCALING_MODES: &[(&str, ImageScalingMode)] = &[
+    ("settings.imageRendering.auto", ImageScalingMode::Auto),
+    ("settings.imageRendering.smooth", ImageScalingMode::Smooth),
+    (
+        "settings.imageRendering.pixelated",
+        ImageScalingMode::Pixelated,
+    ),
+];
 
 /// 팔레트 그룹 순서: file → navigate → view → display → system.
 const PALETTE_GROUPS: &[(&str, &[&str])] = &[
@@ -110,14 +121,8 @@ impl AraView {
             "panDown" if webtoon => self.webtoon_scroll_smooth(WT_KEY_SCROLL, window, cx),
             "panUp" => self.pan_by(0.0, PAN_STEP, window, cx),
             "panDown" => self.pan_by(0.0, -PAN_STEP, window, cx),
-            "zoomIn" => {
-                self.zoom_by(ZOOM_STEP, None, cx);
-                self.request_pixel_hint(window, cx);
-            }
-            "zoomOut" => {
-                self.zoom_by(1.0 / ZOOM_STEP, None, cx);
-                self.request_pixel_hint(window, cx);
-            }
+            "zoomIn" => self.zoom_by(ZOOM_STEP, None, cx),
+            "zoomOut" => self.zoom_by(1.0 / ZOOM_STEP, None, cx),
             "resetView" => self.reset_view(window, cx),
             "fitWidth" => self.set_fit_mode(FitMode::Width, cx),
             "fitHeight" => self.set_fit_mode(FitMode::Height, cx),
@@ -212,6 +217,24 @@ impl AraView {
             .item(item("flipH", window))
             .item(item("flipV", window))
             .separator()
+            .submenu(t("settings.imageRendering.title"), window, cx, {
+                let view = view.clone();
+                move |submenu, window, cx| {
+                    let current = SettingsStore::global(cx).settings.image_scaling_mode;
+                    SCALING_MODES.iter().fold(submenu, |submenu, &(key, mode)| {
+                        submenu.item(
+                            PopupMenuItem::new(t(key))
+                                .checked(current == mode)
+                                .on_click(window.listener_for(
+                                    &view,
+                                    move |this, _, window, cx| {
+                                        this.set_image_scaling_mode(mode, window, cx)
+                                    },
+                                )),
+                        )
+                    })
+                }
+            })
             .item(item("toggleExif", window))
             .item(item("toggleGrid", window))
             .item(item("toggleFullscreen", window))
@@ -239,6 +262,33 @@ impl AraView {
             ));
         }
         menu
+    }
+
+    /// 이미지 표시 방식을 바꾼다(SPEC §18). 설정 패널의 같은 항목과 같은 값을 저장한다.
+    fn set_image_scaling_mode(
+        &mut self,
+        mode: ImageScalingMode,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let settings = &SettingsStore::global(cx).settings;
+        let previous = settings.image_scaling_mode;
+        if previous == mode {
+            return;
+        }
+        let capped = settings.max_resolution.max_side().is_some();
+        SettingsStore::update(cx, |settings| settings.image_scaling_mode = mode);
+        // 해상도 상한 사본의 저장 형식(JPEG/PNG)이 바뀔 때만 다시 디코드한다. 다시
+        // 디코드하면 배율이 처음으로 돌아가므로, 나머지 경우는 다시 그리기만 한다.
+        let sidecar_changed = capped
+            && ops::parse_image_scaling_mode(Some(previous.as_str().to_owned()))
+                != ops::parse_image_scaling_mode(Some(mode.as_str().to_owned()));
+        let effect = if sidecar_changed {
+            Effect::Reload
+        } else {
+            Effect::Redraw
+        };
+        self.settings_changed(effect, window, cx);
     }
 
     /// `index` 페이지의 표지 지정을 뒤집어 ComicInfo.xml에 쓴다.

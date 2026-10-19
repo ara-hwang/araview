@@ -51,7 +51,6 @@ pub mod jxl;
 pub mod natural_sort;
 pub mod ops;
 pub mod orientation;
-pub mod pixel_art;
 pub mod process_temp;
 pub mod psd_sidecar;
 pub mod raster_sidecar;

@@ -37,21 +37,20 @@ const MAX_MAX_SIDE: u32 = 8192;
 /// 기본값(512MiB)이 걸려, 원본으로는 열리는 이미지가 상한을 켰을 때만 실패한다.
 const MAX_DECODE_ALLOC: u64 = 1024 * 1024 * 1024;
 
-/// 표시 설정에 따라 sidecar를 만들 때 사용할 보간 정책이다.
+/// 표시 설정에 따라 sidecar를 만들 때 사용할 저장 정책이다.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum ImageScalingMode {
     #[default]
     Smooth,
     Pixelated,
-    Auto,
 }
 
 impl ImageScalingMode {
-    /// Tauri command의 문자열 인자를 정규화한다. 알 수 없는 값은 안전한 smooth다.
-    pub fn from_command(value: Option<&str>, auto_detect: bool) -> Self {
+    /// 표시 설정 문자열을 정규화한다. `auto`와 알 수 없는 값은 smooth다(`auto`의
+    /// 픽셀 보존은 확대 배율에서 호스트가 정한다).
+    pub fn from_command(value: Option<&str>) -> Self {
         match value {
             Some("pixelated") => Self::Pixelated,
-            Some("auto") if auto_detect => Self::Auto,
             _ => Self::Smooth,
         }
     }
@@ -60,7 +59,6 @@ impl ImageScalingMode {
         match self {
             Self::Smooth => b's',
             Self::Pixelated => b'p',
-            Self::Auto => b'a',
         }
     }
 }
@@ -153,14 +151,8 @@ pub fn ensure_scaled_sidecar_with_mode(
         let img =
             crate::orientation::apply_to_image(img, crate::orientation::read_orientation(source));
         let has_alpha = img.color().has_alpha();
-        // 축소(sidecar 생성)는 감지 결과와 무관하게 항상 보간 필터를 쓴다.
-        // Nearest 축소는 스크린톤 같은 주기 패턴을 계단·무아레로 깨뜨린다. 픽셀
-        // 아트 감지는 확대 표시 힌트로만 쓰인다(스무딩 여부는 프론트가 배율로 결정).
-        // Auto 모드에서만 감지를 돌려 분석 결과를 후속 IPC 캐시에 남긴다.
-        let detection = match mode {
-            ImageScalingMode::Smooth | ImageScalingMode::Pixelated => None,
-            ImageScalingMode::Auto => Some(crate::pixel_art::detect_decoded_image(&img)),
-        };
+        // 축소(sidecar 생성)는 표시 정책과 무관하게 항상 보간 필터를 쓴다.
+        // Nearest 축소는 스크린톤 같은 주기 패턴을 계단·무아레로 깨뜨린다.
         let is_pixel_art = matches!(mode, ImageScalingMode::Pixelated);
         let filter = image::imageops::FilterType::Triangle;
         let scaled = img.resize(max_side, max_side, filter);
@@ -175,9 +167,6 @@ pub fn ensure_scaled_sidecar_with_mode(
                 )));
             }
             crate::sidecar::publish_atomic(&tmp, &png_dest, "Failed to publish scaled sidecar")?;
-            if let Some(detection) = &detection {
-                crate::pixel_art::cache_detection(&png_dest, detection);
-            }
             // Best effort: eviction failures must not fail image delivery.
             crate::process_temp::note_published(&png_dest, MAX_SCALED_BYTES);
             Ok(png_dest.clone())
@@ -188,9 +177,6 @@ pub fn ensure_scaled_sidecar_with_mode(
                 bytes: scaled.to_rgb8().into_raw(),
             };
             crate::sidecar::write_rgb8_jpeg_atomic(&jpeg_dest, &rgb, JPEG_QUALITY)?;
-            if let Some(detection) = &detection {
-                crate::pixel_art::cache_detection(&jpeg_dest, detection);
-            }
             crate::process_temp::note_published(&jpeg_dest, MAX_SCALED_BYTES);
             Ok(jpeg_dest.clone())
         }

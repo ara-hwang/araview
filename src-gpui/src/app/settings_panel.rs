@@ -411,18 +411,6 @@ impl SettingsPanel {
                 ),
                 cx,
             ))
-            .child(setting_row(
-                t("settings.imageRendering.autoDetect"),
-                None,
-                self.toggle(
-                    "auto-detect",
-                    s.auto_detect_pixel_art,
-                    |settings, value| settings.auto_detect_pixel_art = value,
-                    Effect::Reload,
-                    cx,
-                ),
-                cx,
-            ))
             .child(heading(t("settings.webtoon.title")))
             .child(setting_row(
                 t("settings.webtoon.pageBoundaries"),

@@ -178,10 +178,8 @@ impl AraView {
         }
         let settings = &SettingsStore::global(cx).settings;
         let max_side = settings.max_resolution.max_side();
-        let mode = ops::parse_image_scaling_mode(
-            Some(settings.image_scaling_mode.as_str().to_owned()),
-            Some(settings.auto_detect_pixel_art),
-        );
+        let mode =
+            ops::parse_image_scaling_mode(Some(settings.image_scaling_mode.as_str().to_owned()));
         let source = old_path.clone();
         let task = cx.background_spawn(async move {
             ops::rename_file_impl_with_mode(&source, &name, max_side, mode)

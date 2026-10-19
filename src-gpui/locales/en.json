@@ -180,11 +180,10 @@
     },
     "imageRendering": {
       "title": "Image rendering",
-      "desc": "Choose smooth scaling or crisp pixel preservation when enlarging the main image.",
+      "desc": "Choose smooth scaling or crisp pixel preservation when enlarging the main image. Automatic preserves pixels at 2x zoom and above.",
       "auto": "Automatic",
       "smooth": "Smooth",
-      "pixelated": "Preserve pixels",
-      "autoDetect": "Automatically detect pixel art"
+      "pixelated": "Preserve pixels"
     },
     "webtoon": {
       "title": "Webtoon details",
