@@ -790,40 +790,7 @@ dependencies and other-OS targets are excluded.
 | zvariant_derive | 5.15.1 | MIT |
 | zvariant_utils | 4.2.0 | MIT |
 
-## 3. Research reference notice (not a bundled dependency)
-
-`crates/araview-core/src/pixel_art.rs` was informed by the run-length, palette, Sobel
-profile, and autocorrelation ideas in [unfake.js](https://github.com/jenissimo/unfake.js),
-pinned for reference at commit `b2bee10c1c3b211a2532baca9088857b19480dca`.
-AraView contains an independent Rust implementation and does not ship the
-upstream JavaScript or add it as a runtime dependency. The upstream MIT notice
-is reproduced here for provenance:
-
-> MIT License
->
-> Copyright (c) 2024 unfake.js team
->
-> Permission is hereby granted, free of charge, to any person obtaining a copy
-> of this software and associated documentation files (the "Software"), to deal
-> in the Software without restriction, including without limitation the rights
-> to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-> copies of the Software, and to permit persons to whom the Software is
-> furnished to do so, subject to the following conditions:
->
-> The above copyright notice and this permission notice shall be included in all
-> copies or substantial portions of the Software.
->
-> THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-> IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-> FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-> AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-> LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-> OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-> SOFTWARE.
-| zustand | 5.0.15 | MIT |
-
-
-## 4. Bundled icon artwork
+## 3. Bundled icon artwork
 
 | Asset | Version | License | Note |
 | ----- | ------- | ------- | ---- |

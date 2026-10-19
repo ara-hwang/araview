@@ -2,11 +2,9 @@
 //! (SPEC §6, §7, §18).
 
 use std::collections::HashSet;
-use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use araview_core::pixel_art::PixelArtClassification;
 use gpui_kit::component::button::{Button, ButtonVariants as _};
 use gpui_kit::component::{ActiveTheme as _, Sizable as _, h_flex};
 use gpui_kit::prelude::FluentBuilder as _;
@@ -35,6 +33,8 @@ const WT_MIN_WIDTH: f32 = 64.0;
 pub(super) const WT_KEY_SCROLL: f32 = 120.0;
 /// 웹툰 스크롤이 목표 위치로 수렴하는 감속 시간 상수(초).
 const WT_SMOOTH_TIME: f32 = 0.08;
+/// 자동 표시 모드가 픽셀 보존으로 바뀌는 확대 배율(SPEC §18).
+const AUTO_PIXELATED_ZOOM: f32 = 2.0;
 /// 양쪽·웹툰 보기의 상대 배율 범위.
 const RELATIVE_ZOOM_MIN: f32 = 0.25;
 const RELATIVE_ZOOM_MAX: f32 = 4.0;
@@ -824,53 +824,11 @@ impl AraView {
         {
             return false;
         }
-        let settings = &SettingsStore::global(cx).settings;
-        match settings.image_scaling_mode {
+        match SettingsStore::global(cx).settings.image_scaling_mode {
             ImageScalingMode::Smooth => false,
             ImageScalingMode::Pixelated => true,
-            ImageScalingMode::Auto => {
-                self.zoom >= 2.0
-                    || (settings.auto_detect_pixel_art && self.pixel_hint == Some(true))
-            }
+            ImageScalingMode::Auto => self.zoom >= AUTO_PIXELATED_ZOOM,
         }
-    }
-
-    /// 자동 모드의 1x~2x 확대에서만 픽셀 아트 분석을 요청한다. 그 밖에서는 결과가
-    /// 판정에 쓰이지 않는다.
-    pub(super) fn request_pixel_hint(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let settings = &SettingsStore::global(cx).settings;
-        if self.pixel_hint.is_some()
-            || self.pixel_hint_pending
-            || self.view_mode(cx) != ViewMode::Single
-            || settings.image_scaling_mode != ImageScalingMode::Auto
-            || !settings.auto_detect_pixel_art
-            || !(1.0..2.0).contains(&self.zoom)
-        {
-            return;
-        }
-        let Some(info) = &self.info else {
-            return;
-        };
-        self.pixel_hint_pending = true;
-        let path = PathBuf::from(&info.file_path);
-        let generation = self.list_gen;
-        let index = self.index;
-        let task = cx.background_spawn(async move { araview_core::pixel_art::detect_file(&path) });
-        cx.spawn_in(window, async move |this, cx| {
-            let detection = task.await;
-            this.update(cx, |this, cx| {
-                this.pixel_hint_pending = false;
-                if this.list_gen == generation && this.index == index {
-                    this.pixel_hint = Some(matches!(
-                        detection.classification,
-                        PixelArtClassification::PixelArt
-                    ));
-                    cx.notify();
-                }
-            })
-            .ok();
-        })
-        .detach();
     }
 
     /// 보이는 영역만 최근접 보간으로 확대한 래스터를 만든다. GPUI 샘플러는 선형

@@ -158,8 +158,6 @@ pub struct AraView {
     loops_done: u32,
     /// 뒤로 넘기기 전에 도착할 자리의 페이지 크기를 확인하는 중인지.
     pending_back: bool,
-    pixel_hint: Option<bool>,
-    pixel_hint_pending: bool,
     pixel_view: Option<viewport::PixelView>,
 
     /// 웹툰 스크롤 위치: 화면 맨 위에 걸친 페이지와 그 안에서 내려간 거리.
@@ -239,8 +237,6 @@ impl AraView {
             frame_started: Instant::now(),
             loops_done: 0,
             pending_back: false,
-            pixel_hint: None,
-            pixel_hint_pending: false,
             pixel_view: None,
             wt_anchor: 0,
             wt_offset: 0.0,

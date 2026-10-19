@@ -508,7 +508,6 @@ impl AraView {
         let settings = &SettingsStore::global(cx).settings;
         let max_side = settings.max_resolution.max_side();
         let scaling = Some(settings.image_scaling_mode.as_str().to_owned());
-        let auto_detect = Some(settings.auto_detect_pixel_art);
         let archive = self.archive.clone();
         let task = cx.background_spawn(async move {
             let (info, archive_preview) = match &archive {
@@ -519,7 +518,6 @@ impl AraView {
                         max_side,
                         Some(protect),
                         scaling,
-                        auto_detect,
                     )?,
                     false,
                 ),
@@ -537,15 +535,11 @@ impl AraView {
                             max_side,
                             Some(protect),
                             scaling,
-                            auto_detect,
                         )?,
                         true,
                     )
                 }
-                None => (
-                    ops::load_image_blocking(&item, max_side, scaling, auto_detect)?,
-                    false,
-                ),
+                None => (ops::load_image_blocking(&item, max_side, scaling)?, false),
             };
             let picture = picture::load(
                 Path::new(&info.file_path),
@@ -666,8 +660,6 @@ impl AraView {
         self.apply_fit(cx);
         self.save_progress(cx);
         self.load_info(window, cx);
-        self.pixel_hint = None;
-        self.request_pixel_hint(window, cx);
         cx.notify();
     }
 
