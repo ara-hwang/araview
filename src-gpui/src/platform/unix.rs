@@ -15,6 +15,14 @@ use super::{Instance, MAX_MESSAGE};
 /// HDR 출력은 Windows에서만 지원한다.
 pub fn prepare_hdr_output(_enabled: bool) {}
 
+pub fn hdr_output_enabled() -> bool {
+    false
+}
+
+pub fn register_hdr_image(_image_id: usize, _width: u32, _height: u32, _rgba_f16: &[u16]) {}
+
+pub fn unregister_hdr_image(_image_id: usize) {}
+
 pub fn hwnd(_window: &Window) -> isize {
     0
 }

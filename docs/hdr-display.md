@@ -151,5 +151,17 @@ composition 경로 블로커가 해결되지 않으므로 접근을 변경한다
 - GPUI는 sRGB 인코딩 값을 감마 공간에서 블렌딩하므로, 장면은 기존과 같은 BGRA8 오프스크린 타깃에 그리고 Present 직전 전체 화면 패스 한 번으로 스왑체인에 옮긴다. UI 모양과 블렌딩 결과가 SDR 모드와 같다.
 - 변환: 구간별 sRGB EOTF로 선형화한 뒤 SDR 흰색 배율을 곱한다. 배율은 `DisplayConfigGetDeviceInfo(DISPLAYCONFIG_DEVICE_INFO_GET_SDR_WHITE_LEVEL)`의 `SDRWhiteLevel / 1000`(1.0 = 80 nit)이고, 창 모니터를 `viewGdiDeviceName`으로 찾는다. 120프레임마다 다시 읽어 모니터 이동과 설정 변경을 따라간다. 조회 실패 시 1.0.
 - 변환 셰이더는 빌드 스크립트(fxc)를 건드리지 않으려고 런타임에 `D3DCompile`로 컴파일한다.
-- 한계: 오프스크린이 8비트라 1.0을 넘는 값은 아직 없다. HDR 이미지를 확장 범위로 보이려면 오프스크린을 FP16으로 바꾸고 16F 이미지 텍스처 경로(M3)가 필요하다.
+- 한계(3단계에서 해소): 오프스크린이 8비트라 1.0을 넘는 값이 없었다.
 - 런타임 확인: 사용자 환경에서 SDR 흰색 배율 3.5(280 nit)로 읽힘, selftest 21항목 통과(전체 화면 전환으로 ResizeBuffers 경로 포함). 화면 캡처는 DWM이 SDR로 되돌린 값이라 HDR 패널에서 SDR 모드와 밝기가 같은지는 눈으로 확인해야 한다.
+
+### M3: 확장 범위 이미지 표시 (2026-10-19)
+
+gpui-pre 코어를 포크하지 않고 Windows 포크와 앱만으로 구현했다.
+
+- 오프스크린: HDR 모드에서 `R16G16B16A16_FLOAT`. 변환 패스는 1.0을 넘는 인코딩 값을 같은 sRGB 곡선으로 이어 선형화한다.
+- 톤 매핑: SDR 흰색까지는 그대로, 그 위는 `white + (peak - white) * (1 - exp(-over / (peak - white)))`로 패널 피크에 다가간다. 피크는 스왑체인 출력의 `IDXGIOutput6::GetDesc1().MaxLuminance`(출력 색 공간이 G2084일 때만)이고, 모르면 SDR 흰색에서 자른다.
+- 이미지 텍스처: `gpui_windows::register_hdr_image(image_id, w, h, rgba_f16)`로 앱이 `RenderImage` ID별 FP16 픽셀을 등록하면, 아틀라스가 그 이미지를 BGRA8 대신 별도 RGBA16F 텍스처에 올린다. 폴리크롬 스프라이트 셰이더는 값을 그대로 통과시키므로 셰이더 변경은 없다. gpui에는 같은 크기의 SDR `RenderImage`가 그대로 넘어가 레이아웃·캐시·SDR 폴백이 바뀌지 않는다.
+- 디코드: `raster_sidecar::decode_linear`가 OpenEXR·Radiance HDR을 `Rgba32F`로 디코드한다(원본 `source_path`, 렌더 경로는 JPEG sidecar라 쓰지 않는다). `picture.rs`가 방향·축소 단계·타일을 SDR과 같게 만들고, 선형 값(1.0 = SDR 흰색)을 sRGB 곡선으로 인코딩해 f16으로 등록한다. 타일이 버려지면 `HdrRegistration`이 등록을 놓는다. 애니메이션과 크기가 다른 렌더 사본은 SDR로 둔다.
+- 런타임 확인: 사용자 환경에서 SDR 흰색 280 nit, 피크 400 nit로 읽힘. sample.hdr(32x16)·sample.exr(400x300)이 RGBA16F로 올라감(디버그 로그 `uploading HDR image`). HDR 모드 selftest 21항목 통과. 밝기 띠 패턴(0.5/1.0/1.2/1.4/2/4/8배, `samples/sample-hdr-bands.hdr` 700x300, 확인 당시 1600x900)에서 SDR 흰색 위 띠가 패널에서 더 밝게 구분됨을 사용자가 눈으로 확인했다. 화면 캡처는 80 nit을 넘는 값을 잘라 판정에 쓸 수 없다.
+- 남은 일: 노출 조절, 설정 토글(M4), 큰 EXR의 메모리(f32 디코드 + f16 사본) 상한.
+

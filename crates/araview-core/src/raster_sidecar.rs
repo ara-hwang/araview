@@ -65,6 +65,22 @@ pub(crate) fn decode_rgb8(source: &Path) -> Result<Rgb8, AppError> {
     let format = crate::image::resolve_mime(source)
         .and_then(format_for_mime)
         .ok_or_else(|| AppError::unsupported("Unsupported image format"))?;
+    Ok(flatten_to_rgb8(decode_dynamic(source, format)?))
+}
+
+/// 선형 부동소수 포맷(OpenEXR, Radiance HDR)을 1.0을 넘는 값까지 보존해 디코드한다.
+/// HDR 디스플레이 출력용이다. 다른 포맷은 `None`.
+pub fn decode_linear(source: &Path) -> Result<Option<image::Rgba32FImage>, AppError> {
+    let format = crate::image::resolve_mime(source).and_then(format_for_mime);
+    match format {
+        Some(format @ (ImageFormat::OpenExr | ImageFormat::Hdr)) => {
+            Ok(Some(decode_dynamic(source, format)?.into_rgba32f()))
+        }
+        _ => Ok(None),
+    }
+}
+
+fn decode_dynamic(source: &Path, format: ImageFormat) -> Result<DynamicImage, AppError> {
     let meta = fs::metadata(source)
         .map_err(|e| AppError::io("Failed to read metadata", e, ErrorCode::Corrupt))?;
     if meta.len() > MAX_FILE_BYTES {
@@ -83,9 +99,8 @@ pub(crate) fn decode_rgb8(source: &Path) -> Result<Rgb8, AppError> {
     if u64::from(width).saturating_mul(u64::from(height)) > MAX_DECODE_PIXELS {
         return Err(AppError::too_large("Image dimensions are too large"));
     }
-    let img = DynamicImage::from_decoder(decoder)
-        .map_err(|e| AppError::image_error("Failed to decode image", e))?;
-    Ok(flatten_to_rgb8(img))
+    DynamicImage::from_decoder(decoder)
+        .map_err(|e| AppError::image_error("Failed to decode image", e))
 }
 
 /// 합성 픽셀을 RGB8로 옮긴다. 투명은 흰 배경에 합성한다
@@ -171,6 +186,16 @@ mod tests {
         // sample.pam의 첫 열은 알파 0이므로 흰 배경 합성 결과다.
         let decoded = decode_rgb8(&sample("sample.pam")).unwrap();
         assert_eq!(&decoded.bytes[..3], &[255, 255, 255]);
+    }
+
+    #[test]
+    fn decode_linear_keeps_overbright_values() {
+        // sample.hdr의 (0,0)은 2.0이다. 표시용 8비트 경로와 달리 잘리지 않아야 한다.
+        let img = decode_linear(&sample("sample.hdr")).unwrap().unwrap();
+        assert_eq!(img.dimensions(), (32, 16));
+        let p = img.get_pixel(0, 0).0;
+        assert!(p[0] > 1.5, "overbright value was clamped: {p:?}");
+        assert!(decode_linear(&sample("sample.qoi")).unwrap().is_none());
     }
 
     #[test]

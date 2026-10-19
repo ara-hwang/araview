@@ -39,6 +39,7 @@ pub(crate) use vsync::*;
 pub(crate) use window::*;
 pub(crate) use wrapper::*;
 
+pub use hdr_output::{register_hdr_image, unregister_hdr_image};
 pub use platform::WindowsPlatform;
 
 /// AraView fork: HDR 출력은 DirectComposition 스왑체인에서 DWM이 FP16 scRGB 버퍼를

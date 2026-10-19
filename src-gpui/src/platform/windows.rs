@@ -74,6 +74,20 @@ pub fn prepare_hdr_output(enabled: bool) {
     gpui_windows::set_hdr_output(enabled);
 }
 
+/// HDR 출력 모드인지. 켜져 있을 때만 확장 범위 픽셀을 만든다.
+pub fn hdr_output_enabled() -> bool {
+    gpui_windows::hdr_output()
+}
+
+/// `RenderImage`(`image_id`)를 HDR 출력에서 RGBA f16 픽셀(sRGB 인코딩, 1.0 = SDR 흰색)로 그린다.
+pub fn register_hdr_image(image_id: usize, width: u32, height: u32, rgba_f16: &[u16]) {
+    gpui_windows::register_hdr_image(image_id, width, height, rgba_f16);
+}
+
+pub fn unregister_hdr_image(image_id: usize) {
+    gpui_windows::unregister_hdr_image(image_id);
+}
+
 pub fn hwnd(window: &Window) -> isize {
     match HasWindowHandle::window_handle(window).map(|handle| handle.as_raw()) {
         Ok(RawWindowHandle::Win32(handle)) => handle.hwnd.get(),

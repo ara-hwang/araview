@@ -21,10 +21,14 @@ struct DirectXAtlasTextures {
     monochrome_textures: AtlasTextureList<DirectXAtlasTexture>,
     polychrome_textures: AtlasTextureList<DirectXAtlasTexture>,
     subpixel_textures: AtlasTextureList<DirectXAtlasTexture>,
+    // AraView fork: 다음 insert가 HDR 이미지(RGBA16F)인지.
+    pending_hdr: bool,
 }
 
 struct DirectXAtlasTexture {
     id: AtlasTextureId,
+    // AraView fork: RGBA16F 텍스처인지. HDR 이미지는 이 텍스처에만 배치한다.
+    hdr: bool,
     bytes_per_pixel: u32,
     allocator: BucketedAtlasAllocator,
     texture: ID3D11Texture2D,
@@ -40,6 +44,7 @@ impl DirectXAtlas {
             monochrome_textures: Default::default(),
             polychrome_textures: Default::default(),
             subpixel_textures: Default::default(),
+            pending_hdr: false,
         })))
     }
 
@@ -80,7 +85,36 @@ impl PlatformAtlas for DirectXAtlas {
             Option<(Size<DevicePixels>, std::borrow::Cow<'a, [u8]>)>,
         >,
     ) -> anyhow::Result<Option<AtlasTile>> {
-        self.0.lock().get_or_insert_with(key, build)
+        // AraView fork: 앱이 HDR 픽셀을 등록한 이미지는 그 픽셀을 RGBA16F로 올린다.
+        let hdr = match &key {
+            AtlasKey::Image(params) if params.frame_index == 0 && crate::hdr_output() => {
+                crate::hdr_output::hdr_image(params.image_id.0)
+            }
+            _ => None,
+        };
+        let mut lock = self.0.lock();
+        let Some(hdr) = hdr else {
+            return lock.get_or_insert_with(key, build);
+        };
+        let image_id = params_id(&key);
+        lock.backend.pending_hdr = true;
+        let mut hdr_build = || {
+            log::debug!(
+                "uploading HDR image {image_id} ({}x{})",
+                hdr.width,
+                hdr.height
+            );
+            Ok(Some((
+                Size {
+                    width: DevicePixels(hdr.width as i32),
+                    height: DevicePixels(hdr.height as i32),
+                },
+                std::borrow::Cow::Borrowed(&hdr.bytes[..]),
+            )))
+        };
+        let result = lock.get_or_insert_with(key, &mut hdr_build);
+        lock.backend.pending_hdr = false;
+        result
     }
 
     fn remove(&self, key: &AtlasKey) {
@@ -95,8 +129,9 @@ impl AtlasBackend for DirectXAtlasTextures {
         size: Size<DevicePixels>,
         bytes: &[u8],
     ) -> anyhow::Result<AtlasTile> {
+        let hdr = std::mem::take(&mut self.pending_hdr);
         let tile = self
-            .allocate(size, kind)
+            .allocate(size, kind, hdr)
             .ok_or_else(|| anyhow::anyhow!("failed to allocate"))?;
         let texture = self
             .texture(tile.texture_id)
@@ -135,6 +170,7 @@ impl DirectXAtlasTextures {
         &mut self,
         size: Size<DevicePixels>,
         texture_kind: AtlasTextureKind,
+        hdr: bool,
     ) -> Option<AtlasTile> {
         {
             let textures = match texture_kind {
@@ -146,13 +182,14 @@ impl DirectXAtlasTextures {
             if let Some(tile) = textures
                 .iter_mut()
                 .rev()
+                .filter(|texture| texture.hdr == hdr)
                 .find_map(|texture| texture.allocate(size))
             {
                 return Some(tile);
             }
         }
 
-        let texture = self.push_texture(size, texture_kind)?;
+        let texture = self.push_texture(size, texture_kind, hdr)?;
         texture.allocate(size)
     }
 
@@ -160,6 +197,7 @@ impl DirectXAtlasTextures {
         &mut self,
         min_size: Size<DevicePixels>,
         kind: AtlasTextureKind,
+        hdr: bool,
     ) -> Option<&mut DirectXAtlasTexture> {
         const DEFAULT_ATLAS_SIZE: Size<DevicePixels> = Size {
             width: DevicePixels(1024),
@@ -180,6 +218,11 @@ impl DirectXAtlasTextures {
                 pixel_format = DXGI_FORMAT_R8_UNORM;
                 bind_flag = D3D11_BIND_SHADER_RESOURCE;
                 bytes_per_pixel = 1;
+            }
+            AtlasTextureKind::Polychrome if hdr => {
+                pixel_format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+                bind_flag = D3D11_BIND_SHADER_RESOURCE;
+                bytes_per_pixel = 8;
             }
             AtlasTextureKind::Polychrome => {
                 pixel_format = DXGI_FORMAT_B8G8R8A8_UNORM;
@@ -235,6 +278,7 @@ impl DirectXAtlasTextures {
                 index: index.unwrap_or(texture_list.textures.len()) as u32,
                 kind,
             },
+            hdr,
             bytes_per_pixel,
             allocator: etagere::BucketedAtlasAllocator::new(device_size_to_etagere(size)),
             texture,
@@ -325,6 +369,13 @@ impl DirectXAtlasTexture {
 
     fn is_unreferenced(&mut self) -> bool {
         self.live_atlas_keys == 0
+    }
+}
+
+fn params_id(key: &AtlasKey) -> usize {
+    match key {
+        AtlasKey::Image(params) => params.image_id.0,
+        _ => usize::MAX,
     }
 }
 

@@ -263,7 +263,12 @@ impl DirectXRenderer {
             self.resources.as_ref(),
         ) && let Some(targets) = resources.hdr_targets.as_ref()
         {
-            pass.run(&devices.device_context, targets, &resources.viewport)?;
+            pass.run(
+                &devices.device_context,
+                &resources.swap_chain,
+                targets,
+                &resources.viewport,
+            )?;
         }
         let result = unsafe {
             self.resources
@@ -450,6 +455,11 @@ impl DirectXRenderer {
         anyhow::ensure!(
             !self.skip_draws,
             "render_to_image unavailable while recovering from a lost device"
+        );
+        // AraView fork: HDR 모드의 오프스크린은 FP16이라 아래 BGRA 읽기와 맞지 않는다.
+        anyhow::ensure!(
+            self.hdr_pass.is_none(),
+            "render_to_image unavailable in HDR output mode"
         );
         self.render(scene, background_appearance)?;
 
@@ -1437,7 +1447,7 @@ fn create_resources(
             &devices.device,
             width,
             height,
-            RENDER_TARGET_FORMAT,
+            HDR_SWAP_CHAIN_FORMAT,
         )?
     } else {
         create_render_target_and_its_view(swap_chain, &devices.device)?

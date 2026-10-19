@@ -547,7 +547,11 @@ impl AraView {
                     false,
                 ),
             };
-            let picture = picture::load(Path::new(&info.file_path), Orientation::default())?;
+            let picture = picture::load(
+                Path::new(&info.file_path),
+                Path::new(&info.source_path),
+                Orientation::default(),
+            )?;
             Ok::<_, AppError>(Page {
                 info,
                 picture: Arc::new(picture),
@@ -699,7 +703,8 @@ impl AraView {
         let seq = self.orient_seq;
         let generation = self.list_gen;
         let path = PathBuf::from(&info.file_path);
-        let task = cx.background_spawn(async move { picture::load(&path, orientation) });
+        let source = PathBuf::from(&info.source_path);
+        let task = cx.background_spawn(async move { picture::load(&path, &source, orientation) });
         cx.spawn_in(window, async move |this, cx| {
             let result = task.await;
             this.update_in(cx, |this, window, cx| {

@@ -299,6 +299,7 @@ dependencies = [
  "env_logger",
  "gpui-kit",
  "gpui-pre-windows",
+ "half",
  "image",
  "libc",
  "log",
