@@ -4,7 +4,7 @@
 //! (`unix.rs`)으로 구현한다. 두 구현은 같은 공개 함수 집합을 가진다.
 
 use std::sync::mpsc::Receiver;
-#[cfg(all(debug_assertions, not(test)))]
+#[cfg(debug_assertions)]
 use std::sync::mpsc::Sender;
 
 /// 단일 인스턴스 판정 결과.
@@ -16,7 +16,7 @@ pub enum Instance {
 }
 
 /// 개발 빌드의 제어 통로. 에이전트가 실행 중인 창의 상태를 읽고 입력을 넣는다.
-#[cfg(all(debug_assertions, not(test)))]
+#[cfg(debug_assertions)]
 pub struct Control {
     /// 요청 한 줄(JSON)을 앱으로 넘긴다.
     pub requests: Receiver<String>,

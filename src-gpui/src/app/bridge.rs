@@ -9,8 +9,6 @@
 //! 통로는 `\\.\pipe\<식별자>-control` 위의 한 줄 JSON 요청과 한 줄 JSON 응답이다.
 //! 명령 목록과 사용 절차는 `docs/playbooks.md`의 "Runtime check"를 본다.
 
-#![cfg_attr(test, allow(dead_code))]
-
 use std::path::PathBuf;
 
 use gpui_kit::component::WindowExt as _;
@@ -22,7 +20,6 @@ use super::AraView;
 use crate::settings::ViewMode;
 
 /// 제어 파이프를 열고 요청을 처리하는 루프를 띄운다(개발 빌드의 실행 파일 전용).
-#[cfg(not(test))]
 pub(super) fn listen(
     identifier: &str,
     view: Entity<AraView>,
@@ -105,21 +102,6 @@ pub(super) fn listen(
     .detach();
 }
 
-/// 제어 요청 하나를 실행하고 응답 한 줄(JSON)을 만든다. 헤드리스 테스트가 파이프 없이 쓴다.
-/// 입력 주입이 곧바로 뷰를 업데이트하므로 뷰 업데이트 안이 아니라 앱 수준에서 부른다.
-#[cfg(test)]
-pub(super) fn handle_control(
-    request: &Value,
-    window: &mut Window,
-    cx: &mut App,
-    view: &Entity<AraView>,
-) -> String {
-    match apply_control(request, window, cx, view) {
-        Ok(()) => reply(request, window, cx, view),
-        Err(error) => error_reply(&error),
-    }
-}
-
 /// 요청을 실행한다. 읽기만 하는 명령은 상태를 바꾸지 않는다.
 fn apply_control(
     request: &Value,
@@ -194,7 +176,7 @@ fn apply_input(request: &Value, window: &mut Window, cx: &mut App) -> Result<(),
             window.dispatch_keystroke(keystroke, cx);
         }
         "text" => {
-            // `VisualTestContext::simulate_input`과 같은 경로로 글자를 넣는다.
+            // 글자마다 키 입력 하나로 보낸다.
             for character in text_field(request, "value")?.chars() {
                 let key = character.to_string();
                 window.dispatch_keystroke(
