@@ -59,7 +59,9 @@ const isTemplateText = (id) => /<year>|<owner>|<copyright holders?>/i.test(texts
 
 const packages = []
 for (const { package: pkg, license } of about.crates) {
-  if (!pkg.source) continue // 프로젝트 자신
+  // 출처가 없으면 프로젝트 자신이다. 단 vendor/의 포크는 서드파티로 남긴다.
+  const vendored = /[\\/]vendor[\\/]/.test(pkg.manifest_path ?? "")
+  if (!pkg.source && !vendored) continue
   const extra = EXTRA_LICENSES[pkg.name]
   const files = extra
     ? [

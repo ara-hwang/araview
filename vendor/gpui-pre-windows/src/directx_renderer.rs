@@ -20,6 +20,7 @@ use windows::{
 };
 
 use crate::directx_renderer::shader_resources::{RawShaderBytes, ShaderModule, ShaderTarget};
+use crate::hdr_output::{HDR_SWAP_CHAIN_FORMAT, HdrPass, HdrTargets};
 use crate::*;
 use gpui::*;
 
@@ -44,6 +45,8 @@ pub(crate) struct DirectXRenderer {
     globals: DirectXGlobalElements,
     pipelines: DirectXRenderPipelines,
     direct_composition: Option<DirectComposition>,
+    // AraView fork: HDR 출력 변환 패스(hwnd 스왑체인일 때만).
+    hdr_pass: Option<HdrPass>,
     font_info: &'static FontInfo,
 
     width: u32,
@@ -81,6 +84,10 @@ struct DirectXResources {
 
     // Cached viewport
     viewport: D3D11_VIEWPORT,
+
+    // AraView fork: HDR 모드면 render_target은 오프스크린이고 이것이 스왑체인으로 옮긴다.
+    hdr: bool,
+    hdr_targets: Option<HdrTargets>,
 }
 
 struct DirectXRenderPipelines {
@@ -164,8 +171,14 @@ impl DirectXRenderer {
             .context("Creating DirectX devices")?;
         let atlas = Arc::new(DirectXAtlas::new(&devices.device, &devices.device_context));
 
-        let resources = DirectXResources::new(&devices, 1, 1, hwnd, disable_direct_composition)
-            .context("Creating DirectX resources")?;
+        let hdr = disable_direct_composition && crate::hdr_output();
+        let resources =
+            DirectXResources::new(&devices, 1, 1, hwnd, disable_direct_composition, hdr)
+                .context("Creating DirectX resources")?;
+        let hdr_pass = hdr
+            .then(|| HdrPass::new(&devices.device, hwnd))
+            .transpose()
+            .context("Creating HDR output pass")?;
         let globals = DirectXGlobalElements::new(&devices.device)
             .context("Creating DirectX global elements")?;
         let pipelines = DirectXRenderPipelines::new(&devices.device)
@@ -190,6 +203,7 @@ impl DirectXRenderer {
             globals,
             pipelines,
             direct_composition,
+            hdr_pass,
             font_info: Self::get_font_info(),
             width: 1,
             height: 1,
@@ -243,6 +257,14 @@ impl DirectXRenderer {
 
     #[inline]
     fn present(&mut self) -> Result<()> {
+        if let (Some(pass), Some(devices), Some(resources)) = (
+            self.hdr_pass.as_mut(),
+            self.devices.as_ref(),
+            self.resources.as_ref(),
+        ) && let Some(targets) = resources.hdr_targets.as_ref()
+        {
+            pass.run(&devices.device_context, targets, &resources.viewport)?;
+        }
         let result = unsafe {
             self.resources
                 .as_ref()
@@ -288,14 +310,20 @@ impl DirectXRenderer {
 
         let devices = DirectXRendererDevices::new(directx_devices, disable_direct_composition)
             .context("Recreating DirectX devices")?;
+        let hdr = disable_direct_composition && crate::hdr_output();
         let resources = DirectXResources::new(
             &devices,
             self.width,
             self.height,
             self.hwnd,
             disable_direct_composition,
+            hdr,
         )
         .context("Creating DirectX resources")?;
+        let hdr_pass = hdr
+            .then(|| HdrPass::new(&devices.device, self.hwnd))
+            .transpose()
+            .context("Creating HDR output pass")?;
         let globals = DirectXGlobalElements::new(&devices.device)
             .context("Creating DirectXGlobalElements")?;
         let pipelines = DirectXRenderPipelines::new(&devices.device)
@@ -323,6 +351,7 @@ impl DirectXRenderer {
         self.globals = globals;
         self.pipelines = pipelines;
         self.direct_composition = direct_composition;
+        self.hdr_pass = hdr_pass;
         self.skip_draws = true;
         Ok(())
     }
@@ -497,6 +526,13 @@ impl DirectXRenderer {
         let resources = self.resources.as_mut().context("resources missing")?;
         resources.render_target.take();
         resources.render_target_view.take();
+        // 백버퍼를 잡은 뷰가 남아 있으면 ResizeBuffers가 실패한다.
+        resources.hdr_targets.take();
+        let format = if resources.hdr {
+            HDR_SWAP_CHAIN_FORMAT
+        } else {
+            RENDER_TARGET_FORMAT
+        };
 
         // Resizing the swap chain requires a call to the underlying DXGI adapter, which can return the device removed error.
         // The app might have moved to a monitor that's attached to a different graphics device.
@@ -509,7 +545,7 @@ impl DirectXRenderer {
                     BUFFER_COUNT as u32,
                     width,
                     height,
-                    RENDER_TARGET_FORMAT,
+                    format,
                     DXGI_SWAP_CHAIN_FLAG(0),
                 )
                 .context("Failed to resize swap chain")?;
@@ -877,9 +913,17 @@ impl DirectXResources {
         height: u32,
         hwnd: HWND,
         disable_direct_composition: bool,
+        hdr: bool,
     ) -> Result<Self> {
         let swap_chain = if disable_direct_composition {
-            create_swap_chain(&devices.dxgi_factory, &devices.device, hwnd, width, height)?
+            create_swap_chain(
+                &devices.dxgi_factory,
+                &devices.device,
+                hwnd,
+                width,
+                height,
+                hdr,
+            )?
         } else {
             create_swap_chain_for_composition(
                 &devices.dxgi_factory,
@@ -897,8 +941,11 @@ impl DirectXResources {
             path_intermediate_msaa_texture,
             path_intermediate_msaa_view,
             viewport,
-        ) = create_resources(devices, &swap_chain, width, height)?;
+        ) = create_resources(devices, &swap_chain, width, height, hdr)?;
         set_rasterizer_state(&devices.device, &devices.device_context)?;
+        let hdr_targets = hdr
+            .then(|| HdrTargets::new(&devices.device, &swap_chain, &render_target))
+            .transpose()?;
 
         Ok(Self {
             swap_chain,
@@ -909,6 +956,8 @@ impl DirectXResources {
             path_intermediate_msaa_view,
             path_intermediate_srv,
             viewport,
+            hdr,
+            hdr_targets,
         })
     }
 
@@ -927,7 +976,14 @@ impl DirectXResources {
             path_intermediate_msaa_texture,
             path_intermediate_msaa_view,
             viewport,
-        ) = create_resources(devices, &self.swap_chain, width, height)?;
+        ) = create_resources(devices, &self.swap_chain, width, height, self.hdr)?;
+        if self.hdr {
+            self.hdr_targets = Some(HdrTargets::new(
+                &devices.device,
+                &self.swap_chain,
+                &render_target,
+            )?);
+        }
         self.render_target = Some(render_target);
         self.render_target_view = render_target_view;
         self.path_intermediate_texture = path_intermediate_texture;
@@ -1327,13 +1383,18 @@ fn create_swap_chain(
     hwnd: HWND,
     width: u32,
     height: u32,
+    hdr: bool,
 ) -> Result<IDXGISwapChain1> {
     use windows::Win32::Graphics::Dxgi::DXGI_MWA_NO_ALT_ENTER;
 
     let desc = DXGI_SWAP_CHAIN_DESC1 {
         Width: width,
         Height: height,
-        Format: RENDER_TARGET_FORMAT,
+        Format: if hdr {
+            HDR_SWAP_CHAIN_FORMAT
+        } else {
+            RENDER_TARGET_FORMAT
+        },
         Stereo: false.into(),
         SampleDesc: DXGI_SAMPLE_DESC {
             Count: 1,
@@ -1349,6 +1410,9 @@ fn create_swap_chain(
     let swap_chain =
         unsafe { dxgi_factory.CreateSwapChainForHwnd(device, hwnd, &desc, None, None) }?;
     unsafe { dxgi_factory.MakeWindowAssociation(hwnd, DXGI_MWA_NO_ALT_ENTER) }?;
+    if hdr {
+        crate::hdr_output::set_scrgb_color_space(&swap_chain)?;
+    }
     Ok(swap_chain)
 }
 
@@ -1358,6 +1422,7 @@ fn create_resources(
     swap_chain: &IDXGISwapChain1,
     width: u32,
     height: u32,
+    hdr: bool,
 ) -> Result<(
     ID3D11Texture2D,
     Option<ID3D11RenderTargetView>,
@@ -1367,8 +1432,16 @@ fn create_resources(
     Option<ID3D11RenderTargetView>,
     D3D11_VIEWPORT,
 )> {
-    let (render_target, render_target_view) =
-        create_render_target_and_its_view(swap_chain, &devices.device)?;
+    let (render_target, render_target_view) = if hdr {
+        crate::hdr_output::create_scene_target(
+            &devices.device,
+            width,
+            height,
+            RENDER_TARGET_FORMAT,
+        )?
+    } else {
+        create_render_target_and_its_view(swap_chain, &devices.device)?
+    };
     let (path_intermediate_texture, path_intermediate_srv) =
         create_path_intermediate_texture(&devices.device, width, height)?;
     let (path_intermediate_msaa_texture, path_intermediate_msaa_view) =

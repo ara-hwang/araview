@@ -143,5 +143,13 @@ composition 경로 블로커가 해결되지 않으므로 접근을 변경한다
 - 포크: `vendor/gpui-pre-windows`(crates.io 0.3.9 원본 복사)를 루트 `Cargo.toml`의 `[patch.crates-io]`로 연결했다.
 - 포크 변경: `gpui_windows::set_hdr_output(bool)`을 추가했다. 켜면 플랫폼 초기화에서 `GPUI_DISABLE_DIRECT_COMPOSITION`과 같이 hwnd 스왑체인(`CreateSwapChainForHwnd`)을 쓰고 `WS_EX_NOREDIRECTIONBITMAP`을 빼고 창을 만든다.
 - AraView: `platform::prepare_hdr_output`이 GPUI 플랫폼을 만들기 전에 이 함수를 부른다. M4의 설정 토글 전까지는 `ARAVIEW_HDR_OUTPUT=1` 환경 변수로만 켠다.
-- 아직 스왑체인 형식은 `B8G8R8A8_UNORM`이다. FP16·scRGB 출력과 셰이더 분기는 다음 단계다.
 - 런타임 확인: HDR 모드에서 exstyle `0x40100`(NOREDIRECTIONBITMAP 없음), 화면 캡처와 selftest 21항목 통과. 기본 모드는 exstyle `0x240100`으로 composition 경로를 유지한다.
+
+### M2 2차 시도 2단계: FP16 scRGB 출력 (2026-10-19)
+
+- `vendor/gpui-pre-windows/src/hdr_output.rs`. HDR 모드에서 스왑체인은 `R16G16B16A16_FLOAT` + `SetColorSpace1(DXGI_COLOR_SPACE_RGB_FULL_G10_NONE_P709)`이다.
+- GPUI는 sRGB 인코딩 값을 감마 공간에서 블렌딩하므로, 장면은 기존과 같은 BGRA8 오프스크린 타깃에 그리고 Present 직전 전체 화면 패스 한 번으로 스왑체인에 옮긴다. UI 모양과 블렌딩 결과가 SDR 모드와 같다.
+- 변환: 구간별 sRGB EOTF로 선형화한 뒤 SDR 흰색 배율을 곱한다. 배율은 `DisplayConfigGetDeviceInfo(DISPLAYCONFIG_DEVICE_INFO_GET_SDR_WHITE_LEVEL)`의 `SDRWhiteLevel / 1000`(1.0 = 80 nit)이고, 창 모니터를 `viewGdiDeviceName`으로 찾는다. 120프레임마다 다시 읽어 모니터 이동과 설정 변경을 따라간다. 조회 실패 시 1.0.
+- 변환 셰이더는 빌드 스크립트(fxc)를 건드리지 않으려고 런타임에 `D3DCompile`로 컴파일한다.
+- 한계: 오프스크린이 8비트라 1.0을 넘는 값은 아직 없다. HDR 이미지를 확장 범위로 보이려면 오프스크린을 FP16으로 바꾸고 16F 이미지 텍스처 경로(M3)가 필요하다.
+- 런타임 확인: 사용자 환경에서 SDR 흰색 배율 3.5(280 nit)로 읽힘, selftest 21항목 통과(전체 화면 전환으로 ResizeBuffers 경로 포함). 화면 캡처는 DWM이 SDR로 되돌린 값이라 HDR 패널에서 SDR 모드와 밝기가 같은지는 눈으로 확인해야 한다.

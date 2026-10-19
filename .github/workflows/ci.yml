@@ -68,7 +68,7 @@ jobs:
           # 비교 대상을 못 찾으면(새 브랜치의 0 커밋, 강제 푸시 등) 안전하게 돌린다.
           if ! files=$(git diff --name-only "$BASE_SHA" HEAD 2>/dev/null); then
             echo "rust=true" >> "$GITHUB_OUTPUT"
-          elif echo "$files" | grep -Eq '^(crates/|src-gpui/|Cargo\.(toml|lock)$|rust-toolchain\.toml$|deny\.toml$|\.cargo/|\.github/actions/setup-rust-native/|\.github/workflows/ci\.yml$)'; then
+          elif echo "$files" | grep -Eq '^(crates/|src-gpui/|vendor/|Cargo\.(toml|lock)$|rust-toolchain\.toml$|deny\.toml$|\.cargo/|\.github/actions/setup-rust-native/|\.github/workflows/ci\.yml$)'; then
             echo "rust=true" >> "$GITHUB_OUTPUT"
           else
             echo "rust=false" >> "$GITHUB_OUTPUT"
