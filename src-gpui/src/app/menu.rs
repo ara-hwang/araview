@@ -271,14 +271,18 @@ impl AraView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let previous = SettingsStore::global(cx).settings.image_scaling_mode;
+        let settings = &SettingsStore::global(cx).settings;
+        let previous = settings.image_scaling_mode;
         if previous == mode {
             return;
         }
+        let capped = settings.max_resolution.max_side().is_some();
         SettingsStore::update(cx, |settings| settings.image_scaling_mode = mode);
-        // 해상도 상한 사본의 저장 형식이 바뀔 때만 다시 디코드한다. 나머지는 다시 그리면 된다.
-        let sidecar_changed = ops::parse_image_scaling_mode(Some(previous.as_str().to_owned()))
-            != ops::parse_image_scaling_mode(Some(mode.as_str().to_owned()));
+        // 해상도 상한 사본의 저장 형식(JPEG/PNG)이 바뀔 때만 다시 디코드한다. 다시
+        // 디코드하면 배율이 처음으로 돌아가므로, 나머지 경우는 다시 그리기만 한다.
+        let sidecar_changed = capped
+            && ops::parse_image_scaling_mode(Some(previous.as_str().to_owned()))
+                != ops::parse_image_scaling_mode(Some(mode.as_str().to_owned()));
         let effect = if sidecar_changed {
             Effect::Reload
         } else {
