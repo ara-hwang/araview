@@ -125,7 +125,7 @@ npm run licenses
 - 스크롤: GPUI에는 휠 스크롤 감속이 없어 `src/smooth.rs`의 `SmoothScroll`이 홈, 설정, 정보 패널, 라이선스 창의 휠 입력을 목표 오프셋으로 쌓아 프레임마다 따라가게 합니다. 웹툰 보기는 `src/app/viewport.rs`가 같은 방식으로 휠과 위·아래 키 스크롤을 나눠 반영합니다. 격자 보기는 가상 목록이라 적용하지 않았습니다.
 - 알림: GPUI 알림 레이어는 다이얼로그보다 아래에 그려지므로, 다이얼로그가 열려 있으면 `src/toast.rs`가 같은 내용을 경고창으로 띄웁니다.
 - 로딩 표시: 파일을 여는 중(200ms 이상)에는 홈 위에, 그림이 아직 없을 때는 가운데에, 그림이 떠 있는 채 새 페이지나 웹툰 페이지가 늦어지면(페이지 이동은 300ms 이상) 오른쪽 위에 스피너를 보입니다.
-- UI 통합 테스트: `src/app/tests.rs`가 헤드리스 창에서 키, 휠, 드래그, 드롭, 우클릭, 다이얼로그 경로를 거칩니다(`cargo test`에 포함). 네이티브 대화상자와 실제 OS 클립보드·휴지통은 여기서 다루지 않습니다.
+- UI 통합 테스트: 헤드리스 UI 테스트(`src/app/tests.rs`)는 제거했습니다. `cargo test`는 단위 테스트만 돌립니다. 키, 휠, 드래그, 드롭, 우클릭, 다이얼로그는 개발 빌드를 띄워 제어 브리지로 확인합니다(`docs/playbooks.md`의 "Runtime check").
 
 ## 프로젝트 구조
 
@@ -180,7 +180,7 @@ src-gpui/            # 앱
   src/app/update.rs  # 업데이트 확인·설치
   src/app/licenses.rs # 오픈소스 라이선스 창(목록과 원문)
   src/app/bridge.rs  # 제어 브리지(개발 빌드 전용, 런타임 확인 통로)
-  src/app/tests.rs   # UI 통합 테스트
+  src/app/tests.rs   # 빈 모듈(UI 통합 테스트는 제거됨)
   src/layout.rs      # 이동 인덱스와 양쪽 보기 화면 배치 계산
   src/picture.rs     # 디코드 프레임을 GPU 타일과 축소 단계로 변환
   src/geometry.rs    # 줌/팬/맞춤 계산

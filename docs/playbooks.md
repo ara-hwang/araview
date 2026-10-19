@@ -14,7 +14,7 @@ Task-specific procedures for agents, reached from `../AGENTS.md`. Read the secti
 
 1. Implement it as a sync function in the matching `crates/araview-core/src/ops/<domain>.rs` and export it from `ops/mod.rs`
 2. Call it from the GPUI app inside `cx.background_spawn(...)`; never block the UI thread
-3. When the UI reaches it, add a case in `src-gpui/src/app/tests.rs` (the kept E2E suite; unit tests are not kept)
+3. When the UI reaches it, check it in the dev app (see "Runtime check"); there is no headless UI suite
 4. Update `SPEC.md` §15/§16 when the contract or a type changes
 
 ## Runtime check
@@ -52,7 +52,7 @@ On a machine without a display, run the dev build under `Xvfb :99` with `DISPLAY
 
 **Single-instance pipe.** `araview.exe action:<id>` runs a viewer action in the running window (`run_action` in `src-gpui/src/app/menu.rs`: shortcut action ids, `openSettings`, `viewLtr`, and so on).
 
-- Headless checks: `cargo test -p araview-gpui` drives keys, wheel, drag, drop, context menus, and dialogs through `VisualTestContext` (`src-gpui/src/app/tests.rs`). The bridge's commands are covered there too (`control_bridge_reports_state_and_drives_input`).
+- Headless checks: none for the UI. The `VisualTestContext` suite in `src-gpui/src/app/tests.rs` was removed, so `cargo test -p araview-gpui` runs only unit tests. Check keys, wheel, drag, drop, context menus, dialogs, and the bridge's own commands through the control channel above (`selftest` on Windows, the control socket on macOS and Linux).
 - Caption-area hit testing: `pwsh scripts/araview-drive.ps1 hittest` (`araview_hittest` over MCP) moves the *virtual* mouse to a point through the control channel to prime GPUI's hit-test cache, then sends `WM_NCHITTEST` with `SendMessage` and prints the code Windows returns (`HTCLIENT`, `HTCAPTION`, `HTCLOSE`, `HTMINBUTTON`, `HTMAXBUTTON`). The physical cursor never moves, so this needs no permission from the user. Baseline (no dialog open): the three caption buttons report `HTMINBUTTON`/`HTMAXBUTTON`/`HTCLOSE` and everything else `HTCLIENT`. With a dialog open the backdrop covers the window, so every point outside the dialog reports `HTCAPTION` (caption buttons stop acting, and a press there drags the window) while the dialog surface stays `HTCLIENT`. Not covered: the press-to-drag move loop itself, which only a real press starts. The selftest runs the same probe as a step, so a regression in window control areas (or a backdrop left over the window) fails the standard runtime check.
 
 ## Update the third-party license data
