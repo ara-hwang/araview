@@ -12,6 +12,9 @@ use gpui_kit::Window;
 use super::{Instance, MAX_MESSAGE};
 
 /// Windows 전용 개념이라 창 핸들은 없다.
+/// HDR 출력은 Windows에서만 지원한다.
+pub fn prepare_hdr_output(_enabled: bool) {}
+
 pub fn hwnd(_window: &Window) -> isize {
     0
 }

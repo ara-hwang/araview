@@ -135,6 +135,9 @@ fn main() {
     i18n::set_language(store.settings.language);
     init_cache(store.settings.cache_storage_mode);
 
+    // 설정 토글(docs/hdr-display.md M4) 전까지는 환경 변수로만 켠다.
+    platform::prepare_hdr_output(std::env::var_os("ARAVIEW_HDR_OUTPUT").is_some_and(|v| v == "1"));
+
     let application = gpui_kit::application().with_assets(assets::AppAssets);
     // Finder 등 운영체제가 실행 중인 앱에 파일 열기를 요청하는 경로(macOS의 `open-document`).
     #[cfg(unix)]

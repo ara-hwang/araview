@@ -67,6 +67,13 @@ fn wide(text: &str) -> Vec<u16> {
 }
 
 /// 창의 HWND 값. 얻지 못하면 0이다.
+/// HDR 출력을 켜면 GPUI가 DirectComposition 대신 hwnd 스왑체인을 쓰게 한다.
+/// DWM이 composition 스왑체인의 FP16 scRGB 버퍼를 표시하지 못해서다(`docs/hdr-display.md` M2).
+/// GPUI 플랫폼을 만들기 전에 불러야 한다.
+pub fn prepare_hdr_output(enabled: bool) {
+    gpui_windows::set_hdr_output(enabled);
+}
+
 pub fn hwnd(window: &Window) -> isize {
     match HasWindowHandle::window_handle(window).map(|handle| handle.as_raw()) {
         Ok(RawWindowHandle::Win32(handle)) => handle.hwnd.get(),
