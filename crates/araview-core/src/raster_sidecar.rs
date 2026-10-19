@@ -88,7 +88,9 @@ pub(crate) fn decode_rgb8(source: &Path) -> Result<Rgb8, AppError> {
     Ok(flatten_to_rgb8(img))
 }
 
-fn flatten_to_rgb8(img: DynamicImage) -> Rgb8 {
+/// 합성 픽셀을 RGB8로 옮긴다. 투명은 흰 배경에 합성한다
+/// (JPEG에 알파가 없어 `psd_sidecar`의 flatten과 같은 규칙).
+pub(crate) fn flatten_to_rgb8(img: DynamicImage) -> Rgb8 {
     let (width, height) = (img.width(), img.height());
     // 선형 부동소수(EXR)는 sRGB 감마로 옮겨야 어둡게 보이지 않는다.
     let rgba = match img {

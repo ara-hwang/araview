@@ -1,9 +1,7 @@
-//! 카메라 RAW(CR2/CR3/NEF/NRW/ARW/DNG/ORF/RW2/PEF/SRW/RAF/SR2/SRF) 미리보기.
+//! 카메라 RAW(CR2/CR3/NEF/NRW/ARW/DNG/ORF/RW2/PEF/SRW/RAF/MRW/SR2/SRF/RWL/3FR/KDC/DCR/IIQ) 미리보기.
 //!
 //! 센서 데이터를 현상(디모자이크)하지 않고, RAW 안에 들어 있는 카메라 제작
 //! JPEG 미리보기를 꺼내 HEIC/PSD와 같은 JPEG sidecar 규칙(`SPEC`)에 얹는다.
-//! 현상 가능한 RAW 디코더 크레이트(rawler, rawloader)는 LGPL이라 `deny.toml`
-//! 정책에 맞지 않고, 미리보기 추출은 새 의존성이 필요 없다.
 //! - 컨테이너는 TIFF다. IFD0에서 시작해 다음 IFD와 SubIFD(`0x014A`)를 폭 우선으로
 //!   돌며 JPEG 후보(`JPEGInterchangeFormat`, 단일 스트립 JPEG, RW2의 `JpgFromRaw`)를
 //!   모은다. 후보를 못 찾으면 파일을 앞에서부터 훑어 JPEG 시작 표지를 찾는다.
@@ -13,9 +11,10 @@
 //!   JPEG(SOF3)로 압축돼 있어 디코드할 수 없으므로 SOF0~2만 받고, 그중 픽셀 수가
 //!   가장 큰 것을 쓴다.
 //! - 방향은 미리보기 JPEG가 아니라 IFD0의 Orientation 태그를 따른다.
-//! - 미리보기가 없는 파일은 `unsupported`로 돌려준다. MRW/IIQ/3FR/DCR/KDC는
-//!   실제 파일의 미리보기가 벤더 전용 구조(비압축 TIFF, 자체 섹션)에만 있어
-//!   이 설계로 열 수 없으므로 지원 확장자에서 뺐다.
+//! - 미리보기가 없는 파일은 `unsupported`로 돌려준다.
+//! - 이 설계로는 안 열리는 파일(내장 일반 JPEG가 없는 CR3의 Digic X 세대, MRW,
+//!   IIQ, 3FR, DCR, KDC)은 rawler(dnglab의 순수 Rust RAW 라이브러리, LGPL-2.1)로
+//!   폴백한다: 카메라 제작 미리보기를 꺼내고, 없으면 센서 데이터를 현상한다.
 
 use std::collections::VecDeque;
 use std::fs::File;
@@ -385,6 +384,17 @@ fn largest(jpegs: impl IntoIterator<Item = Jpeg>) -> Option<Jpeg> {
 
 /// 썸네일·히스토그램·표시용 RGB8 디코드. 미리보기 JPEG를 풀고 IFD0의 방향을 적용한다.
 pub(crate) fn decode_rgb8(source: &Path) -> Result<Rgb8, AppError> {
+    let own = decode_rgb8_tiff(source);
+    match own {
+        Ok(rgb) => Ok(rgb),
+        // 내장 일반 JPEG가 없는 파일(CR3의 Digic X 세대, MRW, IIQ, 3FR, DCR, KDC)은
+        // rawler 폴백으로 다시 시도한다. 나머지 오류는 그대로 전달한다.
+        Err(e) if e.code == ErrorCode::Unsupported => decode_rgb8_rawler(source),
+        Err(e) => Err(e),
+    }
+}
+
+fn decode_rgb8_tiff(source: &Path) -> Result<Rgb8, AppError> {
     let mut file = File::open(source)
         .map_err(|e| AppError::io("Failed to open image", e, ErrorCode::Corrupt))?;
     let file_len = file
@@ -419,6 +429,40 @@ pub(crate) fn decode_rgb8(source: &Path) -> Result<Rgb8, AppError> {
         height: rgb.height(),
         bytes: rgb.into_raw(),
     })
+}
+
+/// 내장 일반 JPEG가 없는 RAW용 rawler(dnglab의 순수 Rust RAW 라이브러리, LGPL-2.1) 폴백.
+/// 카메라 제작 미리보기 → 썸네일 → 풀 이미지 순서로 꺼내고, 전부 없으면
+/// `extract_full_pixels`가 센서 데이터를 현상해 sRGB로 내려준다. 방향은 rawler
+/// 메타데이터의 EXIF Orientation을 픽셀에 반영한다.
+fn decode_rgb8_rawler(source: &Path) -> Result<Rgb8, AppError> {
+    let rawfile = rawler::rawsource::RawSource::new(source)
+        .map_err(|e| AppError::new(ErrorCode::Corrupt, format!("Failed to open image: {e}")))?;
+    let decoder = rawler::get_decoder(&rawfile)
+        .map_err(|e| AppError::unsupported(format!("Unsupported RAW file: {e}")))?;
+    let params = rawler::decoders::RawDecodeParams::default();
+    let img = [
+        decoder.preview_image(&rawfile, &params),
+        decoder.thumbnail_image(&rawfile, &params),
+        decoder.full_image(&rawfile, &params),
+    ]
+    .into_iter()
+    .find_map(|attempt| attempt.ok().flatten())
+    // 카메라 제작 미리보기가 전혀 없는 파일은 센서 데이터를 현상한다(sRGB).
+    .or_else(|| rawler::analyze::extract_full_pixels(source, &params).ok())
+    .ok_or_else(|| AppError::unsupported("RAW file has no embedded preview"))?;
+    if u64::from(img.width()) * u64::from(img.height()) > MAX_DECODE_PIXELS {
+        return Err(AppError::too_large("Image dimensions are too large"));
+    }
+    let orientation = decoder
+        .raw_metadata(&rawfile, &params)
+        .ok()
+        .and_then(|meta| meta.exif.orientation)
+        .filter(|v| (1..=8).contains(v))
+        .unwrap_or(1) as u8;
+    Ok(crate::raster_sidecar::flatten_to_rgb8(
+        crate::orientation::apply_to_image(img, orientation),
+    ))
 }
 
 #[cfg(test)]

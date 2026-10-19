@@ -19,9 +19,9 @@
 
 ## 2. 지원 포맷
 
-총 43개 확장자(이미지 41종 + 아카이브 2종). 진실은 `crates/araview-core/src/image.rs` (`SUPPORTED_EXTENSIONS`, `get_mime_type`).
+총 49개 확장자(이미지 47종 + 아카이브 2종). 진실은 `crates/araview-core/src/image.rs` (`SUPPORTED_EXTENSIONS`, `get_mime_type`).
 
-### 2.1 순수 이미지 41종
+### 2.1 순수 이미지 47종
 
 | 확장자        | MIME                        | 비고                                                                                                                       |
 | ------------- | --------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
@@ -49,7 +49,7 @@
 | `ppm`         | `image/x-portable-pixmap`   | JPEG sidecar 트랜스코드 후 렌더(읽기 전용)                                                                               |
 | `pgm`         | `image/x-portable-graymap`  | JPEG sidecar 트랜스코드 후 렌더(읽기 전용)                                                                               |
 | `pbm`         | `image/x-portable-bitmap`   | JPEG sidecar 트랜스코드 후 렌더(읽기 전용). 1비트 비트맵                                                                  |
-| `cr2`, `nef`, `nrw`, `arw`, `dng`, `orf`, `rw2`, `pef`, `srw`, `cr3`, `raf`, `sr2`, `srf` | `image/x-raw` | JPEG sidecar 트랜스코드 후 렌더(읽기 전용). 센서 데이터를 현상하지 않고 RAW에 든 카메라 제작 JPEG 미리보기를 꺼내 쓴다(2.3절). 방향은 IFD0 Orientation(1~8)을 따르며, TIFF 기반이 아닌 CR3/RAF는 JPEG 표지 스캔에 의존해 Orientation을 적용하지 않고, CR3는 JPEG 미리보기를 싣는 기종(EOS M50/R100 등 Digic 8 세대)에서만 열린다 |
+| `cr2`, `nef`, `nrw`, `arw`, `dng`, `orf`, `rw2`, `pef`, `srw`, `cr3`, `raf`, `mrw`, `sr2`, `srf`, `rwl`, `3fr`, `kdc`, `dcr`, `iiq` | `image/x-raw` | JPEG sidecar 트랜스코드 후 렌더(읽기 전용). 센서 데이터를 현상하지 않고 RAW에 든 카메라 제작 JPEG 미리보기를 꺼내 쓰고(2.3절), 못 찾으면 rawler 폴백(미리보기 → 썸네일 → 센서 현상). 방향은 IFD0 Orientation(1~8)을 따르며, 폴백에서는 rawler 메타데이터의 Orientation을 따른다 |
 
 ### 2.2 아카이브 2종
 
@@ -70,12 +70,14 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 
 ### 2.3 제외 포맷
 
-- PSB, RAW 센서 데이터 현상, MRW·IIQ·3FR·DCR·KDC·RWL은 제외 유지.
-  - RAW는 `raw.rs`가 TIFF 구조(IFD0, 다음 IFD, SubIFD)를 돌며 SOF0~2 JPEG를 모아 픽셀 수가 가장 큰 것을 쓴다. 무손실 JPEG(SOF3)인 센서 데이터는 거부한다. TIFF 기반이 아닌 CR3(ISO-BMFF)와 RAF는 IFD 순회에 걸리지 않아 파일 앞 256MiB를 훑어 JPEG를 찾고, 이때 Orientation은 적용하지 않는다. CR3는 THMB·PRVW가 일반 JPEG인 기종(EOS M50/R100 등 Digic 8 세대)만 열리고, HEVC로 코딩된 미리보기를 쓰는 Digic X 세대(R8 등)는 `unsupported`다. 구조와 훑기에서 모두 못 찾으면 `unsupported`다. 미리보기가 제조사 전용 영역(MakerNote)에만 있는 기종은 이 훑기에 기대므로 일부 파일은 열리지 않을 수 있다.
-  - MRW·IIQ·3FR·DCR은 CC0 공개 샘플(<https://raw.pixls.us>)의 실물 파일에서 미리보기가 벤더 전용 구조(비압축 TIFF·자체 섹션)에만 있음을 확인해 제외했고, 같은 코닥 코덱 계열인 KDC와 공개 샘플로 확인할 수 없는 RWL도 함께 뺐다. CR3 컨테이너 구조와 THMB·PRVW 미리보기 위치는 <https://github.com/lclevy/canon_cr3> 참고.
-  - 센서 데이터 현상용 디코더 크레이트(rawler, rawloader는 LGPL-2.1, zenraw는 AGPL-3.0)는 `deny.toml`의 라이선스 정책에 맞지 않아 포함하지 않는다.
+- PSB는 제외 유지.
   - PSB: 실제 PSB는 `8BPS` + version 2인데 디코더가 없어 진입 차단한다(`psd` 크레이트는 PSD만 지원).
-- PSD, TGA, DDS, EXR, QOI, HDR, PNM, RAW는 JPEG sidecar 미리보기로만 표시한다(PSD는 합성 이미지, EXR·HDR은 8비트 변환, RAW는 내장 JPEG 미리보기). 앱은 어떤 포맷도 편집·저장하지 않는다.
+- RAW는 두 단계로 표시한다.
+  1. `raw.rs`가 TIFF 구조(IFD0, 다음 IFD, SubIFD)를 돌며 SOF0~2 JPEG를 모아 픽셀 수가 가장 큰 것을 쓴다. 무손실 JPEG(SOF3)인 센서 데이터는 거부한다. TIFF 기반이 아닌 CR3(ISO-BMFF)와 RAF는 IFD 순회에 걸리지 않아 파일 앞 256MiB를 훑어 JPEG를 찾고, 이때 Orientation은 적용하지 않는다. CR3는 THMB·PRVW가 일반 JPEG인 기종(EOS M50/R100 등 Digic 8 세대)이 이 단계에서 열린다.
+  2. 1단계에서 미리보기를 못 찾으면 rawler(dnglab의 순수 Rust RAW 라이브러리, LGPL-2.1)로 폴백한다: 카메라 제작 미리보기 → 썸네일 → 센서 데이터 현상(sRGB) 순서로 내려준다. R8 등 Digic X 세대의 HEVC 코딩 미리보기와 IIQ·3FR·DCR·KDC는 이 폴백에서 열리고, RAF 등의 방향도 폴백에서는 rawler가 주는 값을 따른다. 폴백은 파일당 1회 sidecar를 만들어 재사용한다. MRW는 rawler 카메라 DB에 없는 기종(공개 샘플 Dynax 5D 확인)은 `unsupported`다.
+- 센서 데이터 현상용 디코더 크레이트 중 rawler(LGPL-2.1)만 폴백으로 사용한다(`deny.toml`, `about.toml` 허용). rawloader(LGPL-2.1)와 zenraw(AGPL-3.0)는 포함하지 않는다.
+- 구조 파악과 기종별 동작 확인은 CC0 공개 샘플(<https://raw.pixls.us>)의 실물 파일로 했고, CR3 컨테이너 구조와 THMB·PRVW 미리보기 위치는 <https://github.com/lclevy/canon_cr3> 참고다.
+- PSD, TGA, DDS, EXR, QOI, HDR, PNM, RAW는 JPEG sidecar 미리보기로만 표시한다(PSD는 합성 이미지, EXR·HDR은 8비트 변환, RAW는 내장 JPEG 미리보기 또는 rawler 결과). 앱은 어떤 포맷도 편집·저장하지 않는다.
 
 ## 3. 화면
 
@@ -660,7 +662,7 @@ UI 분류 5종:
 - 코어는 디코드용 파일 경로를 돌려주고, UI는 그 파일을 `display.rs`로 RGBA 프레임으로 디코드해 GPU 텍스처(타일)로 올려 그린다. GPUI 텍스처는 한 변 16384px 제한과 밉맵 없는 선형 보간뿐이라 큰 이미지는 8192px 타일로 나누고 축소 단계를 CPU에서 만든다(`src-gpui/src/picture.rs`).
 - 디코더가 따로 필요한 HEIC/HEIF/PSD/TGA/DDS/EXR/QOI/HDR/PNM/RAW는 JPEG sidecar를(`transcode.rs`가 디코더를 고르고 `sidecar.rs`의 `SidecarSpec` 파이프라인을 공유한다), 표시 해상도 제한이 걸린 큰 래스터는 `scaled/` 사본(9.4절)을 만든다. sidecar와 아카이브 추출물, 썸네일 캐시는 `cacheStorageMode`가 `persistent`면 `%LOCALAPPDATA%\<식별자>\`의 버전된 루트(`cache-v2/`)에, `temporary`면 프로세스 수명 TempDir에 둔다.
 - JPEG와 TIFF의 EXIF Orientation(1~8)은 디코드할 때 적용하고, 치수(`ImageInfo.width/height`, `get_image_details`)와 썸네일도 같은 기준으로 회전해 보고한다(SVG/WebP/PNG/HEIC는 대상 아님).
-- RAW(CR2/CR3/NEF/NRW/ARW/DNG/ORF/RW2/PEF/SRW/RAF/SR2/SRF)는 새 의존성 없이 `raw.rs`가 내장 JPEG 미리보기를 꺼내 디코드한다. 방향은 미리보기 JPEG가 아니라 RAW IFD0의 Orientation을 픽셀에 반영하고, TIFF 기반이 아닌 CR3/RAF는 JPEG 표지 훑기로만 미리보기를 찾아 Orientation을 적용하지 않는다. CR3는 JPEG 미리보기를 싣는 기종에서만 열린다(2.3절). 파일이 TIFF 시그니처를 가져도 확장자가 RAW이면 RAW로 본다(`resolve_mime`). 색상 모드는 `rgb` 8비트로 보고하며, 센서 쪽 정보(실제 비트 수, 색 프로파일)는 읽지 않는다.
+- RAW(CR2/CR3/NEF/NRW/ARW/DNG/ORF/RW2/PEF/SRW/RAF/MRW/SR2/SRF/RWL/3FR/KDC/DCR/IIQ)는 새 의존성 없이 `raw.rs`가 내장 JPEG 미리보기를 꺼내 디코드한다. 방향은 미리보기 JPEG가 아니라 RAW IFD0의 Orientation을 픽셀에 반영하고, TIFF 기반이 아닌 CR3/RAF는 JPEG 표지 훑기로만 미리보기를 찾아 IFD가 없으므로 방향을 적용하지 않는다. 1단계에서 미리보기를 못 찾으면 rawler(LGPL-2.1)로 폴백해 카메라 제작 미리보기 → 썸네일 → 센서 현상 순서로 디코드하고, 이때 방향은 rawler 메타데이터의 Orientation을 따른다(2.3절). 파일이 TIFF 시그니처를 가져도 확장자가 RAW이면 RAW로 본다(`resolve_mime`). 색상 모드는 `rgb` 8비트로 보고하며, 센서 쪽 정보(실제 비트 수, 색 프로파일)는 읽지 않는다.
 - JXL은 jxl-oxide(순수 Rust, 추가 DLL 없음)로 디코드한다. 코드스트림 헤더의 orientation은 디코더가 픽셀과 치수에 반영하므로 EXIF 회전을 따로 적용하지 않는다. 색 공간이 열거형으로 신호된 이미지(XYB 손실 압축, Display P3, PQ/HLG, 선형 등)는 sRGB로 변환하고, ICC 프로파일만 실린 RGB·회색조 이미지는 픽셀을 그대로 둔다. CMYK는 실린 ICC 프로파일을 moxcms(순수 Rust CMS)로 해석해 sRGB로 변환하고, 상세 패널에는 디코드 결과대로 RGB로 표시한다. 움직이는 JXL은 키프레임을 모두 디코드해 GIF/APNG/WebP와 같은 재생 경로를 타고, 전체 프레임이 애니메이션 예산(RGBA 512MB)을 넘으면 첫 프레임만 표시한다. 1억 픽셀을 넘으면 `TooLarge`로 거부한다.
 - AVIF는 libheif로 디코드한다. 이미지 시퀀스(움직이는 AVIF, `avis`)는 첫 영상 트랙의 프레임을 모두 디코드해 GIF/APNG/WebP와 같은 재생 경로를 타고, 프레임 지연은 트랙 타임스케일에서 계산한다. 전체 프레임이 애니메이션 예산(RGBA 512MB)을 넘으면 첫 프레임만 표시한다. edit list의 반복 횟수는 읽지 않고 항상 무한 반복한다. 썸네일·히스토그램·클립보드는 기본 이미지(정지 항목)를 쓴다.
 - `detect_pixel_art`는 표시 바이트 경로를 제한된 분석 이미지로 읽고, 작은 색상 팔레트·평탄도·동일 색상 run·주기적 경계 신호를 결합한다. ML 모델이나 네트워크를 사용하지 않으며, 분석 제한 초과·디코드 실패·불확실 결과는 안전하게 부드러운 표시로 대체한다.
@@ -692,7 +694,7 @@ UI 분류 5종:
 - Linux 배포: `scripts/package-linux.sh`가 `target/AraView-<버전>-linux-<arch>.tar.gz`를 만든다(`bin/araview`, `bin/licenses/`, `share/applications/com.araview.viewer.desktop`, 아이콘, `install.sh`). `install.sh`는 `~/.local`(또는 `PREFIX`)에 관리자 권한 없이 설치하고 `--uninstall`로 제거한다. `.desktop`의 `MimeType`이 지원 형식을 선언하고 `StartupWMClass`와 창 `app_id`가 식별자 `com.araview.viewer`다. libheif는 vcpkg 정적 링크다. 실행에는 X11 또는 Wayland, Vulkan, `libxkbcommon`이 필요하다.
 - macOS 배포: `scripts/package-macos.sh`가 `AraView.app`(`Info.plist`의 `CFBundleDocumentTypes`가 지원 확장자를 `Viewer`/`Alternate`로 선언, `AraView.icns`)을 만들고 ad-hoc 서명해 `target/AraView-<버전>-macos-<arch>.dmg`로 묶는다. 공증하지 않으므로 첫 실행은 우클릭 > 열기다. CI는 Apple silicon(arm64)만 빌드한다.
 - 파일 연결(Windows): 연결은 OS 확인 없이 바꿀 수 없다. macOS와 Linux는 설정에 연결 UI가 없고(탭 자체가 없다) 번들·`.desktop` 선언이 "다음으로 열기" 목록을 채운다. 연결 3그룹:
-  - Image 41종: png, apng, jpg, jpeg, jpe, jfif, gif, bmp, webp, svg, ico, avif, tif, tiff, jxl, heic, heif, psd, tga, dds, exr, qoi, hdr, pnm, pam, ppm, pgm, pbm, cr2, cr3, nef, nrw, arw, dng, orf, rw2, pef, srw, raf, sr2, srf.
+  - Image 47종: png, apng, jpg, jpeg, jpe, jfif, gif, bmp, webp, svg, ico, avif, tif, tiff, jxl, heic, heif, psd, tga, dds, exr, qoi, hdr, pnm, pam, ppm, pgm, pbm, cr2, cr3, nef, nrw, arw, dng, orf, rw2, pef, srw, raf, mrw, sr2, srf, rwl, 3fr, kdc, dcr, iiq.
   - Comic 1종: cbz.
   - Archive 1종: zip.
 - HEIC/HEIF는 vcpkg `libheif[core,aom]`(1.21 이상, AVIF 시퀀스 디코드에 필요) + `libde265`(HEVC), `aom`(AV1, AVIF 표시/썸네일/히스토그램)만 사용한다. Windows는 동적 링크(DLL 동봉), Linux와 macOS 배포는 정적 링크다. 설치와 DLL 복사는 `docs/development.md`를 따른다.

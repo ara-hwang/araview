@@ -10,7 +10,8 @@ targets = [
 [licenses]
 confidence-threshold = 0.8
 # 허용 목록은 about.toml의 accepted와 같게 유지한다.
-# GPL/AGPL/LGPL은 넣지 않는다. `OR` 표현식은 허용 라이선스가 하나라도 있으면 통과한다.
+# 약한 카피레프트만 허용한다(파일 단위 MPL-2.0, 라이브러리 단위 LGPL-2.1). GPL/AGPL은 넣지 않는다.
+# `OR` 표현식은 허용 라이선스가 하나라도 있으면 통과한다.
 allow = [
     "0BSD",
     "Apache-2.0",
@@ -22,6 +23,7 @@ allow = [
     "IJG",
     "ISC",
     "Apache-2.0 WITH LLVM-exception",
+    "LGPL-2.1",
     "MIT",
     "MIT-0",
     "MPL-2.0",

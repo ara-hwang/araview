@@ -15,6 +15,8 @@ accepted = [
     "MIT-0",
     # 약한 카피레프트(파일 단위). THIRD_PARTY_LICENSES.md 고지 참고.
     "MPL-2.0",
+    # 라이브러리 단위 약한 카피레프트(카메라 RAW 디코더 rawler). THIRD_PARTY_LICENSES.md 고지 참고.
+    "LGPL-2.1",
     "NCSA",
     "Unicode-3.0",
     "Unlicense",

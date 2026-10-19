@@ -48,7 +48,7 @@ pub const SUPPORTED_EXTENSIONS: &[&str] = &[
     "png", "apng", "jpg", "jpeg", "jpe", "jfif", "gif", "bmp", "webp", "svg", "ico", "avif", "tif",
     "tiff", "jxl", "heic", "heif", "psd", "tga", "dds", "exr", "qoi", "hdr", "pnm", "pam", "ppm",
     "pgm", "pbm", "cr2", "cr3", "nef", "nrw", "arw", "dng", "orf", "rw2", "pef", "srw", "raf",
-    "sr2", "srf", "cbz", "zip",
+    "mrw", "sr2", "srf", "rwl", "3fr", "kdc", "dcr", "iiq", "cbz", "zip",
 ];
 
 #[derive(Serialize)]
@@ -103,7 +103,9 @@ pub fn get_mime_type(path: &Path) -> Option<&'static str> {
         "pgm" => Some("image/x-portable-graymap"),
         "pbm" => Some("image/x-portable-bitmap"),
         "cr2" | "cr3" | "nef" | "nrw" | "arw" | "dng" | "orf" | "rw2" | "pef" | "srw" | "raf"
-        | "sr2" | "srf" => Some(crate::raw::RAW_MIME),
+        | "mrw" | "sr2" | "srf" | "rwl" | "3fr" | "kdc" | "dcr" | "iiq" => {
+            Some(crate::raw::RAW_MIME)
+        }
         "cbz" => Some("application/vnd.comicbook+zip"),
         "zip" => Some("application/zip"),
         _ => None,
