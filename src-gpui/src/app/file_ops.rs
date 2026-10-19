@@ -29,6 +29,11 @@ impl AraView {
         };
         let name = info.file_name.clone();
         let path = info.source_path.clone();
+        // 확인을 생략하는 설정이면 경고창 없이 바로 지운다(SPEC §11.1).
+        if SettingsStore::global(cx).settings.trash_without_confirm {
+            self.trash(path, window, cx);
+            return;
+        }
         let entity = cx.entity();
         // `AlertDialog`에는 상단 오프셋이 없어 가운데 배치가 안 되니,
         // 같은 모양의 `Dialog`로 쌓는다(버튼 생김새·동작은 경고창과 같다).
@@ -43,6 +48,22 @@ impl AraView {
                     DialogDescription::new()
                         .child(t_with("confirm.trash.message", &[("name", &name)])),
                 )
+                // Enter로도 지운다. gpui-kit 다이얼로그는 `Enter`를 확인 동작으로
+                // 받는다(`Confirm` 액션). 이 창은 확인 동작에 지우기를 건다.
+                // 창을 먼저 닫고 지운다: 지우기가 끝나면 알림(경고창)이 뜨는데,
+                // 닫기를 나중에 하면 그 알림이 대신 닫히고 이 창이 남는다.
+                .on_ok({
+                    let entity = entity.clone();
+                    let path = path.clone();
+                    move |_, window, cx| {
+                        window.close_dialog(cx);
+                        entity.update(cx, |this, cx| {
+                            this.trash(path.clone(), window, cx);
+                        });
+                        // 창은 위에서 직접 닫았으니 다시 닫지 않게 false를 돌린다.
+                        false
+                    }
+                })
                 .footer(
                     DialogFooter::new()
                         .child(

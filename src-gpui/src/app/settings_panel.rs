@@ -322,6 +322,18 @@ impl SettingsPanel {
                 ),
                 cx,
             ))
+            .child(setting_row(
+                self.with_shortcut(t("settings.delete.title"), "trashFile", cx),
+                Some(t("settings.delete.desc")),
+                self.toggle(
+                    "trash-no-confirm",
+                    s.trash_without_confirm,
+                    |settings, value| settings.trash_without_confirm = value,
+                    Effect::Redraw,
+                    cx,
+                ),
+                cx,
+            ))
             .when(crate::platform::ALWAYS_ON_TOP_SUPPORTED, |section| {
                 section.child(setting_row(
                     self.with_shortcut(t("settings.window.alwaysOnTop"), "toggleAlwaysOnTop", cx),
@@ -737,6 +749,19 @@ impl SettingsPanel {
                 .overlay_closable(false)
                 .title(t("confirm.cache.clearAll.title"))
                 .child(DialogDescription::new().child(t("confirm.cache.clearAll.message")))
+                // Enter로도 지운다. gpui-kit 다이얼로그는 `Enter`를 확인 동작으로
+                // 받는다(`Confirm` 액션). 이 창은 확인 동작에 삭제를 건다.
+                // 창을 먼저 닫고 지운다: 결과 알림(경고창)이 위에 쌓일 수 있는데,
+                // 닫기를 나중에 하면 그 알림이 대신 닫히고 이 창이 남는다.
+                .on_ok({
+                    let panel = panel.clone();
+                    move |_, window, cx| {
+                        window.close_dialog(cx);
+                        panel.update(cx, |this, cx| this.clear_cache(CacheScope::All, window, cx));
+                        // 창은 위에서 직접 닫았으니 다시 닫지 않게 false를 돌린다.
+                        false
+                    }
+                })
                 .footer(
                     DialogFooter::new()
                         .child(
@@ -1040,6 +1065,22 @@ impl SettingsPanel {
                     "settings.shortcuts.conflictDesc",
                     &[("key", &pressed), ("action", &other_label)],
                 )))
+                // Enter로도 교체한다(확인 동작에 교체를 건다).
+                // 창을 먼저 닫고 교체한다: 닫기를 나중에 하면 그때 쌓인 알림이
+                // 대신 닫히고 이 창이 남는다.
+                .on_ok({
+                    let panel = panel.clone();
+                    let action = action.clone();
+                    let spec = spec.clone();
+                    move |_, window, cx| {
+                        window.close_dialog(cx);
+                        panel.update(cx, |this, cx| {
+                            this.set_shortcut(action.clone(), spec.clone(), window, cx)
+                        });
+                        // 창은 위에서 직접 닫았으니 다시 닫지 않게 false를 돌린다.
+                        false
+                    }
+                })
                 .footer(
                     DialogFooter::new()
                         .child(
@@ -1530,6 +1571,28 @@ impl SettingsPanel {
         cx.notify();
     }
 
+    /// 설정을 기본값으로 되돌린다. 언어 설정은 유지한다.
+    fn reset_settings(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.apply(
+            |settings| {
+                // 언어 설정은 유지한다.
+                let language = settings.language;
+                *settings = Settings::default();
+                settings.language = language;
+            },
+            Effect::Reload,
+            window,
+            cx,
+        );
+        self.view
+            .update(cx, |view, cx| {
+                view.settings_changed(Effect::AlwaysOnTop, window, cx);
+                view.settings_changed(Effect::Relist, window, cx);
+            })
+            .ok();
+        window.toast(Toast::success(t("toast.settings.resetDone")), cx);
+    }
+
     fn confirm_reset(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let guard = self.nested_guard();
         let panel = cx.entity();
@@ -1541,6 +1604,20 @@ impl SettingsPanel {
                 .overlay_closable(false)
                 .title(t("confirm.resetSettings.title"))
                 .child(DialogDescription::new().child(t("confirm.resetSettings.message")))
+                // Enter로도 초기화한다(확인 동작에 초기화를 건다).
+                // 창을 먼저 닫고 초기화한다: 초기화는 알림(경고창)을 띄우는데,
+                // 닫기를 나중에 하면 그 알림이 대신 닫히고 이 창이 남는다.
+                .on_ok({
+                    let panel = panel.clone();
+                    move |_, window, cx| {
+                        window.close_dialog(cx);
+                        panel.update(cx, |this, cx| {
+                            this.reset_settings(window, cx);
+                        });
+                        // 창은 위에서 직접 닫았으니 다시 닫지 않게 false를 돌린다.
+                        false
+                    }
+                })
                 .footer(
                     DialogFooter::new()
                         .child(
@@ -1554,31 +1631,7 @@ impl SettingsPanel {
                                 .label(t("settings.reset"))
                                 .on_click(move |_, window, cx| {
                                     panel.update(cx, |this, cx| {
-                                        this.apply(
-                                            |settings| {
-                                                // 언어 설정은 유지한다.
-                                                let language = settings.language;
-                                                *settings = Settings::default();
-                                                settings.language = language;
-                                            },
-                                            Effect::Reload,
-                                            window,
-                                            cx,
-                                        );
-                                        this.view
-                                            .update(cx, |view, cx| {
-                                                view.settings_changed(
-                                                    Effect::AlwaysOnTop,
-                                                    window,
-                                                    cx,
-                                                );
-                                                view.settings_changed(Effect::Relist, window, cx);
-                                            })
-                                            .ok();
-                                        window.toast(
-                                            Toast::success(t("toast.settings.resetDone")),
-                                            cx,
-                                        );
+                                        this.reset_settings(window, cx);
                                     });
                                     window.close_dialog(cx);
                                 }),

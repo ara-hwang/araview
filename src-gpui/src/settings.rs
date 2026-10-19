@@ -355,6 +355,8 @@ pub struct Settings {
     pub webtoon_thumbnail_jump: bool,
     pub auto_open_last_file: bool,
     pub record_recent_files: bool,
+    /// 삭제 요청을 받으면 확인 창 없이 바로 휴지통으로 보낸다.
+    pub trash_without_confirm: bool,
     pub viewer_background: ViewerBackground,
     #[serde(rename = "autoHideUI")]
     pub auto_hide_ui: bool,
@@ -396,6 +398,7 @@ impl Default for Settings {
             webtoon_thumbnail_jump: true,
             auto_open_last_file: false,
             record_recent_files: true,
+            trash_without_confirm: false,
             viewer_background: ViewerBackground::Theme,
             auto_hide_ui: false,
             menu_bar_hidden: false,
@@ -676,4 +679,35 @@ fn restore_settings(saved: serde_json::Value) -> Settings {
         }
     }
     serde_json::from_value(serde_json::Value::Object(merged)).unwrap_or_default()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 삭제 확인 생략은 꺼짐이 기본이다(SPEC §13).
+    #[test]
+    fn trash_confirmation_is_kept_by_default() {
+        assert!(!Settings::default().trash_without_confirm);
+    }
+
+    /// 설정 파일의 키 이름은 camelCase로 저장된다(SPEC §13, `npm run docs:check`).
+    #[test]
+    fn trash_without_confirm_round_trips() {
+        let settings = Settings {
+            trash_without_confirm: true,
+            ..Settings::default()
+        };
+        let saved = serde_json::to_value(&settings).expect("설정 직렬화");
+        assert_eq!(saved["trashWithoutConfirm"], serde_json::json!(true));
+        let restored: Settings = serde_json::from_value(saved).expect("설정 복원");
+        assert!(restored.trash_without_confirm);
+    }
+
+    /// 저장값이 없으면 기본값(꺼짐) 그대로다.
+    #[test]
+    fn a_missing_trash_without_confirm_falls_back_to_the_default() {
+        let restored = restore_settings(serde_json::json!({ "language": "en" }));
+        assert!(!restored.trash_without_confirm);
+    }
 }

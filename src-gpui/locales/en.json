@@ -314,6 +314,10 @@
       "on": "Record on",
       "off": "Record off"
     },
+    "delete": {
+      "title": "Skip delete confirmation",
+      "desc": "Moves the image to the trash right away, without a confirmation dialog."
+    },
     "ext": {
       "title": "File associations",
       "desc": "Changing an association opens the default app picker for that extension. Windows does not allow apps to set defaults directly.",
