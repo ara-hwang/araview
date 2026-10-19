@@ -214,7 +214,7 @@ pub fn single_instance(identifier: &str, path: Option<&str>) -> Instance {
 }
 
 /// 개발 빌드의 제어 통로를 열고 앱과 주고받을 채널을 돌려준다.
-#[cfg(all(debug_assertions, not(test)))]
+#[cfg(debug_assertions)]
 pub fn control_channel(identifier: &str) -> super::Control {
     use std::io::{BufRead, BufReader};
     use std::time::Duration;

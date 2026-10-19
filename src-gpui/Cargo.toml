@@ -41,7 +41,6 @@ libc = "0.2"
 rfd = { version = "0.17", default-features = false, features = ["xdg-portal", "wayland"] }
 
 [dev-dependencies]
-gpui-kit = { version = "0.7.3", features = ["test-support"] }
 tempfile = "3"
 minisign = "0.10"
 

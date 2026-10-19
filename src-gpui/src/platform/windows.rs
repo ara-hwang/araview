@@ -1,10 +1,10 @@
 //! GPUI가 제공하지 않는 Windows 연동: 창 핸들, 항상 위, 단일 인스턴스, 제어 파이프.
 
-#[cfg(all(debug_assertions, not(test)))]
+#[cfg(debug_assertions)]
 use std::sync::mpsc::Receiver;
 use std::sync::mpsc::{Sender, channel};
 
-#[cfg(all(debug_assertions, not(test)))]
+#[cfg(debug_assertions)]
 use super::Control;
 use super::{Instance, MAX_MESSAGE};
 
@@ -243,7 +243,7 @@ pub fn reduced_motion() -> bool {
 }
 
 /// 제어 파이프를 열고 앱과 주고받을 채널을 돌려준다.
-#[cfg(all(debug_assertions, not(test)))]
+#[cfg(debug_assertions)]
 pub fn control_channel(identifier: &str) -> Control {
     let (requests_tx, requests) = channel();
     let (replies, replies_rx) = channel();
@@ -257,7 +257,7 @@ pub fn control_channel(identifier: &str) -> Control {
 
 /// 한 연결에서 요청 한 줄을 받아 앱에 넘기고, 응답 한 줄을 돌려준다.
 /// 한 번에 한 클라이언트만 다루며, 응답이 오지 않으면 시간 안에 포기한다.
-#[cfg(all(debug_assertions, not(test)))]
+#[cfg(debug_assertions)]
 fn serve_control(name: &str, requests: Sender<String>, replies: Receiver<String>) {
     /// 파이프를 양방향으로 연다(응답을 돌려주기 위함).
     const PIPE_ACCESS_DUPLEX: u32 = 0x0000_0003;
@@ -309,7 +309,7 @@ fn serve_control(name: &str, requests: Sender<String>, replies: Receiver<String>
 }
 
 /// 요청 한 줄을 읽는다. 개행까지 읽거나 상한에 닿으면 멈춘다.
-#[cfg(all(debug_assertions, not(test)))]
+#[cfg(debug_assertions)]
 fn read_control_line(pipe: Handle) -> String {
     let mut line = Vec::new();
     let mut chunk = [0u8; 1024];
@@ -341,7 +341,7 @@ fn read_control_line(pipe: Handle) -> String {
 }
 
 /// 응답 한 줄을 돌려준다. 클라이언트가 개행까지 받도록 밀어낸다.
-#[cfg(all(debug_assertions, not(test)))]
+#[cfg(debug_assertions)]
 fn write_control_line(pipe: Handle, line: &str) {
     #[link(name = "kernel32")]
     unsafe extern "system" {

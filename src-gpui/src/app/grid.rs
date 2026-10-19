@@ -1,7 +1,6 @@
 //! 썸네일 그리드 오버레이(SPEC §3.2, §14.1).
 
 use araview_core::file_availability::FileAvailability;
-use gpui_kit::base::TestSupportExt as _;
 use gpui_kit::component::button::{Button, ButtonVariants as _};
 use gpui_kit::component::input::{Input, InputEvent, InputState};
 use gpui_kit::component::{ActiveTheme as _, Icon, Sizable as _, h_flex, v_flex};
@@ -267,7 +266,6 @@ impl AraView {
                     .whitespace_nowrap()
                     .child(format!("{}. {name}", index + 1)),
             )
-            .test_support()
             .into_any_element()
     }
 
