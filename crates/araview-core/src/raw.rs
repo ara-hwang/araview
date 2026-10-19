@@ -1,4 +1,4 @@
-//! 카메라 RAW(CR2/CR3/NEF/NRW/ARW/DNG/ORF/RW2/PEF/SRW/RAF/MRW/SR2/SRF/RWL/3FR/KDC/DCR/IIQ) 미리보기.
+//! 카메라 RAW(CR2/CR3/NEF/NRW/ARW/DNG/ORF/RW2/PEF/SRW/RAF/SR2/SRF) 미리보기.
 //!
 //! 센서 데이터를 현상(디모자이크)하지 않고, RAW 안에 들어 있는 카메라 제작
 //! JPEG 미리보기를 꺼내 HEIC/PSD와 같은 JPEG sidecar 규칙(`SPEC`)에 얹는다.
@@ -7,13 +7,15 @@
 //! - 컨테이너는 TIFF다. IFD0에서 시작해 다음 IFD와 SubIFD(`0x014A`)를 폭 우선으로
 //!   돌며 JPEG 후보(`JPEGInterchangeFormat`, 단일 스트립 JPEG, RW2의 `JpgFromRaw`)를
 //!   모은다. 후보를 못 찾으면 파일을 앞에서부터 훑어 JPEG 시작 표지를 찾는다.
-//!   TIFF 기반이 아닌 CR3(ISO-BMFF), RAF, MRW는 IFD 순회 없이 이 스캔으로만
-//!   미리보기를 찾으므로 Orientation을 반영하지 않는다.
+//!   TIFF 기반이 아닌 CR3(ISO-BMFF)와 RAF는 이 스캔으로만 미리보기를 찾으므로
+//!   Orientation을 반영하지 않는다.
 //! - 후보는 JPEG 세그먼트를 직접 읽어 검증한다. CR2/DNG의 센서 데이터는 무손실
 //!   JPEG(SOF3)로 압축돼 있어 디코드할 수 없으므로 SOF0~2만 받고, 그중 픽셀 수가
 //!   가장 큰 것을 쓴다.
 //! - 방향은 미리보기 JPEG가 아니라 IFD0의 Orientation 태그를 따른다.
-//! - 미리보기가 없는 파일은 `unsupported`로 돌려준다.
+//! - 미리보기가 없는 파일은 `unsupported`로 돌려준다. MRW/IIQ/3FR/DCR/KDC는
+//!   실제 파일의 미리보기가 벤더 전용 구조(비압축 TIFF, 자체 섹션)에만 있어
+//!   이 설계로 열 수 없으므로 지원 확장자에서 뺐다.
 
 use std::collections::VecDeque;
 use std::fs::File;
@@ -441,15 +443,7 @@ mod tests {
 
     #[test]
     fn tiff_based_raw_extensions_decode_the_preview() {
-        for name in [
-            "sample.sr2",
-            "sample.srf",
-            "sample.rwl",
-            "sample.3fr",
-            "sample.kdc",
-            "sample.dcr",
-            "sample.iiq",
-        ] {
+        for name in ["sample.sr2", "sample.srf"] {
             let decoded = decode_rgb8(&sample(name)).unwrap();
             assert_eq!((decoded.width, decoded.height), (64, 48), "{name}");
         }
@@ -457,7 +451,7 @@ mod tests {
 
     #[test]
     fn non_tiff_raw_extensions_find_the_preview_by_scanning() {
-        for name in ["sample.cr3", "sample.raf", "sample.mrw"] {
+        for name in ["sample.cr3", "sample.raf"] {
             let decoded = decode_rgb8(&sample(name)).unwrap();
             assert_eq!((decoded.width, decoded.height), (64, 48), "{name}");
         }
