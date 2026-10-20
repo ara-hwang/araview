@@ -180,7 +180,7 @@ pub struct AraView {
     home_scroll: SmoothScroll,
     info_scroll: SmoothScroll,
     /// 이미지 목록(도크) 스크롤과, 마지막으로 따라간 (현재 인덱스, 목록 길이).
-    dock_scroll: ScrollHandle,
+    dock_scroll: SmoothScroll,
     dock_followed: std::cell::Cell<Option<(usize, usize)>>,
     info_data: info_panel::InfoData,
     info_seq: u64,
@@ -255,7 +255,7 @@ impl AraView {
             info_open: false,
             home_scroll: SmoothScroll::default(),
             info_scroll: SmoothScroll::default(),
-            dock_scroll: ScrollHandle::new(),
+            dock_scroll: SmoothScroll::default(),
             dock_followed: std::cell::Cell::new(None),
             info_data: info_panel::InfoData::default(),
             info_seq: 0,

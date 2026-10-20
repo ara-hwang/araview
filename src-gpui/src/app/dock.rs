@@ -30,6 +30,8 @@ const LABEL_HEIGHT: f32 = 16.0;
 const LABEL_GAP: f32 = 2.0;
 /// 보이는 범위 앞뒤로 더 그리는 칸 수.
 const OVERSCAN: usize = 3;
+/// 현재 항목으로 따라갈 때 이 화면 수보다 멀면 애니메이션 없이 옮긴다.
+const FOLLOW_ANIMATE_SCREENS: f32 = 3.0;
 
 fn file_label(item: &str) -> String {
     item.rsplit(['/', '\\']).next().unwrap_or(item).to_owned()
@@ -174,7 +176,7 @@ impl AraView {
             .settings
             .dock_position
             .is_horizontal();
-        let offset = self.dock_scroll.offset();
+        let offset = self.dock_scroll.handle().offset();
         let scrolled = -f32::from(if horizontal { offset.x } else { offset.y });
         let first = ((scrolled - DOCK_PADDING).max(0.0) / cell).floor() as usize;
         let visible = (length / cell).ceil() as usize + 1;
@@ -190,12 +192,12 @@ impl AraView {
     }
 
     /// 현재 항목이 바뀌면 도크를 그 항목이 가운데 오도록 스크롤한다.
-    fn follow_current(&self, window: &Window, cx: &App) {
+    fn follow_current(&self, window: &mut Window, cx: &App) {
         let key = (self.index, self.list.len());
         if self.dock_followed.get() == Some(key) {
             return;
         }
-        self.dock_followed.set(Some(key));
+        let first = self.dock_followed.replace(Some(key)).is_none();
         let total = self.list.len();
         if total == 0 {
             return;
@@ -210,17 +212,23 @@ impl AraView {
         let max = (content - length).max(0.0);
         let target =
             (DOCK_PADDING + slot as f32 * cell + cell / 2.0 - length / 2.0).clamp(0.0, max);
-        let offset = self.dock_scroll.offset();
-        let next = if SettingsStore::global(cx)
+        let horizontal = SettingsStore::global(cx)
             .settings
             .dock_position
-            .is_horizontal()
-        {
-            point(px(-target), offset.y)
+            .is_horizontal();
+        let offset = self.dock_scroll.handle().offset();
+        let current = -f32::from(if horizontal { offset.x } else { offset.y });
+        if first || (target - current).abs() > length * FOLLOW_ANIMATE_SCREENS {
+            // 첫 배치나 먼 이동은 바로 옮긴다. 사이 칸마다 썸네일을 요청하지 않게 한다.
+            let next = if horizontal {
+                point(px(-target), offset.y)
+            } else {
+                point(offset.x, px(-target))
+            };
+            self.dock_scroll.handle().set_offset(next);
         } else {
-            point(offset.x, px(-target))
-        };
-        self.dock_scroll.set_offset(next);
+            self.dock_scroll.animate_to(-target, horizontal, window);
+        }
     }
 
     fn set_dock(
@@ -440,22 +448,27 @@ impl AraView {
             .flex()
             .map(|area| {
                 if horizontal {
-                    area.w_full().overflow_x_scroll()
+                    area.w_full().overflow_x_hidden()
                 } else {
-                    area.h_full().flex_col().overflow_y_scroll()
+                    area.h_full().flex_col().overflow_y_hidden()
                 }
             })
             .p(px(DOCK_PADDING))
-            .track_scroll(&self.dock_scroll)
+            .track_scroll(self.dock_scroll.handle())
+            .on_scroll_wheel(self.dock_scroll.wheel_handler(horizontal))
             .child(strip);
         let scroller = div()
             .id("dock-scroller")
             .relative()
             .map(|scroller| {
                 if horizontal {
-                    scroller.w_full().horizontal_scrollbar(&self.dock_scroll)
+                    scroller
+                        .w_full()
+                        .horizontal_scrollbar(self.dock_scroll.handle())
                 } else {
-                    scroller.h_full().vertical_scrollbar(&self.dock_scroll)
+                    scroller
+                        .h_full()
+                        .vertical_scrollbar(self.dock_scroll.handle())
                 }
             })
             .child(area);
