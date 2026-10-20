@@ -6,6 +6,7 @@ mod directory;
 mod file_ops;
 mod load;
 mod metadata;
+mod ocr;
 mod system;
 mod thumbnail;
 
@@ -14,5 +15,6 @@ pub use directory::*;
 pub use file_ops::*;
 pub use load::*;
 pub use metadata::*;
+pub use ocr::*;
 pub use system::*;
 pub use thumbnail::*;

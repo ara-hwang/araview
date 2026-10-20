@@ -304,6 +304,7 @@ pub const DEFAULT_SHORTCUTS: &[(&str, &str)] = &[
     ("cycleBackground", "B"),
     ("renameFile", "F2"),
     ("copyPath", "Ctrl+Shift+C"),
+    ("ocr", "Ctrl+Shift+T"),
     ("togglePalette", "Ctrl+K"),
     ("jumpPrev10", "PageUp"),
     ("jumpNext10", "PageDown"),

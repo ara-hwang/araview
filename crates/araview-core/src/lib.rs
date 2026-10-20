@@ -49,6 +49,7 @@ pub mod image;
 pub mod image_info;
 pub mod jxl;
 pub mod natural_sort;
+pub mod ocr;
 pub mod ops;
 pub mod orientation;
 pub mod process_temp;
