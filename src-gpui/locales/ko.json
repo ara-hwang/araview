@@ -365,6 +365,8 @@
       "grid": "썸네일 그리드",
       "gridTitle": "썸네일 그리드 (G)",
       "dockHide": "이미지 목록 숨기기",
+      "prev": "이전 이미지",
+      "next": "다음 이미지",
       "dockShow": "이미지 목록 보이기"
     },
     "webtoon": {

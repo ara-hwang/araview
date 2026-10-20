@@ -365,6 +365,8 @@
       "grid": "Thumbnail grid",
       "gridTitle": "Thumbnail grid (G)",
       "dockHide": "Hide image list",
+      "prev": "Previous image",
+      "next": "Next image",
       "dockShow": "Show image list"
     },
     "webtoon": {
