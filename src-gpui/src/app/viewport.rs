@@ -6,7 +6,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use gpui_kit::component::button::{Button, ButtonVariants as _};
-use gpui_kit::component::{ActiveTheme as _, Sizable as _, h_flex};
+use gpui_kit::component::{ActiveTheme as _, Disableable as _, Sizable as _, h_flex};
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
 use image::{Frame, RgbaImage};
@@ -988,6 +988,46 @@ impl AraView {
             )))
     }
 
+    /// 읽기 영역 좌우 가장자리의 이전/다음 버튼. 우→좌 양쪽 보기는 읽는 방향대로
+    /// 왼쪽이 다음이다.
+    fn nav_arrow(&self, left: bool, cx: &mut Context<Self>) -> impl IntoElement + use<> {
+        let forward = left == (self.view_mode(cx) == ViewMode::RightToLeft);
+        let looped = SettingsStore::global(cx).settings.loop_navigation;
+        let enabled = looped
+            || if forward {
+                self.index + 1 < self.list.len()
+            } else {
+                self.index > 0
+            };
+        let (id, icon, label) = match (left, forward) {
+            (true, false) => ("nav-left", Ph::CaretLeft, "viewer.nav.prev"),
+            (true, true) => ("nav-left", Ph::CaretLeft, "viewer.nav.next"),
+            (false, false) => ("nav-right", Ph::CaretRight, "viewer.nav.prev"),
+            (false, true) => ("nav-right", Ph::CaretRight, "viewer.nav.next"),
+        };
+        div()
+            .absolute()
+            .top_0()
+            .bottom_0()
+            .when(left, |side| side.left_2())
+            .when(!left, |side| side.right_2())
+            .flex()
+            .items_center()
+            // 버튼 위의 클릭이 뷰어의 드래그 이동으로 이어지지 않게 한다.
+            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+            .child(
+                Button::new(id)
+                    .outline()
+                    .rounded_full()
+                    .icon(icon)
+                    .disabled(!enabled)
+                    .tooltip(t(label))
+                    .on_click(
+                        cx.listener(move |this, _, window, cx| this.navigate(forward, window, cx)),
+                    ),
+            )
+    }
+
     pub(super) fn render_viewport(
         &mut self,
         window: &mut Window,
@@ -1327,6 +1367,10 @@ impl AraView {
                             )
                         }),
                 )
+            })
+            .when(self.list.len() > 1, |area| {
+                area.child(self.nav_arrow(true, cx))
+                    .child(self.nav_arrow(false, cx))
             })
             .when(self.has_animation(cx), |area| {
                 area.child(
