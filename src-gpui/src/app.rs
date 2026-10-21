@@ -1129,7 +1129,8 @@ impl Render for AraView {
         } else {
             (header, None)
         };
-        let dock = show_dock.then(|| self.render_dock(window, cx));
+        // 접힌 도크는 그리지 않는다. 다시 펼치는 버튼은 상태바에만 둔다.
+        let dock = (show_dock && settings.dock_visible).then(|| self.render_dock(window, cx));
         let status = self
             .info
             .clone()

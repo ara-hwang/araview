@@ -369,23 +369,6 @@ impl AraView {
                 DockPosition::Right => dock.h_full().flex_col().border_l_1(),
             });
 
-        if !settings.dock_visible {
-            // 접힌 상태는 얇은 엣지 바로 남겨 다시 펼칠 수 있게 한다.
-            return base
-                .p_0p5()
-                .child(
-                    Button::new("dock-show")
-                        .ghost()
-                        .xsmall()
-                        .icon(Ph::CaretUp)
-                        .tooltip(t("viewer.nav.dockShow"))
-                        .on_click(cx.listener(|this, _, _, cx| {
-                            this.set_dock(|settings| settings.dock_visible = true, cx)
-                        })),
-                )
-                .into_any_element();
-        }
-
         self.follow_current(window, cx);
         let reversed = self.dock_reversed(cx);
         let total = self.list.len();
