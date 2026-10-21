@@ -237,7 +237,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 
 - 키보드 팬은 1회 48px이며 컨테이너 경계로 clamp한다.
 - 마우스 왼쪽 드래그는 기본 팬이다(`pan` 또는 `none`만 허용).
-- 팬·스크롤 여유가 없으면 왼쪽 드래그가 창 이동이 된다. 단일·양쪽 보기에서 팬 한계가 0이거나 웹툰 전체 높이가 읽기 영역을 넘지 않을 때가 대상이며, 전체화면·최대화 상태에서는 창을 옮기지 않는다. 더블클릭 동작이 우선한다.
+- 팬·스크롤 여유가 없으면 왼쪽 드래그가 창 이동이 된다. 단일·양쪽 보기에서 팬 한계가 0이거나 웹툰 전체 높이가 읽기 영역을 넘지 않을 때가 대상이며, 전체화면·최대화 상태에서는 창을 옮기지 않는다. 더블클릭 동작이 우선한다. 창을 옮기는 동안에도 재생 중인 애니메이션은 프레임을 계속 넘긴다.
 
 ### 7.3 회전/반전
 
@@ -682,7 +682,7 @@ UI 분류 5종:
 진실: `src-gpui/installer/araview.nsi`, `scripts/Build-Installer.ps1`, `scripts/package-linux.sh`, `scripts/package-macos.sh`, `src-gpui/packaging/`, `src-gpui/src/platform/`, `src-gpui/src/app/update.rs`, `docs/releasing.md`, `.github/workflows/release.yml`, `.github/workflows/ci.yml`.
 
 - 창: 제목 기본값 `AraView`(이미지가 열리면 파일명, 아니면 앱 이름), 1024x768, 최소 500x400, 프레임리스. 최소 너비 500은 Windows 11 Snap Layouts의 모든 배치에 창이 들어가기 위한 상한이다(Microsoft 권장 ≤500epx).
-- OS별 창 틀: 타이틀바는 gpui-kit이 그린다. Windows와 클라이언트 장식 Linux(Wayland 등)는 오른쪽에 최소화/최대화/닫기 버튼 3개(34px씩)를 두고 헤더 보조 그룹을 그 앞에서 접는다. 서버 장식 Linux(합성기 없는 X11)는 창 관리자가 틀을 그려 오른쪽 버튼이 없고, macOS는 왼쪽 신호등 버튼 자리(80px 패딩)를 둔다. 창 이동은 Windows가 `WM_NCLBUTTONDOWN`, 그 밖은 `Window::start_window_move`다.
+- OS별 창 틀: 타이틀바는 gpui-kit이 그린다. Windows와 클라이언트 장식 Linux(Wayland 등)는 오른쪽에 최소화/최대화/닫기 버튼 3개(34px씩)를 두고 헤더 보조 그룹을 그 앞에서 접는다. 서버 장식 Linux(합성기 없는 X11)는 창 관리자가 틀을 그려 오른쪽 버튼이 없고, macOS는 왼쪽 신호등 버튼 자리(80px 패딩)를 둔다. 창 이동은 Windows가 마우스 처리를 끝낸 뒤 포스트하는 `WM_SYSCOMMAND`(`SC_MOVE | HTCAPTION`)이고, 그 밖은 `Window::start_window_move`다. 처리 안에서 `SendMessage`로 이동 루프에 들어가면 그 루프가 앱 상태를 빌린 채로 돌아 애니메이션이 그려지지 않는다. 캡션 드래그도 같은 이동 루프이며, 루프 중 이동 메시지에서 프레임을 다시 그린다.
 - 항상 위는 Windows(`SetWindowPos`)에서만 지원한다. 다른 OS에서는 헤더 버튼, 설정 행, 명령 팔레트 항목을 숨기고(`platform::ALWAYS_ON_TOP_SUPPORTED`) 시작할 때도 적용하지 않는다.
 - 창 위치와 크기를 `settings.json`의 `window`에 저장하고 다음 실행에 복원한다.
 - 읽기 영역 드래그는 팬·스크롤 여유가 없을 때 창 이동이 된다(§7.2).

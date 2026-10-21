@@ -86,6 +86,11 @@ pub struct WindowsWindowState {
     pub invalidate_devices: Arc<AtomicBool>,
     /// Shared with [`WindowsPlatformState::draw_coordinator`] and every other window.
     pub(crate) draw_coordinator: Rc<DrawCoordinator>,
+    /// `WM_ENTERSIZEMOVE`부터 `WM_EXITSIZEMOVE`까지. 이 동안에는 타이머가
+    /// 밀려도 창 이동 메시지에서 프레임을 그린다.
+    pub in_size_move: Cell<bool>,
+    /// 이동 루프 안에서 프레임을 너무 자주 그리지 않게 하는 마지막 시각.
+    pub last_size_move_draw: Cell<Option<std::time::Instant>>,
     fullscreen: Cell<Option<StyleAndBounds>>,
     initial_placement: Cell<Option<WindowOpenStatus>>,
     hwnd: HWND,
@@ -191,6 +196,8 @@ impl WindowsWindowState {
             draw_coordinator,
             direct_manipulation,
             a11y: RefCell::new(None),
+            in_size_move: Cell::new(false),
+            last_size_move_draw: Cell::new(None),
         })
     }
 

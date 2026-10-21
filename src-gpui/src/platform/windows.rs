@@ -96,24 +96,29 @@ pub fn hwnd(window: &Window) -> isize {
 }
 
 /// 이미지를 움직일 여유가 없을 때 왼쪽 드래그로 창을 옮긴다.
-/// `WM_NCLBUTTONDOWN` + `HTCAPTION`으로 OS 이동 루프에 진입하므로
+///
+/// OS 이동 루프는 이 함수를 부른 마우스 처리가 끝난 뒤에 돌아야 한다.
+/// `SendMessage`로 지금 들어가면 루프가 앱 상태를 빌린 채로 돌고, 그 안의
+/// 그리기는 그 대여와 겹쳐 실패한다. 애니메이션은 드래그가 끝날 때까지
+/// 멈춘 채로 보인다. 그래서 메시지를 포스트만 한다.
 /// 더블클릭은 호출 전에 걸러야 한다.
 pub fn start_window_drag(window: &Window) {
-    const WM_NCLBUTTONDOWN: u32 = 0x00A1;
-    const HTCAPTION: usize = 2;
+    const WM_SYSCOMMAND: u32 = 0x0112;
+    /// `SC_MOVE | HTCAPTION`. 마우스가 눌려 있는 동안 OS가 창을 따라 옮긴다.
+    const SC_MOVE_CAPTION: usize = 0xF012;
     #[link(name = "user32")]
     unsafe extern "system" {
         fn ReleaseCapture() -> i32;
-        fn SendMessageW(hwnd: Handle, msg: u32, wparam: usize, lparam: isize) -> isize;
+        fn PostMessageW(hwnd: Handle, msg: u32, wparam: usize, lparam: isize) -> i32;
     }
     let hwnd = hwnd(window);
     if hwnd == 0 {
         return;
     }
-    // SAFETY: 살아 있는 창의 HWND에 캡션 드래그 메시지만 보낸다.
+    // SAFETY: 살아 있는 창의 HWND에 창 이동 명령만 포스트한다.
     unsafe {
         ReleaseCapture();
-        SendMessageW(hwnd, WM_NCLBUTTONDOWN, HTCAPTION, 0);
+        PostMessageW(hwnd, WM_SYSCOMMAND, SC_MOVE_CAPTION, 0);
     }
 }
 

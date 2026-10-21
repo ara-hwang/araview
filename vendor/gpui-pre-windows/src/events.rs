@@ -97,7 +97,7 @@ impl WindowsWindowInner {
             WM_ACTIVATE => self.handle_activate_msg(wparam),
             WM_CREATE => self.handle_create_msg(handle),
             WM_MOVE => self.handle_move_msg(handle, lparam),
-            WM_SIZE => self.handle_size_msg(wparam, lparam),
+            WM_SIZE => self.handle_size_msg(handle, wparam, lparam),
             WM_GETMINMAXINFO => self.handle_get_min_max_info_msg(lparam),
             WM_ENTERSIZEMOVE | WM_ENTERMENULOOP => self.handle_size_move_loop(handle),
             WM_EXITSIZEMOVE | WM_EXITMENULOOP => self.handle_size_move_loop_exit(handle),
@@ -202,6 +202,9 @@ impl WindowsWindowInner {
             callback();
             self.state.callbacks.moved.set(Some(callback));
         }
+        // 마우스를 계속 움직이면 이동 루프에서 `WM_TIMER`가 밀린다. 타이머에만
+        // 기대면 그 사이 애니메이션 프레임이 화면에 안 나간다.
+        self.draw_size_move_frame(handle);
         Some(0)
     }
 
@@ -220,7 +223,12 @@ impl WindowsWindowInner {
         Some(0)
     }
 
-    fn handle_size_msg(self: &Rc<Self>, wparam: WPARAM, lparam: LPARAM) -> Option<isize> {
+    fn handle_size_msg(
+        self: &Rc<Self>,
+        handle: HWND,
+        wparam: WPARAM,
+        lparam: LPARAM,
+    ) -> Option<isize> {
         // Minimizing and restoring both arrive as `WM_SIZE`; the deferred report
         // reads `IsIconic` at delivery, so one call covers both directions.
         self.report_visibility();
@@ -250,6 +258,8 @@ impl WindowsWindowInner {
         }
 
         self.handle_size_change(new_size, scale_factor, should_resize_renderer);
+        // 테두리를 끄는 동안 타이머가 밀리면 애니메이션이 멈춘다.
+        self.draw_size_move_frame(handle);
         Some(0)
     }
 
@@ -277,6 +287,7 @@ impl WindowsWindowInner {
     }
 
     fn handle_size_move_loop(&self, handle: HWND) -> Option<isize> {
+        self.state.in_size_move.set(true);
         unsafe {
             let ret = SetTimer(
                 Some(handle),
@@ -291,10 +302,13 @@ impl WindowsWindowInner {
                 );
             }
         }
+        self.draw_size_move_frame(handle);
         None
     }
 
     fn handle_size_move_loop_exit(&self, handle: HWND) -> Option<isize> {
+        self.state.in_size_move.set(false);
+        self.state.last_size_move_draw.set(None);
         unsafe {
             KillTimer(Some(handle), SIZE_MOVE_LOOP_TIMER_ID).log_err();
         }
@@ -303,14 +317,36 @@ impl WindowsWindowInner {
 
     fn handle_timer_msg(&self, handle: HWND, wparam: WPARAM) -> Option<isize> {
         if wparam.0 == SIZE_MOVE_LOOP_TIMER_ID {
-            let mut runnables = self.main_receiver.clone().try_iter();
-            while let Some(Ok(runnable)) = runnables.next() {
-                WindowsDispatcher::execute_runnable(runnable);
-            }
-            self.handle_paint_msg(handle)
+            // 타이머는 이미 최소 간격이라 이동 메시지와 같은 스로틀을 쓰지 않는다.
+            self.pump_main_and_paint(handle)
         } else {
             None
         }
+    }
+
+    /// 이동·크기 루프 안에서 한 프레임을 그린다. 마우스가 바쁘면 타이머가
+    /// 오지 않으므로 이동 메시지에서도 부른다. 8ms보다 촘촘하면 건너뛴다.
+    fn draw_size_move_frame(&self, handle: HWND) -> Option<isize> {
+        if !self.state.in_size_move.get() {
+            return None;
+        }
+        let now = std::time::Instant::now();
+        let too_soon = self.state.last_size_move_draw.get().is_some_and(|at| {
+            now.saturating_duration_since(at) < std::time::Duration::from_millis(8)
+        });
+        if too_soon {
+            return None;
+        }
+        self.state.last_size_move_draw.set(Some(now));
+        self.pump_main_and_paint(handle)
+    }
+
+    fn pump_main_and_paint(&self, handle: HWND) -> Option<isize> {
+        let mut runnables = self.main_receiver.clone().try_iter();
+        while let Some(Ok(runnable)) = runnables.next() {
+            WindowsDispatcher::execute_runnable(runnable);
+        }
+        self.handle_paint_msg(handle)
     }
 
     fn handle_paint_msg(&self, handle: HWND) -> Option<isize> {
