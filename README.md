@@ -1,10 +1,11 @@
 # AraView
 
+<img width="1600" height="1000" alt="viewer-light" src="https://github.com/user-attachments/assets/b000c143-89f8-4459-8588-9c2cb840a988" />
+
 Rust와 [GPUI Kit](https://github.com/longbridge/gpui-kit)으로 만든 Windows, macOS, Linux 데스크톱 이미지 뷰어
 
-- 일반 이미지 포맷과 만화 아카이브 포맷 지원
-- 양쪽 보기, 웹툰 보기 모드 지원
-- `ComicInfo.xml` 지원
+- 일반 이미지 포맷과 만화 아카이브 포맷 지원 (`ComicInfo.xml` 포함)
+- 양쪽 보기, 웹툰 보기 모드 등 지원
 
 ## 요구 사항
 
