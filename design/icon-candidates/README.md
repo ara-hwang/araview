@@ -33,8 +33,8 @@ on a white and a dark background.
 
 ## quiver-obangsaek-grid vs the previous mark (obang)
 
-This candidate is the bundled icon now: `src-tauri/icons/icon.svg` holds it, and the obang mark it
-replaced is kept in `design/icon-output/obang-light/icon.svg`. Same family, measured differences,
+This candidate is the bundled icon now: `design/icons/icon.svg` holds it, and the obang mark it
+replaced is kept in `design/icons/candidates/icon-obang-light.svg`. Same family, measured differences,
 both on the 1024 artboard:
 
 | Measure                     | Bundled                                                  | quiver-obangsaek-grid                  | At 16px            | At 32px            |
@@ -79,9 +79,10 @@ mark now mirrors exactly left-right, up-down, and on both diagonals, with the no
 difference. At 16 to 64px the rewrite changes at most 97 of 16,384 colour channels. The raw output
 stays untouched in `design/icon-candidates/quiver-obangsaek-grid/icon.svg`.
 
-1. Copy the chosen `icon.svg` over `src-tauri/icons/candidates/icon-<variant>.svg` and derive the
+1. Copy the chosen `icon.svg` over `design/icons/candidates/icon-<variant>.svg` and derive the
    dark twin from it (paper tile, ink flap).
-2. Rasterize at 1024 and run `npm run tauri icon <svg-or-1024.png>` (writes the full set into
-   `src-tauri/icons/`; delete the `ios/` and `android/` folders it emits).
+2. Rasterize at 1024 and run `npx --yes @tauri-apps/cli@2.11.4 icon <svg-or-1024.png>` into a
+   scratch folder (`-o`). Copy `icon.ico` to `src-gpui/resources/icon.ico`, and the site icons
+   from the same SVG. The generated size set is not kept in the repo.
 3. Record the choice, the construction numbers, and the variant color values in `DESIGN.md`
-   (App Icon section), then keep the reference set in `design/icon-output/<variant>/`.
+   (App Icon section).
