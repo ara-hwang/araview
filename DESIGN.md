@@ -66,7 +66,7 @@ components:
     height: "36px"
 ---
 
-> Note: the token names and values below came from the original web UI (`App.css`). The GPUI app maps them onto the gpui-kit theme (`src-gpui`); the intent, scale, and rules here still apply, while CSS-specific mechanics (Tailwind utilities, `@theme`) do not.
+> Note: the token names and values below came from the original web UI (`App.css`). The GPUI app maps them onto the gpui-kit theme (`app`); the intent, scale, and rules here still apply, while CSS-specific mechanics (Tailwind utilities, `@theme`) do not.
 
 # Design System: AraView
 
@@ -187,8 +187,8 @@ The app icon is an obangsaek 2x2 grid: four sticky-note tiles in red, ochre, tea
 - **Dark:** same first three tiles; bottom-right tile is paper `#F5F5F5` with an ink `#171717` fold, so it survives dark taskbars where the ink tile would merge.
 - **Why two variants:** Win32 `.ico` cannot switch with the Windows theme, so each variant is tuned for its own background. The light variant is the bundled default (matches the paper-first chrome and the default light taskbar).
 - **Small sizes:** verified at every size the bundled set ships (16, 24, 32, 48, 64, 128, 256, 512, 1024) on light and dark backgrounds. The 24-unit gap is 0.4px at 16px, so the four tiles fuse into one four-colour block there, show only a faint seam at 32px, and separate cleanly from 64px up; the cut corner still reads at 16px, and the gray fold triangle holds as a solid silhouette from 32px up.
-- **Sources of truth:** `design/icons/icon.svg` (bundled set, light variant), `design/icons/candidates/icon-obangsaek-grid-light.svg`, `design/icons/candidates/icon-obangsaek-grid-dark.svg`. Regenerate the full set from either SVG (square, transparency) or a 1024px PNG of it with `npx --yes @tauri-apps/cli@2.11.4 icon <source>` in a scratch folder. The app only embeds `icon.ico`, so copy that one file to `src-gpui/resources/icon.ico` and the site icons from the same SVG. The earlier obang mark is kept as history in `design/icons/candidates/icon-obang-light.svg` and `design/icons/candidates/icon-obang-dark.svg`.
-- **Switching to dark:** run the icon command above on `design/icons/candidates/icon-obangsaek-grid-dark.svg` in a scratch folder (`-o`), then copy `icon.ico` to `src-gpui/resources/icon.ico`. Switch back the same way with the light SVG. Windows caches icons aggressively; log out/in or rebuild the icon cache to see the change.
+- **Sources of truth:** `design/icons/icon.svg` (bundled set, light variant), `design/icons/candidates/icon-obangsaek-grid-light.svg`, `design/icons/candidates/icon-obangsaek-grid-dark.svg`. Regenerate the full set from either SVG (square, transparency) or a 1024px PNG of it with `npx --yes @tauri-apps/cli@2.11.4 icon <source>` in a scratch folder. The app only embeds `icon.ico`, so copy that one file to `app/resources/icon.ico` and the site icons from the same SVG. The earlier obang mark is kept as history in `design/icons/candidates/icon-obang-light.svg` and `design/icons/candidates/icon-obang-dark.svg`.
+- **Switching to dark:** run the icon command above on `design/icons/candidates/icon-obangsaek-grid-dark.svg` in a scratch folder (`-o`), then copy `icon.ico` to `app/resources/icon.ico`. Switch back the same way with the light SVG. Windows caches icons aggressively; log out/in or rebuild the icon cache to see the change.
 
 ## Components
 
@@ -201,7 +201,7 @@ Toolbar buttons with a quiet, tactile press (1px downward shift on active, excep
 - **Outline:** paper fill, hairline rule border, used for window-level actions (open, info, settings).
 - **Ghost:** borderless, used for in-canvas adjustments (fit, zoom, rotate, flip); hover shows muted wash.
 - **Icon:** 32px square ghost/outline for canvas transforms; every icon button carries an accessible label.
-- **Icon family:** viewer UI icons are Phosphor (regular weight; fill for the active pin and play/pause), the set the Tauri app used, bundled as SVG in `src-gpui/resources/phosphor/` and referenced through the `Ph` enum in `src-gpui/src/assets.rs`. Icons that only gpui-kit components draw internally stay on its default Lucide set.
+- **Icon family:** viewer UI icons are Phosphor (regular weight; fill for the active pin and play/pause), the set the Tauri app used, bundled as SVG in `app/resources/phosphor/` and referenced through the `Ph` enum in `app/src/assets.rs`. Icons that only gpui-kit components draw internally stay on its default Lucide set.
 - **Window controls:** minimize, maximize/restore, and close are native-style caption buttons pinned to the top-right corner: 48px wide, full titlebar height (edge to edge, no gaps, square corners, no border), glyphs Minus/Square/Copy/X. Hover shows the muted wash; close hovers to alarm fill with paper glyph; focus uses a 2px inset ring so it is never clipped at the window edge. On Windows 11, hovering the maximize/restore button shows the OS Snap Layouts flyout (the maximize button is registered as the window's maximize control area, so Windows handles the hit test natively).
 - **Hover / Focus:** muted wash hover; visible focus ring on all variants; disabled at 50% opacity.
 

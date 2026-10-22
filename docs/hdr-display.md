@@ -12,7 +12,7 @@ Radiance HDR(`.hdr`)과 OpenEXR(`.exr`) 같은 고동적 범위 소스를 HDR �
 | 색 공간 제어 | `SetColorSpace1` 호출 없음, `DXGI_OUTPUT_DESC1` 조회 없음 | 같은 크레이트 전역 검색 |
 | 스왑체인 생성 | DirectComposition + FLIP_SEQUENTIAL | `create_swap_chain_for_composition` |
 | 최종 출력 인코딩 | 셰이더가 선형 합성 후 마지막에 sRGB 인코딩 | `vendor/gpui-pre-windows/src/shaders.hlsl`의 `linear_to_srgb` |
-| 이미지 텍스처 | 8비트 BGRA만. gpui-pre 코어의 `RenderImage`/`Frame`도 BGRA 8비트 가정 | `gpui-pre-0.3.9/src/assets.rs`, 앱은 `src-gpui/src/picture.rs`의 `render_image`에서 `image::Frame`을 넘김 |
+| 이미지 텍스처 | 8비트 BGRA만. gpui-pre 코어의 `RenderImage`/`Frame`도 BGRA 8비트 가정 | `gpui-pre-0.3.9/src/assets.rs`, 앱은 `app/src/picture.rs`의 `render_image`에서 `image::Frame`을 넘김 |
 | 플랫폼 선택 | Windows는 `gpui-pre-windows` 고정. wgpu 백엔드는 Linux/wasm에만 연결 | `gpui-pre-platform-0.3.9`의 target별 dependency와 `gpui_platform.rs` |
 | macOS EDR | `wantsExtendedDynamicRangeContent` 같은 설정 없음 | `gpui-pre-macos-0.3.9/src` 전역 검색 |
 | wgpu | 트리에 있는 `wgpu 29.0.4`에는 HDR 표면 색 공간 API가 없음 | `SurfaceColorSpace`/`DisplayHdrInfo` 검색 불발(병합 전 상태) |

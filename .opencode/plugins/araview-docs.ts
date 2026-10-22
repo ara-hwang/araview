@@ -47,7 +47,7 @@ type PluginContextLike = {
 }
 
 const CHECK_TIMEOUT_MS = 120_000
-const ROOT_MARKER = "src-gpui/Cargo.toml"
+const ROOT_MARKER = "app/Cargo.toml"
 
 /** 저장소 루트를 찾는다. 세션 디렉터리 기준으로 위로 한 번 확인한다. */
 function resolveRoot(start: string): { root: string; error?: string } {

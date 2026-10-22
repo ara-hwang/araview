@@ -1,7 +1,7 @@
 //! 이미지 속 글자 인식(OCR)의 UI 비의존 부분: 결과 타입, 엔진 trait, 언어 병합.
 //!
 //! 실제 인식은 OS 내장 엔진이 맡는다. 엔진은 호스트 앱이 구현해 넘기므로(Windows는
-//! `src-gpui/src/platform/`) 코어는 OS 연동 없이 디코드와 좌표 정규화, 여러 언어
+//! `app/src/platform/`) 코어는 OS 연동 없이 디코드와 좌표 정규화, 여러 언어
 //! 결과 합치기만 한다.
 
 use image::{imageops, RgbaImage};

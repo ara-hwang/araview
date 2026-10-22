@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/araview-core", "crates/araview-thumb", "src-gpui"]
+members = ["crates/araview-core", "crates/araview-thumb", "app"]
 
 [profile.release]
 codegen-units = 1

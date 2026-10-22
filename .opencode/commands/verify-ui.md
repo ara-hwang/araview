@@ -6,7 +6,7 @@ description: 개발 앱을 띄워 화면과 조작을 직접 확인 (스크린�
 아래 기본 체크리스트를 전부 수행한다. 사용자의 마우스를 허락 없이 움직이지 않는다.
 절차의 상세는 `docs/playbooks.md`의 "Runtime check"를 따른다.
 
-1. 기동: `cargo run -p araview-gpui -- samples/exif-sample.jpg`로 개발 빌드를 띄운다
+1. 기동: `cargo run -p araview -- samples/exif-sample.jpg`로 개발 빌드를 띄운다
    (식별자 `com.araview.viewer.dev`). 설치본(`com.araview.viewer`)이 대상이면 즉시 중단하고 보고한다.
 2. 홈: 인자 없이 실행해 홈 화면 스크린샷을 찍고 레이아웃 회귀를 육안으로 확인한다.
 3. 파일 열기: `samples/`의 이미지와 `sample-comicinfo.cbz`를 연다. 헤드리스 UI 테스트는

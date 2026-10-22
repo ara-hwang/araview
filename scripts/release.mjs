@@ -56,13 +56,13 @@ function nextVersion(current, request) {
 // 첫 번째 캡처 그룹 앞, 두 번째 캡처 그룹 뒤를 보존하고 가운데 버전만 교체한다.
 const FILES = [
   {
-    path: "src-gpui/Cargo.toml",
+    path: "app/Cargo.toml",
     pattern: /(\[package\][\s\S]*?^version = ")([^"]+)(")/m,
     expected: 1
   },
   {
     path: "Cargo.lock",
-    pattern: /(\[\[package\]\]\r?\nname = "araview-gpui"\r?\nversion = ")([^"]+)(")/g,
+    pattern: /(\[\[package\]\]\r?\nname = "araview"\r?\nversion = ")([^"]+)(")/g,
     expected: 1
   }
 ]

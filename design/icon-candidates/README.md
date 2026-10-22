@@ -82,7 +82,7 @@ stays untouched in `design/icon-candidates/quiver-obangsaek-grid/icon.svg`.
 1. Copy the chosen `icon.svg` over `design/icons/candidates/icon-<variant>.svg` and derive the
    dark twin from it (paper tile, ink flap).
 2. Rasterize at 1024 and run `npx --yes @tauri-apps/cli@2.11.4 icon <svg-or-1024.png>` into a
-   scratch folder (`-o`). Copy `icon.ico` to `src-gpui/resources/icon.ico`, and the site icons
+   scratch folder (`-o`). Copy `icon.ico` to `app/resources/icon.ico`, and the site icons
    from the same SVG. The generated size set is not kept in the repo.
 3. Record the choice, the construction numbers, and the variant color values in `DESIGN.md`
    (App Icon section).

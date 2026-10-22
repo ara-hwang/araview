@@ -1,4 +1,4 @@
-// 서드파티 패키지별 라이선스 전문을 src-gpui/THIRD_PARTY_LICENSES.json으로 만든다.
+// 서드파티 패키지별 라이선스 전문을 app/THIRD_PARTY_LICENSES.json으로 만든다.
 // cargo-about(about.toml)이 배포 대상(Windows, Linux, macOS) 의존성의 라이선스 본문을 모은다.
 // 패키지에 라이선스 파일이 없으면 cargo-about이 저장소나 표준 문구로 채운다.
 // 같은 본문은 한 번만 저장한다(texts), 패키지는 files로 id를 참조한다. 이 JSON은
@@ -94,7 +94,7 @@ const out = {
   texts: Object.fromEntries([...texts].sort(([a], [b]) => a.localeCompare(b))),
   packages
 }
-writeFileSync(join(root, "src-gpui", "THIRD_PARTY_LICENSES.json"), JSON.stringify(out) + "\n")
+writeFileSync(join(root, "app", "THIRD_PARTY_LICENSES.json"), JSON.stringify(out) + "\n")
 const missing = packages.filter((p) => p.files.length === 0)
 console.log(
   `${packages.length} packages, ${texts.size} unique texts, ${missing.length} without a license text`

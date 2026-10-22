@@ -5,13 +5,13 @@ Conventions the code does not confess on its own. Read the sections your change 
 ## Rust
 
 - `unsafe_op_in_unsafe_fn` is denied and `undocumented_unsafe_blocks` warns: every `unsafe` block carries a `// SAFETY:` comment.
-- Shared logic (decode, archives, cache, thumbnails, file operations) lives in `crates/araview-core`; the app in `src-gpui` stays presentation and input. New file or image logic goes in `araview-core/src/ops/` as a sync function.
+- Shared logic (decode, archives, cache, thumbnails, file operations) lives in `crates/araview-core`; the app in `app` stays presentation and input. New file or image logic goes in `araview-core/src/ops/` as a sync function.
 - Never block the UI thread: run file, decode, and network work in `cx.background_spawn(...)` and apply the result with `update`/`update_in`.
 - `cargo clippy --workspace --all-targets -- -D warnings` must pass; fix warnings instead of allowing them.
 
-## GPUI app (`src-gpui`)
+## GPUI app (`app`)
 
-- UI text goes through `t("key")` / `t_with(...)` (`src/i18n.rs`); the strings live in `src-gpui/locales/{ko,en}.json`. Add a key to both languages.
+- UI text goes through `t("key")` / `t_with(...)` (`src/i18n.rs`); the strings live in `app/locales/{ko,en}.json`. Add a key to both languages.
 - Viewer shortcuts are resolved in the root key handler from the settings map (`src/keys.rs`), not through GPUI's keymap. A new action id goes in `run_action` (`src/app/menu.rs`) so keys, the context menu, and the command palette share one dispatcher.
 - Scroll areas that should ease use `SmoothScroll` (`src/smooth.rs`). It turns native scrolling off (`overflow_y_hidden`) and handles the wheel itself, so do not add a second wheel handler to the same element.
 - User-visible results go through `window.toast(...)` (`src/toast.rs`), not `push_notification`, so they stay visible when a dialog is open.

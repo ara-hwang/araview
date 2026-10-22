@@ -3,9 +3,9 @@ name: Release
 # `vX.Y.Z` 태그를 푸시하면 검증, 세 OS 빌드(Windows 설치 프로그램과 서명, Linux tar.gz,
 # macOS dmg), GitHub 릴리스 생성까지 자동으로 돈다.
 #   npm run release -- 2.0.1   (버전 올리기, 커밋, 태그, 푸시)
-# 태그는 버전을 올린 커밋(src-gpui/Cargo.toml, Cargo.lock 2곳 일치)에 붙여야 하며,
+# 태그는 버전을 올린 커밋(app/Cargo.toml, Cargo.lock 2곳 일치)에 붙여야 하며,
 # 어긋나면 첫 단계에서 실패한다. 실패하면 Actions에서 재실행하거나 태그를 지우고 다시
-# 푸시한다. 릴리스 자산은 이 저장소에 게시되고 앱의 업데이트 확인이 그 `latest-gpui.json`을
+# 푸시한다. 릴리스 자산은 이 저장소에 게시되고 앱의 업데이트 확인이 그 `update-feed.json`을
 # 본다. 서명 키는 Secrets TAURI_SIGNING_PRIVATE_KEY(_PASSWORD)다(이름은 예전 Tauri 시절
 # 그대로 두었다. 키 형식은 minisign이다).
 #
@@ -44,8 +44,8 @@ jobs:
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         run: |
-          $cargo = (Select-String -Path src-gpui/Cargo.toml -Pattern '^version = "(.+)"' | Select-Object -First 1).Matches.Groups[1].Value
-          $lock = (Select-String -Path Cargo.lock -Pattern 'name = "araview-gpui"' -Context 0,1 | Select-Object -First 1).Context.PostContext[0] -replace '.*"(.+)".*','$1'
+          $cargo = (Select-String -Path app/Cargo.toml -Pattern '^version = "(.+)"' | Select-Object -First 1).Matches.Groups[1].Value
+          $lock = (Select-String -Path Cargo.lock -Pattern 'name = "araview"' -Context 0,1 | Select-Object -First 1).Context.PostContext[0] -replace '.*"(.+)".*','$1'
           Write-Host "Cargo.toml=$cargo Cargo.lock=$lock"
           if ($cargo -ne $lock) {
             Write-Error "Cargo.toml($cargo)과 Cargo.lock($lock)의 버전이 다르다."
@@ -99,7 +99,7 @@ jobs:
       - name: Resolve version
         id: version
         run: |
-          $version = (Select-String -Path src-gpui/Cargo.toml -Pattern '^version = "(.+)"' | Select-Object -First 1).Matches.Groups[1].Value
+          $version = (Select-String -Path app/Cargo.toml -Pattern '^version = "(.+)"' | Select-Object -First 1).Matches.Groups[1].Value
           "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           # 수동 실행에는 태그가 없으므로 노트의 기준을 현재 커밋으로 한다.
           $tag = if ("${{ github.ref_type }}" -eq "tag") { "${{ github.ref_name }}" } else { "HEAD" }
@@ -164,7 +164,7 @@ jobs:
           Set-Content -Path feed-notes.md -Value $changes -Encoding utf8
 
       # 업데이트 서명: maintainer는 한 번만 키를 만들고 Secrets에 등록한다(docs/releasing.md).
-      # 공개키는 src-gpui/update-pubkey.txt에, 비밀키와 비밀번호는 repo Secrets에 넣는다.
+      # 공개키는 app/update-pubkey.txt에, 비밀키와 비밀번호는 repo Secrets에 넣는다.
       - name: Sign installer and write feed
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -186,7 +186,9 @@ jobs:
               }
             }
           }
-          $feed | ConvertTo-Json -Depth 5 | Set-Content -Path latest-gpui.json -Encoding utf8
+          $feed | ConvertTo-Json -Depth 5 | Set-Content -Path update-feed.json -Encoding utf8
+          # 2.5.0 이하 설치본은 옛 이름 `latest-gpui.json`을 확인하므로 같은 내용을 한 벌 더 올린다.
+          Copy-Item update-feed.json latest-gpui.json
 
       # 릴리스 생성은 세 OS 빌드가 모두 끝난 뒤 `release` 잡이 한 번에 한다.
       - name: Upload Windows artifacts
@@ -196,6 +198,7 @@ jobs:
           path: |
             target/AraView-*-setup.exe
             target/AraView-*-setup.exe.sig
+            update-feed.json
             latest-gpui.json
             release-notes.md
             feed-notes.md
@@ -282,7 +285,7 @@ jobs:
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           gh release create "${{ github.ref_name }}" \
-            dist/AraView-*-setup.exe dist/latest-gpui.json \
+            dist/AraView-*-setup.exe dist/update-feed.json dist/latest-gpui.json \
             dist/AraView-*-linux-*.tar.gz dist/AraView-*-macos-*.dmg dist/SHA256SUMS.txt \
             --repo "${{ github.repository }}" \
             --title "AraView ${{ github.ref_name }}" \

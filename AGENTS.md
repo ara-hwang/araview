@@ -1,6 +1,6 @@
 # AGENTS.md - AraView
 
-`araview` is a desktop image viewer written in Rust with GPUI Kit (gpui-kit). Supported OS: Windows 11 x64 (verified). macOS and Linux x64 are experimental: they build in CI but are not runtime-tested. OS-specific code stays behind `src-gpui/src/platform/` and `cfg` gates; a change must keep all three building (CI builds each).
+`araview` is a desktop image viewer written in Rust with GPUI Kit (gpui-kit). Supported OS: Windows 11 x64 (verified). macOS and Linux x64 are experimental: they build in CI but are not runtime-tested. OS-specific code stays behind `app/src/platform/` and `cfg` gates; a change must keep all three building (CI builds each).
 
 ## Guardrails
 
@@ -31,6 +31,6 @@ Each command must exit 0.
 ### On completion, once
 
 1. `cargo test --workspace`
-2. Runtime: run the dev app (`cargo run -p araview-gpui`) and check every screen the change touches. Confirm the target first: the dev build uses identifier `com.araview.viewer.dev`; the installed build is `com.araview.viewer` and must not be the target. Report each checked screen or action as PASS or FAIL. Drive the window with `pwsh scripts/araview-drive.ps1` (CLI) or the `araview` MCP server, and use `selftest` as the floor. Procedure: `docs/playbooks.md`, "Runtime check".
+2. Runtime: run the dev app (`cargo run -p araview`) and check every screen the change touches. Confirm the target first: the dev build uses identifier `com.araview.viewer.dev`; the installed build is `com.araview.viewer` and must not be the target. Report each checked screen or action as PASS or FAIL. Drive the window with `pwsh scripts/araview-drive.ps1` (CLI) or the `araview` MCP server, and use `selftest` as the floor. Procedure: `docs/playbooks.md`, "Runtime check".
 
 Done when every step above is reported with its exit code, and the runtime checks element by element as PASS or FAIL.

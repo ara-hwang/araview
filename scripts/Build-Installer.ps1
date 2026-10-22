@@ -22,7 +22,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 $root = Split-Path $PSScriptRoot -Parent
-$app = Join-Path $root "src-gpui"
+$app = Join-Path $root "app"
 $release = Join-Path $root "target\release"
 $stage = Join-Path $root "target\installer-stage"
 
@@ -42,7 +42,7 @@ if (-not $SkipBuild) {
   Push-Location $root
   try {
     # 썸네일 DLL은 앱과 별개의 cdylib이라 따로 빌드한다.
-    cargo build --release -p araview-gpui -p araview-thumb --no-default-features
+    cargo build --release -p araview -p araview-thumb --no-default-features
     if ($LASTEXITCODE -ne 0) { throw "cargo build --release 실패 (exit $LASTEXITCODE)" }
   } finally { Pop-Location }
 }

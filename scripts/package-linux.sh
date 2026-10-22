@@ -9,11 +9,11 @@
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-app="$root/src-gpui"
+app="$root/app"
 release="$root/target/release"
 
 if [[ "${1:-}" != "--skip-build" ]]; then
-  (cd "$root" && cargo build --release -p araview-gpui)
+  (cd "$root" && cargo build --release -p araview)
 fi
 [[ -x "$release/araview" ]] || { echo "릴리스 실행 파일이 없습니다: $release/araview" >&2; exit 1; }
 
