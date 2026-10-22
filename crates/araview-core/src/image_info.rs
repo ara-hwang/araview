@@ -305,27 +305,27 @@ fn icc_from_jpeg(path: &Path) -> Option<(Option<String>, u64)> {
     file.take((SCAN_LIMIT + MAX_SEGMENT) as u64)
         .read_to_end(&mut bytes)
         .ok()?;
-    if bytes.len() < 4 || bytes[0..2] != [0xFF, 0xD8] {
+    if bytes.len() < 4 || bytes[0..2] != [0xff, 0xd8] {
         return None;
     }
     let mut pos = 2usize;
     let mut total: u64 = 0;
     let mut found = false;
     while pos + 4 <= bytes.len() && pos < SCAN_LIMIT {
-        if bytes[pos] != 0xFF {
+        if bytes[pos] != 0xff {
             pos += 1;
             continue;
         }
         let marker = bytes[pos + 1];
         // 연속 FF 패딩, 단독 마커는 길이 없이 건너뛴다.
-        if marker == 0xFF || marker == 0x00 {
+        if marker == 0xff || marker == 0x00 {
             pos += 1;
             continue;
         }
-        if marker == 0xDA {
+        if marker == 0xda {
             break; // SOS: 이후는 압축 스트림이라 메타데이터 없음.
         }
-        if marker == 0xD8 || marker == 0xD9 || marker == 0x01 || (0xD0..=0xD7).contains(&marker) {
+        if marker == 0xd8 || marker == 0xd9 || marker == 0x01 || (0xd0..=0xd7).contains(&marker) {
             pos += 2;
             continue;
         }
@@ -334,7 +334,7 @@ fn icc_from_jpeg(path: &Path) -> Option<(Option<String>, u64)> {
         if len < 2 || end > bytes.len() {
             break;
         }
-        if marker == 0xE2 {
+        if marker == 0xe2 {
             let seg = &bytes[pos + 4..end];
             // "ICC_PROFILE\0"(12) + seq(1) + count(1) + 프로파일 데이터.
             if seg.starts_with(b"ICC_PROFILE\0") {

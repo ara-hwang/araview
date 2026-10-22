@@ -182,13 +182,13 @@ fn find_comic_info_in_entries(entries: &[String]) -> Option<String> {
 
 /// 바이트 → UTF-8 문자열. UTF-16 BOM이면 std만으로 디코딩한다.
 fn decode_xml(bytes: &[u8]) -> Result<String, AppError> {
-    if bytes.starts_with(&[0xFF, 0xFE]) {
+    if bytes.starts_with(&[0xff, 0xfe]) {
         return decode_utf16(&bytes[2..], true);
     }
-    if bytes.starts_with(&[0xFE, 0xFF]) {
+    if bytes.starts_with(&[0xfe, 0xff]) {
         return decode_utf16(&bytes[2..], false);
     }
-    let body = bytes.strip_prefix(&[0xEF, 0xBB, 0xBF]).unwrap_or(bytes);
+    let body = bytes.strip_prefix(&[0xef, 0xbb, 0xbf]).unwrap_or(bytes);
     String::from_utf8(body.to_vec())
         .map_err(|_| AppError::corrupt("ComicInfo.xml is not valid UTF-8"))
 }

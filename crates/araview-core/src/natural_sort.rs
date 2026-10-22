@@ -97,7 +97,7 @@ fn common_dir_prefix_len<'a>(mut paths: impl Iterator<Item = &'a str>) -> usize 
 /// 숫자가 글자보다 먼저 온다(탐색기와 같은 순서).
 const DIGIT_RUN_MARKER: u8 = 0x01;
 /// 숫자 구간 길이를 담는 두 바이트로 나타낼 수 있는 최댓값(7비트 × 2).
-const MAX_DIGIT_RUN: usize = 0x3FFF;
+const MAX_DIGIT_RUN: usize = 0x3fff;
 
 /// 구성 요소 하나의 키를 0x00 종결자와 함께 `out`에 덧붙인다.
 ///
@@ -117,7 +117,7 @@ fn push_fallback_key(part: &str, out: &mut Vec<u8>) {
             let digits = &digits[..digits.len().min(MAX_DIGIT_RUN)];
             out.push(DIGIT_RUN_MARKER);
             out.push(0x80 | (digits.len() >> 7) as u8);
-            out.push(0x80 | (digits.len() & 0x7F) as u8);
+            out.push(0x80 | (digits.len() & 0x7f) as u8);
             out.extend_from_slice(digits.as_bytes());
             rest = &rest[end..];
         } else {

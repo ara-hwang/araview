@@ -105,7 +105,7 @@ pub fn hwnd(window: &Window) -> isize {
 pub fn start_window_drag(window: &Window) {
     const WM_SYSCOMMAND: u32 = 0x0112;
     /// `SC_MOVE | HTCAPTION`. 마우스가 눌려 있는 동안 OS가 창을 따라 옮긴다.
-    const SC_MOVE_CAPTION: usize = 0xF012;
+    const SC_MOVE_CAPTION: usize = 0xf012;
     #[link(name = "user32")]
     unsafe extern "system" {
         fn ReleaseCapture() -> i32;
