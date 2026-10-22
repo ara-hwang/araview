@@ -4,7 +4,7 @@
 
 ## 단축키
 
-기본값 진실은 `src-gpui/src/settings.rs`의 기본 단축키 표이며, 설정에서 재할당할 수 있습니다. 규격 표는 `SPEC.md` §14를 따릅니다. 이 표의 `Ctrl`은 macOS에서 Cmd로도 눌립니다. `T`(항상 위)는 Windows에서만 있고, `Ctrl+Shift+E`는 macOS에서 Finder, Linux에서 파일 관리자로 보여 줍니다.
+기본값 진실은 `app/src/settings.rs`의 기본 단축키 표이며, 설정에서 재할당할 수 있습니다. 규격 표는 `SPEC.md` §14를 따릅니다. 이 표의 `Ctrl`은 macOS에서 Cmd로도 눌립니다. `T`(항상 위)는 Windows에서만 있고, `Ctrl+Shift+E`는 macOS에서 Finder, Linux에서 파일 관리자로 보여 줍니다.
 
 - **파일/탐색**: `Ctrl+O`(열기), `ArrowLeft`/`ArrowRight`(이전/다음)
 - **이동**: `Ctrl+ArrowLeft`/`Ctrl+ArrowRight`/`ArrowUp`/`ArrowDown`(팬; 웹툰 모드에서는 이전/다음·스크롤 이동으로 바뀌고 다이얼로그/입력 포커스·그리드 표시 중에는 동작하지 않음)

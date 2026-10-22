@@ -26,7 +26,7 @@ const CHECK_TIMEOUT: Duration = Duration::from_secs(30);
 const DOWNLOAD_TIMEOUT: Duration = Duration::from_secs(600);
 /// GPUI 앱의 릴리스 피드. Tauri 앱의 `latest.json`과 같은 모양이고 같은 키로 서명한다.
 const UPDATE_FEED: &str =
-    "https://github.com/ara-hwang/araview/releases/latest/download/latest-gpui.json";
+    "https://github.com/ara-hwang/araview/releases/latest/download/update-feed.json";
 const RELEASE_PAGE: &str = "https://github.com/ara-hwang/araview/releases/latest";
 /// 앱 안에서 내려받아 설치할 수 있는 플랫폼 키. 설치 프로그램 실행은 Windows만 지원하므로
 /// macOS와 Linux는 업데이트 확인 후 릴리스 페이지로 안내한다.

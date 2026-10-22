@@ -7,7 +7,7 @@ import { dirname, join } from "node:path"
  * Node 표준 라이브러리로 동작하며, 하나라도 어긋나면 exit 1로 실패한다.
  *
  * 검사 항목:
- * 1. 버전 일치 (src-gpui/Cargo.toml, Cargo.lock)
+ * 1. 버전 일치 (app/Cargo.toml, Cargo.lock)
  * 2. 지원 확장자 일치 (image.rs, SPEC.md §2 표)
  * 3. 설정 키 일치 (SPEC.md §13 표, settings.rs Settings)
  * 4. 완료 plan 잔류 금지 (docs/plans 아래 .md 없음)
@@ -69,12 +69,12 @@ function tableNames(section) {
 
 /** 1. 버전 */
 {
-  const cargoToml = read("src-gpui/Cargo.toml")
+  const cargoToml = read("app/Cargo.toml")
   const cargoPackage = cargoToml.split(/^\[/m).find((part) => part.startsWith("package]"))
   const cargoVer = cargoPackage?.match(/^\s*version\s*=\s*"([^"]+)"/m)?.[1] ?? null
   const cargoLock = read("Cargo.lock")
   const lockVer =
-    cargoLock.match(/\[\[package\]\]\s*\nname = "araview-gpui"\s*\nversion = "([^"]+)"/)?.[1] ?? null
+    cargoLock.match(/\[\[package\]\]\s*\nname = "araview"\s*\nversion = "([^"]+)"/)?.[1] ?? null
   if (cargoVer && cargoVer === lockVer) pass("버전", `Cargo.toml과 Cargo.lock 모두 ${cargoVer}`)
   else fail("버전", `Cargo.toml=${cargoVer ?? "없음"}, Cargo.lock=${lockVer ?? "없음"}`)
 }
@@ -94,7 +94,7 @@ function tableNames(section) {
 {
   const spec = read("SPEC.md")
   const specKeys = tableNames(specSection(spec, 13))
-  const settings = read("src-gpui/src/settings.rs")
+  const settings = read("app/src/settings.rs")
   const start = settings.indexOf("pub struct Settings {")
   const block = settings.slice(start, settings.indexOf("\n}", start))
   const keys = []

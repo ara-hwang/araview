@@ -19,7 +19,7 @@ Rust와 [GPUI Kit](https://github.com/longbridge/gpui-kit)으로 만든 Windows,
 ```bash
 git clone https://github.com/ara-hwang/araview.git
 cd araview
-cargo run -p araview-gpui -- "C:/path/to/image.png"   # macOS, Linux는 ~/Pictures/image.png 같은 경로
+cargo run -p araview -- "C:/path/to/image.png"   # macOS, Linux는 ~/Pictures/image.png 같은 경로
 ```
 
 Windows는 `VCPKG_ROOT`가 vcpkg 설치 위치를 가리켜야 합니다.

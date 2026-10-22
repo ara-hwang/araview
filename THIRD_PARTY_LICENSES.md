@@ -3,7 +3,7 @@
 AraView redistributes the third-party software listed below. Full license
 texts ship with the app (Settings > Open source licenses, and the licenses/
 folder of the installer).
-Generated 2026-10-09. Section 2 and src-gpui/THIRD_PARTY_LICENSES.json come from
+Generated 2026-10-09. Section 2 and app/THIRD_PARTY_LICENSES.json come from
 `node scripts/generate-license-data.mjs` (cargo-about). Section 1 is maintained
 by hand from the vcpkg share directory.
 Regenerate after dependency changes. CI runs cargo-deny (deny.toml) to block
@@ -794,4 +794,4 @@ dependencies and other-OS targets are excluded.
 
 | Asset | Version | License | Note |
 | ----- | ------- | ------- | ---- |
-| Phosphor Icons (regular, bold, fill weights) | 2.1.10 | MIT | viewer UI icons in `src-gpui/resources/phosphor/`; Copyright (c) 2020 Phosphor Icons |
+| Phosphor Icons (regular, bold, fill weights) | 2.1.10 | MIT | viewer UI icons in `app/resources/phosphor/`; Copyright (c) 2020 Phosphor Icons |

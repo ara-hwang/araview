@@ -1,5 +1,5 @@
 {
-  // rust-analyzer: 루트 워크스페이스(crates/*, src-gpui)를 자동 탐색한다.
+  // rust-analyzer: 루트 워크스페이스(crates/*, app)를 자동 탐색한다.
   "rust-analyzer.check.command": "clippy",
   // analyzer용 check 산출물을 분리해 `cargo build`와 Cargo.lock 경합을 피한다.
   "rust-analyzer.cargo.targetDir": true,

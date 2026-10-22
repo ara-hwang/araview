@@ -801,7 +801,7 @@ function Send-AraViewDrop {
 function Send-AraViewAction {
   <#
   .SYNOPSIS
-    뷰어 동작 하나를 실행한다(`src-gpui/src/app/menu.rs`의 동작 ID).
+    뷰어 동작 하나를 실행한다(`app/src/app/menu.rs`의 동작 ID).
   #>
   [CmdletBinding()]
   param(
@@ -993,7 +993,7 @@ function Start-AraViewApp {
     $Exe = Join-Path $root 'target\debug\araview.exe'
   }
   if (-not (Test-Path -LiteralPath $Exe)) {
-    throw "개발 빌드가 없습니다: $Exe. 먼저 `cargo build -p araview-gpui`(또는 `cargo run -p araview-gpui`)를 실행하세요."
+    throw "개발 빌드가 없습니다: $Exe. 먼저 `cargo build -p araview`(또는 `cargo run -p araview`)를 실행하세요."
   }
 
   $arguments = @()

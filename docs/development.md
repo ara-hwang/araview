@@ -4,10 +4,10 @@
 
 ## 기술 스택
 
-- **앱**: Rust, [GPUI Kit](https://github.com/longbridge/gpui-kit) 0.7(`src-gpui`)
+- **앱**: Rust, [GPUI Kit](https://github.com/longbridge/gpui-kit) 0.7(`app`)
 - **공용 코어**: `crates/araview-core`(디코드, 아카이브, 캐시, 썸네일, 파일 작업)
 - **PSD 탐색기 썸네일**: `crates/araview-thumb`(COM DLL, Windows 전용. 다른 OS에서는 빈 크레이트로 빌드됩니다)
-- **배포 묶음**: Windows는 NSIS 설치 프로그램(`src-gpui/installer/araview.nsi`), Linux는 tar.gz(`scripts/package-linux.sh`), macOS는 dmg(`scripts/package-macos.sh`)
+- **배포 묶음**: Windows는 NSIS 설치 프로그램(`app/installer/araview.nsi`), Linux는 tar.gz(`scripts/package-linux.sh`), macOS는 dmg(`scripts/package-macos.sh`)
 - 지원 OS: Windows 11 x64(정식), macOS(Apple silicon 기준)와 Linux x64(X11/Wayland)는 실험적입니다(CI 빌드만 확인). 창 틀은 GPUI Kit의 타이틀바가 OS별로 그립니다.
 - 루트 `Cargo.toml`이 세 크레이트를 한 워크스페이스로 묶고 `Cargo.lock`도 하나입니다.
 
@@ -30,7 +30,7 @@ $env:VCPKG_ROOT = "<vcpkg root>"
 $env:Path += ";$env:VCPKG_ROOT\installed\x64-windows\bin"
 ```
 
-앱은 `libheif`를 동적 링크합니다(`libheif-rs`, `default-features = false`). `src-gpui/build.rs`가 `VCPKG_ROOT`(또는 `VCPKG_INSTALLATION_ROOT`) 아래 `installed/x64-windows/bin`에서 `heif.dll`, `libde265.dll`, `aom.dll`을 실행 파일 옆(`target/<profile>/`)으로 복사하고, vcpkg의 `libheif`, `libde265`, `aom` `copyright`를 같은 위치의 `licenses/`로 모읍니다. 설치 프로그램은 이 파일들을 그대로 동봉합니다. CI에서는 `VCPKGRS_DYNAMIC=1`과 `PKG_CONFIG_PATH`를 함께 둡니다(워크플로 참조).
+앱은 `libheif`를 동적 링크합니다(`libheif-rs`, `default-features = false`). `app/build.rs`가 `VCPKG_ROOT`(또는 `VCPKG_INSTALLATION_ROOT`) 아래 `installed/x64-windows/bin`에서 `heif.dll`, `libde265.dll`, `aom.dll`을 실행 파일 옆(`target/<profile>/`)으로 복사하고, vcpkg의 `libheif`, `libde265`, `aom` `copyright`를 같은 위치의 `licenses/`로 모읍니다. 설치 프로그램은 이 파일들을 그대로 동봉합니다. CI에서는 `VCPKGRS_DYNAMIC=1`과 `PKG_CONFIG_PATH`를 함께 둡니다(워크플로 참조).
 
 ### macOS
 
@@ -38,7 +38,7 @@ Xcode 명령줄 도구와 `pkg-config`가 필요합니다. 개발에는 Homebrew
 
 ```bash
 brew install pkgconf libheif
-cargo run -p araview-gpui -- ~/Pictures/image.png
+cargo run -p araview -- ~/Pictures/image.png
 ```
 
 배포 묶음은 vcpkg 정적 빌드(`arm64-osx`, Intel은 `x64-osx`)로 `libheif`를 실행 파일에 넣어 dylib를 동봉하지 않습니다. CI의 `.github/actions/setup-rust-native`가 이 환경(`VCPKG_ROOT`, `PKG_CONFIG_PATH`, `PKG_CONFIG_ALL_STATIC=1`)을 만듭니다.
@@ -60,7 +60,7 @@ sudo apt-get install pkg-config cmake clang libclang-dev \
 ```bash
 git clone https://github.com/ara-hwang/araview.git
 cd araview
-cargo run -p araview-gpui -- "C:/path/to/image.png"
+cargo run -p araview -- "C:/path/to/image.png"
 ```
 
 개발(디버그) 빌드는 식별자 `com.araview.viewer.dev`를 씁니다. 설치본(`com.araview.viewer`)과 동시에 실행할 수 있고, 설정과 캐시도 따로 저장됩니다. 저장 위치는 OS별로 다릅니다.
@@ -77,7 +77,7 @@ Windows 개발 빌드는 확장자 연결이 설치 버전과 섞이지 않도�
 
 ```bash
 # 개발 실행
-cargo run -p araview-gpui
+cargo run -p araview
 
 # 검사
 cargo fmt --all --check
@@ -108,20 +108,20 @@ npm run licenses
 
 ## 앱 구조 요약
 
-- `src-gpui`는 UI와 입력만 맡고, 파일과 이미지 작업은 `araview-core`의 동기 함수(`ops/`)를 `cx.background_spawn`으로 호출합니다.
+- `app`는 UI와 입력만 맡고, 파일과 이미지 작업은 `araview-core`의 동기 함수(`ops/`)를 `cx.background_spawn`으로 호출합니다.
 - 렌더링: `araview-core`의 `display.rs`가 디코드한 RGBA 프레임을 GPU 타일로 그립니다. GPUI 텍스처는 한 변 16384px 제한과 밉맵 없는 선형 보간뿐이라, 큰 이미지는 타일로 나누고 축소 단계를 CPU에서 만듭니다. 픽셀 보존 표시는 보이는 영역만 최근접 확대한 래스터로 그립니다.
 - 단축키: GPUI 키맵 대신 뷰어 루트의 키 입력에서 설정 맵을 직접 찾습니다(`src/keys.rs`).
 - 파일 열기 대화상자: GPUI의 경로 선택 창에는 형식 필터가 없어 `rfd`의 네이티브 대화상자를 씁니다.
 - 고대비: Windows 대비 테마 여부를 시작할 때, 테마를 바꿀 때, 창이 다시 활성화될 때 읽어 글자·테두리 대비를 올립니다(다른 OS는 항상 꺼짐). 모션 최소화는 Windows "애니메이션 효과", macOS "동작 줄이기", GNOME `enable-animations`를 따릅니다(`src/platform/`).
-- 플랫폼 계층: `src-gpui/src/platform/mod.rs`가 공개 함수 집합을 정의하고 `windows.rs`(Win32 직접 호출), `unix.rs`(Linux와 macOS)가 구현합니다. 항상 위(`ALWAYS_ON_TOP_SUPPORTED`)는 Windows에서만 켜지고, 다른 OS에서는 헤더 버튼, 설정 행, 명령 팔레트 항목이 숨겨집니다. 문구 중 OS마다 다른 것(탐색기/Finder/파일 관리자)은 `locales/*.json`의 `platform.<windows|macos|linux>` 아래에 같은 키로 덮어씁니다.
+- 플랫폼 계층: `app/src/platform/mod.rs`가 공개 함수 집합을 정의하고 `windows.rs`(Win32 직접 호출), `unix.rs`(Linux와 macOS)가 구현합니다. 항상 위(`ALWAYS_ON_TOP_SUPPORTED`)는 Windows에서만 켜지고, 다른 OS에서는 헤더 버튼, 설정 행, 명령 팔레트 항목이 숨겨집니다. 문구 중 OS마다 다른 것(탐색기/Finder/파일 관리자)은 `locales/*.json`의 `platform.<windows|macos|linux>` 아래에 같은 키로 덮어씁니다.
 - 단축키: macOS에서는 Cmd를 Ctrl 자리에 씁니다(`Ctrl+O`는 Cmd+O로도 눌립니다). Windows와 Linux의 Win/Super 키는 쓰지 않습니다.
 - 설정은 `<설정 폴더>/<식별자>/settings.json`에 저장합니다(위 표). `settings`/`recentFiles`/`archiveProgress` 모양은 1.x(Tauri)와 같고 `theme`, `window`(창 위치·크기) 키가 더 있습니다. 그래서 1.x 설치본 위에 설치하면 설정과 최근 파일을 이어받습니다.
 - 단일 인스턴스: 두 번째 실행은 첫 인자를 기존 창에 넘기고 종료합니다. Windows는 명명된 파이프(`\\.\pipe\<식별자>`), Linux와 macOS는 유닉스 도메인 소켓(`$XDG_RUNTIME_DIR` 또는 임시 폴더의 `<식별자>.sock`, 경로가 100바이트를 넘으면 `/tmp/araview-<uid>-<해시>.sock`)입니다. macOS에서 Finder로 파일을 열면 `open-document` 이벤트가 같은 경로로 전달됩니다.
 - 런타임 확인: 디버그 빌드는 실행 중인 창에 `araview action:<동작 ID>`(Windows는 `araview.exe`)로 동작을 실행시킬 수 있습니다(`src/app/menu.rs`의 `run_action`, 단축키 동작 ID와 `openSettings`, `viewLtr` 등). 릴리스 빌드에는 이 통로가 없습니다.
 - 제어 브리지(개발 빌드 전용): 디버그 빌드는 `\\.\pipe\<식별자>-control`(Linux와 macOS는 유닉스 소켓 `<식별자>-control.sock`)을 열고 한 줄 JSON 요청에 한 줄 JSON 응답을 돌려줍니다(`src/app/bridge.rs`, 통로는 `src/platform/`). 입력은 창 메시지가 아니라 GPUI 입력 경로(`Window::dispatch_event`, `Window::dispatch_keystroke`)로 들어가므로 수식키 조합(ctrl-휠, ctrl-shift-c)과 파일 드롭이 그대로 살고 사용자의 마우스·키보드를 건드리지 않습니다. 상태(열린 파일, 인덱스, 보기 모드, 배율, 위치, 읽기 영역, 패널, 전체화면, 에러)를 함께 돌려줍니다. `scripts/araview-drive.ps1`(CLI), `scripts/araview-mcp.ps1`(MCP 서버), `scripts/AraViewControl.psm1`(캡처와 통로 클라이언트)이 이 통로를 씁니다. 릴리스 빌드에는 이 통로가 없습니다(The control channel is compiled out of release builds).
-- 업데이트: 피드는 `latest-gpui.json`이고 minisign 서명을 `src-gpui/update-pubkey.txt`의 공개키로 확인합니다. 새 버전이 있으면(Windows) 설치 프로그램을 내려받아 서명을 확인한 뒤 실행하고 앱을 종료합니다. macOS와 Linux는 인앱 설치 없이 릴리스 페이지로 안내합니다(`update.rs`의 `PLATFORM`). 피드가 없으면(404) 확인 결과는 "최신"입니다. 다운로드 중에는 진행 막대가 있는 대화상자를 띄우고(취소 가능), 실패는 토스트로 알립니다.
-- 업데이트 로컬 검증: `cargo run -p araview-gpui --example local_update_feed -- <setup.exe> <출력 폴더> http://127.0.0.1:8765`가 임시 키로 서명한 피드를 만듭니다. 그 폴더를 `python -m http.server 8765 --bind 127.0.0.1`로 띄우고, 디버그 빌드를 `ARAVIEW_UPDATE_FEED`(피드 주소)와 `ARAVIEW_UPDATE_PUBKEY`(`pubkey.txt` 내용)를 준 채 실행한 뒤 `action:checkUpdates`나 `action:installUpdate`를 보냅니다. 릴리스 빌드는 두 환경 변수를 읽지 않습니다.
-- 서드파티 라이선스: `npm run licenses`가 Rust 의존성을 `src-gpui/THIRD_PARTY_LICENSES.json`에 모으고, 앱이 이 파일을 컴파일 시점에 포함합니다. 같은 스크립트가 `THIRD_PARTY_LICENSES.md`의 2절 표도 다시 씁니다. 1절(네이티브 라이브러리)은 직접 고칩니다. 의존성을 바꾸면 다시 생성합니다. 허용하지 않은 라이선스는 `cargo deny check licenses bans sources`(설정 `deny.toml`, `cargo install cargo-deny --locked`)로 검사하며 CI와 릴리스 워크플로도 같은 검사를 합니다. 패키지에 LICENSE 파일이 없어 표준 템플릿("Copyright (c) <year> <owner>")이 나오는 크레이트는 스크립트가 경고로 알려 주며, 업스트림 LICENSE를 `licenses-extra/`에 복사하고 스크립트의 `EXTRA_LICENSES`에 추가합니다. 새 라이선스가 나오면 `about.toml`의 `accepted`와 `deny.toml`의 `allow`를 같이 고칩니다.
+- 업데이트: 피드는 `update-feed.json`이고 minisign 서명을 `app/update-pubkey.txt`의 공개키로 확인합니다. 새 버전이 있으면(Windows) 설치 프로그램을 내려받아 서명을 확인한 뒤 실행하고 앱을 종료합니다. macOS와 Linux는 인앱 설치 없이 릴리스 페이지로 안내합니다(`update.rs`의 `PLATFORM`). 피드가 없으면(404) 확인 결과는 "최신"입니다. 다운로드 중에는 진행 막대가 있는 대화상자를 띄우고(취소 가능), 실패는 토스트로 알립니다.
+- 업데이트 로컬 검증: `cargo run -p araview --example local_update_feed -- <setup.exe> <출력 폴더> http://127.0.0.1:8765`가 임시 키로 서명한 피드를 만듭니다. 그 폴더를 `python -m http.server 8765 --bind 127.0.0.1`로 띄우고, 디버그 빌드를 `ARAVIEW_UPDATE_FEED`(피드 주소)와 `ARAVIEW_UPDATE_PUBKEY`(`pubkey.txt` 내용)를 준 채 실행한 뒤 `action:checkUpdates`나 `action:installUpdate`를 보냅니다. 릴리스 빌드는 두 환경 변수를 읽지 않습니다.
+- 서드파티 라이선스: `npm run licenses`가 Rust 의존성을 `app/THIRD_PARTY_LICENSES.json`에 모으고, 앱이 이 파일을 컴파일 시점에 포함합니다. 같은 스크립트가 `THIRD_PARTY_LICENSES.md`의 2절 표도 다시 씁니다. 1절(네이티브 라이브러리)은 직접 고칩니다. 의존성을 바꾸면 다시 생성합니다. 허용하지 않은 라이선스는 `cargo deny check licenses bans sources`(설정 `deny.toml`, `cargo install cargo-deny --locked`)로 검사하며 CI와 릴리스 워크플로도 같은 검사를 합니다. 패키지에 LICENSE 파일이 없어 표준 템플릿("Copyright (c) <year> <owner>")이 나오는 크레이트는 스크립트가 경고로 알려 주며, 업스트림 LICENSE를 `licenses-extra/`에 복사하고 스크립트의 `EXTRA_LICENSES`에 추가합니다. 새 라이선스가 나오면 `about.toml`의 `accepted`와 `deny.toml`의 `allow`를 같이 고칩니다.
 - 스크롤: GPUI에는 휠 스크롤 감속이 없어 `src/smooth.rs`의 `SmoothScroll`이 홈, 설정, 정보 패널, 라이선스 창의 휠 입력을 목표 오프셋으로 쌓아 프레임마다 따라가게 합니다. 웹툰 보기는 `src/app/viewport.rs`가 같은 방식으로 휠과 위·아래 키 스크롤을 나눠 반영합니다. 격자 보기는 가상 목록이라 적용하지 않았습니다.
 - 알림: GPUI 알림 레이어는 다이얼로그보다 아래에 그려지므로, 다이얼로그가 열려 있으면 `src/toast.rs`가 같은 내용을 경고창으로 띄웁니다.
 - 로딩 표시: 파일을 여는 중(200ms 이상)에는 홈 위에, 그림이 아직 없을 때는 가운데에, 그림이 떠 있는 채 새 페이지나 웹툰 페이지가 늦어지면(페이지 이동은 300ms 이상) 오른쪽 위에 스피너를 보입니다.
@@ -130,7 +130,7 @@ npm run licenses
 ## 프로젝트 구조
 
 ```text
-Cargo.toml           # 워크스페이스(crates/*, src-gpui). Cargo.lock도 하나
+Cargo.toml           # 워크스페이스(crates/*, app). Cargo.lock도 하나
 crates/
   araview-core/src/  # UI 비의존 코어
     ops/             # 연산 구현(도메인별 동기 함수, mod.rs에서 재내보내기)
@@ -163,7 +163,7 @@ crates/
     orientation.rs   # EXIF Orientation 읽기/적용
   araview-thumb/     # PSD 탐색기 썸네일 COM DLL(Windows 전용)
 
-src-gpui/            # 앱
+app/            # 앱
   update-pubkey.txt  # 업데이트 서명 공개키(minisign, base64)
   locales/           # 번역(ko.json, en.json)
   src/main.rs        # 부트스트랩: 단일 인스턴스, 설정 로드, 캐시 초기화, 창 생성
@@ -213,7 +213,7 @@ licenses-extra/      # LICENSE 파일이 없는 크레이트의 업스트림 LIC
 
 ## 픽셀 보존 표시와 축소
 
-- 픽셀 보존(`pixelated`)은 확대 배율에서만 적용됩니다. 축소 배율에서는 nearest 계열 보간이 스크린톤 같은 주기 패턴을 계단·무아레로 깨뜨리므로 설정과 무관하게 항상 smooth로 렌더합니다(`src-gpui/src/app/viewport.rs`의 배율 게이트).
+- 픽셀 보존(`pixelated`)은 확대 배율에서만 적용됩니다. 축소 배율에서는 nearest 계열 보간이 스크린톤 같은 주기 패턴을 계단·무아레로 깨뜨리므로 설정과 무관하게 항상 smooth로 렌더합니다(`app/src/app/viewport.rs`의 배율 게이트).
 - 자동 모드(`auto`)는 2x 이상 확대에서 pixelated로 렌더합니다(`AUTO_PIXELATED_ZOOM`). 보간 없이 원본 픽셀을 그대로 보여주기 위함입니다. 이미지 내용을 분석하는 픽셀 아트 감지는 없습니다.
 - 표시 해상도 상한 축소 sidecar(`crates/araview-core/src/scaled.rs`)도 표시 정책과 무관하게 항상 보간 필터(`Triangle`)를 사용합니다. 축소는 픽셀을 버리는 연산이므로 픽셀 보존 판정이 의미가 없습니다.
 

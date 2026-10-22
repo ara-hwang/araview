@@ -1,7 +1,7 @@
 //! 업데이트 흐름을 로컬에서 끝까지 돌려 보기 위한 개발 도구.
 //!
 //! 주어진 설치 프로그램을 임시 minisign 키로 서명하고, 출력 폴더에 설치 프로그램
-//! 사본, `latest-gpui.json`, 공개키(`pubkey.txt`)를 쓴다. 출력 폴더를 HTTP로
+//! 사본, `update-feed.json`, 공개키(`pubkey.txt`)를 쓴다. 출력 폴더를 HTTP로
 //! 띄운 뒤 디버그 빌드를 `ARAVIEW_UPDATE_FEED`, `ARAVIEW_UPDATE_PUBKEY`와 함께
 //! 실행한다(`docs/development.md`). 릴리스 키와는 무관하다.
 //!
@@ -48,13 +48,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
     std::fs::write(
-        out.join("latest-gpui.json"),
+        out.join("update-feed.json"),
         serde_json::to_vec_pretty(&feed)?,
     )?;
     std::fs::write(
         out.join("pubkey.txt"),
         encode(keys.pk.to_box()?.to_string()),
     )?;
-    println!("feed: {}", out.join("latest-gpui.json").display());
+    println!("feed: {}", out.join("update-feed.json").display());
     Ok(())
 }

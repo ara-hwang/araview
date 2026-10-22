@@ -1,4 +1,4 @@
-//! UI 문구. 번역 원본은 `src-gpui/locales/*.json`이다.
+//! UI 문구. 번역 원본은 `app/locales/*.json`이다.
 
 use std::collections::HashMap;
 use std::sync::LazyLock;

@@ -7,7 +7,7 @@ Task-specific procedures for agents, reached from `../AGENTS.md`. Read the secti
 1. Add the extension and MIME mapping in `crates/araview-core/src/image.rs` (`SUPPORTED_EXTENSIONS`, `get_mime_type`)
 2. Make `crates/araview-core/src/display.rs` decode it into RGBA frames (most formats go through the `image` crate; HEIC/HEIF through libheif)
 3. Add a sample file to `samples/`, generated with tools installed on the PC and outside the repo's dependencies: raster/vector via `sharp` in a temp dir, HEIC/HEIF via Python `pillow-heif`, CBZ via `Compress-Archive`. If the PC has no encoder, install one on the PC.
-4. Update `SPEC.md` §2 (and §16/§18/§20 when affected), `README.md`, `docs/`, and the packaging declarations in `src-gpui/packaging/` (macOS `Info.plist` extension list, Linux `.desktop` `MimeType`)
+4. Update `SPEC.md` §2 (and §16/§18/§20 when affected), `README.md`, `docs/`, and the packaging declarations in `app/packaging/` (macOS `Info.plist` extension list, Linux `.desktop` `MimeType`)
 5. Done when `npm run docs:check` exits 0 and the sample opens in the dev app (see "Runtime check")
 
 ## Add an `araview-core` operation
@@ -19,9 +19,9 @@ Task-specific procedures for agents, reached from `../AGENTS.md`. Read the secti
 
 ## Runtime check
 
-`cargo run -p araview-gpui` opens the dev build (identifier `com.araview.viewer.dev`; the installed build uses `com.araview.viewer`). The dev build accepts debug-only controls; release builds have neither channel.
+`cargo run -p araview` opens the dev build (identifier `com.araview.viewer.dev`; the installed build uses `com.araview.viewer`). The dev build accepts debug-only controls; release builds have neither channel.
 
-**Control channel (preferred).** `src-gpui/src/app/bridge.rs` opens `\\.\pipe\com.araview.viewer.dev-control` and handles one line of JSON per request. Input goes into GPUI's own event path (`Window::dispatch_event`, `Window::dispatch_keystroke`), so modifier combinations survive, the user's mouse and keyboard stay untouched, and the window does not have to be active or on top. Window messages cannot do this: GPUI reads modifiers from `GetKeyState`, which posting cannot set.
+**Control channel (preferred).** `app/src/app/bridge.rs` opens `\\.\pipe\com.araview.viewer.dev-control` and handles one line of JSON per request. Input goes into GPUI's own event path (`Window::dispatch_event`, `Window::dispatch_keystroke`), so modifier combinations survive, the user's mouse and keyboard stay untouched, and the window does not have to be active or on top. Window messages cannot do this: GPUI reads modifiers from `GetKeyState`, which posting cannot set.
 
 Requests: `state`, `key` (`right`, `enter`, `ctrl-shift-c`), `text`, `mouse` (`click`, `down`, `up`, `move`, `drag`, `wheel`, with buttons, `modifiers`, `count`, `steps`, and `space: "image"|"logical"`), `drop`, `action`, `open`, `activate`, `resize` (`width`/`height` in logical px, at least the window minimum 500x400 and at most 8000, one side may be omitted; refused while maximized or fullscreen; the OS shrinks sizes beyond the monitor, and a non-integer scale such as 125% rounds to physical px, so read the real size from `state.window`), `wait`. Any request may carry `waitMs`; the reply arrives with `ok` and the current `state` (kind, name, path, index, count, viewMode, zoom, position, viewport, scaleFactor, infoOpen, gridOpen, dialogOpen, fullscreen, playing, frame, opening, error). The state in a reply is read right after the command, so background work (decode, prefetch) may still be running: wait with `waitMs` or repeat `state` instead of assuming it failed.
 
@@ -50,18 +50,18 @@ call({"cmd": "key", "spec": "right", "waitMs": 300}, path)
 
 On a machine without a display, run the dev build under `Xvfb :99` with `DISPLAY=:99` and `mesa-vulkan-drivers` (software Vulkan), then capture with `import -window root shot.png` (ImageMagick). Report each checked screen as PASS or FAIL as on Windows; the Windows-only steps (caption hit testing, always on top, file associations, PSD thumbnails) do not exist there.
 
-**Single-instance pipe.** `araview.exe action:<id>` runs a viewer action in the running window (`run_action` in `src-gpui/src/app/menu.rs`: shortcut action ids, `openSettings`, `viewLtr`, and so on).
+**Single-instance pipe.** `araview.exe action:<id>` runs a viewer action in the running window (`run_action` in `app/src/app/menu.rs`: shortcut action ids, `openSettings`, `viewLtr`, and so on).
 
-- Headless checks: none for the UI. There is no headless UI suite, so `cargo test -p araview-gpui` runs only unit tests. Check keys, wheel, drag, drop, context menus, dialogs, and the bridge's own commands through the control channel above (`selftest` on Windows, the control socket on macOS and Linux).
+- Headless checks: none for the UI. There is no headless UI suite, so `cargo test -p araview` runs only unit tests. Check keys, wheel, drag, drop, context menus, dialogs, and the bridge's own commands through the control channel above (`selftest` on Windows, the control socket on macOS and Linux).
 - Caption-area hit testing: `pwsh scripts/araview-drive.ps1 hittest` (`araview_hittest` over MCP) moves the *virtual* mouse to a point through the control channel to prime GPUI's hit-test cache, then sends `WM_NCHITTEST` with `SendMessage` and prints the code Windows returns (`HTCLIENT`, `HTCAPTION`, `HTCLOSE`, `HTMINBUTTON`, `HTMAXBUTTON`). The physical cursor never moves, so this needs no permission from the user. Baseline (no dialog open): the three caption buttons report `HTMINBUTTON`/`HTMAXBUTTON`/`HTCLOSE` and everything else `HTCLIENT`. With a dialog open the backdrop covers the window, so every point outside the dialog reports `HTCAPTION` (caption buttons stop acting, and a press there drags the window) while the dialog surface stays `HTCLIENT`. Not covered: the press-to-drag move loop itself, which only a real press starts. The selftest runs the same probe as a step, so a regression in window control areas (or a backdrop left over the window) fails the standard runtime check.
 
 ## Update the third-party license data
 
-Run `node scripts/generate-license-data.mjs` after changing dependencies (needs `cargo install cargo-about --locked --features cli` and network). It rewrites `src-gpui/THIRD_PARTY_LICENSES.json` (embedded in the app) and the section 2 table of `THIRD_PARTY_LICENSES.md`.
+Run `node scripts/generate-license-data.mjs` after changing dependencies (needs `cargo install cargo-about --locked --features cli` and network). It rewrites `app/THIRD_PARTY_LICENSES.json` (embedded in the app) and the section 2 table of `THIRD_PARTY_LICENSES.md`.
 
 ## Build the Linux and macOS packages
 
-`scripts/package-linux.sh` (tar.gz with `install.sh`, `.desktop`, icon) and `scripts/package-macos.sh` (`.app` with `Info.plist` document types, ad-hoc signed, packed into a dmg) build the release binary and package it; `--skip-build` reuses `target/release/araview`. Both statically link libheif from a vcpkg `x64-linux`/`arm64-osx` install (see `docs/development.md`). `src-gpui/packaging/macos/Info.plist` must list every extension in `SUPPORTED_EXTENSIONS` (a unit test in `src-gpui/src/platform/mod.rs` checks this), so a format change touches that file too. The `.desktop` `MimeType` list is separate; add the new MIME type there.
+`scripts/package-linux.sh` (tar.gz with `install.sh`, `.desktop`, icon) and `scripts/package-macos.sh` (`.app` with `Info.plist` document types, ad-hoc signed, packed into a dmg) build the release binary and package it; `--skip-build` reuses `target/release/araview`. Both statically link libheif from a vcpkg `x64-linux`/`arm64-osx` install (see `docs/development.md`). `app/packaging/macos/Info.plist` must list every extension in `SUPPORTED_EXTENSIONS` (a unit test in `app/src/platform/mod.rs` checks this), so a format change touches that file too. The `.desktop` `MimeType` list is separate; add the new MIME type there.
 
 ## Test the installer without touching the real install
 
