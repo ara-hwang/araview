@@ -18,6 +18,8 @@ use crate::geometry::{
     self, MAX_ZOOM, MAX_ZOOM_VECTOR, Offset, Size2, ZOOM_STEP, clamp_position, position_bounds,
     zoom_about, zoom_for_fit,
 };
+use araview_core::ocr::OcrRect;
+
 use crate::i18n::{t, t_with};
 use crate::picture::Picture;
 use crate::platform;
@@ -64,6 +66,9 @@ struct PixelKey {
     height: u32,
     scale: u32,
 }
+
+/// 글자 강조의 (줄 사각형, 글자 사각형) 목록.
+type OcrBoxes = (Vec<Bounds<Pixels>>, Vec<Bounds<Pixels>>);
 
 fn rect(x: f32, y: f32, w: f32, h: f32) -> Bounds<Pixels> {
     Bounds::new(point(px(x), px(y)), size(px(w), px(h)))
@@ -236,6 +241,137 @@ impl AraView {
         cx.notify();
     }
 
+    /// 한 장 보기에서 그림이 놓인 사각형(읽기 영역 왼쪽 위 기준).
+    fn single_dest(&self) -> Option<Bounds<Pixels>> {
+        let picture = self.picture.as_ref()?;
+        let container = self.container();
+        let (dw, dh) = (
+            picture.width as f32 * self.zoom,
+            picture.height as f32 * self.zoom,
+        );
+        Some(rect(
+            container.w / 2.0 + self.position.x - dw / 2.0,
+            container.h / 2.0 + self.position.y - dh / 2.0,
+            dw,
+            dh,
+        ))
+    }
+
+    /// 글자 강조의 줄과 글자 사각형(읽기 영역 기준). 강조가 안 보이는 상태면 `None`.
+    fn ocr_boxes(&self, cx: &App) -> Option<OcrBoxes> {
+        if self.view_mode(cx) != ViewMode::Single {
+            return None;
+        }
+        let highlight = self.ocr_current()?;
+        let dest = self.single_dest()?;
+        let (x, y) = (f32::from(dest.origin.x), f32::from(dest.origin.y));
+        let (w, h) = (f32::from(dest.size.width), f32::from(dest.size.height));
+        let place = |r: OcrRect| rect(x + r.x * w, y + r.y * h, r.width * w, r.height * h);
+        Some((
+            highlight
+                .line_rects(self.orientation)
+                .into_iter()
+                .map(place)
+                .collect(),
+            highlight
+                .glyph_rects(self.orientation)
+                .into_iter()
+                .map(place)
+                .collect(),
+        ))
+    }
+
+    /// 창 좌표 `position`에서 가장 가까운 글자 번호. 글자 사이나 바깥을 끌어도 가까운 글자를
+    /// 잡아 웹의 글자 선택처럼 끝이 끊기지 않게 한다.
+    pub(super) fn ocr_glyph_at(&self, position: Point<Pixels>, cx: &App) -> Option<usize> {
+        let (_, glyphs) = self.ocr_boxes(cx)?;
+        let origin = self.viewport.get().origin;
+        let (x, y) = (
+            f32::from(position.x - origin.x),
+            f32::from(position.y - origin.y),
+        );
+        glyphs
+            .iter()
+            .enumerate()
+            .map(|(index, b)| {
+                let (left, top) = (f32::from(b.origin.x), f32::from(b.origin.y));
+                let (right, bottom) = (
+                    left + f32::from(b.size.width),
+                    top + f32::from(b.size.height),
+                );
+                let dx = (left - x).max(x - right).max(0.0);
+                let dy = (top - y).max(y - bottom).max(0.0);
+                (index, dx * dx + dy * dy)
+            })
+            .min_by(|a, b| a.1.total_cmp(&b.1))
+            .map(|(index, _)| index)
+    }
+
+    /// `position`이 글자 자리(글자나 줄 사각형) 안이면 가장 가까운 글자 번호. 글자 사이의
+    /// 틈을 눌러도 선택이 시작되게 줄 사각형까지 본다.
+    fn ocr_hit(&self, position: Point<Pixels>, cx: &App) -> Option<usize> {
+        let (lines, glyphs) = self.ocr_boxes(cx)?;
+        let origin = self.viewport.get().origin;
+        let local = point(position.x - origin.x, position.y - origin.y);
+        lines
+            .iter()
+            .chain(glyphs.iter())
+            .any(|b| b.contains(&local))
+            .then(|| self.ocr_glyph_at(position, cx))
+            .flatten()
+    }
+
+    /// 글자 강조와 선택 표시. 줄마다 글자 커서를 가진 바탕을 깔고, 고른 글자는 같은 줄끼리
+    /// 이어 한 칸으로 칠한다.
+    fn render_ocr_layer(&self, cx: &mut Context<Self>) -> Vec<AnyElement> {
+        let Some((lines, glyphs)) = self.ocr_boxes(cx) else {
+            return Vec::new();
+        };
+        let line_fill = cx.theme().warning.opacity(0.4);
+        // 테마 색은 어두운 테마에서 거의 흰색이라 글자를 가린다. 웹의 선택색처럼 푸른색으로 고정한다.
+        let picked_fill = hsla(212.0 / 360.0, 0.9, 0.55, 0.45);
+        let picked = self.ocr_select.map(|(a, b)| (a.min(b), a.max(b)));
+        let place = |b: Bounds<Pixels>| {
+            div()
+                .absolute()
+                .left(b.origin.x)
+                .top(b.origin.y)
+                .w(b.size.width)
+                .h(b.size.height)
+        };
+        let mut layer = Vec::with_capacity(lines.len() + 4);
+        for b in lines {
+            layer.push(place(b).bg(line_fill).cursor_text().into_any_element());
+        }
+        if let (Some((low, high)), Some(highlight)) = (picked, self.ocr_current()) {
+            let mut run: Option<(usize, Bounds<Pixels>)> = None;
+            for (index, bounds) in glyphs
+                .iter()
+                .copied()
+                .enumerate()
+                .skip(low)
+                .take(high + 1 - low)
+            {
+                let line = highlight.glyph_line(index);
+                let Some(line) = line else { continue };
+                run = match run {
+                    Some((current, joined)) if current == line => {
+                        Some((line, joined.union(&bounds)))
+                    }
+                    Some((_, joined)) => {
+                        layer.push(place(joined).bg(picked_fill).into_any_element());
+                        Some((line, bounds))
+                    }
+                    None => Some((line, bounds)),
+                };
+            }
+            if let Some((_, joined)) = run {
+                layer.push(place(joined).bg(picked_fill).into_any_element());
+            }
+        }
+        layer
+    }
+
     pub(super) fn anchor_at(&self, position: Point<Pixels>) -> Offset {
         let center = self.viewport.get().center();
         Offset {
@@ -343,6 +479,15 @@ impl AraView {
         cx: &mut Context<Self>,
     ) {
         self.focus.focus(window, cx);
+        // 글자 위를 누르면 선택을 시작하고, 이미지 이동이나 더블클릭 동작은 하지 않는다.
+        if event.button == MouseButton::Left
+            && let Some(glyph) = self.ocr_hit(event.position, cx)
+        {
+            self.ocr_press(glyph, event.click_count, event.position, window, cx);
+            return;
+        }
+        // 글자가 아닌 곳을 누르면 고른 글자를 푼다.
+        self.clear_ocr_selection(cx);
         let mouse = SettingsStore::global(cx).settings.mouse.clone();
         match event.button {
             MouseButton::Left if event.click_count >= 2 => {
@@ -394,6 +539,15 @@ impl AraView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if self.ocr_drag.is_some() {
+            if event.pressed_button == Some(MouseButton::Left) {
+                if let Some(glyph) = self.ocr_glyph_at(event.position, cx) {
+                    self.ocr_extend(glyph, event.position, cx);
+                }
+                return;
+            }
+            self.ocr_drag = None;
+        }
         let webtoon = self.view_mode(cx) == ViewMode::Webtoon;
         if event.pressed_button != Some(MouseButton::Left) {
             self.drag = None;
@@ -1048,25 +1202,13 @@ impl AraView {
             )
         });
         let scale_factor = window.scale_factor();
-        let container = self.container();
-
         let mut items: Vec<PaintItem> = Vec::new();
         let mut placeholders: Vec<Bounds<Pixels>> = Vec::new();
         let mut boundaries: Vec<Pixels> = Vec::new();
         let mut pixel: Option<(Arc<RenderImage>, Bounds<Pixels>)> = None;
         match mode {
             ViewMode::Single => {
-                if let Some(picture) = self.picture.clone() {
-                    let (dw, dh) = (
-                        picture.width as f32 * self.zoom,
-                        picture.height as f32 * self.zoom,
-                    );
-                    let dest = rect(
-                        container.w / 2.0 + self.position.x - dw / 2.0,
-                        container.h / 2.0 + self.position.y - dh / 2.0,
-                        dw,
-                        dh,
-                    );
+                if let (Some(picture), Some(dest)) = (self.picture.clone(), self.single_dest()) {
                     if self.wants_pixelated(cx) {
                         pixel = self.pixel_view(dest, scale_factor, window, cx);
                     }
@@ -1268,14 +1410,21 @@ impl AraView {
             .on_mouse_move(cx.listener(Self::on_mouse_move))
             .on_mouse_up(
                 MouseButton::Left,
-                cx.listener(|this, _, _, _| this.drag = None),
+                cx.listener(|this, _, _, _| {
+                    this.drag = None;
+                    this.ocr_drag = None;
+                }),
             )
             .on_mouse_up_out(
                 MouseButton::Left,
-                cx.listener(|this, _, _, _| this.drag = None),
+                cx.listener(|this, _, _, _| {
+                    this.drag = None;
+                    this.ocr_drag = None;
+                }),
             )
             .on_scroll_wheel(cx.listener(Self::on_wheel))
             .child(drawing)
+            .children(self.render_ocr_layer(cx))
             .when_some(preview_thumb, |area, path| {
                 area.child(
                     div()

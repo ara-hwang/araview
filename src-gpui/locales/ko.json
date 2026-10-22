@@ -29,6 +29,7 @@
     "rotateCw": "시계",
     "flipH": "좌우반전",
     "flipV": "상하반전",
+    "ocrHighlight": "글자 강조/선택",
     "onTop": "맨 위",
     "hideBar": "숨기기",
     "showBar": "보이기",
@@ -539,6 +540,7 @@
     "rename": "이름 변경",
     "copyPath": "경로 복사",
     "ocr": "글자 인식 후 복사(OCR)",
+    "ocrHighlight": "글자 인식 강조 표시/해제",
     "toggleCover": "현재 페이지 표지 지정/해제",
     "setCover": "이 페이지를 표지로 지정",
     "unsetCover": "표지 지정 해제"
@@ -635,9 +637,12 @@
     "ocr": {
       "empty": "글자를 인식할 이미지가 없습니다",
       "unsupported": "글자 인식은 Windows에서만 지원합니다",
+      "singleOnly": "글자 강조는 한 장 보기에서만 표시합니다",
       "busy": "글자를 인식하는 중입니다",
       "none": "인식된 글자가 없습니다",
       "done": "{{count}}줄의 글자를 복사했습니다",
+      "highlighted": "{{count}}줄의 글자를 강조했습니다",
+      "selectionCopied": "선택한 글자를 복사했습니다",
       "noLanguage": "인식할 OCR 언어가 없습니다. Windows 설정의 언어 메뉴에서 OCR 언어 팩을 설치하세요",
       "fail": "글자 인식 실패"
     },

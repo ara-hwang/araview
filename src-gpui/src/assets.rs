@@ -110,6 +110,7 @@ phosphor_icons! {
     PushPin => "push-pin",
     PushPinFill => "push-pin-fill",
     SquaresFour => "squares-four",
+    TextHighlight => "text-highlight",
     WarningCircle => "warning-circle",
     X => "x",
 }

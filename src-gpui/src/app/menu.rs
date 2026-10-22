@@ -9,6 +9,7 @@ use gpui_kit::*;
 use araview_core::ops;
 
 use super::AraView;
+use super::ocr::OcrOutcome;
 use super::settings_panel::Effect;
 use super::viewport::WT_KEY_SCROLL;
 use crate::dialog::{BackdropClick, PALETTE_HEIGHT, centered, watch_backdrop_click};
@@ -45,6 +46,7 @@ const PALETTE_GROUPS: &[(&str, &[&str])] = &[
             "copyImage",
             "copyPath",
             "ocr",
+            "ocrHighlight",
             "renameFile",
             "trashFile",
             "revealInExplorer",
@@ -149,7 +151,8 @@ impl AraView {
             }
             "renameFile" => self.open_rename_dialog(window, cx),
             "copyPath" => self.copy_path(window, cx),
-            "ocr" => self.recognize_text(window, cx),
+            "ocr" => self.recognize_text(OcrOutcome::Copy, window, cx),
+            "ocrHighlight" => self.toggle_text_highlight(window, cx),
             "togglePalette" => self.open_palette(window, cx),
             "toggleGrid" => self.toggle_grid(window, cx),
             "toggleGifPlayback" => self.toggle_playback(cx),
@@ -181,7 +184,7 @@ impl AraView {
                 true
             }
             "toggleAlwaysOnTop" => platform::ALWAYS_ON_TOP_SUPPORTED,
-            "ocr" => has_image && platform::OCR_SUPPORTED,
+            "ocr" | "ocrHighlight" => has_image && platform::OCR_SUPPORTED,
             "navigatePrev" | "navigateNext" | "jumpPrev10" | "jumpNext10" | "jumpFirst"
             | "jumpLast" | "toggleGrid" | TOGGLE_DOCK => self.list.len() > 1,
             "toggleGifPlayback" | "gifPrevFrame" | "gifNextFrame" => self.has_animation(cx),
@@ -245,7 +248,9 @@ impl AraView {
             .item(item("copyImage", window))
             .item(item("copyPath", window));
         if platform::OCR_SUPPORTED {
-            menu = menu.item(item("ocr", window));
+            menu = menu
+                .item(item("ocr", window))
+                .item(item("ocrHighlight", window));
         }
         let mut menu = menu
             .item(item("revealInExplorer", window))

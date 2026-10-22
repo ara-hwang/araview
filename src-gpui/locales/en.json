@@ -29,6 +29,7 @@
     "rotateCw": "CW",
     "flipH": "Flip H",
     "flipV": "Flip V",
+    "ocrHighlight": "Highlight and select text",
     "onTop": "On top",
     "hideBar": "Hide bar",
     "showBar": "Show bar",
@@ -539,6 +540,7 @@
     "rename": "Rename",
     "copyPath": "Copy Path",
     "ocr": "Recognize Text and Copy (OCR)",
+    "ocrHighlight": "Highlight/Clear Recognized Text",
     "toggleCover": "Set or Unset Current Page as Cover",
     "setCover": "Set This Page as Cover",
     "unsetCover": "Unset Cover"
@@ -635,9 +637,12 @@
     "ocr": {
       "empty": "No image to recognize text in",
       "unsupported": "Text recognition is only supported on Windows",
+      "singleOnly": "Text highlights are shown in single-page view only",
       "busy": "Already recognizing text",
       "none": "No text was recognized",
       "done": "Copied {{count}} lines of text",
+      "highlighted": "Highlighted {{count}} lines of text",
+      "selectionCopied": "Copied the selected text",
       "noLanguage": "No OCR language is available. Install an OCR language pack in the Windows language settings",
       "fail": "Text recognition failed"
     },
