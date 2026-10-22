@@ -160,7 +160,9 @@ jobs:
           releaseName: "AraView v__VERSION__"
           releaseBody: ${{ steps.notes.outputs.body }}
           releaseDraft: false
-          prerelease: false
+          # 1.x 릴리스는 Latest가 되면 안 된다. 2.x 앱의 업데이트 주소(releases/latest/download/…)가
+          # 최신 2.x 릴리스를 가리켜야 하므로 프리릴리스로 올린다.
+          prerelease: true
           # `tauri build`는 --no-default-features를 자체 옵션으로 받지 않는다.
           # -- 뒤에 두면 cargo로 그대로 전달되어 dev-mcp가 릴리스에서 빠진다.
           args: -- --no-default-features
