@@ -39,6 +39,7 @@ pub const ACTION_LABELS: &[(&str, &str)] = &[
     ("renameFile", "menu.rename"),
     ("copyPath", "menu.copyPath"),
     ("ocr", "menu.ocr"),
+    ("ocrHighlight", "menu.ocrHighlight"),
     ("togglePalette", "palette.open"),
     ("jumpPrev10", "menu.jumpPrev10"),
     ("jumpNext10", "menu.jumpNext10"),

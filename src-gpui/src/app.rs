@@ -187,6 +187,14 @@ pub struct AraView {
     info_seq: u64,
     /// 글자 인식 중인 이미지의 렌더 경로. 값이 있으면 인식이 진행 중이다.
     ocr_job: Option<String>,
+    /// 가장 최근에 인식한 글자 결과. 같은 이미지를 다시 켤 때 재사용한다.
+    ocr_highlight: Option<ocr::Highlight>,
+    /// 글자 강조를 켠 이미지의 렌더 경로. 지금 보는 이미지와 같을 때만 강조를 보인다.
+    ocr_shown: Option<String>,
+    /// 선택한 글자 범위(시작, 끝). 둘 다 `ocr_highlight`의 글자 번호다.
+    ocr_select: Option<(usize, usize)>,
+    /// 드래그 선택을 시작한 글자 번호와 누른 위치.
+    ocr_drag: Option<(usize, Point<Pixels>)>,
     update_checking: bool,
     peek_top: bool,
     peek_bottom: bool,
@@ -263,6 +271,10 @@ impl AraView {
             info_data: info_panel::InfoData::default(),
             info_seq: 0,
             ocr_job: None,
+            ocr_highlight: None,
+            ocr_shown: None,
+            ocr_select: None,
+            ocr_drag: None,
             update_checking: false,
             peek_top: false,
             peek_bottom: false,
@@ -400,6 +412,12 @@ impl AraView {
     }
 
     fn copy_image(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        // 이미지 위에서 고른 글자가 있으면 이미지 대신 그 글자를 복사한다.
+        if let Some(text) = self.ocr_selected_text() {
+            cx.write_to_clipboard(ClipboardItem::new_string(text));
+            window.toast(Toast::success(t("toast.ocr.selectionCopied")), cx);
+            return;
+        }
         let Some(info) = &self.info else {
             window.toast(Toast::warning(t("toast.copy.empty")), cx);
             return;
@@ -976,6 +994,18 @@ impl AraView {
                     .child(
                         group()
                             .debug_selector(|| "header-center-info".to_owned())
+                            .when(platform::OCR_SUPPORTED, |row| {
+                                row.child(
+                                    Self::icon_button(
+                                        "ocr-highlight",
+                                        Ph::TextHighlight,
+                                        "header.ocrHighlight",
+                                        "ocrHighlight",
+                                        cx,
+                                    )
+                                    .selected(self.ocr_visible()),
+                                )
+                            })
                             .child(
                                 Self::icon_button(
                                     "info",

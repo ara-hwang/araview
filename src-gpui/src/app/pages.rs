@@ -271,6 +271,11 @@ impl AraView {
     }
 
     pub(super) fn close_image(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        // 고른 글자가 있으면 첫 입력은 선택만 푼다.
+        if self.ocr_select.is_some() {
+            self.clear_ocr_selection(cx);
+            return;
+        }
         self.open_seq += 1;
         self.opening = false;
         self.error = None;
