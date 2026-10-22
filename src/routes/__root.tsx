@@ -14,6 +14,7 @@ import { Separator } from "@/components/ui/separator"
 import { Toaster } from "@/components/ui/toast"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { UpdateDialogs } from "@/components/UpdateDialogs"
+import { V2Notice } from "@/components/V2Notice"
 import { OPEN_SETTINGS_EVENT } from "@/hooks/useCommandPalette"
 import { useIdleHide } from "@/hooks/useIdleHide"
 import { useOpenFileBridge } from "@/hooks/useOpenFileListener"
@@ -223,6 +224,7 @@ function RootLayout() {
         <CommandPalette />
         <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
         <UpdateDialogs />
+        <V2Notice />
         <Toaster />
       </TooltipProvider>
     </ThemeProvider>

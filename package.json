@@ -1,6 +1,6 @@
 {
   "name": "araview",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "private": true,
   "license": "EUPL-1.2",
   "type": "module",
@@ -60,7 +60,7 @@
     "oxlint": "^1.86.0",
     "shadcn": "^4.21.1",
     "typescript": "~7.0.2",
-    "vite": "^8.3.2",
+    "vite": "^8.3.5",
     "vitest": "^5.0.0"
   },
   "engines": {

@@ -471,6 +471,10 @@
       "submit": "변경"
     },
     "update": {
+      "v2NoticeTitle": "AraView 2.x가 나왔습니다",
+      "v2NoticeDesc": "2.x는 새 엔진으로 다시 만든 버전이라 이 앱의 업데이트 확인으로는 받을 수 없습니다. GitHub 릴리스 페이지에서 설치 프로그램을 내려받아 직접 설치하세요. 같은 폴더에 설치하면 설정과 최근 파일이 그대로 이어집니다.",
+      "v2NoticeRelease": "GitHub 릴리스 페이지",
+      "v2NoticeClose": "확인",
       "availableTitle": "새 버전 {{version}}을(를) 사용할 수 있습니다",
       "availableDesc": "변경 내용을 확인하고 다운로드할지 선택하세요.",
       "noNotes": "릴리즈 노트가 없습니다.",
