@@ -54,10 +54,10 @@ const MAX_SCAN_HITS: usize = 64;
 const TAG_COMPRESSION: u16 = 0x0103;
 const TAG_STRIP_OFFSETS: u16 = 0x0111;
 const TAG_ORIENTATION: u16 = 0x0112;
-const TAG_SUB_IFDS: u16 = 0x014A;
+const TAG_SUB_IFDS: u16 = 0x014a;
 const TAG_JPEG_INTERCHANGE_FORMAT: u16 = 0x0201;
 /// 파나소닉 RW2가 IFD0에 싣는 JPEG 미리보기 오프셋.
-const TAG_RW2_JPG_FROM_RAW: u16 = 0x002E;
+const TAG_RW2_JPG_FROM_RAW: u16 = 0x002e;
 
 const TYPE_SHORT: u16 = 3;
 const TYPE_LONG: u16 = 4;
@@ -207,7 +207,7 @@ fn walk_tiff(file: &mut File) -> Option<(Vec<u64>, u8)> {
     // 일반 TIFF는 42, 올림푸스(ORF)는 "OR"/"RS", 파나소닉(RW2)은 0x55를 쓴다.
     if !matches!(
         order.u16([head[2], head[3]]),
-        0x002A | 0x4F52 | 0x5352 | 0x0055
+        0x002a | 0x4f52 | 0x5352 | 0x0055
     ) {
         return None;
     }
@@ -263,7 +263,7 @@ fn skip_entropy(reader: &mut impl BufRead) -> Option<u8> {
         if buf.is_empty() {
             return None;
         }
-        let Some(at) = buf.iter().position(|&b| b == 0xFF) else {
+        let Some(at) = buf.iter().position(|&b| b == 0xff) else {
             let len = buf.len();
             reader.consume(len);
             continue;
@@ -271,8 +271,8 @@ fn skip_entropy(reader: &mut impl BufRead) -> Option<u8> {
         reader.consume(at + 1);
         loop {
             match read_u8(reader)? {
-                0x00 | 0xD0..=0xD7 => break,
-                0xFF => {}
+                0x00 | 0xd0..=0xd7 => break,
+                0xff => {}
                 marker => return Some(marker),
             }
         }
@@ -286,7 +286,7 @@ fn read_jpeg(file: &mut File, offset: u64) -> Option<Jpeg> {
     let mut reader = BufReader::with_capacity(64 * 1024, file);
     let mut soi = [0u8; 2];
     reader.read_exact(&mut soi).ok()?;
-    if soi != [0xFF, 0xD8] {
+    if soi != [0xff, 0xd8] {
         return None;
     }
     let mut size = None;
@@ -295,19 +295,19 @@ fn read_jpeg(file: &mut File, offset: u64) -> Option<Jpeg> {
         let marker = match pending.take() {
             Some(marker) => marker,
             None => {
-                if read_u8(&mut reader)? != 0xFF {
+                if read_u8(&mut reader)? != 0xff {
                     return None;
                 }
                 let mut marker = read_u8(&mut reader)?;
-                while marker == 0xFF {
+                while marker == 0xff {
                     marker = read_u8(&mut reader)?;
                 }
                 marker
             }
         };
         match marker {
-            0x01 | 0xD0..=0xD7 => {}
-            0xD9 => {
+            0x01 | 0xd0..=0xd7 => {}
+            0xd9 => {
                 let (width, height) = size?;
                 let end = reader.stream_position().ok()?;
                 return Some(Jpeg {
@@ -319,10 +319,10 @@ fn read_jpeg(file: &mut File, offset: u64) -> Option<Jpeg> {
             }
             // 무손실(SOF3), 계층형, 산술 부호화는 디코드할 수 없다. CR2/DNG의 센서 데이터가
             // 대표적인 무손실 JPEG다.
-            0xC3 | 0xC5..=0xC7 | 0xC9..=0xCB | 0xCD..=0xCF => return None,
+            0xc3 | 0xc5..=0xc7 | 0xc9..=0xcb | 0xcd..=0xcf => return None,
             _ => {
                 let segment = usize::from(read_u16_be(&mut reader)?.checked_sub(2)?);
-                if matches!(marker, 0xC0..=0xC2) {
+                if matches!(marker, 0xc0..=0xc2) {
                     let mut frame = [0u8; 5];
                     reader.read_exact(&mut frame).ok()?;
                     let height = u32::from(u16::from_be_bytes([frame[1], frame[2]]));
@@ -334,7 +334,7 @@ fn read_jpeg(file: &mut File, offset: u64) -> Option<Jpeg> {
                 } else {
                     reader.seek_relative(i64::try_from(segment).ok()?).ok()?;
                 }
-                if marker == 0xDA {
+                if marker == 0xda {
                     size?;
                     pending = Some(skip_entropy(&mut reader)?);
                 }
@@ -359,7 +359,7 @@ fn scan_for_jpegs(file: &mut File, file_len: u64) -> Vec<Jpeg> {
         if file.seek(SeekFrom::Start(pos)).is_err() || file.read_exact(chunk).is_err() {
             break;
         }
-        match chunk.windows(3).position(|w| w == [0xFF, 0xD8, 0xFF]) {
+        match chunk.windows(3).position(|w| w == [0xff, 0xd8, 0xff]) {
             Some(at) => {
                 let start = pos + at as u64;
                 pos = match read_jpeg(file, start) {

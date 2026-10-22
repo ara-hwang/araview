@@ -31,9 +31,9 @@ use windows::Win32::UI::Shell::{
 use crate::{bitmap, psd};
 
 /// Release channel CLSID. **Never change** (see `registry.rs`).
-pub const CLSID_RELEASE: GUID = GUID::from_u128(0xFD6BD976_2DF4_4656_94F2_1D166163EC59);
+pub const CLSID_RELEASE: GUID = GUID::from_u128(0xfd6bd976_2df4_4656_94f2_1d166163ec59);
 /// Dev channel CLSID. **Never change** (see `registry.rs`).
-pub const CLSID_DEV: GUID = GUID::from_u128(0xBD277595_1702_4AC5_AA7C_A67965C3D570);
+pub const CLSID_DEV: GUID = GUID::from_u128(0xbd277595_1702_4ac5_aa7c_a67965c3d570);
 
 const MIN_CX: u32 = 16;
 const MAX_CX: u32 = 2560;

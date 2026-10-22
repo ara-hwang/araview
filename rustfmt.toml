@@ -1,0 +1,3 @@
+# Google Rust 스타일 가이드의 stable 옵션만 명시한다.
+max_width = 100
+hex_literal_case = "Lower"

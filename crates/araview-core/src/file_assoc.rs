@@ -518,12 +518,12 @@ struct IOpenWithLauncherVtbl {
 const COINIT_APARTMENTTHREADED: u32 = 0x2;
 const CLSCTX_LOCAL_SERVER: u32 = 0x4;
 const RPC_E_CHANGED_MODE: i32 = 0x8001_0106u32 as i32;
-const HRESULT_CANCELLED: i32 = 0x8007_04C7u32 as i32;
+const HRESULT_CANCELLED: i32 = 0x8007_04c7u32 as i32;
 const IID_IOPEN_WITH_LAUNCHER: Guid = Guid {
-    data1: 0x6A28_3FE2,
-    data2: 0xECFA,
+    data1: 0x6a28_3fe2,
+    data2: 0xecfa,
     data3: 0x4599,
-    data4: [0x91, 0xC4, 0xE8, 0x09, 0x57, 0x13, 0x7B, 0x26],
+    data4: [0x91, 0xc4, 0xe8, 0x09, 0x57, 0x13, 0x7b, 0x26],
 };
 
 // ole32/shell32 바인딩을 직접 선언한다. 앱은 의도적으로 `windows` 크레이트를
