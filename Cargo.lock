@@ -290,7 +290,7 @@ dependencies = [
 
 [[package]]
 name = "araview-gpui"
-version = "2.4.3"
+version = "2.5.0"
 dependencies = [
  "anyhow",
  "araview-core",
