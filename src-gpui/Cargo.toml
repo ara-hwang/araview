@@ -32,6 +32,15 @@ base64 = "0.23"
 # HDR 출력에서 스왑체인 경로를 고르려고 직접 의존한다(루트 Cargo.toml의 포크 patch).
 [target.'cfg(windows)'.dependencies]
 gpui_windows = { package = "gpui-pre-windows", version = "0.3.9" }
+# 글자 인식(OCR)에 쓰는 WinRT 바인딩. GPUI Windows 백엔드와 같은 버전을 써서 중복을 피한다.
+windows = { version = "0.62", features = [
+    "Foundation_Collections",
+    "Globalization",
+    "Graphics_Imaging",
+    "Media_Ocr",
+    "Storage_Streams",
+    "Win32_System_WinRT",
+] }
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

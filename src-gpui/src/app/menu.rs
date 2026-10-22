@@ -44,6 +44,7 @@ const PALETTE_GROUPS: &[(&str, &[&str])] = &[
             "closeImage",
             "copyImage",
             "copyPath",
+            "ocr",
             "renameFile",
             "trashFile",
             "revealInExplorer",
@@ -148,6 +149,7 @@ impl AraView {
             }
             "renameFile" => self.open_rename_dialog(window, cx),
             "copyPath" => self.copy_path(window, cx),
+            "ocr" => self.recognize_text(window, cx),
             "togglePalette" => self.open_palette(window, cx),
             "toggleGrid" => self.toggle_grid(window, cx),
             "toggleGifPlayback" => self.toggle_playback(cx),
@@ -179,6 +181,7 @@ impl AraView {
                 true
             }
             "toggleAlwaysOnTop" => platform::ALWAYS_ON_TOP_SUPPORTED,
+            "ocr" => has_image && platform::OCR_SUPPORTED,
             "navigatePrev" | "navigateNext" | "jumpPrev10" | "jumpNext10" | "jumpFirst"
             | "jumpLast" | "toggleGrid" | TOGGLE_DOCK => self.list.len() > 1,
             "toggleGifPlayback" | "gifPrevFrame" | "gifNextFrame" => self.has_animation(cx),
@@ -240,7 +243,11 @@ impl AraView {
             .item(item("toggleFullscreen", window))
             .separator()
             .item(item("copyImage", window))
-            .item(item("copyPath", window))
+            .item(item("copyPath", window));
+        if platform::OCR_SUPPORTED {
+            menu = menu.item(item("ocr", window));
+        }
+        let mut menu = menu
             .item(item("revealInExplorer", window))
             .item(item("openExternal", window))
             .item(item("renameFile", window))

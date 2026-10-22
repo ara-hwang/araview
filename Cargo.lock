@@ -312,6 +312,7 @@ dependencies = [
  "smallvec",
  "tempfile",
  "ureq",
+ "windows 0.62.2",
 ]
 
 [[package]]

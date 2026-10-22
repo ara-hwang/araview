@@ -538,6 +538,7 @@
     "openExternal": "Open with Default App",
     "rename": "Rename",
     "copyPath": "Copy Path",
+    "ocr": "Recognize Text and Copy (OCR)",
     "toggleCover": "Set or Unset Current Page as Cover",
     "setCover": "Set This Page as Cover",
     "unsetCover": "Unset Cover"
@@ -630,6 +631,15 @@
       "empty": "No image to copy",
       "done": "Image copied",
       "fail": "Failed to copy image"
+    },
+    "ocr": {
+      "empty": "No image to recognize text in",
+      "unsupported": "Text recognition is only supported on Windows",
+      "busy": "Already recognizing text",
+      "none": "No text was recognized",
+      "done": "Copied {{count}} lines of text",
+      "noLanguage": "No OCR language is available. Install an OCR language pack in the Windows language settings",
+      "fail": "Text recognition failed"
     },
     "assoc": {
       "loadFail": "Failed to load associations",

@@ -51,6 +51,34 @@ pub fn set_always_on_top(_window: &Window, _on_top: bool) -> bool {
 /// 항상 위 기능을 이 OS에서 쓸 수 있는지.
 pub const ALWAYS_ON_TOP_SUPPORTED: bool = false;
 
+/// 글자 인식(OCR)을 이 OS에서 쓸 수 있는지.
+pub const OCR_SUPPORTED: bool = false;
+
+/// Windows 밖에는 연결한 OCR 엔진이 없다. 모든 호출이 지원하지 않음을 알린다.
+pub struct SystemOcr;
+
+impl araview_core::ocr::OcrEngine for SystemOcr {
+    fn available_languages(&self) -> Result<Vec<String>, araview_core::app_error::AppError> {
+        Err(unsupported())
+    }
+
+    fn max_image_dimension(&self) -> u32 {
+        0
+    }
+
+    fn recognize(
+        &self,
+        _image: &image::RgbaImage,
+        _language: &str,
+    ) -> Result<Vec<araview_core::ocr::OcrLine>, araview_core::app_error::AppError> {
+        Err(unsupported())
+    }
+}
+
+fn unsupported() -> araview_core::app_error::AppError {
+    araview_core::app_error::AppError::unsupported("OCR is only available on Windows")
+}
+
 /// 고대비 테마 조회는 Windows 전용이다.
 pub fn high_contrast() -> bool {
     false

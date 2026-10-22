@@ -9,6 +9,7 @@ mod grid;
 mod info_panel;
 mod licenses;
 mod menu;
+mod ocr;
 mod pages;
 mod settings_panel;
 pub mod system;
@@ -184,6 +185,8 @@ pub struct AraView {
     dock_followed: std::cell::Cell<Option<(usize, usize)>>,
     info_data: info_panel::InfoData,
     info_seq: u64,
+    /// 글자 인식 중인 이미지의 렌더 경로. 값이 있으면 인식이 진행 중이다.
+    ocr_job: Option<String>,
     update_checking: bool,
     peek_top: bool,
     peek_bottom: bool,
@@ -259,6 +262,7 @@ impl AraView {
             dock_followed: std::cell::Cell::new(None),
             info_data: info_panel::InfoData::default(),
             info_seq: 0,
+            ocr_job: None,
             update_checking: false,
             peek_top: false,
             peek_bottom: false,

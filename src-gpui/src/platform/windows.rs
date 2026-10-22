@@ -8,6 +8,9 @@ use std::sync::mpsc::{Sender, channel};
 use super::Control;
 use super::{Instance, MAX_MESSAGE};
 
+mod ocr;
+pub use ocr::SystemOcr;
+
 use gpui_kit::Window;
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 
@@ -170,6 +173,9 @@ pub fn window_origin(window: &Window) -> Option<(i32, i32)> {
 
 /// 항상 위 기능을 이 OS에서 쓸 수 있는지.
 pub const ALWAYS_ON_TOP_SUPPORTED: bool = true;
+
+/// 글자 인식(OCR)을 이 OS에서 쓸 수 있는지.
+pub const OCR_SUPPORTED: bool = true;
 
 /// 창을 항상 위에 두거나 해제한다. 성공 여부를 돌려준다.
 pub fn set_always_on_top(window: &Window, on_top: bool) -> bool {

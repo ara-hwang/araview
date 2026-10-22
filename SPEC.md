@@ -421,6 +421,17 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 - `Ctrl+Shift+E`: 파일 관리자(Windows 탐색기, macOS Finder, Linux 기본 파일 관리자)에 표시한다.
 - `Ctrl+Shift+O`: 기본 앱으로 연다.
 
+### 11.5 글자 인식 `Ctrl+Shift+T` (Windows 전용)
+
+- `recognize_text`: 렌더 바이트(`file_path`)를 코어가 RGBA로 디코드하고(첫 프레임, 표시와 같은 기준, §18) OS 내장 OCR로 글자를 인식한다. Windows는 `Windows.Media.Ocr`이며 OS 연동은 `src-gpui/src/platform/`에 있고 코어는 `OcrEngine` trait만 안다.
+- 앱은 언어를 `auto`로만 쓴다(코어 함수는 태그 지정도 받는다): 사용자 PC에 OCR 언어 팩이 설치된 언어를 모두 병렬로 돌려 합친다. 같은 자리를 여러 언어가 읽으면 공백을 뺀 글자 수가 가장 많은 줄 하나만 남기고(엔진이 줄별 신뢰도를 주지 않아 쓰는 임시 기준), 결과는 위에서 아래, 왼쪽에서 오른쪽 순서다. 언어가 하나만 결과를 내면 엔진이 준 순서를 그대로 쓴다.
+- 이미지가 엔진 한계(`OcrEngine.MaxImageDimension`)보다 크면 비율을 지켜 줄여서 넘긴다. 알파는 흰 배경에 합친다.
+- 결과 좌표는 인식한 이미지 전체를 1로 본 정규화 값이라 표시 크기와 무관하다(§16.2 `OcrResult`).
+- 동작: 인식한 줄을 줄바꿈으로 이어 클립보드에 텍스트로 복사하고 줄 수를 토스트로 알린다. 인식 중에 다른 이미지로 넘어가면 결과를 버린다. 인식은 한 번에 하나만 돈다.
+- 글자가 없으면 경고, OCR 언어 팩이 없으면 설치 안내, 그 밖의 실패는 에러 토스트를 보여 준다.
+- Windows가 아닌 OS에서는 지원하지 않는다: 우클릭 메뉴에는 나타나지 않고 팔레트에서는 비활성이며, 단축키를 누르면 지원하지 않음을 알린다.
+- 이미지 위 글상자 오버레이, 결과 패널, 영역 선택, 인식 언어 설정은 아직 없다.
+
 ## 12. 최근 파일/영속화
 
 진실: `src-gpui/src/settings.rs`.
@@ -520,6 +531,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 | 배경 순환              | `B`               |
 | 이름 변경              | `F2`              |
 | 경로 복사              | `Ctrl+Shift+C`    |
+| 글자 인식 후 복사      | `Ctrl+Shift+T`    |
 | 명령 팔레트            | `Ctrl+K`          |
 | 10장 이전              | `PageUp`          |
 | 10장 다음              | `PageDown`        |
@@ -589,6 +601,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 | `trash_file`                             | `filePath`                                                                                     | 없음                                   |
 | `rename_file`                            | `oldPath`, `newName`, `maxSide?`, `imageScalingMode?`                                          | `ImageInfo`                            |
 | `export_clipboard_png`                   | `filePath`                                                                                     | `ClipboardPng`                         |
+| `recognize_text`                         | `filePath`, `language?`(`auto` 또는 BCP-47 태그)                                                  | `OcrResult`(Windows 전용, 11.5절)      |
 
 `load_image`, `load_archive_image`, `rename_file`은 표시 정책에 따라 선택적으로 `imageScalingMode`(`auto | smooth | pixelated`)를 받는다. 코어는 `pixelated`만 구분하고 `auto`는 `smooth`와 같은 sidecar를 쓴다.
 
@@ -600,7 +613,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 
 ## 16. 데이터 모델
 
-진실: `crates/araview-core/src/image.rs`, `crates/araview-core/src/thumbnail.rs`, `crates/araview-core/src/file_assoc.rs`, `crates/araview-core/src/display.rs`.
+진실: `crates/araview-core/src/image.rs`, `crates/araview-core/src/thumbnail.rs`, `crates/araview-core/src/file_assoc.rs`, `crates/araview-core/src/display.rs`, `crates/araview-core/src/ocr.rs`.
 
 ### 16.1 `ImageInfo`
 
@@ -619,6 +632,8 @@ Rust와 TypeScript는 같은 모양을 유지한다.
 - `DirectoryImages`: `{ images: string[], current_index: number, availability: ("local"|"cloud_only"|"unknown")[] }`.
 - `ThumbnailInfo`: `{ file_path: string, width: number, height: number }`.
 - `ClipboardPng`: `{ file_path: string }`. 클립보드에 쓸 PNG의 파생 이미지 캐시 경로다(11.3절).
+- `OcrResult`: `{ lines: OcrLine[], width: number, height: number }`. `width`/`height`는 인식에 넣은 이미지 치수(엔진 한계로 줄였다면 줄인 뒤 값)다.
+- `OcrLine`: `{ text, rect: OcrRect, words: OcrWord[], language }`. `OcrWord`는 `{ text, rect }`, `OcrRect`는 이미지 전체를 1로 본 `{ x, y, width, height }`다.
 - `ExifData`: `Record<string, string>`.
 - `Histogram`: `{ r: number[256], g: number[256], b: number[256], sampled_pixels: number }`.
 - `ImageDetails`: 16.2 모양 그대로. 색상 모드, 비트/채널, 생성/수정 시각, DPI, ICC 상태를 포함한다.
