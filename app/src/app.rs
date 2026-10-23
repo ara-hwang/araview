@@ -52,17 +52,11 @@ use crate::settings::{DockPosition, FitMode, MouseAction, SettingsStore, SortKey
 const CHECKER_CELL: f32 = 20.0;
 const CHECKER_BASE: u32 = 0xffffff;
 const CHECKER_ALT: u32 = 0xc7c7c7;
-/// 이 폭(논리 px) 이상이면 헤더 기본 버튼에 라벨을 붙인다. 라벨 길이가 언어마다 달라
-/// 한국어와 영어의 경계를 따로 둔다. 각 값은 실제 앱에서 캡션 버튼이 온전히 보이는 최소 폭
-/// (한국어 약 1313/1824, 영어 약 1546/2046)에 버튼 사이 간격이 2px 늘어난 몫(그룹마다
-/// `버튼 수 - 1`개, 합계 약 40px)과 약 30px 여유를 더한 값이다. 헤드리스 테스트의
-/// 텍스트 폭은 실제와 달라(한국어는 좁게, 영어는 넓게 잰다) 라벨 경계의 근거로 쓰지 못하므로
-/// 값을 바꾸면 개발 앱에서 폭별로 캡처해 확인한다.
-const HEADER_LABELS_MIN_WIDTH_KO: f32 = 1380.0;
-const HEADER_LABELS_MIN_WIDTH_EN: f32 = 1620.0;
-/// 이 폭 이상이면 보기 모드/변형/상태 버튼에도 라벨을 붙인다.
-const HEADER_EXTRA_LABELS_MIN_WIDTH_KO: f32 = 1890.0;
-const HEADER_EXTRA_LABELS_MIN_WIDTH_EN: f32 = 2120.0;
+/// 이 폭(논리 px) 이상이면 보기 모드/변형/상태 버튼에 라벨을 붙인다. 라벨이 붙은 채로
+/// 캡션 버튼 3개가 온전히 보이는 최소 폭을 개발 앱에서 한국어·영어 모두 재어 보니 약
+/// 1487px로 같았고, 여기에 약 30px 여유를 더했다. 헤드리스 테스트의 텍스트 폭은 실제와
+/// 달라 라벨 경계의 근거로 쓰지 못하므로 값을 바꾸면 개발 앱에서 폭별로 캡처해 확인한다.
+const HEADER_EXTRA_LABELS_MIN_WIDTH: f32 = 1520.0;
 /// 좁은 창에서 우선 숨길 도구 그룹의 경계(논리 px). 그룹이 보일 때 우측 메뉴와 그립이
 /// Windows 캡션 버튼 3개(34px씩 102px) 앞에 들어가는 최소 폭에, 버튼 사이 간격이 늘어난
 /// 몫과 약 30px 여유를 더한 값이다.
@@ -740,16 +734,7 @@ impl AraView {
         let mode = self.view_mode(cx);
         let single = mode == ViewMode::Single;
         let width = f32::from(window.viewport_size().width);
-        let (labels_min, extra_labels_min) = match crate::i18n::language() {
-            crate::i18n::Language::Ko => {
-                (HEADER_LABELS_MIN_WIDTH_KO, HEADER_EXTRA_LABELS_MIN_WIDTH_KO)
-            }
-            crate::i18n::Language::En => {
-                (HEADER_LABELS_MIN_WIDTH_EN, HEADER_EXTRA_LABELS_MIN_WIDTH_EN)
-            }
-        };
-        let wide_labels = width >= labels_min;
-        let extra_labels = width >= extra_labels_min;
+        let extra_labels = width >= HEADER_EXTRA_LABELS_MIN_WIDTH;
         // Below the compact toolbar's natural width, hide secondary groups in order;
         // keep the left/right menus and native caption controls outside the shrinkable area.
         let show_zoom_controls = width >= HEADER_FIT_CONTROLS_MIN_WIDTH;
@@ -808,7 +793,6 @@ impl AraView {
                                 .ghost()
                                 .icon(Ph::House)
                                 .tooltip(t("header.home"))
-                                .when(wide_labels, |button| button.label(t("header.home")))
                                 .on_click(
                                     cx.listener(|this, _, window, cx| this.close_image(window, cx)),
                                 ),
@@ -818,7 +802,6 @@ impl AraView {
                                 .ghost()
                                 .icon(Ph::FolderOpen)
                                 .tooltip(t("header.open"))
-                                .when(wide_labels, |button| button.label(t("header.open")))
                                 .on_click(
                                     cx.listener(|this, _, window, cx| this.prompt_open(window, cx)),
                                 ),
@@ -836,7 +819,6 @@ impl AraView {
                                         "fitWidth",
                                         cx,
                                     )
-                                    .when(wide_labels, |button| button.label(t("header.fitWidth")))
                                     .selected(
                                         self.fit_locked && settings.fit_mode == FitMode::Width,
                                     ),
@@ -849,7 +831,6 @@ impl AraView {
                                         "fitHeight",
                                         cx,
                                     )
-                                    .when(wide_labels, |button| button.label(t("header.fitHeight")))
                                     .selected(
                                         self.fit_locked && settings.fit_mode == FitMode::Height,
                                     ),
@@ -862,7 +843,6 @@ impl AraView {
                                         "fitScreen",
                                         cx,
                                     )
-                                    .when(wide_labels, |button| button.label(t("header.fitScreen")))
                                     .selected(
                                         self.fit_locked && settings.fit_mode == FitMode::Screen,
                                     ),
@@ -873,16 +853,13 @@ impl AraView {
                         row.child(
                             group()
                                 .debug_selector(|| "header-zoom".to_owned())
-                                .child(
-                                    Self::icon_button(
-                                        "zoom-out",
-                                        Ph::MagnifyingGlassMinus,
-                                        "header.zoomOut",
-                                        "zoomOut",
-                                        cx,
-                                    )
-                                    .when(wide_labels, |button| button.label(t("header.zoomOut"))),
-                                )
+                                .child(Self::icon_button(
+                                    "zoom-out",
+                                    Ph::MagnifyingGlassMinus,
+                                    "header.zoomOut",
+                                    "zoomOut",
+                                    cx,
+                                ))
                                 .child(
                                     div()
                                         .w(px(48.))
@@ -890,16 +867,13 @@ impl AraView {
                                         .text_center()
                                         .child(format!("{}%", self.zoom_percent(cx))),
                                 )
-                                .child(
-                                    Self::icon_button(
-                                        "zoom-in",
-                                        Ph::MagnifyingGlassPlus,
-                                        "header.zoomIn",
-                                        "zoomIn",
-                                        cx,
-                                    )
-                                    .when(wide_labels, |button| button.label(t("header.zoomIn"))),
-                                ),
+                                .child(Self::icon_button(
+                                    "zoom-in",
+                                    Ph::MagnifyingGlassPlus,
+                                    "header.zoomIn",
+                                    "zoomIn",
+                                    cx,
+                                )),
                         )
                     })
                     .when(show_view_modes, |row| {
@@ -1035,7 +1009,6 @@ impl AraView {
                                     "toggleExif",
                                     cx,
                                 )
-                                .when(wide_labels, |button| button.label(t("header.info")))
                                 .selected(self.info_open),
                             ),
                     )
@@ -1044,26 +1017,20 @@ impl AraView {
                 .child(
                     group()
                         .debug_selector(|| "header-right-menu".to_owned())
-                        .child(
-                            Self::icon_button(
-                                "palette",
-                                Ph::MagnifyingGlass,
-                                "palette.open",
-                                "togglePalette",
-                                cx,
-                            )
-                            .when(wide_labels, |button| button.label(t("palette.open"))),
-                        )
-                        .child(
-                            Self::icon_button(
-                                "settings",
-                                Ph::Gear,
-                                "header.settings",
-                                "openSettings",
-                                cx,
-                            )
-                            .when(wide_labels, |button| button.label(t("header.settings"))),
-                        )
+                        .child(Self::icon_button(
+                            "palette",
+                            Ph::MagnifyingGlass,
+                            "palette.open",
+                            "togglePalette",
+                            cx,
+                        ))
+                        .child(Self::icon_button(
+                            "settings",
+                            Ph::Gear,
+                            "header.settings",
+                            "openSettings",
+                            cx,
+                        ))
                         .when(platform::ALWAYS_ON_TOP_SUPPORTED, |row| {
                             row.child(
                                 Self::icon_button(
@@ -1254,6 +1221,17 @@ impl Render for AraView {
                 .into_any_element()
         };
 
+        // 상단바를 숨긴 동안에도 창 캡션 버튼은 우측 상단에 남긴다. macOS는 신호등을
+        // OS가 그리고, 서버 장식 Linux는 창 관리자가 그리므로 겹쳐 그리지 않는다.
+        let caption_controls_needed = hide_header
+            && !self.peek_top
+            && !cfg!(target_os = "macos")
+            && (!cfg!(target_os = "linux")
+                || matches!(
+                    window.window_decorations(),
+                    gpui_kit::Decorations::Client { .. }
+                ));
+
         v_flex()
             .id("araview-root")
             .relative()
@@ -1281,6 +1259,20 @@ impl Render for AraView {
                     .children(grid),
             )
             .children(status)
+            // 상단바를 숨긴 동안에도 창 캡션 버튼은 우측 상단에 남긴다.
+            .children(caption_controls_needed.then(|| {
+                div()
+                    .absolute()
+                    .top_0()
+                    .right_0()
+                    .child(
+                        TitleBar::new()
+                            .h(px(HEADER_HEIGHT))
+                            .bg(transparent_black())
+                            .border_color(transparent_black()),
+                    )
+                    .into_any_element()
+            }))
             // peek 중인 헤더는 읽기 영역 위로 겹쳐 내려온다.
             .children(peek_header.map(|header| {
                 div()
