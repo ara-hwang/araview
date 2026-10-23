@@ -84,6 +84,12 @@
     "wheel": {
       "title": "Wheel actions",
       "desc": "Choose what each modifier plus wheel direction does. In webtoon mode vertical scroll wins.",
+      "plain": {
+        "title": "Wheel action",
+        "desc": "Choose whether a plain wheel scroll moves to the previous/next image or zooms the image. Modifier combinations stay in the Shortcuts tab.",
+        "navigate": "Previous/next image",
+        "zoom": "Zoom in/out"
+      },
       "slot": {
         "wheelUp": "Wheel up",
         "wheelDown": "Wheel down",

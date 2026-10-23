@@ -24,7 +24,7 @@ use crate::keys;
 use crate::settings::{
     CacheMode, CacheStorageMode, DockPosition, DockThumbSize, ImageScalingMode, MaxResolution,
     MouseAction, Settings, SettingsStore, SortKey, ThemeChoice, ViewMode, ViewerBackground,
-    WheelAction, default_shortcuts,
+    WheelAction, WheelMode, default_shortcuts,
 };
 use crate::smooth::SmoothScroll;
 
@@ -419,6 +419,26 @@ impl SettingsPanel {
                     ],
                     |settings, value| settings.image_scaling_mode = value,
                     Effect::Reload,
+                    cx,
+                ),
+                cx,
+            ))
+            .child(setting_row(
+                t("settings.wheel.plain.title"),
+                Some(t("settings.wheel.plain.desc")),
+                self.choice(
+                    "wheel-mode",
+                    s.wheel.mode(),
+                    &[
+                        ("settings.wheel.plain.navigate", Some(WheelMode::Navigate)),
+                        ("settings.wheel.plain.zoom", Some(WheelMode::Zoom)),
+                    ],
+                    |settings, value| {
+                        if let Some(mode) = value {
+                            settings.wheel.set_mode(mode);
+                        }
+                    },
+                    Effect::Redraw,
                     cx,
                 ),
                 cx,

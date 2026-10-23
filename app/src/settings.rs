@@ -253,6 +253,36 @@ impl Default for WheelMap {
     }
 }
 
+/// 수식키 없는 휠의 위/아래를 한 쌍으로 묶은 동작. 저장하지 않고 `WheelMap`에서
+/// 끌어내므로 값이 두 곳에서 어긋나지 않는다.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WheelMode {
+    Navigate,
+    Zoom,
+}
+
+impl WheelMap {
+    /// 일반 휠이 이전/다음 또는 확대/축소로 맞춰져 있으면 그 묶음을 돌려준다.
+    /// 위/아래가 서로 다른 동작이면 `None`이다.
+    pub fn mode(&self) -> Option<WheelMode> {
+        match (self.wheel_up, self.wheel_down) {
+            (WheelAction::Prev, WheelAction::Next) => Some(WheelMode::Navigate),
+            (WheelAction::ZoomIn, WheelAction::ZoomOut) => Some(WheelMode::Zoom),
+            _ => None,
+        }
+    }
+
+    /// 일반 휠 위/아래를 함께 바꾼다. 수식키 조합은 건드리지 않는다.
+    pub fn set_mode(&mut self, mode: WheelMode) {
+        let (up, down) = match mode {
+            WheelMode::Navigate => (WheelAction::Prev, WheelAction::Next),
+            WheelMode::Zoom => (WheelAction::ZoomIn, WheelAction::ZoomOut),
+        };
+        self.wheel_up = up;
+        self.wheel_down = down;
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct MouseMap {
@@ -711,5 +741,28 @@ mod tests {
     fn a_missing_trash_without_confirm_falls_back_to_the_default() {
         let restored = restore_settings(serde_json::json!({ "language": "en" }));
         assert!(!restored.trash_without_confirm);
+    }
+
+    /// 일반 휠 위/아래가 한 쌍을 이루면 묶음 동작을 알아보고, 따로 놀면 없다(SPEC §14.2).
+    #[test]
+    fn wheel_mode_follows_the_plain_wheel_pair() {
+        let mut wheel = WheelMap::default();
+        assert_eq!(wheel.mode(), Some(WheelMode::Navigate));
+
+        wheel.set_mode(WheelMode::Zoom);
+        assert_eq!(wheel.mode(), Some(WheelMode::Zoom));
+
+        wheel.wheel_down = WheelAction::None;
+        assert_eq!(wheel.mode(), None);
+    }
+
+    /// 묶음 동작은 일반 휠만 바꾸고 수식키 조합은 남긴다.
+    #[test]
+    fn wheel_mode_keeps_modifier_slots() {
+        let mut wheel = WheelMap::default();
+        wheel.set_mode(WheelMode::Zoom);
+        assert_eq!(wheel.ctrl_wheel_up, WheelAction::ZoomIn);
+        assert_eq!(wheel.ctrl_wheel_down, WheelAction::ZoomOut);
+        assert_eq!(wheel.shift_wheel_up, WheelAction::None);
     }
 }
