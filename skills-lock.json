@@ -6,6 +6,12 @@
       "sourceType": "github",
       "skillPath": "skills/agent-memory-repo/SKILL.md",
       "computedHash": "f99545fa6de516f12d37db6d3c75633688cee287a979043db95a6f121bf1efa5"
+    },
+    "security-audit": {
+      "source": "cloudflare/security-audit-skill",
+      "sourceType": "github",
+      "skillPath": "skills/security-audit/SKILL.md",
+      "computedHash": "e6b2e317de75da97e9de18d842982994803f3a67a4a6d8154a82323dc3de8528"
     }
   }
 }
