@@ -279,13 +279,22 @@ jobs:
           sha256sum AraView-*-linux-*.tar.gz AraView-*-macos-*.dmg > SHA256SUMS.txt
           cat SHA256SUMS.txt
 
+      # 1.x(Tauri) 설치본은 `releases/latest/download/latest.json`을 확인한다. 2.x가 Latest인 동안 이 파일이 없으면
+      # 업데이트 확인이 404가 되므로, 마지막 1.x(1.2.3)의 피드를 그대로 올려 1.2.3까지만 안내하고 2.x로 자동 갱신되지 않게 한다.
+      - name: Fetch legacy 1.x feed
+        if: github.ref_type == 'tag'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: .github/legacy-feed
+          path: legacy
+
       - name: Publish release
         if: github.ref_type == 'tag'
         env:
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           gh release create "${{ github.ref_name }}" \
-            dist/AraView-*-setup.exe dist/update-feed.json dist/latest-gpui.json \
+            dist/AraView-*-setup.exe dist/update-feed.json dist/latest-gpui.json legacy/.github/legacy-feed/latest.json \
             dist/AraView-*-linux-*.tar.gz dist/AraView-*-macos-*.dmg dist/SHA256SUMS.txt \
             --repo "${{ github.repository }}" \
             --title "AraView ${{ github.ref_name }}" \
