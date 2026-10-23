@@ -42,7 +42,7 @@ tauri-plugin-snap-layout = "1"
 log = "0.4"
 env_logger = "0.11"
 exif = { package = "kamadak-exif", version = "0.6" }
-zip = "8"
+zip = "9"
 tempfile = "3"
 jpeg-encoder = "0.7"
 jpeg-decoder = { version = "0.3", default-features = false }
