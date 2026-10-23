@@ -1,0 +1,15 @@
+{
+  "version": "1.2.3",
+  "notes": "## 변경 사항\n\n### 새 기능\n\n- show a one-time notice that 2.x needs a manual install\n- 클립보드 복사를 백엔드 PNG 인코딩으로 이전\n- 자동 모드에서 2x 이상 확대 시 픽셀 보존 표시\n\n### 수정\n\n- adapt archive.rs to zip 9 fallible entry names\n- GIF 프레임 카운터 자릿수 변화로 상단 메뉴가 밀리던 문제 수정\n- @modelcontextprotocol/sdk 1.32.1로 올려 GHSA-6qxp-vccf-f47h 해소\n\n### 개선\n\n- 대형 폴더와 아카이브의 목록, 추출, 썸네일 경로 가속\n\n전체 비교: https://github.com/ara-hwang/araview/compare/v1.2.2...v1.2.3",
+  "pub_date": "2026-10-23T08:21:54.195Z",
+  "platforms": {
+    "windows-x86_64": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUeUpOTjRwSGxuZjNNYVlNTHpqb1JRLzNpeDkvYnBFVldIZzk1Q3JtNnBJb0tuaFcrRXo3RjR1aG9mVnozeVJjWDd5N0JuMURjOHBvSmxoMncycDhCenRQQlVJUGlabUFFPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkyNzQzNzEwCWZpbGU6QXJhVmlld18xLjIuM194NjQtc2V0dXAuZXhlCXZlcnNpb246MS4yLjMKZTVsSHRuMzZNaUhBU1dqb3lwNk43VnZESnU0Q2VGWFFaaHQ3cVp0ZEJLQ3BKSkV3UHhKM3htSlJDUHpPaVZaQWFhY0FEd1ZNSGVRVWd0ZWhPOHg0QUE9PQo=",
+      "url": "https://api.github.com/repos/ara-hwang/araview/releases/assets/668466241"
+    },
+    "windows-x86_64-nsis": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUeUpOTjRwSGxuZjNNYVlNTHpqb1JRLzNpeDkvYnBFVldIZzk1Q3JtNnBJb0tuaFcrRXo3RjR1aG9mVnozeVJjWDd5N0JuMURjOHBvSmxoMncycDhCenRQQlVJUGlabUFFPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkyNzQzNzEwCWZpbGU6QXJhVmlld18xLjIuM194NjQtc2V0dXAuZXhlCXZlcnNpb246MS4yLjMKZTVsSHRuMzZNaUhBU1dqb3lwNk43VnZESnU0Q2VGWFFaaHQ3cVp0ZEJLQ3BKSkV3UHhKM3htSlJDUHpPaVZaQWFhY0FEd1ZNSGVRVWd0ZWhPOHg0QUE9PQo=",
+      "url": "https://api.github.com/repos/ara-hwang/araview/releases/assets/668466241"
+    }
+  }
+}

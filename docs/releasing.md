@@ -40,7 +40,7 @@ Actions 탭에서 Release 워크플로를 수동 실행(`workflow_dispatch`)하�
 - 피드 주소는 `https://github.com/ara-hwang/araview/releases/latest/download/update-feed.json`이고 앱 코드(`app/src/app/update.rs`)에 있습니다.
 - `update-feed.json`은 `version`, `notes`, `pub_date`, `platforms.windows-x86_64.{url,signature}`를 가집니다. `signature`는 설치 프로그램의 `.sig` 내용이고, 앱은 내려받은 설치 프로그램을 `app/update-pubkey.txt`의 공개키로 확인한 뒤에만 실행합니다.
 - 앱은 다운로드가 끝나면 설치 프로그램을 실행하고 종료합니다. 설치 프로그램 실행 이후의 실패(사용자 취소, 디스크 부족 등)는 앱이 이미 종료된 뒤라 앱에서 피드백할 수 없고 NSIS 창이 표시합니다.
-- 1.x(Tauri) 앱은 `latest.json`을 보는데 2.0부터는 이 파일을 올리지 않습니다. 그래서 1.x의 자동 업데이트는 2.0을 받지 못하고, 사용자가 릴리스의 설치 프로그램을 직접 받아 설치해야 합니다. 같은 폴더에 덮어써서 설정과 최근 파일이 이어집니다.
+- 1.x(Tauri) 앱은 `latest.json`을 봅니다. 마지막 1.x인 1.2.3(`release/1.x`, 프리릴리스라 Latest가 되지 않음)이 앱 안에 "2.x는 직접 설치해야 한다"는 안내를 한 번 띄우고, 2.x 릴리스마다 `.github/legacy-feed/latest.json`(1.2.3의 피드)을 함께 올려 1.x가 2.x로 자동 갱신되지 않게 합니다. 1.x 사용자는 릴리스의 설치 프로그램을 직접 받아 설치해야 하고, 같은 폴더에 덮어써서 설정과 최근 파일이 이어집니다.
 - 예전 별도 피드 저장소(`araview-updates`)는 삭제했습니다. 0.2.9 이하 설치본은 그 피드를 보므로 자동 업데이트를 받지 못합니다.
 
 ## 서명키 발급과 등록 (maintainer 1회)
