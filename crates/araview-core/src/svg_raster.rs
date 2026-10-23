@@ -1,11 +1,12 @@
 //! SVG 래스터화. `image` 크레이트는 SVG를 디코드하지 못하므로 썸네일과
 //! 히스토그램처럼 픽셀이 필요한 경로에서만 resvg를 쓴다. 표시는 WebView가 맡는다.
 
+use std::io::Read;
 use std::path::Path;
 use std::sync::{Arc, OnceLock};
 
 use resvg::tiny_skia::{Pixmap, Transform};
-use resvg::usvg::{fontdb, Options, Tree};
+use resvg::usvg::{fontdb, ImageHrefResolver, Options, Tree};
 
 use crate::app_error::AppError;
 
@@ -25,28 +26,37 @@ fn system_fonts() -> Arc<fontdb::Database> {
 
 /// SVG를 읽어 파스 트리를 만든다. 입력 크기 상한을 적용한다.
 fn parse_tree(path: &Path) -> Result<Tree, AppError> {
-    let len = std::fs::metadata(path)
-        .map_err(|e| {
-            AppError::io(
-                "Failed to read SVG",
-                e,
-                crate::app_error::ErrorCode::Unknown,
-            )
-        })?
-        .len();
-    if len > MAX_SVG_BYTES {
-        return Err(AppError::too_large("SVG file is too large"));
-    }
-    let data = std::fs::read(path).map_err(|e| {
+    let file = std::fs::File::open(path).map_err(|e| {
         AppError::io(
             "Failed to read SVG",
             e,
             crate::app_error::ErrorCode::Unknown,
         )
     })?;
+    // 크기는 실제 읽기 경로에서 강제한다. 메타데이터 검사 후 파일이 커지는
+    // TOCTOU를 피하려고 `take`로 상한을 건다.
+    let mut data = Vec::new();
+    file.take(MAX_SVG_BYTES + 1)
+        .read_to_end(&mut data)
+        .map_err(|e| {
+            AppError::io(
+                "Failed to read SVG",
+                e,
+                crate::app_error::ErrorCode::Unknown,
+            )
+        })?;
+    if data.len() as u64 > MAX_SVG_BYTES {
+        return Err(AppError::too_large("SVG file is too large"));
+    }
     let options = Options {
         fontdb: system_fonts(),
-        resources_dir: path.parent().map(Path::to_path_buf),
+        // 외부 href는 로컬 파일을 읽지 않는다. 악성 SVG가 임의 경로의 파일을
+        // 통째로 메모리에 올리거나 다른 로컬 SVG를 렌더링하지 못하게 한다.
+        // data URI는 입력 크기 상한 안에서 계속 허용한다.
+        image_href_resolver: ImageHrefResolver {
+            resolve_data: ImageHrefResolver::default_data_resolver(),
+            resolve_string: Box::new(|_, _| None),
+        },
         ..Options::default()
     };
     Tree::from_data(&data, &options)
@@ -118,4 +128,51 @@ pub fn rasterize_rgba(path: &Path, max_side: u32) -> Result<image::RgbaImage, Ap
     }
     image::RgbaImage::from_raw(width, height, rgba)
         .ok_or_else(|| AppError::corrupt("SVG render produced invalid buffer"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn write(path: &Path, contents: &str) {
+        std::fs::write(path, contents).unwrap();
+    }
+
+    #[test]
+    fn external_svg_href_is_not_followed() {
+        let dir = tempfile::tempdir().unwrap();
+        let outside = dir.path().join("outside.svg");
+        write(
+            &outside,
+            r##"<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="64" height="64" fill="#ff0000"/></svg>"##,
+        );
+        let page = dir.path().join("page.svg");
+        let href = outside.display().to_string();
+        write(
+            &page,
+            &format!(
+                r#"<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><image href="{href}" width="64" height="64"/></svg>"#
+            ),
+        );
+
+        let image = rasterize(&page, 64).unwrap();
+        assert_eq!(
+            image.get_pixel(32, 32).0,
+            [255, 255, 255],
+            "a local file referenced by href must not be rendered"
+        );
+    }
+
+    #[test]
+    fn missing_external_href_does_not_break_rendering() {
+        let dir = tempfile::tempdir().unwrap();
+        let page = dir.path().join("page.svg");
+        write(
+            &page,
+            r##"<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><rect width="32" height="32" fill="#00ff00"/><image href="missing.png" width="32" height="32"/></svg>"##,
+        );
+
+        let image = rasterize(&page, 32).unwrap();
+        assert_eq!(image.get_pixel(16, 16).0, [0, 255, 0]);
+    }
 }

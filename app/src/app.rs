@@ -201,6 +201,25 @@ pub struct AraView {
     high_contrast: bool,
 }
 
+/// 표시용 파일명에서 제어문자와 bidi 제어를 치환한다. 파일 조작에는 원본 이름을
+/// 그대로 쓰고, 화면·창 제목에만 이 결과를 쓴다.
+fn display_safe_name(name: &str) -> String {
+    name.chars()
+        .map(|c| {
+            if c.is_control()
+                || matches!(
+                    c,
+                    '\u{200E}' | '\u{200F}' | '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}'
+                )
+            {
+                '\u{FFFD}'
+            } else {
+                c
+            }
+        })
+        .collect()
+}
+
 impl AraView {
     pub fn new(
         initial: Option<String>,
@@ -381,8 +400,10 @@ impl AraView {
     /// 화면에 보여줄 파일명. 아카이브 엔트리는 추출 파일명이 아니라 엔트리 이름을 쓴다.
     fn display_name(&self, info: &ImageInfo) -> String {
         match (&self.archive, self.list.get(self.index)) {
-            (Some(_), Some(entry)) => entry.rsplit(['/', '\\']).next().unwrap_or(entry).to_owned(),
-            _ => info.file_name.clone(),
+            (Some(_), Some(entry)) => {
+                display_safe_name(entry.rsplit(['/', '\\']).next().unwrap_or(entry))
+            }
+            _ => display_safe_name(&info.file_name),
         }
     }
 

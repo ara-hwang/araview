@@ -34,6 +34,13 @@ fn extraction_out_path(temp_dir: &Path, entry_name: &str) -> PathBuf {
 /// 단일 엔트리 압축 해제 상한 (zipbomb 가드). 초과 시 에러로 중단한다.
 pub const MAX_ENTRY_BYTES: u64 = 200 * 1024 * 1024;
 
+/// 중앙 디렉터리 엔트리 수 상한. 이름 백만 개짜리 zip이 목록·정렬에
+/// 메모리와 시간을 쓰지 못하게 한다.
+const MAX_ZIP_ENTRIES: usize = 200_000;
+
+/// 엔트리 이름 길이 상한(바이트). 비정상적으로 긴 이름은 목록에서 제외한다.
+const MAX_ENTRY_NAME_BYTES: usize = 4096;
+
 /// 아카이브별 추출 디렉터리 상한. 초과분은 가장 오래된 추출물부터 지운다.
 /// 아직 화면에 있는 추출물은 `mark_in_use`로 보호되고(FE가 이미 asset URL을
 /// 들고 있어 재추출 계기가 없다), 나머지는 다음 접근 시 다시 추출된다.
@@ -156,9 +163,7 @@ impl<'a> ArchiveExtractor<'a> {
 
         check_entry_size(entry.size())?;
 
-        let buf = read_bounded(&mut entry, MAX_ENTRY_BYTES, "Failed to read entry data")?;
-
-        write_extracted(out_path, &buf)
+        write_extracted(out_path, &mut entry)
     }
 }
 
@@ -230,26 +235,37 @@ fn open_zip(archive_path: &Path) -> Result<zip::ZipArchive<fs::File>, AppError> 
     Ok(archive)
 }
 
-fn write_extracted(out_path: &Path, buf: &[u8]) -> Result<(), AppError> {
+fn write_extracted(out_path: &Path, reader: &mut impl Read) -> Result<(), AppError> {
     if let Some(parent) = out_path.parent() {
         fs::create_dir_all(parent)
             .map_err(|e| AppError::io("Failed to create temp dir", e, ErrorCode::Unknown))?;
     }
     // 직접 쓰면 동시 로더가 부분 파일을 읽을 수 있어 temp+rename으로 발행한다.
+    // 엔트리를 한 번에 메모리에 올리지 않고 스트리밍해 병렬 워커의 피크를 줄인다.
     let tmp = crate::sidecar::tmp_path_for(out_path);
-    if let Err(e) = fs::write(&tmp, buf) {
-        let _ = fs::remove_file(&tmp);
-        return Err(AppError::io(
-            "Failed to write temp file",
-            e,
-            ErrorCode::Unknown,
-        ));
-    }
+    let mut limited = reader.take(MAX_ENTRY_BYTES + 1);
+    let result = (|| -> Result<u64, AppError> {
+        let mut file = fs::File::create(&tmp)
+            .map_err(|e| AppError::io("Failed to write temp file", e, ErrorCode::Unknown))?;
+        let written = std::io::copy(&mut limited, &mut file)
+            .map_err(|e| AppError::io("Failed to write temp file", e, ErrorCode::Unknown))?;
+        if written > MAX_ENTRY_BYTES {
+            return Err(AppError::too_large("Archive entry too large"));
+        }
+        Ok(written)
+    })();
+    let written = match result {
+        Ok(written) => written,
+        Err(e) => {
+            crate::sidecar::discard_temp(&tmp);
+            return Err(e);
+        }
+    };
     crate::sidecar::publish_atomic(&tmp, out_path, "Failed to publish temp file")?;
     crate::process_temp::touch_cache_file(out_path);
     // 엔트리마다 디렉터리를 다시 훑지 않도록 누적 바이트로 상한을 추적한다.
     if let Some(dir) = out_path.parent() {
-        crate::process_temp::note_written(dir, buf.len() as u64, MAX_ARCHIVE_DIR_BYTES);
+        crate::process_temp::note_written(dir, written, MAX_ARCHIVE_DIR_BYTES);
     }
     Ok(())
 }
@@ -289,6 +305,9 @@ fn list_zip_images(archive_path: &Path) -> Result<Vec<String>, AppError> {
 /// ZIP/CBZ: 디렉터리·숨김 파일을 건너뛰고 이미지/전체 엔트리를 분류한다.
 fn collect_zip_entries(archive_path: &Path) -> Result<ArchiveEntries, AppError> {
     let mut archive = open_zip(archive_path)?;
+    if archive.len() > MAX_ZIP_ENTRIES {
+        return Err(AppError::too_large("Archive has too many entries"));
+    }
 
     let mut all: Vec<String> = Vec::new();
     for i in 0..archive.len() {
@@ -299,6 +318,9 @@ fn collect_zip_entries(archive_path: &Path) -> Result<ArchiveEntries, AppError> 
             .name()
             .map_err(|e| AppError::corrupt(format!("Failed to read entry: {e}")))?
             .to_string();
+        if name.len() > MAX_ENTRY_NAME_BYTES {
+            continue;
+        }
 
         // 디렉토리 스킵, 숨김 파일(__MACOSX 등) 스킵
         if entry.is_dir()

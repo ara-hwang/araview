@@ -66,7 +66,7 @@ pub fn export_clipboard_png(source: &Path) -> Result<ClipboardPng, AppError> {
         let decoded = decode_for_clipboard(source)?;
         let tmp = crate::sidecar::tmp_path_for(&dest);
         if let Err(e) = write_png(&tmp, decoded) {
-            let _ = fs::remove_file(&tmp);
+            crate::sidecar::discard_temp(&tmp);
             return Err(e);
         }
         crate::sidecar::publish_atomic(&tmp, &dest, "Failed to publish clipboard PNG")?;

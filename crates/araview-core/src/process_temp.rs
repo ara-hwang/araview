@@ -36,6 +36,29 @@ struct ActiveCacheRoot {
 static ACTIVE_CACHE_ROOT: LazyLock<Mutex<Option<ActiveCacheRoot>>> =
     LazyLock::new(|| Mutex::new(None));
 
+/// Paths currently being published by `sidecar::tmp_path_for`.
+///
+/// This is an exact set rather than a filename-shape match: archive entry names
+/// are attacker-controlled and could otherwise be crafted to look like one of
+/// our temp files, which would exempt them from eviction and cache caps.
+static INFLIGHT: LazyLock<Mutex<HashSet<PathBuf>>> = LazyLock::new(|| Mutex::new(HashSet::new()));
+
+pub(crate) fn mark_inflight(path: &Path) {
+    if let Ok(mut set) = INFLIGHT.lock() {
+        set.insert(path.to_path_buf());
+    }
+}
+
+pub(crate) fn clear_inflight(path: &Path) {
+    if let Ok(mut set) = INFLIGHT.lock() {
+        set.remove(path);
+    }
+}
+
+fn is_inflight(path: &Path) -> bool {
+    INFLIGHT.lock().is_ok_and(|set| set.contains(path))
+}
+
 fn reset_temporary_base(base: &Path) -> Result<(), AppError> {
     match fs::remove_dir_all(base) {
         Ok(()) => {}
@@ -271,7 +294,7 @@ fn remove_stale_temp_files(root: &Path) {
             };
             if file_type.is_dir() {
                 visit(&path);
-            } else if file_type.is_file() && is_inflight_temp_path(&path) {
+            } else if file_type.is_file() && matches_temp_shape(&path) {
                 let _ = fs::remove_file(path);
             }
         }
@@ -282,10 +305,9 @@ fn remove_stale_temp_files(root: &Path) {
 }
 
 /// Detect the exact temp filename shape emitted by `sidecar::tmp_path_for`:
-/// `<stem>.tmp-<pid>-ThreadId<n>-<counter>.<ext>`. Matching the complete
-/// suffix avoids treating a legitimate archive name such as
-/// `<hash>_photo.tmp-123-page.jpg` as an in-flight file.
-pub(crate) fn is_inflight_temp_path(path: &Path) -> bool {
+/// `<stem>.tmp-<pid>-ThreadId<n>-<counter>.<ext>`. Used only to clean up
+/// leftovers at startup; runtime eviction uses the exact in-flight set.
+pub(crate) fn matches_temp_shape(path: &Path) -> bool {
     let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
         return false;
     };
@@ -516,8 +538,8 @@ pub fn request_total_cap_scan() {
     });
 }
 
-/// Collect `(mtime, size, path)` for evictable files. In-flight temp files
-/// (`*.tmp-*`) are skipped so partial writes are never deleted. `root` must
+/// Collect `(mtime, size, path)` for evictable files. Paths currently being
+/// published are skipped so partial writes are never deleted. `root` must
 /// exist; nested directories are best effort.
 pub(crate) fn collect_files(
     root: &Path,
@@ -553,9 +575,10 @@ pub(crate) fn collect_files(
             if !file_type.is_file() {
                 continue;
             }
-            // Skip in-flight temp files so eviction and statistics never expose
-            // a partial write. Restrict the match to the numeric pid shape.
-            if is_inflight_temp_path(&path) {
+            // Skip paths we are publishing right now so eviction and statistics
+            // never expose a partial write. Archive entry names cannot join this
+            // set, so a crafted `*.tmp-*` name stays countable and evictable.
+            if is_inflight(&path) {
                 continue;
             }
             let (mtime, size) = entry
@@ -603,4 +626,29 @@ fn evict_oldest(mut files: Vec<(u128, u64, PathBuf)>, max_bytes: u64, target_byt
         }
     }
     total
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn crafted_temp_like_names_are_not_exempt_from_eviction() {
+        let dir = tempfile::tempdir().unwrap();
+        let crafted = dir.path().join("hash_page.tmp-1-ThreadId2-3.jpg");
+        fs::write(&crafted, b"x").unwrap();
+
+        let files = collect_files(dir.path(), false).unwrap();
+        assert_eq!(
+            files.len(),
+            1,
+            "an archive-controlled name must stay visible to eviction"
+        );
+
+        mark_inflight(&crafted);
+        assert!(collect_files(dir.path(), false).unwrap().is_empty());
+
+        clear_inflight(&crafted);
+        assert_eq!(collect_files(dir.path(), false).unwrap().len(), 1);
+    }
 }

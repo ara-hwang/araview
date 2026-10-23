@@ -161,7 +161,7 @@ pub fn ensure_scaled_sidecar_with_mode(
             // 알파 여부와 무관하게 lossless PNG sidecar로 보존한다.
             let tmp = crate::sidecar::tmp_path_for(&png_dest);
             if let Err(e) = scaled.save_with_format(&tmp, image::ImageFormat::Png) {
-                let _ = fs::remove_file(&tmp);
+                crate::sidecar::discard_temp(&tmp);
                 return Err(AppError::unknown(format!(
                     "Failed to encode scaled PNG: {e}"
                 )));

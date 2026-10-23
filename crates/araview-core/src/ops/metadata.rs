@@ -7,11 +7,18 @@ use std::path::Path;
 
 use crate::app_error::{AppError, ErrorCode};
 
+/// EXIF 전량 파싱 전 파일 크기 상한. 큰 파일은 EXIF 패널을 비운다.
+const MAX_EXIF_BYTES: u64 = 64 * 1024 * 1024;
+
 pub fn get_exif_data_impl(file_path: &str) -> Result<HashMap<String, String>, AppError> {
     let path = Path::new(file_path);
 
     if !path.exists() {
         return Err(AppError::not_found("File not found"));
+    }
+    if fs::metadata(path).is_ok_and(|m| m.len() > MAX_EXIF_BYTES) {
+        log::debug!("[exif] skipping oversized file {}", path.display());
+        return Ok(HashMap::new());
     }
 
     let file = fs::File::open(path)

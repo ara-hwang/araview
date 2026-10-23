@@ -1,7 +1,7 @@
 //! 수동 업데이트 확인·설치와 서드파티 라이선스 화면(SPEC §20.1).
 
 use std::collections::HashMap;
-use std::io::Read as _;
+use std::io::{Read as _, Write as _};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -198,12 +198,21 @@ fn read_with_progress(
     }
 }
 
+/// 설치 프로그램은 HTTPS에서만 받는다. 디버그 빌드는 로컬 피드 검증을 위해
+/// HTTP도 허용한다.
+fn is_allowed_asset_url(url: &str) -> bool {
+    url.starts_with("https://") || (cfg!(debug_assertions) && url.starts_with("http://"))
+}
+
 /// 설치 프로그램을 내려받아 서명을 확인하고 임시 폴더에 저장한다. 취소되면 None이다.
 fn download_installer(
     asset: &Asset,
     public_key: &str,
     progress: &DownloadProgress,
 ) -> Result<Option<PathBuf>, String> {
+    if !is_allowed_asset_url(&asset.url) {
+        return Err("update URL must use HTTPS".to_owned());
+    }
     let mut response = agent(DOWNLOAD_TIMEOUT)
         .get(&asset.url)
         .call()
@@ -221,14 +230,15 @@ fn download_installer(
         return Err("installer is larger than expected".to_owned());
     }
     verify_signature(&bytes, &asset.signature, public_key)?;
-    let name = asset
-        .url
-        .rsplit('/')
-        .next()
-        .filter(|name| name.to_ascii_lowercase().ends_with(".exe"))
-        .unwrap_or("araview-update-setup.exe");
-    let path = std::env::temp_dir().join(name);
-    std::fs::write(&path, bytes).map_err(|error| error.to_string())?;
+    // URL에서 파일명을 가져오지 않는다. 고유한 임시 이름을 쓰면 경로 조작과
+    // 사전 배치(pre-planting)를 피할 수 있다. `.exe` 접미사는 유지한다.
+    let mut file = tempfile::Builder::new()
+        .prefix("araview-update-")
+        .suffix(".exe")
+        .tempfile_in(std::env::temp_dir())
+        .map_err(|error| error.to_string())?;
+    file.write_all(&bytes).map_err(|error| error.to_string())?;
+    let (_file, path) = file.keep().map_err(|error| error.error.to_string())?;
     Ok(Some(path))
 }
 
@@ -403,7 +413,15 @@ impl AraView {
         if self.update_checking {
             return;
         }
+        let public_key = match release_public_key() {
+            Ok(key) => key,
+            Err(error) => {
+                window.toast(Toast::error(error).title(t("toast.update.checkFail")), cx);
+                return;
+            }
+        };
         self.update_checking = true;
+        let signature = asset.signature.clone();
         let progress = Arc::new(DownloadProgress::default());
         Self::show_download(progress.clone(), version, window, cx);
         // 받은 양은 배경 스레드가 기록하므로, 대화상자는 일정 간격으로 다시 그린다.
@@ -417,7 +435,8 @@ impl AraView {
         });
         let task = cx.background_spawn({
             let progress = progress.clone();
-            async move { download_installer(&asset, &release_public_key()?, &progress) }
+            let public_key = public_key.clone();
+            async move { download_installer(&asset, &public_key, &progress) }
         });
         cx.spawn_in(window, async move |this, cx| {
             let result = task.await;
@@ -431,9 +450,19 @@ impl AraView {
                 window.close_dialog(cx);
                 let launched = result.and_then(|installer| {
                     let installer = installer.ok_or("download was cancelled")?;
+                    // 파일을 다시 읽어 실행 직전에 서명을 재검증한다. 다운로드와
+                    // 실행 사이에 임시 파일이 바뀌는 창을 닫는다.
+                    let bytes = std::fs::read(&installer).map_err(|error| error.to_string())?;
+                    if let Err(error) = verify_signature(&bytes, &signature, &public_key) {
+                        let _ = std::fs::remove_file(&installer);
+                        return Err(error);
+                    }
                     std::process::Command::new(&installer)
                         .spawn()
-                        .map_err(|error| error.to_string())
+                        .map_err(|error| {
+                            let _ = std::fs::remove_file(&installer);
+                            error.to_string()
+                        })
                 });
                 match launched {
                     Ok(_) => {
@@ -479,7 +508,16 @@ impl AraView {
 #[cfg(test)]
 mod tests {
     // `super::*`는 gpui의 `test` 매크로까지 끌어와 `#[test]`를 가린다.
-    use super::{DOWNLOAD_CHUNK, DownloadProgress, Ordering, read_with_progress};
+    use super::{
+        DOWNLOAD_CHUNK, DownloadProgress, Ordering, is_allowed_asset_url, read_with_progress,
+    };
+
+    #[test]
+    fn asset_urls_must_be_https() {
+        assert!(is_allowed_asset_url("https://example.com/araview.exe"));
+        assert!(!is_allowed_asset_url("file:///C:/araview.exe"));
+        assert!(!is_allowed_asset_url("ftp://example.com/araview.exe"));
+    }
 
     #[test]
     fn read_records_received_bytes() {

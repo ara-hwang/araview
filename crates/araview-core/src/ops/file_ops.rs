@@ -99,6 +99,17 @@ fn validate_new_file_name(name: &str) -> Result<String, AppError> {
             "File name contains invalid characters",
         ));
     }
+    if trimmed.chars().any(|c| {
+        c.is_control()
+            || matches!(
+                c,
+                '\u{200E}' | '\u{200F}' | '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}'
+            )
+    }) {
+        return Err(AppError::invalid_input(
+            "File name cannot contain control or bidirectional characters",
+        ));
+    }
     if trimmed.ends_with([' ', '.']) {
         return Err(AppError::invalid_input(
             "File name cannot end with a space or dot",
@@ -112,4 +123,17 @@ fn validate_new_file_name(name: &str) -> Result<String, AppError> {
         return Err(AppError::invalid_input("File name is reserved by Windows"));
     }
     Ok(trimmed.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::validate_new_file_name;
+
+    #[test]
+    fn rename_rejects_control_and_bidi_names() {
+        assert!(validate_new_file_name("bad\nname.jpg").is_err());
+        assert!(validate_new_file_name("bad\u{202E}name.jpg").is_err());
+        assert!(validate_new_file_name("bidi\u{2066}name.jpg").is_err());
+        assert!(validate_new_file_name("fine-name.jpg").is_ok());
+    }
 }

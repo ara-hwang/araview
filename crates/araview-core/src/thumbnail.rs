@@ -267,7 +267,7 @@ fn write_jpeg_atomic(dest: &Path, img: &image::DynamicImage) -> Result<(), AppEr
     // `.jpg` 접미사를 유지해야 `save`가 포맷을 추론할 수 있다.
     let tmp = crate::sidecar::tmp_path_for(dest);
     if let Err(e) = img.save(&tmp) {
-        let _ = fs::remove_file(&tmp);
+        crate::sidecar::discard_temp(&tmp);
         return Err(AppError::unknown(format!(
             "Failed to encode thumbnail: {e}"
         )));

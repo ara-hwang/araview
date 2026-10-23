@@ -28,6 +28,7 @@ ureq = "3"
 rfd = { version = "0.17", default-features = false }
 minisign-verify = "0.3"
 base64 = "0.23"
+tempfile = "3"
 
 # HDR 출력에서 스왑체인 경로를 고르려고 직접 의존한다(루트 Cargo.toml의 포크 patch).
 [target.'cfg(windows)'.dependencies]

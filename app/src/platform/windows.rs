@@ -61,12 +61,46 @@ const SWP_NOMOVE: u32 = 0x0002;
 const SWP_NOACTIVATE: u32 = 0x0010;
 const ERROR_ALREADY_EXISTS: u32 = 183;
 const ERROR_PIPE_CONNECTED: u32 = 535;
+const ERROR_INVALID_PARAMETER: u32 = 87;
+const PIPE_ACCESS_DUPLEX: u32 = 0x0000_0003;
 const PIPE_ACCESS_INBOUND: u32 = 0x0000_0001;
 const PIPE_UNLIMITED_INSTANCES: u32 = 255;
+const PIPE_REJECT_REMOTE_CLIENTS: u32 = 0x0000_0008;
+const FILE_FLAG_FIRST_PIPE_INSTANCE: u32 = 0x0008_0000;
 const INVALID_HANDLE: Handle = -1;
 
 fn wide(text: &str) -> Vec<u16> {
     text.encode_utf16().chain(std::iter::once(0)).collect()
+}
+
+/// `PIPE_REJECT_REMOTE_CLIENTS`는 일부 Windows 빌드에서 `ERROR_INVALID_PARAMETER`로
+/// 거부된다. 지원되면 원격 접속을 막고, 아니면 파이프 선점 방지 플래그만 유지한다.
+fn create_pipe(name: &[u16], open_mode: u32, out_buffer: u32, in_buffer: u32) -> Handle {
+    let create = |mode: u32| {
+        // SAFETY: NUL로 끝나는 이름과 상수 인자만 넘긴다.
+        unsafe {
+            CreateNamedPipeW(
+                name.as_ptr(),
+                mode,
+                0,
+                PIPE_UNLIMITED_INSTANCES,
+                out_buffer,
+                in_buffer,
+                0,
+                core::ptr::null(),
+            )
+        }
+    };
+    let pipe = create(open_mode | PIPE_REJECT_REMOTE_CLIENTS | FILE_FLAG_FIRST_PIPE_INSTANCE);
+    if pipe != INVALID_HANDLE
+        || unsafe {
+            // SAFETY: 직전 CreateNamedPipeW 실패 이유를 읽는 부작용 없는 호출이다.
+            GetLastError()
+        } != ERROR_INVALID_PARAMETER
+    {
+        return pipe;
+    }
+    create(open_mode | FILE_FLAG_FIRST_PIPE_INSTANCE)
 }
 
 /// 창의 HWND 값. 얻지 못하면 0이다.
@@ -270,23 +304,9 @@ pub fn control_channel(identifier: &str) -> Control {
 /// 한 번에 한 클라이언트만 다루며, 응답이 오지 않으면 시간 안에 포기한다.
 #[cfg(debug_assertions)]
 fn serve_control(name: &str, requests: Sender<String>, replies: Receiver<String>) {
-    /// 파이프를 양방향으로 연다(응답을 돌려주기 위함).
-    const PIPE_ACCESS_DUPLEX: u32 = 0x0000_0003;
     const REPLY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
     let name = wide(name);
-    // SAFETY: NUL로 끝나는 이름과 상수 인자만 넘긴다.
-    let pipe = unsafe {
-        CreateNamedPipeW(
-            name.as_ptr(),
-            PIPE_ACCESS_DUPLEX,
-            0,
-            PIPE_UNLIMITED_INSTANCES,
-            4096,
-            4096,
-            0,
-            core::ptr::null(),
-        )
-    };
+    let pipe = create_pipe(&name, PIPE_ACCESS_DUPLEX, 4096, 4096);
     if pipe == INVALID_HANDLE {
         log::warn!("[control] failed to create the control pipe");
         return;
@@ -414,19 +434,7 @@ pub fn single_instance(identifier: &str, path: Option<&str>) -> Instance {
 
 fn serve_pipe(name: &str, sender: Sender<String>) {
     let name = wide(name);
-    // SAFETY: NUL로 끝나는 이름과 상수 인자만 넘긴다.
-    let pipe = unsafe {
-        CreateNamedPipeW(
-            name.as_ptr(),
-            PIPE_ACCESS_INBOUND,
-            0,
-            PIPE_UNLIMITED_INSTANCES,
-            0,
-            4096,
-            0,
-            core::ptr::null(),
-        )
-    };
+    let pipe = create_pipe(&name, PIPE_ACCESS_INBOUND, 0, 4096);
     if pipe == INVALID_HANDLE {
         log::warn!("[instance] failed to create the instance pipe");
         return;

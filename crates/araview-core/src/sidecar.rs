@@ -136,7 +136,15 @@ fn tmp_suffix() -> String {
 pub fn tmp_path_for(dest: &Path) -> PathBuf {
     let ext = dest.extension().and_then(|e| e.to_str()).unwrap_or("tmp");
     let stem = dest.file_stem().and_then(|s| s.to_str()).unwrap_or("tmp");
-    dest.with_file_name(format!("{stem}.tmp-{}.{ext}", tmp_suffix()))
+    let path = dest.with_file_name(format!("{stem}.tmp-{}.{ext}", tmp_suffix()));
+    crate::process_temp::mark_inflight(&path);
+    path
+}
+
+/// Remove a temp file that will not be published and clear its in-flight mark.
+pub fn discard_temp(tmp: &Path) {
+    let _ = fs::remove_file(tmp);
+    crate::process_temp::clear_inflight(tmp);
 }
 
 /// Extension of [`scratch_path_for`] temp files. Not an image extension, so a
@@ -195,18 +203,21 @@ pub fn sweep_scratch_files(dir: &Path) {
 /// they need a strict rename instead.
 pub fn publish_atomic(tmp: &Path, dest: &Path, context: &str) -> Result<(), AppError> {
     match fs::rename(tmp, dest) {
-        Ok(()) => Ok(()),
+        Ok(()) => {
+            crate::process_temp::clear_inflight(tmp);
+            Ok(())
+        }
         Err(e) if dest.exists() => {
             // 동시 발행이 이겼거나 rename이 공유 위반으로 막힌 경우다.
             // 전자는 정상, 후자는 구 content가 남는다는 뜻이라 로그로 남긴다.
             log::warn!(
                 "[sidecar] rename failed but dest exists, keeping existing file: {context}: {e}"
             );
-            let _ = fs::remove_file(tmp);
+            discard_temp(tmp);
             Ok(())
         }
         Err(e) => {
-            let _ = fs::remove_file(tmp);
+            discard_temp(tmp);
             Err(AppError::unknown(format!("{context}: {e}")))
         }
     }
@@ -220,11 +231,11 @@ pub fn write_rgb8_jpeg_atomic(dest: &Path, rgb: &Rgb8, quality: u8) -> Result<()
         fs::create_dir_all(parent)
             .map_err(|e| AppError::io("Failed to create paint dir", e, ErrorCode::Unknown))?;
     }
-    let tmp = tmp_path_for(dest);
     let width =
         u16::try_from(rgb.width).map_err(|_| AppError::corrupt("image too wide for JPEG"))?;
     let height =
         u16::try_from(rgb.height).map_err(|_| AppError::corrupt("image too tall for JPEG"))?;
+    let tmp = tmp_path_for(dest);
     let result = (|| {
         let encoder = Encoder::new_file(&tmp, quality)
             .map_err(|e| AppError::unknown(format!("Failed to open JPEG sidecar: {e}")))?;
@@ -233,7 +244,7 @@ pub fn write_rgb8_jpeg_atomic(dest: &Path, rgb: &Rgb8, quality: u8) -> Result<()
             .map_err(|e| AppError::unknown(format!("Failed to encode JPEG sidecar: {e}")))
     })();
     if let Err(e) = result {
-        let _ = fs::remove_file(&tmp);
+        discard_temp(&tmp);
         return Err(e);
     }
     publish_atomic(&tmp, dest, "Failed to publish JPEG sidecar")
