@@ -13,7 +13,7 @@ name = "araview"
 path = "src/main.rs"
 
 [dependencies]
-gpui-kit = "0.7.3"
+gpui-kit = "0.8"
 araview-core = { path = "../crates/araview-core" }
 anyhow = "1"
 image = { version = "0.25", default-features = false }

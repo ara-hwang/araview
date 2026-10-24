@@ -4,7 +4,7 @@
 
 ## 기술 스택
 
-- **앱**: Rust, [GPUI Kit](https://github.com/longbridge/gpui-kit) 0.7(`app`)
+- **앱**: Rust, [GPUI Kit](https://github.com/longbridge/gpui-kit) 0.8(`app`)
 - **공용 코어**: `crates/araview-core`(디코드, 아카이브, 캐시, 썸네일, 파일 작업)
 - **PSD 탐색기 썸네일**: `crates/araview-thumb`(COM DLL, Windows 전용. 다른 OS에서는 빈 크레이트로 빌드됩니다)
 - **배포 묶음**: Windows는 NSIS 설치 프로그램(`app/installer/araview.nsi`), Linux는 tar.gz(`scripts/package-linux.sh`), macOS는 dmg(`scripts/package-macos.sh`)

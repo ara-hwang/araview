@@ -251,11 +251,11 @@ dependencies and other-OS targets are excluded.
 | gpu-allocator | 0.28.0 | MIT OR Apache-2.0 |
 | gpu-descriptor | 0.3.2 | MIT OR Apache-2.0 |
 | gpu-descriptor-types | 0.2.0 | MIT OR Apache-2.0 |
-| gpui-base | 0.7.3 | Apache-2.0 |
-| gpui-component | 0.7.3 | Apache-2.0 |
-| gpui-component-macros | 0.7.3 | Apache-2.0 |
-| gpui-kit | 0.7.3 | Apache-2.0 |
-| gpui-kit-assets | 0.7.3 | Apache-2.0 |
+| gpui-base | 0.8.0 | Apache-2.0 |
+| gpui-component | 0.8.0 | Apache-2.0 |
+| gpui-component-macros | 0.8.0 | Apache-2.0 |
+| gpui-kit | 0.8.0 | Apache-2.0 |
+| gpui-kit-assets | 0.8.0 | Apache-2.0 |
 | gpui-pre | 0.3.9 | Apache-2.0 |
 | gpui-pre-apple | 0.3.9 | Apache-2.0 |
 | gpui-pre-collections | 0.3.9 | Apache-2.0 |
