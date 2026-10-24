@@ -5,10 +5,11 @@ use std::sync::Arc;
 use crate::toast::{Toast, WindowToast};
 use araview_core::app_error::AppError;
 use araview_core::ops;
+use gpui_kit::component::WindowExt as _;
 use gpui_kit::component::button::{Button, ButtonVariant, ButtonVariants as _};
 use gpui_kit::component::dialog::{DialogEntrance, DialogFooter};
+use gpui_kit::component::form::{Field, Form};
 use gpui_kit::component::input::{Input, InputEvent, InputState};
-use gpui_kit::component::{WindowExt as _, v_flex};
 use gpui_kit::*;
 
 use super::AraView;
@@ -135,10 +136,12 @@ impl AraView {
             centered(dialog, window, RENAME_HEIGHT)
                 .title(t("dialog.rename.title"))
                 .child(
-                    v_flex()
-                        .gap_2()
-                        .child(div().text_sm().child(t("dialog.rename.desc")))
-                        .child(Input::new(&input)),
+                    Form::new().child(
+                        Field::new()
+                            .label_indent(false)
+                            .description(t("dialog.rename.desc"))
+                            .child(Input::new(&input)),
+                    ),
                 )
                 .footer(
                     DialogFooter::new()

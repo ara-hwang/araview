@@ -13,6 +13,7 @@ use base64::Engine as _;
 use gpui_kit::component::button::{Button, ButtonVariants as _};
 use gpui_kit::component::dialog::DialogFooter;
 use gpui_kit::component::progress::Progress;
+use gpui_kit::component::text::TextView;
 use gpui_kit::component::{ActiveTheme as _, WindowExt as _, v_flex};
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
@@ -307,7 +308,11 @@ impl AraView {
                             notes_scroll
                                 .area(
                                     "update-notes",
-                                    div().pr_3().text_sm().whitespace_normal().child(notes),
+                                    div().pr_3().text_sm().child(
+                                        TextView::markdown("update-notes-text", notes.clone())
+                                            .selectable(true)
+                                            .on_link_click(|url, _, _, cx| cx.open_url(url)),
+                                    ),
                                 )
                                 .h(px(220.)),
                         ),

@@ -4,9 +4,10 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use gpui_kit::component::alert::Alert;
 use gpui_kit::component::list::{List, ListDelegate, ListEvent, ListItem, ListState};
 use gpui_kit::component::{
-    ActiveTheme as _, IndexPath, StyledExt as _, WindowExt as _, h_flex, v_flex,
+    ActiveTheme as _, IndexPath, Sizable as _, StyledExt as _, WindowExt as _, h_flex, v_flex,
 };
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
@@ -294,15 +295,12 @@ impl LicensesView {
 
     fn detail(&self, cx: &App) -> Div {
         let muted = cx.theme().muted_foreground;
-        let note = |text: SharedString| {
-            div()
-                .p_3()
-                .rounded_lg()
-                .border_1()
-                .border_color(cx.theme().border)
-                .bg(cx.theme().muted.opacity(0.3))
-                .text_sm()
-                .child(text)
+        let note = |id: &'static str, text: SharedString, warning: bool| {
+            if warning {
+                Alert::warning(id, text).small()
+            } else {
+                Alert::info(id, text).small()
+            }
         };
         match self.entries.get(self.selected).copied() {
             Some(Entry::Document(index)) => {
@@ -327,10 +325,18 @@ impl LicensesView {
                             ))),
                     )
                     .when(package.templated, |column| {
-                        column.child(note(t("settings.licenses.templatedNote")))
+                        column.child(note(
+                            "license-templated-note",
+                            t("settings.licenses.templatedNote"),
+                            false,
+                        ))
                     })
                     .when(package.files.is_empty(), |column| {
-                        column.child(note(t("settings.licenses.noLicenseFile")).text_color(muted))
+                        column.child(note(
+                            "license-missing-file",
+                            t("settings.licenses.noLicenseFile"),
+                            true,
+                        ))
                     })
                     .children(package.files.iter().map(|file| {
                         v_flex()

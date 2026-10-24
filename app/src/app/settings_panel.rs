@@ -4,6 +4,7 @@ use crate::toast::{Toast, WindowToast};
 use araview_core::cache::{CacheCategory, CacheScope, CacheStats};
 use araview_core::file_assoc::FileAssociation;
 use araview_core::thumb_shell::PsdThumbStatus;
+use gpui_kit::component::alert::Alert;
 use gpui_kit::component::button::{Button, ButtonVariant, ButtonVariants as _};
 use gpui_kit::component::dialog::DialogEntrance;
 use gpui_kit::component::group_box::{GroupBox, GroupBoxVariants as _};
@@ -1057,7 +1058,8 @@ impl SettingsPanel {
                 )
                 .into_any_element(),
             Loadable::Ready(stats) => {
-                let mode_key = if !stats.persistent_available {
+                let persistent_unavailable = !stats.persistent_available;
+                let mode_key = if persistent_unavailable {
                     "settings.cacheManagement.persistentUnavailable"
                 } else if matches!(
                     stats.storage_mode,
@@ -1069,7 +1071,18 @@ impl SettingsPanel {
                 };
                 v_flex()
                     .gap_2()
-                    .child(div().text_xs().text_color(muted).child(t(mode_key)))
+                    // 저장 방식을 쓸 수 없는 상태는 놓치기 쉬운 경고라 Alert로 보여준다.
+                    .child(if persistent_unavailable {
+                        Alert::warning("cache-storage-note", t(mode_key))
+                            .small()
+                            .into_any_element()
+                    } else {
+                        div()
+                            .text_xs()
+                            .text_color(muted)
+                            .child(t(mode_key))
+                            .into_any_element()
+                    })
                     .child(
                         h_flex()
                             .justify_between()
@@ -1810,17 +1823,15 @@ impl SettingsPanel {
                             })),
                         cx,
                     ))
-                    .child(
-                        div()
-                            .text_xs()
-                            .text_color(muted)
-                            .whitespace_normal()
-                            .child(t(if dll_exists {
-                                "settings.thumb.note"
-                            } else {
-                                "settings.thumb.dllMissing"
-                            })),
-                    )
+                    .child(if dll_exists {
+                        Alert::info("psd-thumb-note", t("settings.thumb.note"))
+                            .small()
+                            .into_any_element()
+                    } else {
+                        Alert::warning("psd-thumb-note", t("settings.thumb.dllMissing"))
+                            .small()
+                            .into_any_element()
+                    })
                     .into_any_element()
             }
             Loadable::Failed => div()
