@@ -50,6 +50,7 @@
     },
     "reset": "Reset",
     "confirm": "Done",
+    "selectPlaceholder": "Please select",
     "general": {
       "title": "General settings"
     },

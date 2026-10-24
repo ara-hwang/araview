@@ -7,6 +7,7 @@ use araview_core::thumb_shell::PsdThumbStatus;
 use gpui_kit::component::button::{Button, ButtonVariant, ButtonVariants as _};
 use gpui_kit::component::dialog::DialogEntrance;
 use gpui_kit::component::group_box::{GroupBox, GroupBoxVariants as _};
+use gpui_kit::component::kbd::Kbd;
 use gpui_kit::component::select::{SearchableVec, Select, SelectEvent, SelectState};
 use gpui_kit::component::skeleton::Skeleton;
 use gpui_kit::component::spinner::Spinner;
@@ -222,6 +223,7 @@ impl SettingsPanel {
                 .id(id)
                 .small()
                 .w(px(220.))
+                .placeholder(t("settings.selectPlaceholder"))
                 .accessibility_label(label)
                 .into_any_element();
         }
@@ -255,6 +257,7 @@ impl SettingsPanel {
             .id(id)
             .small()
             .w(px(220.))
+            .placeholder(t("settings.selectPlaceholder"))
             .accessibility_label(label)
             .into_any_element()
     }
@@ -300,6 +303,7 @@ impl SettingsPanel {
                 .id(ID)
                 .small()
                 .w(px(220.))
+                .placeholder(t("settings.selectPlaceholder"))
                 .accessibility_label(label)
                 .into_any_element();
         }
@@ -331,6 +335,7 @@ impl SettingsPanel {
             .id(ID)
             .small()
             .w(px(220.))
+            .placeholder(t("settings.selectPlaceholder"))
             .accessibility_label(label)
             .into_any_element()
     }
@@ -1452,12 +1457,16 @@ impl SettingsPanel {
                     .map(|(position, (id, key))| {
                         let spec = s.shortcuts.get(*id).cloned().unwrap_or_default();
                         let waiting = capturing.as_deref() == Some(*id);
-                        let label = if waiting {
+                        let label: SharedString = if waiting {
                             t("settings.shortcuts.capturing")
                         } else if spec.is_empty() {
                             t("settings.shortcuts.unbound")
                         } else {
-                            spec.clone().into()
+                            // 표시는 설정 표기가 아니라 다른 곳의 배지와 같은 키 캡션 형식을 쓴다.
+                            match keys::keystroke_for_spec(&spec) {
+                                Some(stroke) => Kbd::format(&stroke).into(),
+                                None => spec.clone().into(),
+                            }
                         };
                         let default_spec = defaults.get(*id).cloned().unwrap_or_default();
                         let action = (*id).to_owned();

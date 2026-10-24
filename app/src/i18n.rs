@@ -69,6 +69,11 @@ fn flatten(source: &str) -> Catalog {
 
 pub fn set_language(language: Language) {
     CURRENT.store(language as u8, Ordering::Relaxed);
+    // gpui-kit 컴포넌트가 스스로 그리는 문구도 같은 언어를 따르게 한다.
+    gpui_kit::component::set_locale(match language {
+        Language::Ko => "ko",
+        Language::En => "en",
+    });
 }
 
 pub fn language() -> Language {

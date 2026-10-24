@@ -50,6 +50,7 @@
     },
     "reset": "초기화",
     "confirm": "확인",
+    "selectPlaceholder": "선택하세요",
     "general": {
       "title": "일반 설정"
     },

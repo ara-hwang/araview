@@ -41,6 +41,9 @@ pub fn apply_theme(choice: ThemeChoice, window: &mut Window, cx: &mut App) {
         Rc::make_mut(config).colors.overlay = Some(DIALOG_DIM_HEX.into());
     }
     theme.overlay = gpui_kit::black().opacity(DIALOG_DIM_ALPHA);
+    // gpui-kit 목록의 선택 배경을 이 앱의 선택색(primary 10%)과 맞춘다(라이선스 목록).
+    let primary = theme.primary;
+    theme.list_active = primary.opacity(0.1);
     if platform::high_contrast() {
         raise_contrast(cx);
         window.refresh();
