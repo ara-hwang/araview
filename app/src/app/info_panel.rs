@@ -6,7 +6,10 @@ use std::path::Path;
 use araview_core::comic_info::ComicInfo;
 use araview_core::image_info::{Histogram, IccStatus, ImageDetails};
 use araview_core::ops;
-use gpui_kit::component::{ActiveTheme as _, StyledExt as _, h_flex, v_flex};
+use gpui_kit::component::description_list::{DescriptionItem, DescriptionList};
+use gpui_kit::component::group_box::GroupBox;
+use gpui_kit::component::skeleton::Skeleton;
+use gpui_kit::component::{ActiveTheme as _, Sizable as _, StyledExt as _, v_flex};
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
 
@@ -298,7 +301,16 @@ impl AraView {
                             .gap_4()
                             .when(loading, |panel| {
                                 panel.child(
-                                    div().text_xs().text_color(muted).child(t("exif.loading")),
+                                    v_flex()
+                                        .gap_2()
+                                        .child(Skeleton::new().w(px(200.)))
+                                        .child(Skeleton::new().secondary().w(px(140.)))
+                                        .child(
+                                            div()
+                                                .text_xs()
+                                                .text_color(muted)
+                                                .child(t("exif.loading")),
+                                        ),
                                 )
                             })
                             .when_some(
@@ -368,6 +380,10 @@ impl AraView {
             ("comic.ageRating", comic.age_rating.clone()),
             ("comic.rating", comic.community_rating.clone()),
         ];
+        let entries: Vec<(SharedString, String)> = fields
+            .into_iter()
+            .filter_map(|(key, value)| value.map(|value| (t(key), value)))
+            .collect();
         let body = v_flex()
             .gap_1()
             .when_some(heading, |body, text| {
@@ -376,11 +392,7 @@ impl AraView {
             .when_some(comic.title.clone(), |body, title| {
                 body.child(div().text_sm().child(title))
             })
-            .children(
-                fields
-                    .into_iter()
-                    .filter_map(|(key, value)| value.map(|value| row(t(key), value, cx))),
-            )
+            .child(description_list(entries))
             .when_some(comic.summary.clone(), |body, summary| {
                 body.child(div().pt_1().text_xs().whitespace_normal().child(summary))
             });
@@ -450,25 +462,25 @@ impl AraView {
         };
         // 아카이브 엔트리의 시각은 추출 시각이라 의미가 없어 숨긴다.
         let show_times = self.archive.is_none();
-        let body = v_flex()
-            .gap_1()
-            .child(row(t("details.path"), path, cx))
-            .child(row(t("details.size"), format_bytes(details.file_size), cx))
-            .when_some(dimensions, |body, text| {
-                body.child(row(t("details.dimensions"), text, cx))
-            })
-            .when_some(details.created_unix.filter(|_| show_times), |body, at| {
-                body.child(row(t("details.created"), format_unix(at), cx))
-            })
-            .when_some(details.modified_unix.filter(|_| show_times), |body, at| {
-                body.child(row(t("details.modified"), format_unix(at), cx))
-            })
-            .child(row(t("details.color"), color, cx))
-            .when_some(dpi, |body, text| {
-                body.child(row(t("details.dpi"), text, cx))
-            })
-            .child(row(t("details.icc"), icc.to_string(), cx));
-        section(t("details.title"), body, cx)
+        let mut entries: Vec<(SharedString, String)> = vec![
+            (t("details.path"), path),
+            (t("details.size"), format_bytes(details.file_size)),
+        ];
+        if let Some(text) = dimensions {
+            entries.push((t("details.dimensions"), text));
+        }
+        if let Some(at) = details.created_unix.filter(|_| show_times) {
+            entries.push((t("details.created"), format_unix(at)));
+        }
+        if let Some(at) = details.modified_unix.filter(|_| show_times) {
+            entries.push((t("details.modified"), format_unix(at)));
+        }
+        entries.push((t("details.color"), color));
+        if let Some(text) = dpi {
+            entries.push((t("details.dpi"), text));
+        }
+        entries.push((t("details.icc"), icc.to_string()));
+        section(t("details.title"), description_list(entries), cx)
     }
 
     fn render_histogram(&self, cx: &mut Context<Self>) -> AnyElement {
@@ -578,10 +590,11 @@ impl AraView {
             categorized.extend(entries.iter().map(|(tag, _)| *tag));
             sections.push(section(
                 SharedString::new_static(category),
-                v_flex().gap_1().children(
+                description_list(
                     entries
                         .into_iter()
-                        .map(|(tag, value)| row(format_tag_name(tag).into(), value.clone(), cx)),
+                        .map(|(tag, value)| (format_tag_name(tag).into(), value.clone()))
+                        .collect(),
                 ),
                 cx,
             ));
@@ -594,10 +607,11 @@ impl AraView {
         if !others.is_empty() {
             sections.push(section(
                 t("exif.other"),
-                v_flex().gap_1().children(
+                description_list(
                     others
                         .into_iter()
-                        .map(|(tag, value)| row(format_tag_name(tag).into(), value.clone(), cx)),
+                        .map(|(tag, value)| (format_tag_name(tag).into(), value.clone()))
+                        .collect(),
                 ),
                 cx,
             ));
@@ -606,33 +620,32 @@ impl AraView {
     }
 }
 
+/// 키-값 행 묶음을 `DescriptionList`로 묶는다. 테두리 없이 라벨 폭 96px, 한 열이다.
+fn description_list(entries: Vec<(SharedString, String)>) -> AnyElement {
+    DescriptionList::new()
+        .bordered(false)
+        .label_width(px(96.))
+        .columns(1)
+        .small()
+        .children(
+            entries
+                .into_iter()
+                .map(|(label, value)| DescriptionItem::new(label).value(value)),
+        )
+        .into_any_element()
+}
+
 fn section(title: SharedString, body: impl IntoElement, cx: &App) -> AnyElement {
-    v_flex()
-        .gap_2()
-        .child(
+    GroupBox::new()
+        .id(title.to_string())
+        .title(
             div()
                 .text_xs()
                 .font_semibold()
                 .text_color(cx.theme().muted_foreground)
-                .child(title),
+                .child(title.clone()),
         )
         .child(body)
-        .into_any_element()
-}
-
-fn row(label: SharedString, value: String, cx: &App) -> AnyElement {
-    h_flex()
-        .items_start()
-        .gap_2()
-        .text_xs()
-        .child(
-            div()
-                .w(px(96.))
-                .flex_none()
-                .text_color(cx.theme().muted_foreground)
-                .child(label),
-        )
-        .child(div().flex_1().min_w_0().whitespace_normal().child(value))
         .into_any_element()
 }
 

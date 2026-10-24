@@ -5,6 +5,7 @@
 //! 입력이 뷰어 루트로 오지 않아 자연히 막힌다.
 
 use gpui_kit::Keystroke;
+use gpui_kit::component::kbd::Kbd;
 
 use crate::settings::ShortcutMap;
 
@@ -167,4 +168,67 @@ pub fn conflict<'a>(shortcuts: &'a ShortcutMap, action: &str, spec: &str) -> Opt
             id.as_str() != action && canonical(other).as_deref() == Some(wanted.as_str())
         })
         .map(|(id, _)| id.as_str())
+}
+
+/// 설정 표기(`Ctrl+Shift+E`, `ArrowLeft`, `F11`)를 gpui `Keystroke`로 바꾼다.
+/// `Kbd` 표시용이다. 파싱할 수 없으면 `None`이다.
+pub fn keystroke_for_spec(spec: &str) -> Option<Keystroke> {
+    let canonical = canonical(spec)?;
+    let mut parts: Vec<&str> = canonical.split('+').collect();
+    let key = parts.pop()?;
+    // `canonical`은 키를 소문자로 내리며, 키 자체가 `+`면 마지막 조각이 `+`다.
+    let key = if key.is_empty() { "+" } else { key };
+    let gpui_key = match key {
+        "arrowleft" => "left",
+        "arrowright" => "right",
+        "arrowup" => "up",
+        "arrowdown" => "down",
+        "escape" | "delete" | "backspace" | "enter" | "space" | "tab" | "home" | "end"
+        | "pageup" | "pagedown" | "insert" => key,
+        _ => key,
+    };
+    let mut stroke = String::new();
+    for part in parts {
+        stroke.push_str(part);
+        stroke.push('-');
+    }
+    stroke.push_str(gpui_key);
+    Keystroke::parse(&stroke).ok()
+}
+
+/// 설정 표기를 `Kbd` 표시 요소로 바꾼다. 파싱할 수 없으면 `None`이다.
+pub fn kbd_for_spec(spec: &str) -> Option<Kbd> {
+    keystroke_for_spec(spec).map(Kbd::new)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn keystroke_for_spec_maps_common_specs() {
+        let cases = [
+            ("Ctrl+O", "ctrl-o"),
+            ("Ctrl+Shift+E", "ctrl-shift-e"),
+            ("Shift+R", "shift-r"),
+            ("ArrowLeft", "left"),
+            ("Ctrl+ArrowLeft", "ctrl-left"),
+            ("PageUp", "pageup"),
+            ("F11", "f11"),
+            ("I", "i"),
+            ("=", "="),
+        ];
+        for (spec, want) in cases {
+            let stroke =
+                keystroke_for_spec(spec).unwrap_or_else(|| panic!("{spec}를 파싱하지 못했다"));
+            assert_eq!(stroke.unparse(), want, "{spec}");
+        }
+    }
+
+    #[test]
+    fn keystroke_for_spec_rejects_invalid_specs() {
+        for spec in ["", "Tab", "Meta", "Ctrl+Tab", "Ctrl+Foo+Bar"] {
+            assert!(keystroke_for_spec(spec).is_none(), "{spec}");
+        }
+    }
 }

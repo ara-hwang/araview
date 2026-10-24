@@ -5,14 +5,14 @@ use std::sync::Arc;
 use crate::toast::{Toast, WindowToast};
 use araview_core::app_error::AppError;
 use araview_core::ops;
-use gpui_kit::component::button::{Button, ButtonVariants as _};
-use gpui_kit::component::dialog::{DialogDescription, DialogFooter};
+use gpui_kit::component::button::{Button, ButtonVariant, ButtonVariants as _};
+use gpui_kit::component::dialog::{DialogEntrance, DialogFooter};
 use gpui_kit::component::input::{Input, InputEvent, InputState};
 use gpui_kit::component::{WindowExt as _, v_flex};
 use gpui_kit::*;
 
 use super::AraView;
-use crate::dialog::{ALERT_HEIGHT, RENAME_HEIGHT, centered};
+use crate::dialog::{ALERT_HEIGHT, RENAME_HEIGHT, centered, centered_margin_top};
 use crate::i18n::{t, t_with};
 use crate::settings::SettingsStore;
 
@@ -35,23 +35,22 @@ impl AraView {
             return;
         }
         let entity = cx.entity();
-        // `AlertDialog`에는 상단 오프셋이 없어 가운데 배치가 안 되니,
-        // 같은 모양의 `Dialog`로 쌓는다(버튼 생김새·동작은 경고창과 같다).
-        window.open_dialog(cx, move |dialog, window, _cx| {
+        window.open_alert_dialog(cx, move |alert, window, _cx| {
             let entity = entity.clone();
             let path = path.clone();
-            centered(dialog, window, ALERT_HEIGHT)
-                .close_button(false)
-                .overlay_closable(false)
+            alert
+                .margin_top(centered_margin_top(window, ALERT_HEIGHT))
+                .entrance(DialogEntrance::Fade)
                 .title(t("confirm.trash.title"))
-                .child(
-                    DialogDescription::new()
-                        .child(t_with("confirm.trash.message", &[("name", &name)])),
-                )
+                .description(t_with("confirm.trash.message", &[("name", &name)]))
                 // Enter로도 지운다. gpui-kit 다이얼로그는 `Enter`를 확인 동작으로
                 // 받는다(`Confirm` 액션). 이 창은 확인 동작에 지우기를 건다.
                 // 창을 먼저 닫고 지운다: 지우기가 끝나면 알림(경고창)이 뜨는데,
                 // 닫기를 나중에 하면 그 알림이 대신 닫히고 이 창이 남는다.
+                .confirm()
+                .ok_text(t("menu.trash"))
+                .ok_variant(ButtonVariant::Danger)
+                .cancel_text(t("dialog.cancel"))
                 .on_ok({
                     let entity = entity.clone();
                     let path = path.clone();
@@ -64,25 +63,6 @@ impl AraView {
                         false
                     }
                 })
-                .footer(
-                    DialogFooter::new()
-                        .child(
-                            Button::new("trash-cancel")
-                                .label(t("dialog.cancel"))
-                                .on_click(|_, window, cx| window.close_dialog(cx)),
-                        )
-                        .child(
-                            Button::new("trash-ok")
-                                .danger()
-                                .label(t("menu.trash"))
-                                .on_click(move |_, window, cx| {
-                                    entity.update(cx, |this, cx| {
-                                        this.trash(path.clone(), window, cx)
-                                    });
-                                    window.close_dialog(cx);
-                                }),
-                        ),
-                )
         });
     }
 

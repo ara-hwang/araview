@@ -32,8 +32,12 @@ use araview_core::file_availability::FileAvailability;
 use araview_core::image::{ImageInfo, is_archive_file};
 use araview_core::ops::{self, DirListOptions, DirSortKey};
 use gpui_kit::component::button::{Button, ButtonVariants as _};
+use gpui_kit::component::empty::{
+    Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyMediaVariant, EmptyTitle,
+};
 use gpui_kit::component::menu::ContextMenuExt as _;
 use gpui_kit::component::spinner::Spinner;
+use gpui_kit::component::tag::Tag;
 use gpui_kit::component::{
     ActiveTheme as _, Icon, Selectable as _, Sizable as _, TitleBar, WindowExt as _, h_flex, v_flex,
 };
@@ -495,14 +499,28 @@ impl AraView {
                 .justify_center()
                 .gap_4()
                 .p_6()
-                .child(Icon::new(Ph::Image).size_12().text_color(muted))
-                .child(div().text_sm().text_color(muted).child(t("home.emptyDesc")))
                 .child(
-                    Button::new("home-open")
-                        .primary()
-                        .icon(Ph::FolderOpen)
-                        .label(t("home.openFile"))
-                        .on_click(cx.listener(|this, _, window, cx| this.prompt_open(window, cx))),
+                    Empty::new()
+                        .header(
+                            EmptyHeader::new()
+                                .media(
+                                    EmptyMedia::new()
+                                        .with_variant(EmptyMediaVariant::Icon)
+                                        .child(Icon::new(Ph::Image)),
+                                )
+                                .title(EmptyTitle::new().child(t("home.emptyDesc"))),
+                        )
+                        .content(
+                            EmptyContent::new().child(
+                                Button::new("home-open")
+                                    .primary()
+                                    .icon(Ph::FolderOpen)
+                                    .label(t("home.openFile"))
+                                    .on_click(cx.listener(|this, _, window, cx| {
+                                        this.prompt_open(window, cx)
+                                    })),
+                            ),
+                        ),
                 )
                 .when(!recent.is_empty(), |home| {
                     home.child(
@@ -589,10 +607,7 @@ impl AraView {
                                                     )
                                                     .when_some(progress, |column, text| {
                                                         column.child(
-                                                            div()
-                                                                .text_xs()
-                                                                .text_color(muted)
-                                                                .child(text),
+                                                            Tag::secondary().small().child(text),
                                                         )
                                                     })
                                                     .child(
@@ -634,27 +649,21 @@ impl AraView {
             ErrorCode::Corrupt | ErrorCode::TooLarge => "corrupt",
             _ => "unknown",
         };
-        v_flex()
-            .size_full()
-            .items_center()
-            .justify_center()
-            .gap_3()
-            .p_6()
-            .child(
-                Icon::new(Ph::WarningCircle)
-                    .size_8()
-                    .text_color(cx.theme().danger),
+        Empty::new()
+            .header(
+                EmptyHeader::new()
+                    .media(
+                        EmptyMedia::new()
+                            .with_variant(EmptyMediaVariant::Icon)
+                            .child(Icon::new(Ph::WarningCircle).text_color(cx.theme().danger)),
+                    )
+                    .title(EmptyTitle::new().child(t(&format!("error.{kind}.title"))))
+                    .description(EmptyDescription::new().child(t(&format!("error.{kind}.hint")))),
             )
-            .child(div().text_base().child(t(&format!("error.{kind}.title"))))
-            .child(
-                div()
-                    .text_sm()
-                    .text_color(cx.theme().muted_foreground)
-                    .child(t(&format!("error.{kind}.hint"))),
-            )
-            .child(
-                h_flex()
-                    .gap_2()
+            .content(
+                EmptyContent::new()
+                    .flex_row()
+                    .justify_center()
                     .child(
                         Button::new("error-retry")
                             .primary()

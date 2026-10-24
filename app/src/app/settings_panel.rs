@@ -4,9 +4,11 @@ use crate::toast::{Toast, WindowToast};
 use araview_core::cache::{CacheCategory, CacheScope, CacheStats};
 use araview_core::file_assoc::FileAssociation;
 use araview_core::thumb_shell::PsdThumbStatus;
-use gpui_kit::component::button::{Button, ButtonVariants as _};
-use gpui_kit::component::dialog::{DialogDescription, DialogFooter};
+use gpui_kit::component::button::{Button, ButtonVariant, ButtonVariants as _};
+use gpui_kit::component::dialog::DialogEntrance;
+use gpui_kit::component::group_box::{GroupBox, GroupBoxVariants as _};
 use gpui_kit::component::select::{SearchableVec, Select, SelectEvent, SelectState};
+use gpui_kit::component::skeleton::Skeleton;
 use gpui_kit::component::switch::Switch;
 use gpui_kit::component::tab::{Tab, TabBar};
 use gpui_kit::component::{
@@ -20,7 +22,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use super::{AraView, format_bytes};
-use crate::dialog::{ALERT_HEIGHT, centered};
+use crate::dialog::{ALERT_HEIGHT, centered_margin_top};
 use crate::i18n::{Language, t, t_with};
 use crate::keys;
 use crate::settings::{
@@ -103,7 +105,7 @@ pub(super) const TABS: &[&str] = &[
 ];
 
 fn setting_row(
-    title: SharedString,
+    title: impl IntoElement,
     description: Option<SharedString>,
     control: impl IntoElement,
     cx: &App,
@@ -348,12 +350,25 @@ impl SettingsPanel {
         ))
     }
 
-    /// 항목에 연결된 단축키를 배지로 보여준다. 재할당하면 바로 따라간다.
-    fn with_shortcut(&self, title: SharedString, action: &str, cx: &App) -> SharedString {
-        match SettingsStore::global(cx).settings.shortcuts.get(action) {
-            Some(spec) if !spec.is_empty() => format!("{title}  [{spec}]").into(),
-            _ => title,
-        }
+    /// 항목에 연결된 단축키를 `Kbd` 배지로 함께 보여준다. 재할당하면 바로 따라간다.
+    fn with_shortcut(&self, title: SharedString, action: &str, cx: &App) -> AnyElement {
+        let spec = SettingsStore::global(cx)
+            .settings
+            .shortcuts
+            .get(action)
+            .cloned()
+            .unwrap_or_default();
+        let kbd = if spec.is_empty() {
+            None
+        } else {
+            keys::kbd_for_spec(&spec)
+        };
+        h_flex()
+            .gap_1p5()
+            .items_center()
+            .child(div().child(title))
+            .when_some(kbd, |row, kbd| row.child(kbd))
+            .into_any_element()
     }
 
     // ----- 탭 -----
@@ -530,7 +545,8 @@ impl SettingsPanel {
 
     fn view_tab(&mut self, window: &mut Window, cx: &mut Context<Self>) -> Div {
         let s = SettingsStore::global(cx).settings.clone();
-        let bg_title = self.with_shortcut(t("settings.bg.title"), "cycleBackground", cx);
+        let bg_plain = t("settings.bg.title");
+        let bg_title = self.with_shortcut(bg_plain.clone(), "cycleBackground", cx);
         v_flex()
             .gap_4()
             .child(setting_row(
@@ -779,11 +795,11 @@ impl SettingsPanel {
                 cx,
             ))
             .child(setting_row(
-                bg_title.clone(),
+                bg_title,
                 Some(t("settings.bg.desc")),
                 self.select(
                     "background",
-                    bg_title,
+                    bg_plain,
                     ChoiceDef {
                         current: s.viewer_background,
                         options: &[
@@ -947,58 +963,44 @@ impl SettingsPanel {
     fn confirm_clear_all(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let guard = self.nested_guard();
         let panel = cx.entity();
-        // `AlertDialog`에는 상단 오프셋이 없어 가운데 배치가 안 되니,
-        // 같은 모양의 `Dialog`로 쌓는다(버튼 생김새·동작은 경고창과 같다).
-        window.open_dialog(cx, move |dialog, window, _cx| {
+        window.open_alert_dialog(cx, move |alert, window, _cx| {
             let _guard = &guard;
             let panel = panel.clone();
-            centered(dialog, window, ALERT_HEIGHT)
-                .close_button(false)
-                .overlay_closable(false)
+            alert
+                .margin_top(centered_margin_top(window, ALERT_HEIGHT))
+                .entrance(DialogEntrance::Fade)
                 .title(t("confirm.cache.clearAll.title"))
-                .child(DialogDescription::new().child(t("confirm.cache.clearAll.message")))
+                .description(t("confirm.cache.clearAll.message"))
                 // Enter로도 지운다. gpui-kit 다이얼로그는 `Enter`를 확인 동작으로
                 // 받는다(`Confirm` 액션). 이 창은 확인 동작에 삭제를 건다.
                 // 창을 먼저 닫고 지운다: 결과 알림(경고창)이 위에 쌓일 수 있는데,
                 // 닫기를 나중에 하면 그 알림이 대신 닫히고 이 창이 남는다.
-                .on_ok({
-                    let panel = panel.clone();
-                    move |_, window, cx| {
-                        window.close_dialog(cx);
-                        panel.update(cx, |this, cx| this.clear_cache(CacheScope::All, window, cx));
-                        // 창은 위에서 직접 닫았으니 다시 닫지 않게 false를 돌린다.
-                        false
-                    }
+                .confirm()
+                .ok_text(t("settings.cacheManagement.clearAll"))
+                .ok_variant(ButtonVariant::Danger)
+                .cancel_text(t("dialog.cancel"))
+                .on_ok(move |_, window, cx| {
+                    window.close_dialog(cx);
+                    panel.update(cx, |this, cx| this.clear_cache(CacheScope::All, window, cx));
+                    // 창은 위에서 직접 닫았으니 다시 닫지 않게 false를 돌린다.
+                    false
                 })
-                .footer(
-                    DialogFooter::new()
-                        .child(
-                            Button::new("clear-cache-cancel")
-                                .label(t("dialog.cancel"))
-                                .on_click(|_, window, cx| window.close_dialog(cx)),
-                        )
-                        .child(
-                            Button::new("clear-cache-ok")
-                                .danger()
-                                .label(t("settings.cacheManagement.clearAll"))
-                                .on_click(move |_, window, cx| {
-                                    panel.update(cx, |this, cx| {
-                                        this.clear_cache(CacheScope::All, window, cx)
-                                    });
-                                    window.close_dialog(cx);
-                                }),
-                        ),
-                )
         });
     }
 
-    fn cache_section(&mut self, cx: &mut Context<Self>) -> Div {
+    fn cache_section(&mut self, cx: &mut Context<Self>) -> AnyElement {
         let muted = cx.theme().muted_foreground;
         let body: AnyElement = match &self.cache {
-            Loadable::Idle | Loadable::Loading => div()
-                .text_xs()
-                .text_color(muted)
-                .child(t("settings.cacheManagement.loading"))
+            Loadable::Idle | Loadable::Loading => v_flex()
+                .gap_2()
+                .child(Skeleton::new().w(px(220.)))
+                .child(Skeleton::new().secondary().w(px(160.)))
+                .child(
+                    div()
+                        .text_xs()
+                        .text_color(muted)
+                        .child(t("settings.cacheManagement.loading")),
+                )
                 .into_any_element(),
             Loadable::Failed => v_flex()
                 .gap_2()
@@ -1113,10 +1115,12 @@ impl SettingsPanel {
                     .into_any_element()
             }
         };
-        v_flex()
-            .gap_2()
-            .child(
+        GroupBox::new()
+            .id("cache-management")
+            .outline()
+            .title(
                 h_flex()
+                    .w_full()
                     .justify_between()
                     .items_center()
                     .child(heading(t("settings.cacheManagement.title")))
@@ -1133,6 +1137,7 @@ impl SettingsPanel {
                     ),
             )
             .child(body)
+            .into_any_element()
     }
 
     fn performance_tab(&mut self, window: &mut Window, cx: &mut Context<Self>) -> Div {
@@ -1268,63 +1273,53 @@ impl SettingsPanel {
         let other_label = keys::label_key(&other).map(t).unwrap_or_default();
         let guard = self.nested_guard();
         let panel = cx.entity();
-        let pressed = spec.clone();
-        window.open_dialog(cx, move |dialog, window, _cx| {
+        let pressed_keystroke = keys::keystroke_for_spec(&spec);
+        let pressed_label: SharedString = pressed_keystroke
+            .as_ref()
+            .map(gpui_kit::component::kbd::Kbd::format)
+            .unwrap_or_else(|| spec.clone())
+            .into();
+        let pressed_kbd = pressed_keystroke.clone();
+        window.open_alert_dialog(cx, move |alert, window, _cx| {
             let _guard = &guard;
             let panel = panel.clone();
             let cancelled = panel.clone();
             let action = action.clone();
             let spec = spec.clone();
-            centered(dialog, window, ALERT_HEIGHT)
-                .close_button(false)
-                .overlay_closable(false)
+            alert
+                .margin_top(centered_margin_top(window, ALERT_HEIGHT))
+                .entrance(DialogEntrance::Fade)
                 .title(t("settings.shortcuts.conflictTitle"))
-                .child(DialogDescription::new().child(t_with(
+                .description(t_with(
                     "settings.shortcuts.conflictDesc",
-                    &[("key", &pressed), ("action", &other_label)],
-                )))
-                // Enter로도 교체한다(확인 동작에 교체를 건다).
-                // 창을 먼저 닫고 교체한다: 닫기를 나중에 하면 그때 쌓인 알림이
-                // 대신 닫히고 이 창이 남는다.
-                .on_ok({
-                    let panel = panel.clone();
-                    let action = action.clone();
-                    let spec = spec.clone();
-                    move |_, window, cx| {
-                        window.close_dialog(cx);
-                        panel.update(cx, |this, cx| {
-                            this.set_shortcut(action.clone(), spec.clone(), window, cx)
-                        });
-                        // 창은 위에서 직접 닫았으니 다시 닫지 않게 false를 돌린다.
-                        false
-                    }
+                    &[("key", &pressed_label), ("action", &other_label)],
+                ))
+                .when_some(pressed_kbd.clone(), |this, stroke| {
+                    this.child(
+                        gpui_kit::component::h_flex()
+                            .w_full()
+                            .justify_center()
+                            .child(gpui_kit::component::kbd::Kbd::new(stroke)),
+                    )
                 })
-                .footer(
-                    DialogFooter::new()
-                        .child(
-                            Button::new("shortcut-conflict-cancel")
-                                .label(t("settings.shortcuts.cancel"))
-                                .on_click(move |_, window, cx| {
-                                    // 취소하면 캡처도 끝낸다. 남겨 두면 다음 키가 바인딩된다.
-                                    cancelled.update(cx, |this, cx| {
-                                        this.capturing = None;
-                                        cx.notify();
-                                    });
-                                    window.close_dialog(cx);
-                                }),
-                        )
-                        .child(
-                            Button::new("shortcut-conflict-ok")
-                                .primary()
-                                .label(t("settings.shortcuts.replace"))
-                                .on_click(move |_, window, cx| {
-                                    panel.update(cx, |this, cx| {
-                                        this.set_shortcut(action.clone(), spec.clone(), window, cx)
-                                    });
-                                    window.close_dialog(cx);
-                                }),
-                        ),
-                )
+                .confirm()
+                .ok_text(t("settings.shortcuts.replace"))
+                .cancel_text(t("settings.shortcuts.cancel"))
+                // Enter로도 교체한다(확인 동작에 교체를 건다).
+                .on_ok(move |_, window, cx| {
+                    panel.update(cx, |this, cx| {
+                        this.set_shortcut(action.clone(), spec.clone(), window, cx)
+                    });
+                    true
+                })
+                .on_cancel(move |_, _, cx| {
+                    // 취소하면 캡처도 끝낸다. 남겨 두면 다음 키가 바인딩된다.
+                    cancelled.update(cx, |this, cx| {
+                        this.capturing = None;
+                        cx.notify();
+                    });
+                    true
+                })
         });
     }
 
@@ -1879,47 +1874,29 @@ impl SettingsPanel {
     fn confirm_reset(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let guard = self.nested_guard();
         let panel = cx.entity();
-        window.open_dialog(cx, move |dialog, window, _cx| {
+        window.open_alert_dialog(cx, move |alert, window, _cx| {
             let _guard = &guard;
             let panel = panel.clone();
-            centered(dialog, window, ALERT_HEIGHT)
-                .close_button(false)
-                .overlay_closable(false)
+            alert
+                .margin_top(centered_margin_top(window, ALERT_HEIGHT))
+                .entrance(DialogEntrance::Fade)
                 .title(t("confirm.resetSettings.title"))
-                .child(DialogDescription::new().child(t("confirm.resetSettings.message")))
+                .description(t("confirm.resetSettings.message"))
                 // Enter로도 초기화한다(확인 동작에 초기화를 건다).
                 // 창을 먼저 닫고 초기화한다: 초기화는 알림(경고창)을 띄우는데,
                 // 닫기를 나중에 하면 그 알림이 대신 닫히고 이 창이 남는다.
-                .on_ok({
-                    let panel = panel.clone();
-                    move |_, window, cx| {
-                        window.close_dialog(cx);
-                        panel.update(cx, |this, cx| {
-                            this.reset_settings(window, cx);
-                        });
-                        // 창은 위에서 직접 닫았으니 다시 닫지 않게 false를 돌린다.
-                        false
-                    }
+                .confirm()
+                .ok_text(t("settings.reset"))
+                .ok_variant(ButtonVariant::Danger)
+                .cancel_text(t("dialog.cancel"))
+                .on_ok(move |_, window, cx| {
+                    window.close_dialog(cx);
+                    panel.update(cx, |this, cx| {
+                        this.reset_settings(window, cx);
+                    });
+                    // 창은 위에서 직접 닫았으니 다시 닫지 않게 false를 돌린다.
+                    false
                 })
-                .footer(
-                    DialogFooter::new()
-                        .child(
-                            Button::new("reset-settings-cancel")
-                                .label(t("dialog.cancel"))
-                                .on_click(|_, window, cx| window.close_dialog(cx)),
-                        )
-                        .child(
-                            Button::new("reset-settings-ok")
-                                .danger()
-                                .label(t("settings.reset"))
-                                .on_click(move |_, window, cx| {
-                                    panel.update(cx, |this, cx| {
-                                        this.reset_settings(window, cx);
-                                    });
-                                    window.close_dialog(cx);
-                                }),
-                        ),
-                )
         });
     }
 }
