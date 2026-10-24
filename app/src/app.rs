@@ -39,7 +39,8 @@ use gpui_kit::component::menu::ContextMenuExt as _;
 use gpui_kit::component::spinner::Spinner;
 use gpui_kit::component::tag::Tag;
 use gpui_kit::component::{
-    ActiveTheme as _, Icon, Selectable as _, Sizable as _, TitleBar, WindowExt as _, h_flex, v_flex,
+    ActiveTheme as _, Icon, Selectable as _, Sizable as _, TitleBar, VirtualListScrollHandle,
+    WindowExt as _, h_flex, v_flex,
 };
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
@@ -179,8 +180,9 @@ pub struct AraView {
     home_scroll: SmoothScroll,
     info_scroll: SmoothScroll,
     /// 이미지 목록(도크) 스크롤과, 마지막으로 따라간 (현재 인덱스, 목록 길이).
+    dock_virtual: VirtualListScrollHandle,
     dock_scroll: SmoothScroll,
-    dock_followed: std::cell::Cell<Option<(usize, usize)>>,
+    dock_followed: std::cell::Cell<Option<(usize, usize, bool, bool)>>,
     info_data: info_panel::InfoData,
     info_seq: u64,
     /// 글자 인식 중인 이미지의 렌더 경로. 값이 있으면 인식이 진행 중이다.
@@ -227,6 +229,9 @@ impl AraView {
     ) -> Self {
         let focus = cx.focus_handle();
         focus.focus(window, cx);
+        // 도크는 VirtualList가 핸들을 추적하고, 같은 핸들을 SmoothScroll이 움직인다.
+        let dock_virtual = VirtualListScrollHandle::new();
+        let dock_scroll = SmoothScroll::from_handle(dock_virtual.base_handle().clone());
         let mut this = Self {
             focus,
             list: Arc::new(Vec::new()),
@@ -283,7 +288,8 @@ impl AraView {
             info_open: false,
             home_scroll: SmoothScroll::default(),
             info_scroll: SmoothScroll::default(),
-            dock_scroll: SmoothScroll::default(),
+            dock_virtual,
+            dock_scroll,
             dock_followed: std::cell::Cell::new(None),
             info_data: info_panel::InfoData::default(),
             info_seq: 0,

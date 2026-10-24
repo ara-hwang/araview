@@ -33,8 +33,16 @@ pub struct SmoothScroll {
 
 impl Default for SmoothScroll {
     fn default() -> Self {
+        Self::from_handle(ScrollHandle::new())
+    }
+}
+
+impl SmoothScroll {
+    /// 이미 다른 요소가 추적하는 핸들을 움직이는 스크롤. `VirtualList`처럼
+    /// 목록 요소가 핸들을 소유하는 영역에 쓴다.
+    pub fn from_handle(handle: ScrollHandle) -> Self {
         Self {
-            handle: ScrollHandle::new(),
+            handle,
             target: Rc::new(Cell::new(0.)),
             running: Rc::new(Cell::new(false)),
             horizontal: Rc::new(Cell::new(false)),

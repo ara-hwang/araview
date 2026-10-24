@@ -2,6 +2,7 @@
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
 use std::sync::Arc;
 
 use araview_core::file_availability::FileAvailability;
@@ -10,7 +11,9 @@ use araview_core::ops;
 use araview_core::thumbnail::BatchThumb;
 use gpui_kit::component::button::{Button, ButtonVariants as _};
 use gpui_kit::component::scroll::ScrollableElement as _;
-use gpui_kit::component::{ActiveTheme as _, Icon, Sizable as _, h_flex, v_flex};
+use gpui_kit::component::{
+    ActiveTheme as _, Icon, Sizable as _, h_flex, h_virtual_list, v_flex, v_virtual_list,
+};
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
 
@@ -138,25 +141,39 @@ impl AraView {
     fn dock_metrics(&self, window: &Window, cx: &App) -> (f32, f32) {
         let settings = &SettingsStore::global(cx).settings;
         let viewport = window.viewport_size();
+        // 읽기 영역의 실제 크기가 있으면 그 값을 쓴다(정보 패널과 도크 위치 반영).
+        // 첫 프레임처럼 아직 없으면 창 크기로 어림한다.
+        let bounds = self.viewport.get();
         let length = if settings.dock_position.is_horizontal() {
-            // 정보 패널이 열려 있으면 도크가 쓸 수 있는 폭이 그만큼 줄어든다.
-            let panel = if self.info_open {
-                super::info_panel::PANEL_WIDTH
+            if f32::from(bounds.size.width) > 0.0 {
+                f32::from(bounds.size.width)
             } else {
-                0.0
-            };
-            f32::from(viewport.width) - panel
+                let panel = if self.info_open {
+                    super::info_panel::PANEL_WIDTH
+                } else {
+                    0.0
+                };
+                f32::from(viewport.width) - panel
+            }
+        } else if f32::from(bounds.size.height) > 0.0 {
+            f32::from(bounds.size.height)
         } else {
             f32::from(viewport.height) - 120.0
         };
+        (length, self.dock_cell_metrics(cx).0)
+    }
+
+    /// 칸의 축 방향 크기(간격 포함)와 교차축 내용 크기.
+    fn dock_cell_metrics(&self, cx: &App) -> (f32, f32) {
+        let settings = &SettingsStore::global(cx).settings;
+        let side = settings.dock_thumb_size.side();
         let labels = usize::from(settings.dock_show_name) + usize::from(settings.dock_show_index);
-        let cell = settings.dock_thumb_size.side()
-            + if settings.dock_position.is_horizontal() {
-                0.0
-            } else {
-                labels as f32 * (LABEL_HEIGHT + LABEL_GAP)
-            };
-        (length, cell + DOCK_GAP)
+        let labels_height = labels as f32 * (LABEL_HEIGHT + LABEL_GAP);
+        if settings.dock_position.is_horizontal() {
+            (side + DOCK_GAP, side + labels_height)
+        } else {
+            (side + labels_height + DOCK_GAP, side)
+        }
     }
 
     /// 우→좌 양쪽 보기의 가로 도크는 읽는 방향을 따라 첫 장을 오른쪽에 둔다.
@@ -193,17 +210,28 @@ impl AraView {
 
     /// 현재 항목이 바뀌면 도크를 그 항목이 가운데 오도록 스크롤한다.
     fn follow_current(&self, window: &mut Window, cx: &App) {
-        let key = (self.index, self.list.len());
+        let horizontal = SettingsStore::global(cx)
+            .settings
+            .dock_position
+            .is_horizontal();
+        let reversed = self.dock_reversed(cx);
+        // 축이나 읽는 방향이 바뀌면 이전 오프셋은 의미가 없으므로 다시 가운데로 맞춘다.
+        let key = (self.index, self.list.len(), horizontal, reversed);
         if self.dock_followed.get() == Some(key) {
             return;
         }
-        let first = self.dock_followed.replace(Some(key)).is_none();
+        let first = match self.dock_followed.replace(Some(key)) {
+            None => true,
+            Some((_, _, was_horizontal, was_reversed)) => {
+                was_horizontal != horizontal || was_reversed != reversed
+            }
+        };
         let total = self.list.len();
         if total == 0 {
             return;
         }
         let (length, cell) = self.dock_metrics(window, cx);
-        let slot = if self.dock_reversed(cx) {
+        let slot = if reversed {
             total - 1 - self.index.min(total - 1)
         } else {
             self.index
@@ -212,10 +240,6 @@ impl AraView {
         let max = (content - length).max(0.0);
         let target =
             (DOCK_PADDING + slot as f32 * cell + cell / 2.0 - length / 2.0).clamp(0.0, max);
-        let horizontal = SettingsStore::global(cx)
-            .settings
-            .dock_position
-            .is_horizontal();
         let offset = self.dock_scroll.handle().offset();
         let current = -f32::from(if horizontal { offset.x } else { offset.y });
         if first || (target - current).abs() > length * FOLLOW_ANIMATE_SCREENS {
@@ -243,8 +267,9 @@ impl AraView {
     fn dock_cell(
         &self,
         index: usize,
-        extent: f32,
         horizontal: bool,
+        cell: f32,
+        cross: f32,
         cx: &mut Context<Self>,
     ) -> impl IntoElement + use<> {
         let settings = &SettingsStore::global(cx).settings;
@@ -271,16 +296,20 @@ impl AraView {
         };
         let tooltip = t_with(tooltip_key, &[("index", &(index + 1)), ("name", &name)]);
         let muted = cx.theme().muted_foreground;
+        // VirtualList가 축 방향 크기를 정하고, 교차축은 측정값을 쓴다. 간격은
+        // 아이템 크기에 포함되므로 내용은 그만큼 비워 둔다.
+        let (width, height) = if horizontal {
+            (cell, cross)
+        } else {
+            (cross, cell)
+        };
         v_flex()
             .id(("thumb", index))
-            .flex_none()
-            .w(px(side))
-            .when(horizontal, |cell| cell.mr(px(DOCK_GAP)))
-            .when(!horizontal, |cell| {
-                cell.h(px(extent - DOCK_GAP)).mb(px(DOCK_GAP))
-            })
+            .w(px(width))
+            .h(px(height))
             .gap(px(LABEL_GAP))
-            .items_center()
+            .when(horizontal, |cell| cell.items_start().justify_center())
+            .when(!horizontal, |cell| cell.items_center())
             .cursor_pointer()
             .tooltip(move |window, cx| {
                 gpui_kit::component::tooltip::Tooltip::new(tooltip.clone()).build(window, cx)
@@ -337,7 +366,7 @@ impl AraView {
             .when(show_name, |cell| {
                 cell.child(
                     div()
-                        .w_full()
+                        .w(px(side))
                         .text_xs()
                         .text_color(muted)
                         .overflow_hidden()
@@ -348,18 +377,53 @@ impl AraView {
             })
     }
 
+    /// VirtualList가 보이는 슬롯 범위를 받아 데이터 인덱스로 되돌리고 그린다.
+    fn dock_slice(
+        &mut self,
+        range: std::ops::Range<usize>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Vec<AnyElement> {
+        let (cell, cross) = self.dock_cell_metrics(cx);
+        let horizontal = SettingsStore::global(cx)
+            .settings
+            .dock_position
+            .is_horizontal();
+        let reversed = self.dock_reversed(cx);
+        let total = self.list.len();
+        if total == 0 {
+            return Vec::new();
+        }
+        let to_index = |slot: usize| {
+            let slot = slot.min(total - 1);
+            if reversed { total - 1 - slot } else { slot }
+        };
+        // 보이는 범위 앞뒤로 여유를 두고 썸네일을 요청한다(이미 받았거나 요청 중인 칸은 건너뜀).
+        let start = range.start.saturating_sub(OVERSCAN);
+        let end = (range.end + OVERSCAN).min(total);
+        let wanted: Vec<usize> = (start..end).map(to_index).collect();
+        self.request_thumbs_for(wanted, window, cx);
+        range
+            .map(|slot| {
+                self.dock_cell(to_index(slot), horizontal, cell, cross, cx)
+                    .into_any_element()
+            })
+            .collect()
+    }
+
     pub(super) fn render_dock(&self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
         let settings = SettingsStore::global(cx).settings.clone();
         let position = settings.dock_position;
         let horizontal = position.is_horizontal();
         let border = cx.theme().border;
+        let (cell, cross) = self.dock_cell_metrics(cx);
+        let total = self.list.len();
         let base = div()
             .id("dock")
             .flex()
             .flex_none()
             .items_center()
             .justify_center()
-            .gap(px(DOCK_GAP))
             .bg(cx.theme().background)
             .border_color(border)
             .map(|dock| match position {
@@ -370,91 +434,60 @@ impl AraView {
             });
 
         self.follow_current(window, cx);
-        let reversed = self.dock_reversed(cx);
-        let total = self.list.len();
-        let range = self.dock_range(window, cx);
-        let missing = range.clone().any(|index| {
-            self.list.get(index).is_some_and(|item| {
-                !self.thumbs.contains_key(item) && !self.thumbs_pending.contains(item)
-            })
-        });
-        if missing {
-            // 스크롤로 새로 보이게 된 칸의 썸네일을 요청한다. 렌더 중에는 상태를 못 바꾼다.
-            let wanted = range.clone();
-            cx.defer_in(window, move |this, window, cx| {
-                this.request_thumbs_for(wanted, window, cx)
-            });
-        }
-
-        let (_, cell) = self.dock_metrics(window, cx);
-        let mut cells: Vec<AnyElement> = range
-            .clone()
-            .map(|index| {
-                self.dock_cell(index, cell, horizontal, cx)
-                    .into_any_element()
-            })
-            .collect();
-        if reversed {
-            cells.reverse();
-        }
-        // 그리지 않는 칸은 빈 공간으로 채워 스크롤 길이를 유지한다.
-        let before = range.start as f32 * cell;
-        let after = (total - range.end) as f32 * cell;
-        let (lead, trail) = if reversed {
-            (after, before)
-        } else {
-            (before, after)
-        };
-        let spacer = |extent: f32| {
-            div()
-                .flex_none()
-                .map(|spacer| {
+        // 내용이 화면보다 짧으면 기존 도크처럼 가운데에 둔다.
+        let (length, _) = self.dock_metrics(window, cx);
+        let content = total as f32 * cell + DOCK_PADDING * 2.0;
+        let lead = ((length - content) / 2.0).max(0.0);
+        let sizes: Rc<Vec<Size<Pixels>>> = Rc::new(
+            (0..total)
+                .map(|_| {
                     if horizontal {
-                        spacer.w(px(extent)).h(px(1.))
+                        size(px(cell), px(0.))
                     } else {
-                        spacer.h(px(extent)).w(px(1.))
+                        size(px(0.), px(cell))
                     }
                 })
-                .into_any_element()
-        };
-        let strip = div()
-            .flex()
-            .flex_none()
-            .when(horizontal, |strip| strip.min_w_full())
-            .when(!horizontal, |strip| strip.flex_col().min_h_full())
-            .justify_center()
-            .child(spacer(lead))
-            .children(cells)
-            .child(spacer(trail));
-        let area = div()
-            .id("dock-area")
-            .flex()
-            .map(|area| {
-                if horizontal {
-                    area.w_full().overflow_x_hidden()
-                } else {
-                    area.h_full().flex_col().overflow_y_hidden()
-                }
-            })
-            .p(px(DOCK_PADDING))
-            .track_scroll(self.dock_scroll.handle())
-            .on_scroll_wheel(self.dock_scroll.wheel_handler(horizontal))
-            .child(strip);
+                .collect(),
+        );
+        let list = if horizontal {
+            h_virtual_list(
+                cx.entity(),
+                "dock-list",
+                sizes.clone(),
+                move |this, range, window, cx| this.dock_slice(range, window, cx),
+            )
+        } else {
+            v_virtual_list(
+                cx.entity(),
+                "dock-list",
+                sizes,
+                move |this, range, window, cx| this.dock_slice(range, window, cx),
+            )
+        }
+        .track_scroll(&self.dock_virtual)
+        .p(px(DOCK_PADDING))
+        .when(horizontal, |list| list.pl(px(DOCK_PADDING + lead)))
+        .when(!horizontal, |list| list.pt(px(DOCK_PADDING + lead)))
+        // 휠은 바깥 SmoothScroll이 처리하고, 목록 자체의 기본 스크롤은 끈다.
+        .overflow_hidden();
         let scroller = div()
             .id("dock-scroller")
             .relative()
             .map(|scroller| {
                 if horizontal {
-                    scroller
-                        .w_full()
-                        .horizontal_scrollbar(self.dock_scroll.handle())
+                    scroller.w_full().h(px(cross + DOCK_PADDING * 2.0))
                 } else {
-                    scroller
-                        .h_full()
-                        .vertical_scrollbar(self.dock_scroll.handle())
+                    scroller.h_full().w(px(cross + DOCK_PADDING * 2.0))
                 }
             })
-            .child(area);
+            .on_scroll_wheel(self.dock_scroll.wheel_handler(horizontal))
+            .when(horizontal, |scroller| {
+                scroller.horizontal_scrollbar(&self.dock_virtual)
+            })
+            .when(!horizontal, |scroller| {
+                scroller.vertical_scrollbar(&self.dock_virtual)
+            })
+            .child(list);
         base.child(scroller).into_any_element()
     }
 
