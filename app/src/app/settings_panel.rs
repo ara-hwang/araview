@@ -9,6 +9,7 @@ use gpui_kit::component::dialog::DialogEntrance;
 use gpui_kit::component::group_box::{GroupBox, GroupBoxVariants as _};
 use gpui_kit::component::select::{SearchableVec, Select, SelectEvent, SelectState};
 use gpui_kit::component::skeleton::Skeleton;
+use gpui_kit::component::spinner::Spinner;
 use gpui_kit::component::switch::Switch;
 use gpui_kit::component::tab::{Tab, TabBar};
 use gpui_kit::component::{
@@ -516,15 +517,32 @@ impl SettingsPanel {
                     "settings.update.current",
                     &[("version", &env!("CARGO_PKG_VERSION"))],
                 )),
-                Button::new("check-update")
-                    .small()
-                    .outline()
-                    .label(t("settings.update.check"))
-                    .on_click(cx.listener(|this, _, window, cx| {
-                        this.view
-                            .update(cx, |view, cx| view.check_updates(window, cx))
-                            .ok();
-                    })),
+                if self
+                    .view
+                    .read_with(cx, |view, _| view.update_checking)
+                    .unwrap_or(false)
+                {
+                    // 새 버전 확인 응답을 기다리는 동안 버튼 대신 로딩 표시를 둔다.
+                    h_flex()
+                        .gap_2()
+                        .items_center()
+                        .child(Spinner::new().small())
+                        .child(div().text_sm().child(t("settings.update.checking")))
+                        .into_any_element()
+                } else {
+                    Button::new("check-update")
+                        .small()
+                        .outline()
+                        .label(t("settings.update.check"))
+                        .on_click(cx.listener(|this, _, window, cx| {
+                            this.view
+                                .update(cx, |view, cx| view.check_updates(window, cx))
+                                .ok();
+                            // 확인 상태로 바로 다시 그린다.
+                            cx.notify();
+                        }))
+                        .into_any_element()
+                },
                 cx,
             ))
             .child(setting_row(

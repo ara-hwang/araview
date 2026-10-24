@@ -255,6 +255,8 @@ impl AraView {
             let result = task.await;
             this.update_in(cx, |this, window, cx| {
                 this.update_checking = false;
+                // 열린 설정 대화상자가 있으면 확인 버튼을 원래대로 되돌린다.
+                window.refresh();
                 match result {
                     Ok(Some(feed)) if is_newer(&feed.version, env!("CARGO_PKG_VERSION")) => {
                         this.show_update(feed, window, cx)
