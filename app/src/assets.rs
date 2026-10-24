@@ -109,8 +109,8 @@ phosphor_icons! {
     Play => "play",
     PushPin => "push-pin",
     PushPinFill => "push-pin-fill",
+    Scan => "scan",
     SquaresFour => "squares-four",
-    TextHighlight => "text-highlight",
     WarningCircle => "warning-circle",
     X => "x",
 }

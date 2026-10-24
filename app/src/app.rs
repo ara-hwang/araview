@@ -993,7 +993,7 @@ impl AraView {
                                 row.child(
                                     Self::icon_button(
                                         "ocr-highlight",
-                                        Ph::TextHighlight,
+                                        Ph::Scan,
                                         "header.ocrHighlight",
                                         "ocrHighlight",
                                         cx,
