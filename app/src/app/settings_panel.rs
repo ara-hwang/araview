@@ -6,15 +6,17 @@ use araview_core::file_assoc::FileAssociation;
 use araview_core::thumb_shell::PsdThumbStatus;
 use gpui_kit::component::button::{Button, ButtonVariants as _};
 use gpui_kit::component::dialog::{DialogDescription, DialogFooter};
+use gpui_kit::component::select::{SearchableVec, Select, SelectEvent, SelectState};
 use gpui_kit::component::switch::Switch;
 use gpui_kit::component::tab::{Tab, TabBar};
 use gpui_kit::component::{
-    ActiveTheme as _, Disableable as _, Selectable as _, Sizable as _, StyledExt as _,
+    ActiveTheme as _, Disableable as _, IndexPath, Selectable as _, Sizable as _, StyledExt as _,
     WindowExt as _, h_flex, v_flex,
 };
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
 use std::cell::Cell;
+use std::collections::HashMap;
 use std::rc::Rc;
 
 use super::{AraView, format_bytes};
@@ -62,6 +64,15 @@ impl Drop for NestedGuard {
     }
 }
 
+/// 선택형 설정 묶음. `options` 순서가 드롭다운 순서이며 인덱스로 값을 되찾는다.
+struct ChoiceDef<'a, T> {
+    current: T,
+    options: &'a [(&'static str, T)],
+    get: fn(&Settings) -> T,
+    set: fn(&mut Settings, T),
+    effect: Effect,
+}
+
 pub(super) struct SettingsPanel {
     view: WeakEntity<AraView>,
     nested: Rc<Cell<usize>>,
@@ -73,6 +84,11 @@ pub(super) struct SettingsPanel {
     cache: Loadable<CacheStats>,
     associations: Loadable<Vec<FileAssociation>>,
     psd: Loadable<PsdThumbStatus>,
+    /// 선택형 설정의 드롭다운 상태. 라벨이 `SharedString`이라 모든 항목이 같은
+    /// 델리게이트를 쓰며, 인덱스로 설정값을 되찾는다.
+    selects: HashMap<&'static str, Entity<SelectState<SearchableVec<SharedString>>>>,
+    select_labels: HashMap<&'static str, Vec<SharedString>>,
+    select_subs: Vec<Subscription>,
 }
 
 pub(super) const TABS: &[&str] = &[
@@ -133,6 +149,9 @@ impl SettingsPanel {
             cache: Loadable::Idle,
             associations: Loadable::Idle,
             psd: Loadable::Idle,
+            selects: HashMap::new(),
+            select_labels: HashMap::new(),
+            select_subs: Vec::new(),
         }
     }
 
@@ -161,33 +180,156 @@ impl SettingsPanel {
         cx.notify();
     }
 
-    /// 여러 값 중 하나를 고르는 버튼 묶음.
-    fn choice<T: Copy + PartialEq + 'static>(
-        &self,
+    /// 여러 값 중 하나를 고르는 드롭다운(gpui-kit `Select`). 같은 라벨 타입을
+    /// 쓰므로 모든 설정이 `SharedString` 델리게이트를 공유하고, 인덱스로 값을
+    /// 되찾는다. 현재값이 후보에 없으면(휠 묶음 어긋남) 비어 보인다.
+    fn select<T: Copy + PartialEq + 'static>(
+        &mut self,
         id: &'static str,
-        current: T,
-        options: &[(&'static str, T)],
-        set: fn(&mut Settings, T),
-        effect: Effect,
+        label: SharedString,
+        def: ChoiceDef<'_, T>,
+        window: &mut Window,
         cx: &mut Context<Self>,
-    ) -> Div {
-        h_flex()
-            .gap_1()
-            .flex_wrap()
-            .justify_end()
-            .children(options.iter().enumerate().map(|(position, (key, value))| {
-                let value = *value;
-                let button = Button::new((id, position)).small().label(t(key));
-                // 고른 값은 채운 버튼으로 구분한다.
-                let button = if current == value {
-                    button.primary()
-                } else {
-                    button.outline()
+    ) -> AnyElement {
+        let labels: Vec<SharedString> = def.options.iter().map(|(key, _)| t(key)).collect();
+        let wanted = def
+            .options
+            .iter()
+            .position(|(_, value)| *value == def.current)
+            .map(IndexPath::new);
+        if let Some(state) = self.selects.get(id).cloned() {
+            let labels_changed = self.select_labels.get(id) != Some(&labels);
+            let index_changed = state.read(cx).selected_index(cx) != wanted;
+            if labels_changed || index_changed {
+                let items = labels.clone();
+                state.update(cx, |state, cx| {
+                    if labels_changed {
+                        state.set_items(SearchableVec::new(items), window, cx);
+                    }
+                    // 라벨만 바뀌어도 선택 항목(옛 라벨)을 새 라벨로 고친다.
+                    if index_changed || labels_changed {
+                        state.set_selected_index(wanted, window, cx);
+                    }
+                });
+                if labels_changed {
+                    self.select_labels.insert(id, labels);
+                }
+            }
+            return Select::new(&state)
+                .id(id)
+                .small()
+                .w(px(220.))
+                .accessibility_label(label)
+                .into_any_element();
+        }
+        let state =
+            cx.new(|cx| SelectState::new(SearchableVec::new(labels.clone()), wanted, window, cx));
+        let values: Vec<T> = def.options.iter().map(|(_, value)| *value).collect();
+        let get = def.get;
+        let set = def.set;
+        let effect = def.effect;
+        let sub = cx.subscribe_in(
+            &state,
+            window,
+            move |this, emitter, event: &SelectEvent<SearchableVec<SharedString>>, window, cx| {
+                let SelectEvent::Confirm(_) = event;
+                let Some(selected) = emitter.read(cx).selected_index(cx) else {
+                    return;
                 };
-                button.on_click(cx.listener(move |this, _, window, cx| {
-                    this.apply(|settings| set(settings, value), effect, window, cx)
-                }))
-            }))
+                let Some(&value) = values.get(selected.row) else {
+                    return;
+                };
+                if get(&SettingsStore::global(cx).settings) == value {
+                    return;
+                }
+                this.apply(|settings| set(settings, value), effect, window, cx);
+            },
+        );
+        self.select_subs.push(sub);
+        self.selects.insert(id, state.clone());
+        self.select_labels.insert(id, labels);
+        Select::new(&state)
+            .id(id)
+            .small()
+            .w(px(220.))
+            .accessibility_label(label)
+            .into_any_element()
+    }
+
+    /// 테마는 `Settings`가 아니라 저장소의 별도 키라 전용 드롭다운을 둔다.
+    fn theme_select(
+        &mut self,
+        label: SharedString,
+        current: ThemeChoice,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        const ID: &str = "theme";
+        const OPTIONS: &[(&str, ThemeChoice)] = &[
+            ("settings.theme.system", ThemeChoice::System),
+            ("settings.theme.light", ThemeChoice::Light),
+            ("settings.theme.dark", ThemeChoice::Dark),
+        ];
+        let labels: Vec<SharedString> = OPTIONS.iter().map(|(key, _)| t(key)).collect();
+        let wanted = OPTIONS
+            .iter()
+            .position(|(_, value)| *value == current)
+            .map(IndexPath::new);
+        if let Some(state) = self.selects.get(ID).cloned() {
+            let labels_changed = self.select_labels.get(ID) != Some(&labels);
+            let index_changed = state.read(cx).selected_index(cx) != wanted;
+            if labels_changed || index_changed {
+                let items = labels.clone();
+                state.update(cx, |state, cx| {
+                    if labels_changed {
+                        state.set_items(SearchableVec::new(items), window, cx);
+                    }
+                    // 라벨만 바뀌어도 선택 항목(옛 라벨)을 새 라벨로 고친다.
+                    if index_changed || labels_changed {
+                        state.set_selected_index(wanted, window, cx);
+                    }
+                });
+                if labels_changed {
+                    self.select_labels.insert(ID, labels);
+                }
+            }
+            return Select::new(&state)
+                .id(ID)
+                .small()
+                .w(px(220.))
+                .accessibility_label(label)
+                .into_any_element();
+        }
+        let state =
+            cx.new(|cx| SelectState::new(SearchableVec::new(labels.clone()), wanted, window, cx));
+        let values: Vec<ThemeChoice> = OPTIONS.iter().map(|(_, value)| *value).collect();
+        let sub = cx.subscribe_in(
+            &state,
+            window,
+            move |this, emitter, event: &SelectEvent<SearchableVec<SharedString>>, window, cx| {
+                let SelectEvent::Confirm(_) = event;
+                let Some(selected) = emitter.read(cx).selected_index(cx) else {
+                    return;
+                };
+                let Some(&value) = values.get(selected.row) else {
+                    return;
+                };
+                if SettingsStore::global(cx).theme == value {
+                    return;
+                }
+                SettingsStore::set_theme(cx, value);
+                this.apply(|_| {}, Effect::Theme, window, cx);
+            },
+        );
+        self.select_subs.push(sub);
+        self.selects.insert(ID, state.clone());
+        self.select_labels.insert(ID, labels);
+        Select::new(&state)
+            .id(ID)
+            .small()
+            .w(px(220.))
+            .accessibility_label(label)
+            .into_any_element()
     }
 
     fn toggle(
@@ -216,7 +358,7 @@ impl SettingsPanel {
 
     // ----- 탭 -----
 
-    fn general_tab(&mut self, cx: &mut Context<Self>) -> Div {
+    fn general_tab(&mut self, window: &mut Window, cx: &mut Context<Self>) -> Div {
         let store = SettingsStore::global(cx);
         let s = store.settings.clone();
         let theme = store.theme;
@@ -225,15 +367,20 @@ impl SettingsPanel {
             .child(setting_row(
                 t("settings.language.title"),
                 Some(t("settings.language.desc")),
-                self.choice(
+                self.select(
                     "language",
-                    s.language,
-                    &[
-                        ("settings.language.ko", Language::Ko),
-                        ("settings.language.en", Language::En),
-                    ],
-                    |settings, value| settings.language = value,
-                    Effect::Language,
+                    t("settings.language.title"),
+                    ChoiceDef {
+                        current: s.language,
+                        options: &[
+                            ("settings.language.ko", Language::Ko),
+                            ("settings.language.en", Language::En),
+                        ],
+                        get: |settings: &Settings| settings.language,
+                        set: |settings, value| settings.language = value,
+                        effect: Effect::Language,
+                    },
+                    window,
                     cx,
                 ),
                 cx,
@@ -241,38 +388,23 @@ impl SettingsPanel {
             .child(setting_row(
                 t("settings.theme.title"),
                 Some(t("settings.theme.desc")),
-                h_flex().gap_1().children(
-                    [
-                        ("settings.theme.system", ThemeChoice::System),
-                        ("settings.theme.light", ThemeChoice::Light),
-                        ("settings.theme.dark", ThemeChoice::Dark),
-                    ]
-                    .into_iter()
-                    .enumerate()
-                    .map(|(position, (key, value))| {
-                        let button = Button::new(("theme", position)).small().label(t(key));
-                        let button = if theme == value {
-                            button.primary()
-                        } else {
-                            button.outline()
-                        };
-                        button.on_click(cx.listener(move |this, _, window, cx| {
-                            SettingsStore::set_theme(cx, value);
-                            this.apply(|_| {}, Effect::Theme, window, cx);
-                        }))
-                    }),
-                ),
+                self.theme_select(t("settings.theme.title"), theme, window, cx),
                 cx,
             ))
             .child(setting_row(
                 t("settings.nav.title"),
                 Some(t("settings.nav.desc")),
-                self.choice(
+                self.select(
                     "loop",
-                    s.loop_navigation,
-                    &[("settings.nav.stop", false), ("settings.nav.loop", true)],
-                    |settings, value| settings.loop_navigation = value,
-                    Effect::Redraw,
+                    t("settings.nav.title"),
+                    ChoiceDef {
+                        current: s.loop_navigation,
+                        options: &[("settings.nav.stop", false), ("settings.nav.loop", true)],
+                        get: |settings: &Settings| settings.loop_navigation,
+                        set: |settings, value| settings.loop_navigation = value,
+                        effect: Effect::Redraw,
+                    },
+                    window,
                     cx,
                 ),
                 cx,
@@ -280,15 +412,20 @@ impl SettingsPanel {
             .child(setting_row(
                 t("settings.skipBroken.title"),
                 Some(t("settings.skipBroken.desc")),
-                self.choice(
+                self.select(
                     "skip-broken",
-                    s.skip_broken_files,
-                    &[
-                        ("settings.skipBroken.off", false),
-                        ("settings.skipBroken.on", true),
-                    ],
-                    |settings, value| settings.skip_broken_files = value,
-                    Effect::Redraw,
+                    t("settings.skipBroken.title"),
+                    ChoiceDef {
+                        current: s.skip_broken_files,
+                        options: &[
+                            ("settings.skipBroken.off", false),
+                            ("settings.skipBroken.on", true),
+                        ],
+                        get: |settings: &Settings| settings.skip_broken_files,
+                        set: |settings, value| settings.skip_broken_files = value,
+                        effect: Effect::Redraw,
+                    },
+                    window,
                     cx,
                 ),
                 cx,
@@ -296,15 +433,20 @@ impl SettingsPanel {
             .child(setting_row(
                 t("settings.startup.title"),
                 Some(t("settings.startup.desc")),
-                self.choice(
+                self.select(
                     "startup",
-                    s.auto_open_last_file,
-                    &[
-                        ("settings.startup.home", false),
-                        ("settings.startup.last", true),
-                    ],
-                    |settings, value| settings.auto_open_last_file = value,
-                    Effect::Redraw,
+                    t("settings.startup.title"),
+                    ChoiceDef {
+                        current: s.auto_open_last_file,
+                        options: &[
+                            ("settings.startup.home", false),
+                            ("settings.startup.last", true),
+                        ],
+                        get: |settings: &Settings| settings.auto_open_last_file,
+                        set: |settings, value| settings.auto_open_last_file = value,
+                        effect: Effect::Redraw,
+                    },
+                    window,
                     cx,
                 ),
                 cx,
@@ -312,12 +454,17 @@ impl SettingsPanel {
             .child(setting_row(
                 t("settings.recent.title"),
                 Some(t("settings.recent.desc")),
-                self.choice(
+                self.select(
                     "recent",
-                    s.record_recent_files,
-                    &[("settings.recent.on", true), ("settings.recent.off", false)],
-                    |settings, value| settings.record_recent_files = value,
-                    Effect::Redraw,
+                    t("settings.recent.title"),
+                    ChoiceDef {
+                        current: s.record_recent_files,
+                        options: &[("settings.recent.on", true), ("settings.recent.off", false)],
+                        get: |settings: &Settings| settings.record_recent_files,
+                        set: |settings, value| settings.record_recent_files = value,
+                        effect: Effect::Redraw,
+                    },
+                    window,
                     cx,
                 ),
                 cx,
@@ -381,24 +528,30 @@ impl SettingsPanel {
             ))
     }
 
-    fn view_tab(&mut self, cx: &mut Context<Self>) -> Div {
+    fn view_tab(&mut self, window: &mut Window, cx: &mut Context<Self>) -> Div {
         let s = SettingsStore::global(cx).settings.clone();
+        let bg_title = self.with_shortcut(t("settings.bg.title"), "cycleBackground", cx);
         v_flex()
             .gap_4()
             .child(setting_row(
                 t("settings.view.title"),
                 Some(t("settings.view.desc")),
-                self.choice(
+                self.select(
                     "view-mode",
-                    s.view_mode,
-                    &[
-                        ("settings.view.single", ViewMode::Single),
-                        ("settings.view.ltr", ViewMode::LeftToRight),
-                        ("settings.view.rtl", ViewMode::RightToLeft),
-                        ("settings.view.webtoon", ViewMode::Webtoon),
-                    ],
-                    |settings, value| settings.view_mode = value,
-                    Effect::Layout,
+                    t("settings.view.title"),
+                    ChoiceDef {
+                        current: s.view_mode,
+                        options: &[
+                            ("settings.view.single", ViewMode::Single),
+                            ("settings.view.ltr", ViewMode::LeftToRight),
+                            ("settings.view.rtl", ViewMode::RightToLeft),
+                            ("settings.view.webtoon", ViewMode::Webtoon),
+                        ],
+                        get: |settings: &Settings| settings.view_mode,
+                        set: |settings, value| settings.view_mode = value,
+                        effect: Effect::Layout,
+                    },
+                    window,
                     cx,
                 ),
                 cx,
@@ -406,19 +559,24 @@ impl SettingsPanel {
             .child(setting_row(
                 t("settings.imageRendering.title"),
                 Some(t("settings.imageRendering.desc")),
-                self.choice(
+                self.select(
                     "scaling",
-                    s.image_scaling_mode,
-                    &[
-                        ("settings.imageRendering.auto", ImageScalingMode::Auto),
-                        ("settings.imageRendering.smooth", ImageScalingMode::Smooth),
-                        (
-                            "settings.imageRendering.pixelated",
-                            ImageScalingMode::Pixelated,
-                        ),
-                    ],
-                    |settings, value| settings.image_scaling_mode = value,
-                    Effect::Reload,
+                    t("settings.imageRendering.title"),
+                    ChoiceDef {
+                        current: s.image_scaling_mode,
+                        options: &[
+                            ("settings.imageRendering.auto", ImageScalingMode::Auto),
+                            ("settings.imageRendering.smooth", ImageScalingMode::Smooth),
+                            (
+                                "settings.imageRendering.pixelated",
+                                ImageScalingMode::Pixelated,
+                            ),
+                        ],
+                        get: |settings: &Settings| settings.image_scaling_mode,
+                        set: |settings, value| settings.image_scaling_mode = value,
+                        effect: Effect::Reload,
+                    },
+                    window,
                     cx,
                 ),
                 cx,
@@ -426,19 +584,24 @@ impl SettingsPanel {
             .child(setting_row(
                 t("settings.wheel.plain.title"),
                 Some(t("settings.wheel.plain.desc")),
-                self.choice(
+                self.select(
                     "wheel-mode",
-                    s.wheel.mode(),
-                    &[
-                        ("settings.wheel.plain.navigate", Some(WheelMode::Navigate)),
-                        ("settings.wheel.plain.zoom", Some(WheelMode::Zoom)),
-                    ],
-                    |settings, value| {
-                        if let Some(mode) = value {
-                            settings.wheel.set_mode(mode);
-                        }
+                    t("settings.wheel.plain.title"),
+                    ChoiceDef {
+                        current: s.wheel.mode(),
+                        options: &[
+                            ("settings.wheel.plain.navigate", Some(WheelMode::Navigate)),
+                            ("settings.wheel.plain.zoom", Some(WheelMode::Zoom)),
+                        ],
+                        get: |settings: &Settings| settings.wheel.mode(),
+                        set: |settings, value| {
+                            if let Some(mode) = value {
+                                settings.wheel.set_mode(mode);
+                            }
+                        },
+                        effect: Effect::Redraw,
                     },
-                    Effect::Redraw,
+                    window,
                     cx,
                 ),
                 cx,
@@ -549,17 +712,22 @@ impl SettingsPanel {
             .child(setting_row(
                 t("settings.dock.position"),
                 None,
-                self.choice(
+                self.select(
                     "dock-position",
-                    s.dock_position,
-                    &[
-                        ("settings.dock.top", DockPosition::Top),
-                        ("settings.dock.bottom", DockPosition::Bottom),
-                        ("settings.dock.left", DockPosition::Left),
-                        ("settings.dock.right", DockPosition::Right),
-                    ],
-                    |settings, value| settings.dock_position = value,
-                    Effect::Redraw,
+                    t("settings.dock.position"),
+                    ChoiceDef {
+                        current: s.dock_position,
+                        options: &[
+                            ("settings.dock.top", DockPosition::Top),
+                            ("settings.dock.bottom", DockPosition::Bottom),
+                            ("settings.dock.left", DockPosition::Left),
+                            ("settings.dock.right", DockPosition::Right),
+                        ],
+                        get: |settings: &Settings| settings.dock_position,
+                        set: |settings, value| settings.dock_position = value,
+                        effect: Effect::Redraw,
+                    },
+                    window,
                     cx,
                 ),
                 cx,
@@ -567,16 +735,21 @@ impl SettingsPanel {
             .child(setting_row(
                 t("settings.dock.thumbSize"),
                 None,
-                self.choice(
+                self.select(
                     "dock-size",
-                    s.dock_thumb_size,
-                    &[
-                        ("settings.dock.thumbS", DockThumbSize::S),
-                        ("settings.dock.thumbM", DockThumbSize::M),
-                        ("settings.dock.thumbL", DockThumbSize::L),
-                    ],
-                    |settings, value| settings.dock_thumb_size = value,
-                    Effect::Redraw,
+                    t("settings.dock.thumbSize"),
+                    ChoiceDef {
+                        current: s.dock_thumb_size,
+                        options: &[
+                            ("settings.dock.thumbS", DockThumbSize::S),
+                            ("settings.dock.thumbM", DockThumbSize::M),
+                            ("settings.dock.thumbL", DockThumbSize::L),
+                        ],
+                        get: |settings: &Settings| settings.dock_thumb_size,
+                        set: |settings, value| settings.dock_thumb_size = value,
+                        effect: Effect::Redraw,
+                    },
+                    window,
                     cx,
                 ),
                 cx,
@@ -606,19 +779,24 @@ impl SettingsPanel {
                 cx,
             ))
             .child(setting_row(
-                self.with_shortcut(t("settings.bg.title"), "cycleBackground", cx),
+                bg_title.clone(),
                 Some(t("settings.bg.desc")),
-                self.choice(
+                self.select(
                     "background",
-                    s.viewer_background,
-                    &[
-                        ("settings.bg.theme", ViewerBackground::Theme),
-                        ("settings.bg.black", ViewerBackground::Black),
-                        ("settings.bg.white", ViewerBackground::White),
-                        ("settings.bg.checker", ViewerBackground::Checker),
-                    ],
-                    |settings, value| settings.viewer_background = value,
-                    Effect::Redraw,
+                    bg_title,
+                    ChoiceDef {
+                        current: s.viewer_background,
+                        options: &[
+                            ("settings.bg.theme", ViewerBackground::Theme),
+                            ("settings.bg.black", ViewerBackground::Black),
+                            ("settings.bg.white", ViewerBackground::White),
+                            ("settings.bg.checker", ViewerBackground::Checker),
+                        ],
+                        get: |settings: &Settings| settings.viewer_background,
+                        set: |settings, value| settings.viewer_background = value,
+                        effect: Effect::Redraw,
+                    },
+                    window,
                     cx,
                 ),
                 cx,
@@ -650,23 +828,28 @@ impl SettingsPanel {
             ))
     }
 
-    fn list_tab(&mut self, cx: &mut Context<Self>) -> Div {
+    fn list_tab(&mut self, window: &mut Window, cx: &mut Context<Self>) -> Div {
         let s = SettingsStore::global(cx).settings.clone();
         v_flex()
             .gap_4()
             .child(setting_row(
                 t("settings.sort.title"),
                 Some(t("settings.sort.desc")),
-                self.choice(
+                self.select(
                     "sort-key",
-                    s.sort_key,
-                    &[
-                        ("settings.sort.name", SortKey::Name),
-                        ("settings.sort.date", SortKey::Date),
-                        ("settings.sort.size", SortKey::Size),
-                    ],
-                    |settings, value| settings.sort_key = value,
-                    Effect::Relist,
+                    t("settings.sort.title"),
+                    ChoiceDef {
+                        current: s.sort_key,
+                        options: &[
+                            ("settings.sort.name", SortKey::Name),
+                            ("settings.sort.date", SortKey::Date),
+                            ("settings.sort.size", SortKey::Size),
+                        ],
+                        get: |settings: &Settings| settings.sort_key,
+                        set: |settings, value| settings.sort_key = value,
+                        effect: Effect::Relist,
+                    },
+                    window,
                     cx,
                 ),
                 cx,
@@ -674,15 +857,20 @@ impl SettingsPanel {
             .child(setting_row(
                 t("settings.sort.title"),
                 None,
-                self.choice(
+                self.select(
                     "sort-order",
-                    s.sort_descending,
-                    &[
-                        ("settings.sort.asc", false),
-                        ("settings.sort.descOrder", true),
-                    ],
-                    |settings, value| settings.sort_descending = value,
-                    Effect::Relist,
+                    t("settings.sort.title"),
+                    ChoiceDef {
+                        current: s.sort_descending,
+                        options: &[
+                            ("settings.sort.asc", false),
+                            ("settings.sort.descOrder", true),
+                        ],
+                        get: |settings: &Settings| settings.sort_descending,
+                        set: |settings, value| settings.sort_descending = value,
+                        effect: Effect::Relist,
+                    },
+                    window,
                     cx,
                 ),
                 cx,
@@ -947,25 +1135,30 @@ impl SettingsPanel {
             .child(body)
     }
 
-    fn performance_tab(&mut self, cx: &mut Context<Self>) -> Div {
+    fn performance_tab(&mut self, window: &mut Window, cx: &mut Context<Self>) -> Div {
         let s = SettingsStore::global(cx).settings.clone();
         v_flex()
             .gap_4()
             .child(setting_row(
                 t("settings.cache.title"),
                 Some(t("settings.cache.desc")),
-                self.choice(
+                self.select(
                     "cache-mode",
-                    s.cache_mode,
-                    &[
-                        ("settings.cache.off", CacheMode::Off),
-                        ("settings.cache.nearby", CacheMode::Nearby),
-                        ("settings.cache.extended", CacheMode::Extended),
-                        ("settings.cache.gb1", CacheMode::Memory1Gb),
-                        ("settings.cache.gb2", CacheMode::Memory2Gb),
-                    ],
-                    |settings, value| settings.cache_mode = value,
-                    Effect::Redraw,
+                    t("settings.cache.title"),
+                    ChoiceDef {
+                        current: s.cache_mode,
+                        options: &[
+                            ("settings.cache.off", CacheMode::Off),
+                            ("settings.cache.nearby", CacheMode::Nearby),
+                            ("settings.cache.extended", CacheMode::Extended),
+                            ("settings.cache.gb1", CacheMode::Memory1Gb),
+                            ("settings.cache.gb2", CacheMode::Memory2Gb),
+                        ],
+                        get: |settings: &Settings| settings.cache_mode,
+                        set: |settings, value| settings.cache_mode = value,
+                        effect: Effect::Redraw,
+                    },
+                    window,
                     cx,
                 ),
                 cx,
@@ -995,16 +1188,21 @@ impl SettingsPanel {
             .child(setting_row(
                 t("settings.resolution.title"),
                 Some(t("settings.resolution.desc")),
-                self.choice(
+                self.select(
                     "resolution",
-                    s.max_resolution,
-                    &[
-                        ("settings.resolution.original", MaxResolution::Original),
-                        ("settings.resolution.4k", MaxResolution::FourK),
-                        ("settings.resolution.1080p", MaxResolution::FullHd),
-                    ],
-                    |settings, value| settings.max_resolution = value,
-                    Effect::Reload,
+                    t("settings.resolution.title"),
+                    ChoiceDef {
+                        current: s.max_resolution,
+                        options: &[
+                            ("settings.resolution.original", MaxResolution::Original),
+                            ("settings.resolution.4k", MaxResolution::FourK),
+                            ("settings.resolution.1080p", MaxResolution::FullHd),
+                        ],
+                        get: |settings: &Settings| settings.max_resolution,
+                        set: |settings, value| settings.max_resolution = value,
+                        effect: Effect::Reload,
+                    },
+                    window,
                     cx,
                 ),
                 cx,
@@ -1130,7 +1328,7 @@ impl SettingsPanel {
         });
     }
 
-    fn shortcuts_tab(&mut self, cx: &mut Context<Self>) -> Div {
+    fn shortcuts_tab(&mut self, window: &mut Window, cx: &mut Context<Self>) -> Div {
         let s = SettingsStore::global(cx).settings.clone();
         let defaults = default_shortcuts();
         let muted = cx.theme().muted_foreground;
@@ -1149,39 +1347,63 @@ impl SettingsPanel {
             ("settings.wheel.action.none", WheelAction::None),
         ];
         type WheelSet = fn(&mut Settings, WheelAction);
-        let wheel_slots: [(&'static str, &'static str, WheelAction, WheelSet); 8] = [
-            ("w-up", "wheelUp", s.wheel.wheel_up, |s, v| {
-                s.wheel.wheel_up = v
-            }),
-            ("w-down", "wheelDown", s.wheel.wheel_down, |s, v| {
-                s.wheel.wheel_down = v
-            }),
-            ("w-c-up", "ctrl+wheelUp", s.wheel.ctrl_wheel_up, |s, v| {
-                s.wheel.ctrl_wheel_up = v
-            }),
+        type WheelGet = fn(&Settings) -> WheelAction;
+        let wheel_slots: [(&'static str, &'static str, WheelAction, WheelGet, WheelSet); 8] = [
+            (
+                "w-up",
+                "wheelUp",
+                s.wheel.wheel_up,
+                (|s: &Settings| s.wheel.wheel_up) as WheelGet,
+                (|s, v| s.wheel.wheel_up = v) as WheelSet,
+            ),
+            (
+                "w-down",
+                "wheelDown",
+                s.wheel.wheel_down,
+                (|s: &Settings| s.wheel.wheel_down) as WheelGet,
+                (|s, v| s.wheel.wheel_down = v) as WheelSet,
+            ),
+            (
+                "w-c-up",
+                "ctrl+wheelUp",
+                s.wheel.ctrl_wheel_up,
+                (|s: &Settings| s.wheel.ctrl_wheel_up) as WheelGet,
+                (|s, v| s.wheel.ctrl_wheel_up = v) as WheelSet,
+            ),
             (
                 "w-c-down",
                 "ctrl+wheelDown",
                 s.wheel.ctrl_wheel_down,
-                |s, v| s.wheel.ctrl_wheel_down = v,
+                (|s: &Settings| s.wheel.ctrl_wheel_down) as WheelGet,
+                (|s, v| s.wheel.ctrl_wheel_down = v) as WheelSet,
             ),
-            ("w-s-up", "shift+wheelUp", s.wheel.shift_wheel_up, |s, v| {
-                s.wheel.shift_wheel_up = v
-            }),
+            (
+                "w-s-up",
+                "shift+wheelUp",
+                s.wheel.shift_wheel_up,
+                (|s: &Settings| s.wheel.shift_wheel_up) as WheelGet,
+                (|s, v| s.wheel.shift_wheel_up = v) as WheelSet,
+            ),
             (
                 "w-s-down",
                 "shift+wheelDown",
                 s.wheel.shift_wheel_down,
-                |s, v| s.wheel.shift_wheel_down = v,
+                (|s: &Settings| s.wheel.shift_wheel_down) as WheelGet,
+                (|s, v| s.wheel.shift_wheel_down = v) as WheelSet,
             ),
-            ("w-a-up", "alt+wheelUp", s.wheel.alt_wheel_up, |s, v| {
-                s.wheel.alt_wheel_up = v
-            }),
+            (
+                "w-a-up",
+                "alt+wheelUp",
+                s.wheel.alt_wheel_up,
+                (|s: &Settings| s.wheel.alt_wheel_up) as WheelGet,
+                (|s, v| s.wheel.alt_wheel_up = v) as WheelSet,
+            ),
             (
                 "w-a-down",
                 "alt+wheelDown",
                 s.wheel.alt_wheel_down,
-                |s, v| s.wheel.alt_wheel_down = v,
+                (|s: &Settings| s.wheel.alt_wheel_down) as WheelGet,
+                (|s, v| s.wheel.alt_wheel_down = v) as WheelSet,
             ),
         ];
 
@@ -1280,24 +1502,47 @@ impl SettingsPanel {
                     }),
             )
             .child(heading(t("settings.wheel.title")))
-            .children(wheel_slots.into_iter().map(|(id, slot, current, set)| {
-                setting_row(
-                    t(&format!("settings.wheel.slot.{slot}")),
-                    None,
-                    self.choice(id, current, &wheel_options, set, Effect::Redraw, cx),
-                    cx,
-                )
-            }))
+            .children(
+                wheel_slots
+                    .into_iter()
+                    .map(|(id, slot, current, get, set)| {
+                        let title = t(&format!("settings.wheel.slot.{slot}"));
+                        setting_row(
+                            title.clone(),
+                            None,
+                            self.select(
+                                id,
+                                title,
+                                ChoiceDef {
+                                    current,
+                                    options: &wheel_options,
+                                    get,
+                                    set,
+                                    effect: Effect::Redraw,
+                                },
+                                window,
+                                cx,
+                            ),
+                            cx,
+                        )
+                    }),
+            )
             .child(heading(t("settings.mouse.title")))
             .child(setting_row(
                 t("settings.mouse.trigger.leftDrag"),
                 None,
-                self.choice(
+                self.select(
                     "m-drag",
-                    s.mouse.left_drag,
-                    &drag_options,
-                    |settings, value| settings.mouse.left_drag = value,
-                    Effect::Redraw,
+                    t("settings.mouse.trigger.leftDrag"),
+                    ChoiceDef {
+                        current: s.mouse.left_drag,
+                        options: &drag_options,
+                        get: (|settings: &Settings| settings.mouse.left_drag)
+                            as fn(&Settings) -> MouseAction,
+                        set: |settings, value| settings.mouse.left_drag = value,
+                        effect: Effect::Redraw,
+                    },
+                    window,
                     cx,
                 ),
                 cx,
@@ -1305,12 +1550,18 @@ impl SettingsPanel {
             .child(setting_row(
                 t("settings.mouse.trigger.middleClick"),
                 None,
-                self.choice(
+                self.select(
                     "m-middle",
-                    s.mouse.middle_click,
-                    &click_options,
-                    |settings, value| settings.mouse.middle_click = value,
-                    Effect::Redraw,
+                    t("settings.mouse.trigger.middleClick"),
+                    ChoiceDef {
+                        current: s.mouse.middle_click,
+                        options: &click_options,
+                        get: (|settings: &Settings| settings.mouse.middle_click)
+                            as fn(&Settings) -> MouseAction,
+                        set: |settings, value| settings.mouse.middle_click = value,
+                        effect: Effect::Redraw,
+                    },
+                    window,
                     cx,
                 ),
                 cx,
@@ -1318,12 +1569,18 @@ impl SettingsPanel {
             .child(setting_row(
                 t("settings.mouse.trigger.doubleClick"),
                 None,
-                self.choice(
+                self.select(
                     "m-double",
-                    s.mouse.double_click,
-                    &click_options,
-                    |settings, value| settings.mouse.double_click = value,
-                    Effect::Redraw,
+                    t("settings.mouse.trigger.doubleClick"),
+                    ChoiceDef {
+                        current: s.mouse.double_click,
+                        options: &click_options,
+                        get: (|settings: &Settings| settings.mouse.double_click)
+                            as fn(&Settings) -> MouseAction,
+                        set: |settings, value| settings.mouse.double_click = value,
+                        effect: Effect::Redraw,
+                    },
+                    window,
                     cx,
                 ),
                 cx,
@@ -1332,12 +1589,18 @@ impl SettingsPanel {
                 t("settings.mouse.trigger.rightClick"),
                 (s.mouse.right_click != MouseAction::ContextMenu)
                     .then(|| t("settings.mouse.rightClickWarning")),
-                self.choice(
+                self.select(
                     "m-right",
-                    s.mouse.right_click,
-                    &click_options,
-                    |settings, value| settings.mouse.right_click = value,
-                    Effect::Redraw,
+                    t("settings.mouse.trigger.rightClick"),
+                    ChoiceDef {
+                        current: s.mouse.right_click,
+                        options: &click_options,
+                        get: (|settings: &Settings| settings.mouse.right_click)
+                            as fn(&Settings) -> MouseAction,
+                        set: |settings, value| settings.mouse.right_click = value,
+                        effect: Effect::Redraw,
+                    },
+                    window,
                     cx,
                 ),
                 cx,
@@ -1662,13 +1925,13 @@ impl SettingsPanel {
 }
 
 impl Render for SettingsPanel {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let body = match self.tab {
-            0 => self.general_tab(cx),
-            1 => self.view_tab(cx),
-            2 => self.list_tab(cx),
-            3 => self.performance_tab(cx),
-            4 => self.shortcuts_tab(cx),
+            0 => self.general_tab(window, cx),
+            1 => self.view_tab(window, cx),
+            2 => self.list_tab(window, cx),
+            3 => self.performance_tab(window, cx),
+            4 => self.shortcuts_tab(window, cx),
             _ => self.extensions_tab(cx),
         };
         v_flex()
