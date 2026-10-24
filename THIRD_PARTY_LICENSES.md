@@ -52,7 +52,7 @@ dependencies and other-OS targets are excluded.
 | alloc-no-stdlib | 2.0.4 | BSD-3-Clause |
 | alloc-stdlib | 0.2.4 | BSD-3-Clause |
 | allocator-api2 | 0.2.21 | MIT OR Apache-2.0 |
-| annotate-snippets | 0.12.16 | MIT OR Apache-2.0 |
+| annotate-snippets | 0.12.17 | MIT OR Apache-2.0 |
 | anstream | 1.0.0 | MIT OR Apache-2.0 |
 | anstyle | 1.0.14 | MIT OR Apache-2.0 |
 | anstyle-parse | 1.0.0 | MIT OR Apache-2.0 |
@@ -118,7 +118,7 @@ dependencies and other-OS targets are excluded.
 | calloop-wayland-source | 0.4.1 | MIT |
 | cbc | 0.1.2 | MIT OR Apache-2.0 |
 | cbindgen | 0.28.0 | MPL-2.0 |
-| cc | 1.8.0 | MIT OR Apache-2.0 |
+| cc | 1.10.0 | MIT OR Apache-2.0 |
 | cfg_aliases | 0.2.2 | MIT |
 | cfg-expr | 0.20.10 | MIT OR Apache-2.0 |
 | cfg-if | 1.0.5 | MIT OR Apache-2.0 |
@@ -126,7 +126,7 @@ dependencies and other-OS targets are excluded.
 | cipher | 0.4.4 | MIT OR Apache-2.0 |
 | cipher | 0.5.2 | MIT OR Apache-2.0 |
 | cmov | 0.5.4 | Apache-2.0 OR MIT |
-| cocoa | 0.26.0 | MIT OR Apache-2.0 |
+| cocoa | 0.26.1 | MIT OR Apache-2.0 |
 | cocoa-foundation | 0.2.1 | MIT OR Apache-2.0 |
 | codespan-reporting | 0.13.1 | Apache-2.0 |
 | color_quant | 1.1.0 | MIT |
@@ -148,7 +148,7 @@ dependencies and other-OS targets are excluded.
 | cpubits | 0.1.1 | MIT OR Apache-2.0 |
 | cpufeatures | 0.2.17 | MIT OR Apache-2.0 |
 | cpufeatures | 0.3.1 | MIT OR Apache-2.0 |
-| crc32fast | 1.5.2 | MIT OR Apache-2.0 |
+| crc32fast | 1.5.3 | MIT OR Apache-2.0 |
 | crossbeam-deque | 0.8.8 | MIT OR Apache-2.0 |
 | crossbeam-epoch | 0.9.21 | MIT OR Apache-2.0 |
 | crossbeam-utils | 0.8.23 | MIT OR Apache-2.0 |
@@ -156,7 +156,7 @@ dependencies and other-OS targets are excluded.
 | crypto-common | 0.1.7 | MIT OR Apache-2.0 |
 | crypto-common | 0.2.2 | MIT OR Apache-2.0 |
 | ctor | 1.0.13 | Apache-2.0 OR MIT |
-| ctutils | 0.4.3 | Apache-2.0 OR MIT |
+| ctutils | 0.4.5 | Apache-2.0 OR MIT |
 | dary_heap | 0.3.9 | MIT OR Apache-2.0 |
 | data-url | 0.3.2 | MIT OR Apache-2.0 |
 | deflate64 | 0.1.12 | MIT |
@@ -202,7 +202,7 @@ dependencies and other-OS targets are excluded.
 | fax | 0.2.7 | MIT |
 | fdeflate | 0.3.7 | MIT OR Apache-2.0 |
 | filedescriptor | 0.8.3 | MIT |
-| find-msvc-tools | 0.1.14 | MIT OR Apache-2.0 |
+| find-msvc-tools | 0.1.15 | MIT OR Apache-2.0 |
 | flate2 | 1.1.10 | MIT OR Apache-2.0 |
 | float_next_after | 1.0.0 | MIT |
 | float-cmp | 0.9.0 | MIT |
@@ -297,13 +297,13 @@ dependencies and other-OS targets are excluded.
 | httparse | 1.10.1 | MIT OR Apache-2.0 |
 | hybrid-array | 0.4.15 | MIT OR Apache-2.0 |
 | iana-time-zone | 0.1.65 | MIT OR Apache-2.0 |
-| icu_collections | 2.3.0 | Unicode-3.0 |
-| icu_locale_core | 2.3.0 | Unicode-3.0 |
-| icu_normalizer | 2.3.0 | Unicode-3.0 |
-| icu_normalizer_data | 2.3.0 | Unicode-3.0 |
-| icu_properties | 2.3.0 | Unicode-3.0 |
-| icu_properties_data | 2.3.0 | Unicode-3.0 |
-| icu_provider | 2.3.1 | Unicode-3.0 |
+| icu_collections | 2.4.0 | Unicode-3.0 |
+| icu_locale_core | 2.4.0 | Unicode-3.0 |
+| icu_normalizer | 2.4.0 | Unicode-3.0 |
+| icu_normalizer_data | 2.4.0 | Unicode-3.0 |
+| icu_properties | 2.4.0 | Unicode-3.0 |
+| icu_properties_data | 2.4.0 | Unicode-3.0 |
+| icu_provider | 2.4.0 | Unicode-3.0 |
 | idna | 1.1.0 | MIT OR Apache-2.0 |
 | idna_adapter | 1.2.2 | Apache-2.0 OR MIT |
 | ignore | 0.4.33 | Unlicense OR MIT |
@@ -317,7 +317,7 @@ dependencies and other-OS targets are excluded.
 | inotify | 0.11.5 | ISC |
 | inotify-sys | 0.1.8 | ISC |
 | inout | 0.1.4 | MIT OR Apache-2.0 |
-| inout | 0.2.4 | MIT OR Apache-2.0 |
+| inout | 0.2.5 | MIT OR Apache-2.0 |
 | instant | 0.1.13 | BSD-3-Clause |
 | inventory | 0.3.25 | MIT OR Apache-2.0 |
 | is_terminal_polyfill | 1.70.2 | MIT OR Apache-2.0 |
@@ -371,11 +371,11 @@ dependencies and other-OS targets are excluded.
 | loop9 | 0.1.5 | MIT |
 | lsp-types | 0.97.0 | MIT |
 | lyon | 1.0.19 | MIT OR Apache-2.0 |
-| lyon_algorithms | 1.0.21 | MIT OR Apache-2.0 |
-| lyon_geom | 1.0.19 | MIT OR Apache-2.0 |
+| lyon_algorithms | 1.0.22 | MIT OR Apache-2.0 |
+| lyon_geom | 1.0.20 | MIT OR Apache-2.0 |
 | lyon_path | 1.0.19 | MIT OR Apache-2.0 |
-| lyon_tessellation | 1.0.22 | MIT OR Apache-2.0 |
-| lzma-rust2 | 0.22.0 | Apache-2.0 |
+| lyon_tessellation | 1.0.23 | MIT OR Apache-2.0 |
+| lzma-rust2 | 0.23.0 | Apache-2.0 |
 | mac | 0.1.1 | MIT OR Apache-2.0 |
 | mac-notification-sys | 0.6.15 | MIT OR Apache-2.0 |
 | mach2 | 0.6.0 | BSD-2-Clause OR MIT OR Apache-2.0 |
@@ -387,7 +387,7 @@ dependencies and other-OS targets are excluded.
 | md-5 | 0.10.6 | MIT OR Apache-2.0 |
 | md5 | 0.8.1 | Apache-2.0 OR MIT |
 | memchr | 2.8.3 | Unlicense OR MIT |
-| memmap2 | 0.9.11 | MIT OR Apache-2.0 |
+| memmap2 | 0.9.12 | MIT OR Apache-2.0 |
 | memoffset | 0.9.1 | MIT |
 | metal | 0.33.0 | MIT OR Apache-2.0 |
 | mime | 0.3.17 | MIT OR Apache-2.0 |
@@ -397,9 +397,9 @@ dependencies and other-OS targets are excluded.
 | miniz_oxide | 0.9.1 | MIT OR Zlib OR Apache-2.0 |
 | mio | 1.2.4 | MIT |
 | moxcms | 0.8.1 | BSD-3-Clause OR Apache-2.0 |
-| multiversion | 0.8.0 | MIT OR Apache-2.0 |
+| multiversion | 0.8.1 | MIT OR Apache-2.0 |
 | multiversion_no_op | 1.0.0 | Apache-2.0 OR MIT |
-| multiversion-macros | 0.8.0 | MIT OR Apache-2.0 |
+| multiversion-macros | 0.8.1 | MIT OR Apache-2.0 |
 | mutate_once | 0.1.2 | BSD-2-Clause |
 | naga | 29.0.4 | MIT OR Apache-2.0 |
 | new_debug_unreachable | 1.0.6 | MIT |
@@ -449,7 +449,7 @@ dependencies and other-OS targets are excluded.
 | once_cell | 1.21.4 | MIT OR Apache-2.0 |
 | once_cell_polyfill | 1.70.2 | MIT OR Apache-2.0 |
 | oo7 | 0.6.0 | MIT |
-| open | 5.4.4 | MIT |
+| open | 5.4.5 | MIT |
 | option-ext | 0.2.0 | MPL-2.0 |
 | ordered-float | 5.5.0 | MIT |
 | ordered-stream | 0.2.0 | MIT OR Apache-2.0 |
@@ -484,7 +484,7 @@ dependencies and other-OS targets are excluded.
 | polycool | 0.4.0 | MIT OR Apache-2.0 |
 | potential_utf | 0.1.6 | Unicode-3.0 |
 | powerfmt | 0.2.1 | MIT OR Apache-2.0 |
-| ppmd-rust | 1.5.0 | CC0-1.0 OR MIT-0 |
+| ppmd-rust | 1.5.2 | CC0-1.0 OR MIT-0 |
 | ppv-lite86 | 0.2.21 | MIT OR Apache-2.0 |
 | precomputed-hash | 0.1.1 | MIT |
 | presser | 0.3.1 | MIT OR Apache-2.0 |
@@ -534,7 +534,7 @@ dependencies and other-OS targets are excluded.
 | rle-decode-fast | 1.0.3 | MIT OR Apache-2.0 |
 | ropey | 2.0.0-beta.1 | MIT OR Apache-2.0 |
 | roxmltree | 0.20.0 | MIT OR Apache-2.0 |
-| roxmltree | 0.21.1 | MIT OR Apache-2.0 |
+| roxmltree | 0.21.2 | MIT OR Apache-2.0 |
 | rust-embed | 8.13.0 | MIT |
 | rust-embed-impl | 8.13.0 | MIT |
 | rust-embed-utils | 8.13.0 | MIT |
@@ -588,9 +588,9 @@ dependencies and other-OS targets are excluded.
 | skrifa | 0.44.0 | MIT OR Apache-2.0 |
 | slab | 0.4.12 | MIT |
 | slotmap | 1.1.1 | Zlib |
-| smallvec | 1.16.3 | MIT OR Apache-2.0 |
+| smallvec | 1.16.4 | MIT OR Apache-2.0 |
 | smol | 2.0.2 | Apache-2.0 OR MIT |
-| smol_str | 0.3.6 | MIT OR Apache-2.0 |
+| smol_str | 0.3.7 | MIT OR Apache-2.0 |
 | spin | 0.9.9 | MIT |
 | spin | 0.10.1 | MIT |
 | spirv | 0.4.0+sdk-1.4.341.0 | Apache-2.0 |
@@ -630,7 +630,7 @@ dependencies and other-OS targets are excluded.
 | tiny-skia | 0.12.0 | BSD-3-Clause |
 | tiny-skia-path | 0.11.4 | BSD-3-Clause |
 | tiny-skia-path | 0.12.0 | BSD-3-Clause |
-| tinystr | 0.8.4 | Unicode-3.0 |
+| tinystr | 0.8.5 | Unicode-3.0 |
 | tinyvec | 1.13.3 | Zlib OR Apache-2.0 OR MIT |
 | toml | 0.8.23 | MIT OR Apache-2.0 |
 | toml | 1.1.8+spec-1.1.0 | MIT OR Apache-2.0 |
@@ -647,7 +647,7 @@ dependencies and other-OS targets are excluded.
 | trash | 5.2.9 | MIT |
 | triomphe | 0.1.17 | MIT OR Apache-2.0 |
 | ttf-parser | 0.25.1 | MIT OR Apache-2.0 |
-| typed-path | 0.12.3 | MIT OR Apache-2.0 |
+| typed-path | 0.13.0 | MIT OR Apache-2.0 |
 | typenum | 1.20.1 | MIT OR Apache-2.0 |
 | uds_windows | 1.2.1 | MIT |
 | unicase | 2.10.0 | MIT OR Apache-2.0 |
@@ -657,13 +657,13 @@ dependencies and other-OS targets are excluded.
 | unicode-id | 0.3.7 | MIT OR Apache-2.0 |
 | unicode-ident | 1.0.27 | (MIT OR Apache-2.0) AND Unicode-3.0 |
 | unicode-linebreak | 0.1.5 | Apache-2.0 |
-| unicode-properties | 0.1.3 | MIT OR Apache-2.0 |
+| unicode-properties | 0.1.4 | MIT OR Apache-2.0 |
 | unicode-script | 0.5.8 | MIT OR Apache-2.0 |
 | unicode-segmentation | 1.13.3 | MIT OR Apache-2.0 |
 | unicode-vo | 0.1.0 | MIT OR Apache-2.0 |
 | unicode-width | 0.2.2 | MIT OR Apache-2.0 |
 | untrusted | 0.9.0 | ISC |
-| ureq | 3.4.2 | MIT OR Apache-2.0 |
+| ureq | 3.5.0 | MIT OR Apache-2.0 |
 | ureq-proto | 0.6.5 | MIT OR Apache-2.0 |
 | url | 2.5.8 | MIT OR Apache-2.0 |
 | urlencoding | 2.1.3 | MIT |
@@ -674,7 +674,7 @@ dependencies and other-OS targets are excluded.
 | utf8_iter | 1.0.4 | Apache-2.0 OR MIT |
 | utf8-zero | 0.8.1 | MIT OR Apache-2.0 |
 | utf8parse | 0.2.2 | Apache-2.0 OR MIT |
-| uuid | 1.28.0 | Apache-2.0 OR MIT |
+| uuid | 1.29.0 | Apache-2.0 OR MIT |
 | v_frame | 0.3.9 | BSD-2-Clause |
 | vcpkg | 0.2.15 | MIT OR Apache-2.0 |
 | version_check | 0.9.5 | MIT OR Apache-2.0 |
@@ -692,7 +692,7 @@ dependencies and other-OS targets are excluded.
 | wayland-scanner | 0.31.11 | MIT |
 | wayland-sys | 0.31.11 | MIT |
 | web-time | 1.1.0 | MIT OR Apache-2.0 |
-| webpki-roots | 1.0.10 | CDLA-Permissive-2.0 |
+| webpki-roots | 1.0.11 | CDLA-Permissive-2.0 |
 | weezl | 0.1.12 | MIT OR Apache-2.0 |
 | wgpu | 29.0.4 | MIT OR Apache-2.0 |
 | wgpu-core | 29.0.4 | MIT OR Apache-2.0 |
@@ -753,7 +753,7 @@ dependencies and other-OS targets are excluded.
 | y4m | 0.8.0 | MIT |
 | yazi | 0.2.1 | Apache-2.0 OR MIT |
 | yeslogic-fontconfig-sys | 6.0.1 | MIT |
-| yoke | 0.8.3 | Unicode-3.0 |
+| yoke | 0.8.4 | Unicode-3.0 |
 | yoke-derive | 0.8.4 | Unicode-3.0 |
 | zbus | 5.19.0 | MIT |
 | zbus_macros | 5.19.0 | MIT |
@@ -772,9 +772,9 @@ dependencies and other-OS targets are excluded.
 | zeroize | 1.9.1 | Apache-2.0 OR MIT |
 | zeroize_derive | 1.5.0 | Apache-2.0 OR MIT |
 | zerotrie | 0.2.5 | Unicode-3.0 |
-| zerovec | 0.11.8 | Unicode-3.0 |
-| zerovec-derive | 0.11.6 | Unicode-3.0 |
-| zip | 9.0.5 | MIT |
+| zerovec | 0.11.9 | Unicode-3.0 |
+| zerovec-derive | 0.11.7 | Unicode-3.0 |
+| zip | 9.1.0 | MIT |
 | zlib-rs | 0.6.8 | Zlib |
 | zmij | 1.0.23 | MIT |
 | zopfli | 0.8.4 | Apache-2.0 |
