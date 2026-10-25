@@ -98,7 +98,9 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 
 - 열린 이미지가 없으면 홈을 보여준다.
 - 구성: 읽기 영역 + 이미지 목록 도크(상/하/좌/우) + 드래그 오버레이 + 썸네일 그리드(선택) + 이름 변경 다이얼로그.
-- 도크: 뷰어 가장자리 플로우에 붙으며 읽기 영역을 밀어낸다. 위치(`dockPosition`, 기본 `bottom`), 표시(`dockVisible`, 기본 펼침), 썸네일 크기(`dockThumbSize` S/M/L), 파일명(`dockShowName`)/번호(`dockShowIndex`)는 보기 설정에서만 바꾼다. 바 전체를 접으면 도크는 사라지고, 상태바의 목록 버튼으로 다시 펼친다. 목록은 휠·스크롤바로 단순 스크롤만 하며(이미지 이동 아님), 현재 이미지가 바뀔 때만 그 항목이 보이도록 따라간다. 보이는 칸(앞뒤 여유 포함)만 그리고 그 범위의 썸네일을 요청한다. 접힘·자동숨김 동안에도 목록 스크롤 위치와 로드한 썸네일이 유지된다. 이미지가 2장 이상일 때만 표시한다. 읽기 영역 좌우 가장자리에는 이전/다음 화살표 버튼이 있다(우→좌 양쪽 보기는 왼쪽이 다음, 순환 이동이 꺼져 있으면 처음·끝에서 비활성).
+- 도크: 뷰어 가장자리 플로우에 붙으며 읽기 영역을 밀어낸다. 위치(`dockPosition`, 기본 `bottom`), 표시(`dockVisible`, 기본 펼침), 썸네일 크기(`dockThumbSize` S/M/L), 파일명(`dockShowName`)/번호(`dockShowIndex`)는 보기 설정에서만 바꾼다. 바 전체를 접으면 도크는 사라지고, 상태바의 목록 버튼으로 다시 펼친다.
+- 도크 스크롤: 스크롤바는 항상 표시한다(OS 자동 숨김 무시). 목록은 휠·스크롤바로 단순 스크롤만 하며(이미지 이동 아님), 현재 이미지가 바뀔 때만 그 항목이 보이도록 따라간다.
+- 도크 렌더: 보이는 칸(앞뒤 여유 포함)만 그리고 그 범위의 썸네일을 요청한다. 접힘·자동숨김 동안에도 목록 스크롤 위치와 로드한 썸네일이 유지된다. 이미지가 2장 이상일 때만 표시한다. 읽기 영역 좌우 가장자리에는 이전/다음 화살표 버튼이 있다(우→좌 양쪽 보기는 왼쪽이 다음, 순환 이동이 꺼져 있으면 처음·끝에서 비활성).
 - 도크 구성: 한 줄에 썸네일 목록(가상화)만 둔다. 이전/다음 버튼과 슬라이더는 없다. 목록 접기 버튼과 그리드 토글 버튼을 상태바 왼쪽(파일명 앞)에 두고, 이미지가 2장 이상이거나 애니메이션일 때만 보인다. 목록 접기 버튼은 접힌 도크를 다시 펼치는 토글이다. 목록은 폴더/아카이브의 모든 항목을 같은 순서로 유지하며, 보이는 창을 먼저 채운 뒤 나머지 썸네일을 이어서 로드한다. 우→좌 양쪽 보기(`right-to-left`, 만화 자동 판정 포함)에서 가로 도크(상/하)는 읽는 방향을 따라 첫 장을 오른쪽 끝에 두고 왼쪽으로 늘어놓는다. 세로 도크(좌/우)는 위에서 아래 그대로다.
 - 도크 위 휠은 설정된 휠 동작(`wheel`)을 따른다(기본: 위=이전, 아래=다음, Ctrl+휠=확대/축소). 동작이 `none`이면 목록 스크롤로 넘긴다. 웹툰 모드에서도 도크 휠은 이동으로 동작한다.
 - `G`(기본, 재할당 가능)로 썸네일 그리드 오버레이를 연다. 열 때 현재 이미지를 중앙에 둔다.
@@ -355,7 +357,6 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 진실: `crates/araview-core/src/ops/metadata.rs`, `crates/araview-core/src/image_info.rs`, `app/src/app/info_panel.rs`.
 
 - `get_exif_data`는 문자열 맵을 반환한다. EXIF가 없거나 읽을 수 없는 파일은 오류가 아니라 빈 맵이고, UI는 이를 "EXIF 없음" 상태로 보여준다. 파일이 없으면 `not_found` 오류다.
-- 파일 없음이면 `not_found`, EXIF 없으면 `unsupported`.
 - `I`로 패널 토글. 패널 내부 포커스에서는 `I` 닫기를 허용한다.
 - 패널은 데이터를 기다리지 않고 바로 열린다. 읽는 동안(`infoLoading`) 로딩 안내를 보여주고, EXIF/히스토그램/파일 상세는 도착하는 대로 채운다. 읽는 중에는 아직 오지 않은 섹션을 "없음"으로 표시하지 않는다.
 - 표시 범주는 Camera, Exposure, Image, Lens, DateTime, GPS, Software 계열이다.
@@ -400,7 +401,9 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
   - trim 후 비어 있으면 거부.
   - `/`, `\` 포함 거부.
   - `< > : " | ? *` 포함 거부.
+  - 제어 문자와 BiDi 제어 문자(`U+200E`, `U+200F`, `U+202A`-`U+202E`, `U+2066`-`U+2069`) 포함 거부.
   - 끝이 공백/마침표면 거부.
+  - Windows 예약어(`CON`, `PRN`, `AUX`, `NUL`, `COM1`-`COM9`, `LPT1`-`LPT9`) 거부(확장자 앞부분 기준, 대소문자 무시).
 - 이동 전 지원 확장자 검사, 중복 이름이면 `already_exists`.
 - 이름이 그대로면 이동을 생략한다. 대소문자만 바꾸는 이름은 같은 파일이므로 중복으로 보지 않고 그대로 바꾼다.
 - 이동 뒤 새 이름으로 읽지 못하면 이름을 되돌리고 실패를 반환한다.
@@ -667,7 +670,7 @@ UI 분류 5종:
 
 - `not-found`: 파일 이동/삭제, 빈 폴더/아카이브.
 - `permission`: 권한/잠금.
-- `unsupported`: 미지원 포맷, EXIF 없음 포함.
+- `unsupported`: 미지원 포맷.
 - `corrupt`: 디코드/읽기 실패, 손상.
 - `unknown`: 그 외.
 
@@ -714,10 +717,7 @@ UI 분류 5종:
 - 릴리스 파이프라인: `npm run release -- <버전>`(`scripts/release.mjs`)이 `app/Cargo.toml`과 `Cargo.lock`의 버전을 올려 커밋하고 `vX.Y.Z` 태그와 함께 푸시한다. 태그 푸시를 `.github/workflows/release.yml`이 받아 태그와 버전 파일의 일치, 서명 키 Secrets를 확인한 뒤 검증(cargo fmt/test/clippy, 보안 감사, 라이선스 검사), 설치 프로그램 빌드, 서명, `update-feed.json` 생성, 원본 저장소 `ara-hwang/araview` 릴리스 생성까지 자동으로 수행한다. `ci.yml`이 검증을 담당하고 릴리스가 이를 재사용한다. 권한과 절차 상세는 `docs/releasing.md`를 따른다.
 - Linux 배포: `scripts/package-linux.sh`가 `target/AraView-<버전>-linux-<arch>.tar.gz`를 만든다(`bin/araview`, `bin/licenses/`, `share/applications/com.araview.viewer.desktop`, 아이콘, `install.sh`). `install.sh`는 `~/.local`(또는 `PREFIX`)에 관리자 권한 없이 설치하고 `--uninstall`로 제거한다. `.desktop`의 `MimeType`이 지원 형식을 선언하고 `StartupWMClass`와 창 `app_id`가 식별자 `com.araview.viewer`다. libheif는 vcpkg 정적 링크다. 실행에는 X11 또는 Wayland, Vulkan, `libxkbcommon`이 필요하다.
 - macOS 배포: `scripts/package-macos.sh`가 `AraView.app`(`Info.plist`의 `CFBundleDocumentTypes`가 지원 확장자를 `Viewer`/`Alternate`로 선언, `AraView.icns`)을 만들고 ad-hoc 서명해 `target/AraView-<버전>-macos-<arch>.dmg`로 묶는다. 공증하지 않으므로 첫 실행은 우클릭 > 열기다. CI는 Apple silicon(arm64)만 빌드한다.
-- 파일 연결(Windows): 연결은 OS 확인 없이 바꿀 수 없다. macOS와 Linux는 설정에 연결 UI가 없고(탭 자체가 없다) 번들·`.desktop` 선언이 "다음으로 열기" 목록을 채운다. 연결 3그룹:
-  - Image 47종: png, apng, jpg, jpeg, jpe, jfif, gif, bmp, webp, svg, ico, avif, tif, tiff, jxl, heic, heif, psd, tga, dds, exr, qoi, hdr, pnm, pam, ppm, pgm, pbm, cr2, cr3, nef, nrw, arw, dng, orf, rw2, pef, srw, raf, mrw, sr2, srf, rwl, 3fr, kdc, dcr, iiq.
-  - Comic 1종: cbz.
-  - Archive 1종: zip.
+- 파일 연결(Windows): 연결은 OS 확인 없이 바꿀 수 없다. macOS와 Linux는 설정에 연결 UI가 없고(탭 자체가 없다) 번들·`.desktop` 선언이 "다음으로 열기" 목록을 채운다. 연결 대상은 §2의 47종 이미지 + `cbz` + `zip`이며 별도 목록을 두지 않는다.
 - HEIC/HEIF는 vcpkg `libheif[core,aom]`(1.21 이상, AVIF 시퀀스 디코드에 필요) + `libde265`(HEVC), `aom`(AV1, AVIF 표시/썸네일/히스토그램)만 사용한다. Windows는 동적 링크(DLL 동봉), Linux와 macOS 배포는 정적 링크다. 설치와 DLL 복사는 `docs/development.md`를 따른다.
 
 ### 20.1 자동 업데이트
@@ -748,10 +748,11 @@ Windows 전용이다(macOS와 Linux에서는 `araview-thumb`가 빈 크레이트
 
 ## 22. 변경 시 동기화 체크리스트
 
-작업 절차는 `AGENTS.md`와 `docs/playbooks.md`를, 코드 작성 규칙은 `CODING_STANDARDS.md`를 따른다. 변경 후 아래 SPEC 절을 갱신한다.
+작업 절차는 `AGENTS.md`와 `docs/playbooks.md`를, 코드 작성 규칙은 `CODING_STANDARDS.md`를 따른다. 동작을 바꾼 커밋은 그 동작이 적힌 SPEC 절과 영향받는 문서(`docs/usage.md`, `docs/development.md`, `site/`)를 같은 커밋에 갱신한다. 해당 절이 없으면 리뷰에서 차단한다.
 
-- 포맷 추가: 2절 + 필요 시 15/16절, `samples/` 검증.
+- 포맷 추가: 2절 + 필요 시 15/16절, `samples/` 검증. §20 파일 연결 열거는 §2를 참조하고 복제하지 않는다.
 - 코어 연산 추가: 15절 연산 표 + 16절 데이터 모델.
-- 설정/단축키 추가: 12~14절.
+- 설정/단축키/휠 추가·변경: 12~14절 + `docs/usage.md` + `site/` 단축키 표.
+- UI 동작 변경(§3/§6/§7): 해당 절 + `docs/usage.md`.
 - 파생 이미지 캐시 변경: 9절 + 12~16절 + `docs/development.md`.
-- 문서 정합성 검사: `npm run docs:check`(버전, 확장자, 설정 키, plan). CI에서 PR마다 돈다.
+- 문서 정합성 검사: `npm run docs:check`(버전, 확장자, 설정 키, 단축키/휠, plan). CI에서 PR마다 돈다.

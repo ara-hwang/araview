@@ -31,7 +31,7 @@ npm run release -- patch --dry-run  # 계획만 출력
 
 ## 태그 없이 파이프라인 시험
 
-Actions 탭에서 Release 워크플로를 수동 실행(`workflow_dispatch`)하면 검증, 세 OS 빌드, 서명, 피드 생성까지 같은 과정을 돌리고 릴리스는 만들지 않습니다. 설치 프로그램, `.sig`, `update-feed.json`, Linux tar.gz, macOS dmg, `SHA256SUMS.txt`, 릴리스 노트가 `release-dry-run` 아티팩트로 남습니다. 워크플로나 빌드 스크립트를 고친 뒤 태그를 달기 전에 쓰세요.
+Actions 탭에서 Release 워크플로를 수동 실행(`workflow_dispatch`)하면 검증, 세 OS 빌드, 서명, 피드 생성까지 같은 과정을 돌리고 릴리스는 만들지 않습니다. 설치 프로그램, `.sig`, `update-feed.json`, `latest-gpui.json`, `feed-notes.md`, `release-notes.md`, Linux tar.gz, macOS dmg, `SHA256SUMS.txt`가 `release-dry-run` 아티팩트로 남습니다. 워크플로나 빌드 스크립트를 고친 뒤 태그를 달기 전에 쓰세요.
 
 ## 업데이트 피드
 

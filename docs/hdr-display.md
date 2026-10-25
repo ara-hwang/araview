@@ -1,8 +1,8 @@
 # HDR 디스플레이 출력 계획
 
-Radiance HDR(`.hdr`)과 OpenEXR(`.exr`) 같은 고동적 범위 소스를 HDR 디스플레이의 확장 밝기 범위로 출력하는 기능의 계획 문서다. 작성 시점(2026-10-19)에는 지원하지 않으며, 이 문서는 도입을 위한 조사 결과와 단계별 계획을 담는다.
+Radiance HDR(`.hdr`)과 OpenEXR(`.exr`) 같은 고동적 범위 소스를 HDR 디스플레이의 확장 밝기 범위로 출력하는 기능의 계획 문서다. 기본 출력은 SDR이며, `ARAVIEW_HDR_OUTPUT=1` 개발 플래그로만 HDR 경로를 켤 수 있다(`SPEC.md` §18). 아래는 도입을 위한 조사 결과와 단계별 계획을 담는다.
 
-## 현재 상태(조사 근거)
+## 현재 상태(조사 근거, M1 조사 시점 스냅샷)
 
 앱은 gpui-kit 0.8.0을 쓰고, Windows 렌더러는 `gpui-pre-windows 0.3.9`(DirectX 11, 라이브러리 이름 `gpui_windows`)다. gpui-kit 0.8.0은 `gpui-pre-platform`을 거쳐 이 크레이트를 쓰며, 레지스트리에 함께 있는 `gpui-fast-windows`는 쓰지 않는다(`cargo tree -i gpui-pre-windows`). 확인한 코드 상태:
 

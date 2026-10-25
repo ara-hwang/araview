@@ -23,7 +23,7 @@ npm run docs:check
 
 ## 커밋 메시지
 
-`type: 한글 요약` 형식을 씁니다. type은 `feat`, `fix`, `docs`, `refactor`, `test`, `build`, `ci`, `chore` 중에서 고릅니다.
+`type: 한글 요약` 형식을 씁니다. type은 `feat`, `fix`, `docs`, `refactor`, `perf`, `test`, `build`, `ci`, `chore` 중에서 고릅니다.
 
 ```text
 fix: 양쪽 보기에서 도크와 그리드가 두 장을 모두 하이라이트하도록 수정

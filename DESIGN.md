@@ -139,11 +139,11 @@ Dark mode inverts the room: surfaces go ink, text goes paper (the dark theme).
 
 ## Layout
 
-Single-window app shell: a thin top toolbar (40px tall, 32px buttons with 4px of breathing room between them and above and below them, grouped controls separated by vertical rules), a content well that owns all remaining space, and optional side/bottom layers (EXIF panel, thumbnail strip, nav bar). The toolbar keeps its left and right menus and native caption buttons visible at the 500px minimum window width; labels collapse first, then fit/zoom below 690px, view modes below 840px, and single-image transforms below 1010px. Animation controls hide until their own cluster width fits alongside a 990px toolbar, with that width reserved before labels are added when visible. Button groups do not shrink into the native minimize/maximize/close area. The reading well never scrolls the page itself except in webtoon mode, where vertical scroll is the content. Spacing rhythm is 8px in chrome, 16px in dialogs and panels.
+Single-window app shell: a thin top toolbar (40px tall, 32px buttons with 4px of breathing room between them and above and below them, grouped controls separated by vertical rules), a content well that owns all remaining space, and optional side/bottom layers (EXIF panel, thumbnail strip, nav bar). The toolbar keeps its left and right menus and native caption buttons visible at the 500px minimum window width; labels collapse first, then fit/zoom below 690px, view modes below 840px, and single-image transforms below 1010px. Animation controls hide until their own cluster width fits alongside a 990px toolbar, with that width reserved before labels are added when visible. Button groups do not shrink into the native minimize/maximize/close area. The reading well never scrolls the page itself except in webtoon mode, where vertical scroll is the content. Spacing rhythm is 8px in chrome, 16px in dialogs and panels. Scrollbars are always visible (`ScrollbarMode::Always`, OS 자동 숨김 무시).
 
 ### Layer Stack
 
-Lowest to highest: reading content with in-canvas overlays (`z-10`), floating callouts (`z-20`), the thumbnail grid overlay (`z-40`), popovers, tooltips, dialogs, and sheets (`z-50`), toasts (`z-100`). A dialog scrim covers the whole window at 20% black and never closes the dialog on click; the Windows Snap hit-test overlay is OS-owned and sits above the maximize button outside this scale. While a dialog is open the caption controls do not respond (SPEC §17).
+Lowest to highest: reading content with in-canvas overlays (`z-10`), floating callouts (`z-20`), the thumbnail grid overlay (`z-40`), popovers, tooltips, dialogs (`z-50`), toasts (`z-100`). A dialog scrim covers the whole window at 20% black and never closes the dialog on click; the Windows Snap hit-test overlay is OS-owned and sits above the maximize button outside this scale. While a dialog is open the caption controls do not respond (SPEC §17).
 
 ## Elevation & Depth
 
@@ -151,8 +151,8 @@ Flat by default. Depth is conveyed by tonal layering (paper over muted wash) and
 
 ### Shadow Vocabulary
 
-- **Floating layer** (Tailwind v4 default `shadow-lg`): dialogs, popovers, error cards. Only elements that hover above the reading well may cast it.
-- **Field rest** (Tailwind v4 default `shadow-xs`): text inputs at rest.
+- **Floating layer** (gpui-kit theme shadow): dialogs, popovers, error cards. Only elements that hover above the reading well may cast it.
+- **Field rest** (gpui-kit theme hairline): text inputs at rest.
 
 ### Named Rules
 
@@ -164,18 +164,16 @@ Softly squared geometry: 10px radius on buttons and toolbar groups, 8px on input
 
 ## Motion
 
-Motion confirms state; it never decorates. This section states the intent of the motion curves.
+Motion confirms state; it never decorates. GPUI has no CSS transitions. Scroll areas use `SmoothScroll` (`app/src/smooth.rs`: wheel input accumulates to a target offset, frames ease toward it with `TIME_CONSTANT 0.08s`, `SETTLE 0.5px`, `MAX_STEP 0.05s`; native scrolling off via `overflow_hidden`, wheel handled outside).
 
-- **Entrances and exits** (`ease-motion-out`): dialogs, popovers, toasts, grid overlay.
-- **On-screen movement** (`ease-motion-in-out`): drawer slides, the indeterminate progress sweep.
-- **Sheets and drawers** (`ease-motion-drawer`): side sheets and bottom sheets. The built-in `ease-out`/`ease-in-out` stay untouched so existing components keep their feel.
-- **Durations:** press 100-160ms, tooltips 125-200ms, dropdowns 150-250ms, modals and drawers 200-500ms (code uses `duration-100/150/200` steps).
-- **Indeterminate progress** is a left-to-right sweep on a 1.2s loop; under `prefers-reduced-motion` it becomes a static centered bar.
+- **Entrances and exits**: dialogs use `DialogEntrance::Fade`, toasts and grid overlay fade in place.
+- **On-screen movement**: virtual lists (grid, license list, dock) share a scroll handle with the content (`SmoothScroll::from_handle`), jump with `scroll_to_item` after `cancel()`; webtoon uses the same easing in `viewport.rs`.
+- **Indeterminate progress** is the gpui-kit spinner/progress component; when OS reduced-motion is on it stays static (Windows animation effects, macOS reduce motion, GNOME enable-animations).
 
 ### Named Rules
 
 - **The Feedback-Only Rule.** If removing the motion removes no information, remove the motion.
-- **The Same-Change Gating Rule.** Every motion ships with its `prefers-reduced-motion` fallback and `@media (hover: hover) and (pointer: fine)` gating in the same change, not after.
+- **The Same-Change Gating Rule.** Every motion ships with its OS reduced-motion fallback in the same change, not after.
 
 ## App Icon
 
@@ -210,11 +208,12 @@ Toolbar buttons with a quiet, tactile press (1px downward shift on active, excep
 - **Style:** transparent or paper fill, 1px rule stroke, 8px radius, 36px height.
 - **Focus:** ring in Focus Ring color.
 - **Error / Disabled:** alarm-tinted border with alarm text; disabled at reduced opacity.
+- **gpui-kit in use:** settings `Select`/`SearchableVec` (dropdowns), `Kbd` (shortcut badges), `Spinner` (update check), `Alert` (licenses/settings notices), `Form`/`Field` (rename), `TextView::markdown` (update notes), `AlertDialog` (confirmations). Lists use `uniform_list`/`VirtualList`, not the old `List` component.
 
 ### Navigation
 
 - **Toolbar:** grouped button clusters with 6-8px gaps and vertical rule separators; the layout responds to window width by collapsing labels first, then lower-priority groups, so it never collides with the caption buttons.
-- **Thumbnail strip:** edge-docked (top/bottom/left/right, movable), single row with inline prev/next, collapsible as a whole; the strip keeps every image in the folder and loads thumbnails progressively. Its `⋯` menu (dropdown) carries the same dock options as the View settings. There is no slider control; index jumps use keyboard, grid, or strip selection.
+- **Thumbnail strip:** edge-docked (top/bottom/left/right, movable), collapsible as a whole; a gpui-kit `VirtualList` sharing a `SmoothScroll` handle. The strip keeps every image in the folder and loads thumbnails progressively. There is no prev/next button, slider, or `⋯` menu; index jumps use keyboard, grid, or strip selection.
 - **Settings dialog:** tabbed (general, view, list, performance, shortcuts, extensions), field-group rhythm, 16px panel padding.
 
 ### Overlays
@@ -222,7 +221,7 @@ Toolbar buttons with a quiet, tactile press (1px downward shift on active, excep
 - **Thumbnail grid:** full reading-well overlay (`z-40`), viewport-virtualized, filename filter, `Enter` to jump, `Esc`/`G` to close. Viewer shortcuts are suspended while it is open.
 - **Command palette (`Ctrl+K`):** grouped commands (`file → navigate → view → display → system`), token AND matching, English aliases searchable in Korean UI.
 - **Peek overlay:** hidden-menu-bar mode reveals the header over the reading well on top-edge hover; it closes on focus loss, never on `Esc` (`Esc` is reserved for closing the image).
-- **Dialogs and sheets:** scrims start at `--header-height`, focus is trapped (`modal="trap-focus"`), backdrop click and `Esc` dismiss. No invisible shield may cover the caption buttons.
+- **Dialogs:** the scrim covers the whole window at 20% black (`DIALOG_DIM_HEX`, `dialog.rs::centered`); background click does not close (palette and settings handle `BackdropClick` press/release themselves, the rest close only via `Esc`/buttons). While a dialog is open the caption buttons do not respond (`occlude()`, SPEC §17); no invisible shield may cover them beyond the dialog host.
 - **Toasts:** bottom-right stack (`z-100`), popover surface with floating shadow, destructive icon for failures. A toast never carries a failed load alone; the error card owns that.
 
 ### Viewer Layers (signature)

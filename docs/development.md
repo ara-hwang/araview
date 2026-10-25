@@ -14,7 +14,7 @@
 ## 요구 사항
 
 - **OS**: Windows 11 (x64), macOS 11 이상(실험적), Linux x64(실험적)
-- **Rust**: stable (`rust-toolchain.toml`, `1.97` 이상)
+- **Rust**: stable (`rust-toolchain.toml` 채널, 최소 버전은 `app/Cargo.toml`의 `rust-version = "1.97"`)
 - **Node.js**: `>= 24` (`release`, `docs:check`, `licenses` 스크립트용. 의존성 설치는 없습니다)
 - **NSIS**: Windows 설치 프로그램을 만들 때만 필요합니다(`makensis`가 PATH에 있거나 `Program Files (x86)\NSIS`에 있어야 합니다)
 
@@ -119,7 +119,7 @@ npm run licenses
 - 단일 인스턴스: 두 번째 실행은 첫 인자를 기존 창에 넘기고 종료합니다. Windows는 명명된 파이프(`\\.\pipe\<식별자>`), Linux와 macOS는 유닉스 도메인 소켓(`$XDG_RUNTIME_DIR` 또는 임시 폴더의 `<식별자>.sock`, 경로가 100바이트를 넘으면 `/tmp/araview-<uid>-<해시>.sock`)입니다. macOS에서 Finder로 파일을 열면 `open-document` 이벤트가 같은 경로로 전달됩니다.
 - 런타임 확인: 디버그 빌드는 실행 중인 창에 `araview action:<동작 ID>`(Windows는 `araview.exe`)로 동작을 실행시킬 수 있습니다(`src/app/menu.rs`의 `run_action`, 단축키 동작 ID와 `openSettings`, `viewLtr` 등). 릴리스 빌드에는 이 통로가 없습니다.
 - 제어 브리지(개발 빌드 전용): 디버그 빌드는 `\\.\pipe\<식별자>-control`(Linux와 macOS는 유닉스 소켓 `<식별자>-control.sock`)을 열고 한 줄 JSON 요청에 한 줄 JSON 응답을 돌려줍니다(`src/app/bridge.rs`, 통로는 `src/platform/`). 입력은 창 메시지가 아니라 GPUI 입력 경로(`Window::dispatch_event`, `Window::dispatch_keystroke`)로 들어가므로 수식키 조합(ctrl-휠, ctrl-shift-c)과 파일 드롭이 그대로 살고 사용자의 마우스·키보드를 건드리지 않습니다. 상태(열린 파일, 인덱스, 보기 모드, 배율, 위치, 읽기 영역, 패널, 전체화면, 에러)를 함께 돌려줍니다. `scripts/araview-drive.ps1`(CLI), `scripts/araview-mcp.ps1`(MCP 서버), `scripts/AraViewControl.psm1`(캡처와 통로 클라이언트)이 이 통로를 씁니다. 릴리스 빌드에는 이 통로가 없습니다(The control channel is compiled out of release builds).
-- 업데이트: 피드는 `update-feed.json`이고 minisign 서명을 `app/update-pubkey.txt`의 공개키로 확인합니다. 시작 시 자동 확인(`autoCheckUpdates`, 기본 켜짐)은 시작 약 5초 뒤 조용히 1회 수행하고 새 버전이 있을 때만 대화상자를 띄우며(최신·실패는 알리지 않음), 수동 확인(설정 버튼, 팔레트)은 최신·실패도 토스트로 알립니다. 새 버전이 있으면(Windows) 설치 프로그램을 내려받아 서명을 확인한 뒤 실행하고 앱을 종료합니다. macOS와 Linux는 인앱 설치 없이 릴리스 페이지로 안내합니다(`update.rs`의 `PLATFORM`). 피드가 없으면(404) 확인 결과는 "최신"입니다(자동 확인은 조용히 넘어감). 다운로드 중에는 진행 막대가 있는 대화상자를 띄우고(취소 가능), 실패는 토스트로 알립니다.
+- 업데이트: 동작 계약은 `SPEC.md` §20.1을 따른다(피드 `update-feed.json`, 공개키 `app/update-pubkey.txt`, `PLATFORM` 분기). 피드가 없으면(404) 확인 결과는 "최신"이다.
 - 업데이트 로컬 검증: `cargo run -p araview --example local_update_feed -- <setup.exe> <출력 폴더> http://127.0.0.1:8765`가 임시 키로 서명한 피드를 만듭니다. 그 폴더를 `python -m http.server 8765 --bind 127.0.0.1`로 띄우고, 디버그 빌드를 `ARAVIEW_UPDATE_FEED`(피드 주소)와 `ARAVIEW_UPDATE_PUBKEY`(`pubkey.txt` 내용)를 준 채 실행한 뒤 `action:checkUpdates`나 `action:installUpdate`를 보냅니다. 릴리스 빌드는 두 환경 변수를 읽지 않습니다.
 - 서드파티 라이선스: `npm run licenses`가 Rust 의존성을 `app/THIRD_PARTY_LICENSES.json`에 모으고, 앱이 이 파일을 컴파일 시점에 포함합니다. 같은 스크립트가 `THIRD_PARTY_LICENSES.md`의 2절 표도 다시 씁니다. 1절(네이티브 라이브러리)은 직접 고칩니다. 의존성을 바꾸면 다시 생성합니다. 허용하지 않은 라이선스는 `cargo deny check licenses bans sources`(설정 `deny.toml`, `cargo install cargo-deny --locked`)로 검사하며 CI와 릴리스 워크플로도 같은 검사를 합니다. 패키지에 LICENSE 파일이 없어 표준 템플릿("Copyright (c) <year> <owner>")이 나오는 크레이트는 스크립트가 경고로 알려 주며, 업스트림 LICENSE를 `licenses-extra/`에 복사하고 스크립트의 `EXTRA_LICENSES`에 추가합니다. 새 라이선스가 나오면 `about.toml`의 `accepted`와 `deny.toml`의 `allow`를 같이 고칩니다.
 - 스크롤: GPUI에는 휠 스크롤 감속이 없어 `src/smooth.rs`의 `SmoothScroll`이 홈, 설정, 정보 패널, 라이선스 창(원문과 목록), 썸네일 그리드의 휠 입력을 목표 오프셋으로 쌓아 프레임마다 따라가게 합니다. 가상 목록(그리드, 라이선스 목록, 도크)은 목록이 추적하는 핸들을 공유하고 기본 스크롤을 끈 뒤(`overflow_hidden`) 바깥에서 휠을 처리합니다. 웹툰 보기는 `src/app/viewport.rs`가 같은 방식으로 휠과 위·아래 키 스크롤을 나눠 반영합니다.
@@ -130,77 +130,20 @@ npm run licenses
 ## 프로젝트 구조
 
 ```text
-Cargo.toml           # 워크스페이스(crates/*, app). Cargo.lock도 하나
-crates/
-  araview-core/src/  # UI 비의존 코어
-    ops/             # 연산 구현(도메인별 동기 함수, mod.rs에서 재내보내기)
-    display.rs       # 표시용 RGBA 프레임 디코드(렌더 경로)
-    file_assoc.rs    # Windows 확장자 연결(레지스트리). 다른 OS는 lib.rs의 빈 자리 표시
-    clipboard_png.rs # 클립보드 복사용 PNG 재인코딩 캐시(clipboard/)
-    image.rs         # MIME/확장자 판별(resolve_mime), load_viewable
-    sniff.rs         # 파일 선두 시그니처 기반 포맷 판별
-    heif.rs          # HEIC/HEIF 디코드 및 JPEG sidecar
-    psd_sidecar.rs   # PSD 합성 디코드(`psd` 크레이트) 및 JPEG sidecar (읽기 전용)
-    raster_sidecar.rs # TGA/DDS/EXR/QOI/HDR/PNM 디코드(`image` 크레이트) 및 JPEG sidecar (읽기 전용)
-    raw.rs           # 카메라 RAW 내장 JPEG 미리보기 추출(IFD 순회, 표지 스캔) 및 rawler 폴백, JPEG sidecar (읽기 전용)
-    transcode.rs     # 포맷(resolve_mime)별 sidecar 디코더 디스패치
-    process_temp.rs  # 임시/영구 파생 이미지 캐시 루트, 보호, 상한, 시작 정리
-    cache.rs         # 캐시 통계 및 종류별/전체 삭제
-    archive.rs       # 아카이브 목록/추출 처리 (cbz/zip)
-    archive_index.rs # 아카이브 엔트리 목록 캐시 (mtime+size 검증 LRU)
-    comic_info.rs    # CBZ/ZIP ComicInfo.xml 파싱, 표지 지정 쓰기
-    thumbnail.rs     # 썸네일 생성/캐시
-    svg_raster.rs    # SVG 래스터화(resvg, 썸네일/히스토그램 전용)
-    svg_size.rs      # SVG 헤더(width/height/viewBox) 치수 파서
-    sidecar.rs       # sidecar/썸네일/추출물 공용 헬퍼(해시, 락, 원자 발행)
-    scaled.rs        # 표시 해상도 제한 축소본
-    thumb_shell.rs   # PSD 탐색기 썸네일 셸 연동(Windows 전용)
-    app_error.rs     # 구조화 에러 코드 매핑
-    dir_cache.rs     # 디렉토리 목록 캐시
-    file_availability.rs # Files On-Demand availability 판별(Windows만 판별, 그 밖은 unknown)
-    image_info.rs    # 이미지 상세/파일 정보 조회
-    stable_hash.rs   # 영속 캐시 파일명용 안정 해시
-    orientation.rs   # EXIF Orientation 읽기/적용
-  araview-thumb/     # PSD 탐색기 썸네일 COM DLL(Windows 전용)
-
-app/            # 앱
-  update-pubkey.txt  # 업데이트 서명 공개키(minisign, base64)
-  locales/           # 번역(ko.json, en.json)
-  src/main.rs        # 부트스트랩: 단일 인스턴스, 설정 로드, 캐시 초기화, 창 생성
-  src/app.rs         # 메인 뷰 조립: 상태, 헤더, 홈, 상태바, 키 입력
-  src/app/pages.rs   # 목록 열기, 페이지 캐시와 프리페치, 이동
-  src/app/viewport.rs # 단일·양쪽·웹툰 배치, 줌/팬, 픽셀 보존 표시
-  src/app/dock.rs    # 이미지 목록 도크와 썸네일 요청
-  src/app/grid.rs    # 썸네일 그리드 오버레이
-  src/app/menu.rs    # 동작 실행, 컨텍스트 메뉴, 명령 팔레트, 표지 지정
-  src/app/info_panel.rs # 정보 패널(만화 정보, 파일, 히스토그램, EXIF)
-  src/app/file_ops.rs # 휴지통 이동, 이름 변경
-  src/app/settings_panel.rs # 설정 다이얼로그
-  src/app/system.rs  # 설정 반영, 테마, 항상 위, 두 번째 실행 전달, 창 상태
-  src/app/update.rs  # 업데이트 확인·설치
-  src/app/licenses.rs # 오픈소스 라이선스 창(목록과 원문)
-  src/app/bridge.rs  # 제어 브리지(개발 빌드 전용, 런타임 확인 통로)
-  src/layout.rs      # 이동 인덱스와 양쪽 보기 화면 배치 계산
-  src/picture.rs     # 디코드 프레임을 GPU 타일과 축소 단계로 변환
-  src/geometry.rs    # 줌/팬/맞춤 계산
-  src/settings.rs    # 설정, 최근 파일, 이어보기 기록 영속화
-  src/smooth.rs      # 휠 스크롤을 감속시키는 스크롤 영역
-  src/toast.rs       # 토스트(다이얼로그가 열려 있으면 경고창)
-  src/keys.rs        # 단축키 표기와 매칭
-  src/platform/      # OS 연동: mod.rs(공통), windows.rs(Win32), unix.rs(Linux·macOS 소켓)
-  src/i18n.rs        # 번역 로드(locales/*.json)
-  src/assets.rs      # 아이콘 자산 소스
-  installer/         # NSIS 설치 스크립트(Windows)
-  packaging/         # Linux .desktop과 install.sh, macOS Info.plist
-  resources/         # 앱 아이콘(icon.ico, icon.png), Windows 리소스
-
-scripts/             # 릴리스, 설치 프로그램, 문서 검사, 라이선스 자료 생성
-  package-linux.sh    # Linux tar.gz 묶음
-  package-macos.sh    # macOS .app + dmg 묶음
-  AraViewControl.psm1 # 실행 중인 창 제어/캡처(Win32 + PNG 인코더)
-  araview-drive.ps1   # 위 모듈의 CLI
-  araview-mcp.ps1     # 같은 도구를 MCP 서버(stdio)로 노출
-licenses-extra/      # LICENSE 파일이 없는 크레이트의 업스트림 LICENSE 사본
+Cargo.toml  # 워크스페이스(crates/*, app). Cargo.lock도 하나
+crates/araview-core/src/  # UI 비의존 코어. 경계: app=표현, ops/**=동기 연산
+  ops/  # 도메인별 동기 함수(directory, file_ops, archive, load, metadata, thumbnail, ocr, system)
+  decode/  # display, image(resolve_mime), sniff, heif, psd_sidecar, raster_sidecar, raw, jxl, svg_*, transcode
+  cache/  # process_temp, cache, sidecar, scaled, thumbnail, archive_index, comic_info
+  meta/  # image_info, orientation, natural_sort, ocr, dir_cache, file_availability, app_error, stable_hash, clipboard_png, file_assoc
+  araview-thumb/  # PSD 탐색기 썸네일 COM DLL(Windows 전용)
+app/  # 표현 계층. 상세는 코드 읽기
+  src/app/  # 화면: pages, viewport, dock, grid, menu, info_panel, file_ops, ocr, settings_panel, system, update, licenses, bridge
+  src/  # layout, picture, geometry, settings, smooth, toast, keys, dialog, i18n, assets, platform/, build.rs
+  locales/ update-pubkey.txt THIRD_PARTY_LICENSES.json(생성물) installer/ packaging/ resources/
+scripts/  # check-docs/release/licenses(.mjs), package-*.sh, Build-Installer.ps1, araview-drive/mcp(.ps1)
+vendor/  # [patch.crates-io] 포크(HDR 실험용 gpui-pre-windows)
+licenses-extra/  # 업스트림 LICENSE 사본
 ```
 
 ## 파생 이미지 캐시
