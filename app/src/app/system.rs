@@ -6,6 +6,7 @@ use std::time::Duration;
 
 use crate::toast::{Toast, WindowToast};
 use gpui_kit::component::WindowExt as _;
+use gpui_kit::component::scroll::ScrollbarMode;
 use gpui_kit::component::theme::{Theme, ThemeMode};
 use gpui_kit::*;
 
@@ -34,6 +35,8 @@ pub fn apply_theme(choice: ThemeChoice, window: &mut Window, cx: &mut App) {
         ThemeChoice::Light => Theme::change(ThemeMode::Light, Some(window), cx),
         ThemeChoice::Dark => Theme::change(ThemeMode::Dark, Some(window), cx),
     }
+    // 스크롤바는 자동 숨김 없이 항상 보인다. OS 설정과 무관하게 고정한다.
+    Theme::set_scrollbar_mode(ScrollbarMode::Always, cx);
     // 다이얼로그 딤은 모드와 무관하게 같은 세기로 둔다. 모드를 바꾸면 팔레트가 테마
     // 설정에서 다시 만들어지므로 설정 자체를 고쳐 두고, 지금 팔레트에도 바로 반영한다.
     let theme = Theme::global_mut(cx);
