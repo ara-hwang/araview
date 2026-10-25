@@ -55,6 +55,41 @@ fn format_time(ms: u64) -> String {
     format!("{}:{:02}", total / 60, total % 60)
 }
 
+/// 프레임 카운터가 표시하는 자릿수(4자리). 이보다 큰 값은 앞자리를 줄임표로
+/// 대체해 어떤 애니메이션이든 같은 폭을 차지하게 한다.
+const FRAME_COUNTER_MODULUS: u64 = 10_000;
+/// 앞자리 생략 표시(공백 또는 `…`)를 포함한 슬롯 폭(px).
+const FRAME_COUNTER_WIDTH: f32 = 100.0;
+
+/// 이 폭 미만에서는 동영상 컨트롤에서 부가 조작(속도·음량·음소거·자막)을 접는다.
+const VIDEO_BAR_COMPACT_BELOW: f32 = 720.0;
+
+/// 동영상 읽기 값의 고정 폭(px). 값이 바뀌어도 컨트롤 폭이 흔들리지 않게 한다.
+const VIDEO_TIME_WIDTH: f32 = 100.0;
+const VIDEO_SPEED_WIDTH: f32 = 40.0;
+const VIDEO_MUTE_WIDTH: f32 = 28.0;
+const VIDEO_SUBTITLE_WIDTH: f32 = 24.0;
+
+/// 프레임 카운터. 4자리까지는 그대로 보여주고, 그보다 큰 값은 앞자리를
+/// 줄임표로 대체해 항상 같은 폭(11자)을 차지하게 한다.
+fn format_frame_counter(current: u64, total: u64) -> String {
+    let current = current.min(total);
+    if total >= FRAME_COUNTER_MODULUS {
+        format!(
+            "…{:04}/…{:04}",
+            current % FRAME_COUNTER_MODULUS,
+            total % FRAME_COUNTER_MODULUS
+        )
+    } else {
+        format!(" {current:04}/ {total:04}")
+    }
+}
+
+/// 읽기 값의 숫자 폭을 고정한다(DESIGN "Readout").
+fn tabular_figures() -> FontFeatures {
+    FontFeatures(Arc::new(vec![("tnum".into(), 1)]))
+}
+
 fn slider_ms(event: &SliderEvent) -> u64 {
     match event {
         SliderEvent::Change(SliderValue::Single(value))
@@ -959,9 +994,11 @@ impl AraView {
         let frame_text = info.fps.filter(|fps| *fps > 0.0).map(|fps| {
             let total = (duration as f64 * fps / 1000.0).round() as u64;
             let current = (pos as f64 * fps / 1000.0).round() as u64;
-            format!("{current}/{total}")
+            format_frame_counter(current, total)
         });
+        let compact = f32::from(self.viewport.get().size.width) < VIDEO_BAR_COMPACT_BELOW;
         h_flex()
+            .w_full()
             .gap_2()
             .px_2()
             .py_1()
@@ -1017,53 +1054,73 @@ impl AraView {
             )
             .child(
                 div()
-                    .w(px(160.))
+                    .flex_1()
+                    .min_w(px(120.))
                     .child(Slider::new(&controls.timeline).horizontal()),
-            )
-            .child(div().text_center().child(format!(
-                "{} / {}",
-                format_time(pos),
-                format_time(duration)
-            )))
-            .when_some(frame_text, |row, text| {
-                row.child(div().text_center().child(text))
-            })
-            .child(
-                Button::new("video-speed")
-                    .ghost()
-                    .xsmall()
-                    .label(format!("{speed}×"))
-                    .tooltip(t("menu.videoSpeedUp"))
-                    .on_click(cx.listener(|this, _, window, cx| {
-                        this.run_action("videoSpeedUp", window, cx)
-                    })),
             )
             .child(
                 div()
-                    .w(px(80.))
-                    .child(Slider::new(&controls.volume).horizontal()),
+                    .w(px(VIDEO_TIME_WIDTH))
+                    .text_right()
+                    .whitespace_nowrap()
+                    .font_features(tabular_figures())
+                    .child(format!("{} / {}", format_time(pos), format_time(duration))),
             )
             .child(
-                Button::new("video-mute")
-                    .ghost()
-                    .xsmall()
-                    .label(if muted { "M✕" } else { "M" })
-                    .tooltip(t("menu.videoMute"))
-                    .on_click(
-                        cx.listener(|this, _, window, cx| this.run_action("videoMute", window, cx)),
-                    ),
+                div()
+                    .w(px(FRAME_COUNTER_WIDTH))
+                    .text_right()
+                    .whitespace_nowrap()
+                    .font_features(tabular_figures())
+                    .when_some(frame_text, |slot, text| slot.child(text)),
             )
-            .child(
-                Button::new("video-subtitles")
-                    .ghost()
-                    .xsmall()
-                    .label("S")
-                    .disabled(no_cues)
-                    .tooltip(t("menu.videoSubtitles"))
-                    .on_click(cx.listener(|this, _, window, cx| {
-                        this.run_action("videoSubtitles", window, cx)
-                    })),
-            )
+            .when(!compact, |row| {
+                row.child(
+                    Button::new("video-speed")
+                        .ghost()
+                        .xsmall()
+                        .w(px(VIDEO_SPEED_WIDTH))
+                        .label(format!("{speed}×"))
+                        .tooltip(t("menu.videoSpeedUp"))
+                        .on_click(cx.listener(|this, _, window, cx| {
+                            this.run_action("videoSpeedUp", window, cx)
+                        })),
+                )
+            })
+            .when(!compact, |row| {
+                row.child(
+                    div()
+                        .w(px(80.))
+                        .child(Slider::new(&controls.volume).horizontal()),
+                )
+            })
+            .when(!compact, |row| {
+                row.child(
+                    Button::new("video-mute")
+                        .ghost()
+                        .xsmall()
+                        .w(px(VIDEO_MUTE_WIDTH))
+                        .label(if muted { "M✕" } else { "M" })
+                        .tooltip(t("menu.videoMute"))
+                        .on_click(cx.listener(|this, _, window, cx| {
+                            this.run_action("videoMute", window, cx)
+                        })),
+                )
+            })
+            .when(!compact, |row| {
+                row.child(
+                    Button::new("video-subtitles")
+                        .ghost()
+                        .xsmall()
+                        .w(px(VIDEO_SUBTITLE_WIDTH))
+                        .label("S")
+                        .disabled(no_cues)
+                        .tooltip(t("menu.videoSubtitles"))
+                        .on_click(cx.listener(|this, _, window, cx| {
+                            this.run_action("videoSubtitles", window, cx)
+                        })),
+                )
+            })
             .into_any_element()
     }
 
@@ -1537,8 +1594,9 @@ impl AraView {
             .as_ref()
             .map(|picture| picture.frame_count())
             .unwrap_or(1);
-        let counter_width = 16.0 + 14.0 * (frames.to_string().len() as f32);
+        let counter_width = FRAME_COUNTER_WIDTH;
         h_flex()
+            .w_full()
             .gap_2()
             .px_2()
             .py_1()
@@ -1588,11 +1646,15 @@ impl AraView {
                         this.run_action("gifNextFrame", window, cx)
                     })),
             )
-            .child(div().w(px(counter_width)).text_center().child(format!(
-                "{}/{}",
-                self.frame + 1,
-                frames
-            )))
+            .child(div().flex_1())
+            .child(
+                div()
+                    .w(px(counter_width))
+                    .text_right()
+                    .whitespace_nowrap()
+                    .font_features(tabular_figures())
+                    .child(format_frame_counter((self.frame + 1) as u64, frames as u64)),
+            )
     }
 
     /// 읽기 영역 좌우 가장자리의 이전/다음 버튼. 우→좌 양쪽 보기는 읽는 방향대로
@@ -1979,6 +2041,7 @@ impl AraView {
                     div()
                         .absolute()
                         .bottom_3()
+                        .left_3()
                         .right_3()
                         .child(self.render_animation_overlay(cx)),
                 )
@@ -1988,9 +2051,39 @@ impl AraView {
                     div()
                         .absolute()
                         .bottom_3()
+                        .left_3()
                         .right_3()
                         .child(self.render_video_overlay(cx)),
                 )
             })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::format_frame_counter;
+
+    #[test]
+    fn frame_counter_uses_a_fixed_field() {
+        assert_eq!(format_frame_counter(1, 10), " 0001/ 0010");
+        assert_eq!(format_frame_counter(999, 1000), " 0999/ 1000");
+        assert_eq!(format_frame_counter(9999, 9999), " 9999/ 9999");
+    }
+
+    #[test]
+    fn frame_counter_omits_leading_digits_past_four() {
+        assert_eq!(format_frame_counter(10_000, 10_000), "…0000/…0000");
+        assert_eq!(format_frame_counter(12_345, 12_345), "…2345/…2345");
+        assert_eq!(format_frame_counter(12_345, 99_999), "…2345/…9999");
+    }
+
+    #[test]
+    fn frame_counter_clamps_past_the_end() {
+        assert_eq!(format_frame_counter(101, 100), " 0100/ 0100");
+    }
+
+    #[test]
+    fn frame_counter_handles_an_empty_total() {
+        assert_eq!(format_frame_counter(0, 0), " 0000/ 0000");
     }
 }
