@@ -55,7 +55,7 @@ cargo run -p araview -- ~/Pictures/image.png
 GPUI의 X11/Wayland 연동에 필요한 개발 패키지를 설치합니다(Debian/Ubuntu 기준). 배포판의 `libheif`/FFmpeg 패키지는 쓰지 않습니다(메이저가 맞지 않으면 `rsmpeg` 빌드가 깨집니다). 네이티브 의존성은 macOS와 같은 vcpkg 매니페스트 정적 빌드(`x64-linux`)를 씁니다.
 
 ```bash
-sudo apt-get install pkg-config cmake nasm clang libclang-dev \
+sudo apt-get install pkg-config cmake nasm clang libclang-dev libasound2-dev \
   libxkbcommon-dev libxkbcommon-x11-dev libxcb1-dev libxcb-xkb-dev libx11-xcb-dev \
   libwayland-dev libfontconfig-dev libfreetype-dev
 cd <araview>
@@ -63,7 +63,7 @@ vcpkg install --triplet x64-linux
 export VCPKG_ROOT="<vcpkg root>"
 ```
 
-실행에는 X11 또는 Wayland 세션, Vulkan 드라이버, `libxkbcommon`이 필요합니다. 파일 열기 대화상자는 `xdg-desktop-portal`을 씁니다. 디스플레이가 없는 환경에서는 `Xvfb`와 소프트웨어 Vulkan(`mesa-vulkan-drivers`)으로 실제 창을 띄워 확인할 수 있습니다.
+실행에는 X11 또는 Wayland 세션, Vulkan 드라이버, `libxkbcommon`, `libasound2`(동영상 오디오 출력용)가 필요합니다. 파일 열기 대화상자는 `xdg-desktop-portal`을 씁니다. 디스플레이가 없는 환경에서는 `Xvfb`와 소프트웨어 Vulkan(`mesa-vulkan-drivers`)으로 실제 창을 띄워 확인할 수 있습니다.
 
 ## 시작하기
 

@@ -57,6 +57,8 @@ dependencies and other-OS targets are excluded.
 | alloc-no-stdlib | 2.0.4 | BSD-3-Clause |
 | alloc-stdlib | 0.2.4 | BSD-3-Clause |
 | allocator-api2 | 0.2.21 | MIT OR Apache-2.0 |
+| alsa | 0.9.1 | Apache-2.0 OR MIT |
+| alsa-sys | 0.3.1 | MIT |
 | annotate-snippets | 0.12.17 | MIT OR Apache-2.0 |
 | anstream | 1.0.0 | MIT OR Apache-2.0 |
 | anstyle | 1.0.14 | MIT OR Apache-2.0 |
@@ -98,6 +100,7 @@ dependencies and other-OS targets are excluded.
 | base64 | 0.22.1 | MIT OR Apache-2.0 |
 | base64 | 0.23.1 | MIT OR Apache-2.0 |
 | bindgen | 0.71.1 | BSD-3-Clause |
+| bindgen | 0.72.1 | BSD-3-Clause |
 | bit_field | 0.10.3 | Apache-2.0 OR MIT |
 | bit-set | 0.9.1 | Apache-2.0 OR MIT |
 | bit-vec | 0.9.1 | Apache-2.0 OR MIT |
@@ -155,7 +158,10 @@ dependencies and other-OS targets are excluded.
 | core-graphics | 0.24.0 | MIT OR Apache-2.0 |
 | core-graphics-types | 0.2.0 | MIT OR Apache-2.0 |
 | core-text | 21.0.0 | MIT OR Apache-2.0 |
+| coreaudio-rs | 0.11.3 | MIT OR Apache-2.0 |
+| coreaudio-sys | 0.2.18 | MIT |
 | cosmic-text | 0.19.0 | MIT OR Apache-2.0 |
+| cpal | 0.15.3 | Apache-2.0 |
 | cpubits | 0.1.1 | MIT OR Apache-2.0 |
 | cpufeatures | 0.2.17 | MIT OR Apache-2.0 |
 | cpufeatures | 0.3.1 | MIT OR Apache-2.0 |
@@ -172,6 +178,7 @@ dependencies and other-OS targets are excluded.
 | darling_core | 0.24.1 | MIT |
 | darling_macro | 0.24.1 | MIT |
 | dary_heap | 0.3.9 | MIT OR Apache-2.0 |
+| dasp_sample | 0.11.0 | MIT OR Apache-2.0 |
 | data-url | 0.3.2 | MIT OR Apache-2.0 |
 | deflate64 | 0.1.12 | MIT |
 | deranged | 0.5.9 | MIT OR Apache-2.0 |
@@ -393,6 +400,7 @@ dependencies and other-OS targets are excluded.
 | lzma-rust2 | 0.23.0 | Apache-2.0 |
 | mac | 0.1.1 | MIT OR Apache-2.0 |
 | mac-notification-sys | 0.6.15 | MIT OR Apache-2.0 |
+| mach2 | 0.4.3 | BSD-2-Clause OR MIT OR Apache-2.0 |
 | mach2 | 0.6.0 | BSD-2-Clause OR MIT OR Apache-2.0 |
 | malloc_buf | 0.0.6 | MIT |
 | markdown | 1.0.0 | MIT |
@@ -727,6 +735,7 @@ dependencies and other-OS targets are excluded.
 | which | 8.0.6 | MIT |
 | winapi | 0.3.9 | MIT OR Apache-2.0 |
 | winapi-util | 0.1.11 | Unlicense OR MIT |
+| windows | 0.54.0 | MIT OR Apache-2.0 |
 | windows | 0.58.0 | MIT OR Apache-2.0 |
 | windows | 0.62.2 | MIT OR Apache-2.0 |
 | windows_x86_64_gnu | 0.48.5 | MIT OR Apache-2.0 |
@@ -736,6 +745,7 @@ dependencies and other-OS targets are excluded.
 | windows_x86_64_msvc | 0.52.6 | MIT OR Apache-2.0 |
 | windows_x86_64_msvc | 0.53.1 | MIT OR Apache-2.0 |
 | windows-collections | 0.3.2 | MIT OR Apache-2.0 |
+| windows-core | 0.54.0 | MIT OR Apache-2.0 |
 | windows-core | 0.58.0 | MIT OR Apache-2.0 |
 | windows-core | 0.62.2 | MIT OR Apache-2.0 |
 | windows-future | 0.3.2 | MIT OR Apache-2.0 |
@@ -746,6 +756,7 @@ dependencies and other-OS targets are excluded.
 | windows-link | 0.2.1 | MIT OR Apache-2.0 |
 | windows-numerics | 0.3.1 | MIT OR Apache-2.0 |
 | windows-registry | 0.6.1 | MIT OR Apache-2.0 |
+| windows-result | 0.1.2 | MIT OR Apache-2.0 |
 | windows-result | 0.2.0 | MIT OR Apache-2.0 |
 | windows-result | 0.4.1 | MIT OR Apache-2.0 |
 | windows-strings | 0.1.0 | MIT OR Apache-2.0 |

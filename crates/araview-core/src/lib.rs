@@ -96,4 +96,5 @@ pub mod thumb_shell {
 pub mod thumbnail;
 pub mod transcode;
 pub mod video;
+pub mod video_audio;
 pub mod video_player;

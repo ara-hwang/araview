@@ -35,6 +35,8 @@ rsmpeg = { version = "0.18", default-features = false, features = [
     "link_system_ffmpeg",
     "link_vcpkg_ffmpeg",
 ] }
+# 동영상 오디오 출력. OS 기본 백엔드만 쓴다(ALSA/WASAPI/CoreAudio).
+cpal = "0.15"
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.56.0"

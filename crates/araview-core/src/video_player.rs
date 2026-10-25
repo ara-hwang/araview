@@ -3,7 +3,8 @@
 //! 디먹스·디코드는 rsmpeg(FFmpeg 8.x, MIT)이다. 워커 스레드가 디먹스와 비디오
 //! 디코드를 소유하고, 핸들 쪽은 시계(재생 위치)와 명령만 쥔다. 전 프레임을
 //! 미리 적재하지 않고, 큐(바이트 상한)에 든 프레임에서 현재 위치의 것을
-//! `poll_frame`으로 뽑는다. 오디오 출력·동기는 뒤따르는 단계에서 붙는다.
+//! `poll_frame`으로 뽑는다. 오디오는 `video_audio.rs`가 맡고, 있으면 오디오
+//! 클럭이 마스터다.
 
 use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
@@ -76,6 +77,7 @@ pub struct VideoPlayer {
     clock: Mutex<Clock>,
     info: PlayerInfo,
     subtitles: Vec<SubtitleCue>,
+    audio: Option<crate::video_audio::AudioOutput>,
 }
 
 struct Clock {
@@ -119,6 +121,18 @@ impl VideoPlayer {
             .name("araview-video".to_string())
             .spawn(move || worker_main(source, cmd_rx, worker_shared))
             .map_err(|e| AppError::unknown(format!("Failed to start video thread: {e}")))?;
+        // 오디오 장치를 열 수 없으면 영상만 재생한다.
+        let audio = if probed.has_audio {
+            match crate::video_audio::AudioOutput::open(path) {
+                Ok(audio) => Some(audio),
+                Err(e) => {
+                    log::warn!("audio unavailable, playing video only: {e:?}");
+                    None
+                }
+            }
+        } else {
+            None
+        };
         Ok(Self {
             cmd_tx,
             worker: Some(worker),
@@ -131,6 +145,7 @@ impl VideoPlayer {
             }),
             info,
             subtitles,
+            audio,
         })
     }
 
@@ -151,29 +166,40 @@ impl VideoPlayer {
     }
 
     pub fn position_ms(&self) -> u64 {
-        let clock = self.clock.lock().unwrap_or_else(|e| e.into_inner());
         if self.info.duration_ms == 0 {
-            return if clock.playing {
-                let elapsed = clock.base_at.elapsed().as_secs_f64();
-                clock
-                    .base_ms
-                    .saturating_add((elapsed * f64::from(clock.speed)) as u64)
-            } else {
-                clock.base_ms
+            return match &self.audio {
+                Some(audio) => audio.played_ms(),
+                None => {
+                    let clock = self.clock.lock().unwrap_or_else(|e| e.into_inner());
+                    if clock.playing {
+                        let elapsed = clock.base_at.elapsed().as_secs_f64();
+                        clock
+                            .base_ms
+                            .saturating_add((elapsed * f64::from(clock.speed)) as u64)
+                    } else {
+                        clock.base_ms
+                    }
+                }
             };
         }
-        let mut pos = if clock.playing {
-            let elapsed = clock.base_at.elapsed().as_secs_f64();
-            clock
-                .base_ms
-                .saturating_add((elapsed * f64::from(clock.speed)) as u64)
-        } else {
-            clock.base_ms
+        // 오디오가 있으면 오디오 클럭이 마스터, 없으면 단조 클럭이 마스터다.
+        let mut pos = match &self.audio {
+            Some(audio) => audio.played_ms(),
+            None => {
+                let clock = self.clock.lock().unwrap_or_else(|e| e.into_inner());
+                if clock.playing {
+                    let elapsed = clock.base_at.elapsed().as_secs_f64();
+                    clock
+                        .base_ms
+                        .saturating_add((elapsed * f64::from(clock.speed)) as u64)
+                } else {
+                    clock.base_ms
+                }
+            }
         };
         pos = pos.min(self.info.duration_ms);
         // 끝까지 가면 멈춘다. 유한 반복 GIF와 같은 규칙이다.
         if pos >= self.info.duration_ms {
-            drop(clock);
             self.pause();
             return self.info.duration_ms;
         }
@@ -202,6 +228,10 @@ impl VideoPlayer {
         self.shared
             .speed_bits
             .store(speed.to_bits(), Ordering::SeqCst);
+        if let Some(audio) = &self.audio {
+            audio.set_speed(speed);
+            audio.set_playing(true);
+        }
         let _ = self.cmd_tx.send(Command::Play(speed));
     }
 
@@ -210,6 +240,9 @@ impl VideoPlayer {
             let mut clock = self.clock.lock().unwrap_or_else(|e| e.into_inner());
             clock.base_ms = self.clamped_position(&clock);
             clock.playing = false;
+        }
+        if let Some(audio) = &self.audio {
+            audio.set_playing(false);
         }
         let _ = self.cmd_tx.send(Command::Pause);
     }
@@ -222,6 +255,9 @@ impl VideoPlayer {
             clock.base_at = Instant::now();
         }
         self.shared.eof.store(false, Ordering::SeqCst);
+        if let Some(audio) = &self.audio {
+            audio.seek(target);
+        }
         let _ = self.cmd_tx.send(Command::Seek(target));
     }
 
@@ -245,7 +281,39 @@ impl VideoPlayer {
             clock.base_at = Instant::now();
         }
         self.shared.eof.store(false, Ordering::SeqCst);
+        if let Some(audio) = &self.audio {
+            audio.seek(target);
+        }
         let _ = self.cmd_tx.send(Command::Step(target));
+    }
+
+    /// 오디오 출력이 살아 있는가. 장치를 못 열면 영상만 재생한다.
+    pub fn audio_active(&self) -> bool {
+        self.audio.is_some()
+    }
+
+    /// 0.0~1.0. UI는 0~100 설정을 `/100`으로 넘긴다.
+    pub fn set_volume(&self, volume: f32) {
+        if let Some(audio) = &self.audio {
+            audio.set_volume(volume);
+        }
+    }
+
+    pub fn volume(&self) -> f32 {
+        self.audio
+            .as_ref()
+            .map(|audio| audio.volume())
+            .unwrap_or(crate::video_audio::DEFAULT_VOLUME)
+    }
+
+    pub fn set_muted(&self, muted: bool) {
+        if let Some(audio) = &self.audio {
+            audio.set_muted(muted);
+        }
+    }
+
+    pub fn is_muted(&self) -> bool {
+        self.audio.as_ref().is_some_and(|audio| audio.is_muted())
     }
 
     /// 현재 위치의 프레임을 돌려준다. 오래된 큐 프레임은 버린다.
@@ -258,6 +326,11 @@ impl VideoPlayer {
             .clone()
         {
             return Err(AppError::corrupt(err));
+        }
+        if let Some(audio) = &self.audio {
+            if let Some(err) = audio.has_error() {
+                return Err(AppError::corrupt(err));
+            }
         }
         let pos = self.position_ms();
         let mut queue = self.shared.queue.lock().unwrap_or_else(|e| e.into_inner());
@@ -277,11 +350,16 @@ impl VideoPlayer {
     }
 
     pub fn has_error(&self) -> Option<String> {
-        self.shared
+        if let Some(err) = self
+            .shared
             .error
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .clone()
+        {
+            return Some(err);
+        }
+        self.audio.as_ref().and_then(|audio| audio.has_error())
     }
 
     fn frame_ms(&self) -> u64 {
@@ -784,6 +862,17 @@ mod tests {
         assert!(!info.has_audio);
         assert!(!info.has_subtitles);
         assert!(!player.is_playing());
+    }
+
+    #[test]
+    fn samples_without_audio_have_no_audio_output() {
+        let player = VideoPlayer::open(&sample("sample.mp4")).unwrap();
+        assert!(!player.audio_active());
+        // 없으면 조용히 무시된다.
+        player.set_volume(0.5);
+        assert_eq!(player.volume(), crate::video_audio::DEFAULT_VOLUME);
+        player.set_muted(true);
+        assert!(!player.is_muted());
     }
 
     #[test]
