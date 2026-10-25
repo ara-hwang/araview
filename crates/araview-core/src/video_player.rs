@@ -214,6 +214,27 @@ impl VideoPlayer {
         self.clock.lock().unwrap_or_else(|e| e.into_inner()).speed
     }
 
+    /// 재생을 시작하지 않고 속도만 바꾼다. 정지 상태에서 속도 버튼용이다.
+    pub fn set_speed(&self, speed: f32) {
+        if !speed.is_finite() || speed <= 0.0 {
+            return;
+        }
+        {
+            let mut clock = self.clock.lock().unwrap_or_else(|e| e.into_inner());
+            if clock.playing {
+                clock.base_ms = self.clamped_position(&clock);
+                clock.base_at = Instant::now();
+            }
+            clock.speed = speed;
+        }
+        self.shared
+            .speed_bits
+            .store(speed.to_bits(), Ordering::SeqCst);
+        if let Some(audio) = &self.audio {
+            audio.set_speed(speed);
+        }
+    }
+
     pub fn play(&self, speed: f32) {
         if !speed.is_finite() || speed <= 0.0 {
             return;
@@ -290,6 +311,21 @@ impl VideoPlayer {
     /// 오디오 출력이 살아 있는가. 장치를 못 열면 영상만 재생한다.
     pub fn audio_active(&self) -> bool {
         self.audio.is_some()
+    }
+
+    /// cpal 출력 스트림을 UI 스레드에서 열어 돌려준다.
+    /// `AudioStream`을 들고 있는 동안 소리가 난다.
+    pub fn attach_audio_output(&self) -> Result<crate::video_audio::AudioStream, AppError> {
+        let audio = self
+            .audio
+            .as_ref()
+            .ok_or_else(|| AppError::unknown("No audio stream"))?;
+        audio.open_output_stream()
+    }
+
+    /// 오디오를 끄고 영상만 재생한다. 출력 장치를 열 수 없을 때 쓴다.
+    pub fn disable_audio(&mut self) {
+        self.audio.take();
     }
 
     /// 0.0~1.0. UI는 0~100 설정을 `/100`으로 넘긴다.

@@ -517,6 +517,10 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 | `showWidePageAlone`     | 양쪽 보기에서 가로가 더 긴 페이지(가로 스캔)를 단독 표시                | `true`                             |
 | `showComicInfo`         | 정보 패널에 만화 정보(ComicInfo.xml) 섹션 표시                          | `true`                             |
 | `comicAutoDualView`     | 아카이브(만화)를 열면 자동으로 양쪽 보기, ComicInfo 방향 적용           | `true`                             |
+| `videoAutoplay`         | 동영상을 열면 자동 재생                                                | `true`                             |
+| `videoVolume`           | 동영상 음량(0~100)                                                      | `80`                               |
+| `videoSubtitles`        | 동영상 자막 표시                                                       | `true`                             |
+| `showVideoInfo`         | 정보 패널에 동영상 섹션 표시                                           | `true`                             |
 | `fitMode`               | 맞춤 기억 `width \| height \| screen \| auto`                           | `auto`                             |
 | `dockPosition`          | 이미지 목록 위치 `top \| bottom \| left \| right`                       | `bottom`                           |
 | `dockVisible`           | 이미지 목록 표시                                                        | `true`                             |
@@ -576,6 +580,12 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 | 애니메이션 재생/정지   | `P`               |
 | 이전 애니메이션 프레임 | `,`               |
 | 다음 애니메이션 프레임 | `.`               |
+| 동영상 10초 뒤로       | `J`               |
+| 동영상 10초 앞으로     | `L`               |
+| 동영상 속도 내리기     | `[`               |
+| 동영상 속도 올리기     | `]`               |
+| 동영상 음소거          | `M`               |
+| 동영상 자막 켜기/끄기  | `S`               |
 
 그리드 내부: 화살표(선택 이동), `Home`/`End`, `PageUp`/`PageDown`, `Enter`(점프), `Esc`/`G`(닫기). 그리드가 열려 있는 동안 다른 뷰어 단축키는 동작하지 않는다.
 
@@ -596,7 +606,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 ### 14.4 명령 팔레트 `Ctrl+K`
 
 - 그룹 순서: `file → navigate → view → display → system`.
-- 이미지가 있을 때만, 이동 가능할 때만, 제어 가능한 GIF일 때만, 아카이브 안일 때만(표지 지정) 활성화되는 명령이 있다. `system` 그룹은 항상 활성이다.
+- 이미지가 있을 때만, 이동 가능할 때만, 제어 가능한 GIF·동영상일 때만, 아카이브 안일 때만(표지 지정) 활성화되는 명령이 있다. `system` 그룹은 항상 활성이다.
 - 공백 분리 토큰 AND 매칭이며 라벨 앞부분 일치를 우선한다.
 - 한국어 UI에서도 영문 별칭으로 검색된다.
 - `Esc`, 명령 확정, 팔레트 영역 밖 클릭으로 닫힌다. 닫으면 뷰어에 포커스가 돌아간다. 영역 밖 닫기는 뗌에서 정해지므로 누름만으로는 닫히지 않는다(1절의 배경 드래그 규칙).

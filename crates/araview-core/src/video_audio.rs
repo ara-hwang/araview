@@ -43,13 +43,19 @@ pub struct AudioOutput {
     shared: Arc<AudioShared>,
     cmd_tx: mpsc::Sender<AudioCommand>,
     worker: Option<std::thread::JoinHandle<()>>,
-    _stream: cpal::Stream,
     sample_rate: u32,
+    channels: u16,
+    format: cpal::SampleFormat,
 }
 
+/// cpal 출력 스트림. `!Send`라 UI 스레드에서 만들고 들고 있는다.
+/// 필드를 읽지 않지만, 값이 살아 있는 동안 소리가 난다.
+pub struct AudioStream(#[allow(dead_code)] cpal::Stream);
+
 impl AudioOutput {
-    /// 출력 장치를 열고 워커를 시작한다. 장치가 없으면 `Err`다.
+    /// 디코드 워커를 시작한다. 출력 장치는 열지 않는다(어느 스레드에서든 호출 가능).
     pub fn open(path: &Path) -> Result<Self, AppError> {
+        let (rate, channels, format) = Self::probe_output()?;
         let shared = Arc::new(AudioShared {
             queue: Mutex::new(VecDeque::new()),
             playing: AtomicBool::new(false),
@@ -60,14 +66,14 @@ impl AudioOutput {
             eof: AtomicBool::new(false),
             error: Mutex::new(None),
         });
-        let (stream, sample_rate) = open_stream(&shared)?;
+        let out_rate = rate;
         let (cmd_tx, cmd_rx) = mpsc::channel();
         let worker_shared = Arc::clone(&shared);
         let source = path.to_path_buf();
         let worker = std::thread::Builder::new()
             .name("araview-audio".to_string())
             .spawn(move || {
-                if let Err(e) = audio_loop(&source, sample_rate, &cmd_rx, &worker_shared) {
+                if let Err(e) = audio_loop(&source, out_rate, &cmd_rx, &worker_shared) {
                     *worker_shared
                         .error
                         .lock()
@@ -79,9 +85,53 @@ impl AudioOutput {
             shared,
             cmd_tx,
             worker: Some(worker),
-            _stream: stream,
-            sample_rate,
+            sample_rate: rate,
+            channels,
+            format,
         })
+    }
+
+    /// 출력 장치와 설정을 고른다. 값만 돌려주므로 어느 스레드에서든 호출 가능하고,
+    /// 실제 스트림은 UI 스레드에서 `open_output_stream`으로 연다.
+    pub fn probe_output() -> Result<(u32, u16, cpal::SampleFormat), AppError> {
+        let host = cpal::default_host();
+        let device = host
+            .default_output_device()
+            .ok_or_else(|| AppError::unknown("No audio output device"))?;
+        let configs: Vec<_> = device
+            .supported_output_configs()
+            .map_err(|e| AppError::unknown(format!("No audio output configs: {e}")))?
+            .collect();
+        // F32 스테레오 48kHz 우선, 없으면 F32, 그래도 없으면 첫 설정이다.
+        use cpal::SampleFormat;
+        let picked = configs
+            .iter()
+            .filter(|c| c.sample_format() == SampleFormat::F32)
+            .find(|c| {
+                c.channels() == AUDIO_CHANNELS as u16
+                    && c.min_sample_rate().0 <= PREFERRED_RATE
+                    && PREFERRED_RATE <= c.max_sample_rate().0
+            })
+            .or_else(|| {
+                configs
+                    .iter()
+                    .find(|c| c.sample_format() == SampleFormat::F32)
+            })
+            .or_else(|| configs.first())
+            .ok_or_else(|| AppError::unknown("No audio output configs"))?;
+        let rate = if picked.min_sample_rate().0 <= PREFERRED_RATE
+            && PREFERRED_RATE <= picked.max_sample_rate().0
+        {
+            PREFERRED_RATE
+        } else {
+            picked.max_sample_rate().0
+        };
+        Ok((rate, picked.channels(), picked.sample_format()))
+    }
+
+    /// cpal 출력 스트림을 연다. `!Send`라 UI 스레드에서 호출하고 들고 있는다.
+    pub fn open_output_stream(&self) -> Result<AudioStream, AppError> {
+        open_stream(&self.shared, self.sample_rate, self.channels, self.format).map(AudioStream)
     }
 
     pub fn set_playing(&self, playing: bool) {
@@ -156,7 +206,12 @@ impl Drop for AudioOutput {
     }
 }
 
-fn open_stream(shared: &Arc<AudioShared>) -> Result<(cpal::Stream, u32), AppError> {
+fn open_stream(
+    shared: &Arc<AudioShared>,
+    rate: u32,
+    channels: u16,
+    format: cpal::SampleFormat,
+) -> Result<cpal::Stream, AppError> {
     use cpal::{SampleFormat, SampleRate};
     let host = cpal::default_host();
     let device = host
@@ -166,14 +221,14 @@ fn open_stream(shared: &Arc<AudioShared>) -> Result<(cpal::Stream, u32), AppErro
         .supported_output_configs()
         .map_err(|e| AppError::unknown(format!("No audio output configs: {e}")))?
         .collect();
-    // F32 스테레오 48kHz 우선, 없으면 F32, 그래도 없으면 첫 설정이다.
+    // probe_output이 고른 설정과 같은 것을 찾는다. 없으면 첫 F32 설정을 쓴다.
     let picked = configs
         .iter()
-        .filter(|c| c.sample_format() == SampleFormat::F32)
         .find(|c| {
-            c.channels() == AUDIO_CHANNELS as u16
-                && c.min_sample_rate().0 <= PREFERRED_RATE
-                && PREFERRED_RATE <= c.max_sample_rate().0
+            c.sample_format() == format
+                && c.channels() == channels
+                && c.min_sample_rate().0 <= rate
+                && rate <= c.max_sample_rate().0
         })
         .or_else(|| {
             configs
@@ -182,10 +237,8 @@ fn open_stream(shared: &Arc<AudioShared>) -> Result<(cpal::Stream, u32), AppErro
         })
         .or_else(|| configs.first())
         .ok_or_else(|| AppError::unknown("No audio output configs"))?;
-    let rate = if picked.min_sample_rate().0 <= PREFERRED_RATE
-        && PREFERRED_RATE <= picked.max_sample_rate().0
-    {
-        PREFERRED_RATE
+    let rate = if picked.min_sample_rate().0 <= rate && rate <= picked.max_sample_rate().0 {
+        rate
     } else {
         picked.max_sample_rate().0
     };
@@ -235,7 +288,7 @@ fn open_stream(shared: &Arc<AudioShared>) -> Result<(cpal::Stream, u32), AppErro
     stream
         .play()
         .map_err(|e| AppError::unknown(format!("Failed to start audio output: {e}")))?;
-    Ok((stream, rate))
+    Ok(stream)
 }
 
 /// 콜백이 잠깐 쥐고 Worker가 채우는 구조라, 콜백 안에서 큐를 직접 꺼낸다.

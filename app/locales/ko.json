@@ -210,7 +210,10 @@
       "comicAutoDual": "만화 아카이브를 열면 자동으로 양쪽 보기 (ComicInfo의 읽기 방향 적용)",
       "coverAlone": "양쪽 보기에서 표지 단독 표시",
       "wideAlone": "양쪽 보기에서 넓은 페이지(가로 스캔) 단독 표시",
-      "showComicInfo": "정보 패널에 만화 정보(ComicInfo.xml) 표시"
+      "showComicInfo": "정보 패널에 만화 정보(ComicInfo.xml) 표시",
+      "videoAutoplay": "동영상을 열면 자동 재생",
+      "videoSubtitles": "동영상 자막 표시",
+      "showVideoInfo": "정보 패널에 동영상 정보 표시"
     },
     "dock": {
       "title": "이미지 목록 도크",
@@ -464,6 +467,19 @@
     "summary": "줄거리",
     "loadFail": "만화 정보를 읽지 못했습니다."
   },
+  "video": {
+    "section": "동영상 정보",
+    "title": "동영상",
+    "mime": "형식",
+    "codec": "코덱",
+    "audio": "오디오",
+    "subtitles": "자막",
+    "dimensions": "치수",
+    "duration": "길이",
+    "fps": "초당 프레임",
+    "yes": "있음",
+    "no": "없음"
+  },
   "histogram": {
     "title": "히스토그램",
     "unavailable": "이 형식은 히스토그램을 계산할 수 없습니다.",
@@ -535,6 +551,12 @@
     "gifPause": "일시정지",
     "gifPrevFrame": "이전 애니메이션 프레임",
     "gifNextFrame": "다음 애니메이션 프레임",
+    "videoSeekBack": "10초 뒤로",
+    "videoSeekFwd": "10초 앞으로",
+    "videoSpeedDown": "재생 속도 내리기",
+    "videoSpeedUp": "재생 속도 올리기",
+    "videoMute": "음소거 토글",
+    "videoSubtitles": "자막 켜기/끄기",
     "toggleFullscreen": "전체화면 토글",
     "toggleAlwaysOnTop": "맨 위에 두기 토글",
     "copyImage": "이미지 복사",

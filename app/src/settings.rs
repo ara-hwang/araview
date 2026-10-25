@@ -345,6 +345,12 @@ pub const DEFAULT_SHORTCUTS: &[(&str, &str)] = &[
     ("toggleGifPlayback", "P"),
     ("gifPrevFrame", ","),
     ("gifNextFrame", "."),
+    ("videoSeekBack", "J"),
+    ("videoSeekFwd", "L"),
+    ("videoSpeedDown", "["),
+    ("videoSpeedUp", "]"),
+    ("videoMute", "M"),
+    ("videoSubtitles", "S"),
 ];
 
 pub type ShortcutMap = BTreeMap<String, String>;
@@ -416,6 +422,11 @@ pub struct Settings {
     pub dock_thumb_size: DockThumbSize,
     pub dock_show_name: bool,
     pub dock_show_index: bool,
+    pub video_autoplay: bool,
+    /// 0~100. 실제 출력에는 `/100`으로 넘긴다.
+    pub video_volume: f64,
+    pub video_subtitles: bool,
+    pub show_video_info: bool,
     pub shortcuts: ShortcutMap,
     pub wheel: WheelMap,
     pub mouse: MouseMap,
@@ -458,6 +469,10 @@ impl Default for Settings {
             dock_thumb_size: DockThumbSize::S,
             dock_show_name: false,
             dock_show_index: false,
+            video_autoplay: true,
+            video_volume: 80.0,
+            video_subtitles: true,
+            show_video_info: true,
             shortcuts: default_shortcuts(),
             wheel: WheelMap::default(),
             mouse: MouseMap::default(),

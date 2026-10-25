@@ -741,6 +741,27 @@ impl SettingsPanel {
                         |settings, value| settings.show_comic_info = value,
                         Effect::Redraw,
                     ),
+                    (
+                        "video-autoplay",
+                        "settings.reading.videoAutoplay",
+                        s.video_autoplay,
+                        |settings, value| settings.video_autoplay = value,
+                        Effect::Redraw,
+                    ),
+                    (
+                        "video-subtitles",
+                        "settings.reading.videoSubtitles",
+                        s.video_subtitles,
+                        |settings, value| settings.video_subtitles = value,
+                        Effect::Redraw,
+                    ),
+                    (
+                        "show-video-info",
+                        "settings.reading.showVideoInfo",
+                        s.show_video_info,
+                        |settings, value| settings.show_video_info = value,
+                        Effect::Redraw,
+                    ),
                 ]
                 .into_iter()
                 .map(|(id, key, checked, set, effect)| {

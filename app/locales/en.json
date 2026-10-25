@@ -210,7 +210,10 @@
       "comicAutoDual": "Open comic archives in dual view automatically (follows ComicInfo reading direction)",
       "coverAlone": "Show cover alone in dual view",
       "wideAlone": "Show wide pages (landscape scans) alone in dual view",
-      "showComicInfo": "Show comic metadata (ComicInfo.xml) in the info panel"
+      "showComicInfo": "Show comic metadata (ComicInfo.xml) in the info panel",
+      "videoAutoplay": "Auto-play videos on open",
+      "videoSubtitles": "Show video subtitles",
+      "showVideoInfo": "Show video info in the info panel"
     },
     "dock": {
       "title": "Image list dock",
@@ -464,6 +467,19 @@
     "summary": "Summary",
     "loadFail": "Could not read comic metadata."
   },
+  "video": {
+    "section": "Video",
+    "title": "Video",
+    "mime": "Format",
+    "codec": "Codec",
+    "audio": "Audio",
+    "subtitles": "Subtitles",
+    "dimensions": "Dimensions",
+    "duration": "Duration",
+    "fps": "Frames per second",
+    "yes": "Yes",
+    "no": "No"
+  },
   "histogram": {
     "title": "Histogram",
     "unavailable": "Histogram is not available for this format.",
@@ -535,6 +551,12 @@
     "gifPause": "Pause",
     "gifPrevFrame": "Previous Animation Frame",
     "gifNextFrame": "Next Animation Frame",
+    "videoSeekBack": "Back 10 Seconds",
+    "videoSeekFwd": "Forward 10 Seconds",
+    "videoSpeedDown": "Decrease Playback Speed",
+    "videoSpeedUp": "Increase Playback Speed",
+    "videoMute": "Toggle Mute",
+    "videoSubtitles": "Toggle Subtitles",
     "toggleFullscreen": "Toggle Fullscreen",
     "toggleAlwaysOnTop": "Toggle Always on Top",
     "copyImage": "Copy Image",
