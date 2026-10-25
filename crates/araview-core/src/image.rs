@@ -48,7 +48,17 @@ pub const SUPPORTED_EXTENSIONS: &[&str] = &[
     "png", "apng", "jpg", "jpeg", "jpe", "jfif", "gif", "bmp", "webp", "svg", "ico", "avif", "tif",
     "tiff", "jxl", "heic", "heif", "psd", "tga", "dds", "exr", "qoi", "hdr", "pnm", "pam", "ppm",
     "pgm", "pbm", "cr2", "cr3", "nef", "nrw", "arw", "dng", "orf", "rw2", "pef", "srw", "raf",
-    "mrw", "sr2", "srf", "rwl", "3fr", "kdc", "dcr", "iiq", "cbz", "zip",
+    "mrw", "sr2", "srf", "rwl", "3fr", "kdc", "dcr", "iiq", "mp4", "mov", "webm", "mkv", "avi",
+    "cbz", "zip",
+];
+
+/// 동영상 MIME. 첫 프레임 포스터(정지 미리보기)를 지원하고, 재생은 M2에서 붙는다.
+pub const VIDEO_MIMES: &[&str] = &[
+    "video/mp4",
+    "video/quicktime",
+    "video/webm",
+    "video/x-matroska",
+    "video/x-msvideo",
 ];
 
 #[derive(Serialize)]
@@ -108,6 +118,11 @@ pub fn get_mime_type(path: &Path) -> Option<&'static str> {
         }
         "cbz" => Some("application/vnd.comicbook+zip"),
         "zip" => Some("application/zip"),
+        "mp4" => Some("video/mp4"),
+        "mov" => Some("video/quicktime"),
+        "webm" => Some("video/webm"),
+        "mkv" => Some("video/x-matroska"),
+        "avi" => Some("video/x-msvideo"),
         _ => None,
     }
 }
@@ -120,6 +135,20 @@ pub fn get_mime_type(path: &Path) -> Option<&'static str> {
 pub fn resolve_mime(path: &Path) -> Option<&'static str> {
     let by_ext = get_mime_type(path);
     if by_ext.is_some_and(|m| m.starts_with("application/") || m == "image/svg+xml") {
+        return by_ext;
+    }
+    // 동영상은 확장자 계열을 우선한다. EBML(webm/mkv)과 ftyp 브랜드는
+    // 계열까지만 판별하고 확장자가 최종 MIME을 정한다.
+    if by_ext.is_some_and(|m| m.starts_with("video/")) {
+        let (sniffed, _) = crate::sniff::sniff_file_with_animation(path);
+        // EBML(webm/mkv)은 DocType이 32바이트 밖에 있어 계열까지만 판별되므로
+        // 확장자가 최종 MIME을 정한다.
+        if sniffed == Some("video/x-matroska") {
+            return by_ext;
+        }
+        if sniffed.is_some_and(|m| m.starts_with("video/")) {
+            return sniffed;
+        }
         return by_ext;
     }
     // APNG는 PNG와 시그니처가 같다. 확장자가 밝혔거나 `acTL` 청크가 있으면 APNG다.
@@ -261,6 +290,12 @@ pub fn load_viewable_with_limit_mode(
     }
     let mime =
         resolve_mime(source).ok_or_else(|| AppError::unsupported("Unsupported image format"))?;
+    // 동영상은 첫 프레임 포스터 JPEG를 렌더 바이트로 쓴다. 재생은 M2에서 붙는다.
+    if VIDEO_MIMES.contains(&mime) {
+        let side = max_side.unwrap_or(2048);
+        let (poster, width, height) = crate::video::ensure_poster(source, side)?;
+        return image_info_with_dims(source, mime, poster, Some((width, height)));
+    }
     let base_path = match paint_strategy(mime) {
         PaintStrategy::Native => source.to_path_buf(),
         PaintStrategy::TranscodeJpeg => crate::transcode::ensure_paint(source, mime)?,
@@ -283,7 +318,15 @@ pub fn load_viewable_with_limit_mode(
 
 pub fn is_image_file(path: &Path) -> bool {
     match get_mime_type(path) {
-        Some(mime) => !mime.starts_with("application/"),
+        Some(mime) => mime.starts_with("image/"),
+        None => false,
+    }
+}
+
+/// 동영상 판별. 목록·연결·썸네일·포스터 경로에서 쓴다.
+pub fn is_video_file(path: &Path) -> bool {
+    match get_mime_type(path) {
+        Some(mime) => VIDEO_MIMES.contains(&mime),
         None => false,
     }
 }
@@ -295,7 +338,7 @@ pub fn is_archive_file(path: &Path) -> bool {
     )
 }
 
-/// 순수 이미지이거나 아카이브인 경우 모두 지원 파일로 간주
+/// 순수 이미지이거나 동영상이거나 아카이브인 경우 모두 지원 파일로 간주
 pub fn is_supported_file(path: &Path) -> bool {
-    is_image_file(path) || is_archive_file(path)
+    is_image_file(path) || is_video_file(path) || is_archive_file(path)
 }

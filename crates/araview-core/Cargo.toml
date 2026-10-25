@@ -27,6 +27,14 @@ notify = "8"
 rayon = "1"
 quick-xml = { version = "0.42", features = ["serialize"] }
 jxl-oxide = { version = "0.12", features = ["moxcms"] }
+# 동영상 디먹스·디코드. FFmpeg 메이저와 feature를 맞춘다(vcpkg pin은 FFmpeg 8.x).
+# link_system_ffmpeg는 PKG_CONFIG_PATH의 FFmpeg를, 없으면 link_vcpkg_ffmpeg가
+# vcpkg 제공 FFmpeg로 폴백한다. WTFPL인 ffmpeg-next 계열은 쓰지 않는다.
+rsmpeg = { version = "0.18", default-features = false, features = [
+    "ffmpeg8",
+    "link_system_ffmpeg",
+    "link_vcpkg_ffmpeg",
+] }
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.56.0"

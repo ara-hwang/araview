@@ -10,7 +10,7 @@ fn main() {
         // (워크스페이스의 썸네일 DLL에는 적용하지 않으려고 링크 인자를 이 크레이트에만 건다.)
         // Windows 메인 스레드 기본 스택은 1MB지만 macOS와 Linux는 8MB라 따로 늘리지 않는다.
         println!("cargo:rustc-link-arg=/STACK:8000000");
-        copy_libheif_dlls();
+        copy_vcpkg_runtime_dlls();
         embed_icon();
     }
     collect_license_files(vcpkg_triplet(&target_os));
@@ -46,9 +46,9 @@ fn embed_icon() {
 #[cfg(not(windows))]
 fn embed_icon() {}
 
-/// vcpkg로 동적 링크한 libheif 런타임 DLL을 실행 파일 옆에 둔다. 없으면 앱이
-/// 시작되지 않는다.
-fn copy_libheif_dlls() {
+/// vcpkg로 동적 링크한 네이티브 런타임 DLL을 실행 파일 옆에 둔다. 없으면 앱이
+/// 시작되지 않는다. 대상은 libheif 3종과 FFmpeg 8 영상 DLL이다.
+fn copy_vcpkg_runtime_dlls() {
     println!("cargo:rerun-if-env-changed=VCPKG_ROOT");
     println!("cargo:rerun-if-env-changed=VCPKG_INSTALLATION_ROOT");
     let Some(root) = env::var_os("VCPKG_ROOT").or_else(|| env::var_os("VCPKG_INSTALLATION_ROOT"))
@@ -75,7 +75,7 @@ fn copy_libheif_dlls() {
         let Some(name) = src.file_name().and_then(|n| n.to_str()) else {
             continue;
         };
-        if !is_libheif_runtime_dll(name) {
+        if !is_vcpkg_runtime_dll(name) {
             continue;
         }
         for dest_dir in &dests {
@@ -85,15 +85,29 @@ fn copy_libheif_dlls() {
     }
 }
 
-fn is_libheif_runtime_dll(name: &str) -> bool {
+fn is_vcpkg_runtime_dll(name: &str) -> bool {
+    let lower = name.to_ascii_lowercase();
+    if !lower.ends_with(".dll") {
+        return false;
+    }
     matches!(
-        name.to_ascii_lowercase().as_str(),
-        "heif.dll" | "libde265.dll" | "aom.dll"
-    )
+        lower.as_str(),
+        "heif.dll" | "libde265.dll" | "aom.dll" | "dav1d.dll"
+    ) || [
+        "avcodec-",
+        "avformat-",
+        "avutil-",
+        "avfilter-",
+        "avdevice-",
+        "swscale-",
+        "swresample-",
+    ]
+    .iter()
+    .any(|prefix| lower.starts_with(prefix))
 }
 
-/// vcpkg 네이티브 라이브러리(libheif, libde265, aom)의 저작권 문서를 실행 파일 옆
-/// `licenses/`로 모은다. 설치 프로그램이 이 폴더를 그대로 동봉하고, 앱의 라이선스 창이 읽는다.
+/// vcpkg 네이티브 라이브러리(libheif, libde265, aom, FFmpeg, dav1d)의 저작권 문서를
+/// 실행 파일 옆 `licenses/`로 모은다. 설치 프로그램이 이 폴더를 그대로 동봉하고, 앱의 라이선스 창이 읽는다.
 fn collect_license_files(triplet: String) {
     let Some(root) = env::var_os("VCPKG_ROOT").or_else(|| env::var_os("VCPKG_INSTALLATION_ROOT"))
     else {
@@ -111,7 +125,7 @@ fn collect_license_files(triplet: String) {
         .join("installed")
         .join(&triplet)
         .join("share");
-    for package in ["libheif", "libde265", "aom"] {
+    for package in ["libheif", "libde265", "aom", "ffmpeg", "dav1d"] {
         let source = share.join(package).join("copyright");
         let Ok(content) = fs::read(&source) else {
             continue;

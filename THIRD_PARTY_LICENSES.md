@@ -17,7 +17,10 @@ unmodified crates.io source.
 
 LGPL-2.1: `rawler` (section 2) is statically linked. The application is open
 source under EUPL-1.2 and builds from the published repository, which satisfies
-the relinking requirement of LGPL-2.1 section 6(a).
+the relinking requirement of LGPL-2.1 section 6(a). FFmpeg 8.1 (section 1) is
+dynamically linked on Windows and statically linked from the pinned vcpkg
+source (`vcpkg.json` builtin-baseline) on macOS/Linux; the same published-repo
+rebuild applies.
 
 ## 1. Dynamically linked native libraries (shipped as separate DLLs)
 
@@ -26,6 +29,8 @@ the relinking requirement of LGPL-2.1 section 6(a).
 | libheif (vcpkg libheif[core,aom]) | GNU LGPL | heif.dll | stays dynamically linked, never static |
 | libde265 | GNU LGPL | libde265.dll | HEVC decode only, x265 excluded |
 | aom | BSD-2-Clause + AOM patent license | aom.dll | AV1 decode for AVIF thumbnails/histogram |
+| FFmpeg 8.1 (vcpkg ffmpeg, LGPL defaults + dav1d) | GNU LGPL | avcodec-62.dll, avformat-62.dll, avutil-60.dll, avfilter-11.dll, avdevice-62.dll, swscale-9.dll, swresample-6.dll | video demux/decode only, never static; GPL features (x264/x265) excluded. SONAMEs follow the FFmpeg major; a major bump renames the DLLs |
+| dav1d | BSD-2-Clause | dav1d.dll | AV1 decode for video |
 
 ## 2. Rust dependencies (Windows x64 closure from cargo-about)
 
@@ -92,6 +97,7 @@ dependencies and other-OS targets are excluded.
 | base62 | 2.2.6 | MIT |
 | base64 | 0.22.1 | MIT OR Apache-2.0 |
 | base64 | 0.23.1 | MIT OR Apache-2.0 |
+| bindgen | 0.71.1 | BSD-3-Clause |
 | bit_field | 0.10.3 | Apache-2.0 OR MIT |
 | bit-set | 0.9.1 | Apache-2.0 OR MIT |
 | bit-vec | 0.9.1 | Apache-2.0 OR MIT |
@@ -104,6 +110,8 @@ dependencies and other-OS targets are excluded.
 | block-padding | 0.3.3 | MIT OR Apache-2.0 |
 | block2 | 0.6.2 | MIT |
 | blocking | 1.7.0 | Apache-2.0 OR MIT |
+| bon | 3.10.3 | MIT OR Apache-2.0 |
+| bon-macros | 3.10.3 | MIT OR Apache-2.0 |
 | brotli-decompressor | 5.0.3 | BSD-3-Clause OR MIT |
 | bstr | 1.13.1 | MIT OR Apache-2.0 |
 | built | 0.8.1 | MIT |
@@ -116,15 +124,18 @@ dependencies and other-OS targets are excluded.
 | bzip2 | 0.6.1 | MIT OR Apache-2.0 |
 | calloop | 0.14.5 | MIT |
 | calloop-wayland-source | 0.4.1 | MIT |
+| camino | 1.2.6 | MIT OR Apache-2.0 |
 | cbc | 0.1.2 | MIT OR Apache-2.0 |
 | cbindgen | 0.28.0 | MPL-2.0 |
 | cc | 1.10.0 | MIT OR Apache-2.0 |
+| cexpr | 0.6.0 | Apache-2.0 OR MIT |
 | cfg_aliases | 0.2.2 | MIT |
 | cfg-expr | 0.20.10 | MIT OR Apache-2.0 |
 | cfg-if | 1.0.5 | MIT OR Apache-2.0 |
 | chrono | 0.4.45 | MIT OR Apache-2.0 |
 | cipher | 0.4.4 | MIT OR Apache-2.0 |
 | cipher | 0.5.2 | MIT OR Apache-2.0 |
+| clang-sys | 1.9.1 | Apache-2.0 |
 | cmov | 0.5.4 | Apache-2.0 OR MIT |
 | cocoa | 0.26.1 | MIT OR Apache-2.0 |
 | cocoa-foundation | 0.2.1 | MIT OR Apache-2.0 |
@@ -157,6 +168,9 @@ dependencies and other-OS targets are excluded.
 | crypto-common | 0.2.2 | MIT OR Apache-2.0 |
 | ctor | 1.0.13 | Apache-2.0 OR MIT |
 | ctutils | 0.4.5 | Apache-2.0 OR MIT |
+| darling | 0.24.1 | MIT |
+| darling_core | 0.24.1 | MIT |
+| darling_macro | 0.24.1 | MIT |
 | dary_heap | 0.3.9 | MIT OR Apache-2.0 |
 | data-url | 0.3.2 | MIT OR Apache-2.0 |
 | deflate64 | 0.1.12 | MIT |
@@ -304,6 +318,7 @@ dependencies and other-OS targets are excluded.
 | icu_properties | 2.4.0 | Unicode-3.0 |
 | icu_properties_data | 2.4.0 | Unicode-3.0 |
 | icu_provider | 2.4.0 | Unicode-3.0 |
+| ident_case | 1.0.1 | MIT OR Apache-2.0 |
 | idna | 1.1.0 | MIT OR Apache-2.0 |
 | idna_adapter | 1.2.2 | Apache-2.0 OR MIT |
 | ignore | 0.4.33 | Unlicense OR MIT |
@@ -392,6 +407,7 @@ dependencies and other-OS targets are excluded.
 | metal | 0.33.0 | MIT OR Apache-2.0 |
 | mime | 0.3.17 | MIT OR Apache-2.0 |
 | mime_guess | 2.0.5 | MIT |
+| minimal-lexical | 0.2.1 | MIT OR Apache-2.0 |
 | minisign-verify | 0.3.0 | MIT |
 | miniz_oxide | 0.8.9 | MIT OR Zlib OR Apache-2.0 |
 | miniz_oxide | 0.9.1 | MIT OR Zlib OR Apache-2.0 |
@@ -406,6 +422,7 @@ dependencies and other-OS targets are excluded.
 | nix | 0.31.3 | MIT |
 | no_std_io2 | 0.9.4 | Apache-2.0 OR MIT |
 | nohash-hasher | 0.2.0 | Apache-2.0 OR MIT |
+| nom | 7.1.3 | MIT |
 | nom | 8.0.0 | MIT |
 | noop_proc_macro | 0.3.0 | MIT |
 | normpath | 1.5.2 | MIT OR Apache-2.0 |
@@ -488,6 +505,8 @@ dependencies and other-OS targets are excluded.
 | ppv-lite86 | 0.2.21 | MIT OR Apache-2.0 |
 | precomputed-hash | 0.1.1 | MIT |
 | presser | 0.3.1 | MIT OR Apache-2.0 |
+| prettyplease | 0.2.37 | MIT OR Apache-2.0 |
+| prettyplease | 0.3.0 | MIT OR Apache-2.0 |
 | proc-macro-crate | 3.5.0 | MIT OR Apache-2.0 |
 | proc-macro2 | 1.0.107 | MIT OR Apache-2.0 |
 | profiling | 1.0.18 | MIT OR Apache-2.0 |
@@ -535,6 +554,7 @@ dependencies and other-OS targets are excluded.
 | ropey | 2.0.0-beta.1 | MIT OR Apache-2.0 |
 | roxmltree | 0.20.0 | MIT OR Apache-2.0 |
 | roxmltree | 0.21.2 | MIT OR Apache-2.0 |
+| rsmpeg | 0.18.0+ffmpeg.8.0 | MIT |
 | rust-embed | 8.13.0 | MIT |
 | rust-embed-impl | 8.13.0 | MIT |
 | rust-embed-utils | 8.13.0 | MIT |
@@ -550,6 +570,7 @@ dependencies and other-OS targets are excluded.
 | rustls-pki-types | 1.15.1 | MIT OR Apache-2.0 |
 | rustls-webpki | 0.103.16 | ISC |
 | rustversion | 1.0.23 | MIT OR Apache-2.0 |
+| rusty_ffmpeg | 0.16.7+ffmpeg.8 | MIT |
 | rustybuzz | 0.20.1 | MIT |
 | ryu | 1.0.23 | Apache-2.0 OR BSL-1.0 |
 | same-file | 1.0.6 | Unlicense OR MIT |
@@ -576,6 +597,7 @@ dependencies and other-OS targets are excluded.
 | sha2 | 0.10.9 | MIT OR Apache-2.0 |
 | sha2 | 0.11.1 | MIT OR Apache-2.0 |
 | shellexpand | 3.1.2 | MIT OR Apache-2.0 |
+| shlex | 1.3.0 | MIT OR Apache-2.0 |
 | shlex | 2.0.1 | MIT OR Apache-2.0 |
 | signal-hook-registry | 1.4.8 | MIT OR Apache-2.0 |
 | simd_helpers | 0.1.0 | MIT |
@@ -600,6 +622,7 @@ dependencies and other-OS targets are excluded.
 | strict-num | 0.1.1 | MIT |
 | string_cache | 0.8.9 | MIT OR Apache-2.0 |
 | string_cache_codegen | 0.5.4 | MIT OR Apache-2.0 |
+| strsim | 0.11.1 | MIT |
 | strum | 0.28.0 | MIT |
 | strum_macros | 0.28.0 | MIT |
 | subtle | 2.6.1 | BSD-3-Clause |

@@ -84,6 +84,11 @@
 				<string>kdc</string>
 				<string>dcr</string>
 				<string>iiq</string>
+				<string>mp4</string>
+				<string>mov</string>
+				<string>webm</string>
+				<string>mkv</string>
+				<string>avi</string>
 				<string>cbz</string>
 				<string>zip</string>
 			</array>

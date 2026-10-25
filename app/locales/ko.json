@@ -719,7 +719,7 @@
     }
   },
   "picker": {
-    "images": "이미지"
+    "images": "이미지·동영상"
   },
   "ext": {
     "png": "PNG 이미지",
@@ -770,7 +770,12 @@
     "pgm": "PGM 이미지",
     "pbm": "PBM 이미지",
     "cbz": "만화 아카이브",
-    "zip": "ZIP 아카이브"
+    "zip": "ZIP 아카이브",
+    "mp4": "MP4 동영상",
+    "mov": "MOV 동영상",
+    "webm": "WebM 동영상",
+    "mkv": "MKV 동영상",
+    "avi": "AVI 동영상"
   },
   "platform": {
     "macos": {

@@ -332,7 +332,7 @@ impl AraView {
         this
     }
 
-    /// 이미지 필터가 걸린 파일 선택 창을 연다. GPUI의 경로 선택 창에는 형식 필터가
+    /// 이미지·동영상 필터가 걸린 파일 선택 창을 연다. GPUI의 경로 선택 창에는 형식 필터가
     /// 없어 네이티브 대화상자를 직접 쓴다.
     fn prompt_open(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let dialog = rfd::AsyncFileDialog::new()

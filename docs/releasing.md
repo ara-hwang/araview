@@ -15,7 +15,7 @@ npm run release -- patch --dry-run  # 계획만 출력
 `scripts/release.mjs`가 다음을 순서대로 수행합니다.
 
 1. `main` 브랜치, 깨끗한 작업 트리, `origin/main`과 동기화 상태, 태그 중복 여부를 확인합니다.
-2. `app/Cargo.toml`과 `Cargo.lock`의 버전을 올립니다. `cargo metadata --locked`와 `npm run docs:check`로 검증하고, 실패하면 파일을 되돌립니다.
+2. `app/Cargo.toml`과 `Cargo.lock`, `vcpkg.json`의 버전을 올립니다. `cargo metadata --locked`와 `npm run docs:check`로 검증하고, 실패하면 파일을 되돌립니다.
 3. `chore: 버전 X.Y.Z`로 커밋하고 태그를 만든 뒤 `main`과 태그를 한 번에(`--atomic`) 푸시합니다. 푸시 전에 확인을 묻고, `--yes`로 생략할 수 있습니다.
 
 - 트리거는 `v숫자.숫자.숫자` 형식의 태그 푸시뿐입니다(프리릴리스 접미사는 트리거하지 않습니다).

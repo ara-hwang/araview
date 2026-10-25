@@ -1,5 +1,5 @@
 name: Setup Rust and native dependencies
-description: Rust 툴체인, 캐시, 시스템 라이브러리, vcpkg libheif를 한 번에 준비한다(Windows, Linux, macOS).
+description: Rust 툴체인, 캐시, 시스템 라이브러리, vcpkg 매니페스트 의존성(libheif, FFmpeg)을 한 번에 준비한다(Windows, Linux, macOS).
 
 inputs:
   cache-key:
@@ -91,22 +91,24 @@ runs:
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ${{ (steps.vcpkg-win.outputs.root || steps.vcpkg-unix.outputs.root) }}/installed
-        key: vcpkg-libheif-${{ (steps.vcpkg-win.outputs.triplet || steps.vcpkg-unix.outputs.triplet) }}-${{ hashFiles('Cargo.toml', 'Cargo.lock') }}
+        key: vcpkg-deps-${{ (steps.vcpkg-win.outputs.triplet || steps.vcpkg-unix.outputs.triplet) }}-${{ hashFiles('vcpkg.json', 'Cargo.toml', 'Cargo.lock') }}
         restore-keys: |
-          vcpkg-libheif-${{ (steps.vcpkg-win.outputs.triplet || steps.vcpkg-unix.outputs.triplet) }}-
+          vcpkg-deps-${{ (steps.vcpkg-win.outputs.triplet || steps.vcpkg-unix.outputs.triplet) }}-
 
-    - name: Install libheif via vcpkg (Windows)
+    # 매니페스트 모드(`vcpkg.json`)라 의존성과 버전 pin이 저장소에 있다.
+    # classic 명령(`vcpkg install libheif...`)은 pin을 무시하므로 쓰지 않는다.
+    - name: Install vcpkg dependencies (Windows)
       if: runner.os == 'Windows' && steps.vcpkg-cache.outputs.cache-hit != 'true'
       shell: pwsh
-      run: vcpkg install "libheif[core,aom]:x64-windows"
+      run: vcpkg install --triplet x64-windows
 
-    - name: Install libheif via vcpkg (Linux, macOS)
+    - name: Install vcpkg dependencies (Linux, macOS)
       if: runner.os != 'Windows' && steps.vcpkg-cache.outputs.cache-hit != 'true'
       shell: bash
       run: |
-        "${{ steps.vcpkg-unix.outputs.root }}/vcpkg" install "libheif[core,aom]:${{ steps.vcpkg-unix.outputs.triplet }}"
+        "${{ steps.vcpkg-unix.outputs.root }}/vcpkg" install --triplet "${{ steps.vcpkg-unix.outputs.triplet }}"
 
-    - name: Configure libheif environment (Windows)
+    - name: Configure vcpkg environment (Windows)
       if: runner.os == 'Windows'
       shell: pwsh
       run: |
@@ -116,7 +118,7 @@ runs:
         echo "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
 
     # 정적 라이브러리라 pkg-config가 `--static`으로 의존 라이브러리까지 풀어야 한다.
-    - name: Configure libheif environment (Linux, macOS)
+    - name: Configure vcpkg environment (Linux, macOS)
       if: runner.os != 'Windows'
       shell: bash
       run: |

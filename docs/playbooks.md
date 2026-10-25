@@ -61,7 +61,7 @@ Run `node scripts/generate-license-data.mjs` after changing dependencies (needs 
 
 ## Build the Linux and macOS packages
 
-`scripts/package-linux.sh` (tar.gz with `install.sh`, `.desktop`, icon) and `scripts/package-macos.sh` (`.app` with `Info.plist` document types, ad-hoc signed, packed into a dmg) build the release binary and package it; `--skip-build` reuses `target/release/araview`. Both statically link libheif from a vcpkg `x64-linux`/`arm64-osx` install (see `docs/development.md`). `app/packaging/macos/Info.plist` must list every extension in `SUPPORTED_EXTENSIONS` (a unit test in `app/src/platform/mod.rs` checks this), so a format change touches that file too. The `.desktop` `MimeType` list is separate; add the new MIME type there.
+`scripts/package-linux.sh` (tar.gz with `install.sh`, `.desktop`, icon) and `scripts/package-macos.sh` (`.app` with `Info.plist` document types, ad-hoc signed, packed into a dmg) build the release binary and package it; `--skip-build` reuses `target/release/araview`. Both statically link libheif and FFmpeg from a vcpkg `x64-linux`/`arm64-osx` install (see `docs/development.md`). `app/packaging/macos/Info.plist` must list every extension in `SUPPORTED_EXTENSIONS` (a unit test in `app/src/platform/mod.rs` checks this), so a format change touches that file too. The `.desktop` `MimeType` list is separate; add the new MIME type there.
 
 ## Test the installer without touching the real install
 

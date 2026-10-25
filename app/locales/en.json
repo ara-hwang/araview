@@ -719,7 +719,7 @@
     }
   },
   "picker": {
-    "images": "Images"
+    "images": "Images and videos"
   },
   "ext": {
     "png": "PNG image",
@@ -770,7 +770,12 @@
     "pgm": "PGM image",
     "pbm": "PBM image",
     "cbz": "Comic archive",
-    "zip": "ZIP archive"
+    "zip": "ZIP archive",
+    "mp4": "MP4 video",
+    "mov": "MOV video",
+    "webm": "WebM video",
+    "mkv": "MKV video",
+    "avi": "AVI video"
   },
   "platform": {
     "macos": {
