@@ -39,6 +39,9 @@ dist
 
 .vcpkg/
 .vcpkg-manifest/
+# vcpkg 매니페스트 모드 기본 설치 위치. 이 저장소는 classic 위치
+# (`VCPKG_ROOT/installed`)를 쓰므로, 실수로 깔린 산출물이 untracked로 뜨지 않게 무시한다.
+vcpkg_installed/
 
 # Local copy of the updater signing key (never commit)
 *.key

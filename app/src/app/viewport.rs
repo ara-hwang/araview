@@ -794,7 +794,9 @@ impl AraView {
                         }
                         this.video_frame_pts = None;
                         this.video_clock_ms = 0;
-                        window.request_animation_frame();
+                        // 프레임 예약은 렌더 단계의 `advance_video`가 맡는다.
+                        // 여기서 `request_animation_frame`을 부르면 paint/prepaint
+                        // 단계가 아니라 패닉한다(GPUI 제약).
                         cx.notify();
                     }
                     Err(error) => {
@@ -891,18 +893,13 @@ impl AraView {
         }
     }
 
-    pub(super) fn video_seek_by(
-        &mut self,
-        delta_ms: i64,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
+    pub(super) fn video_seek_by(&mut self, delta_ms: i64, cx: &mut Context<Self>) {
         let Some(player) = &self.video else {
             return;
         };
         let pos = player.position_ms() as i64 + delta_ms;
         player.seek(pos.max(0) as u64);
-        window.request_animation_frame();
+        // 프레임 예약은 렌더 단계의 `advance_video`가 맡는다.
         cx.notify();
     }
 

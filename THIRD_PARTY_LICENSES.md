@@ -17,7 +17,7 @@ unmodified crates.io source.
 
 LGPL-2.1: `rawler` (section 2) is statically linked. The application is open
 source under EUPL-1.2 and builds from the published repository, which satisfies
-the relinking requirement of LGPL-2.1 section 6(a). FFmpeg 8.1 (section 1) is
+the relinking requirement of LGPL-2.1 section 6(a). FFmpeg 8.0 (section 1) is
 dynamically linked on Windows and statically linked from the pinned vcpkg
 source (`vcpkg.json` builtin-baseline) on macOS/Linux; the same published-repo
 rebuild applies.
@@ -26,10 +26,10 @@ rebuild applies.
 
 | Library | License (upstream) | Shipped files | Note |
 | ------- | ------------------ | ------------- | ---- |
-| libheif (vcpkg libheif[core,aom]) | GNU LGPL | heif.dll | stays dynamically linked, never static |
+| libheif 1.23.1 (vcpkg libheif, default-features off + aom; `overrides`로 baseline의 1.21.2 대신 고정. 1.21.2의 Windows DLL이 로드 시 초기화 실패를 일으킨다) | GNU LGPL | heif.dll | stays dynamically linked, never static |
 | libde265 | GNU LGPL | libde265.dll | HEVC decode only, x265 excluded |
 | aom | BSD-2-Clause + AOM patent license | aom.dll | AV1 decode for AVIF thumbnails/histogram |
-| FFmpeg 8.1 (vcpkg ffmpeg, LGPL defaults + dav1d) | GNU LGPL | avcodec-62.dll, avformat-62.dll, avutil-60.dll, avfilter-11.dll, avdevice-62.dll, swscale-9.dll, swresample-6.dll | video demux/decode only, never static; GPL features (x264/x265) excluded. SONAMEs follow the FFmpeg major; a major bump renames the DLLs |
+| FFmpeg 8.0.1 (vcpkg ffmpeg, LGPL defaults + dav1d) | GNU LGPL | avcodec-62.dll, avformat-62.dll, avutil-60.dll, avfilter-11.dll, avdevice-62.dll, swscale-9.dll, swresample-6.dll | video demux/decode only, never static; GPL features (x264/x265) excluded. SONAMEs follow the FFmpeg major; a major bump renames the DLLs |
 | dav1d | BSD-2-Clause | dav1d.dll | AV1 decode for video |
 
 ## 2. Rust dependencies (Windows x64 closure from cargo-about)

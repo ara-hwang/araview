@@ -162,20 +162,10 @@ impl AraView {
             "togglePalette" => self.open_palette(window, cx),
             "toggleGrid" => self.toggle_grid(window, cx),
             "toggleGifPlayback" => self.toggle_playback(cx),
-            "gifPrevFrame" => {
-                self.step_frame(-1, cx);
-                if self.video.is_some() {
-                    window.request_animation_frame();
-                }
-            }
-            "gifNextFrame" => {
-                self.step_frame(1, cx);
-                if self.video.is_some() {
-                    window.request_animation_frame();
-                }
-            }
-            "videoSeekBack" => self.video_seek_by(-10_000, window, cx),
-            "videoSeekFwd" => self.video_seek_by(10_000, window, cx),
+            "gifPrevFrame" => self.step_frame(-1, cx),
+            "gifNextFrame" => self.step_frame(1, cx),
+            "videoSeekBack" => self.video_seek_by(-10_000, cx),
+            "videoSeekFwd" => self.video_seek_by(10_000, cx),
             "videoSpeedDown" => self.video_step_speed(-1, cx),
             "videoSpeedUp" => self.video_step_speed(1, cx),
             "videoMute" => self.toggle_video_mute(cx),

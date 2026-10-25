@@ -54,7 +54,7 @@
 
 ### 2.2 동영상 5종
 
-목록·연결·판별에 더해 첫 프레임 정지 미리보기(포스터)와 본격 재생을 지원한다. 디코더는 rsmpeg(FFmpeg 8.x, MIT)이며, `vcpkg.json` 매니페스트가 `builtin-baseline`으로 FFmpeg 8.1.2를 고정한다. 재생 동작은 7.6절을 따른다. `crates/araview-core/src/video.rs`의 `VideoProbe`(메타데이터)와 포스터 JPEG sidecar(`paint/`의 `video-<hash>.jpg`)가 렌더·썸네일·클립보드의 입력이다.
+목록·연결·판별에 더해 첫 프레임 정지 미리보기(포스터)와 본격 재생을 지원한다. 디코더는 rsmpeg(FFmpeg 8.x, MIT)이며, `vcpkg.json` 매니페스트가 `builtin-baseline`으로 FFmpeg 8.0.1을 고정한다(`rsmpeg 0.18`이 8.0 헤더 기준). 재생 동작은 7.6절을 따른다. `crates/araview-core/src/video.rs`의 `VideoProbe`(메타데이터)와 포스터 JPEG sidecar(`paint/`의 `video-<hash>.jpg`)가 렌더·썸네일·클립보드의 입력이다.
 
 | 확장자 | MIME                   | 비고                                                              |
 | ------ | ---------------------- | ----------------------------------------------------------------- |
