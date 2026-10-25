@@ -54,7 +54,7 @@
 
 ### 2.2 동영상 5종
 
-목록·연결·판별에 더해 첫 프레임 정지 미리보기(포스터)를 지원한다. 디코더는 rsmpeg(FFmpeg 8.x, MIT)이며, `vcpkg.json` 매니페스트가 `builtin-baseline`으로 FFmpeg 8.1.2를 고정한다. 재생(탐색·오디오)은 M2에서 붙는다. `crates/araview-core/src/video.rs`의 `VideoProbe`(메타데이터)와 포스터 JPEG sidecar(`paint/`의 `video-<hash>.jpg`)가 렌더·썸네일·클립보드의 입력이다.
+목록·연결·판별에 더해 첫 프레임 정지 미리보기(포스터)와 본격 재생을 지원한다. 디코더는 rsmpeg(FFmpeg 8.x, MIT)이며, `vcpkg.json` 매니페스트가 `builtin-baseline`으로 FFmpeg 8.1.2를 고정한다. 재생 동작은 7.6절을 따른다. `crates/araview-core/src/video.rs`의 `VideoProbe`(메타데이터)와 포스터 JPEG sidecar(`paint/`의 `video-<hash>.jpg`)가 렌더·썸네일·클립보드의 입력이다.
 
 | 확장자 | MIME                   | 비고                                                              |
 | ------ | ---------------------- | ----------------------------------------------------------------- |
@@ -276,6 +276,18 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 - 재생은 이미지 진입 시 자동 시작하며, OS 모션 최소화(`prefers-reduced-motion: reduce`)면 정지 상태로 시작한다.
 - 단일/다중 프레임 판정과 반복 횟수는 디코더 트랙 정보를 따르고, 유한 반복 GIF는 마지막 회차에서 멈춘다.
 - 좁은 창에서 헤더는 500 논리 px 최소 폭에서도 좌측 파일 메뉴, 우측 팔레트/설정/항상 위 메뉴와 창 최소화·최대화·닫기 캡션 버튼을 유지한다. 690px 미만에서는 맞춤/줌, 840px 미만에서는 보기 모드, 단일 보기 1010px 미만에서는 회전/반전 그룹을 차례로 숨긴다. 애니메이션 재생 제어(재생/정지, 프레임 이동, 프레임 카운터)는 헤더가 아니라 하단 독에 표시한다. 어느 폭에서도 우측 메뉴가 캡션 버튼과 겹치지 않아야 한다. 단축키와 명령 팔레트는 항상 쓸 수 있다.
+
+### 7.6 동영상 재생
+
+- 단일 보기에서만 재생한다. 양쪽·웹툰 보기에서는 첫 프레임 정지 상태로 보여준다(포스터).
+- 진입 시 자동 재생한다(`videoAutoplay`, 기본 true). OS 모션 최소화(`prefers-reduced-motion: reduce`)면 정지 상태로 시작한다.
+- 전송 제어는 하단 독에 둔다(애니메이션 오버레이와 같은 자리): 재생/정지 버튼, 타임라인 스크럽, 현재/전체 시간, 속도, 음량·음소거, 자막 토글, 프레임 카운터. 단축키와 명령 팔레트는 항상 쓸 수 있다.
+- `P` 재생/정지, `,`/`.` 1프레임 이동(정지 후 이동), `J`/`L` 10초 뒤/앞 이동, `[`/`]` 속도 내림/올림(`0.25/0.5/1/1.5/2`), `M` 음소거, `S` 자막 켜기/끄기.
+- 속도와 음소거는 세션 단위다. 음량(`videoVolume`, 기본 80)과 자막 표시(`videoSubtitles`, 기본 true)는 저장된다.
+- 자막은 내장 자막 트랙(SRT/ASS 등)을 일반 텍스트로만 표시한다. 스타일·위치·겹침은 무시하고 현재 구간 텍스트를 보여준다. 자막 트랙이 없으면 토글을 비활성으로 둔다.
+- 탐색은 키프레임 기준 탐색 후 목표 지점까지 순방향 디코드라 프레임 정확도를 보장한다. 오디오가 있으면 오디오 클럭이 마스터, 없으면 단조 클럭이 마스터다. 속도는 영상·오디오에 함께 적용된다.
+- 재생 실패(손상)는 이미지와 같은 에러 카드, 지원하지 않는 코덱은 `unsupported`로 알린다.
+- 정보 패널에 동영상 섹션(치수·길이·fps·코덱·오디오·자막 유무)을 둔다(`showVideoInfo`, 기본 true).
 
 ## 8. 아카이브
 
@@ -659,7 +671,7 @@ Rust와 TypeScript는 같은 모양을 유지한다.
 - `ClipboardPng`: `{ file_path: string }`. 클립보드에 쓸 PNG의 파생 이미지 캐시 경로다(11.3절). 동영상은 포스터(첫 프레임) JPEG를 PNG로 담은 경로다.
 - `OcrResult`: `{ lines: OcrLine[], width: number, height: number }`. `width`/`height`는 인식에 넣은 이미지 치수(엔진 한계로 줄였다면 줄인 뒤 값)다.
 - `OcrLine`: `{ text, rect: OcrRect, words: OcrWord[], language }`. `OcrWord`는 `{ text, rect }`, `OcrRect`는 이미지 전체를 1로 본 `{ x, y, width, height }`다.
-- `VideoProbe`: `{ mime_type: string, width: number | null, height: number | null, duration_ms: number | null, fps: number | null, codec: string | null, has_audio: boolean, decodable: boolean }`. 치수·길이·fps는 컨테이너 헤더에서 읽는다(2.2절).
+- `VideoProbe`: `{ mime_type: string, width: number | null, height: number | null, duration_ms: number | null, fps: number | null, codec: string | null, has_audio: boolean, has_subtitles: boolean, decodable: boolean }`. 치수·길이·fps는 컨테이너 헤더에서 읽는다(2.2절).
 - `ExifData`: `Record<string, string>`.
 - `Histogram`: `{ r: number[256], g: number[256], b: number[256], sampled_pixels: number }`.
 - `ImageDetails`: 16.2 모양 그대로. 색상 모드, 비트/채널, 생성/수정 시각, DPI, ICC 상태를 포함한다.
@@ -705,7 +717,7 @@ UI 분류 5종:
 - RAW(CR2/CR3/NEF/NRW/ARW/DNG/ORF/RW2/PEF/SRW/RAF/MRW/SR2/SRF/RWL/3FR/KDC/DCR/IIQ)는 새 의존성 없이 `raw.rs`가 내장 JPEG 미리보기를 꺼내 디코드한다. 방향은 미리보기 JPEG가 아니라 RAW IFD0의 Orientation을 픽셀에 반영하고, TIFF 기반이 아닌 CR3/RAF는 JPEG 표지 훑기로만 미리보기를 찾아 IFD가 없으므로 방향을 적용하지 않는다. 1단계에서 미리보기를 못 찾으면 rawler(LGPL-2.1)로 폴백해 카메라 제작 미리보기 → 썸네일 → 센서 현상 순서로 디코드하고, 이때 방향은 rawler 메타데이터의 Orientation을 따른다(2.4절). 파일이 TIFF 시그니처를 가져도 확장자가 RAW이면 RAW로 본다(`resolve_mime`). 색상 모드는 `rgb` 8비트로 보고하며, 센서 쪽 정보(실제 비트 수, 색 프로파일)는 읽지 않는다.
 - JXL은 jxl-oxide(순수 Rust, 추가 DLL 없음)로 디코드한다. 코드스트림 헤더의 orientation은 디코더가 픽셀과 치수에 반영하므로 EXIF 회전을 따로 적용하지 않는다. 색 공간이 열거형으로 신호된 이미지(XYB 손실 압축, Display P3, PQ/HLG, 선형 등)는 sRGB로 변환하고, ICC 프로파일만 실린 RGB·회색조 이미지는 픽셀을 그대로 둔다. CMYK는 실린 ICC 프로파일을 moxcms(순수 Rust CMS)로 해석해 sRGB로 변환하고, 상세 패널에는 디코드 결과대로 RGB로 표시한다. 움직이는 JXL은 키프레임을 모두 디코드해 GIF/APNG/WebP와 같은 재생 경로를 타고, 전체 프레임이 애니메이션 예산(RGBA 512MB)을 넘으면 첫 프레임만 표시한다. 1억 픽셀을 넘으면 `TooLarge`로 거부한다.
 - AVIF는 libheif로 디코드한다. 이미지 시퀀스(움직이는 AVIF, `avis`)는 첫 영상 트랙의 프레임을 모두 디코드해 GIF/APNG/WebP와 같은 재생 경로를 타고, 프레임 지연은 트랙 타임스케일에서 계산한다. 전체 프레임이 애니메이션 예산(RGBA 512MB)을 넘으면 첫 프레임만 표시한다. edit list의 반복 횟수는 읽지 않고 항상 무한 반복한다. 썸네일·히스토그램·클립보드는 기본 이미지(정지 항목)를 쓴다.
-- 동영상(mp4/mov/webm/mkv/avi)은 첫 프레임 포스터 JPEG sidecar(`paint/`의 `video-<hash>.jpg`, 원본 식별 해시 + 한 변 기준)를 `file_path`로 돌려주고, UI는 이를 정지 이미지처럼 그린다. 치수(`ImageInfo.width/height`)는 포스터 기준이다. 썸네일은 같은 포스터 파이프라인을 쓰고, 클립보드 복사는 포스터의 첫 프레임을 PNG로 담는다. 히스토그램은 렌더 바이트(포스터) 기준이라 별도 분기 없이 동작한다. 재생(탐색·오디오)은 M2에서 붙는다(2.2절).
+- 동영상(mp4/mov/webm/mkv/avi)은 첫 프레임 포스터 JPEG sidecar(`paint/`의 `video-<hash>.jpg`, 원본 식별 해시 + 한 변 기준)를 `file_path`로 돌려주고, UI는 이를 정지 이미지처럼 그린다. 치수(`ImageInfo.width/height`)는 포스터 기준이다. 썸네일은 같은 포스터 파이프라인을 쓰고, 클립보드 복사는 포스터의 첫 프레임을 PNG로 담는다. 히스토그램은 렌더 바이트(포스터) 기준이라 별도 분기 없이 동작한다. 재생은 스트리밍 디코드다. `video_player.rs`가 디먹스·디코드 워커 스레드를 소유하고, UI는 오디오(있으면) 또는 단조 클럭으로 `poll_frame`을 뽑아 `RenderImage` 한 장으로 그린다. 전 프레임을 미리 적재하지 않는다. 탐색은 `av_seek_frame` + 버퍼 비우기 + 목표 지점 순방향 디코드다(7.6절).
 - 표시 보간은 `smooth`(GPU 선형 보간과 CPU 축소 단계)와 `pixelated`(최근접 확대 래스터) 두 가지다. 픽셀 보존 판정은 표시 배율이 1x 이상(확대)일 때만 적용되며, 축소 배율에서는 설정과 무관하게 항상 `smooth`로 강제된다. 자동 모드는 표시 배율이 2x 이상이면 `pixelated`로 전환한다(원본 픽셀 표시). nearest 축소는 스크린톤 같은 주기 패턴을 계단·무아레로 깨뜨린다. 단일 보기 배율은 이미지 크기에 대한 `zoom`이고, 웹툰/양쪽 보기는 렌더된 크기에서 실측한다(측정 전에는 기존 판정 유지).
 - 사용자 원본 파일은 필터링하지 않는다. 표시 해상도 상한 sidecar와 썸네일은 기존 파생 이미지 파이프라인을 유지하며, 픽셀 보존 판정은 메인 이미지 표시 힌트로만 사용한다.
 
