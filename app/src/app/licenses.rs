@@ -5,9 +5,9 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use gpui_kit::component::alert::Alert;
-use gpui_kit::component::list::{List, ListDelegate, ListEvent, ListItem, ListState};
+use gpui_kit::component::scroll::ScrollableElement as _;
 use gpui_kit::component::{
-    ActiveTheme as _, IndexPath, Sizable as _, StyledExt as _, WindowExt as _, h_flex, v_flex,
+    ActiveTheme as _, Sizable as _, StyledExt as _, WindowExt as _, h_flex, v_flex,
 };
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
@@ -157,88 +157,14 @@ enum Entry {
     Package(usize),
 }
 
-/// 라이선스 목록 행. 행을 고르면 오른쪽 원문이 바뀐다.
-struct LicensesDelegate {
-    bundle: Arc<Bundle>,
-    entries: Vec<Entry>,
-    selected: Option<usize>,
-}
-
-impl ListDelegate for LicensesDelegate {
-    type Item = ListItem;
-
-    fn items_count(&self, _: usize, _: &App) -> usize {
-        self.entries.len()
-    }
-
-    fn set_selected_index(
-        &mut self,
-        index: Option<IndexPath>,
-        _: &mut Window,
-        _: &mut Context<ListState<Self>>,
-    ) {
-        self.selected = index.map(|index| index.row);
-    }
-
-    fn render_item(
-        &mut self,
-        index: IndexPath,
-        _: &mut Window,
-        cx: &mut Context<ListState<Self>>,
-    ) -> Option<ListItem> {
-        let entry = *self.entries.get(index.row)?;
-        let (title, subtitle) = self.bundle.entry_title_subtitle(entry);
-        let active = self.selected == Some(index.row);
-        let theme = cx.theme();
-        let (primary, muted) = (theme.primary, theme.muted_foreground);
-        let list = cx.entity().downgrade();
-        Some(
-            ListItem::new(("license-row", index.row))
-                .h(px(ROW_HEIGHT))
-                .py_0()
-                .px_3()
-                .accessibility_label(format!("{title} {subtitle}"))
-                // 행을 눌러도 목록 포커스가 남아 화살표 키를 계속 쓸 수 있게 한다.
-                .on_click(move |_, window, cx| {
-                    list.update(cx, |state, cx| state.focus(window, cx)).ok();
-                })
-                .child(
-                    v_flex()
-                        .w_full()
-                        .min_w_0()
-                        .gap_0p5()
-                        .child(
-                            div()
-                                .text_sm()
-                                .font_medium()
-                                .text_color(if active { primary } else { theme.foreground })
-                                .overflow_hidden()
-                                .text_ellipsis()
-                                .whitespace_nowrap()
-                                .child(title),
-                        )
-                        .child(
-                            div()
-                                .text_xs()
-                                .text_color(muted)
-                                .overflow_hidden()
-                                .text_ellipsis()
-                                .whitespace_nowrap()
-                                .child(subtitle),
-                        ),
-                ),
-        )
-    }
-}
-
 struct LicensesView {
     bundle: Arc<Bundle>,
     entries: Vec<Entry>,
-    list: Entity<ListState<LicensesDelegate>>,
     selected: usize,
+    focus: FocusHandle,
+    scroll: UniformListScrollHandle,
+    list_smooth: SmoothScroll,
     detail_scroll: SmoothScroll,
-    /// 목록 선택 이벤트 구독. 뷰가 살아 있는 동안 유지한다.
-    _list_subscription: Subscription,
 }
 
 impl LicensesView {
@@ -248,35 +174,106 @@ impl LicensesView {
             .map(Entry::Document)
             .chain((0..bundle.packages.len()).map(Entry::Package))
             .collect();
-        let delegate = LicensesDelegate {
-            bundle: bundle.clone(),
-            entries: entries.clone(),
-            selected: Some(0),
-        };
-        let list = cx.new(|cx| ListState::new(delegate, window, cx));
-        list.update(cx, |state, cx| {
-            state.set_selected_index(Some(IndexPath::new(0)), window, cx)
-        });
-        let subscription = cx.subscribe_in(&list, window, |this, _, event: &ListEvent, _, cx| {
-            let index = match event {
-                ListEvent::Select(index) | ListEvent::Confirm(index) => *index,
-                ListEvent::Cancel => return,
-            };
-            if index.row != this.selected {
-                this.selected = index.row;
-                // 항목을 바꾸면 원문을 맨 위에서 보여준다.
-                this.detail_scroll.reset();
-                cx.notify();
-            }
-        });
+        let scroll = UniformListScrollHandle::new();
+        let list_smooth = SmoothScroll::from_handle(scroll.0.borrow().base_handle.clone());
+        let focus = cx.focus_handle();
+        focus.focus(window, cx);
         Self {
             bundle,
             entries,
-            list,
             selected: 0,
+            focus,
+            scroll,
+            list_smooth,
             detail_scroll: SmoothScroll::default(),
-            _list_subscription: subscription,
         }
+    }
+
+    fn select(&mut self, index: usize, cx: &mut Context<Self>) {
+        if index >= self.entries.len() || index == self.selected {
+            return;
+        }
+        self.selected = index;
+        // 항목을 바꾸면 원문을 맨 위에서 보여준다.
+        self.detail_scroll.reset();
+        // 즉시 이동과 휠 감속이 겹치지 않게 감속을 먼저 멈춘다.
+        self.list_smooth.cancel();
+        self.scroll.scroll_to_item(index, ScrollStrategy::Nearest);
+        cx.notify();
+    }
+
+    fn on_key_down(&mut self, event: &KeyDownEvent, _window: &mut Window, cx: &mut Context<Self>) {
+        let key = event.keystroke.key.as_str();
+        let count = self.entries.len() as isize;
+        if count == 0 {
+            return;
+        }
+        let current = self.selected as isize;
+        let next = match key {
+            "up" => current - 1,
+            "down" => current + 1,
+            "home" => 0,
+            "end" => count - 1,
+            "pageup" => current - 10,
+            "pagedown" => current + 10,
+            _ => return,
+        };
+        cx.stop_propagation();
+        self.select(next.clamp(0, count - 1) as usize, cx);
+    }
+
+    fn row(&self, position: usize, cx: &mut Context<Self>) -> AnyElement {
+        let Some(entry) = self.entries.get(position).copied() else {
+            return div().into_any_element();
+        };
+        let (title, subtitle) = self.bundle.entry_title_subtitle(entry);
+        let active = self.selected == position;
+        let theme = cx.theme();
+        let (primary, muted) = (theme.primary, theme.muted_foreground);
+        div()
+            .id(("license-row", position))
+            .h(px(ROW_HEIGHT))
+            .w_full()
+            .py_0()
+            .px_3()
+            .flex()
+            .flex_col()
+            .justify_center()
+            .cursor_pointer()
+            .rounded_md()
+            .when(active, |row| row.bg(theme.accent.opacity(0.12)))
+            .hover(|style| style.bg(theme.muted.opacity(0.5)))
+            .on_click(cx.listener(move |this, _, window, cx| {
+                this.select(position, cx);
+                // 행을 눌러도 목록 포커스가 남아 화살표 키를 계속 쓸 수 있게 한다.
+                this.focus.focus(window, cx);
+            }))
+            .child(
+                v_flex()
+                    .w_full()
+                    .min_w_0()
+                    .gap_0p5()
+                    .child(
+                        div()
+                            .text_sm()
+                            .font_medium()
+                            .text_color(if active { primary } else { theme.foreground })
+                            .overflow_hidden()
+                            .text_ellipsis()
+                            .whitespace_nowrap()
+                            .child(title),
+                    )
+                    .child(
+                        div()
+                            .text_xs()
+                            .text_color(muted)
+                            .overflow_hidden()
+                            .text_ellipsis()
+                            .whitespace_nowrap()
+                            .child(subtitle),
+                    ),
+            )
+            .into_any_element()
     }
 
     /// 고정폭 글꼴로 원문을 보여주는 상자.
@@ -364,19 +361,35 @@ impl LicensesView {
 impl Render for LicensesView {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let border = cx.theme().border;
+        let list = uniform_list(
+            "license-rows",
+            self.entries.len(),
+            cx.processor(|this, range: std::ops::Range<usize>, _, cx| {
+                range.map(|row| this.row(row, cx)).collect::<Vec<_>>()
+            }),
+        )
+        .track_scroll(&self.scroll)
+        .size_full()
+        // 휠은 바깥 SmoothScroll이 처리하고, 목록 자체의 기본 스크롤은 끈다.
+        .overflow_hidden();
+        let list_scroller = div()
+            .id("license-list-scroller")
+            .relative()
+            .w(px(LIST_WIDTH))
+            .h_full()
+            .flex_none()
+            .border_r_1()
+            .border_color(border)
+            .on_scroll_wheel(self.list_smooth.wheel_handler(false))
+            .vertical_scrollbar(&self.scroll)
+            .child(list);
         h_flex()
             .h(px(BODY_HEIGHT))
             .border_t_1()
             .border_color(border)
-            .child(
-                div()
-                    .w(px(LIST_WIDTH))
-                    .h_full()
-                    .flex_none()
-                    .border_r_1()
-                    .border_color(border)
-                    .child(List::new(&self.list).size_full()),
-            )
+            .track_focus(&self.focus)
+            .on_key_down(cx.listener(Self::on_key_down))
+            .child(list_scroller)
             .child(
                 self.detail_scroll
                     .area("license-detail", div().p_4().child(self.detail(cx)))
@@ -397,7 +410,7 @@ impl AraView {
                     return;
                 }
                 let view = cx.new(|cx| LicensesView::new(bundle, window, cx));
-                let list = view.read(cx).list.clone();
+                let focus = view.read(cx).focus.clone();
                 window.open_dialog(cx, move |dialog, window, _| {
                     centered(dialog, window, LICENSES_HEIGHT)
                         .title(t("settings.licenses.title"))
@@ -405,7 +418,7 @@ impl AraView {
                         .child(view.clone())
                 });
                 // 다이얼로그를 연 직후 목록에 포커스를 준다. 화살표 키로 바로 고를 수 있다.
-                list.update(cx, |state, cx| state.focus(window, cx));
+                focus.focus(window, cx);
             })
             .ok();
         })

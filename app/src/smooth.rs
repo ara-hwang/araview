@@ -100,6 +100,13 @@ impl SmoothScroll {
         self.handle.set_offset(point(px(0.), px(0.)));
     }
 
+    /// 진행 중인 감속을 멈추고 목표를 현재 위치에 맞춘다. `scroll_to_item` 같은
+    /// 즉시 이동과 휠 감속이 겹치지 않게 그 전에 부른다.
+    pub fn cancel(&self) {
+        let horizontal = self.horizontal.get();
+        self.target.set(along(self.handle.offset(), horizontal));
+    }
+
     /// `content`를 세로 스크롤 영역으로 감싼다. 반환값은 크기를 정하는 바깥 요소이며,
     /// 스크롤바는 스크롤되는 내용 밖(바깥 요소의 자식)에 붙는다.
     pub fn area<E>(&self, id: impl Into<ElementId>, content: E) -> Stateful<Div>

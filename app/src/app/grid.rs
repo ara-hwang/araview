@@ -4,6 +4,7 @@ use araview_core::file_availability::FileAvailability;
 use gpui_kit::component::button::{Button, ButtonVariants as _};
 use gpui_kit::component::empty::{Empty, EmptyHeader, EmptyMedia, EmptyMediaVariant, EmptyTitle};
 use gpui_kit::component::input::{Input, InputEvent, InputState};
+use gpui_kit::component::scroll::ScrollableElement as _;
 use gpui_kit::component::tag::Tag;
 use gpui_kit::component::{ActiveTheme as _, Icon, Sizable as _, h_flex, v_flex};
 use gpui_kit::prelude::FluentBuilder as _;
@@ -12,6 +13,7 @@ use gpui_kit::*;
 use super::{AraView, ThumbState};
 use crate::assets::Ph;
 use crate::i18n::{t, t_with};
+use crate::smooth::SmoothScroll;
 
 const CELL: f32 = 148.0;
 const GAP: f32 = 10.0;
@@ -22,6 +24,7 @@ pub(super) struct GridState {
     filter: Entity<InputState>,
     focus: FocusHandle,
     scroll: UniformListScrollHandle,
+    smooth: SmoothScroll,
     /// 필터된 목록 안에서의 키보드 선택 위치.
     selected: usize,
     _subscription: Subscription,
@@ -50,6 +53,8 @@ impl AraView {
                         InputEvent::Change => {
                             if let Some(grid) = &mut this.grid {
                                 grid.selected = 0;
+                                // 즉시 이동과 휠 감속이 겹치지 않게 감속을 먼저 멈춘다.
+                                grid.smooth.cancel();
                                 grid.scroll.scroll_to_item(0, ScrollStrategy::Top);
                             }
                             cx.notify();
@@ -57,10 +62,13 @@ impl AraView {
                         InputEvent::PressEnter { .. } => this.grid_confirm(window, cx),
                         _ => {}
                     });
+                let scroll = UniformListScrollHandle::new();
+                let smooth = SmoothScroll::from_handle(scroll.0.borrow().base_handle.clone());
                 GridState {
                     filter,
                     focus: cx.focus_handle(),
-                    scroll: UniformListScrollHandle::new(),
+                    scroll,
+                    smooth,
                     selected: 0,
                     _subscription: subscription,
                 }
@@ -75,6 +83,7 @@ impl AraView {
         let columns = self.grid_columns(window);
         if let Some(grid) = &mut self.grid {
             grid.selected = self.index;
+            grid.smooth.cancel();
             grid.scroll
                 .scroll_to_item(self.index / columns, ScrollStrategy::Center);
         }
@@ -175,6 +184,7 @@ impl AraView {
         };
         let next = next.clamp(0, count - 1) as usize;
         grid.selected = next;
+        grid.smooth.cancel();
         grid.scroll
             .scroll_to_item(next / columns as usize, ScrollStrategy::Nearest);
         cx.stop_propagation();
@@ -312,8 +322,17 @@ impl AraView {
             }),
         )
         .track_scroll(&grid.scroll)
-        .flex_1()
-        .min_h_0();
+        .size_full()
+        // 휠은 바깥 SmoothScroll이 처리하고, 목록 자체의 기본 스크롤은 끈다.
+        .overflow_hidden();
+        let scroller = div()
+            .id("grid-rows-scroller")
+            .relative()
+            .flex_1()
+            .min_h_0()
+            .on_scroll_wheel(grid.smooth.wheel_handler(false))
+            .vertical_scrollbar(&grid.scroll)
+            .child(list);
 
         v_flex()
             .id("grid")
@@ -364,7 +383,7 @@ impl AraView {
                         ),
                     )
                 } else {
-                    grid.child(list)
+                    grid.child(scroller)
                 }
             })
             .into_any_element()
