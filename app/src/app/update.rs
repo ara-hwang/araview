@@ -1,4 +1,4 @@
-//! 수동 업데이트 확인·설치와 서드파티 라이선스 화면(SPEC §20.1).
+//! 업데이트 확인·설치와 서드파티 라이선스 화면(SPEC §20.1).
 
 use std::collections::HashMap;
 use std::io::{Read as _, Write as _};
@@ -21,10 +21,13 @@ use gpui_kit::*;
 use super::AraView;
 use crate::dialog::{DOWNLOAD_HEIGHT, UPDATE_HEIGHT, centered};
 use crate::i18n::{t, t_with};
+use crate::settings::SettingsStore;
 
 /// 확인 요청은 30초, 다운로드 요청은 10분이 전체 기한이다.
 const CHECK_TIMEOUT: Duration = Duration::from_secs(30);
 const DOWNLOAD_TIMEOUT: Duration = Duration::from_secs(600);
+/// 시작 후 자동 확인까지 기다리는 시간. 창과 첫 화면이 자리 잡은 뒤 조용히 확인한다.
+const AUTO_CHECK_DELAY: Duration = Duration::from_secs(5);
 /// GPUI 앱의 릴리스 피드. Tauri 앱의 `latest.json`과 같은 모양이고 같은 키로 서명한다.
 const UPDATE_FEED: &str =
     "https://github.com/ara-hwang/araview/releases/latest/download/update-feed.json";
@@ -244,7 +247,7 @@ fn download_installer(
 }
 
 impl AraView {
-    /// 수동 업데이트 확인. 시작 시 자동 확인이나 백그라운드 폴링은 없다.
+    /// 수동 업데이트 확인. 설정에서 자동 확인을 끄더라도 버튼과 팔레트는 항상 동작한다.
     pub(super) fn check_updates(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self.update_checking {
             // 중복 확인은 무시한다.
@@ -265,6 +268,49 @@ impl AraView {
                     Ok(_) => window.toast(Toast::success(t("toast.update.latest")), cx),
                     Err(error) => {
                         window.toast(Toast::error(error).title(t("toast.update.checkFail")), cx)
+                    }
+                }
+            })
+            .ok();
+        })
+        .detach();
+    }
+
+    /// 시작 시 1회 자동 확인. 설정이 켜져 있을 때만 창이 자리 잡은 뒤 조용히 확인하고,
+    /// 새 버전이 있을 때만 대화상자를 띄운다. 최신이거나 실패하면 알리지 않는다.
+    pub(super) fn maybe_auto_check_updates(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if !SettingsStore::global(cx).settings.auto_check_updates {
+            return;
+        }
+        cx.spawn_in(window, async move |this, cx| {
+            cx.background_executor().timer(AUTO_CHECK_DELAY).await;
+            let should_run = this
+                .update_in(cx, |this, _, cx| {
+                    if !SettingsStore::global(cx).settings.auto_check_updates
+                        || this.update_checking
+                    {
+                        return false;
+                    }
+                    this.update_checking = true;
+                    true
+                })
+                .ok()
+                == Some(true);
+            if !should_run {
+                return;
+            }
+            let result = cx.background_spawn(async { fetch_feed(&feed_url()) }).await;
+            this.update_in(cx, |this, window, cx| {
+                this.update_checking = false;
+                // 자동 확인 중 설정을 열었다면 확인 버튼을 원래대로 되돌린다.
+                window.refresh();
+                match result {
+                    Ok(Some(feed)) if is_newer(&feed.version, env!("CARGO_PKG_VERSION")) => {
+                        this.show_update(feed, window, cx)
+                    }
+                    Ok(_) => {}
+                    Err(error) => {
+                        log::warn!("[update] automatic check failed: {error}");
                     }
                 }
             })

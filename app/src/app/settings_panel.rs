@@ -518,6 +518,18 @@ impl SettingsPanel {
                 ))
             })
             .child(setting_row(
+                t("settings.update.autoTitle"),
+                Some(t("settings.update.autoDesc")),
+                self.toggle(
+                    "auto-check-updates",
+                    s.auto_check_updates,
+                    |settings, value| settings.auto_check_updates = value,
+                    Effect::Redraw,
+                    cx,
+                ),
+                cx,
+            ))
+            .child(setting_row(
                 t("settings.update.title"),
                 Some(t_with(
                     "settings.update.current",

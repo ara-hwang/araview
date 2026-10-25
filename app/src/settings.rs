@@ -371,6 +371,11 @@ fn sanitize_shortcuts(saved: ShortcutMap) -> ShortcutMap {
     map
 }
 
+/// 새 설정 키가 없는 기존 `settings.json`도 자동 확인 기본값(켜짐)을 유지한다.
+fn default_auto_check_updates() -> bool {
+    true
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct Settings {
@@ -389,6 +394,8 @@ pub struct Settings {
     pub record_recent_files: bool,
     /// 삭제 요청을 받으면 확인 창 없이 바로 휴지통으로 보낸다.
     pub trash_without_confirm: bool,
+    #[serde(default = "default_auto_check_updates")]
+    pub auto_check_updates: bool,
     pub viewer_background: ViewerBackground,
     #[serde(rename = "autoHideUI")]
     pub auto_hide_ui: bool,
@@ -431,6 +438,7 @@ impl Default for Settings {
             auto_open_last_file: false,
             record_recent_files: true,
             trash_without_confirm: false,
+            auto_check_updates: true,
             viewer_background: ViewerBackground::Theme,
             auto_hide_ui: false,
             menu_bar_hidden: false,
@@ -741,6 +749,32 @@ mod tests {
     fn a_missing_trash_without_confirm_falls_back_to_the_default() {
         let restored = restore_settings(serde_json::json!({ "language": "en" }));
         assert!(!restored.trash_without_confirm);
+    }
+
+    /// 자동 업데이트 확인은 켜짐이 기본이다(SPEC §13, §20.1).
+    #[test]
+    fn auto_check_updates_is_on_by_default() {
+        assert!(Settings::default().auto_check_updates);
+    }
+
+    /// 설정 파일의 키 이름은 camelCase로 저장된다(SPEC §13, `npm run docs:check`).
+    #[test]
+    fn auto_check_updates_round_trips() {
+        let settings = Settings {
+            auto_check_updates: false,
+            ..Settings::default()
+        };
+        let saved = serde_json::to_value(&settings).expect("설정 직렬화");
+        assert_eq!(saved["autoCheckUpdates"], serde_json::json!(false));
+        let restored: Settings = serde_json::from_value(saved).expect("설정 복원");
+        assert!(!restored.auto_check_updates);
+    }
+
+    /// 기존 설정 파일에 키가 없어도 자동 확인 기본값(켜짐)을 유지한다.
+    #[test]
+    fn a_missing_auto_check_updates_falls_back_to_on() {
+        let restored = restore_settings(serde_json::json!({ "language": "en" }));
+        assert!(restored.auto_check_updates);
     }
 
     /// 일반 휠 위/아래가 한 쌍을 이루면 묶음 동작을 알아보고, 따로 놀면 없다(SPEC §14.2).

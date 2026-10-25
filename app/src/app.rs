@@ -328,6 +328,7 @@ impl AraView {
         if let Some(path) = initial.or(auto_open) {
             this.open_path(path, window, cx);
         }
+        this.maybe_auto_check_updates(window, cx);
         this
     }
 
