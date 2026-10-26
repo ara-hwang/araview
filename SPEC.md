@@ -476,6 +476,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 | `recordRecentFiles`     | 최근 기록 유지                                                          | `true`                             |
 | `trashWithoutConfirm`   | 삭제 요청 시 확인 창 없이 바로 휴지통으로 이동                          | `false`                            |
 | `autoCheckUpdates`      | 시작 시 새 버전 자동 확인 (새 버전이 있을 때만 알림)                    | `true`                             |
+| `updateChannel`         | 업데이트 확인 채널 `stable \| beta` (20.1절)                            | `stable`                           |
 | `viewerBackground`      | `theme \| black \| white \| checker`                                    | `theme`                            |
 | `autoHideUI`            | 읽기 중 크롬 자동 숨김                                                  | `false`                            |
 | `menuBarHidden`         | 상단바 수동 숨김 (이미지 보기 중만, 상단 호버 시 peek)                  | `false`                            |
@@ -711,7 +712,7 @@ UI 분류 5종:
 - 읽기 영역 드래그는 팬·스크롤 여유가 없을 때 창 이동이 된다(§7.2).
 - Windows 11 Snap Layouts: gpui-kit 타이틀바의 최대화 버튼은 창 컨트롤 영역(`WindowControlArea::Max`)으로 등록돼 있어 Windows가 `HTMAXBUTTON`으로 처리한다. 앱이 따로 오버레이를 두지 않는다. 헤더의 일반 버튼은 `.occlude()`로 묶어 캡션 드래그 영역으로 취급되지 않게 한다. 최소 폭 500 논리 px에서 좌우 메뉴와 캡션 버튼을 보존하도록 헤더의 보조 그룹은 폭에 따라 단계적으로 접고 버튼 그룹은 줄어들지 않는다.
 - 설치 프로그램: NSIS 하나만 만든다(`pwsh scripts/Build-Installer.ps1`, 결과물 `target/AraView-<버전>-setup.exe`). 1.x(Tauri) 설치본과 같은 정체성(설치 폴더 `%LOCALAPPDATA%\AraView`, 실행 파일 `araview.exe`, 제거 항목 `AraView`, 시작 메뉴 바로가기)을 써서 같은 자리에 덮어쓴다. 설치 중 앱이 실행 중이면 종료를 요청한다.
-- 릴리스 파이프라인: `npm run release -- <버전>`(`scripts/release.mjs`)이 `app/Cargo.toml`과 `Cargo.lock`의 버전을 올려 커밋하고 `vX.Y.Z` 태그와 함께 푸시한다. 태그 푸시를 `.github/workflows/release.yml`이 받아 태그와 버전 파일의 일치, 서명 키 Secrets를 확인한 뒤 검증(cargo fmt/test/clippy, 보안 감사, 라이선스 검사), 설치 프로그램 빌드, 서명, `update-feed.json` 생성, 원본 저장소 `ara-hwang/araview` 릴리스 생성까지 자동으로 수행한다. `ci.yml`이 검증을 담당하고 릴리스가 이를 재사용한다. 권한과 절차 상세는 `docs/releasing.md`를 따른다.
+- 릴리스 파이프라인: 안정 채널 브랜치는 `release/2.x`, 베타 채널 브랜치는 `main`이다. `npm run release -- patch|minor|major|<X.Y.Z>`(`scripts/release.mjs`)는 `release/2.x`에서 `vX.Y.Z`를, `npm run release -- beta`는 `main`에서 `vX.Y.Z-beta.N`을 만든다. 스크립트가 `app/Cargo.toml`과 `Cargo.lock`의 버전을 올려 커밋하고 해당 브랜치와 태그를 함께 푸시한다. 태그 푸시를 `.github/workflows/release.yml`이 받아 태그와 버전 파일의 일치, 서명 키 Secrets를 확인한 뒤 검증(cargo fmt/test/clippy, 보안 감사, 라이선스 검사), 설치 프로그램 빌드, 서명, 업데이트 피드 생성, 원본 저장소 `ara-hwang/araview` 릴리스 생성까지 자동으로 수행한다. 안정 태그는 정식 릴리스와 `update-feed.json`을, 베타 태그는 프리릴리스와 `update-feed-beta.json`을 만들고 롤링 `beta` 릴리스의 베타 피드 자산을 갱신한다. `ci.yml`이 검증을 담당하고 릴리스가 이를 재사용한다. 권한과 절차 상세는 `docs/releasing.md`를 따른다.
 - Linux 배포: `scripts/package-linux.sh`가 `target/AraView-<버전>-linux-<arch>.tar.gz`를 만든다(`bin/araview`, `bin/licenses/`, `share/applications/com.araview.viewer.desktop`, 아이콘, `install.sh`). `install.sh`는 `~/.local`(또는 `PREFIX`)에 관리자 권한 없이 설치하고 `--uninstall`로 제거한다. `.desktop`의 `MimeType`이 지원 형식을 선언하고 `StartupWMClass`와 창 `app_id`가 식별자 `com.araview.viewer`다. libheif는 vcpkg 정적 링크다. 실행에는 X11 또는 Wayland, Vulkan, `libxkbcommon`이 필요하다.
 - macOS 배포: `scripts/package-macos.sh`가 `AraView.app`(`Info.plist`의 `CFBundleDocumentTypes`가 지원 확장자를 `Viewer`/`Alternate`로 선언, `AraView.icns`)을 만들고 ad-hoc 서명해 `target/AraView-<버전>-macos-<arch>.dmg`로 묶는다. 공증하지 않으므로 첫 실행은 우클릭 > 열기다. CI는 Apple silicon(arm64)만 빌드한다.
 - 파일 연결(Windows): 연결은 OS 확인 없이 바꿀 수 없다. macOS와 Linux는 설정에 연결 UI가 없고(탭 자체가 없다) 번들·`.desktop` 선언이 "다음으로 열기" 목록을 채운다. 연결 3그룹:
@@ -727,7 +728,7 @@ UI 분류 5종:
 - 진입점: 시작 시 자동 확인(`autoCheckUpdates`가 true일 때), 설정 일반 탭의 `새 버전 확인` 버튼, 명령 팔레트의 `업데이트 확인`.
 - 흐름: 업데이트 확인 → 없으면 최신 안내(자동 확인은 조용히 넘어감), 있으면 대화상자에서 다운로드를 시작한다. 내려받은 설치 프로그램은 서명을 앱에 내장한 공개키로 확인한 뒤에만 실행하고, 실행하면 앱이 종료된다. 설치와 새 버전 재실행은 NSIS가 담당하므로 수동 재시작 UI는 없다. 다운로드하는 동안에는 진행 대화상자를 띄워 진행 막대와 받은 크기/전체 크기(%)를 보여 준다. 서버가 전체 크기를 알려 주지 않으면 막대는 불확정 표시가 되고 받은 크기만 보인다. 이 대화상자는 `취소` 버튼으로만 닫히며(`Esc`와 닫기 버튼 없음) 취소하면 받던 내용을 버린다. 다운로드 실패는 알림으로 알린다. 중복 확인은 무시한다(자동 확인 중 수동 확인을 누르면 수동 확인이 무시되고, 반대로 자동 확인은 수동 확인이 끝나기 전에 시작하지 않는다).
 - HTTP 타임아웃: 확인 요청은 30초, 다운로드 요청은 10분(본문 수신을 포함한 요청 전체 기한)이다. 초과하면 각각 확인 실패와 다운로드 실패 알림으로 처리한다(자동 확인의 실패는 알리지 않는다).
-- 피드: 원본 저장소(`ara-hwang/araview`)의 최신 릴리스에 올라간 `update-feed.json`이고(버전, 노트, 플랫폼별 URL과 서명), 서명 공개키는 `app/update-pubkey.txt`다. 1.x(Tauri) 앱이 보던 `update-feed.json`은 2.0부터 올리지 않으므로 1.x는 자동으로 2.0을 받지 못하고 직접 설치해야 한다.
+- 피드: 설정 `updateChannel`이 `stable`이면 최신 정식 릴리스의 `update-feed.json`을, `beta`면 롤링 `beta` 프리릴리스의 `update-feed-beta.json`을 읽는다(버전, 노트, 플랫폼별 URL과 서명). `releases/latest`는 프리릴리스를 제외하므로 베타 릴리스가 안정 채널에 노출되지 않는다. 서명 공개키는 `app/update-pubkey.txt`다. 1.x(Tauri) 앱이 보던 `latest.json`은 안정 릴리스에만 함께 올리므로 1.x는 2.x 베타를 받지 않는다.
 - 키 발급, 서명 빌드, 로컬 릴리스 절차는 `docs/releasing.md`를 따른다.
 
 ### 20.2 PSD 탐색기 썸네일 (IThumbnailProvider)

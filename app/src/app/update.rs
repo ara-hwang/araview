@@ -21,17 +21,21 @@ use gpui_kit::*;
 use super::AraView;
 use crate::dialog::centered;
 use crate::i18n::{t, t_with};
-use crate::settings::SettingsStore;
+use crate::settings::{SettingsStore, UpdateChannel};
 
 /// 확인 요청은 30초, 다운로드 요청은 10분이 전체 기한이다.
 const CHECK_TIMEOUT: Duration = Duration::from_secs(30);
 const DOWNLOAD_TIMEOUT: Duration = Duration::from_secs(600);
 /// 시작 후 자동 확인까지 기다리는 시간. 창과 첫 화면이 자리 잡은 뒤 조용히 확인한다.
 const AUTO_CHECK_DELAY: Duration = Duration::from_secs(5);
-/// GPUI 앱의 릴리스 피드. Tauri 앱의 `latest.json`과 같은 모양이고 같은 키로 서명한다.
-const UPDATE_FEED: &str =
+/// 안정 채널 피드. `releases/latest`는 프리릴리스를 제외하므로 베타 릴리스가 있어도
+/// 정식 릴리스만 가리킨다.
+const UPDATE_FEED_STABLE: &str =
     "https://github.com/ara-hwang/araview/releases/latest/download/update-feed.json";
-const RELEASE_PAGE: &str = "https://github.com/ara-hwang/araview/releases/latest";
+/// 베타 채널 피드. 베타 릴리스마다 롤링 `beta` 릴리스의 이 자산을 덮어쓴다.
+const UPDATE_FEED_BETA: &str =
+    "https://github.com/ara-hwang/araview/releases/download/beta/update-feed-beta.json";
+const RELEASE_PAGE: &str = "https://github.com/ara-hwang/araview/releases";
 /// 앱 안에서 내려받아 설치할 수 있는 플랫폼 키. 설치 프로그램 실행은 Windows만 지원하므로
 /// macOS와 Linux는 업데이트 확인 후 릴리스 페이지로 안내한다.
 const PLATFORM: Option<&str> = if cfg!(windows) {
@@ -99,18 +103,77 @@ impl DownloadProgress {
     }
 }
 
-/// `1.2.10` 같은 버전을 숫자 조각으로 비교한다. 앞의 `v`와 뒤의 접미사는 무시한다.
-fn version_parts(version: &str) -> Vec<u64> {
-    version
-        .trim()
-        .trim_start_matches('v')
-        .split(['.', '-', '+'])
-        .map_while(|part| part.parse().ok())
-        .collect()
+/// 비교 가능한 버전. `1.2.10`, `2.7.0-beta.2` 같은 값을 다룬다.
+/// 앞의 `v`와 뒤의 빌드 메타데이터(`+...`)는 무시한다.
+#[derive(Debug, PartialEq, Eq)]
+struct Version<'a> {
+    core: [u64; 3],
+    pre: Option<Vec<&'a str>>,
+}
+
+fn parse_version(version: &str) -> Option<Version<'_>> {
+    let version = version.trim();
+    let version = version.strip_prefix('v').unwrap_or(version);
+    let version = version.split('+').next().unwrap_or(version);
+    let (core, pre): (&str, Option<Vec<&str>>) = match version.split_once('-') {
+        Some((core, pre)) if !pre.is_empty() => (core, Some(pre.split('.').collect())),
+        Some(_) => return None,
+        None => (version, None),
+    };
+    let mut parts = core.split('.');
+    let core = [
+        parts.next()?.parse().ok()?,
+        parts.next()?.parse().ok()?,
+        parts.next()?.parse().ok()?,
+    ];
+    if parts.next().is_some() {
+        return None;
+    }
+    if pre
+        .as_ref()
+        .is_some_and(|parts| parts.iter().any(|part| part.is_empty()))
+    {
+        return None;
+    }
+    Some(Version { core, pre })
+}
+
+/// 세미버전 규칙으로 프리릴리스 식별자를 비교한다. 숫자 식별자는 수로, 문자 식별자는
+/// 사전순으로 비교하고 숫자가 항상 문자보다 작다. 앞부분이 같으면 짧은 쪽이 작다.
+fn compare_identifier(a: &str, b: &str) -> std::cmp::Ordering {
+    match (a.parse::<u64>(), b.parse::<u64>()) {
+        (Ok(a), Ok(b)) => a.cmp(&b),
+        (Ok(_), Err(_)) => std::cmp::Ordering::Less,
+        (Err(_), Ok(_)) => std::cmp::Ordering::Greater,
+        (Err(_), Err(_)) => a.cmp(b),
+    }
+}
+
+fn compare_versions(candidate: &str, current: &str) -> Option<std::cmp::Ordering> {
+    let candidate = parse_version(candidate)?;
+    let current = parse_version(current)?;
+    let order = candidate.core.cmp(&current.core);
+    if order != std::cmp::Ordering::Equal {
+        return Some(order);
+    }
+    Some(match (candidate.pre.as_deref(), current.pre.as_deref()) {
+        (None, None) => std::cmp::Ordering::Equal,
+        (None, Some(_)) => std::cmp::Ordering::Greater,
+        (Some(_), None) => std::cmp::Ordering::Less,
+        (Some(a), Some(b)) => {
+            for (a, b) in a.iter().zip(b) {
+                let order = compare_identifier(a, b);
+                if order != std::cmp::Ordering::Equal {
+                    return Some(order);
+                }
+            }
+            a.len().cmp(&b.len())
+        }
+    })
 }
 
 fn is_newer(candidate: &str, current: &str) -> bool {
-    version_parts(candidate) > version_parts(current)
+    compare_versions(candidate, current) == Some(std::cmp::Ordering::Greater)
 }
 
 fn decode_base64_text(value: &str) -> Result<String, String> {
@@ -132,13 +195,17 @@ fn verify_signature(bytes: &[u8], signature: &str, public_key: &str) -> Result<(
 }
 
 /// 확인할 피드 주소. 디버그 빌드는 로컬 검증용으로 환경 변수로 바꿀 수 있다.
-fn feed_url() -> String {
+fn feed_url(channel: UpdateChannel) -> String {
     if cfg!(debug_assertions)
         && let Ok(url) = std::env::var("ARAVIEW_UPDATE_FEED")
     {
         return url;
     }
-    UPDATE_FEED.to_owned()
+    match channel {
+        UpdateChannel::Stable => UPDATE_FEED_STABLE,
+        UpdateChannel::Beta => UPDATE_FEED_BETA,
+    }
+    .to_owned()
 }
 
 fn release_public_key() -> Result<String, String> {
@@ -254,7 +321,8 @@ impl AraView {
             return;
         }
         self.update_checking = true;
-        let task = cx.background_spawn(async { fetch_feed(&feed_url()) });
+        let channel = SettingsStore::global(cx).settings.update_channel;
+        let task = cx.background_spawn(async move { fetch_feed(&feed_url(channel)) });
         cx.spawn_in(window, async move |this, cx| {
             let result = task.await;
             this.update_in(cx, |this, window, cx| {
@@ -284,22 +352,24 @@ impl AraView {
         }
         cx.spawn_in(window, async move |this, cx| {
             cx.background_executor().timer(AUTO_CHECK_DELAY).await;
-            let should_run = this
+            let channel = this
                 .update_in(cx, |this, _, cx| {
                     if !SettingsStore::global(cx).settings.auto_check_updates
                         || this.update_checking
                     {
-                        return false;
+                        return None;
                     }
                     this.update_checking = true;
-                    true
+                    Some(SettingsStore::global(cx).settings.update_channel)
                 })
                 .ok()
-                == Some(true);
-            if !should_run {
+                .flatten();
+            let Some(channel) = channel else {
                 return;
-            }
-            let result = cx.background_spawn(async { fetch_feed(&feed_url()) }).await;
+            };
+            let result = cx
+                .background_spawn(async move { fetch_feed(&feed_url(channel)) })
+                .await;
             this.update_in(cx, |this, window, cx| {
                 this.update_checking = false;
                 // 자동 확인 중 설정을 열었다면 확인 버튼을 원래대로 되돌린다.
@@ -541,7 +611,8 @@ impl AraView {
     /// 대화상자 없이 최신 버전을 바로 내려받아 설치를 시작한다. 디버그 빌드의
     /// 런타임 검증 통로(`action:installUpdate`)에서만 쓴다.
     pub(super) fn install_latest_update(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let task = cx.background_spawn(async { fetch_feed(&feed_url()) });
+        let channel = SettingsStore::global(cx).settings.update_channel;
+        let task = cx.background_spawn(async move { fetch_feed(&feed_url(channel)) });
         cx.spawn_in(window, async move |this, cx| {
             let feed = task.await.ok().flatten()?;
             let asset = PLATFORM
@@ -562,7 +633,8 @@ impl AraView {
 mod tests {
     // `super::*`는 gpui의 `test` 매크로까지 끌어와 `#[test]`를 가린다.
     use super::{
-        DOWNLOAD_CHUNK, DownloadProgress, Ordering, is_allowed_asset_url, read_with_progress,
+        DOWNLOAD_CHUNK, DownloadProgress, Ordering, compare_versions, is_allowed_asset_url,
+        is_newer, parse_version, read_with_progress,
     };
 
     #[test]
@@ -598,5 +670,41 @@ mod tests {
         assert_eq!(progress.percent(), None);
         progress.total.store(200, Ordering::Relaxed);
         assert_eq!(progress.percent(), Some(25.));
+    }
+
+    #[test]
+    fn numeric_version_parts_compare_as_numbers() {
+        assert!(is_newer("1.2.10", "1.2.9"));
+        assert!(is_newer("2.7.0", "2.6.99"));
+        assert!(!is_newer("2.6.1", "2.6.1"));
+        assert!(!is_newer("2.5.9", "2.6.0"));
+    }
+
+    #[test]
+    fn beta_releases_compare_in_order() {
+        assert!(is_newer("2.7.0-beta.2", "2.7.0-beta.1"));
+        assert!(is_newer("2.7.0-beta.10", "2.7.0-beta.9"));
+        assert!(!is_newer("2.7.0-beta.1", "2.7.0-beta.1"));
+        assert!(!is_newer("2.7.0-beta.1", "2.7.0"));
+        assert!(is_newer("2.7.0", "2.7.0-beta.1"));
+        assert!(is_newer("2.8.0-beta.1", "2.7.0"));
+    }
+
+    #[test]
+    fn build_metadata_and_v_prefix_are_ignored() {
+        assert_eq!(
+            compare_versions("v2.7.0+build.7", "2.7.0"),
+            Some(std::cmp::Ordering::Equal)
+        );
+        assert!(is_newer("v2.7.0", "v2.6.1"));
+    }
+
+    #[test]
+    fn malformed_versions_are_never_newer() {
+        assert_eq!(parse_version("2.7"), None);
+        assert_eq!(parse_version("2.7.0-"), None);
+        assert_eq!(parse_version("2.7.0-beta."), None);
+        assert!(!is_newer("not-a-version", "2.6.1"));
+        assert!(!is_newer("2.6.1", "not-a-version"));
     }
 }
