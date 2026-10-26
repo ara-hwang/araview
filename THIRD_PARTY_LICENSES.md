@@ -26,10 +26,11 @@ rebuild applies.
 
 | Library | License (upstream) | Shipped files | Note |
 | ------- | ------------------ | ------------- | ---- |
-| libheif 1.23.6 (vcpkg libheif, default-features off + dav1d + libde265; `overrides`로 baseline의 1.21.2 대신 고정. 1.21.2의 Windows DLL이 로드 시 초기화 실패를 일으킨다) | GNU LGPL | heif.dll | stays dynamically linked, never static |
+| libheif 1.23.1 (vcpkg libheif, default-features off + aom; `overrides`로 baseline의 1.21.2 대신 고정. 1.21.2의 Windows DLL이 로드 시 초기화 실패를 일으킨다) | GNU LGPL | heif.dll | stays dynamically linked, never static |
 | libde265 | GNU LGPL | libde265.dll | HEVC decode only, x265 excluded |
+| aom | BSD-2-Clause + AOM patent license | aom.dll | AV1 decode for AVIF thumbnails/histogram |
 | FFmpeg 8.0.1 (vcpkg ffmpeg, LGPL defaults + dav1d) | GNU LGPL | avcodec-62.dll, avformat-62.dll, avutil-60.dll, avfilter-11.dll, avdevice-62.dll, swscale-9.dll, swresample-6.dll | video demux/decode only, never static; GPL features (x264/x265) excluded. SONAMEs follow the FFmpeg major; a major bump renames the DLLs |
-| dav1d | BSD-2-Clause | dav1d.dll | AV1 decode for video and AVIF thumbnails/histogram |
+| dav1d | BSD-2-Clause | dav1d.dll | AV1 decode for video |
 
 ## 2. Rust dependencies (Windows x64 closure from cargo-about)
 

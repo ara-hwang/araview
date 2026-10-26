@@ -46,7 +46,7 @@ runs:
       shell: bash
       run: |
         command -v pkg-config >/dev/null || brew install pkgconf
-        # vcpkg 포트가 nasm을 요구할 수 있다. 자동 획득이 실패하는 러너가 있어 직접 설치한다.
+        # aom(vcpkg)이 nasm을 요구한다. vcpkg의 자동 획득이 실패하는 러너가 있어 직접 설치한다.
         command -v nasm >/dev/null || brew install nasm
 
     # VCPKG_INSTALLATION_ROOT는 러너가 프로세스 환경에만 넣어 주는 값이라 `env` 컨텍스트에
