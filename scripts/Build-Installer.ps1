@@ -58,8 +58,8 @@ New-Item -ItemType Directory -Path $stage | Out-Null
 Copy-Item $exe $stage
 
 # 네이티브 런타임 DLL은 빌드 스크립트가 실행 파일 옆에 복사해 둔다. 없으면 앱이 시작되지 않는다.
-# (libheif 3종 + FFmpeg 8 영상 7종 + dav1d. FFmpeg 메이저가 바뀌면 DLL 이름도 바뀐다.)
-foreach ($dll in "heif.dll", "libde265.dll", "aom.dll", "avcodec-62.dll", "avformat-62.dll", "avutil-60.dll", "avfilter-11.dll", "avdevice-62.dll", "swscale-9.dll", "swresample-6.dll", "dav1d.dll") {
+# (libheif 2종 + dav1d + FFmpeg 8 영상 7종. FFmpeg 메이저가 바뀌면 DLL 이름도 바뀐다.)
+foreach ($dll in "heif.dll", "libde265.dll", "avcodec-62.dll", "avformat-62.dll", "avutil-60.dll", "avfilter-11.dll", "avdevice-62.dll", "swscale-9.dll", "swresample-6.dll", "dav1d.dll") {
   $source = Join-Path $release $dll
   if (-not (Test-Path $source)) { throw "런타임 DLL이 없습니다: $source (VCPKG_ROOT 확인)" }
   Copy-Item $source $stage
@@ -72,7 +72,7 @@ $resources = New-Item -ItemType Directory -Path (Join-Path $stage "resources")
 Copy-Item $thumb $resources
 
 # 패키지별 라이선스 데이터는 실행 파일에 들어 있다. 여기서는 vcpkg 네이티브
-# 라이브러리(libheif, libde265, aom, FFmpeg, dav1d)의 저작권 문서만 함께 넣는다(빌드 스크립트가 모은다).
+# 라이브러리(libheif, libde265, FFmpeg, dav1d)의 저작권 문서만 함께 넣는다(빌드 스크립트가 모은다).
 $licenses = Join-Path $release "licenses"
 $documents = @(Get-ChildItem $licenses -Filter "*-copyright.txt" -ErrorAction SilentlyContinue)
 if ($documents.Count -gt 0) {

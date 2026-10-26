@@ -47,7 +47,7 @@ fn embed_icon() {
 fn embed_icon() {}
 
 /// vcpkg로 동적 링크한 네이티브 런타임 DLL을 실행 파일 옆에 둔다. 없으면 앱이
-/// 시작되지 않는다. 대상은 libheif 3종과 FFmpeg 8 영상 DLL이다.
+/// 시작되지 않는다. 대상은 libheif 2종(heif, libde265), dav1d, FFmpeg 8 영상 DLL이다.
 fn copy_vcpkg_runtime_dlls() {
     println!("cargo:rerun-if-env-changed=VCPKG_ROOT");
     println!("cargo:rerun-if-env-changed=VCPKG_INSTALLATION_ROOT");
@@ -90,23 +90,21 @@ fn is_vcpkg_runtime_dll(name: &str) -> bool {
     if !lower.ends_with(".dll") {
         return false;
     }
-    matches!(
-        lower.as_str(),
-        "heif.dll" | "libde265.dll" | "aom.dll" | "dav1d.dll"
-    ) || [
-        "avcodec-",
-        "avformat-",
-        "avutil-",
-        "avfilter-",
-        "avdevice-",
-        "swscale-",
-        "swresample-",
-    ]
-    .iter()
-    .any(|prefix| lower.starts_with(prefix))
+    matches!(lower.as_str(), "heif.dll" | "libde265.dll" | "dav1d.dll")
+        || [
+            "avcodec-",
+            "avformat-",
+            "avutil-",
+            "avfilter-",
+            "avdevice-",
+            "swscale-",
+            "swresample-",
+        ]
+        .iter()
+        .any(|prefix| lower.starts_with(prefix))
 }
 
-/// vcpkg 네이티브 라이브러리(libheif, libde265, aom, FFmpeg, dav1d)의 저작권 문서를
+/// vcpkg 네이티브 라이브러리(libheif, libde265, FFmpeg, dav1d)의 저작권 문서를
 /// 실행 파일 옆 `licenses/`로 모은다. 설치 프로그램이 이 폴더를 그대로 동봉하고, 앱의 라이선스 창이 읽는다.
 fn collect_license_files(triplet: String) {
     let Some(root) = env::var_os("VCPKG_ROOT").or_else(|| env::var_os("VCPKG_INSTALLATION_ROOT"))
@@ -125,7 +123,7 @@ fn collect_license_files(triplet: String) {
         .join("installed")
         .join(&triplet)
         .join("share");
-    for package in ["libheif", "libde265", "aom", "ffmpeg", "dav1d"] {
+    for package in ["libheif", "libde265", "ffmpeg", "dav1d"] {
         let source = share.join(package).join("copyright");
         let Ok(content) = fs::read(&source) else {
             continue;

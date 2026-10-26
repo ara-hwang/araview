@@ -757,7 +757,7 @@ UI 분류 5종:
 - Linux 배포: `scripts/package-linux.sh`가 `target/AraView-<버전>-linux-<arch>.tar.gz`를 만든다(`bin/araview`, `bin/licenses/`, `share/applications/com.araview.viewer.desktop`, 아이콘, `install.sh`). `install.sh`는 `~/.local`(또는 `PREFIX`)에 관리자 권한 없이 설치하고 `--uninstall`로 제거한다. `.desktop`의 `MimeType`이 지원 형식을 선언하고 `StartupWMClass`와 창 `app_id`가 식별자 `com.araview.viewer`다. libheif는 vcpkg 정적 링크다. 실행에는 X11 또는 Wayland, Vulkan, `libxkbcommon`이 필요하다.
 - macOS 배포: `scripts/package-macos.sh`가 `AraView.app`(`Info.plist`의 `CFBundleDocumentTypes`가 지원 확장자를 `Viewer`/`Alternate`로 선언, `AraView.icns`)을 만들고 ad-hoc 서명해 `target/AraView-<버전>-macos-<arch>.dmg`로 묶는다. 공증하지 않으므로 첫 실행은 우클릭 > 열기다. CI는 Apple silicon(arm64)만 빌드한다.
 - 파일 연결(Windows): 연결은 OS 확인 없이 바꿀 수 없다. macOS와 Linux는 설정에 연결 UI가 없고(탭 자체가 없다) 번들·`.desktop` 선언이 "다음으로 열기" 목록을 채운다. 연결 대상은 §2의 47종 이미지 + 5종 동영상 + `cbz` + `zip`이며 별도 목록을 두지 않는다.
-- HEIC/HEIF는 vcpkg `libheif[core,aom]`(1.21 이상, AVIF 시퀀스 디코드에 필요) + `libde265`(HEVC), `aom`(AV1, AVIF 표시/썸네일/히스토그램)만 사용한다. Windows는 동적 링크(DLL 동봉), Linux와 macOS 배포는 정적 링크다. 설치와 DLL 복사는 `docs/development.md`를 따른다.
+- HEIC/HEIF는 vcpkg `libheif[core,dav1d]`(1.21 이상, AVIF 시퀀스 디코드에 필요) + `libde265`(HEVC), `dav1d`(AV1, AVIF 표시/썸네일/히스토그램)만 사용한다. Windows는 동적 링크(DLL 동봉), Linux와 macOS 배포는 정적 링크다. 설치와 DLL 복사는 `docs/development.md`를 따른다.
 
 ### 20.1 자동 업데이트
 
