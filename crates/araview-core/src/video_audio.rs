@@ -135,8 +135,8 @@ impl AudioOutput {
             .filter(|c| c.sample_format() == SampleFormat::F32)
             .find(|c| {
                 c.channels() == AUDIO_CHANNELS as u16
-                    && c.min_sample_rate().0 <= PREFERRED_RATE
-                    && PREFERRED_RATE <= c.max_sample_rate().0
+                    && c.min_sample_rate() <= PREFERRED_RATE
+                    && PREFERRED_RATE <= c.max_sample_rate()
             })
             .or_else(|| {
                 configs
@@ -145,12 +145,12 @@ impl AudioOutput {
             })
             .or_else(|| configs.first())
             .ok_or_else(|| AppError::unknown("No audio output configs"))?;
-        let rate = if picked.min_sample_rate().0 <= PREFERRED_RATE
-            && PREFERRED_RATE <= picked.max_sample_rate().0
+        let rate = if picked.min_sample_rate() <= PREFERRED_RATE
+            && PREFERRED_RATE <= picked.max_sample_rate()
         {
             PREFERRED_RATE
         } else {
-            picked.max_sample_rate().0
+            picked.max_sample_rate()
         };
         Ok((rate, picked.channels(), picked.sample_format()))
     }
@@ -262,7 +262,7 @@ fn open_stream(
     format: cpal::SampleFormat,
     buffer_frames: Option<u32>,
 ) -> Result<cpal::Stream, AppError> {
-    use cpal::{SampleFormat, SampleRate};
+    use cpal::SampleFormat;
     let host = cpal::default_host();
     let device = host
         .default_output_device()
@@ -278,11 +278,11 @@ fn open_stream(
         .find(|c| {
             c.sample_format() == format
                 && c.channels() == channels
-                && c.min_sample_rate().0 <= rate
-                && rate <= c.max_sample_rate().0
+                && c.min_sample_rate() <= rate
+                && rate <= c.max_sample_rate()
         })
         .ok_or_else(|| AppError::unknown("No matching audio output config"))?;
-    let mut config = (*picked).with_sample_rate(SampleRate(rate)).config();
+    let mut config = (*picked).with_sample_rate(rate).config();
     if let Some(frames) = buffer_frames {
         if let cpal::SupportedBufferSize::Range { min, max } = picked.buffer_size() {
             if (*min..=*max).contains(&frames) {
@@ -296,7 +296,7 @@ fn open_stream(
             let worker = Arc::clone(shared);
             let mut mixer = Mixer::new(rate);
             device.build_output_stream(
-                &config,
+                config,
                 move |out: &mut [f32], _| fill_output(&worker, &mut mixer, channels, out, |s| s),
                 err_fn,
                 None,
@@ -306,7 +306,7 @@ fn open_stream(
             let worker = Arc::clone(shared);
             let mut mixer = Mixer::new(rate);
             device.build_output_stream(
-                &config,
+                config,
                 move |out: &mut [i16], _| {
                     fill_output(&worker, &mut mixer, channels, out, |s| {
                         (s.clamp(-1.0, 1.0) * 32767.0) as i16
@@ -320,7 +320,7 @@ fn open_stream(
             let worker = Arc::clone(shared);
             let mut mixer = Mixer::new(rate);
             device.build_output_stream(
-                &config,
+                config,
                 move |out: &mut [u16], _| {
                     fill_output(&worker, &mut mixer, channels, out, |s| {
                         ((s.clamp(-1.0, 1.0) * 0.5 + 0.5) * 65535.0) as u16

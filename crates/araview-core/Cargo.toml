@@ -20,9 +20,9 @@ jpeg-decoder = { version = "0.3", default-features = false }
 libheif-rs = { version = "3", default-features = false, features = ["v1_21"] }
 rawler = "0.8"
 trash = "5"
-image = { version = "0.25", default-features = false, features = ["rayon", "avif", "bmp", "dds", "exr", "ff", "gif", "hdr", "ico", "jpeg", "png", "pnm", "qoi", "tga", "tiff", "webp"] }
+image = { version = "0.25", default-features = false, features = ["rayon", "bmp", "dds", "exr", "ff", "gif", "hdr", "ico", "jpeg", "png", "pnm", "qoi", "tga", "tiff", "webp"] }
 psd = "0.3"
-resvg = { version = "0.48", default-features = false, features = ["text", "system-fonts"] }
+resvg = { version = "0.49", default-features = false, features = ["text", "system-fonts"] }
 notify = "8"
 rayon = "1"
 quick-xml = { version = "0.42", features = ["serialize"] }
@@ -36,7 +36,7 @@ rsmpeg = { version = "0.18", default-features = false, features = [
     "link_vcpkg_ffmpeg",
 ] }
 # 동영상 오디오 출력. OS 기본 백엔드만 쓴다(ALSA/WASAPI/CoreAudio).
-cpal = "0.15"
+cpal = "0.18"
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.56.0"

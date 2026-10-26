@@ -3,7 +3,7 @@
 AraView redistributes the third-party software listed below. Full license
 texts ship with the app (Settings > Open source licenses, and the licenses/
 folder of the installer).
-Generated 2026-10-09. Section 2 and app/THIRD_PARTY_LICENSES.json come from
+Generated 2026-10-26. Section 2 and app/THIRD_PARTY_LICENSES.json come from
 `node scripts/generate-license-data.mjs` (cargo-about). Section 1 is maintained
 by hand from the vcpkg share directory.
 Regenerate after dependency changes. CI runs cargo-deny (deny.toml) to block
@@ -52,13 +52,11 @@ dependencies and other-OS targets are excluded.
 | aes | 0.9.3 | MIT OR Apache-2.0 |
 | ahash | 0.8.12 | MIT OR Apache-2.0 |
 | aho-corasick | 1.1.5 | Unlicense OR MIT |
-| aligned | 0.4.3 | MIT OR Apache-2.0 |
-| aligned-vec | 0.6.4 | MIT |
 | alloc-no-stdlib | 2.0.4 | BSD-3-Clause |
 | alloc-stdlib | 0.2.4 | BSD-3-Clause |
 | allocator-api2 | 0.2.21 | MIT OR Apache-2.0 |
-| alsa | 0.9.1 | Apache-2.0 OR MIT |
-| alsa-sys | 0.3.1 | MIT |
+| alsa | 0.11.0 | Apache-2.0 OR MIT |
+| alsa-sys | 0.4.0 | MIT |
 | annotate-snippets | 0.12.17 | MIT OR Apache-2.0 |
 | anstream | 1.0.0 | MIT OR Apache-2.0 |
 | anstyle | 1.0.14 | MIT OR Apache-2.0 |
@@ -67,12 +65,10 @@ dependencies and other-OS targets are excluded.
 | anstyle-wincon | 3.0.11 | MIT OR Apache-2.0 |
 | anyhow | 1.0.104 | MIT OR Apache-2.0 |
 | arc-swap | 1.9.3 | MIT OR Apache-2.0 |
-| arg_enum_proc_macro | 0.3.4 | MIT |
 | arraydeque | 0.5.1 | MIT OR Apache-2.0 |
 | arrayref | 0.3.9 | BSD-2-Clause |
 | arrayvec | 0.7.8 | MIT OR Apache-2.0 |
 | as-raw-xcb-connection | 1.0.1 | MIT OR Apache-2.0 |
-| as-slice | 0.2.1 | MIT OR Apache-2.0 |
 | ash | 0.38.0+1.3.281 | MIT OR Apache-2.0 |
 | ashpd | 0.13.13 | MIT |
 | async-broadcast | 0.7.2 | MIT OR Apache-2.0 |
@@ -92,15 +88,11 @@ dependencies and other-OS targets are excluded.
 | atspi-common | 0.13.0 | Apache-2.0 OR MIT |
 | atspi-proxies | 0.13.0 | Apache-2.0 OR MIT |
 | autocfg | 1.5.1 | Apache-2.0 OR MIT |
-| av-scenechange | 0.14.1 | MIT |
-| av1-grain | 0.2.5 | BSD-2-Clause |
-| avif-serialize | 0.8.9 | BSD-3-Clause |
 | backtrace | 0.3.76 | MIT OR Apache-2.0 |
 | base62 | 2.2.6 | MIT |
 | base64 | 0.22.1 | MIT OR Apache-2.0 |
 | base64 | 0.23.1 | MIT OR Apache-2.0 |
 | bindgen | 0.71.1 | BSD-3-Clause |
-| bindgen | 0.72.1 | BSD-3-Clause |
 | bit_field | 0.10.3 | Apache-2.0 OR MIT |
 | bit-set | 0.9.1 | Apache-2.0 OR MIT |
 | bit-vec | 0.9.1 | Apache-2.0 OR MIT |
@@ -117,7 +109,6 @@ dependencies and other-OS targets are excluded.
 | bon-macros | 3.10.3 | MIT OR Apache-2.0 |
 | brotli-decompressor | 5.0.3 | BSD-3-Clause OR MIT |
 | bstr | 1.13.1 | MIT OR Apache-2.0 |
-| built | 0.8.1 | MIT |
 | bumpalo | 3.20.3 | MIT OR Apache-2.0 |
 | bytemuck | 1.25.2 | Zlib OR Apache-2.0 OR MIT |
 | bytemuck_derive | 1.12.1 | Zlib OR Apache-2.0 OR MIT |
@@ -158,10 +149,9 @@ dependencies and other-OS targets are excluded.
 | core-graphics | 0.24.0 | MIT OR Apache-2.0 |
 | core-graphics-types | 0.2.0 | MIT OR Apache-2.0 |
 | core-text | 21.0.0 | MIT OR Apache-2.0 |
-| coreaudio-rs | 0.11.3 | MIT OR Apache-2.0 |
-| coreaudio-sys | 0.2.18 | MIT |
+| coreaudio-rs | 0.14.2 | MIT OR Apache-2.0 |
 | cosmic-text | 0.19.0 | MIT OR Apache-2.0 |
-| cpal | 0.15.3 | Apache-2.0 |
+| cpal | 0.18.2 | Apache-2.0 |
 | cpubits | 0.1.1 | MIT OR Apache-2.0 |
 | cpufeatures | 0.2.17 | MIT OR Apache-2.0 |
 | cpufeatures | 0.3.1 | MIT OR Apache-2.0 |
@@ -210,8 +200,6 @@ dependencies and other-OS targets are excluded.
 | enumn | 0.1.14 | MIT OR Apache-2.0 |
 | env_filter | 2.0.0 | MIT OR Apache-2.0 |
 | env_logger | 0.11.11 | MIT OR Apache-2.0 |
-| equator | 0.4.2 | MIT |
-| equator-macro | 0.4.2 | MIT |
 | equivalent | 1.0.3 | Apache-2.0 OR MIT |
 | errno | 0.3.14 | MIT OR Apache-2.0 |
 | etagere | 0.2.15 | MIT OR Apache-2.0 |
@@ -334,7 +322,6 @@ dependencies and other-OS targets are excluded.
 | imagesize | 0.13.0 | MIT |
 | imagesize | 0.14.0 | MIT |
 | imagesize | 0.15.0 | MIT |
-| imgref | 1.12.3 | CC0-1.0 OR Apache-2.0 |
 | indexmap | 2.14.2 | Apache-2.0 OR MIT |
 | inotify | 0.11.5 | ISC |
 | inotify-sys | 0.1.8 | ISC |
@@ -390,7 +377,6 @@ dependencies and other-OS targets are excluded.
 | litrs | 1.0.1 | MIT OR Apache-2.0 |
 | lock_api | 0.4.14 | MIT OR Apache-2.0 |
 | log | 0.4.34 | MIT OR Apache-2.0 |
-| loop9 | 0.1.5 | MIT |
 | lsp-types | 0.97.0 | MIT |
 | lyon | 1.0.19 | MIT OR Apache-2.0 |
 | lyon_algorithms | 1.0.22 | MIT OR Apache-2.0 |
@@ -400,13 +386,11 @@ dependencies and other-OS targets are excluded.
 | lzma-rust2 | 0.23.0 | Apache-2.0 |
 | mac | 0.1.1 | MIT OR Apache-2.0 |
 | mac-notification-sys | 0.6.15 | MIT OR Apache-2.0 |
-| mach2 | 0.4.3 | BSD-2-Clause OR MIT OR Apache-2.0 |
 | mach2 | 0.6.0 | BSD-2-Clause OR MIT OR Apache-2.0 |
 | malloc_buf | 0.0.6 | MIT |
 | markdown | 1.0.0 | MIT |
 | markup5ever | 0.12.1 | MIT OR Apache-2.0 |
 | markup5ever_rcdom | 0.3.0 | MIT OR Apache-2.0 |
-| maybe-rayon | 0.1.1 | MIT |
 | md-5 | 0.10.6 | MIT OR Apache-2.0 |
 | md5 | 0.8.1 | Apache-2.0 OR MIT |
 | memchr | 2.8.3 | Unlicense OR MIT |
@@ -431,8 +415,6 @@ dependencies and other-OS targets are excluded.
 | no_std_io2 | 0.9.4 | Apache-2.0 OR MIT |
 | nohash-hasher | 0.2.0 | Apache-2.0 OR MIT |
 | nom | 7.1.3 | MIT |
-| nom | 8.0.0 | MIT |
-| noop_proc_macro | 0.3.0 | MIT |
 | normpath | 1.5.2 | MIT OR Apache-2.0 |
 | notify | 8.2.0 | CC0-1.0 |
 | notify-rust | 4.18.2 | MIT OR Apache-2.0 |
@@ -445,7 +427,6 @@ dependencies and other-OS targets are excluded.
 | num-bigint-dig | 0.9.1 | MIT OR Apache-2.0 |
 | num-complex | 0.4.6 | MIT OR Apache-2.0 |
 | num-conv | 0.2.2 | MIT OR Apache-2.0 |
-| num-derive | 0.4.2 | MIT OR Apache-2.0 |
 | num-integer | 0.1.47 | MIT OR Apache-2.0 |
 | num-iter | 0.1.46 | MIT OR Apache-2.0 |
 | num-rational | 0.4.2 | MIT OR Apache-2.0 |
@@ -456,7 +437,10 @@ dependencies and other-OS targets are excluded.
 | objc2 | 0.6.5 | MIT |
 | objc2-app-kit | 0.2.2 | MIT |
 | objc2-app-kit | 0.3.2 | Zlib OR Apache-2.0 OR MIT |
+| objc2-audio-toolbox | 0.3.2 | Zlib OR Apache-2.0 OR MIT |
 | objc2-cloud-kit | 0.3.2 | Zlib OR Apache-2.0 OR MIT |
+| objc2-core-audio | 0.3.2 | Zlib OR Apache-2.0 OR MIT |
+| objc2-core-audio-types | 0.3.2 | Zlib OR Apache-2.0 OR MIT |
 | objc2-core-data | 0.3.2 | Zlib OR Apache-2.0 OR MIT |
 | objc2-core-foundation | 0.3.2 | Zlib OR Apache-2.0 OR MIT |
 | objc2-core-graphics | 0.3.2 | Zlib OR Apache-2.0 OR MIT |
@@ -482,7 +466,6 @@ dependencies and other-OS targets are excluded.
 | parking_lot | 0.12.5 | MIT OR Apache-2.0 |
 | parking_lot_core | 0.9.12 | MIT OR Apache-2.0 |
 | paste | 1.0.15 | MIT OR Apache-2.0 |
-| pastey | 0.1.1 | MIT OR Apache-2.0 |
 | pathfinder_geometry | 0.5.1 | MIT OR Apache-2.0 |
 | pathfinder_simd | 0.5.6 | MIT OR Apache-2.0 |
 | pbkdf2 | 0.12.2 | MIT OR Apache-2.0 |
@@ -535,8 +518,6 @@ dependencies and other-OS targets are excluded.
 | rand_core | 0.9.5 | MIT OR Apache-2.0 |
 | range-alloc | 0.1.5 | MIT OR Apache-2.0 |
 | rangemap | 1.8.0 | MIT OR Apache-2.0 |
-| rav1e | 0.8.1 | BSD-2-Clause |
-| ravif | 0.13.0 | BSD-3-Clause |
 | raw-cpuid | 11.6.0 | MIT |
 | raw-window-handle | 0.6.2 | MIT OR Apache-2.0 OR Zlib |
 | raw-window-metal | 1.1.0 | MIT OR Apache-2.0 |
@@ -554,7 +535,7 @@ dependencies and other-OS targets are excluded.
 | renderdoc-sys | 1.1.0 | MIT OR Apache-2.0 |
 | resvg | 0.45.1 | Apache-2.0 OR MIT |
 | resvg | 0.46.0 | Apache-2.0 OR MIT |
-| resvg | 0.48.1 | Apache-2.0 OR MIT |
+| resvg | 0.49.0 | Apache-2.0 OR MIT |
 | rfd | 0.17.2 | MIT |
 | rgb | 0.8.53 | MIT |
 | ring | 0.17.14 | Apache-2.0 AND ISC |
@@ -608,7 +589,6 @@ dependencies and other-OS targets are excluded.
 | shlex | 1.3.0 | MIT OR Apache-2.0 |
 | shlex | 2.0.1 | MIT OR Apache-2.0 |
 | signal-hook-registry | 1.4.8 | MIT OR Apache-2.0 |
-| simd_helpers | 0.1.0 | MIT |
 | simd-adler32 | 0.3.10 | MIT |
 | simdutf8 | 0.1.5 | MIT OR Apache-2.0 |
 | similar | 2.7.0 | Apache-2.0 |
@@ -700,13 +680,12 @@ dependencies and other-OS targets are excluded.
 | urlencoding | 2.1.3 | MIT |
 | usvg | 0.45.1 | Apache-2.0 OR MIT |
 | usvg | 0.46.0 | Apache-2.0 OR MIT |
-| usvg | 0.48.1 | Apache-2.0 OR MIT |
+| usvg | 0.49.0 | Apache-2.0 OR MIT |
 | utf-8 | 0.7.6 | MIT OR Apache-2.0 |
 | utf8_iter | 1.0.4 | Apache-2.0 OR MIT |
 | utf8-zero | 0.8.1 | MIT OR Apache-2.0 |
 | utf8parse | 0.2.2 | Apache-2.0 OR MIT |
 | uuid | 1.29.0 | Apache-2.0 OR MIT |
-| v_frame | 0.3.9 | BSD-2-Clause |
 | vcpkg | 0.2.15 | MIT OR Apache-2.0 |
 | version_check | 0.9.5 | MIT OR Apache-2.0 |
 | version-compare | 0.2.1 | MIT |
@@ -735,7 +714,6 @@ dependencies and other-OS targets are excluded.
 | which | 8.0.6 | MIT |
 | winapi | 0.3.9 | MIT OR Apache-2.0 |
 | winapi-util | 0.1.11 | Unlicense OR MIT |
-| windows | 0.54.0 | MIT OR Apache-2.0 |
 | windows | 0.58.0 | MIT OR Apache-2.0 |
 | windows | 0.62.2 | MIT OR Apache-2.0 |
 | windows_x86_64_gnu | 0.48.5 | MIT OR Apache-2.0 |
@@ -745,7 +723,6 @@ dependencies and other-OS targets are excluded.
 | windows_x86_64_msvc | 0.52.6 | MIT OR Apache-2.0 |
 | windows_x86_64_msvc | 0.53.1 | MIT OR Apache-2.0 |
 | windows-collections | 0.3.2 | MIT OR Apache-2.0 |
-| windows-core | 0.54.0 | MIT OR Apache-2.0 |
 | windows-core | 0.58.0 | MIT OR Apache-2.0 |
 | windows-core | 0.62.2 | MIT OR Apache-2.0 |
 | windows-future | 0.3.2 | MIT OR Apache-2.0 |
@@ -756,7 +733,6 @@ dependencies and other-OS targets are excluded.
 | windows-link | 0.2.1 | MIT OR Apache-2.0 |
 | windows-numerics | 0.3.1 | MIT OR Apache-2.0 |
 | windows-registry | 0.6.1 | MIT OR Apache-2.0 |
-| windows-result | 0.1.2 | MIT OR Apache-2.0 |
 | windows-result | 0.2.0 | MIT OR Apache-2.0 |
 | windows-result | 0.4.1 | MIT OR Apache-2.0 |
 | windows-strings | 0.1.0 | MIT OR Apache-2.0 |
@@ -784,7 +760,6 @@ dependencies and other-OS targets are excluded.
 | xml-rs | 0.8.29 | MIT |
 | xml5ever | 0.18.1 | MIT OR Apache-2.0 |
 | xmlwriter | 0.1.0 | MIT |
-| y4m | 0.8.0 | MIT |
 | yazi | 0.2.1 | Apache-2.0 OR MIT |
 | yeslogic-fontconfig-sys | 6.0.1 | MIT |
 | yoke | 0.8.4 | Unicode-3.0 |
