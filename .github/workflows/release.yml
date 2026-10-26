@@ -3,7 +3,7 @@ name: Release
 # `vX.Y.Z`(안정) 또는 `vX.Y.Z-beta.N`(베타) 태그를 푸시하면 검증, 세 OS 빌드
 # (Windows 설치 프로그램과 서명, Linux tar.gz, macOS dmg), GitHub 릴리스 생성까지
 # 자동으로 돈다.
-#   npm run release -- 2.0.1     (release/2.x에서 안정 릴리스)
+#   npm run release -- 2.0.1     (release에서 안정 릴리스)
 #   npm run release -- beta      (main에서 베타 릴리스)
 # 태그는 버전을 올린 커밋(app/Cargo.toml, Cargo.lock 2곳 일치)에 붙여야 하며,
 # 어긋나면 첫 단계에서 실패한다. 실패하면 Actions에서 재실행하거나 태그를 지우고 다시
