@@ -36,9 +36,10 @@ $env:Path += ";$env:VCPKG_ROOT\installed\x64-windows\bin"
 
 `--x-install-root`는 pin은 그대로 두고 설치 위치만 vcpkg 루트로 옮긴다.
 `app/build.rs`와 pkg-config 설정이 그 위치를 보기 때문이다(그냥 `vcpkg install`만
-하면 저장소 아래 `vcpkg_installed/`에 깔려 빌드가 찾지 못한다). `FFMPEG_LIBS_DIR`는
-rsmpeg의 prebuilt 바인딩(`FFMPEG_BINDING_PATH`, `.cargo/config.toml` 고정)과 짝을
-이룬다. 바인딩을 로컬 생성하지 않으므로 Windows에서는 libclang이 필요 없다.
+하면 저장소 아래 `vcpkg_installed/`에 깔려 빌드가 찾지 못한다). Windows에서
+`FFMPEG_LIBS_DIR`는 rsmpeg의 prebuilt 바인딩(`FFMPEG_BINDING_PATH`,
+`.cargo/config.toml` 고정)과 짝을 이룬다. 바인딩을 로컬 생성하지 않으므로
+Windows에서는 libclang이 필요 없다.
 
 앱은 `libheif`와 FFmpeg를 동적 링크합니다. `app/build.rs`가 `VCPKG_ROOT`(또는 `VCPKG_INSTALLATION_ROOT`) 아래 `installed/x64-windows/bin`에서 `heif.dll`, `libde265.dll`, `aom.dll`, `avcodec-62.dll`, `avformat-62.dll`, `avutil-60.dll`, `avfilter-11.dll`, `avdevice-62.dll`, `swscale-9.dll`, `swresample-6.dll`, `dav1d.dll`을 실행 파일 옆(`target/<profile>/`)으로 복사하고, vcpkg의 `libheif`, `libde265`, `aom`, `ffmpeg`, `dav1d` `copyright`를 같은 위치의 `licenses/`로 모읍니다. 설치 프로그램은 이 파일들을 그대로 동봉합니다. CI에서는 `VCPKGRS_DYNAMIC=1`과 `PKG_CONFIG_PATH`를 함께 둡니다(워크플로 참조). FFmpeg 메이저가 바뀌면 DLL 이름(SONAME)도 바뀌므로 `app/build.rs`와 `scripts/Build-Installer.ps1`을 함께 고칩니다.
 
@@ -52,11 +53,12 @@ brew install pkgconf
 cd <araview>
 vcpkg install --triplet arm64-osx --x-install-root="<vcpkg root>/installed"  # Intel은 x64-osx
 export VCPKG_ROOT="<vcpkg root>"
-export FFMPEG_LIBS_DIR="<vcpkg root>/installed/arm64-osx/lib"
+export PKG_CONFIG_PATH="<vcpkg root>/installed/arm64-osx/lib/pkgconfig"  # Intel은 x64-osx
+export PKG_CONFIG_ALL_STATIC=1
 cargo run -p araview -- ~/Pictures/image.png
 ```
 
-배포 묶음은 vcpkg 정적 빌드(`arm64-osx`, Intel은 `x64-osx`)로 `libheif`와 FFmpeg를 실행 파일에 넣어 dylib를 동봉하지 않습니다. CI의 `.github/actions/setup-rust-native`가 이 환경(`VCPKG_ROOT`, `PKG_CONFIG_PATH`, `PKG_CONFIG_ALL_STATIC=1`, `FFMPEG_LIBS_DIR`)을 만듭니다.
+배포 묶음은 vcpkg 정적 빌드(`arm64-osx`, Intel은 `x64-osx`)로 `libheif`와 FFmpeg를 실행 파일에 넣어 dylib를 동봉하지 않습니다. CI의 `.github/actions/setup-rust-native`가 이 환경(`VCPKG_ROOT`, `PKG_CONFIG_PATH`, `PKG_CONFIG_ALL_STATIC=1`)을 만듭니다. Windows는 여기에 `FFMPEG_LIBS_DIR`가 더해집니다.
 
 ### Linux
 
@@ -69,7 +71,8 @@ sudo apt-get install pkg-config cmake nasm clang libclang-dev libasound2-dev \
 cd <araview>
 vcpkg install --triplet x64-linux --x-install-root="<vcpkg root>/installed"
 export VCPKG_ROOT="<vcpkg root>"
-export FFMPEG_LIBS_DIR="<vcpkg root>/installed/x64-linux/lib"
+export PKG_CONFIG_PATH="<vcpkg root>/installed/x64-linux/lib/pkgconfig"
+export PKG_CONFIG_ALL_STATIC=1
 ```
 
 실행에는 X11 또는 Wayland 세션, Vulkan 드라이버, `libxkbcommon`, `libasound2`(동영상 오디오 출력용)가 필요합니다. 파일 열기 대화상자는 `xdg-desktop-portal`을 씁니다. 디스플레이가 없는 환경에서는 `Xvfb`와 소프트웨어 Vulkan(`mesa-vulkan-drivers`)으로 실제 창을 띄워 확인할 수 있습니다.

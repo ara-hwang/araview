@@ -44,7 +44,10 @@ runs:
     - name: Install macOS build tools
       if: runner.os == 'macOS'
       shell: bash
-      run: command -v pkg-config >/dev/null || brew install pkgconf
+      run: |
+        command -v pkg-config >/dev/null || brew install pkgconf
+        # aom(vcpkg)이 nasm을 요구한다. vcpkg의 자동 획득이 실패하는 러너가 있어 직접 설치한다.
+        command -v nasm >/dev/null || brew install nasm
 
     # VCPKG_INSTALLATION_ROOT는 러너가 프로세스 환경에만 넣어 주는 값이라 `env` 컨텍스트에
     # 없다. `${{ env.VCPKG_INSTALLATION_ROOT }}`를 경로에 쓰면 빈 문자열이 되어 캐시가
@@ -111,9 +114,10 @@ runs:
         root="${{ steps.vcpkg-unix.outputs.root }}"
         "$root/vcpkg" install --triplet "${{ steps.vcpkg-unix.outputs.triplet }}" --x-install-root="$root/installed"
 
-    # `FFMPEG_LIBS_DIR`는 rsmpeg의 prebuilt 바인딩 경로(`FFMPEG_BINDING_PATH`,
-    # `.cargo/config.toml` 고정)와 짝을 이룬다. 바인딩을 로컬 생성하지 않으므로
-    # libclang이 없어도 된다.
+    # Windows는 `FFMPEG_LIBS_DIR`로 prebuilt 바인딩(`FFMPEG_BINDING_PATH`,
+    # `.cargo/config.toml` 고정)과 링크 경로를 함께 준다. Linux와 macOS는 pkg-config를
+    # 써서 dav1d 같은 전이 정적 의존성까지 링크한다. `FFMPEG_LIBS_DIR`를 주면
+    # rusty_ffmpeg이 FFmpeg 라이브러리만 링크해 dav1d 심볼이 빠진다.
     - name: Configure vcpkg environment (Windows)
       if: runner.os == 'Windows'
       shell: pwsh
@@ -135,6 +139,5 @@ runs:
           echo "VCPKG_ROOT=$root"
           echo "VCPKG_DEFAULT_TRIPLET=$triplet"
           echo "PKG_CONFIG_PATH=$root/installed/$triplet/lib/pkgconfig"
-          echo "FFMPEG_LIBS_DIR=$root/installed/$triplet/lib"
           echo "PKG_CONFIG_ALL_STATIC=1"
         } >> "$GITHUB_ENV"
