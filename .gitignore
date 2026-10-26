@@ -39,6 +39,7 @@ dist
 
 .vcpkg/
 .vcpkg-manifest/
+/vcpkg_installed/
 
 # Local copy of the updater signing key (never commit)
 *.key

@@ -1,18 +1,18 @@
 name: CI
 
-# 문서 정합성은 PR과 main 푸시에서 자동으로 돈다.
+# 문서 정합성은 PR과 main(베타)·release/** (안정) 푸시에서 자동으로 돈다.
 # Rust는 두 단계다. 전체 검증(rust 잡: fmt, test, clippy, audit, deny)은 비용이
 # 커서 Actions 탭 수동 실행(workflow_dispatch)과 릴리스(release.yml이
-# workflow_call로 호출)에서만 돈다. 대신 Rust 쪽 파일이 바뀐 PR에서는 가벼운
-# rust-check 잡(cargo check)이 돌아 의존성 업데이트가 빌드를 깨는 것을 병합 전에
-# 잡는다. main 푸시에서도 같은 조건으로 돌리는 이유는 캐시다. PR은 자기 ref와
-# main의 캐시만 복원할 수 있어서, main이 캐시를 저장해 두지 않으면 모든 PR이 빈
-# 캐시로 시작한다.
+# workflow_call로 호출)에서만 돈다. 대신 Rust 쪽 파일이 바뀐 PR과 브랜치 푸시에서는
+# 가벼운 rust-check 잡(cargo check)이 돌아 의존성 업데이트가 빌드를 깨는 것을 병합
+# 전에 잡는다. 브랜치 푸시에서도 같은 조건으로 돌리는 이유는 캐시다. PR은 자기 ref와
+# 기본 브랜치의 캐시만 복원할 수 있어서, main이 캐시를 저장해 두지 않으면 모든 PR이
+# 빈 캐시로 시작한다.
 # 릴리스 검증은 이 파일을 그대로 재사용하므로 검증 항목은 여기서만 고친다.
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, "release/**"]
   workflow_dispatch:
   workflow_call:
 
