@@ -21,7 +21,6 @@ use crate::geometry::{
     zoom_about, zoom_for_fit,
 };
 use crate::toast::{Toast, WindowToast};
-use araview_core::display::{DisplayFrame, DisplayImage};
 use araview_core::ocr::OcrRect;
 use araview_core::video_player::SPEEDS;
 
@@ -835,6 +834,7 @@ impl AraView {
                         cx.notify();
                     }
                     Err(error) => {
+                        log::warn!("open_video failed: {error:?}");
                         window.toast(
                             Toast::error(error.message.clone()).title(t("toast.load.imageFail")),
                             cx,
@@ -860,10 +860,11 @@ impl AraView {
     /// 재생 중이면 현재 위치의 프레임을 화면에 올리고 다음 프레임을 예약한다.
     /// 정지 상태에서는 탐색·스텝 뒤에 화면이 따라잡을 때까지만 틱한다.
     pub(super) fn advance_video(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let (pos, playing, frame, error) = match &self.video {
+        let (pos, playing, seeking, frame, error) = match &self.video {
             Some(player) => (
                 player.position_ms(),
                 player.is_playing(),
+                player.is_seeking(),
                 player.poll_frame().ok().flatten(),
                 player.has_error(),
             ),
@@ -876,14 +877,15 @@ impl AraView {
             return;
         }
         let mut presented = false;
-        if let Some(frame) = frame
-            && self.video_frame_pts != Some(frame.pts_ms)
-        {
-            self.present_video_frame(&frame, window, cx);
-            self.video_frame_pts = Some(frame.pts_ms);
-            presented = true;
+        if let Some(frame) = frame {
+            let pts = frame.pts_ms;
+            if self.video_frame_pts != Some(pts) {
+                self.present_video_frame(frame, window, cx);
+                self.video_frame_pts = Some(pts);
+                presented = true;
+            }
         }
-        if playing || pos != self.video_clock_ms {
+        if playing || seeking || pos != self.video_clock_ms {
             self.video_clock_ms = pos;
             window.request_animation_frame();
         } else if presented {
@@ -891,32 +893,32 @@ impl AraView {
         }
         if let Some(controls) = &self.video_controls {
             let value = SliderValue::Single(pos as f32);
-            controls.timeline.update(cx, |state, cx| {
-                state.set_value(value, window, cx);
-            });
+            // 값이 같으면 슬라이더를 갱신하지 않는다. `set_value`가 항상
+            // notify하므로 그대로 두면 정지 상태에서 렌더가 끝없이 반복된다.
+            if controls.timeline.read(cx).value() != value {
+                controls.timeline.update(cx, |state, cx| {
+                    state.set_value(value, window, cx);
+                });
+            }
         }
     }
 
     /// 디코드 프레임을 표시용 그림으로 올려 현재 그림과 바꾼다.
     fn present_video_frame(
         &mut self,
-        frame: &araview_core::video_player::RgbaFrame,
+        frame: araview_core::video_player::VideoFrame,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let Some(buffer) = RgbaImage::from_raw(frame.width, frame.height, frame.rgba.clone())
-        else {
+        let Some(picture) = crate::picture::from_video_frame(
+            frame.width,
+            frame.height,
+            frame.bgra,
+            self.orientation,
+        ) else {
             return;
         };
-        let decoded = DisplayImage {
-            frames: vec![DisplayFrame {
-                image: buffer,
-                delay_ms: 0,
-            }],
-            loop_count: None,
-            is_vector: false,
-        };
-        let picture = Arc::new(crate::picture::build(decoded, self.orientation, None));
+        let picture = Arc::new(picture);
         let refit = self.picture.as_ref().is_none_or(|current| {
             current.width != picture.width || current.height != picture.height
         });
@@ -990,7 +992,7 @@ impl AraView {
         let duration = info.duration_ms;
         let speed = player.speed();
         let muted = player.is_muted();
-        let no_cues = player.subtitles().is_empty();
+        let no_cues = !info.has_subtitles;
         let frame_text = info.fps.filter(|fps| *fps > 0.0).map(|fps| {
             let total = (duration as f64 * fps / 1000.0).round() as u64;
             let current = (pos as f64 * fps / 1000.0).round() as u64;

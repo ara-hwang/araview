@@ -251,6 +251,41 @@ pub fn build(
     }
 }
 
+/// 디코드한 동영상 프레임(BGRA)을 밉맵 없이 한 장의 그림으로 만든다.
+/// 동영상은 매 프레임 새로 그리므로 축소 단계를 만들지 않는다. GPUI가 BGRA를
+/// 받으므로 채널을 바꾸지 않고 그대로 넘긴다.
+pub fn from_video_frame(
+    width: u32,
+    height: u32,
+    bgra: Vec<u8>,
+    orientation: Orientation,
+) -> Option<Picture> {
+    let buffer = RgbaImage::from_raw(width, height, bgra)?;
+    let buffer = orient(buffer, orientation);
+    let (width, height) = buffer.dimensions();
+    let frame = Frame::from_parts(buffer, 0, 0, image::Delay::from_numer_denom_ms(1, 1));
+    let image = Arc::new(RenderImage::new(SmallVec::from_elem(frame, 1)));
+    Some(Picture {
+        width,
+        height,
+        levels: vec![Level {
+            width,
+            height,
+            tiles: vec![Tile {
+                x: 0,
+                y: 0,
+                w: width,
+                h: height,
+                image,
+                _hdr: None,
+            }],
+        }],
+        delays_ms: vec![1],
+        loop_count: None,
+        is_vector: false,
+    })
+}
+
 fn scaled_size(width: u32, height: u32, scale: f32) -> (u32, u32) {
     (
         ((width as f32 * scale).round() as u32).max(1),
@@ -340,5 +375,37 @@ fn tile_level(image: RgbaImage, hdr: Option<&Rgba32FImage>) -> Level {
         width,
         height,
         tiles,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn video_frame_keeps_bgra_bytes() {
+        let bgra = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+        let picture = from_video_frame(2, 2, bgra.clone(), Orientation::default()).unwrap();
+        assert_eq!((picture.width, picture.height), (2, 2));
+        assert!(!picture.is_animated());
+        assert_eq!(picture.levels.len(), 1);
+        let image = &picture.levels[0].tiles[0].image;
+        assert_eq!(image.as_bytes(0).unwrap(), bgra.as_slice());
+    }
+
+    #[test]
+    fn video_frame_rotates_dimensions() {
+        let bgra = vec![0u8; 4 * 2 * 4];
+        let picture = from_video_frame(
+            4,
+            2,
+            bgra,
+            Orientation {
+                rotation: 90,
+                ..Orientation::default()
+            },
+        )
+        .unwrap();
+        assert_eq!((picture.width, picture.height), (2, 4));
     }
 }

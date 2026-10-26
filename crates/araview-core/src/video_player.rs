@@ -16,8 +16,11 @@ use crate::app_error::AppError;
 
 /// 재생 가능한 속도. `[`/`]`는 이 목록을 오르내린다.
 pub const SPEEDS: &[f32] = &[0.25, 0.5, 1.0, 1.5, 2.0];
-/// 프레임 큐 바이트 상한. 4K면 2프레임, 1080p면 8프레임 수준이다.
-const QUEUE_BYTES_MAX: u64 = 64 * 1024 * 1024;
+/// 재생 프레임 큐 바이트 상한. 1080p BGRA면 12프레임 수준이다.
+const QUEUE_BYTES_MAX: u64 = 96 * 1024 * 1024;
+/// 재생 출력의 긴 변 상한. 4K 원본도 이 크기로 줄여 변환·업로드 비용을 줄인다.
+/// 원본이 더 작으면 그대로 쓴다.
+const MAX_OUTPUT_SIDE: u32 = 1920;
 /// 디코드 허용 픽셀 수. 표시 경로(`display.rs`)와 같은 값이다.
 const MAX_DECODE_PIXELS: u64 = 100_000_000;
 /// 자막 큐 상한. 비정상 파일을 막는다.
@@ -25,12 +28,13 @@ const MAX_CUES: usize = 20_000;
 /// 자막 추출 패킷 상한. 비정상 파일을 막는다.
 const MAX_SUBTITLE_PACKETS: usize = 200_000;
 
-/// RGBA 한 프레임. UI는 이를 `RenderImage` 한 장으로 그린다.
+/// BGRA 한 프레임. UI는 이를 `RenderImage` 한 장으로 그린다.
+/// GPUI가 BGRA를 받으므로 변환 단계에서 채널을 바꿔 둔다.
 #[derive(Debug, Clone)]
-pub struct RgbaFrame {
+pub struct VideoFrame {
     pub width: u32,
     pub height: u32,
-    pub rgba: Vec<u8>,
+    pub bgra: Vec<u8>,
     pub pts_ms: u64,
 }
 
@@ -62,11 +66,20 @@ enum Command {
 }
 
 struct Shared {
-    queue: Mutex<VecDeque<RgbaFrame>>,
+    queue: Mutex<VecDeque<VideoFrame>>,
     queue_bytes: AtomicU64,
     error: Mutex<Option<String>>,
     eof: AtomicBool,
     speed_bits: AtomicU32,
+    /// 마지막으로 UI에 내준 프레임 pts + 1. 0이면 아직 없음.
+    last_pts: AtomicU64,
+    /// 진행 중인 탐색 목표 + 1. 0이면 탐색 중이 아니다.
+    seek_pending: AtomicU64,
+    /// 탐색이 끝나 UI가 가져갈 프레임의 목표 + 1. 0이면 없음.
+    /// UI가 결과 프레임을 받을 때까지 유지해 정지 상태에서도 렌더를 이어 간다.
+    seek_result: AtomicU64,
+    /// 플레이어를 닫을 때 진행 중인 자막 추출을 멈춘다.
+    cancel_subtitles: AtomicBool,
 }
 
 /// 동영상 재생 핸들. 워커 스레드를 소유하고, 시계는 이쪽에서 잰다.
@@ -76,7 +89,8 @@ pub struct VideoPlayer {
     shared: Arc<Shared>,
     clock: Mutex<Clock>,
     info: PlayerInfo,
-    subtitles: Vec<SubtitleCue>,
+    /// 자막은 재생을 막지 않도록 백그라운드에서 채운다.
+    subtitles: Arc<Mutex<Vec<SubtitleCue>>>,
     audio: Option<crate::video_audio::AudioOutput>,
 }
 
@@ -98,14 +112,13 @@ impl VideoPlayer {
         if u64::from(width) * u64::from(height) > MAX_DECODE_PIXELS {
             return Err(AppError::too_large("Video dimensions are too large"));
         }
-        let subtitles = list_subtitle_cues(path)?;
         let info = PlayerInfo {
             width,
             height,
             duration_ms: probed.duration_ms.unwrap_or(0),
             fps: probed.fps,
             has_audio: probed.has_audio,
-            has_subtitles: !subtitles.is_empty(),
+            has_subtitles: probed.has_subtitles,
         };
         let shared = Arc::new(Shared {
             queue: Mutex::new(VecDeque::new()),
@@ -113,7 +126,25 @@ impl VideoPlayer {
             error: Mutex::new(None),
             eof: AtomicBool::new(false),
             speed_bits: AtomicU32::new(1.0f32.to_bits()),
+            last_pts: AtomicU64::new(0),
+            seek_pending: AtomicU64::new(0),
+            seek_result: AtomicU64::new(0),
+            cancel_subtitles: AtomicBool::new(false),
         });
+        let subtitles = Arc::new(Mutex::new(Vec::new()));
+        if info.has_subtitles {
+            let cues = Arc::clone(&subtitles);
+            let loader_shared = Arc::clone(&shared);
+            let source = path.to_path_buf();
+            let _ = std::thread::Builder::new()
+                .name("araview-subtitles".to_string())
+                .spawn(move || {
+                    match list_subtitle_cues_inner(&source, &loader_shared.cancel_subtitles) {
+                        Ok(list) => *cues.lock().unwrap_or_else(|e| e.into_inner()) = list,
+                        Err(e) => log::warn!("subtitle extraction failed: {e:?}"),
+                    }
+                });
+        }
         let (cmd_tx, cmd_rx) = mpsc::channel();
         let worker_shared = Arc::clone(&shared);
         let source = path.to_path_buf();
@@ -153,16 +184,16 @@ impl VideoPlayer {
         &self.info
     }
 
-    pub fn subtitles(&self) -> &[SubtitleCue] {
-        &self.subtitles
-    }
-
-    /// 현재 위치의 자막 텍스트. 없으면 `None`이다.
-    pub fn cue_at(&self, position_ms: u64) -> Option<&str> {
-        self.subtitles
+    /// 현재 위치의 자막 텍스트. 없으면 `None`이다. 자막은 백그라운드에서 채워진다.
+    pub fn cue_at(&self, position_ms: u64) -> Option<String> {
+        let cues = self.subtitles.lock().unwrap_or_else(|e| e.into_inner());
+        // 자막은 시작 시각 순으로 정렬되어 있으므로 시작한 구간만 훑는다.
+        // 매 프레임 부르는 자리라 전체 선형 탐색을 피한다.
+        let started = cues.partition_point(|cue| cue.start_ms <= position_ms);
+        cues[..started]
             .iter()
-            .find(|c| c.start_ms <= position_ms && position_ms < c.end_ms)
-            .map(|c| c.text.as_str())
+            .find(|cue| position_ms < cue.end_ms)
+            .map(|cue| cue.text.clone())
     }
 
     pub fn position_ms(&self) -> u64 {
@@ -173,9 +204,9 @@ impl VideoPlayer {
                     let clock = self.clock.lock().unwrap_or_else(|e| e.into_inner());
                     if clock.playing {
                         let elapsed = clock.base_at.elapsed().as_secs_f64();
-                        clock
-                            .base_ms
-                            .saturating_add((elapsed * f64::from(clock.speed)) as u64)
+                        clock.base_ms.saturating_add(
+                            (elapsed * 1000.0 * f64::from(clock.speed)).round() as u64,
+                        )
                     } else {
                         clock.base_ms
                     }
@@ -191,7 +222,7 @@ impl VideoPlayer {
                     let elapsed = clock.base_at.elapsed().as_secs_f64();
                     clock
                         .base_ms
-                        .saturating_add((elapsed * f64::from(clock.speed)) as u64)
+                        .saturating_add((elapsed * 1000.0 * f64::from(clock.speed)).round() as u64)
                 } else {
                     clock.base_ms
                 }
@@ -200,7 +231,9 @@ impl VideoPlayer {
         pos = pos.min(self.info.duration_ms);
         // 끝까지 가면 멈춘다. 유한 반복 GIF와 같은 규칙이다.
         if pos >= self.info.duration_ms {
-            self.pause();
+            if self.is_playing() {
+                self.pause();
+            }
             return self.info.duration_ms;
         }
         pos
@@ -269,13 +302,22 @@ impl VideoPlayer {
     }
 
     pub fn seek(&self, position_ms: u64) {
-        let target = position_ms.min(self.info.duration_ms.max(position_ms));
+        let target = if self.info.duration_ms > 0 {
+            position_ms.min(self.info.duration_ms)
+        } else {
+            position_ms
+        };
         {
             let mut clock = self.clock.lock().unwrap_or_else(|e| e.into_inner());
             clock.base_ms = target;
             clock.base_at = Instant::now();
         }
         self.shared.eof.store(false, Ordering::SeqCst);
+        self.shared.last_pts.store(0, Ordering::SeqCst);
+        self.shared
+            .seek_pending
+            .store(target.saturating_add(1), Ordering::SeqCst);
+        self.shared.seek_result.store(0, Ordering::SeqCst);
         if let Some(audio) = &self.audio {
             audio.seek(target);
         }
@@ -295,13 +337,22 @@ impl VideoPlayer {
         } else {
             pos.saturating_sub(frame_ms)
         };
-        let target = target.min(self.info.duration_ms.max(target));
+        let target = if self.info.duration_ms > 0 {
+            target.min(self.info.duration_ms)
+        } else {
+            target
+        };
         {
             let mut clock = self.clock.lock().unwrap_or_else(|e| e.into_inner());
             clock.base_ms = target;
             clock.base_at = Instant::now();
         }
         self.shared.eof.store(false, Ordering::SeqCst);
+        self.shared.last_pts.store(0, Ordering::SeqCst);
+        self.shared
+            .seek_pending
+            .store(target.saturating_add(1), Ordering::SeqCst);
+        self.shared.seek_result.store(0, Ordering::SeqCst);
         if let Some(audio) = &self.audio {
             audio.seek(target);
         }
@@ -311,6 +362,21 @@ impl VideoPlayer {
     /// 오디오 출력이 살아 있는가. 장치를 못 열면 영상만 재생한다.
     pub fn audio_active(&self) -> bool {
         self.audio.is_some()
+    }
+
+    /// 오디오 콜백이 선행 버퍼 부족으로 소리를 0으로 메운 횟수. 진단용이다.
+    pub fn audio_underruns(&self) -> u64 {
+        self.audio
+            .as_ref()
+            .map(|audio| audio.underruns())
+            .unwrap_or(0)
+    }
+
+    /// 탐색·스텝 결과 프레임이 아직 오지 않았는가. UI는 이 동안 프레임을
+    /// 계속 요청해 정지 상태에서도 결과를 화면에 올린다.
+    pub fn is_seeking(&self) -> bool {
+        self.shared.seek_pending.load(Ordering::SeqCst) != 0
+            || self.shared.seek_result.load(Ordering::SeqCst) != 0
     }
 
     /// cpal 출력 스트림을 UI 스레드에서 열어 돌려준다.
@@ -352,8 +418,9 @@ impl VideoPlayer {
         self.audio.as_ref().is_some_and(|audio| audio.is_muted())
     }
 
-    /// 현재 위치의 프레임을 돌려준다. 오래된 큐 프레임은 버린다.
-    pub fn poll_frame(&self) -> Result<Option<RgbaFrame>, AppError> {
+    /// 현재 위치에 해당하는 프레임을 꺼내 돌려준다. 지난 프레임은 버리고
+    /// 한 번 돌려준 프레임은 다시 돌려주지 않는다(UI가 마지막 그림을 들고 있다).
+    pub fn poll_frame(&self) -> Result<Option<VideoFrame>, AppError> {
         if let Some(err) = self
             .shared
             .error
@@ -370,19 +437,62 @@ impl VideoPlayer {
         }
         let pos = self.position_ms();
         let mut queue = self.shared.queue.lock().unwrap_or_else(|e| e.into_inner());
-        while queue.len() > 1 {
-            let next_pts = queue[1].pts_ms;
-            if next_pts <= pos {
-                if let Some(old) = queue.pop_front() {
-                    self.shared
-                        .queue_bytes
-                        .fetch_sub(old.rgba.len() as u64, Ordering::SeqCst);
-                }
-            } else {
+        let seek_result = self.shared.seek_result.load(Ordering::SeqCst);
+        let mut chosen = None;
+        while let Some(front) = queue.front() {
+            if front.pts_ms > pos {
                 break;
             }
+            if let Some(frame) = queue.pop_front() {
+                self.shared
+                    .queue_bytes
+                    .fetch_sub(frame.bgra.len() as u64, Ordering::SeqCst);
+                chosen = Some(frame);
+            }
         }
-        Ok(queue.front().cloned())
+        if chosen.is_none() && seek_result != 0 {
+            // 탐색 결과는 목표 시각보다 조금 뒤 프레임일 수 있다. 정지 상태에서도
+            // 목표 프레임을 바로 화면에 올리도록 시각을 앞질러 꺼낸다.
+            if let Some(frame) = queue.pop_front() {
+                self.shared
+                    .queue_bytes
+                    .fetch_sub(frame.bgra.len() as u64, Ordering::SeqCst);
+                chosen = Some(frame);
+            }
+        } else if chosen.is_none() && self.shared.last_pts.load(Ordering::SeqCst) == 0 {
+            // 재생 시작 직후에는 첫 프레임의 표시 시각이 아직 오지 않았어도
+            // 바로 보여 준다(포스터에서 재생 화면으로 넘어가는 지연을 없앤다).
+            if let Some(frame) = queue.pop_front() {
+                self.shared
+                    .queue_bytes
+                    .fetch_sub(frame.bgra.len() as u64, Ordering::SeqCst);
+                chosen = Some(frame);
+            }
+        }
+        if let Some(frame) = &chosen {
+            self.shared
+                .last_pts
+                .store(frame.pts_ms.saturating_add(1), Ordering::SeqCst);
+            if seek_result != 0 {
+                let target = seek_result - 1;
+                if frame.pts_ms >= target || queue.is_empty() {
+                    let _ = self.shared.seek_result.compare_exchange(
+                        seek_result,
+                        0,
+                        Ordering::SeqCst,
+                        Ordering::SeqCst,
+                    );
+                }
+            }
+        } else if seek_result != 0 && queue.is_empty() {
+            let _ = self.shared.seek_result.compare_exchange(
+                seek_result,
+                0,
+                Ordering::SeqCst,
+                Ordering::SeqCst,
+            );
+        }
+        Ok(chosen)
     }
 
     pub fn has_error(&self) -> Option<String> {
@@ -411,7 +521,7 @@ impl VideoPlayer {
             let elapsed = clock.base_at.elapsed().as_secs_f64();
             clock
                 .base_ms
-                .saturating_add((elapsed * f64::from(clock.speed)) as u64)
+                .saturating_add((elapsed * 1000.0 * f64::from(clock.speed)).round() as u64)
         } else {
             clock.base_ms
         };
@@ -425,6 +535,7 @@ impl VideoPlayer {
 
 impl Drop for VideoPlayer {
     fn drop(&mut self) {
+        self.shared.cancel_subtitles.store(true, Ordering::SeqCst);
         let _ = self.cmd_tx.send(Command::Stop);
         if let Some(worker) = self.worker.take() {
             let _ = worker.join();
@@ -442,10 +553,9 @@ struct Decoder {
     ictx: rsmpeg::avformat::AVFormatContextInput,
     ctx: rsmpeg::avcodec::AVCodecContext,
     scaler: Option<rsmpeg::swscale::SwsContext>,
+    scaler_key: Option<(u32, u32, u32, u32, i32)>,
     stream_index: usize,
     time_base: (i32, i32),
-    width: u32,
-    height: u32,
 }
 
 fn open_decoder(source: &Path) -> Result<Decoder, String> {
@@ -478,57 +588,92 @@ fn open_decoder(source: &Path) -> Result<Decoder, String> {
         ctx.apply_codecpar(&stream.codecpar())
             .map_err(|e| format!("Failed to open decoder: {e:?}"))?;
     }
+    // SAFETY: `avcodec_open2` 전에 공개 필드를 바꾸는 것은 FFmpeg가 허용한다.
+    // 0은 CPU 수에 맞춘 자동 스레드 수다. 기본값 1이면 4K 디코드가 실시간에 못 미친다.
+    unsafe {
+        rsmpeg::UnsafeDerefMut::deref_mut(&mut ctx).thread_count = 0;
+    }
     ctx.open(None)
         .map_err(|e| format!("Failed to open decoder: {e:?}"))?;
     Ok(Decoder {
         ictx,
         ctx,
         scaler: None,
+        scaler_key: None,
         stream_index,
         time_base,
-        width: width as u32,
-        height: height as u32,
     })
 }
 
+/// 재생 출력 크기. 긴 변이 `MAX_OUTPUT_SIDE`를 넘으면 비율을 유지해 줄인다.
+fn output_dimensions(width: u32, height: u32) -> (u32, u32) {
+    let long = width.max(height);
+    if long <= MAX_OUTPUT_SIDE {
+        return (width, height);
+    }
+    let scale = f64::from(MAX_OUTPUT_SIDE) / f64::from(long);
+    (
+        ((f64::from(width) * scale).round() as u32).max(1),
+        ((f64::from(height) * scale).round() as u32).max(1),
+    )
+}
+
 impl Decoder {
-    fn scale_to_rgba(&mut self, frame: &rsmpeg::avutil::AVFrame) -> Result<Vec<u8>, String> {
+    fn scale_to_bgra(
+        &mut self,
+        frame: &rsmpeg::avutil::AVFrame,
+    ) -> Result<(Vec<u8>, u32, u32), String> {
         use rsmpeg::ffi;
         let width = frame.width;
         let height = frame.height;
         if width <= 0 || height <= 0 {
             return Err("Invalid video frame".to_string());
         }
+        let (out_width, out_height) = output_dimensions(width as u32, height as u32);
         let format = frame.format;
-        if self.scaler.is_none() {
+        let key = (width as u32, height as u32, out_width, out_height, format);
+        if self.scaler.is_none() || self.scaler_key != Some(key) {
             self.scaler = rsmpeg::swscale::SwsContext::get_context(
                 width,
                 height,
                 format,
-                width,
-                height,
-                ffi::AV_PIX_FMT_RGBA,
+                out_width as i32,
+                out_height as i32,
+                ffi::AV_PIX_FMT_BGRA,
                 ffi::SWS_BILINEAR,
                 None,
                 None,
                 None,
             );
+            self.scaler_key = Some(key);
         }
         let scaler = self
             .scaler
             .as_mut()
             .ok_or_else(|| "Failed to create scaler".to_string())?;
-        let image = rsmpeg::avutil::AVImage::new(ffi::AV_PIX_FMT_RGBA, width, height, 1)
-            .ok_or_else(|| "Failed to allocate frame".to_string())?;
-        let mut framed = rsmpeg::avutil::AVFrameWithImage::new(image);
-        scaler
-            .scale_frame(frame, 0, height, &mut framed)
-            .map_err(|e| format!("Failed to scale frame: {e:?}"))?;
-        let mut buf = vec![0u8; framed.image_get_buffer_size(1).unwrap_or(0)];
-        framed
-            .image_copy_to_buffer(&mut buf, 1)
-            .map_err(|e| format!("Failed to copy frame: {e:?}"))?;
-        Ok(buf)
+        // swscale이 UI로 넘길 버퍼에 바로 쓰게 한다. AVFrame 버퍼를 만들어
+        // 복사하면 프레임마다 8MB를 한 번 더 훑게 된다(1080p 기준 2ms).
+        let stride = out_width as usize * 4;
+        let mut buf = vec![0u8; stride * out_height as usize];
+        let mut data = [std::ptr::null_mut::<u8>(); 4];
+        data[0] = buf.as_mut_ptr();
+        let linesize = [stride as i32, 0, 0, 0];
+        // SAFETY: `buf`가 `stride * out_height` 바이트를 소유하고 `data`·`linesize`가
+        // 그 범위의 첫 평면을 가리킨다. BGRA는 한 평면이라 swscale이 이 범위 밖에
+        // 쓰지 않는다.
+        unsafe {
+            scaler
+                .scale(
+                    frame.data.as_ptr() as *const *const u8,
+                    frame.linesize.as_ptr(),
+                    0,
+                    out_height as i32,
+                    data.as_ptr(),
+                    linesize.as_ptr(),
+                )
+                .map_err(|e| format!("Failed to scale frame: {e:?}"))?;
+        }
+        Ok((buf, out_width, out_height))
     }
 }
 
@@ -539,31 +684,52 @@ fn worker_loop(
 ) -> Result<(), String> {
     let mut dec = open_decoder(source)?;
     let mut playing = false;
+    let mut pending = VecDeque::new();
     loop {
-        // 정지 중에는 명령을 기다린다. 재생 중에는 큐가 차면 잠시 쉰다.
-        if !playing {
+        let cmd = if let Some(cmd) = pending.pop_front() {
+            Some(cmd)
+        } else if playing {
+            match cmd_rx.try_recv() {
+                Ok(cmd) => Some(cmd),
+                Err(mpsc::TryRecvError::Empty) => None,
+                Err(mpsc::TryRecvError::Disconnected) => return Ok(()),
+            }
+        } else {
             match cmd_rx.recv() {
-                Ok(cmd) => {
-                    if apply_command(&mut dec, cmd, &mut playing, shared)? {
-                        return Ok(());
-                    }
-                    continue;
-                }
+                Ok(cmd) => Some(cmd),
                 Err(_) => return Ok(()),
             }
-        }
-        while let Ok(cmd) = cmd_rx.try_recv() {
-            if apply_command(&mut dec, cmd, &mut playing, shared)? {
-                return Ok(());
+        };
+        let Some(mut cmd) = cmd else {
+            // 재생 중인데 명령이 없으면 디코드한다. 정지 중이면 위에서 recv로 기다린다.
+            if queue_full(shared) {
+                std::thread::sleep(std::time::Duration::from_millis(5));
+                continue;
+            }
+            if pump(&mut dec, shared)? {
+                shared.eof.store(true, Ordering::SeqCst);
+                playing = false;
+            }
+            continue;
+        };
+        // 타임라인을 빠르게 끌면 탐색 명령이 밀린다. 연속된 탐색·스텝은
+        // 마지막 목표만 적용해 낡은 탐색을 줄줄이 디코드하지 않는다.
+        if matches!(cmd, Command::Seek(_) | Command::Step(_)) {
+            loop {
+                match cmd_rx.try_recv() {
+                    Ok(next) if matches!(next, Command::Seek(_) | Command::Step(_)) => {
+                        cmd = next;
+                    }
+                    Ok(next) => {
+                        pending.push_back(next);
+                        break;
+                    }
+                    Err(_) => break,
+                }
             }
         }
-        if queue_full(shared) {
-            std::thread::sleep(std::time::Duration::from_millis(5));
-            continue;
-        }
-        if pump(&mut dec, shared)? {
-            shared.eof.store(true, Ordering::SeqCst);
-            playing = false;
+        if apply_command(&mut dec, cmd, &mut playing, shared)? {
+            return Ok(());
         }
     }
 }
@@ -584,8 +750,17 @@ fn apply_command(
             *playing = false;
         }
         Command::Seek(target_ms) | Command::Step(target_ms) => {
-            seek_to_push(dec, shared, target_ms)?;
+            let preview = matches!(cmd, Command::Seek(_));
+            seek_to_push(dec, shared, target_ms, preview)?;
             shared.eof.store(false, Ordering::SeqCst);
+            let pending = target_ms.saturating_add(1);
+            if shared
+                .seek_pending
+                .compare_exchange(pending, 0, Ordering::SeqCst, Ordering::SeqCst)
+                .is_ok()
+            {
+                shared.seek_result.store(pending, Ordering::SeqCst);
+            }
             // 스텝은 목표 1프레임을 넣는 즉시 멈춘다.
             if matches!(cmd, Command::Step(_)) {
                 *playing = false;
@@ -650,14 +825,14 @@ fn push_frame(
     let Some(pts_ms) = frame_ms_of(frame, dec.time_base) else {
         return Ok(());
     };
-    let buf = dec.scale_to_rgba(frame)?;
+    let (buf, width, height) = dec.scale_to_bgra(frame)?;
     let mut queue = shared.queue.lock().unwrap_or_else(|e| e.into_inner());
     // 같은 위치 탐색 반복으로 큐가 무한히 불지 않게 상한을 둔다.
     while shared.queue_bytes.load(Ordering::SeqCst) + buf.len() as u64 > QUEUE_BYTES_MAX * 2 {
         if let Some(old) = queue.pop_front() {
             shared
                 .queue_bytes
-                .fetch_sub(old.rgba.len() as u64, Ordering::SeqCst);
+                .fetch_sub(old.bgra.len() as u64, Ordering::SeqCst);
         } else {
             break;
         }
@@ -665,10 +840,10 @@ fn push_frame(
     shared
         .queue_bytes
         .fetch_add(buf.len() as u64, Ordering::SeqCst);
-    queue.push_back(RgbaFrame {
-        width: dec.width,
-        height: dec.height,
-        rgba: buf,
+    queue.push_back(VideoFrame {
+        width,
+        height,
+        bgra: buf,
         pts_ms,
     });
     Ok(())
@@ -689,7 +864,13 @@ fn frame_ms_of(frame: &rsmpeg::avutil::AVFrame, time_base: (i32, i32)) -> Option
 }
 
 /// 키프레임 기준 탐색 후 목표 지점까지 순방향 디코드해 목표 프레임을 큐에 넣는다.
-fn seek_to_push(dec: &mut Decoder, shared: &Arc<Shared>, target_ms: u64) -> Result<(), String> {
+/// `preview`면 첫 프레임(보통 키프레임)을 먼저 넣어 긴 GOP에서도 화면이 바로 반응한다.
+fn seek_to_push(
+    dec: &mut Decoder,
+    shared: &Arc<Shared>,
+    target_ms: u64,
+    preview: bool,
+) -> Result<(), String> {
     use rsmpeg::ffi;
     clear_queue(shared);
     let (num, den) = dec.time_base;
@@ -705,6 +886,7 @@ fn seek_to_push(dec: &mut Decoder, shared: &Arc<Shared>, target_ms: u64) -> Resu
         )
         .map_err(|e| format!("Failed to seek: {e:?}"))?;
     dec.ctx.flush_buffers();
+    let mut previewed = false;
     loop {
         let packet = dec
             .ictx
@@ -728,12 +910,24 @@ fn seek_to_push(dec: &mut Decoder, shared: &Arc<Shared>, target_ms: u64) -> Resu
                 push_frame(dec, &frame, shared)?;
                 return Ok(());
             }
+            if preview && !previewed {
+                push_frame(dec, &frame, shared)?;
+                previewed = true;
+            }
         }
     }
 }
 
 /// 내장 자막 트랙을 모두 읽어 구간 목록으로 돌려준다. 없으면 빈 목록이다.
 pub fn list_subtitle_cues(path: &Path) -> Result<Vec<SubtitleCue>, AppError> {
+    let cancel = AtomicBool::new(false);
+    list_subtitle_cues_inner(path, &cancel)
+}
+
+fn list_subtitle_cues_inner(
+    path: &Path,
+    cancel: &AtomicBool,
+) -> Result<Vec<SubtitleCue>, AppError> {
     use rsmpeg::ffi;
     if crate::video::probe(path).is_err() {
         return Err(AppError::invalid_input("Not a video file"));
@@ -749,16 +943,32 @@ pub fn list_subtitle_cues(path: &Path) -> Result<Vec<SubtitleCue>, AppError> {
         return Ok(Vec::new());
     };
     let mut ctx = rsmpeg::avcodec::AVCodecContext::new(&decoder);
-    {
+    let time_base = {
         let stream = &ictx.streams()[stream_index];
         ctx.apply_codecpar(&stream.codecpar())
             .map_err(|e| AppError::corrupt(format!("Failed to open decoder: {e:?}")))?;
+        let tb = stream.time_base;
+        (tb.num, tb.den)
+    };
+    if time_base.0 > 0 && time_base.1 > 0 {
+        // SAFETY: `avcodec_open2` 전에 공개 필드를 바꾸는 것은 FFmpeg가 허용한다.
+        // 자막 표시 시각(`AVSubtitle.pts`)을 절대 시각으로 계산하려면 패킷
+        // 타임베이스를 알려 줘야 한다.
+        unsafe {
+            rsmpeg::UnsafeDerefMut::deref_mut(&mut ctx).pkt_timebase = ffi::AVRational {
+                num: time_base.0,
+                den: time_base.1,
+            };
+        }
     }
     ctx.open(None)
         .map_err(|_| AppError::unsupported("Unsupported subtitle codec"))?;
     let mut cues = Vec::new();
     let mut packets = 0usize;
     while packets < MAX_SUBTITLE_PACKETS {
+        if cancel.load(Ordering::SeqCst) {
+            return Ok(Vec::new());
+        }
         let Ok(Some(mut pkt)) = ictx.read_packet() else {
             break;
         };
@@ -790,8 +1000,15 @@ fn cue_of(sub: &rsmpeg::avcodec::AVSubtitle) -> Option<SubtitleCue> {
     // SAFETY: `decode_subtitle`이 채운 유효한 AVSubtitle이며, Drop이 해제한다.
     // `num_rects`/`rects` 범위 안에서만 읽고, `text`/`ass`는 NUL 종료 C 문자열이다.
     unsafe {
-        let start_ms = sub.start_display_time as u64;
-        let end_ms = sub.end_display_time as u64;
+        // `AVSubtitle.pts`는 AV_TIME_BASE(마이크로초) 절대 시각이고,
+        // start/end_display_time은 그 기준 밀리초 오프셋이다.
+        let base_ms = if sub.pts > 0 {
+            (sub.pts / 1000) as u64
+        } else {
+            0
+        };
+        let start_ms = base_ms.saturating_add(u64::from(sub.start_display_time));
+        let end_ms = base_ms.saturating_add(u64::from(sub.end_display_time));
         if end_ms <= start_ms {
             return None;
         }
@@ -833,16 +1050,24 @@ fn cue_of(sub: &rsmpeg::avcodec::AVSubtitle) -> Option<SubtitleCue> {
 }
 
 /// ASS `Dialogue:` 행에서 실제 대사를 꺼내고 override 블록(`{...}`)을 걷는다.
+/// ASS `Dialogue:` 행이나 디코더가 만든 대화 페이로드에서 실제 대사를 꺼내고
+/// override 블록(`{...}`)을 걷는다. FFmpeg의 SRT 디코더는 `Dialogue:` 접두
+/// 없이 `readorder,layer,style,speaker,0,0,0,,Text` 형태로 준다.
 fn ass_dialogue_text(ass: &str) -> String {
     let mut out = Vec::new();
     for line in ass.lines() {
         let line = line.trim();
-        if !line.to_lowercase().starts_with("dialogue:") {
-            continue;
-        }
         // Dialogue: Layer,Start,End,Style,Name,ML,MR,ME,Effect,Text (콤마 9개 뒤가 본문)
-        let mut parts = line.splitn(10, ',');
-        let text = parts.nth(9).unwrap_or("").trim();
+        // 그 외는 readorder,... 8개 뒤가 본문이다.
+        let (payload, fields) = match line
+            .strip_prefix("Dialogue:")
+            .or_else(|| line.strip_prefix("dialogue:"))
+        {
+            Some(rest) => (rest, 10),
+            None => (line, 9),
+        };
+        let mut parts = payload.splitn(fields, ',');
+        let text = parts.nth(fields - 1).unwrap_or("").trim();
         if text.is_empty() {
             continue;
         }
@@ -927,7 +1152,78 @@ mod tests {
         player.pause();
         let frame = frame.expect("no frame decoded");
         assert_eq!((frame.width, frame.height), (64, 48));
-        assert_eq!(frame.rgba.len(), 64 * 48 * 4);
+        assert_eq!(frame.bgra.len(), 64 * 48 * 4);
+    }
+
+    #[test]
+    fn seek_clamps_to_duration() {
+        let player = VideoPlayer::open(&sample("sample.mp4")).unwrap();
+        let duration = player.info().duration_ms;
+        player.seek(duration + 10_000);
+        assert_eq!(player.position_ms(), duration);
+        assert!(!player.is_playing());
+    }
+
+    #[test]
+    fn seek_finishes_with_a_frame() {
+        let player = VideoPlayer::open(&sample("sample.mp4")).unwrap();
+        player.pause();
+        player.seek(300);
+        let mut frame = None;
+        for _ in 0..200 {
+            if let Ok(Some(next)) = player.poll_frame() {
+                if next.pts_ms >= 300 {
+                    frame = Some(next);
+                    break;
+                }
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        assert!(!player.is_seeking());
+        let frame = frame.expect("no frame after seek");
+        assert!(frame.pts_ms >= 300, "pts {}", frame.pts_ms);
+    }
+
+    #[test]
+    fn playback_clock_advances_in_milliseconds() {
+        let player = VideoPlayer::open(&sample("sample.mp4")).unwrap();
+        player.play(1.0);
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        let position = player.position_ms();
+        player.pause();
+        assert!(
+            (50..=600).contains(&position),
+            "position should be milliseconds, got {position}"
+        );
+    }
+
+    #[test]
+    fn poll_frame_returns_new_frames_only() {
+        let player = VideoPlayer::open(&sample("sample.mp4")).unwrap();
+        player.play(1.0);
+        let mut pts = Vec::new();
+        for _ in 0..200 {
+            if let Ok(Some(frame)) = player.poll_frame() {
+                if pts.last() != Some(&frame.pts_ms) {
+                    pts.push(frame.pts_ms);
+                }
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        player.pause();
+        assert!(pts.len() > 1, "expected several frames, got {pts:?}");
+        assert!(pts.windows(2).all(|pair| pair[0] < pair[1]));
+    }
+
+    #[test]
+    fn output_is_capped_to_playback_size() {
+        assert_eq!(output_dimensions(3840, 2160), (1920, 1080));
+        assert_eq!(output_dimensions(2560, 1440), (1920, 1080));
+        assert_eq!(output_dimensions(1920, 1080), (1920, 1080));
+        assert_eq!(output_dimensions(640, 480), (640, 480));
+        // 세로 영상도 긴 변 기준이다.
+        assert_eq!(output_dimensions(1080, 1920), (1080, 1920));
+        assert_eq!(output_dimensions(2160, 3840), (1080, 1920));
     }
 
     #[test]
@@ -956,9 +1252,41 @@ mod tests {
     }
 
     #[test]
+    fn subtitle_cues_use_absolute_packet_times() {
+        let cues = list_subtitle_cues(&sample("sample-subs.mkv")).unwrap();
+        assert_eq!(cues.len(), 2);
+        assert_eq!((cues[0].start_ms, cues[0].end_ms), (1000, 5000));
+        assert_eq!(cues[0].text, "Hello subtitle");
+        assert_eq!((cues[1].start_ms, cues[1].end_ms), (6000, 9000));
+        assert_eq!(cues[1].text, "Second cue");
+    }
+
+    #[test]
+    fn subtitles_load_in_background() {
+        let player = VideoPlayer::open(&sample("sample-subs.mkv")).unwrap();
+        assert!(player.info().has_subtitles);
+        let mut text = None;
+        for _ in 0..200 {
+            if let Some(cue) = player.cue_at(2000) {
+                text = Some(cue);
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        assert_eq!(text.as_deref(), Some("Hello subtitle"));
+        assert_eq!(player.cue_at(7000).as_deref(), Some("Second cue"));
+        assert_eq!(player.cue_at(5500), None);
+    }
+
+    #[test]
     fn ass_helpers_strip_formatting() {
         assert_eq!(strip_ass("{\\an8}Hello\\NWorld"), "Hello World");
         let ass = "Dialogue: 0,0:00:01.00,0:00:02.00,Default,,0,0,0,,{\\i1}Hi\\Nthere";
         assert_eq!(ass_dialogue_text(ass), "Hi there");
+        // FFmpeg 텍스트 자막 디코더가 주는 접두 없는 대화 페이로드.
+        assert_eq!(
+            ass_dialogue_text("0,0,Default,,0,0,0,,Hello, subtitle"),
+            "Hello, subtitle"
+        );
     }
 }

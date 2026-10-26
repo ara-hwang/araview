@@ -11,7 +11,7 @@ use serde::Serialize;
 
 use crate::app_error::AppError;
 use crate::image::VIDEO_MIMES;
-use crate::sidecar::{downscale_rgb8, Rgb8};
+use crate::sidecar::Rgb8;
 
 /// 포스터 JPEG 화질. 썸네일(80)보다 표시용에 가깝게 둔다.
 const POSTER_JPEG_QUALITY: u8 = 85;
@@ -78,8 +78,7 @@ pub fn ensure_poster(source: &Path, max_side: u32) -> Result<(PathBuf, u32, u32)
             let (width, height) = jpeg_dims(&dest)?;
             return Ok((dest, width, height));
         }
-        let rgb = decode_first_frame_rgb8(source)?;
-        let rgb = downscale_rgb8(rgb, max_side);
+        let rgb = decode_first_frame_rgb8(source, max_side)?;
         let (width, height) = (rgb.width, rgb.height);
         crate::sidecar::write_rgb8_jpeg_atomic(&dest, &rgb, POSTER_JPEG_QUALITY)?;
         crate::process_temp::note_published(&dest, crate::sidecar::MAX_PAINT_BYTES);
@@ -213,7 +212,7 @@ fn stream_duration(
 }
 
 /// 첫 비디오 프레임을 RGB24로 디코드한다.
-fn decode_first_frame_rgb8(source: &Path) -> Result<Rgb8, AppError> {
+fn decode_first_frame_rgb8(source: &Path, max_side: u32) -> Result<Rgb8, AppError> {
     let opened = open_input(source)?;
     let cpath = cstr(source)?;
     let mut ictx = rsmpeg::avformat::AVFormatContextInput::open(&cpath)
@@ -228,6 +227,11 @@ fn decode_first_frame_rgb8(source: &Path) -> Result<Rgb8, AppError> {
         let stream = &ictx.streams()[opened.stream_index];
         ctx.apply_codecpar(&stream.codecpar())
             .map_err(|e| AppError::corrupt(format!("Failed to open decoder: {e:?}")))?;
+    }
+    // SAFETY: `avcodec_open2` 전에 공개 필드를 바꾸는 것은 FFmpeg가 허용한다.
+    // 0은 CPU 수에 맞춘 자동 스레드 수다.
+    unsafe {
+        rsmpeg::UnsafeDerefMut::deref_mut(&mut ctx).thread_count = 0;
     }
     ctx.open(None)
         .map_err(|e| AppError::corrupt(format!("Failed to open decoder: {e:?}")))?;
@@ -263,22 +267,27 @@ fn decode_first_frame_rgb8(source: &Path) -> Result<Rgb8, AppError> {
         }
     }
     let frame = frame.ok_or_else(|| AppError::corrupt("No decodable video frame"))?;
-    rgb24_of(&frame)
+    rgb24_of(&frame, max_side)
 }
 
-/// 디코드 프레임을 RGB24 바이트로 바꾼다.
-fn rgb24_of(frame: &rsmpeg::avutil::AVFrame) -> Result<Rgb8, AppError> {
+/// 디코드 프레임을 RGB24 바이트로 바꾼다. 포스터에 필요한 크기로 바로
+/// 줄여서 변환해, 전체 해상도 버퍼를 만든 뒤 다시 줄이는 비용을 없앤다.
+fn rgb24_of(frame: &rsmpeg::avutil::AVFrame, max_side: u32) -> Result<Rgb8, AppError> {
     use rsmpeg::ffi;
     let (width, height) = (frame.width, frame.height);
     if width <= 0 || height <= 0 {
         return Err(AppError::corrupt("Invalid video frame"));
     }
+    let longest = width.max(height) as u32;
+    let scale = (f64::from(max_side.max(1)) / f64::from(longest)).min(1.0);
+    let out_width = ((width as f64 * scale).round() as u32).max(1);
+    let out_height = ((height as f64 * scale).round() as u32).max(1);
     let mut scaler = rsmpeg::swscale::SwsContext::get_context(
         width,
         height,
         frame.format,
-        width,
-        height,
+        out_width as i32,
+        out_height as i32,
         ffi::AV_PIX_FMT_RGB24,
         ffi::SWS_BILINEAR,
         None,
@@ -286,19 +295,24 @@ fn rgb24_of(frame: &rsmpeg::avutil::AVFrame) -> Result<Rgb8, AppError> {
         None,
     )
     .ok_or_else(|| AppError::corrupt("Failed to create scaler"))?;
-    let image = rsmpeg::avutil::AVImage::new(ffi::AV_PIX_FMT_RGB24, width, height, 1)
-        .ok_or_else(|| AppError::corrupt("Failed to allocate frame"))?;
+    let image = rsmpeg::avutil::AVImage::new(
+        ffi::AV_PIX_FMT_RGB24,
+        out_width as i32,
+        out_height as i32,
+        1,
+    )
+    .ok_or_else(|| AppError::corrupt("Failed to allocate frame"))?;
     let mut framed = rsmpeg::avutil::AVFrameWithImage::new(image);
     scaler
-        .scale_frame(frame, 0, height, &mut framed)
+        .scale_frame(frame, 0, out_height as i32, &mut framed)
         .map_err(|e| AppError::corrupt(format!("Failed to scale frame: {e:?}")))?;
     let mut buf = vec![0u8; framed.image_get_buffer_size(1).unwrap_or(0)];
     framed
         .image_copy_to_buffer(&mut buf, 1)
         .map_err(|e| AppError::corrupt(format!("Failed to copy frame: {e:?}")))?;
     Ok(Rgb8 {
-        width: width as u32,
-        height: height as u32,
+        width: out_width,
+        height: out_height,
         bytes: buf,
     })
 }

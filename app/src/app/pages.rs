@@ -700,10 +700,16 @@ impl AraView {
         let Some(info) = &self.info else {
             return;
         };
-        // 동영상은 다음 프레임부터 새 방향을 적용하고 지금 화면은 유지한다.
+        // 동영상은 다음 프레임부터 새 방향을 적용한다. 정지 상태에서는 다음
+        // 프레임이 오지 않으므로 현재 위치를 다시 열어 방향을 즉시 반영한다.
         if self.has_video(cx) {
             self.orientation = orientation;
             self.orient_seq += 1;
+            if let Some(player) = &self.video
+                && !player.is_playing()
+            {
+                player.seek(player.position_ms());
+            }
             cx.notify();
             return;
         }

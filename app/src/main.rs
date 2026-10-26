@@ -1,5 +1,7 @@
 // 릴리스 빌드는 Windows에서 콘솔 창을 띄우지 않는다.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+// 상태 JSON(`bridge.rs`)이 중첩 객체를 담아 기본 매크로 재귀 한도를 넘는다.
+#![recursion_limit = "256"]
 
 mod app;
 mod assets;
