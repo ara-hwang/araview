@@ -7,7 +7,7 @@ use araview_core::app_error::AppError;
 use araview_core::ops;
 use gpui_kit::component::WindowExt as _;
 use gpui_kit::component::button::{Button, ButtonVariant, ButtonVariants as _};
-use gpui_kit::component::dialog::{DialogEntrance, DialogFooter};
+use gpui_kit::component::dialog::DialogFooter;
 use gpui_kit::component::form::{Field, Form};
 use gpui_kit::component::input::{Input, InputEvent, InputState};
 use gpui_kit::*;
@@ -41,7 +41,6 @@ impl AraView {
             let path = path.clone();
             alert
                 .margin_top(centered_margin_top(window, ALERT_HEIGHT))
-                .entrance(DialogEntrance::Fade)
                 .title(t("confirm.trash.title"))
                 .description(t_with("confirm.trash.message", &[("name", &name)]))
                 // Enter로도 지운다. gpui-kit 다이얼로그는 `Enter`를 확인 동작으로

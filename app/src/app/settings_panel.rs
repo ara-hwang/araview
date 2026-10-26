@@ -6,7 +6,6 @@ use araview_core::file_assoc::FileAssociation;
 use araview_core::thumb_shell::PsdThumbStatus;
 use gpui_kit::component::alert::Alert;
 use gpui_kit::component::button::{Button, ButtonVariant, ButtonVariants as _};
-use gpui_kit::component::dialog::DialogEntrance;
 use gpui_kit::component::group_box::{GroupBox, GroupBoxVariants as _};
 use gpui_kit::component::kbd::Kbd;
 use gpui_kit::component::select::{SearchableVec, Select, SelectEvent, SelectState};
@@ -1004,7 +1003,6 @@ impl SettingsPanel {
             let panel = panel.clone();
             alert
                 .margin_top(centered_margin_top(window, ALERT_HEIGHT))
-                .entrance(DialogEntrance::Fade)
                 .title(t("confirm.cache.clearAll.title"))
                 .description(t("confirm.cache.clearAll.message"))
                 // Enter로도 지운다. gpui-kit 다이얼로그는 `Enter`를 확인 동작으로
@@ -1336,7 +1334,6 @@ impl SettingsPanel {
             let spec = spec.clone();
             alert
                 .margin_top(centered_margin_top(window, ALERT_HEIGHT))
-                .entrance(DialogEntrance::Fade)
                 .title(t("settings.shortcuts.conflictTitle"))
                 .description(t_with(
                     "settings.shortcuts.conflictDesc",
@@ -1929,7 +1926,6 @@ impl SettingsPanel {
             let panel = panel.clone();
             alert
                 .margin_top(centered_margin_top(window, ALERT_HEIGHT))
-                .entrance(DialogEntrance::Fade)
                 .title(t("confirm.resetSettings.title"))
                 .description(t("confirm.resetSettings.message"))
                 // Enter로도 초기화한다(확인 동작에 초기화를 건다).
