@@ -12,7 +12,7 @@ use super::AraView;
 use super::ocr::OcrOutcome;
 use super::settings_panel::Effect;
 use super::viewport::WT_KEY_SCROLL;
-use crate::dialog::{BackdropClick, PALETTE_HEIGHT, centered, watch_backdrop_click};
+use crate::dialog::{BackdropClick, centered, watch_backdrop_click};
 use crate::geometry::{PAN_STEP, ZOOM_STEP};
 use crate::i18n::{t, t_en};
 use crate::keys;
@@ -387,13 +387,13 @@ impl AraView {
         let search = state.clone();
         // 배경 누름 판정은 팔레트가 사는 동안 유지해야 한다(다이얼로그 빌더는 다시 돈다).
         let backdrop = BackdropClick::default();
-        window.open_dialog(cx, move |dialog, window, _| {
+        window.open_dialog(cx, move |dialog, _window, _| {
             let state = state.clone();
             let groups = groups.clone();
             let shortcuts = shortcuts.clone();
             let view = view.clone();
             let backdrop = backdrop.clone();
-            centered(dialog, window, PALETTE_HEIGHT)
+            centered(dialog)
                 .close_button(false)
                 .p_0()
                 .content(move |content, _, _| {

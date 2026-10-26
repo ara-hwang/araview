@@ -13,7 +13,7 @@ use gpui_kit::component::input::{Input, InputEvent, InputState};
 use gpui_kit::*;
 
 use super::AraView;
-use crate::dialog::{ALERT_HEIGHT, RENAME_HEIGHT, centered, centered_margin_top};
+use crate::dialog::centered;
 use crate::i18n::{t, t_with};
 use crate::settings::SettingsStore;
 
@@ -36,11 +36,11 @@ impl AraView {
             return;
         }
         let entity = cx.entity();
-        window.open_alert_dialog(cx, move |alert, window, _cx| {
+        window.open_alert_dialog(cx, move |alert, _window, _cx| {
             let entity = entity.clone();
             let path = path.clone();
             alert
-                .margin_top(centered_margin_top(window, ALERT_HEIGHT))
+                .centered()
                 .title(t("confirm.trash.title"))
                 .description(t_with("confirm.trash.message", &[("name", &name)]))
                 // Enter로도 지운다. gpui-kit 다이얼로그는 `Enter`를 확인 동작으로
@@ -128,11 +128,11 @@ impl AraView {
         };
         submit_on_enter.detach();
         let name_input = input.clone();
-        window.open_dialog(cx, move |dialog, window, _| {
+        window.open_dialog(cx, move |dialog, _window, _| {
             let entity = entity.clone();
             let input = input.clone();
             let old_path = old_path.clone();
-            centered(dialog, window, RENAME_HEIGHT)
+            centered(dialog)
                 .title(t("dialog.rename.title"))
                 .child(
                     Form::new().child(
