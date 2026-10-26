@@ -480,7 +480,7 @@ impl AraView {
                     scroller.h_full().w(px(cross + DOCK_PADDING * 2.0))
                 }
             })
-            .on_scroll_wheel(self.dock_scroll.wheel_handler(horizontal))
+            .on_scroll(self.dock_scroll.wheel_handler(horizontal))
             .when(horizontal, |scroller| {
                 scroller.horizontal_scrollbar(&self.dock_virtual)
             })

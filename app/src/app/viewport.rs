@@ -418,11 +418,7 @@ impl AraView {
     }
 
     /// 휠 이벤트를 설정된 동작으로 바꾼다. 수식키 없는 휠만 `plain`이다.
-    pub(super) fn wheel_action(
-        event: &ScrollWheelEvent,
-        up: bool,
-        cx: &App,
-    ) -> (WheelAction, bool) {
+    pub(super) fn wheel_action(event: &ScrollEvent, up: bool, cx: &App) -> (WheelAction, bool) {
         let wheel = &SettingsStore::global(cx).settings.wheel;
         let modifiers = event.modifiers;
         if modifiers.control {
@@ -457,7 +453,7 @@ impl AraView {
         }
     }
 
-    fn on_wheel(&mut self, event: &ScrollWheelEvent, window: &mut Window, cx: &mut Context<Self>) {
+    fn on_wheel(&mut self, event: &ScrollEvent, window: &mut Window, cx: &mut Context<Self>) {
         let delta = event.delta.pixel_delta(window.line_height()).y;
         if delta == px(0.) {
             return;
@@ -1422,7 +1418,7 @@ impl AraView {
                     this.ocr_drag = None;
                 }),
             )
-            .on_scroll_wheel(cx.listener(Self::on_wheel))
+            .on_scroll(cx.listener(Self::on_wheel))
             .child(drawing)
             .children(self.render_ocr_layer(cx))
             .when_some(preview_thumb, |area, path| {

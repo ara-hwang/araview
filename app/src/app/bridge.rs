@@ -171,7 +171,7 @@ fn apply_input(request: &Value, window: &mut Window, cx: &mut App) -> Result<(),
     match text_field(request, "cmd")? {
         "key" => {
             let spec = text_field(request, "spec")?;
-            let keystroke = Keystroke::parse(spec)
+            let keystroke = Keystroke::parse_with_os(spec, cx.platform_info().os)
                 .map_err(|error| format!("invalid keystroke {spec:?}: {error}"))?;
             window.dispatch_keystroke(keystroke, cx);
         }
@@ -340,11 +340,12 @@ fn apply_mouse(request: &Value, window: &mut Window, cx: &mut App) -> Result<(),
                 (None, None) => return Err("wheel needs lines or delta".to_owned()),
             };
             window.dispatch_event(
-                ScrollWheelEvent {
+                ScrollEvent {
                     position: at(x, y),
                     delta,
                     modifiers,
                     touch_phase: TouchPhase::Moved,
+                    source: ScrollSource::Pointer,
                 }
                 .to_platform_input(),
                 cx,

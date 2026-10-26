@@ -93,7 +93,7 @@ dependencies and other-OS targets are excluded.
 | base64 | 0.22.1 | MIT OR Apache-2.0 |
 | base64 | 0.23.1 | MIT OR Apache-2.0 |
 | bit_field | 0.10.3 | Apache-2.0 OR MIT |
-| bit-set | 0.9.1 | Apache-2.0 OR MIT |
+| bit-set | 0.10.0 | Apache-2.0 OR MIT |
 | bit-vec | 0.9.1 | Apache-2.0 OR MIT |
 | bitflags | 1.3.2 | MIT OR Apache-2.0 |
 | bitflags | 2.13.2 | MIT OR Apache-2.0 |
@@ -126,8 +126,6 @@ dependencies and other-OS targets are excluded.
 | cipher | 0.4.4 | MIT OR Apache-2.0 |
 | cipher | 0.5.2 | MIT OR Apache-2.0 |
 | cmov | 0.5.4 | Apache-2.0 OR MIT |
-| cocoa | 0.26.1 | MIT OR Apache-2.0 |
-| cocoa-foundation | 0.2.1 | MIT OR Apache-2.0 |
 | codespan-reporting | 0.13.1 | Apache-2.0 |
 | color_quant | 1.1.0 | MIT |
 | colorchoice | 1.0.5 | MIT OR Apache-2.0 |
@@ -209,7 +207,6 @@ dependencies and other-OS targets are excluded.
 | float-ord | 0.3.2 | MIT  OR  Apache-2.0 |
 | fluent-uri | 0.1.4 | MIT |
 | flume | 0.12.0 | Apache-2.0 OR MIT |
-| foldhash | 0.1.5 | Zlib |
 | foldhash | 0.2.0 | Zlib |
 | font-types | 0.11.3 | MIT OR Apache-2.0 |
 | font-types | 0.12.7 | MIT OR Apache-2.0 |
@@ -249,45 +246,41 @@ dependencies and other-OS targets are excluded.
 | glow | 0.17.0 | MIT OR Apache-2.0 OR Zlib |
 | glutin_wgl_sys | 0.6.1 | Apache-2.0 |
 | gpu-allocator | 0.28.0 | MIT OR Apache-2.0 |
-| gpu-descriptor | 0.3.2 | MIT OR Apache-2.0 |
-| gpu-descriptor-types | 0.2.0 | MIT OR Apache-2.0 |
-| gpui-base | 0.8.0 | Apache-2.0 |
-| gpui-component | 0.8.0 | Apache-2.0 |
-| gpui-component-macros | 0.8.0 | Apache-2.0 |
-| gpui-kit | 0.8.0 | Apache-2.0 |
-| gpui-kit-assets | 0.8.0 | Apache-2.0 |
-| gpui-pre | 0.3.9 | Apache-2.0 |
-| gpui-pre-apple | 0.3.9 | Apache-2.0 |
-| gpui-pre-collections | 0.3.9 | Apache-2.0 |
-| gpui-pre-derive-refineable | 0.3.9 | Apache-2.0 |
-| gpui-pre-http-client | 0.3.9 | Apache-2.0 |
-| gpui-pre-linux | 0.3.9 | Apache-2.0 |
-| gpui-pre-macos | 0.3.9 | Apache-2.0 |
-| gpui-pre-macros | 0.3.9 | Apache-2.0 |
-| gpui-pre-platform | 0.3.9 | Apache-2.0 |
-| gpui-pre-refineable | 0.3.9 | Apache-2.0 |
-| gpui-pre-scheduler | 0.3.9 | Apache-2.0 |
-| gpui-pre-shared-string | 0.3.9 | Apache-2.0 |
-| gpui-pre-sum-tree | 0.3.9 | Apache-2.0 |
-| gpui-pre-util | 0.3.9 | Apache-2.0 |
-| gpui-pre-wgpu | 0.3.9 | Apache-2.0 |
-| gpui-pre-windows | 0.3.9 | Apache-2.0 |
-| gpui-pre-ztracing | 0.3.9 | Apache-2.0 |
-| gpui-pre-ztracing-macro | 0.3.9 | Apache-2.0 |
+| gpui-base | 0.8.1 | Apache-2.0 |
+| gpui-component | 0.8.1 | Apache-2.0 |
+| gpui-component-macros | 0.8.1 | Apache-2.0 |
+| gpui-kit | 0.8.1 | Apache-2.0 |
+| gpui-kit-assets | 0.8.1 | Apache-2.0 |
+| gpui-pre | 0.3.10 | Apache-2.0 |
+| gpui-pre-apple | 0.3.10 | Apache-2.0 |
+| gpui-pre-collections | 0.3.10 | Apache-2.0 |
+| gpui-pre-derive-refineable | 0.3.10 | Apache-2.0 |
+| gpui-pre-http-client | 0.3.10 | Apache-2.0 |
+| gpui-pre-linux | 0.3.10 | Apache-2.0 |
+| gpui-pre-macos | 0.3.10 | Apache-2.0 |
+| gpui-pre-macros | 0.3.10 | Apache-2.0 |
+| gpui-pre-platform | 0.3.10 | Apache-2.0 |
+| gpui-pre-refineable | 0.3.10 | Apache-2.0 |
+| gpui-pre-scheduler | 0.3.10 | Apache-2.0 |
+| gpui-pre-shared-string | 0.3.10 | Apache-2.0 |
+| gpui-pre-sum-tree | 0.3.10 | Apache-2.0 |
+| gpui-pre-util | 0.3.10 | Apache-2.0 |
+| gpui-pre-wgpu | 0.3.10 | Apache-2.0 |
+| gpui-pre-windows | 0.3.10 | Apache-2.0 |
+| gpui-pre-ztracing | 0.3.10 | Apache-2.0 |
+| gpui-pre-ztracing-macro | 0.3.10 | Apache-2.0 |
 | granit-parser | 1.3.0 | MIT OR Apache-2.0 |
 | half | 2.7.1 | MIT OR Apache-2.0 |
 | harfrust | 0.5.2 | MIT |
 | harfrust | 0.12.0 | MIT |
 | hash32 | 0.3.1 | MIT OR Apache-2.0 |
 | hashbrown | 0.14.5 | MIT OR Apache-2.0 |
-| hashbrown | 0.15.5 | MIT OR Apache-2.0 |
 | hashbrown | 0.16.1 | MIT OR Apache-2.0 |
 | hashbrown | 0.17.1 | MIT OR Apache-2.0 |
 | heapless | 0.9.3 | MIT OR Apache-2.0 |
 | heck | 0.4.1 | MIT OR Apache-2.0 |
 | heck | 0.5.0 | MIT OR Apache-2.0 |
 | hex | 0.4.3 | MIT OR Apache-2.0 |
-| hexf-parse | 0.2.1 | CC0-1.0 |
 | hkdf | 0.12.4 | MIT OR Apache-2.0 |
 | hmac | 0.12.1 | MIT OR Apache-2.0 |
 | hmac | 0.13.0 | MIT OR Apache-2.0 |
@@ -401,7 +394,8 @@ dependencies and other-OS targets are excluded.
 | multiversion_no_op | 1.0.0 | Apache-2.0 OR MIT |
 | multiversion-macros | 0.8.1 | MIT OR Apache-2.0 |
 | mutate_once | 0.1.2 | BSD-2-Clause |
-| naga | 29.0.4 | MIT OR Apache-2.0 |
+| naga | 30.0.1 | MIT OR Apache-2.0 |
+| naga-types | 30.0.1 | MIT OR Apache-2.0 |
 | new_debug_unreachable | 1.0.6 | MIT |
 | nix | 0.31.3 | MIT |
 | no_std_io2 | 0.9.4 | Apache-2.0 OR MIT |
@@ -612,7 +606,7 @@ dependencies and other-OS targets are excluded.
 | synstructure | 0.14.0 | MIT |
 | sys-locale | 0.3.2 | MIT OR Apache-2.0 |
 | system-deps | 8.0.0 | MIT OR Apache-2.0 |
-| taffy | 0.13.0 | MIT |
+| taffy | 0.15.1 | MIT |
 | target-features | 0.1.6 | MIT OR Apache-2.0 |
 | target-lexicon | 0.13.5 | Apache-2.0 WITH LLVM-exception |
 | tauri-winrt-notification | 0.8.1 | MIT OR Apache-2.0 |
@@ -694,13 +688,13 @@ dependencies and other-OS targets are excluded.
 | web-time | 1.1.0 | MIT OR Apache-2.0 |
 | webpki-roots | 1.0.11 | CDLA-Permissive-2.0 |
 | weezl | 0.1.12 | MIT OR Apache-2.0 |
-| wgpu | 29.0.4 | MIT OR Apache-2.0 |
-| wgpu-core | 29.0.4 | MIT OR Apache-2.0 |
-| wgpu-core-deps-apple | 29.0.4 | MIT OR Apache-2.0 |
-| wgpu-core-deps-windows-linux-android | 29.0.4 | MIT OR Apache-2.0 |
-| wgpu-hal | 29.0.4 | MIT OR Apache-2.0 |
-| wgpu-naga-bridge | 29.0.4 | MIT OR Apache-2.0 |
-| wgpu-types | 29.0.4 | MIT OR Apache-2.0 |
+| wgpu | 30.0.1 | MIT OR Apache-2.0 |
+| wgpu-core | 30.0.1 | MIT OR Apache-2.0 |
+| wgpu-core-deps-apple | 30.0.1 | MIT OR Apache-2.0 |
+| wgpu-core-deps-windows-linux-android | 30.0.1 | MIT OR Apache-2.0 |
+| wgpu-hal | 30.0.1 | MIT OR Apache-2.0 |
+| wgpu-naga-bridge | 30.0.1 | MIT OR Apache-2.0 |
+| wgpu-types | 30.0.1 | MIT OR Apache-2.0 |
 | which | 8.0.6 | MIT |
 | winapi | 0.3.9 | MIT OR Apache-2.0 |
 | winapi-util | 0.1.11 | Unlicense OR MIT |

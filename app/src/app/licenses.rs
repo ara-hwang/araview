@@ -380,7 +380,7 @@ impl Render for LicensesView {
             .flex_none()
             .border_r_1()
             .border_color(border)
-            .on_scroll_wheel(self.list_smooth.wheel_handler(false))
+            .on_scroll(self.list_smooth.wheel_handler(false))
             .vertical_scrollbar(&self.scroll)
             .child(list);
         h_flex()
