@@ -1,6 +1,6 @@
 name: CI
 
-# 문서 정합성은 PR과 main(베타)·release/** (안정) 푸시에서 자동으로 돈다.
+# 문서 정합성은 PR과 main(베타)·release(안정) 푸시에서 자동으로 돈다.
 # Rust는 두 단계다. 전체 검증(rust 잡: fmt, test, clippy, audit, deny)은 비용이
 # 커서 Actions 탭 수동 실행(workflow_dispatch)과 릴리스(release.yml이
 # workflow_call로 호출)에서만 돈다. 대신 Rust 쪽 파일이 바뀐 PR과 브랜치 푸시에서는
@@ -12,7 +12,7 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [main, "release/**"]
+    branches: [main, release]
   workflow_dispatch:
   workflow_call:
 

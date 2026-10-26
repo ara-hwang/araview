@@ -4,12 +4,12 @@
  *
  *   npm run release -- beta            main에서 다음 베타 (2.7.0-beta.1 -> 2.7.0-beta.2)
  *   npm run release -- 2.7.0-beta.1    main에서 정확한 베타 버전
- *   npm run release -- patch           release/<주 버전>.x에서 안정 patch (minor|major 동일)
- *   npm run release -- 2.7.0           release/<주 버전>.x에서 정확한 안정 버전
+ *   npm run release -- patch           release에서 안정 patch (minor|major 동일)
+ *   npm run release -- 2.7.0           release에서 정확한 안정 버전
  *   npm run release -- beta --dry-run  파일과 git을 건드리지 않고 계획만 출력
  *   npm run release -- beta --yes      확인 질문 생략
  *
- * main은 베타 채널, release/<주 버전>.x는 안정 채널이다. 태그(vX.Y.Z 또는
+ * main은 베타 채널, release는 안정 채널이다. 태그(vX.Y.Z 또는
  * vX.Y.Z-beta.N)가 푸시되면 .github/workflows/release.yml이 검증, 설치 프로그램
  * 빌드와 서명, 릴리스 생성을 이어받는다. 이 스크립트는 빌드나 릴리스를 직접 하지
  * 않는다. 의존성 없이 Node 표준 라이브러리만 쓴다.
@@ -23,7 +23,6 @@ import { fileURLToPath } from "node:url"
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 const STABLE = /^\d+\.\d+\.\d+$/
 const BETA = /^(\d+)\.(\d+)\.(\d+)-beta\.(\d+)$/
-const RELEASE_BRANCH = /^release\/(\d+)\.x$/
 
 const args = process.argv.slice(2)
 const dryRun = args.includes("--dry-run")
@@ -135,11 +134,10 @@ function readVersions() {
 }
 
 const branch = git("rev-parse", "--abbrev-ref", "HEAD")
-const releaseBranch = RELEASE_BRANCH.exec(branch)
 let channel
 if (branch === "main") channel = "beta"
-else if (releaseBranch) channel = "stable"
-else fail("main(베타) 또는 release/<주 버전>.x(안정) 브랜치에서만 릴리스한다.")
+else if (branch === "release") channel = "stable"
+else fail("main(베타) 또는 release(안정) 브랜치에서만 릴리스한다.")
 
 const files = readVersions()
 const versions = new Set(files.map((f) => f.version))
@@ -155,9 +153,6 @@ const tag = `v${next}`
 
 // 사전 검사. 하나라도 어긋나면 파일을 쓰기 전에 멈춘다.
 if (compareVersions(next, current) <= 0) fail(`새 버전 ${next}는 현재 ${current}보다 커야 한다.`)
-if (channel === "stable" && parseVersion(next).core[0] !== Number(releaseBranch[1])) {
-  fail(`${branch}는 ${releaseBranch[1]}.x 안정 채널이다. 주 버전이 다른 ${next}는 낼 수 없다.`)
-}
 if (git("status", "--porcelain")) fail("작업 트리에 커밋하지 않은 변경이 있다. 먼저 정리한다.")
 git("fetch", "--quiet", "origin")
 if (!gitQuiet("rev-parse", "--verify", `origin/${branch}`)) {

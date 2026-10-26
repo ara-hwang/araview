@@ -6,22 +6,22 @@ maintainer용 안내입니다. 사용자용 업데이트 확인 방법은 `usage
 
 | 채널 | 브랜치 | 태그 | 배포 |
 | --- | --- | --- | --- |
-| 안정 | `release/2.x` | `vX.Y.Z` | 정식 GitHub 릴리스(Latest) |
+| 안정 | `release` | `vX.Y.Z` | 정식 GitHub 릴리스(Latest) |
 | 베타 | `main` | `vX.Y.Z-beta.N` | 프리릴리스(Latest 아님) |
 
 - 기능과 수정은 `main`에 모읍니다. `main`은 베타 채널이며, 베타 릴리스를 여기서 냅니다.
-- 안정 릴리스는 `release/2.x`에서 냅니다. 베타를 정식으로 올릴 때는 `main`을 `release/2.x`에 병합하고 `release/2.x`에서 버전을 올립니다.
-- `release/2.x`는 주 버전 2의 안정 라인입니다. 3.x를 시작할 때는 `release/3.x`를 새로 만듭니다.
+- 안정 릴리스는 `release`에서 냅니다. 베타를 정식으로 올릴 때는 `main`을 `release`에 병합하고 `release`에서 버전을 올립니다.
+- `release`는 주 버전과 무관한 하나의 안정 브랜치입니다. 3.x를 시작해도 같은 브랜치를 이어 씁니다.
 - 안정 사용자의 앱은 `releases/latest`를 보므로 프리릴리스인 베타가 자동으로 노출되지 않습니다.
 
 ## 릴리스 시작
 
-릴리스는 `npm run release -- <버전>` 한 줄로 시작합니다. 이 명령이 버전을 올려 커밋하고 태그와 해당 브랜치를 함께 푸시하면, `.github/workflows/release.yml`이 검증(Windows, Linux, macOS 각각 fmt, test, clippy와 한 번의 보안 감사, 라이선스 검사), 세 OS 빌드(Windows 설치 프로그램과 서명, Linux tar.gz, macOS dmg), 업데이트 피드 생성, GitHub 릴리스 생성까지 자동으로 수행합니다. 공개 저장소라 GitHub 호스팅 표준 러너는 무료입니다. `.github/workflows/ci.yml`이 검증을 담당하며 릴리스 워크플로가 그대로 재사용합니다. PR과 `main`·`release/**` 푸시에서는 문서 정합성 검사가 자동으로 돌고, Rust 쪽 파일이 바뀌면 세 OS에서 가벼운 `cargo check`도 돕니다. 브랜치 푸시에서 도는 것은 캐시 때문입니다. PR은 자기 ref와 기본 브랜치의 캐시만 복원할 수 있어서, main이 저장해 두어야 PR이 빈 캐시로 시작하지 않습니다. 전체 Rust 검사(cargo test/clippy, 보안 감사, 라이선스 검사)는 Actions 탭에서 수동 실행하거나 릴리스 때 돕니다.
+릴리스는 `npm run release -- <버전>` 한 줄로 시작합니다. 이 명령이 버전을 올려 커밋하고 태그와 해당 브랜치를 함께 푸시하면, `.github/workflows/release.yml`이 검증(Windows, Linux, macOS 각각 fmt, test, clippy와 한 번의 보안 감사, 라이선스 검사), 세 OS 빌드(Windows 설치 프로그램과 서명, Linux tar.gz, macOS dmg), 업데이트 피드 생성, GitHub 릴리스 생성까지 자동으로 수행합니다. 공개 저장소라 GitHub 호스팅 표준 러너는 무료입니다. `.github/workflows/ci.yml`이 검증을 담당하며 릴리스 워크플로가 그대로 재사용합니다. PR과 `main`·`release` 푸시에서는 문서 정합성 검사가 자동으로 돌고, Rust 쪽 파일이 바뀌면 세 OS에서 가벼운 `cargo check`도 돕니다. 브랜치 푸시에서 도는 것은 캐시 때문입니다. PR은 자기 ref와 기본 브랜치의 캐시만 복원할 수 있어서, main이 저장해 두어야 PR이 빈 캐시로 시작하지 않습니다. 전체 Rust 검사(cargo test/clippy, 보안 감사, 라이선스 검사)는 Actions 탭에서 수동 실행하거나 릴리스 때 돕니다.
 
-### 안정 릴리스 (`release/2.x`)
+### 안정 릴리스 (`release`)
 
 ```bash
-git switch release/2.x
+git switch release
 git pull --ff-only
 npm run release -- 2.7.0          # 정확한 버전
 npm run release -- patch          # patch | minor | major
@@ -30,9 +30,9 @@ npm run release -- patch --dry-run  # 계획만 출력
 
 `scripts/release.mjs`가 다음을 순서대로 수행합니다.
 
-1. `release/2.x` 브랜치, 깨끗한 작업 트리, `origin/release/2.x`와 동기화 상태, 태그 중복 여부를 확인합니다. 주 버전이 브랜치 이름과 다르면 중단합니다.
+1. `release` 브랜치, 깨끗한 작업 트리, `origin/release`와 동기화 상태, 태그 중복 여부를 확인합니다.
 2. `app/Cargo.toml`과 `Cargo.lock`의 버전을 올립니다. `cargo metadata --locked`와 `npm run docs:check`로 검증하고, 실패하면 파일을 되돌립니다.
-3. `chore: 버전 X.Y.Z`로 커밋하고 태그를 만든 뒤 `release/2.x`와 태그를 한 번에(`--atomic`) 푸시합니다. 푸시 전에 확인을 묻고, `--yes`로 생략할 수 있습니다.
+3. `chore: 버전 X.Y.Z`로 커밋하고 태그를 만든 뒤 `release`와 태그를 한 번에(`--atomic`) 푸시합니다. 푸시 전에 확인을 묻고, `--yes`로 생략할 수 있습니다.
 
 ### 베타 릴리스 (`main`)
 
