@@ -292,7 +292,7 @@ impl WheelMap {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct MouseMap {
     pub left_drag: MouseAction,
@@ -643,6 +643,15 @@ impl SettingsStore {
 
     pub fn push_recent(cx: &mut App, path: &str) {
         let store = cx.global_mut::<Self>();
+        // 이미 맨 앞이면 파일 쓰기를 생략한다. 파일 열기마다 동기 저장이
+        // 일어나므로 같은 파일을 다시 열 때의 쓰기를 아낀다.
+        if store
+            .recent_files
+            .first()
+            .is_some_and(|first| first == path)
+        {
+            return;
+        }
         store.recent_files.retain(|item| item != path);
         store.recent_files.insert(0, path.to_owned());
         store.recent_files.truncate(RECENT_FILES_LIMIT);
@@ -680,6 +689,15 @@ impl SettingsStore {
 
     pub fn set_archive_progress(cx: &mut App, archive: &str, progress: ArchiveProgress) {
         let store = cx.global_mut::<Self>();
+        // 같은 위치를 다시 저장하면 동기 파일 쓰기를 생략한다. 아카이브 웹툰에서
+        // 중심 페이지가 바뀔 때마다 호출되므로 반복 저장을 아낀다.
+        if store
+            .archive_progress
+            .iter()
+            .any(|(path, existing)| path == archive && existing == &progress)
+        {
+            return;
+        }
         store.archive_progress.retain(|(path, _)| path != archive);
         store.archive_progress.push((archive.to_owned(), progress));
         let overflow = store

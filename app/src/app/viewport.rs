@@ -12,7 +12,7 @@ use gpui_kit::component::{ActiveTheme as _, Disableable as _, Sizable as _, h_fl
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
 use image::{Frame, RgbaImage};
-use smallvec::SmallVec;
+use smallvec::{SmallVec, smallvec};
 
 use super::{AraView, DragState, paint_checker};
 use crate::assets::Ph;
@@ -85,7 +85,9 @@ fn format_frame_counter(current: u64, total: u64) -> String {
 
 /// 읽기 값의 숫자 폭을 고정한다(DESIGN "Readout").
 fn tabular_figures() -> FontFeatures {
-    FontFeatures(Arc::new(vec![("tnum".into(), 1)]))
+    static FIGURES: std::sync::LazyLock<FontFeatures> =
+        std::sync::LazyLock::new(|| FontFeatures(Arc::new(vec![("tnum".into(), 1)])));
+    FIGURES.clone()
 }
 
 fn slider_ms(event: &SliderEvent) -> u64 {
@@ -545,7 +547,7 @@ impl AraView {
         }
         // 글자가 아닌 곳을 누르면 고른 글자를 푼다.
         self.clear_ocr_selection(cx);
-        let mouse = SettingsStore::global(cx).settings.mouse.clone();
+        let mouse = SettingsStore::global(cx).settings.mouse;
         match event.button {
             MouseButton::Left if event.click_count >= 2 => {
                 self.drag = None;
@@ -733,7 +735,10 @@ impl AraView {
         let seq = self.video_seq;
         let source = info.source_path.clone();
         let open_source = source.clone();
-        let settings = SettingsStore::global(cx).settings.clone();
+        let (video_volume, video_autoplay) = {
+            let settings = &SettingsStore::global(cx).settings;
+            (settings.video_volume, settings.video_autoplay)
+        };
         let task = cx.background_spawn(async move {
             araview_core::video_player::VideoPlayer::open(Path::new(&open_source))
         });
@@ -753,7 +758,7 @@ impl AraView {
                 }
                 match result {
                     Ok(player) => {
-                        player.set_volume(settings.video_volume as f32 / 100.0);
+                        player.set_volume(video_volume as f32 / 100.0);
                         let duration = player.info().duration_ms as f32;
                         let timeline = cx.new(|_| {
                             SliderState::new()
@@ -776,7 +781,7 @@ impl AraView {
                                 .min(0.0)
                                 .max(100.0)
                                 .step(1.0)
-                                .default_value(settings.video_volume as f32)
+                                .default_value(video_volume as f32)
                         });
                         let volume_sub = cx.subscribe_in(
                             &volume,
@@ -800,8 +805,7 @@ impl AraView {
                             _timeline_sub: timeline_sub,
                             _volume_sub: volume_sub,
                         });
-                        let autoplay =
-                            settings.video_autoplay && !crate::platform::reduced_motion();
+                        let autoplay = video_autoplay && !crate::platform::reduced_motion();
                         if autoplay {
                             player.play(1.0);
                         }
@@ -1509,7 +1513,7 @@ impl AraView {
         }
         // 원본이 이미 BGRA라 채널을 바꾸지 않고 그대로 옮긴다.
         let frames: SmallVec<[Frame; 1]> =
-            SmallVec::from_elem(Frame::new(RgbaImage::from_raw(width, height, buffer)?), 1);
+            smallvec![Frame::new(RgbaImage::from_raw(width, height, buffer)?)];
         let image = Arc::new(RenderImage::new(frames));
         if let Some(previous) = self.pixel_view.replace(PixelView {
             key,
@@ -1647,9 +1651,17 @@ impl AraView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> impl IntoElement + use<> {
-        let settings = SettingsStore::global(cx).settings.clone();
+        // 매 프레임 `Settings` 전체를 클론하지 않고 렌더에 쓰는 `Copy` 필드만 복사한다.
+        let (background, webtoon_page_boundaries, webtoon_show_progress, webtoon_thumbnail_jump) = {
+            let settings = &SettingsStore::global(cx).settings;
+            (
+                settings.viewer_background,
+                settings.webtoon_page_boundaries,
+                settings.webtoon_show_progress,
+                settings.webtoon_thumbnail_jump,
+            )
+        };
         let mode = self.view_mode(cx);
-        let background = settings.viewer_background;
         let fill = match background {
             ViewerBackground::Theme | ViewerBackground::Checker => cx.theme().background,
             ViewerBackground::Black => gpui_kit::black(),
@@ -1697,7 +1709,7 @@ impl AraView {
             ViewMode::Webtoon => {
                 self.drop_pixel_view(window, cx);
                 for (index, bounds) in self.webtoon_rects() {
-                    if settings.webtoon_page_boundaries && index > 0 {
+                    if webtoon_page_boundaries && index > 0 {
                         boundaries.push(bounds.top());
                     }
                     match self.pages.get(&index) {
@@ -1837,12 +1849,12 @@ impl AraView {
                     .unwrap_or_else(|| path.to_string())
             });
         let progress = (mode == ViewMode::Webtoon
-            && (settings.webtoon_show_progress || settings.webtoon_thumbnail_jump))
+            && (webtoon_show_progress || webtoon_thumbnail_jump))
             .then(|| {
                 let total = self.list.len().max(1);
                 let percent = ((self.index + 1) * 100 / total).min(100);
                 (
-                    settings.webtoon_show_progress.then(|| {
+                    webtoon_show_progress.then(|| {
                         t_with(
                             "viewer.webtoon.position",
                             &[
@@ -1852,7 +1864,7 @@ impl AraView {
                             ],
                         )
                     }),
-                    settings.webtoon_thumbnail_jump,
+                    webtoon_thumbnail_jump,
                 )
             });
 

@@ -96,11 +96,8 @@ pub fn ensure_scaled_sidecar_with_mode(
     let Some((format, (width, height))) = probe(source) else {
         return Ok(None);
     };
-    match format {
-        image::ImageFormat::Gif => return Ok(None),
-        image::ImageFormat::WebP if is_animated_webp(source) => return Ok(None),
-        image::ImageFormat::Png if is_animated_png(source) => return Ok(None),
-        _ => {}
+    if format == image::ImageFormat::Gif {
+        return Ok(None);
     }
     // EXIF orientation 5..=8 swaps the axes but not the long edge, so the cap
     // check is orientation-invariant.
@@ -121,6 +118,13 @@ pub fn ensure_scaled_sidecar_with_mode(
             crate::process_temp::mark_in_use(dest);
             return sidecar_info(dest);
         }
+    }
+    // 캐시 미스에서만 원본을 다시 열어 움직이는 WebP/PNG를 가린다. 히트에서는
+    // 위 `exists`로 끝나 probe 1회로 끝난다.
+    match format {
+        image::ImageFormat::WebP if is_animated_webp(source) => return Ok(None),
+        image::ImageFormat::Png if is_animated_png(source) => return Ok(None),
+        _ => {}
     }
 
     let lock_key = jpeg_dest.to_string_lossy().into_owned();

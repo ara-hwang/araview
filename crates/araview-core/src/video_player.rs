@@ -620,7 +620,7 @@ impl Decoder {
                     frame.data.as_ptr() as *const *const u8,
                     frame.linesize.as_ptr(),
                     0,
-                    out_height as i32,
+                    height,
                     data.as_ptr(),
                     linesize.as_ptr(),
                 )
@@ -1002,5 +1002,32 @@ mod tests {
         assert_eq!(player.position_ms(), duration / 2);
         player.step(1);
         assert!(player.position_ms() >= duration / 2);
+    }
+
+    #[test]
+    fn downscaled_playback_fills_bottom_rows() {
+        // 2560x1440은 재생 출력이 1920x1080으로 축소된다. `src_slice_h`에
+        // 목적지 높이를 넘기면 하단 절반이 검게 잘린다.
+        let player = VideoPlayer::open(&sample("sample-1440p.mp4")).unwrap();
+        assert_eq!((player.info().width, player.info().height), (2560, 1440));
+        player.play(1.0);
+        let mut frame = None;
+        for _ in 0..500 {
+            if let Ok(Some(f)) = player.poll_frame() {
+                frame = Some(f);
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        player.pause();
+        let frame = frame.expect("no frame decoded");
+        assert_eq!((frame.width, frame.height), (1920, 1080));
+        assert_eq!(frame.bgra.len(), 1920 * 1080 * 4);
+        let (w, h) = (frame.width as usize, frame.height as usize);
+        let bottom = &frame.bgra[(h - 1) * w * 4..h * w * 4];
+        assert!(
+            bottom.iter().any(|&b| b != 0),
+            "bottom row is all zero (swscale src_slice_h)"
+        );
     }
 }

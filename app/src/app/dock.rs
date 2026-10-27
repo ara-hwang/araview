@@ -412,8 +412,7 @@ impl AraView {
     }
 
     pub(super) fn render_dock(&self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
-        let settings = SettingsStore::global(cx).settings.clone();
-        let position = settings.dock_position;
+        let position = SettingsStore::global(cx).settings.dock_position;
         let horizontal = position.is_horizontal();
         let border = cx.theme().border;
         let (cell, cross) = self.dock_cell_metrics(cx);
@@ -494,7 +493,7 @@ impl AraView {
     /// 상태바 파일명 왼쪽에 두는 도크 컨트롤: 목록 접기·펼치기, 그리드 토글.
     /// 이미지 목록 세부 설정은 설정 다이얼로그에서만 바꾼다.
     pub(super) fn render_dock_controls(&self, cx: &mut Context<Self>) -> AnyElement {
-        let settings = SettingsStore::global(cx).settings.clone();
+        let dock_visible = SettingsStore::global(cx).settings.dock_visible;
         let grid = Button::new("dock-grid")
             .ghost()
             .small()
@@ -502,7 +501,7 @@ impl AraView {
             .tooltip(t("viewer.nav.gridTitle"))
             .on_click(cx.listener(|this, _, window, cx| this.toggle_grid(window, cx)));
         // 접기 버튼은 상태바에서 접힌 도크까지 되돌린다.
-        let (fold_icon, fold_label) = if settings.dock_visible {
+        let (fold_icon, fold_label) = if dock_visible {
             (Ph::CaretDown, t("viewer.nav.dockHide"))
         } else {
             (Ph::CaretUp, t("viewer.nav.dockShow"))

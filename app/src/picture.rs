@@ -13,7 +13,7 @@ use araview_core::display::{DisplayImage, decode_for_display};
 use araview_core::raster_sidecar::decode_linear;
 use gpui_kit::RenderImage;
 use image::{Frame, Rgba32FImage, RgbaImage, imageops};
-use smallvec::SmallVec;
+use smallvec::{SmallVec, smallvec};
 
 use crate::platform;
 
@@ -264,7 +264,7 @@ pub fn from_video_frame(
     let buffer = orient(buffer, orientation);
     let (width, height) = buffer.dimensions();
     let frame = Frame::from_parts(buffer, 0, 0, image::Delay::from_numer_denom_ms(1, 1));
-    let image = Arc::new(RenderImage::new(SmallVec::from_elem(frame, 1)));
+    let image = Arc::new(RenderImage::new(smallvec![frame]));
     Some(Picture {
         width,
         height,

@@ -296,7 +296,7 @@ fn rgb24_of(frame: &rsmpeg::avutil::AVFrame, max_side: u32) -> Result<Rgb8, AppE
     .ok_or_else(|| AppError::corrupt("Failed to allocate frame"))?;
     let mut framed = rsmpeg::avutil::AVFrameWithImage::new(image);
     scaler
-        .scale_frame(frame, 0, out_height as i32, &mut framed)
+        .scale_frame(frame, 0, height, &mut framed)
         .map_err(|e| AppError::corrupt(format!("Failed to scale frame: {e:?}")))?;
     let mut buf = vec![0u8; framed.image_get_buffer_size(1).unwrap_or(0)];
     framed
@@ -396,5 +396,30 @@ mod tests {
             let cached = cached_poster(&sample(name), 64).unwrap();
             assert_eq!(cached.0, path);
         }
+    }
+
+    #[test]
+    fn poster_downscale_fills_bottom_rows() {
+        // `sws_scale`의 `src_slice_h`에 목적지 높이를 넘기면 출력 하단이
+        // 검게 잘린다. 축소가 일어나는 입력으로 하단 행을 검증한다.
+        let rgb = decode_first_frame_rgb8(&sample("sample.mp4"), 32).unwrap();
+        assert_eq!((rgb.width, rgb.height), (32, 24));
+        let (w, h) = (rgb.width as usize, rgb.height as usize);
+        assert_eq!(rgb.bytes.len(), w * h * 3);
+        let bottom = &rgb.bytes[(h - 1) * w * 3..h * w * 3];
+        assert!(
+            bottom.iter().any(|&b| b != 0),
+            "bottom row is all zero (swscale src_slice_h)"
+        );
+
+        let rgb = decode_first_frame_rgb8(&sample("sample-1440p.mp4"), 256).unwrap();
+        assert_eq!((rgb.width, rgb.height), (256, 144));
+        let (w, h) = (rgb.width as usize, rgb.height as usize);
+        assert_eq!(rgb.bytes.len(), w * h * 3);
+        let bottom = &rgb.bytes[(h - 1) * w * 3..h * w * 3];
+        assert!(
+            bottom.iter().any(|&b| b != 0),
+            "720p+ bottom row is all zero (swscale src_slice_h)"
+        );
     }
 }

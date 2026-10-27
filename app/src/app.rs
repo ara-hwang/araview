@@ -760,7 +760,14 @@ impl AraView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> impl IntoElement + use<> {
-        let settings = SettingsStore::global(cx).settings.clone();
+        let (fit_mode, always_on_top, menu_bar_hidden) = {
+            let settings = &SettingsStore::global(cx).settings;
+            (
+                settings.fit_mode,
+                settings.always_on_top,
+                settings.menu_bar_hidden,
+            )
+        };
         let has_image = self.picture.is_some();
         let mode = self.view_mode(cx);
         let single = mode == ViewMode::Single;
@@ -850,9 +857,7 @@ impl AraView {
                                         "fitWidth",
                                         cx,
                                     )
-                                    .selected(
-                                        self.fit_locked && settings.fit_mode == FitMode::Width,
-                                    ),
+                                    .selected(self.fit_locked && fit_mode == FitMode::Width),
                                 )
                                 .child(
                                     Self::icon_button(
@@ -862,9 +867,7 @@ impl AraView {
                                         "fitHeight",
                                         cx,
                                     )
-                                    .selected(
-                                        self.fit_locked && settings.fit_mode == FitMode::Height,
-                                    ),
+                                    .selected(self.fit_locked && fit_mode == FitMode::Height),
                                 )
                                 .child(
                                     Self::icon_button(
@@ -874,9 +877,7 @@ impl AraView {
                                         "fitScreen",
                                         cx,
                                     )
-                                    .selected(
-                                        self.fit_locked && settings.fit_mode == FitMode::Screen,
-                                    ),
+                                    .selected(self.fit_locked && fit_mode == FitMode::Screen),
                                 ),
                         )
                     })
@@ -1066,7 +1067,7 @@ impl AraView {
                             row.child(
                                 Self::icon_button(
                                     "on-top",
-                                    if settings.always_on_top {
+                                    if always_on_top {
                                         Ph::PushPinFill
                                     } else {
                                         Ph::PushPin
@@ -1076,25 +1077,25 @@ impl AraView {
                                     cx,
                                 )
                                 .when(extra_labels, |button| button.label(t("header.onTop")))
-                                .selected(settings.always_on_top),
+                                .selected(always_on_top),
                             )
                         })
                         .when(has_image, |row| {
                             row.child(
                                 Button::new("hide-bar")
                                     .ghost()
-                                    .icon(if settings.menu_bar_hidden {
+                                    .icon(if menu_bar_hidden {
                                         Ph::CaretDown
                                     } else {
                                         Ph::CaretUp
                                     })
-                                    .tooltip(t(if settings.menu_bar_hidden {
+                                    .tooltip(t(if menu_bar_hidden {
                                         "header.showMenuBar"
                                     } else {
                                         "header.hideMenuBar"
                                     }))
                                     .when(extra_labels, |button| {
-                                        button.label(t(if settings.menu_bar_hidden {
+                                        button.label(t(if menu_bar_hidden {
                                             "header.showBar"
                                         } else {
                                             "header.hideBar"
@@ -1165,11 +1166,22 @@ impl Render for AraView {
         if !self.has_video(cx) {
             self.close_video();
         }
-        let settings = SettingsStore::global(cx).settings.clone();
+        // 매 프레임 `Settings` 전체(BTreeMap 44쌍 포함)를 클론하지 않고 렌더에
+        // 쓰는 `Copy` 필드만 복사한다.
+        let (auto_hide_ui, menu_bar_hidden, dock_position, dock_visible, context_menu) = {
+            let settings = &SettingsStore::global(cx).settings;
+            (
+                settings.auto_hide_ui,
+                settings.menu_bar_hidden,
+                settings.dock_position,
+                settings.dock_visible,
+                settings.mouse.right_click == MouseAction::ContextMenu,
+            )
+        };
         let reading = self.picture.is_some() || !self.shown.is_empty();
         // 크롬 숨김은 이미지를 보고 있을 때만 적용한다. 홈에서는 항상 보인다.
-        let hide_all = reading && settings.auto_hide_ui;
-        let hide_header = reading && (settings.menu_bar_hidden || settings.auto_hide_ui);
+        let hide_all = reading && auto_hide_ui;
+        let hide_header = reading && (menu_bar_hidden || auto_hide_ui);
         let animated = self.has_animation(cx);
         let video = self.has_video(cx);
         // 애니메이션 컨트롤이 하단 독으로 이동했으므로, 애니메이션 이미지에서는
@@ -1178,8 +1190,6 @@ impl Render for AraView {
             && (self.list.len() > 1 || animated || video)
             && (!hide_all || self.peek_bottom);
         let show_status = reading && (!hide_all || self.peek_bottom);
-        let dock_position = settings.dock_position;
-        let context_menu = settings.mouse.right_click == MouseAction::ContextMenu;
 
         let header = (!hide_header || self.peek_top)
             .then(|| self.render_header(window, cx).into_any_element());
@@ -1189,7 +1199,7 @@ impl Render for AraView {
             (header, None)
         };
         // 접힌 도크는 그리지 않는다. 다시 펼치는 버튼은 상태바에만 둔다.
-        let dock = (show_dock && settings.dock_visible).then(|| self.render_dock(window, cx));
+        let dock = (show_dock && dock_visible).then(|| self.render_dock(window, cx));
         let status = self
             .info
             .clone()
