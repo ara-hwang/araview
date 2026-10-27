@@ -23,10 +23,6 @@ const QUEUE_BYTES_MAX: u64 = 96 * 1024 * 1024;
 const MAX_OUTPUT_SIDE: u32 = 1920;
 /// 디코드 허용 픽셀 수. 표시 경로(`display.rs`)와 같은 값이다.
 const MAX_DECODE_PIXELS: u64 = 100_000_000;
-/// 자막 큐 상한. 비정상 파일을 막는다.
-const MAX_CUES: usize = 20_000;
-/// 자막 추출 패킷 상한. 비정상 파일을 막는다.
-const MAX_SUBTITLE_PACKETS: usize = 200_000;
 
 /// BGRA 한 프레임. UI는 이를 `RenderImage` 한 장으로 그린다.
 /// GPUI가 BGRA를 받으므로 변환 단계에서 채널을 바꿔 둔다.
@@ -38,14 +34,6 @@ pub struct VideoFrame {
     pub pts_ms: u64,
 }
 
-/// 자막 한 구간. ASS/SRT 서식은 걷어내고 일반 텍스트만 둔다.
-#[derive(Debug, Clone, PartialEq)]
-pub struct SubtitleCue {
-    pub start_ms: u64,
-    pub end_ms: u64,
-    pub text: String,
-}
-
 /// `open` 시점에 확정한 스트림 정보.
 #[derive(Debug, Clone)]
 pub struct PlayerInfo {
@@ -54,7 +42,6 @@ pub struct PlayerInfo {
     pub duration_ms: u64,
     pub fps: Option<f64>,
     pub has_audio: bool,
-    pub has_subtitles: bool,
 }
 
 enum Command {
@@ -78,8 +65,6 @@ struct Shared {
     /// 탐색이 끝나 UI가 가져갈 프레임의 목표 + 1. 0이면 없음.
     /// UI가 결과 프레임을 받을 때까지 유지해 정지 상태에서도 렌더를 이어 간다.
     seek_result: AtomicU64,
-    /// 플레이어를 닫을 때 진행 중인 자막 추출을 멈춘다.
-    cancel_subtitles: AtomicBool,
 }
 
 /// 동영상 재생 핸들. 워커 스레드를 소유하고, 시계는 이쪽에서 잰다.
@@ -89,8 +74,6 @@ pub struct VideoPlayer {
     shared: Arc<Shared>,
     clock: Mutex<Clock>,
     info: PlayerInfo,
-    /// 자막은 재생을 막지 않도록 백그라운드에서 채운다.
-    subtitles: Arc<Mutex<Vec<SubtitleCue>>>,
     audio: Option<crate::video_audio::AudioOutput>,
 }
 
@@ -118,7 +101,6 @@ impl VideoPlayer {
             duration_ms: probed.duration_ms.unwrap_or(0),
             fps: probed.fps,
             has_audio: probed.has_audio,
-            has_subtitles: probed.has_subtitles,
         };
         let shared = Arc::new(Shared {
             queue: Mutex::new(VecDeque::new()),
@@ -129,22 +111,7 @@ impl VideoPlayer {
             last_pts: AtomicU64::new(0),
             seek_pending: AtomicU64::new(0),
             seek_result: AtomicU64::new(0),
-            cancel_subtitles: AtomicBool::new(false),
         });
-        let subtitles = Arc::new(Mutex::new(Vec::new()));
-        if info.has_subtitles {
-            let cues = Arc::clone(&subtitles);
-            let loader_shared = Arc::clone(&shared);
-            let source = path.to_path_buf();
-            let _ = std::thread::Builder::new()
-                .name("araview-subtitles".to_string())
-                .spawn(move || {
-                    match list_subtitle_cues_inner(&source, &loader_shared.cancel_subtitles) {
-                        Ok(list) => *cues.lock().unwrap_or_else(|e| e.into_inner()) = list,
-                        Err(e) => log::warn!("subtitle extraction failed: {e:?}"),
-                    }
-                });
-        }
         let (cmd_tx, cmd_rx) = mpsc::channel();
         let worker_shared = Arc::clone(&shared);
         let source = path.to_path_buf();
@@ -175,25 +142,12 @@ impl VideoPlayer {
                 speed: 1.0,
             }),
             info,
-            subtitles,
             audio,
         })
     }
 
     pub fn info(&self) -> &PlayerInfo {
         &self.info
-    }
-
-    /// 현재 위치의 자막 텍스트. 없으면 `None`이다. 자막은 백그라운드에서 채워진다.
-    pub fn cue_at(&self, position_ms: u64) -> Option<String> {
-        let cues = self.subtitles.lock().unwrap_or_else(|e| e.into_inner());
-        // 자막은 시작 시각 순으로 정렬되어 있으므로 시작한 구간만 훑는다.
-        // 매 프레임 부르는 자리라 전체 선형 탐색을 피한다.
-        let started = cues.partition_point(|cue| cue.start_ms <= position_ms);
-        cues[..started]
-            .iter()
-            .find(|cue| position_ms < cue.end_ms)
-            .map(|cue| cue.text.clone())
     }
 
     pub fn position_ms(&self) -> u64 {
@@ -535,7 +489,6 @@ impl VideoPlayer {
 
 impl Drop for VideoPlayer {
     fn drop(&mut self) {
-        self.shared.cancel_subtitles.store(true, Ordering::SeqCst);
         let _ = self.cmd_tx.send(Command::Stop);
         if let Some(worker) = self.worker.take() {
             let _ = worker.join();
@@ -918,191 +871,6 @@ fn seek_to_push(
     }
 }
 
-/// 내장 자막 트랙을 모두 읽어 구간 목록으로 돌려준다. 없으면 빈 목록이다.
-pub fn list_subtitle_cues(path: &Path) -> Result<Vec<SubtitleCue>, AppError> {
-    let cancel = AtomicBool::new(false);
-    list_subtitle_cues_inner(path, &cancel)
-}
-
-fn list_subtitle_cues_inner(
-    path: &Path,
-    cancel: &AtomicBool,
-) -> Result<Vec<SubtitleCue>, AppError> {
-    use rsmpeg::ffi;
-    if crate::video::probe(path).is_err() {
-        return Err(AppError::invalid_input("Not a video file"));
-    }
-    let cpath = std::ffi::CString::new(path.as_os_str().as_encoded_bytes())
-        .map_err(|_| AppError::invalid_input("Invalid file path"))?;
-    let mut ictx = rsmpeg::avformat::AVFormatContextInput::open(&cpath)
-        .map_err(|e| AppError::corrupt(format!("Failed to open video: {e:?}")))?;
-    let found = ictx
-        .find_best_stream(ffi::AVMEDIA_TYPE_SUBTITLE)
-        .map_err(|e| AppError::corrupt(format!("Failed to find subtitle stream: {e:?}")))?;
-    let Some((stream_index, decoder)) = found else {
-        return Ok(Vec::new());
-    };
-    let mut ctx = rsmpeg::avcodec::AVCodecContext::new(&decoder);
-    let time_base = {
-        let stream = &ictx.streams()[stream_index];
-        ctx.apply_codecpar(&stream.codecpar())
-            .map_err(|e| AppError::corrupt(format!("Failed to open decoder: {e:?}")))?;
-        let tb = stream.time_base;
-        (tb.num, tb.den)
-    };
-    if time_base.0 > 0 && time_base.1 > 0 {
-        // SAFETY: `avcodec_open2` 전에 공개 필드를 바꾸는 것은 FFmpeg가 허용한다.
-        // 자막 표시 시각(`AVSubtitle.pts`)을 절대 시각으로 계산하려면 패킷
-        // 타임베이스를 알려 줘야 한다.
-        unsafe {
-            rsmpeg::UnsafeDerefMut::deref_mut(&mut ctx).pkt_timebase = ffi::AVRational {
-                num: time_base.0,
-                den: time_base.1,
-            };
-        }
-    }
-    ctx.open(None)
-        .map_err(|_| AppError::unsupported("Unsupported subtitle codec"))?;
-    let mut cues = Vec::new();
-    let mut packets = 0usize;
-    while packets < MAX_SUBTITLE_PACKETS {
-        if cancel.load(Ordering::SeqCst) {
-            return Ok(Vec::new());
-        }
-        let Ok(Some(mut pkt)) = ictx.read_packet() else {
-            break;
-        };
-        packets += 1;
-        if pkt.stream_index != stream_index as i32 {
-            continue;
-        }
-        match ctx.decode_subtitle(Some(&mut pkt)) {
-            Ok(Some(sub)) => {
-                if let Some(cue) = cue_of(&sub) {
-                    if !cue.text.is_empty() {
-                        cues.push(cue);
-                    }
-                    if cues.len() >= MAX_CUES {
-                        break;
-                    }
-                }
-            }
-            Ok(None) => {}
-            Err(_) => break,
-        }
-    }
-    cues.sort_by_key(|c| (c.start_ms, c.end_ms));
-    cues.dedup();
-    Ok(cues)
-}
-
-fn cue_of(sub: &rsmpeg::avcodec::AVSubtitle) -> Option<SubtitleCue> {
-    // SAFETY: `decode_subtitle`이 채운 유효한 AVSubtitle이며, Drop이 해제한다.
-    // `num_rects`/`rects` 범위 안에서만 읽고, `text`/`ass`는 NUL 종료 C 문자열이다.
-    unsafe {
-        // `AVSubtitle.pts`는 AV_TIME_BASE(마이크로초) 절대 시각이고,
-        // start/end_display_time은 그 기준 밀리초 오프셋이다.
-        let base_ms = if sub.pts > 0 {
-            (sub.pts / 1000) as u64
-        } else {
-            0
-        };
-        let start_ms = base_ms.saturating_add(u64::from(sub.start_display_time));
-        let end_ms = base_ms.saturating_add(u64::from(sub.end_display_time));
-        if end_ms <= start_ms {
-            return None;
-        }
-        let mut texts = Vec::new();
-        let n = (sub.num_rects as usize).min(64);
-        for i in 0..n {
-            let rect = *sub.rects.add(i);
-            if rect.is_null() {
-                continue;
-            }
-            let r = &*rect;
-            if !r.text.is_null() {
-                let s = std::ffi::CStr::from_ptr(r.text)
-                    .to_string_lossy()
-                    .into_owned();
-                let s = strip_ass(&s);
-                if !s.trim().is_empty() {
-                    texts.push(s);
-                }
-            } else if !r.ass.is_null() {
-                let s = std::ffi::CStr::from_ptr(r.ass)
-                    .to_string_lossy()
-                    .into_owned();
-                let s = ass_dialogue_text(&s);
-                if !s.trim().is_empty() {
-                    texts.push(s);
-                }
-            }
-        }
-        if texts.is_empty() {
-            return None;
-        }
-        Some(SubtitleCue {
-            start_ms,
-            end_ms,
-            text: texts.join("\n"),
-        })
-    }
-}
-
-/// ASS `Dialogue:` 행에서 실제 대사를 꺼내고 override 블록(`{...}`)을 걷는다.
-/// ASS `Dialogue:` 행이나 디코더가 만든 대화 페이로드에서 실제 대사를 꺼내고
-/// override 블록(`{...}`)을 걷는다. FFmpeg의 SRT 디코더는 `Dialogue:` 접두
-/// 없이 `readorder,layer,style,speaker,0,0,0,,Text` 형태로 준다.
-fn ass_dialogue_text(ass: &str) -> String {
-    let mut out = Vec::new();
-    for line in ass.lines() {
-        let line = line.trim();
-        // Dialogue: Layer,Start,End,Style,Name,ML,MR,ME,Effect,Text (콤마 9개 뒤가 본문)
-        // 그 외는 readorder,... 8개 뒤가 본문이다.
-        let (payload, fields) = match line
-            .strip_prefix("Dialogue:")
-            .or_else(|| line.strip_prefix("dialogue:"))
-        {
-            Some(rest) => (rest, 10),
-            None => (line, 9),
-        };
-        let mut parts = payload.splitn(fields, ',');
-        let text = parts.nth(fields - 1).unwrap_or("").trim();
-        if text.is_empty() {
-            continue;
-        }
-        out.push(strip_ass(text));
-    }
-    out.join("\n")
-}
-
-/// `{...}` 블록을 걷고 `\N`·`\h`를 공백으로 푼다.
-fn strip_ass(s: &str) -> String {
-    let mut out = String::with_capacity(s.len());
-    let mut depth = 0usize;
-    let mut chars = s.chars().peekable();
-    while let Some(c) = chars.next() {
-        match c {
-            '{' => depth += 1,
-            '}' => depth = depth.saturating_sub(1),
-            '\\' if depth == 0 => match chars.peek() {
-                Some('N') | Some('n') => {
-                    chars.next();
-                    out.push(' ');
-                }
-                Some('h') => {
-                    chars.next();
-                    out.push(' ');
-                }
-                _ => out.push(c),
-            },
-            _ if depth == 0 => out.push(c),
-            _ => {}
-        }
-    }
-    out.split_whitespace().collect::<Vec<_>>().join(" ")
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1121,7 +889,6 @@ mod tests {
         assert_eq!((info.width, info.height), (64, 48));
         assert!(info.duration_ms > 0);
         assert!(!info.has_audio);
-        assert!(!info.has_subtitles);
         assert!(!player.is_playing());
     }
 
@@ -1235,58 +1002,5 @@ mod tests {
         assert_eq!(player.position_ms(), duration / 2);
         player.step(1);
         assert!(player.position_ms() >= duration / 2);
-    }
-
-    #[test]
-    fn samples_have_no_subtitles() {
-        for name in [
-            "sample.mp4",
-            "sample.mov",
-            "sample.webm",
-            "sample.mkv",
-            "sample.avi",
-        ] {
-            let cues = list_subtitle_cues(&sample(name)).unwrap();
-            assert!(cues.is_empty(), "{name}");
-        }
-    }
-
-    #[test]
-    fn subtitle_cues_use_absolute_packet_times() {
-        let cues = list_subtitle_cues(&sample("sample-subs.mkv")).unwrap();
-        assert_eq!(cues.len(), 2);
-        assert_eq!((cues[0].start_ms, cues[0].end_ms), (1000, 5000));
-        assert_eq!(cues[0].text, "Hello subtitle");
-        assert_eq!((cues[1].start_ms, cues[1].end_ms), (6000, 9000));
-        assert_eq!(cues[1].text, "Second cue");
-    }
-
-    #[test]
-    fn subtitles_load_in_background() {
-        let player = VideoPlayer::open(&sample("sample-subs.mkv")).unwrap();
-        assert!(player.info().has_subtitles);
-        let mut text = None;
-        for _ in 0..200 {
-            if let Some(cue) = player.cue_at(2000) {
-                text = Some(cue);
-                break;
-            }
-            std::thread::sleep(std::time::Duration::from_millis(10));
-        }
-        assert_eq!(text.as_deref(), Some("Hello subtitle"));
-        assert_eq!(player.cue_at(7000).as_deref(), Some("Second cue"));
-        assert_eq!(player.cue_at(5500), None);
-    }
-
-    #[test]
-    fn ass_helpers_strip_formatting() {
-        assert_eq!(strip_ass("{\\an8}Hello\\NWorld"), "Hello World");
-        let ass = "Dialogue: 0,0:00:01.00,0:00:02.00,Default,,0,0,0,,{\\i1}Hi\\Nthere";
-        assert_eq!(ass_dialogue_text(ass), "Hi there");
-        // FFmpeg 텍스트 자막 디코더가 주는 접두 없는 대화 페이로드.
-        assert_eq!(
-            ass_dialogue_text("0,0,Default,,0,0,0,,Hello, subtitle"),
-            "Hello, subtitle"
-        );
     }
 }

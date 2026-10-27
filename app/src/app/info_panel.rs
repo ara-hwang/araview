@@ -462,10 +462,6 @@ impl AraView {
                     no.clone()
                 },
             ),
-            (
-                t("video.subtitles"),
-                if probe.has_subtitles { yes } else { no },
-            ),
         ];
         if let Some(text) = dims {
             entries.push((t("video.dimensions"), text));

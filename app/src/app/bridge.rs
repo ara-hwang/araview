@@ -463,7 +463,6 @@ impl AraView {
                     "muted": player.is_muted(),
                     "audio": player.audio_active(),
                     "audioUnderruns": player.audio_underruns(),
-                    "subtitle": player.cue_at(player.position_ms()),
                     "width": player.info().width,
                     "height": player.info().height,
                     "presentedPts": self.video_frame_pts,

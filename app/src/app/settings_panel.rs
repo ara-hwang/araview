@@ -768,13 +768,6 @@ impl SettingsPanel {
                         Effect::Redraw,
                     ),
                     (
-                        "video-subtitles",
-                        "settings.reading.videoSubtitles",
-                        s.video_subtitles,
-                        |settings, value| settings.video_subtitles = value,
-                        Effect::Redraw,
-                    ),
-                    (
                         "show-video-info",
                         "settings.reading.showVideoInfo",
                         s.show_video_info,

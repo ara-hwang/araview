@@ -55,7 +55,6 @@ pub const ACTION_LABELS: &[(&str, &str)] = &[
     ("videoSpeedDown", "menu.videoSpeedDown"),
     ("videoSpeedUp", "menu.videoSpeedUp"),
     ("videoMute", "menu.videoMute"),
-    ("videoSubtitles", "menu.videoSubtitles"),
 ];
 
 pub fn label_key(action: &str) -> Option<&'static str> {

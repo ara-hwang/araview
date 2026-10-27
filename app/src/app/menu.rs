@@ -87,7 +87,6 @@ const PALETTE_GROUPS: &[(&str, &[&str])] = &[
             "videoSpeedDown",
             "videoSpeedUp",
             "videoMute",
-            "videoSubtitles",
         ],
     ),
     (
@@ -169,7 +168,6 @@ impl AraView {
             "videoSpeedDown" => self.video_step_speed(-1, cx),
             "videoSpeedUp" => self.video_step_speed(1, cx),
             "videoMute" => self.toggle_video_mute(cx),
-            "videoSubtitles" => self.toggle_video_subtitles(cx),
             OPEN_SETTINGS => self.open_settings(window, cx),
             CHECK_UPDATES => self.check_updates(window, cx),
             TOGGLE_DOCK => {
@@ -202,8 +200,9 @@ impl AraView {
             "toggleGifPlayback" | "gifPrevFrame" | "gifNextFrame" => {
                 self.has_animation(cx) || self.has_video(cx)
             }
-            "videoSeekBack" | "videoSeekFwd" | "videoSpeedDown" | "videoSpeedUp" | "videoMute"
-            | "videoSubtitles" => self.has_video(cx),
+            "videoSeekBack" | "videoSeekFwd" | "videoSpeedDown" | "videoSpeedUp" | "videoMute" => {
+                self.has_video(cx)
+            }
             TOGGLE_COVER => has_image && self.archive.is_some(),
             _ => has_image,
         }

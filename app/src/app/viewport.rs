@@ -60,14 +60,13 @@ const FRAME_COUNTER_MODULUS: u64 = 10_000;
 /// 앞자리 생략 표시(공백 또는 `…`)를 포함한 슬롯 폭(px).
 const FRAME_COUNTER_WIDTH: f32 = 100.0;
 
-/// 이 폭 미만에서는 동영상 컨트롤에서 부가 조작(속도·음량·음소거·자막)을 접는다.
+/// 이 폭 미만에서는 동영상 컨트롤에서 부가 조작(속도·음량·음소거)을 접는다.
 const VIDEO_BAR_COMPACT_BELOW: f32 = 720.0;
 
 /// 동영상 읽기 값의 고정 폭(px). 값이 바뀌어도 컨트롤 폭이 흔들리지 않게 한다.
 const VIDEO_TIME_WIDTH: f32 = 100.0;
 const VIDEO_SPEED_WIDTH: f32 = 40.0;
 const VIDEO_MUTE_WIDTH: f32 = 28.0;
-const VIDEO_SUBTITLE_WIDTH: f32 = 24.0;
 
 /// 프레임 카운터. 4자리까지는 그대로 보여주고, 그보다 큰 값은 앞자리를
 /// 줄임표로 대체해 항상 같은 폭(11자)을 차지하게 한다.
@@ -966,15 +965,6 @@ impl AraView {
         }
     }
 
-    pub(super) fn toggle_video_subtitles(&mut self, cx: &mut Context<Self>) {
-        if self.video.is_some() {
-            SettingsStore::update(cx, |settings| {
-                settings.video_subtitles = !settings.video_subtitles;
-            });
-            cx.notify();
-        }
-    }
-
     /// 동영상 전송 컨트롤(하단 독). 애니메이션 오버레이와 같은 자리다.
     pub(super) fn render_video_overlay(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
         let Some(player) = &self.video else {
@@ -988,7 +978,6 @@ impl AraView {
         let duration = info.duration_ms;
         let speed = player.speed();
         let muted = player.is_muted();
-        let no_cues = !info.has_subtitles;
         let frame_text = info.fps.filter(|fps| *fps > 0.0).map(|fps| {
             let total = (duration as f64 * fps / 1000.0).round() as u64;
             let current = (pos as f64 * fps / 1000.0).round() as u64;
@@ -1105,49 +1094,7 @@ impl AraView {
                         })),
                 )
             })
-            .when(!compact, |row| {
-                row.child(
-                    Button::new("video-subtitles")
-                        .ghost()
-                        .xsmall()
-                        .w(px(VIDEO_SUBTITLE_WIDTH))
-                        .label("S")
-                        .disabled(no_cues)
-                        .tooltip(t("menu.videoSubtitles"))
-                        .on_click(cx.listener(|this, _, window, cx| {
-                            this.run_action("videoSubtitles", window, cx)
-                        })),
-                )
-            })
             .into_any_element()
-    }
-
-    /// 현재 위치의 자막을 읽기 영역 아래 중앙에 둔다. 없으면 빈 요소다.
-    pub(super) fn render_video_subtitle(&self, cx: &mut Context<Self>) -> impl IntoElement {
-        let text = self
-            .video
-            .as_ref()
-            .filter(|_| SettingsStore::global(cx).settings.video_subtitles)
-            .and_then(|player| player.cue_at(player.position_ms()))
-            .unwrap_or_default();
-        div()
-            .absolute()
-            .bottom_16()
-            .left_0()
-            .right_0()
-            .flex()
-            .justify_center()
-            .when(!text.is_empty(), |area| {
-                area.child(
-                    div()
-                        .px_2()
-                        .py_1()
-                        .rounded_md()
-                        .bg(cx.theme().popover.opacity(0.85))
-                        .text_sm()
-                        .child(text.to_string()),
-                )
-            })
     }
 
     // ----- 양쪽 보기 배치 -----
@@ -2045,7 +1992,7 @@ impl AraView {
                 )
             })
             .when(self.has_video(cx), |area| {
-                area.child(self.render_video_subtitle(cx)).child(
+                area.child(
                     div()
                         .absolute()
                         .bottom_3()

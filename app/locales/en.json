@@ -216,7 +216,6 @@
       "wideAlone": "Show wide pages (landscape scans) alone in dual view",
       "showComicInfo": "Show comic metadata (ComicInfo.xml) in the info panel",
       "videoAutoplay": "Auto-play videos on open",
-      "videoSubtitles": "Show video subtitles",
       "showVideoInfo": "Show video info in the info panel"
     },
     "dock": {
@@ -477,7 +476,6 @@
     "mime": "Format",
     "codec": "Codec",
     "audio": "Audio",
-    "subtitles": "Subtitles",
     "dimensions": "Dimensions",
     "duration": "Duration",
     "fps": "Frames per second",
@@ -560,7 +558,6 @@
     "videoSpeedDown": "Decrease Playback Speed",
     "videoSpeedUp": "Increase Playback Speed",
     "videoMute": "Toggle Mute",
-    "videoSubtitles": "Toggle Subtitles",
     "toggleFullscreen": "Toggle Fullscreen",
     "toggleAlwaysOnTop": "Toggle Always on Top",
     "copyImage": "Copy Image",

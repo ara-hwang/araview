@@ -35,7 +35,6 @@ pub struct VideoProbe {
     pub fps: Option<f64>,
     pub codec: Option<String>,
     pub has_audio: bool,
-    pub has_subtitles: bool,
     /// 실제 프레임을 뽑을 수 있는지. rsmpeg 링크가 있으면 항상 true다.
     pub decodable: bool,
 }
@@ -60,7 +59,6 @@ pub fn probe(path: &Path) -> Result<VideoProbe, AppError> {
         fps: stream_fps(&opened),
         codec: Some(opened.decoder_name),
         has_audio: opened.has_audio,
-        has_subtitles: opened.has_subtitles,
         decodable: true,
     })
 }
@@ -116,7 +114,6 @@ struct OpenedVideo {
     fps: Option<f64>,
     duration_ms: Option<u64>,
     has_audio: bool,
-    has_subtitles: bool,
 }
 
 fn cstr(path: &Path) -> Result<CString, AppError> {
@@ -154,10 +151,6 @@ fn open_input(path: &Path) -> Result<OpenedVideo, AppError> {
         .find_best_stream(ffi::AVMEDIA_TYPE_AUDIO)
         .map(|r| r.is_some())
         .unwrap_or(false);
-    let has_subtitles = ictx
-        .find_best_stream(ffi::AVMEDIA_TYPE_SUBTITLE)
-        .map(|r| r.is_some())
-        .unwrap_or(false);
     Ok(OpenedVideo {
         stream_index,
         decoder_name,
@@ -166,7 +159,6 @@ fn open_input(path: &Path) -> Result<OpenedVideo, AppError> {
         fps,
         duration_ms,
         has_audio,
-        has_subtitles,
     })
 }
 
@@ -386,7 +378,6 @@ mod tests {
             assert_eq!(probed.codec.as_deref(), Some(codec));
             assert!(probed.decodable);
             assert!(probed.duration_ms.is_some());
-            assert!(!probed.has_subtitles);
         }
     }
 
