@@ -12,7 +12,7 @@ use gpui_kit::component::button::{Button, ButtonVariants as _};
 use gpui_kit::component::dialog::{DialogDescription, DialogFooter};
 use gpui_kit::component::notification::Notification;
 
-use crate::dialog::{ALERT_HEIGHT, centered};
+use crate::dialog::centered;
 use crate::i18n::t;
 use gpui_kit::{App, ParentElement as _, SharedString, Window};
 
@@ -113,12 +113,12 @@ impl WindowToast for Window {
             // `AlertDialog`에는 상단 오프셋이 없어 가운데 배치가 안 되니,
             // 같은 모양의 `Dialog`로 쌓는다.
             let Toast { title, message, .. } = toast;
-            self.open_dialog(cx, move |dialog, window, _| {
+            self.open_dialog(cx, move |dialog, _window, _| {
                 let (title_text, desc): (SharedString, Option<SharedString>) = match title.clone() {
                     Some(title) => (title, Some(message.clone())),
                     None => (message.clone(), None),
                 };
-                let mut out = centered(dialog, window, ALERT_HEIGHT)
+                let mut out = centered(dialog)
                     .close_button(false)
                     .overlay_closable(false)
                     .title(title_text);

@@ -13,7 +13,7 @@ use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
 
 use super::AraView;
-use crate::dialog::{LICENSES_HEIGHT, centered};
+use crate::dialog::centered;
 use crate::i18n::t;
 use crate::smooth::SmoothScroll;
 use crate::toast::{Toast, WindowToast};
@@ -380,7 +380,7 @@ impl Render for LicensesView {
             .flex_none()
             .border_r_1()
             .border_color(border)
-            .on_scroll_wheel(self.list_smooth.wheel_handler(false))
+            .on_scroll(self.list_smooth.wheel_handler(false))
             .vertical_scrollbar(&self.scroll)
             .child(list);
         h_flex()
@@ -411,8 +411,8 @@ impl AraView {
                 }
                 let view = cx.new(|cx| LicensesView::new(bundle, window, cx));
                 let focus = view.read(cx).focus.clone();
-                window.open_dialog(cx, move |dialog, window, _| {
-                    centered(dialog, window, LICENSES_HEIGHT)
+                window.open_dialog(cx, move |dialog, _window, _| {
+                    centered(dialog)
                         .title(t("settings.licenses.title"))
                         .width(px(920.))
                         .child(view.clone())

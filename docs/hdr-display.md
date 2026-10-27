@@ -4,7 +4,7 @@ Radiance HDR(`.hdr`)과 OpenEXR(`.exr`) 같은 고동적 범위 소스를 HDR �
 
 ## 현재 상태(조사 근거, M1 조사 시점 스냅샷)
 
-앱은 gpui-kit 0.8.0을 쓰고, Windows 렌더러는 `gpui-pre-windows 0.3.9`(DirectX 11, 라이브러리 이름 `gpui_windows`)다. gpui-kit 0.8.0은 `gpui-pre-platform`을 거쳐 이 크레이트를 쓰며, 레지스트리에 함께 있는 `gpui-fast-windows`는 쓰지 않는다(`cargo tree -i gpui-pre-windows`). 확인한 코드 상태:
+앱은 gpui-kit 0.8.1을 쓰고, Windows 렌더러는 `gpui-pre-windows 0.3.10`(DirectX 11, 라이브러리 이름 `gpui_windows`)다. gpui-kit 0.8.1은 `gpui-pre-platform`을 거쳐 이 크레이트를 쓰며, 레지스트리에 함께 있는 `gpui-fast-windows`는 쓰지 않는다(`cargo tree -i gpui-pre-windows`). 확인한 코드 상태:
 
 | 항목 | 상태 | 근거 |
 | --- | --- | --- |
@@ -12,9 +12,9 @@ Radiance HDR(`.hdr`)과 OpenEXR(`.exr`) 같은 고동적 범위 소스를 HDR �
 | 색 공간 제어 | `SetColorSpace1` 호출 없음, `DXGI_OUTPUT_DESC1` 조회 없음 | 같은 크레이트 전역 검색 |
 | 스왑체인 생성 | DirectComposition + FLIP_SEQUENTIAL | `create_swap_chain_for_composition` |
 | 최종 출력 인코딩 | 셰이더가 선형 합성 후 마지막에 sRGB 인코딩 | `vendor/gpui-pre-windows/src/shaders.hlsl`의 `linear_to_srgb` |
-| 이미지 텍스처 | 8비트 BGRA만. gpui-pre 코어의 `RenderImage`/`Frame`도 BGRA 8비트 가정 | `gpui-pre-0.3.9/src/assets.rs`, 앱은 `app/src/picture.rs`의 `render_image`에서 `image::Frame`을 넘김 |
-| 플랫폼 선택 | Windows는 `gpui-pre-windows` 고정. wgpu 백엔드는 Linux/wasm에만 연결 | `gpui-pre-platform-0.3.9`의 target별 dependency와 `gpui_platform.rs` |
-| macOS EDR | `wantsExtendedDynamicRangeContent` 같은 설정 없음 | `gpui-pre-macos-0.3.9/src` 전역 검색 |
+| 이미지 텍스처 | 8비트 BGRA만. gpui-pre 코어의 `RenderImage`/`Frame`도 BGRA 8비트 가정 | `gpui-pre-0.3.10/src/assets.rs`, 앱은 `app/src/picture.rs`의 `render_image`에서 `image::Frame`을 넘김 |
+| 플랫폼 선택 | Windows는 `gpui-pre-windows` 고정. wgpu 백엔드는 Linux/wasm에만 연결 | `gpui-pre-platform-0.3.10`의 target별 dependency와 `gpui_platform.rs` |
+| macOS EDR | `wantsExtendedDynamicRangeContent` 같은 설정 없음 | `gpui-pre-macos-0.3.10/src` 전역 검색 |
 | wgpu | 트리에 있는 `wgpu 29.0.4`에는 HDR 표면 색 공간 API가 없음 | `SurfaceColorSpace`/`DisplayHdrInfo` 검색 불발(병합 전 상태) |
 
 결론: 렌더러가 스왑체인 색 공간을 통제하지 않으므로 HDR 모니터에서도 SDR 밝기로만 그려진다. Radiance·EXR 디코드는 선형 부동소수라 데이터 자체는 준비돼 있지만, 표시 파이프라인(8비트 clamp, `raster_sidecar.rs`)에서 SDR로 내려간다.
@@ -140,7 +140,7 @@ composition 경로 블로커가 해결되지 않으므로 접근을 변경한다
 
 ### M2 2차 시도 1단계: 포크와 hwnd 스왑체인 전환 (2026-10-19)
 
-- 포크: `vendor/gpui-pre-windows`(crates.io 0.3.9 원본 복사)를 루트 `Cargo.toml`의 `[patch.crates-io]`로 연결했다.
+- 포크: `vendor/gpui-pre-windows`(crates.io 0.3.10 원본 복사)를 루트 `Cargo.toml`의 `[patch.crates-io]`로 연결했다.
 - 포크 변경: `gpui_windows::set_hdr_output(bool)`을 추가했다. 켜면 플랫폼 초기화에서 `GPUI_DISABLE_DIRECT_COMPOSITION`과 같이 hwnd 스왑체인(`CreateSwapChainForHwnd`)을 쓰고 `WS_EX_NOREDIRECTIONBITMAP`을 빼고 창을 만든다.
 - AraView: `platform::prepare_hdr_output`이 GPUI 플랫폼을 만들기 전에 이 함수를 부른다. M4의 설정 토글 전까지는 `ARAVIEW_HDR_OUTPUT=1` 환경 변수로만 켠다.
 - 런타임 확인: HDR 모드에서 exstyle `0x40100`(NOREDIRECTIONBITMAP 없음), 화면 캡처와 selftest 21항목 통과. 기본 모드는 exstyle `0x240100`으로 composition 경로를 유지한다.

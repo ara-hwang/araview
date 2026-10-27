@@ -119,7 +119,8 @@ scripts/package-linux.sh             # Linux: target/AraView-<버전>-linux-<arc
 scripts/package-macos.sh             # macOS: target/AraView-<버전>-macos-<arch>.dmg
 
 # 릴리스 시작 (버전 올리기, 커밋, 태그, 푸시)
-npm run release -- <X.Y.Z|patch|minor|major>
+npm run release -- <X.Y.Z|patch|minor|major>   # release, 안정 채널
+npm run release -- <beta|X.Y.Z-beta.N>         # main, 베타 채널
 
 # 문서-코드 정합성 (버전, 확장자, 설정 키, plan)
 npm run docs:check

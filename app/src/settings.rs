@@ -117,6 +117,15 @@ impl ViewerBackground {
     }
 }
 
+/// 업데이트 확인 채널. 안정 채널은 정식 릴리스만, 베타 채널은 프리릴리스까지 본다.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum UpdateChannel {
+    #[default]
+    Stable,
+    Beta,
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum SortKey {
@@ -402,6 +411,7 @@ pub struct Settings {
     pub trash_without_confirm: bool,
     #[serde(default = "default_auto_check_updates")]
     pub auto_check_updates: bool,
+    pub update_channel: UpdateChannel,
     pub viewer_background: ViewerBackground,
     #[serde(rename = "autoHideUI")]
     pub auto_hide_ui: bool,
@@ -450,6 +460,7 @@ impl Default for Settings {
             record_recent_files: true,
             trash_without_confirm: false,
             auto_check_updates: true,
+            update_channel: UpdateChannel::Stable,
             viewer_background: ViewerBackground::Theme,
             auto_hide_ui: false,
             menu_bar_hidden: false,
@@ -790,6 +801,32 @@ mod tests {
     fn a_missing_auto_check_updates_falls_back_to_on() {
         let restored = restore_settings(serde_json::json!({ "language": "en" }));
         assert!(restored.auto_check_updates);
+    }
+
+    /// 업데이트 채널은 안정 채널이 기본이다(SPEC §13, §20.1).
+    #[test]
+    fn update_channel_defaults_to_stable() {
+        assert_eq!(Settings::default().update_channel, UpdateChannel::Stable);
+    }
+
+    /// 설정 파일의 키 이름은 camelCase로 저장된다(SPEC §13, `npm run docs:check`).
+    #[test]
+    fn update_channel_round_trips() {
+        let settings = Settings {
+            update_channel: UpdateChannel::Beta,
+            ..Settings::default()
+        };
+        let saved = serde_json::to_value(&settings).expect("설정 직렬화");
+        assert_eq!(saved["updateChannel"], serde_json::json!("beta"));
+        let restored: Settings = serde_json::from_value(saved).expect("설정 복원");
+        assert_eq!(restored.update_channel, UpdateChannel::Beta);
+    }
+
+    /// 알 수 없는 채널 값은 기본값으로 되돌린다.
+    #[test]
+    fn an_unknown_update_channel_falls_back_to_stable() {
+        let restored = restore_settings(serde_json::json!({ "updateChannel": "nightly" }));
+        assert_eq!(restored.update_channel, UpdateChannel::Stable);
     }
 
     /// 일반 휠 위/아래가 한 쌍을 이루면 묶음 동작을 알아보고, 따로 놀면 없다(SPEC §14.2).

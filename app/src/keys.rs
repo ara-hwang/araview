@@ -4,8 +4,8 @@
 //! 설정에서 재할당하면 바로 반영되고, 다이얼로그나 입력에 포커스가 있을 때는 키
 //! 입력이 뷰어 루트로 오지 않아 자연히 막힌다.
 
-use gpui_kit::Keystroke;
 use gpui_kit::component::kbd::Kbd;
+use gpui_kit::{Keystroke, OperatingSystem};
 
 use crate::settings::ShortcutMap;
 
@@ -199,7 +199,19 @@ pub fn keystroke_for_spec(spec: &str) -> Option<Keystroke> {
         stroke.push('-');
     }
     stroke.push_str(gpui_key);
-    Keystroke::parse(&stroke).ok()
+    // 설정 표기는 `Secondary`를 쓰지 않아 OS에 따라 달라지지 않는다.
+    Keystroke::parse_with_os(&stroke, host_os()).ok()
+}
+
+/// 이 빌드가 따르는 키보드 규약의 OS. `Keystroke::parse_with_os`가 요구한다.
+fn host_os() -> OperatingSystem {
+    if cfg!(target_os = "macos") {
+        OperatingSystem::Mac
+    } else if cfg!(target_os = "windows") {
+        OperatingSystem::Windows
+    } else {
+        OperatingSystem::Linux
+    }
 }
 
 /// 설정 표기를 `Kbd` 표시 요소로 바꾼다. 파싱할 수 없으면 `None`이다.
@@ -227,7 +239,7 @@ mod tests {
         for (spec, want) in cases {
             let stroke =
                 keystroke_for_spec(spec).unwrap_or_else(|| panic!("{spec}를 파싱하지 못했다"));
-            assert_eq!(stroke.unparse(), want, "{spec}");
+            assert_eq!(stroke.unparse(host_os()), want, "{spec}");
         }
     }
 

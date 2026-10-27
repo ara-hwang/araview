@@ -6,7 +6,6 @@ use araview_core::file_assoc::FileAssociation;
 use araview_core::thumb_shell::PsdThumbStatus;
 use gpui_kit::component::alert::Alert;
 use gpui_kit::component::button::{Button, ButtonVariant, ButtonVariants as _};
-use gpui_kit::component::dialog::DialogEntrance;
 use gpui_kit::component::group_box::{GroupBox, GroupBoxVariants as _};
 use gpui_kit::component::kbd::Kbd;
 use gpui_kit::component::select::{SearchableVec, Select, SelectEvent, SelectState};
@@ -25,13 +24,12 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use super::{AraView, format_bytes};
-use crate::dialog::{ALERT_HEIGHT, centered_margin_top};
 use crate::i18n::{Language, t, t_with};
 use crate::keys;
 use crate::settings::{
     CacheMode, CacheStorageMode, DockPosition, DockThumbSize, ImageScalingMode, MaxResolution,
-    MouseAction, Settings, SettingsStore, SortKey, ThemeChoice, ViewMode, ViewerBackground,
-    WheelAction, WheelMode, default_shortcuts,
+    MouseAction, Settings, SettingsStore, SortKey, ThemeChoice, UpdateChannel, ViewMode,
+    ViewerBackground, WheelAction, WheelMode, default_shortcuts,
 };
 use crate::smooth::SmoothScroll;
 
@@ -530,6 +528,27 @@ impl SettingsPanel {
                 cx,
             ))
             .child(setting_row(
+                t("settings.update.channelTitle"),
+                Some(t("settings.update.channelDesc")),
+                self.select(
+                    "update-channel",
+                    t("settings.update.channelTitle"),
+                    ChoiceDef {
+                        current: s.update_channel,
+                        options: &[
+                            ("settings.update.channelStable", UpdateChannel::Stable),
+                            ("settings.update.channelBeta", UpdateChannel::Beta),
+                        ],
+                        get: |settings: &Settings| settings.update_channel,
+                        set: |settings, value| settings.update_channel = value,
+                        effect: Effect::Redraw,
+                    },
+                    window,
+                    cx,
+                ),
+                cx,
+            ))
+            .child(setting_row(
                 t("settings.update.title"),
                 Some(t_with(
                     "settings.update.current",
@@ -1020,12 +1039,11 @@ impl SettingsPanel {
     fn confirm_clear_all(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let guard = self.nested_guard();
         let panel = cx.entity();
-        window.open_alert_dialog(cx, move |alert, window, _cx| {
+        window.open_alert_dialog(cx, move |alert, _window, _cx| {
             let _guard = &guard;
             let panel = panel.clone();
             alert
-                .margin_top(centered_margin_top(window, ALERT_HEIGHT))
-                .entrance(DialogEntrance::Fade)
+                .centered()
                 .title(t("confirm.cache.clearAll.title"))
                 .description(t("confirm.cache.clearAll.message"))
                 // Enter로도 지운다. gpui-kit 다이얼로그는 `Enter`를 확인 동작으로
@@ -1349,15 +1367,14 @@ impl SettingsPanel {
             .unwrap_or_else(|| spec.clone())
             .into();
         let pressed_kbd = pressed_keystroke.clone();
-        window.open_alert_dialog(cx, move |alert, window, _cx| {
+        window.open_alert_dialog(cx, move |alert, _window, _cx| {
             let _guard = &guard;
             let panel = panel.clone();
             let cancelled = panel.clone();
             let action = action.clone();
             let spec = spec.clone();
             alert
-                .margin_top(centered_margin_top(window, ALERT_HEIGHT))
-                .entrance(DialogEntrance::Fade)
+                .centered()
                 .title(t("settings.shortcuts.conflictTitle"))
                 .description(t_with(
                     "settings.shortcuts.conflictDesc",
@@ -1945,12 +1962,11 @@ impl SettingsPanel {
     fn confirm_reset(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let guard = self.nested_guard();
         let panel = cx.entity();
-        window.open_alert_dialog(cx, move |alert, window, _cx| {
+        window.open_alert_dialog(cx, move |alert, _window, _cx| {
             let _guard = &guard;
             let panel = panel.clone();
             alert
-                .margin_top(centered_margin_top(window, ALERT_HEIGHT))
-                .entrance(DialogEntrance::Fade)
+                .centered()
                 .title(t("confirm.resetSettings.title"))
                 .description(t("confirm.resetSettings.message"))
                 // Enter로도 초기화한다(확인 동작에 초기화를 건다).

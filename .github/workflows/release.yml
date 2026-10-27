@@ -1,12 +1,15 @@
 name: Release
 
-# `vX.Y.Z` 태그를 푸시하면 검증, 세 OS 빌드(Windows 설치 프로그램과 서명, Linux tar.gz,
-# macOS dmg), GitHub 릴리스 생성까지 자동으로 돈다.
-#   npm run release -- 2.0.1   (버전 올리기, 커밋, 태그, 푸시)
+# `vX.Y.Z`(안정) 또는 `vX.Y.Z-beta.N`(베타) 태그를 푸시하면 검증, 세 OS 빌드
+# (Windows 설치 프로그램과 서명, Linux tar.gz, macOS dmg), GitHub 릴리스 생성까지
+# 자동으로 돈다.
+#   npm run release -- 2.0.1     (release에서 안정 릴리스)
+#   npm run release -- beta      (main에서 베타 릴리스)
 # 태그는 버전을 올린 커밋(app/Cargo.toml, Cargo.lock 2곳 일치)에 붙여야 하며,
 # 어긋나면 첫 단계에서 실패한다. 실패하면 Actions에서 재실행하거나 태그를 지우고 다시
-# 푸시한다. 릴리스 자산은 이 저장소에 게시되고 앱의 업데이트 확인이 그 `update-feed.json`을
-# 본다. 서명 키는 Secrets TAURI_SIGNING_PRIVATE_KEY(_PASSWORD)다(이름은 예전 Tauri 시절
+# 푸시한다. 안정 릴리스는 `update-feed.json`과 `latest-gpui.json`을, 베타 릴리스는
+# `update-feed-beta.json`을 만들고 롤링 `beta` 프리릴리스의 피드 자산을 덮어쓴다.
+# 서명 키는 Secrets TAURI_SIGNING_PRIVATE_KEY(_PASSWORD)다(이름은 예전 Tauri 시절
 # 그대로 두었다. 키 형식은 minisign이다).
 #
 # Actions 탭에서 수동 실행(workflow_dispatch)하면 릴리스를 만들지 않고 같은 과정을 끝까지
@@ -16,6 +19,7 @@ on:
   push:
     tags:
       - "v[0-9]+.[0-9]+.[0-9]+"
+      - "v[0-9]+.[0-9]+.[0-9]+-beta.[0-9]+"
   workflow_dispatch:
 
 # 같은 태그의 실행이 겹치면 이전 실행을 취소하지 않고 줄 세운다(릴리스 도중 취소 방지).
@@ -105,6 +109,9 @@ jobs:
           # 수동 실행에는 태그가 없으므로 노트의 기준을 현재 커밋으로 한다.
           $tag = if ("${{ github.ref_type }}" -eq "tag") { "${{ github.ref_name }}" } else { "HEAD" }
           "tag=$tag" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          # 베타 태그는 프리릴리스와 베타 피드를 만든다. 수동 실행은 안정 경로를 시험한다.
+          $channel = if ("$tag" -match "-beta\.") { "beta" } else { "stable" }
+          "channel=$channel" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
       # 설치 프로그램은 NSIS(makensis)로 만든다. 러너에 기본 설치돼 있지 않으므로 먼저 받는다.
       - name: Install NSIS
@@ -173,6 +180,7 @@ jobs:
         run: |
           [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
           $version = "${{ steps.version.outputs.version }}"
+          $channel = "${{ steps.version.outputs.channel }}"
           $installer = "target/AraView-$version-setup.exe"
           npx --yes @tauri-apps/cli@2.11.4 signer sign $installer
           if ($LASTEXITCODE -ne 0) { Write-Error "설치 프로그램 서명 실패"; exit 1 }
@@ -187,9 +195,12 @@ jobs:
               }
             }
           }
-          $feed | ConvertTo-Json -Depth 5 | Set-Content -Path update-feed.json -Encoding utf8
-          # 2.5.0 이하 설치본은 옛 이름 `latest-gpui.json`을 확인하므로 같은 내용을 한 벌 더 올린다.
-          Copy-Item update-feed.json latest-gpui.json
+          $feedName = if ($channel -eq "beta") { "update-feed-beta.json" } else { "update-feed.json" }
+          $feed | ConvertTo-Json -Depth 5 | Set-Content -Path $feedName -Encoding utf8
+          if ($channel -eq "stable") {
+            # 2.5.0 이하 설치본은 옛 이름 `latest-gpui.json`을 확인하므로 같은 내용을 한 벌 더 올린다.
+            Copy-Item update-feed.json latest-gpui.json
+          }
 
       # 릴리스 생성은 세 OS 빌드가 모두 끝난 뒤 `release` 잡이 한 번에 한다.
       - name: Upload Windows artifacts
@@ -199,7 +210,7 @@ jobs:
           path: |
             target/AraView-*-setup.exe
             target/AraView-*-setup.exe.sig
-            update-feed.json
+            update-feed*.json
             latest-gpui.json
             release-notes.md
             feed-notes.md
@@ -283,7 +294,7 @@ jobs:
       # 1.x(Tauri) 설치본은 `releases/latest/download/latest.json`을 확인한다. 2.x가 Latest인 동안 이 파일이 없으면
       # 업데이트 확인이 404가 되므로, 마지막 1.x(1.2.3)의 피드를 그대로 올려 1.2.3까지만 안내하고 2.x로 자동 갱신되지 않게 한다.
       - name: Fetch legacy 1.x feed
-        if: github.ref_type == 'tag'
+        if: github.ref_type == 'tag' && !contains(github.ref_name, '-beta.')
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           sparse-checkout: .github/legacy-feed
@@ -294,12 +305,46 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
+          # 안정 릴리스에만 옛 1.x 피드와 latest-gpui.json을 붙인다.
+          assets=(
+            dist/AraView-*-setup.exe
+            dist/update-feed*.json
+            dist/AraView-*-linux-*.tar.gz
+            dist/AraView-*-macos-*.dmg
+            dist/SHA256SUMS.txt
+          )
+          flags=()
+          if [[ "${{ github.ref_name }}" == *"-beta."* ]]; then
+            # 프리릴리스는 Latest가 되지 않으므로 안정 채널의 releases/latest를 건드리지 않는다.
+            flags=(--prerelease --latest=false)
+          else
+            assets+=(dist/latest-gpui.json legacy/.github/legacy-feed/latest.json)
+          fi
           gh release create "${{ github.ref_name }}" \
-            dist/AraView-*-setup.exe dist/update-feed.json dist/latest-gpui.json legacy/.github/legacy-feed/latest.json \
-            dist/AraView-*-linux-*.tar.gz dist/AraView-*-macos-*.dmg dist/SHA256SUMS.txt \
+            "${assets[@]}" \
             --repo "${{ github.repository }}" \
             --title "AraView ${{ github.ref_name }}" \
-            --notes-file dist/release-notes.md
+            --notes-file dist/release-notes.md \
+            "${flags[@]}"
+
+      # 베타 피드는 버전마다 새 릴리스에 올리면 앱이 고정 URL로 찾을 수 없다. 롤링
+      # `beta` 프리릴리스의 자산을 덮어써 항상 최신 베타를 가리키게 한다.
+      - name: Update rolling beta feed
+        if: github.ref_type == 'tag' && contains(github.ref_name, '-beta.')
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          if ! gh release view beta --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            gh release create beta \
+              --repo "${{ github.repository }}" \
+              --target main \
+              --prerelease \
+              --title "AraView beta feed" \
+              --notes "베타 채널 업데이트 피드"
+          fi
+          gh release upload beta dist/update-feed-beta.json \
+            --clobber \
+            --repo "${{ github.repository }}"
 
       # 수동 실행(시험)에서는 릴리스 대신 산출물을 아티팩트로 남긴다.
       - name: Upload dry-run artifacts
