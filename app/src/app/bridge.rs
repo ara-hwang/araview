@@ -430,6 +430,9 @@ impl AraView {
             "index": self.index,
             "count": self.list.len(),
             "archive": self.archive.as_ref().map(|archive| archive.to_string()),
+            // 페이지 캐시 지표(§9.1). 예산 정리와 프리페치를 에이전트가 확인하게 한다.
+            "pagesCount": self.pages.len(),
+            "pagesBytes": self.cache_bytes(),
             "comic": self.comic.is_some(),
             "comicFailed": self.comic_failed,
             "viewMode": view_mode,

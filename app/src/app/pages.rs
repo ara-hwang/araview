@@ -3,7 +3,7 @@
 //! 페이지는 인덱스별로 디코드해 캐시에 두고, 화면에 올릴 페이지가 모두 준비되면
 //! 한 번에 교체한다. 그 전까지는 이전 화면을 유지한다(SPEC §3.3).
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Instant;
@@ -25,6 +25,9 @@ use crate::settings::{ArchiveProgress, CacheMode, SettingsStore, ViewMode};
 pub(super) struct Page {
     pub info: ImageInfo,
     pub picture: Arc<Picture>,
+    /// 디코드 결과의 보존 바이트(타일·밉 단계·애니메이션 프레임 합계). 바이트
+    /// 예산이 이 값으로 페이지를 내려놓는다(SPEC §9.1).
+    pub bytes: u64,
     /// 폴더 목록의 아카이브를 첫 페이지로 미리 보여주는 중인지.
     pub archive_preview: bool,
 }
@@ -42,6 +45,80 @@ fn prefetch_distance(mode: CacheMode) -> usize {
         CacheMode::Memory1Gb => 2,
         CacheMode::Extended | CacheMode::Memory2Gb => 3,
     }
+}
+
+/// 페이지 캐시 예산: 항목 수와 디코드 바이트의 이중 상한(SPEC §9.1).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct CacheBudget {
+    pub items: usize,
+    pub bytes: u64,
+}
+
+/// `nearby`/`extended`의 기본 바이트 상한. 거리 창이 좁아 평소에는 바이트
+/// 예산에 닿지 않지만, 밉 단계와 프레임이 붙은 큰 이미지가 창을 채울 때를
+/// 제한한다(SPEC §9.1).
+const NEARBY_BYTES: u64 = 512 * 1024 * 1024;
+const EXTENDED_BYTES: u64 = 1024 * 1024 * 1024;
+
+const GIB: u64 = 1024 * 1024 * 1024;
+
+fn cache_budget(mode: CacheMode) -> CacheBudget {
+    match mode {
+        CacheMode::Off => CacheBudget {
+            items: 1,
+            bytes: u64::MAX,
+        },
+        CacheMode::Nearby => CacheBudget {
+            items: 24,
+            bytes: NEARBY_BYTES,
+        },
+        CacheMode::Extended => CacheBudget {
+            items: 64,
+            bytes: EXTENDED_BYTES,
+        },
+        // 거리 창과 바이트 예산이 한도를 대신한다.
+        CacheMode::Memory1Gb => CacheBudget {
+            items: usize::MAX,
+            bytes: GIB,
+        },
+        CacheMode::Memory2Gb => CacheBudget {
+            items: usize::MAX,
+            bytes: 2 * GIB,
+        },
+    }
+}
+
+/// 항목 수와 바이트 예산을 넘겼을 때 내려놓을 페이지 고르기. 현재 위치에서
+/// 가장 먼 페이지부터 고르고, 현재 화면·표시 페이지(`protected`)는 예산을
+/// 넘겨도 남겨 둔다(들여다보는 화면은 예산에 내어놓지 않는다). 거리가 같으면
+/// 더 큰 인덱스(뒤쪽)를 먼저 놓아 결정적으로 움직인다.
+fn evict_plan(
+    bytes: &HashMap<usize, u64>,
+    anchor: usize,
+    protected: &HashSet<usize>,
+    item_limit: usize,
+    byte_limit: u64,
+) -> Vec<usize> {
+    let mut plan = Vec::new();
+    let mut remaining = bytes.clone();
+    loop {
+        let total: u64 = remaining.values().sum();
+        if remaining.len() <= item_limit && total <= byte_limit {
+            break;
+        }
+        let farthest = remaining
+            .keys()
+            .copied()
+            .filter(|index| !protected.contains(index))
+            .max_by_key(|index| (index.abs_diff(anchor), *index));
+        let Some(farthest) = farthest else {
+            // 보호 대상만 남았으면 예산을 넘어도 화면을 유지한다(§9.1).
+            break;
+        };
+        remaining.remove(&farthest);
+        plan.push(farthest);
+    }
+    plan
 }
 
 impl AraView {
@@ -452,9 +529,11 @@ impl AraView {
         }
         self.try_commit(window, cx);
 
-        let base = prefetch_distance(SettingsStore::global(cx).settings.cache_mode);
+        let cache_mode = SettingsStore::global(cx).settings.cache_mode;
+        let base = prefetch_distance(cache_mode);
+        let budget = cache_budget(cache_mode);
         let total = self.list.len();
-        let (before, after) = if mode.is_dual() {
+        let (before, after) = if self.view_mode(cx).is_dual() {
             (base + 1, base + 2)
         } else {
             (base, base)
@@ -464,28 +543,40 @@ impl AraView {
             .chain(screen.iter().copied())
             .chain(self.shown.iter().copied())
             .collect();
-        if base > 0 {
+        // 예산 때문에 내려놓을 페이지를 선취 요청보다 먼저 판단해, 내려놓은
+        // 페이지를 곧바로 다시 디코드하지 않는다(§9.1). 현재 화면과 표시
+        // 페이지는 예산이 넘어도 유지한다.
+        let protect: HashSet<usize> = screen
+            .iter()
+            .copied()
+            .chain(self.shown.iter().copied())
+            .collect();
+        let evicted = self.evict_except(&keep, &protect, window, cx);
+        if base > 0 && self.cache_bytes() < budget.bytes {
             for index in self.index.saturating_sub(before)..=(self.index + after).min(total - 1) {
+                if evicted.contains(&index) {
+                    continue;
+                }
                 self.ensure_page(index, false, window, cx);
             }
         }
-        self.evict_except(&keep, window, cx);
     }
 
     pub(super) fn evict_except(
         &mut self,
         keep: &HashSet<usize>,
+        protect: &HashSet<usize>,
         window: &mut Window,
         cx: &mut Context<Self>,
-    ) {
+    ) -> Vec<usize> {
         let stale: Vec<usize> = self
             .pages
             .keys()
             .copied()
             .filter(|index| !keep.contains(index))
             .collect();
-        for index in stale {
-            if let Some(page) = self.pages.remove(&index) {
+        for index in &stale {
+            if let Some(page) = self.pages.remove(index) {
                 // 단일 보기에서 표시 중인 그림은 `picture`가 같은 Arc를 들고 있다.
                 let displayed = self
                     .picture
@@ -497,6 +588,33 @@ impl AraView {
             }
         }
         self.page_failed.retain(|index, _| keep.contains(index));
+
+        // 항목 수와 바이트 예산이 넘으면 가장 먼 페이지부터 내려놓는다(§9.1).
+        let budget = cache_budget(SettingsStore::global(cx).settings.cache_mode);
+        let bytes: HashMap<usize, u64> = self
+            .pages
+            .iter()
+            .map(|(index, page)| (*index, page.bytes))
+            .collect();
+        let plan = evict_plan(&bytes, self.index, protect, budget.items, budget.bytes);
+        for index in &plan {
+            let Some(page) = self.pages.remove(index) else {
+                continue;
+            };
+            let displayed = self
+                .picture
+                .as_ref()
+                .is_some_and(|shown| Arc::ptr_eq(shown, &page.picture));
+            if !displayed {
+                Self::drop_picture(&page.picture, window, cx);
+            }
+        }
+        plan
+    }
+
+    /// 페이지 캐시가 지금 들고 있는 디코드 바이트 합계.
+    pub(super) fn cache_bytes(&self) -> u64 {
+        self.pages.values().map(|page| page.bytes).sum()
     }
 
     /// 페이지가 캐시에 없으면 백그라운드에서 디코드한다. `protect`는 표시용 추출물을
@@ -560,9 +678,12 @@ impl AraView {
                 Path::new(&info.source_path),
                 Orientation::default(),
             )?;
+            let picture = Arc::new(picture);
+            let bytes = picture::retained_bytes(&picture);
             Ok::<_, AppError>(Page {
                 info,
-                picture: Arc::new(picture),
+                picture,
+                bytes,
                 archive_preview,
             })
         });
@@ -795,5 +916,84 @@ impl AraView {
         if let Some(path) = self.list.get(self.index).filter(|_| previewing) {
             self.open_path(path.to_string(), window, cx);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `use gpui_kit::*`가 gpui의 `test` 매크로를 끌어오므로 빌트인 `#[test]`를
+    /// 전체 경로로 고른다.
+    #[::core::prelude::v1::test]
+    fn byte_budget_evicts_farthest_first() {
+        let bytes: HashMap<usize, u64> = (8..=13).map(|index| (index, 10)).collect();
+        plan_assert(&bytes, 10, HashSet::new(), usize::MAX, 35, &[13, 12, 8]);
+    }
+
+    /// 현재 화면·표시 페이지는 예산을 넘겨도 내려놓지 않는다. 큰 이미지 몇 장으로
+    /// 현재 화면만 예산을 초과해도 현재 페이지가 즉시 evict되지 않아야 한다.
+    #[::core::prelude::v1::test]
+    fn the_current_screen_stays_even_when_the_budget_is_exceeded() {
+        let bytes: HashMap<usize, u64> = [(10, 600 << 20), (11, 600 << 20)].into_iter().collect();
+        let protected = HashSet::from([10, 11]);
+        plan_assert(&bytes, 10, protected, usize::MAX, 512 * MB, &[]);
+    }
+
+    /// 항목 상한은 감리 대상을 예외로 하고 가장 먼 것부터 자른다. 동거리
+    /// 우선순위가 뒤쪽(큰 인덱스)임은 결정적으로 확인한다.
+    #[::core::prelude::v1::test]
+    fn item_limit_trims_farthest_first() {
+        let bytes: HashMap<usize, u64> = [(3, 1), (4, 1), (5, 1), (6, 1), (20, 1)]
+            .into_iter()
+            .collect();
+        // 20(거리 15)이 먼저, 그다음 6과 4(거리 1, 큰 인덱스 우선), 3은 보호.
+        plan_assert(&bytes, 5, HashSet::from([3]), 2, u64::MAX, &[20, 6, 4]);
+    }
+
+    /// 보호된 페이지가 멀리 있어도 그 페이지는 예산보다 먼저 남고, 보호 대상만
+    /// 남으면 예산을 넘어도 정지한다.
+    #[::core::prelude::v1::test]
+    fn protected_pages_survive_the_byte_budget() {
+        let bytes: HashMap<usize, u64> = [(5, 200 * MB), (6, 200 * MB), (30, 200 * MB)]
+            .into_iter()
+            .collect();
+        // 30(거리 24)을 내려놓아도 400MB로 300MB를 넘지만, 5와 6은 보호 대상이라 남는다.
+        plan_assert(
+            &bytes,
+            6,
+            HashSet::from([5, 6]),
+            usize::MAX,
+            300 * MB,
+            &[30],
+        );
+    }
+
+    /// 예산 표(SPEC §9.1)와 코드가 같다.
+    #[::core::prelude::v1::test]
+    fn cache_budgets_match_the_mode_table() {
+        assert_eq!(cache_budget(CacheMode::Off).items, 1);
+        assert_eq!(cache_budget(CacheMode::Nearby).items, 24);
+        assert_eq!(cache_budget(CacheMode::Extended).items, 64);
+        assert_eq!(cache_budget(CacheMode::Nearby).bytes, 512 * MB);
+        assert_eq!(cache_budget(CacheMode::Extended).bytes, 1024 * MB);
+        assert_eq!(cache_budget(CacheMode::Memory1Gb).bytes, 1024 * MB);
+        assert_eq!(cache_budget(CacheMode::Memory2Gb).bytes, 2048 * MB);
+    }
+
+    const MB: u64 = 1024 * 1024;
+
+    fn plan_assert(
+        bytes: &HashMap<usize, u64>,
+        anchor: usize,
+        protected: HashSet<usize>,
+        item_limit: usize,
+        byte_limit: u64,
+        expected: &[usize],
+    ) {
+        assert_eq!(
+            evict_plan(bytes, anchor, &protected, item_limit, byte_limit),
+            expected
+        );
     }
 }

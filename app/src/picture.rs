@@ -162,6 +162,28 @@ pub fn load(path: &Path, source: &Path, orientation: Orientation) -> Result<Pict
     Ok(build(decoded, orientation, hdr))
 }
 
+/// 디코드 결과가 GPU 아틀라스에 보존하는 바이트. 타일·밉 단계·애니메이션
+/// 프레임 버퍼를 합계한다. 페이지 캐시의 바이트 예산이 이 값으로 잰다(SPEC §9.1).
+/// HDR 확장 픽셀 등록은 셈에 넣지 않는다.
+pub fn retained_bytes(picture: &Picture) -> u64 {
+    picture
+        .levels
+        .iter()
+        .flat_map(|level| &level.tiles)
+        .map(|tile| tile_buffer_bytes(&tile.image))
+        .sum()
+}
+
+fn tile_buffer_bytes(image: &RenderImage) -> u64 {
+    let mut total = 0;
+    let mut frame = 0;
+    while let Some(bytes) = image.as_bytes(frame) {
+        total += bytes.len() as u64;
+        frame += 1;
+    }
+    total
+}
+
 pub fn build(
     decoded: DisplayImage,
     orientation: Orientation,

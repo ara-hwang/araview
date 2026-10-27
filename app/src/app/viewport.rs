@@ -1389,7 +1389,9 @@ impl AraView {
             .into_iter()
             .map(|(index, _)| index)
             .collect();
-        self.evict_except(&keep, window, cx);
+        // 화면에 걸친 페이지는 예산이 넘어도 유지하고, 넘는 만큼 먼 페이지부터 내려놓는다.
+        let protect: HashSet<usize> = self.shown.iter().copied().collect();
+        self.evict_except(&keep, &protect, window, cx);
 
         let middle = px(viewport_h / 2.0);
         let center = self
