@@ -300,7 +300,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 - `archive_prefetch`: 이웃 선추출용 fire-and-forget 명령이다. 엔트리마다 압축 해제가 독립이라 썸네일 배치와 같은 워커 수로 병렬 추출한다.
 - ZIP 중앙 디렉터리 캐시(`archive.rs`): 최근에 연 아카이브 4개의 파싱 결과를 경로 + mtime + size가 같을 때만 재사용한다. 추출물이 없는 페이지를 열거나 배치 워커가 각자 핸들을 열 때 디렉터리를 다시 파싱하지 않는다. 파일 핸들은 캐시에 남기지 않는다.
 - 선추출 거리는 뷰 모드에 따라 보정되며 상한이 있다.
-- 이어보기: 아카이브 경로별 마지막 엔트리와 위치(엔트리명/인덱스/전체 페이지)를 최대 100개 LRU로 저장한다. `resumeReading`이 true이고 목록에 저장된 항목이 있으면 거기서 시작하며, 저장 위치에서 시작할 때 "이어보기" 토스트와 "처음부터" 동작을 함께 제공한다. 설정이 false면 항상 첫 페이지에서 열고 열기만으로 저장 위치를 0페이지로 덮지 않는다. 양쪽 모드에서는 저장 위치가 쌍 중간이면 쌍 시작으로 맞춰 연다.
+- 이어보기: 아카이브 경로별 마지막 엔트리와 위치(엔트리명/인덱스/전체 페이지)를 최대 100개 LRU로 저장한다. `resumeReading`이 true이고 목록에 저장된 항목이 있으면 거기서 시작하며, 저장 위치에서 시작할 때 "이어보기" 토스트와 "처음부터" 동작을 함께 제공한다. 설정이 false면 항상 첫 페이지에서 열고 열기만으로 저장 위치를 0페이지로 덮지 않는다. 양쪽 모드에서는 저장 위치가 쌍 중간이면 쌍 시작으로 맞춰 연다. 기록에는 파일 identity(크기와 수정 시각)를 함께 기록하고, 열 때 지금 파일과 identity가 다르면 같은 경로의 파일이 내용만 교체된 것이므로 기록을 버리고 첫 페이지에서 연다. identity가 없는 옛 기록은 한 번만 신뢰하고 다음 저장에 identity를 기록한다.
 - `get_comic_info`: CBZ/ZIP의 `ComicInfo.xml`(ComicRack/Komga/Kavita 스키마)을 메타데이터로 반환한다. 탐색은 엔트리 basename이 `comicinfo.xml`인 항목(대소문자 무시)이며 루트를 우선하고 없으면 첫 중첩 경로를 쓴다. 상한 1 MiB, UTF-8(BOM 허용)과 UTF-16 LE/BE BOM을 지원한다. XML 부재나 지원하지 않는 확장자는 `null`, 깨진 XML/디코딩 실패는 `corrupt`, 크기 초과는 `too_large`다. 필드 누락과 빈 값은 `null`로 정규화하고, 엔트리는 `read_archive_entry_bounded`(`archive.rs`)로 1 MiB 상한 아래에서 메모리로 읽는다. `pages`는 `image` 오름차순으로 최대 1000개까지 담는다.
 - 표지 판정: `pages`에서 `page_type`이 `FrontCover`(대소문자·공백 무시)인 페이지를 양쪽 보기 표지로 쓴다(규칙은 6절). `image`가 목록 범위를 벗어난 항목(1 기반으로 적은 파일 등)은 버리고, 이어보기 진입도 표지 기준 쌍 시작으로 스냅한다.
 - `set_comic_cover_pages`: 표지 페이지 집합을 `ComicInfo.xml`에 쓴다. ComicInfo에서 앱이 고쳐 쓰는 것은 `Pages`의 `Type`뿐이다. 집합의 페이지는 `FrontCover`가 되고 그 밖의 기존 `FrontCover`는 `Story`로 바뀌며, 집합이 비면 0번을 `Story`로 남겨 "표지 없음"을 명시한다. `Page` 요소가 없으면 추가하고 XML이 없으면 루트에 새로 만든다. 다른 요소와 속성은 이벤트 단위로 그대로 옮겨 보존하고 출력은 UTF-8이다. 인덱스가 페이지 수를 넘으면 `invalid_input`, CBZ/ZIP이 아니면 `unsupported`다.
@@ -475,7 +475,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 | ----------------- | ------------------------------------------------------- | -------- |
 | `settings`        | `SettingsState` 전체                                    | 1개 객체 |
 | `recentFiles`     | 최근 경로 배열(최신 먼저)                               | 20       |
-| `archiveProgress` | 아카이브 경로 → `{ entry, index, total }` 이어보기 기록 | 100      |
+| `archiveProgress` | 아카이브 경로 → `{ entry, index, total, identity? }`. `identity`는 파일 크기와 수정 시각(나노초)이며 내용 교체 검증에 쓴다(8절) | 100      |
 
 - 최근 파일은 중복 제거 후 맨 앞에 넣고 자른다. `recordRecentFiles=false`면 목록을 숨기고 자동 열기도 막는다.
 - 최근 파일 카드의 아카이브 항목은 읽기 진도(`index+1/total`)를 함께 표시한다.

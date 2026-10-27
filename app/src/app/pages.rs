@@ -10,6 +10,7 @@ use std::time::Instant;
 
 use crate::toast::{Toast, WindowToast, push_timed_notification};
 use araview_core::app_error::AppError;
+use araview_core::file_identity::FileIdentity;
 use araview_core::image::{ImageInfo, is_archive_file};
 use araview_core::ops;
 use gpui_kit::*;
@@ -118,6 +119,9 @@ impl AraView {
             let file = Path::new(&source);
             if is_archive_file(file) {
                 let images = ops::get_archive_images_impl(file)?;
+                // 이어보기 기록은 열 때의 identity와 같을 때만 믿는다(§8).
+                // 같은 경로의 CBZ가 다른 내용으로 교체되면 첫 페이지에서 연다.
+                let identity = FileIdentity::capture(file);
                 let items: Vec<Arc<str>> = images
                     .images
                     .iter()
@@ -125,12 +129,14 @@ impl AraView {
                     .collect();
                 // 저장된 엔트리가 목록에 그대로 있을 때만 이어 본다.
                 let resumed = resume
+                    .filter(|progress| progress.matches_identity(identity))
                     .and_then(|progress| items.iter().position(|name| **name == *progress.entry));
                 Ok::<_, AppError>(Listing {
                     items,
                     index: resumed.unwrap_or(0),
                     resumed: resumed.is_some_and(|index| index > 0),
                     archive: Some(Arc::from(source.as_str())),
+                    identity,
                     availability: Vec::new(),
                     comic: ops::get_comic_info_blocking(&source),
                 })
@@ -145,6 +151,7 @@ impl AraView {
                     items: listing.images,
                     resumed: false,
                     archive: None,
+                    identity: None,
                     comic: Ok(None),
                 })
             }
@@ -187,6 +194,7 @@ impl AraView {
         self.list = Arc::new(listing.items);
         self.availability = listing.availability;
         self.archive = listing.archive;
+        self.archive_identity = listing.identity;
         self.comic_failed = listing.comic.is_err();
         self.comic = listing.comic.ok().flatten();
         let settings = &SettingsStore::global(cx).settings;
@@ -282,6 +290,7 @@ impl AraView {
         self.clear_pages(window, cx);
         self.list = Arc::new(Vec::new());
         self.archive = None;
+        self.archive_identity = None;
         self.comic = None;
         self.comic_failed = false;
         self.comic_mode = None;
@@ -690,6 +699,7 @@ impl AraView {
                     entry: entry.to_string(),
                     index: self.index,
                     total: self.list.len(),
+                    identity: self.archive_identity,
                 },
             );
         }

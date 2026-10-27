@@ -29,6 +29,7 @@ use crate::toast::{Toast, WindowToast};
 use araview_core::app_error::{AppError, ErrorCode};
 use araview_core::comic_info::ComicInfo;
 use araview_core::file_availability::FileAvailability;
+use araview_core::file_identity::FileIdentity;
 use araview_core::image::{ImageInfo, is_archive_file};
 use araview_core::ops::{self, DirListOptions, DirSortKey};
 use araview_core::video_audio::AudioStream;
@@ -97,6 +98,8 @@ struct Listing {
     /// 이어보기 기록에서 시작했는지.
     resumed: bool,
     archive: Option<Arc<str>>,
+    /// 열 때 캡처한 파일 identity(SPEC §8). 이어보기 기록 저장에 함께 쓴다.
+    identity: Option<FileIdentity>,
     availability: Vec<FileAvailability>,
     /// 아카이브의 ComicInfo.xml. 파싱 실패는 로드를 막지 않고 패널에 에러로만 남긴다.
     comic: Result<Option<ComicInfo>, AppError>,
@@ -116,6 +119,8 @@ pub struct AraView {
     comic_failed: bool,
     /// 아카이브를 열 때 자동으로 정한 보기 모드. 직접 고르면 해제된다.
     comic_mode: Option<ViewMode>,
+    /// 열 때 캡처한 아카이브 파일 identity. 이어보기 기록에 함께 저장한다(§8).
+    archive_identity: Option<FileIdentity>,
     /// 이어보기를 끈 채 연 아카이브에서 첫 페이지를 벗어나기 전인지. 그동안은
     /// 열기만으로 저장된 위치를 덮지 않도록 진행 상황을 저장하지 않는다.
     progress_held: bool,
@@ -251,6 +256,7 @@ impl AraView {
             comic: None,
             comic_failed: false,
             comic_mode: None,
+            archive_identity: None,
             progress_held: false,
             pages: HashMap::new(),
             page_loading: HashSet::new(),

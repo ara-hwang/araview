@@ -6,6 +6,7 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
+use araview_core::file_identity::FileIdentity;
 use gpui_kit::{App, Global};
 use serde::{Deserialize, Serialize};
 
@@ -504,6 +505,23 @@ pub struct ArchiveProgress {
     pub entry: String,
     pub index: usize,
     pub total: usize,
+    /// 파일 identity(SPEC §8). identity가 있는 기록만 지금 파일과 같은지 검증해
+    /// 같은 경로의 아카이브가 내용만 교체되면 기록을 버린다. identity 없는
+    /// 옛 기록은 한 번만 신뢰하고 다음 저장 때 identity를 기록한다(SPEC §12).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub identity: Option<FileIdentity>,
+}
+
+impl ArchiveProgress {
+    /// 이 기록을 지금 파일 identity에서도 이어볼 수 있는지. identity가 기록된
+    /// 기록만 검증하고, 지금 파일을 못 읽는 경우(없어서 열기가 어차피 실패함)는
+    /// 신뢰한다.
+    pub fn matches_identity(&self, current: Option<FileIdentity>) -> bool {
+        match (&self.identity, current) {
+            (Some(stored), Some(current)) => *stored == current,
+            _ => true,
+        }
+    }
 }
 
 #[derive(Default, Serialize, Deserialize)]
@@ -842,6 +860,49 @@ mod tests {
     fn an_unknown_update_channel_falls_back_to_stable() {
         let restored = restore_settings(serde_json::json!({ "updateChannel": "nightly" }));
         assert_eq!(restored.update_channel, UpdateChannel::Stable);
+    }
+
+    /// identity 없는 옛 `settings.json` 기록은 그대로 로드되고 한 번만
+    /// 신뢰한다(SPEC §12).
+    #[test]
+    fn archive_progress_without_identity_loads_from_old_settings_files() {
+        let progress: ArchiveProgress = serde_json::from_value(serde_json::json!({
+            "entry": "001.jpg",
+            "index": 3,
+            "total": 12,
+        }))
+        .expect("이전 기록 복원");
+        assert_eq!(progress.index, 3);
+        assert!(progress.identity.is_none());
+        assert!(progress.matches_identity(None));
+
+        // 저장하면 identity가 함께 기록된다.
+        let saved = serde_json::to_value(progress).expect("기록 직렬화");
+        assert!(saved["identity"].is_null());
+    }
+
+    /// identity가 기록된 기록은 지금 파일과 같을 때만 이어보고, 같은 경로에
+    /// 다른 내용이 들어오면 버린다(SPEC §8).
+    #[test]
+    fn archive_progress_validates_the_file_identity() {
+        let identity = FileIdentity {
+            size: 1024,
+            modified_nanos: 42,
+        };
+        let progress = ArchiveProgress {
+            entry: "001.jpg".to_owned(),
+            index: 3,
+            total: 12,
+            identity: Some(identity),
+        };
+        assert!(progress.matches_identity(Some(identity)));
+        assert!(!progress.matches_identity(Some(FileIdentity {
+            size: 2048,
+            modified_nanos: 42,
+        })));
+        // identity 직렬화 키는 camelCase다.
+        let saved = serde_json::to_value(&progress).expect("기록 직렬화");
+        assert_eq!(saved["identity"]["modifiedNanos"], serde_json::json!(42));
     }
 
     /// 일반 휠 위/아래가 한 쌍을 이루면 묶음 동작을 알아보고, 따로 놀면 없다(SPEC §14.2).
