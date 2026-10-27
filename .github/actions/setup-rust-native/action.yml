@@ -97,17 +97,38 @@ runs:
         restore-keys: |
           vcpkg-libheif-v2-${{ (steps.vcpkg-win.outputs.triplet || steps.vcpkg-unix.outputs.triplet) }}-
 
-    # libheif 포트는 core 대신 libde265 기능으로 HEVC 디코더를 넣는다(x265 인코더는 제외).
+    # 러너 이미지의 vcpkg 포트 버전에 따라 HEVC 디코더 기능 이름이 다르다. 최신
+    # 포트는 `libde265`, 예전 포트는 `core`다. 어느 쪽이든 x265 인코더는 넣지 않는다.
     - name: Install libheif via vcpkg (Windows)
       if: runner.os == 'Windows' && steps.vcpkg-cache.outputs.cache-hit != 'true'
       shell: pwsh
-      run: vcpkg install "libheif[libde265,aom]:x64-windows"
+      run: |
+        $port = Get-Content "$env:VCPKG_INSTALLATION_ROOT\ports\libheif\vcpkg.json" -Raw | ConvertFrom-Json
+        $features = $port.features.PSObject.Properties.Name
+        $hevc = if ($features -contains "libde265") {
+          "libde265"
+        } elseif ($features -contains "core") {
+          "core"
+        } else {
+          throw "libheif 포트에서 HEVC 디코더 기능을 찾지 못했다."
+        }
+        vcpkg install "libheif[$hevc,aom]:x64-windows"
 
     - name: Install libheif via vcpkg (Linux, macOS)
       if: runner.os != 'Windows' && steps.vcpkg-cache.outputs.cache-hit != 'true'
       shell: bash
       run: |
-        "${{ steps.vcpkg-unix.outputs.root }}/vcpkg" install "libheif[libde265,aom]:${{ steps.vcpkg-unix.outputs.triplet }}"
+        root="${{ steps.vcpkg-unix.outputs.root }}"
+        triplet="${{ steps.vcpkg-unix.outputs.triplet }}"
+        hevc="$(python3 - "$root/ports/libheif/vcpkg.json" <<'PY'
+        import json
+        import sys
+
+        features = json.load(open(sys.argv[1], encoding="utf-8"))["features"]
+        print("libde265" if "libde265" in features else "core")
+        PY
+        )"
+        "$root/vcpkg" install "libheif[$hevc,aom]:$triplet"
 
     - name: Configure libheif environment (Windows)
       if: runner.os == 'Windows'
