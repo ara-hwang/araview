@@ -18,7 +18,7 @@
 - **Node.js**: `>= 24` (`release`, `docs:check`, `licenses` 스크립트용. 의존성 설치는 없습니다)
 - **NSIS**: Windows 설치 프로그램을 만들 때만 필요합니다(`makensis`가 PATH에 있거나 `Program Files (x86)\NSIS`에 있어야 합니다)
 
-모든 OS에서 HEIC/HEIF/AVIF를 쓰려면 `libheif` 1.21 이상이 필요합니다. `vcpkg.json`은 `libheif`의 `default-features`를 끄고(`hevc` 인코더 `x265` 제외) `aom`만 켭니다. HEVC 디코더 `libde265`는 하드 의존성이라 항상 들어갑니다. 버전은 baseline의 1.21.2가 아니라 `overrides`로 1.23.1을 고정합니다. 1.21.2의 Windows DLL이 로드 시 초기화 실패(`0xC0000142`)를 일으켜 `cargo test`가 실행조차 되지 않기 때문입니다(`libheif-rs 3.0`의 sys 바인딩도 1.23 기준). `aom` feature는 AVIF(AV1) 디코드용이며, 없으면 AVIF 표시와 썸네일, 히스토그램이 실패합니다. 움직이는 AVIF를 디코드하려면 1.21 이상이 필요합니다(`libheif-rs`의 `v1_21` feature). 앱은 HEIC/AVIF를 인코드하지 않습니다.
+모든 OS에서 HEIC/HEIF/AVIF를 쓰려면 `libheif` 1.21 이상이 필요합니다. `vcpkg.json`은 `libheif`의 `default-features`를 끄고(`hevc` 인코더 `x265` 제외) `aom`만 켭니다. HEVC 디코더 `libde265`는 하드 의존성이라 항상 들어갑니다. 버전은 baseline의 1.21.2와 1.23.1이 모두 Windows에서 DLL 로드 시 초기화 실패(`0xC0000142`)를 일으켜 `cargo test`가 실행조차 되지 않으므로, `overrides`로 1.23.2를 고정합니다(`libheif-rs 3.0`의 sys 바인딩도 1.23 기준). `aom` feature는 AVIF(AV1) 디코드용이며, 없으면 AVIF 표시와 썸네일, 히스토그램이 실패합니다. 움직이는 AVIF를 디코드하려면 1.21 이상이 필요합니다(`libheif-rs`의 `v1_21` feature). 앱은 HEIC/AVIF를 인코드하지 않습니다.
 
 동영상(mp4/mov/webm/mkv/avi)은 FFmpeg 8.x가 필요합니다. `rsmpeg`의 `ffmpeg8` feature와 메이저가 맞아야 컴파일되므로, 저장소 루트의 `vcpkg.json` 매니페스트가 `builtin-baseline`으로 FFmpeg 8.0.1(vcpkg 2026-03-23)을 고정합니다. `rsmpeg 0.18`이 FFmpeg 8.0 헤더 기준이라 8.1(구조체 필드 개명)에서는 컴파일되지 않으므로, 8.0.x를 유지합니다. classic 명령(`vcpkg install ffmpeg...`)은 pin을 무시하고 최신(9.x, 미지원)을 가져오므로 쓰지 않습니다. FFmpeg feature는 LGPL 호환 기본값 + AV1 디코드용 `dav1d`만 켭니다(GPL 계열 `gpl`/`x264`/`x265` 미포함). 시스템 FFmpeg(배포판 패키지)는 메이저가 다르면 빌드가 깨지므로 개발·CI 모두 vcpkg 제공 FFmpeg를 씁니다.
 
