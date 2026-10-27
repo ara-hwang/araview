@@ -592,9 +592,14 @@ impl AraView {
                                 } else {
                                     Ph::FileImage
                                 };
-                                // 아카이브는 읽기 진도를 함께 보여준다.
+                                // 아카이브는 읽기 진도를 함께 보여준다. 경로만 같다고
+                                // 믿지 않아 identity가 지금 파일과 다르면(§8) 진도를
+                                // 숨긴다(§12).
                                 let progress = SettingsStore::global(cx)
                                     .archive_progress(&path)
+                                    .filter(|progress| {
+                                        progress.matches_identity(FileIdentity::capture(file))
+                                    })
                                     .map(|progress| {
                                         t_with(
                                             "home.card.progress",
