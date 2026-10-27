@@ -6,6 +6,7 @@ use std::path::Path;
 use araview_core::comic_info::ComicInfo;
 use araview_core::image_info::{Histogram, IccStatus, ImageDetails};
 use araview_core::ops;
+use araview_core::video::VideoProbe;
 use gpui_kit::component::description_list::{DescriptionItem, DescriptionList};
 use gpui_kit::component::group_box::GroupBox;
 use gpui_kit::component::skeleton::Skeleton;
@@ -103,6 +104,7 @@ pub(super) struct InfoData {
     exif: Section<HashMap<String, String>>,
     details: Section<ImageDetails>,
     histogram: Section<Histogram>,
+    video: Section<VideoProbe>,
 }
 
 /// `PixelXDimension` → `Pixel X Dimension`.
@@ -215,6 +217,8 @@ impl AraView {
         // 히스토그램은 렌더 바이트, EXIF와 파일 상세는 원본 기준이다(SPEC §9.4).
         let render_path = info.file_path.clone();
         let source_path = info.source_path.clone();
+        let is_video = araview_core::image::is_video_file(Path::new(&source_path));
+        let video_source = source_path.clone();
 
         let exif_source = source_path.clone();
         let exif = cx.background_spawn(async move { ops::get_exif_data_impl(&exif_source) });
@@ -268,13 +272,41 @@ impl AraView {
             .ok();
         })
         .detach();
+
+        if is_video {
+            let video = cx.background_spawn(async move { ops::get_video_info_impl(&video_source) });
+            cx.spawn_in(window, async move |this, cx| {
+                let result = video.await;
+                this.update(cx, |this, cx| {
+                    if this.info_seq == seq {
+                        this.info_data.video = match result {
+                            Ok(probe) => Section::Ready(probe),
+                            Err(_) => Section::Failed,
+                        };
+                        cx.notify();
+                    }
+                })
+                .ok();
+            })
+            .detach();
+        }
     }
 
     pub(super) fn render_info_panel(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let muted = cx.theme().muted_foreground;
         let show_comic = SettingsStore::global(cx).settings.show_comic_info;
+        let show_video = SettingsStore::global(cx).settings.show_video_info;
+        let is_video = self
+            .info
+            .as_ref()
+            .is_some_and(|info| info.mime_type.starts_with("video/"));
         let loading = matches!(self.info_data.exif, Section::Loading)
-            || matches!(self.info_data.details, Section::Loading);
+            || matches!(self.info_data.details, Section::Loading)
+            || (is_video && matches!(self.info_data.video, Section::Loading));
+        let video_probe = match &self.info_data.video {
+            Section::Ready(probe) if show_video && is_video => Some(probe),
+            _ => None,
+        };
 
         v_flex()
             .id("info-panel")
@@ -333,6 +365,9 @@ impl AraView {
                                     ))
                                 },
                             )
+                            .when_some(video_probe, |panel, probe| {
+                                panel.child(self.render_video(probe, cx))
+                            })
                             .child(self.render_details(cx))
                             .child(self.render_histogram(cx))
                             .children(self.render_exif(cx)),
@@ -397,6 +432,47 @@ impl AraView {
                 body.child(div().pt_1().text_xs().whitespace_normal().child(summary))
             });
         section(t("comic.section"), body, cx)
+    }
+
+    fn render_video(&self, probe: &VideoProbe, cx: &mut Context<Self>) -> AnyElement {
+        let dims = probe.width.zip(probe.height).map(|(w, h)| {
+            let pixels = u64::from(w) * u64::from(h);
+            format!(
+                "{w} × {h} ({})",
+                t_with("details.pixels", &[("count", &group_digits(pixels))])
+            )
+        });
+        let duration = probe
+            .duration_ms
+            .map(|ms| format!("{}:{:02}", ms / 60_000, ms / 1000 % 60));
+        let fps = probe.fps.map(|fps| format!("{fps:.2}"));
+        let yes = t("video.yes").to_string();
+        let no = t("video.no").to_string();
+        let mut entries: Vec<(SharedString, String)> = vec![
+            (t("video.title"), probe.mime_type.clone()),
+            (
+                t("video.codec"),
+                probe.codec.clone().unwrap_or_else(|| no.clone()),
+            ),
+            (
+                t("video.audio"),
+                if probe.has_audio {
+                    yes.clone()
+                } else {
+                    no.clone()
+                },
+            ),
+        ];
+        if let Some(text) = dims {
+            entries.push((t("video.dimensions"), text));
+        }
+        if let Some(text) = duration {
+            entries.push((t("video.duration"), text));
+        }
+        if let Some(text) = fps {
+            entries.push((t("video.fps"), text));
+        }
+        section(t("video.section"), description_list(entries), cx)
     }
 
     fn render_details(&self, cx: &mut Context<Self>) -> AnyElement {

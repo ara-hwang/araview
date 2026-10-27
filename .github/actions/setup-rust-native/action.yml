@@ -1,5 +1,5 @@
 name: Setup Rust and native dependencies
-description: Rust 툴체인, 캐시, 시스템 라이브러리, vcpkg libheif를 한 번에 준비한다(Windows, Linux, macOS).
+description: Rust 툴체인, 캐시, 시스템 라이브러리, vcpkg 매니페스트 의존성(libheif, FFmpeg)을 한 번에 준비한다(Windows, Linux, macOS).
 
 inputs:
   cache-key:
@@ -37,14 +37,17 @@ runs:
       run: |
         sudo apt-get update
         sudo apt-get install -y --no-install-recommends \
-          pkg-config cmake nasm clang libclang-dev \
+          pkg-config cmake nasm clang libclang-dev libasound2-dev \
           libxkbcommon-dev libxkbcommon-x11-dev libxcb1-dev libxcb-xkb-dev libx11-xcb-dev \
           libwayland-dev libfontconfig-dev libfreetype-dev
 
     - name: Install macOS build tools
       if: runner.os == 'macOS'
       shell: bash
-      run: command -v pkg-config >/dev/null || brew install pkgconf
+      run: |
+        command -v pkg-config >/dev/null || brew install pkgconf
+        # aom(vcpkg)이 nasm을 요구한다. vcpkg의 자동 획득이 실패하는 러너가 있어 직접 설치한다.
+        command -v nasm >/dev/null || brew install nasm
 
     # VCPKG_INSTALLATION_ROOT는 러너가 프로세스 환경에만 넣어 주는 값이라 `env` 컨텍스트에
     # 없다. `${{ env.VCPKG_INSTALLATION_ROOT }}`를 경로에 쓰면 빈 문자열이 되어 캐시가
@@ -91,56 +94,44 @@ runs:
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ${{ (steps.vcpkg-win.outputs.root || steps.vcpkg-unix.outputs.root) }}/installed
-        # 기능 이름이나 설치 명령을 바꾸면 v2 접두사를 올려 이전 캐시를 무효화한다.
+        # 기능 이름이나 매니페스트를 바꾸면 v2 접두사를 올려 이전 캐시를 무효화한다.
         # 그래야 오래된 installed 트리를 복원해 설치를 건너뛰는 일이 없다.
-        key: vcpkg-libheif-v2-${{ (steps.vcpkg-win.outputs.triplet || steps.vcpkg-unix.outputs.triplet) }}-${{ hashFiles('Cargo.toml', 'Cargo.lock', '.github/actions/setup-rust-native/action.yml') }}
+        key: vcpkg-deps-v2-${{ (steps.vcpkg-win.outputs.triplet || steps.vcpkg-unix.outputs.triplet) }}-${{ hashFiles('vcpkg.json', 'Cargo.toml', 'Cargo.lock') }}
         restore-keys: |
-          vcpkg-libheif-v2-${{ (steps.vcpkg-win.outputs.triplet || steps.vcpkg-unix.outputs.triplet) }}-
+          vcpkg-deps-v2-${{ (steps.vcpkg-win.outputs.triplet || steps.vcpkg-unix.outputs.triplet) }}-
 
-    # 러너 이미지의 vcpkg 포트 버전에 따라 HEVC 디코더 기능 이름이 다르다. 최신
-    # 포트는 `libde265`, 예전 포트는 `core`다. 어느 쪽이든 x265 인코더는 넣지 않는다.
-    - name: Install libheif via vcpkg (Windows)
+    # 매니페스트 모드(`vcpkg.json`)라 의존성과 버전 pin이 저장소에 있다.
+    # classic 명령(`vcpkg install libheif...`)은 pin을 무시하므로 쓰지 않는다.
+    # `--x-install-root`는 pin을 그대로 두고 설치 위치만 vcpkg 루트로 옮긴다.
+    # 빌드 스크립트와 pkg-config가 그 위치(`installed/<triplet>`)를 보기 때문이다.
+    - name: Install vcpkg dependencies (Windows)
       if: runner.os == 'Windows' && steps.vcpkg-cache.outputs.cache-hit != 'true'
       shell: pwsh
-      run: |
-        $port = Get-Content "$env:VCPKG_INSTALLATION_ROOT\ports\libheif\vcpkg.json" -Raw | ConvertFrom-Json
-        $features = $port.features.PSObject.Properties.Name
-        $hevc = if ($features -contains "libde265") {
-          "libde265"
-        } elseif ($features -contains "core") {
-          "core"
-        } else {
-          throw "libheif 포트에서 HEVC 디코더 기능을 찾지 못했다."
-        }
-        vcpkg install "libheif[$hevc,aom]:x64-windows"
+      run: vcpkg install --triplet x64-windows --x-install-root="$env:VCPKG_INSTALLATION_ROOT/installed"
 
-    - name: Install libheif via vcpkg (Linux, macOS)
+    - name: Install vcpkg dependencies (Linux, macOS)
       if: runner.os != 'Windows' && steps.vcpkg-cache.outputs.cache-hit != 'true'
       shell: bash
       run: |
         root="${{ steps.vcpkg-unix.outputs.root }}"
-        triplet="${{ steps.vcpkg-unix.outputs.triplet }}"
-        hevc="$(python3 - "$root/ports/libheif/vcpkg.json" <<'PY'
-        import json
-        import sys
+        "$root/vcpkg" install --triplet "${{ steps.vcpkg-unix.outputs.triplet }}" --x-install-root="$root/installed"
 
-        features = json.load(open(sys.argv[1], encoding="utf-8"))["features"]
-        print("libde265" if "libde265" in features else "core")
-        PY
-        )"
-        "$root/vcpkg" install "libheif[$hevc,aom]:$triplet"
-
-    - name: Configure libheif environment (Windows)
+    # Windows는 `FFMPEG_LIBS_DIR`로 prebuilt 바인딩(`FFMPEG_BINDING_PATH`,
+    # `.cargo/config.toml` 고정)과 링크 경로를 함께 준다. Linux와 macOS는 pkg-config를
+    # 써서 dav1d 같은 전이 정적 의존성까지 링크한다. `FFMPEG_LIBS_DIR`를 주면
+    # rusty_ffmpeg이 FFmpeg 라이브러리만 링크해 dav1d 심볼이 빠진다.
+    - name: Configure vcpkg environment (Windows)
       if: runner.os == 'Windows'
       shell: pwsh
       run: |
         echo "VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT" | Out-File -FilePath $env:GITHUB_ENV -Append
         echo "VCPKGRS_DYNAMIC=1" | Out-File -FilePath $env:GITHUB_ENV -Append
         echo "PKG_CONFIG_PATH=$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\lib\pkgconfig" | Out-File -FilePath $env:GITHUB_ENV -Append
+        echo "FFMPEG_LIBS_DIR=$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\lib" | Out-File -FilePath $env:GITHUB_ENV -Append
         echo "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
 
     # 정적 라이브러리라 pkg-config가 `--static`으로 의존 라이브러리까지 풀어야 한다.
-    - name: Configure libheif environment (Linux, macOS)
+    - name: Configure vcpkg environment (Linux, macOS)
       if: runner.os != 'Windows'
       shell: bash
       run: |

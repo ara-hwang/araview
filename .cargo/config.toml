@@ -1,2 +1,7 @@
 [env]
 VCPKGRS_DYNAMIC = "1"
+# FFmpeg FFI 바인딩은 저장소에 고정한 생성물을 쓴다.
+# rusty_ffmpeg의 빌드 스크립트가 돌리는 bindgen이 새 libclang에서
+# `AVFormatContext`를 opaque로 만들어 rsmpeg이 컴파일되지 않기 때문이다.
+# 상세: vendor/rusty_ffmpeg-binding.rs 상단 주석.
+FFMPEG_BINDING_PATH = { value = "vendor/rusty_ffmpeg-binding.rs", relative = true }

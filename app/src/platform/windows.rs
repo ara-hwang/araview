@@ -62,6 +62,8 @@ const SWP_NOACTIVATE: u32 = 0x0010;
 const ERROR_ALREADY_EXISTS: u32 = 183;
 const ERROR_PIPE_CONNECTED: u32 = 535;
 const ERROR_INVALID_PARAMETER: u32 = 87;
+/// 개발 전용 제어 파이프에서만 쓴다.
+#[cfg(debug_assertions)]
 const PIPE_ACCESS_DUPLEX: u32 = 0x0000_0003;
 const PIPE_ACCESS_INBOUND: u32 = 0x0000_0001;
 const PIPE_UNLIMITED_INSTANCES: u32 = 255;

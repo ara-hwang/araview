@@ -31,7 +31,7 @@ npm run release -- patch --dry-run  # 계획만 출력
 `scripts/release.mjs`가 다음을 순서대로 수행합니다.
 
 1. `release` 브랜치, 깨끗한 작업 트리, `origin/release`와 동기화 상태, 태그 중복 여부를 확인합니다.
-2. `app/Cargo.toml`과 `Cargo.lock`의 버전을 올립니다. `cargo metadata --locked`와 `npm run docs:check`로 검증하고, 실패하면 파일을 되돌립니다.
+2. `app/Cargo.toml`과 `Cargo.lock`, `vcpkg.json`의 버전을 올립니다. `cargo metadata --locked`와 `npm run docs:check`로 검증하고, 실패하면 파일을 되돌립니다.
 3. `chore: 버전 X.Y.Z`로 커밋하고 태그를 만든 뒤 `release`와 태그를 한 번에(`--atomic`) 푸시합니다. 푸시 전에 확인을 묻고, `--yes`로 생략할 수 있습니다.
 
 ### 베타 릴리스 (`main`)
@@ -63,7 +63,7 @@ npm run release -- beta --dry-run
 
 ## 태그 없이 파이프라인 시험
 
-Actions 탭에서 Release 워크플로를 수동 실행(`workflow_dispatch`)하면 검증, 세 OS 빌드, 서명, 피드 생성까지 같은 과정을 돌리고 릴리스는 만들지 않습니다. 설치 프로그램, `.sig`, `update-feed.json`, Linux tar.gz, macOS dmg, `SHA256SUMS.txt`, 릴리스 노트가 `release-dry-run` 아티팩트로 남습니다. 워크플로나 빌드 스크립트를 고친 뒤 태그를 달기 전에 쓰세요. 수동 실행은 안정 경로를 시험합니다.
+Actions 탭에서 Release 워크플로를 수동 실행(`workflow_dispatch`)하면 검증, 세 OS 빌드, 서명, 피드 생성까지 같은 과정을 돌리고 릴리스는 만들지 않습니다. 설치 프로그램, `.sig`, `update-feed.json`, `latest-gpui.json`, `feed-notes.md`, `release-notes.md`, Linux tar.gz, macOS dmg, `SHA256SUMS.txt`가 `release-dry-run` 아티팩트로 남습니다. 워크플로나 빌드 스크립트를 고친 뒤 태그를 달기 전에 쓰세요. 수동 실행은 안정 경로를 시험합니다.
 
 ## 업데이트 피드와 채널
 

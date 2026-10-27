@@ -31,6 +31,8 @@ use araview_core::comic_info::ComicInfo;
 use araview_core::file_availability::FileAvailability;
 use araview_core::image::{ImageInfo, is_archive_file};
 use araview_core::ops::{self, DirListOptions, DirSortKey};
+use araview_core::video_audio::AudioStream;
+use araview_core::video_player::VideoPlayer;
 use gpui_kit::component::button::{Button, ButtonVariants as _};
 use gpui_kit::component::empty::{
     Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyMediaVariant, EmptyTitle,
@@ -154,6 +156,13 @@ pub struct AraView {
     frame_started: Instant,
     /// 끝까지 재생한 횟수. 유한 반복 애니메이션을 마지막 회차에서 멈추는 데 쓴다.
     loops_done: u32,
+    /// 동영상 재생기. 단일 보기의 동영상 페이지에서만 열린다(§7.6).
+    video: Option<VideoPlayer>,
+    video_seq: u64,
+    video_controls: Option<viewport::VideoControls>,
+    video_audio_stream: Option<AudioStream>,
+    video_frame_pts: Option<u64>,
+    video_clock_ms: u64,
     /// 뒤로 넘기기 전에 도착할 자리의 페이지 크기를 확인하는 중인지.
     pending_back: bool,
     pixel_view: Option<viewport::PixelView>,
@@ -270,6 +279,12 @@ impl AraView {
             frame: 0,
             frame_started: Instant::now(),
             loops_done: 0,
+            video: None,
+            video_seq: 0,
+            video_controls: None,
+            video_audio_stream: None,
+            video_frame_pts: None,
+            video_clock_ms: 0,
             pending_back: false,
             pixel_view: None,
             wt_anchor: 0,
@@ -332,7 +347,7 @@ impl AraView {
         this
     }
 
-    /// 이미지 필터가 걸린 파일 선택 창을 연다. GPUI의 경로 선택 창에는 형식 필터가
+    /// 이미지·동영상 필터가 걸린 파일 선택 창을 연다. GPUI의 경로 선택 창에는 형식 필터가
     /// 없어 네이티브 대화상자를 직접 쓴다.
     fn prompt_open(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let dialog = rfd::AsyncFileDialog::new()
@@ -1146,16 +1161,22 @@ impl AraView {
 impl Render for AraView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.advance_animation(window);
+        self.advance_video(window, cx);
+        if !self.has_video(cx) {
+            self.close_video();
+        }
         let settings = SettingsStore::global(cx).settings.clone();
         let reading = self.picture.is_some() || !self.shown.is_empty();
         // 크롬 숨김은 이미지를 보고 있을 때만 적용한다. 홈에서는 항상 보인다.
         let hide_all = reading && settings.auto_hide_ui;
         let hide_header = reading && (settings.menu_bar_hidden || settings.auto_hide_ui);
         let animated = self.has_animation(cx);
+        let video = self.has_video(cx);
         // 애니메이션 컨트롤이 하단 독으로 이동했으므로, 애니메이션 이미지에서는
-        // 목록이 하나뿐이어도 독을 보여 컨트롤을 노출한다.
-        let show_dock =
-            reading && (self.list.len() > 1 || animated) && (!hide_all || self.peek_bottom);
+        // 목록이 하나뿐이어도 독을 보여 컨트롤을 노출한다. 동영상도 같다.
+        let show_dock = reading
+            && (self.list.len() > 1 || animated || video)
+            && (!hide_all || self.peek_bottom);
         let show_status = reading && (!hide_all || self.peek_bottom);
         let dock_position = settings.dock_position;
         let context_menu = settings.mouse.right_click == MouseAction::ContextMenu;

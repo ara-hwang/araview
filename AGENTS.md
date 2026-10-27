@@ -12,9 +12,12 @@
 
 - Changing behavior: read the matching `SPEC.md` section before editing (formats §2, file open §4, cache §9, settings §13, shortcuts and command palette §14, operations §15, data model §16, errors §17, rendering path §18, window and release §20), then update the sections §22 lists.
 - Writing or reviewing code: `CODING_STANDARDS.md`.
-- Changing visuals or motion: `DESIGN.md`. Judging product scope: `PRODUCT.md`.
-- Locating a module or setting up the dev environment: `docs/development.md`.
-- Adding a supported format or a core operation: the matching playbook in `docs/playbooks.md`.
+- Changing visuals or motion: `DESIGN.md`.
+- Judging product scope: `PRODUCT.md`.
+- Locating a module: `docs/development.md` "앱 구조 요약".
+- Setting up the dev environment: `docs/development.md` "요구 사항".
+- Adding a supported format: `docs/playbooks.md` "Add a supported format".
+- Adding a core operation: `docs/playbooks.md` "Add an `araview-core` operation".
 
 ## Verify
 
@@ -24,9 +27,9 @@ Run both passes yourself, unasked, and report every command with its result.
 
 Each command must exit 0.
 
-1. `cargo fmt --all`
+1. `cargo fmt --all --check`
 2. `cargo clippy --workspace --all-targets -- -D warnings`
-3. `npm run docs:check` (changed supported extensions, settings keys, versions, or the docs listing them: `SPEC.md` §2/§13, `docs/development.md`)
+3. `npm run docs:check`
 
 ### On completion, once
 

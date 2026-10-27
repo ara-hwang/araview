@@ -50,6 +50,11 @@ pub const ACTION_LABELS: &[(&str, &str)] = &[
     ("toggleGifPlayback", "menu.gifPlayPause"),
     ("gifPrevFrame", "menu.gifPrevFrame"),
     ("gifNextFrame", "menu.gifNextFrame"),
+    ("videoSeekBack", "menu.videoSeekBack"),
+    ("videoSeekFwd", "menu.videoSeekFwd"),
+    ("videoSpeedDown", "menu.videoSpeedDown"),
+    ("videoSpeedUp", "menu.videoSpeedUp"),
+    ("videoMute", "menu.videoMute"),
 ];
 
 pub fn label_key(action: &str) -> Option<&'static str> {

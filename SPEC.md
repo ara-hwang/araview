@@ -20,7 +20,7 @@
 
 ## 2. 지원 포맷
 
-총 49개 확장자(이미지 47종 + 아카이브 2종). 진실은 `crates/araview-core/src/image.rs` (`SUPPORTED_EXTENSIONS`, `get_mime_type`).
+총 54개 확장자(이미지 47종 + 동영상 5종 + 아카이브 2종). 진실은 `crates/araview-core/src/image.rs` (`SUPPORTED_EXTENSIONS`, `get_mime_type`).
 
 ### 2.1 순수 이미지 47종
 
@@ -50,9 +50,21 @@
 | `ppm`         | `image/x-portable-pixmap`   | JPEG sidecar 트랜스코드 후 렌더(읽기 전용)                                                                               |
 | `pgm`         | `image/x-portable-graymap`  | JPEG sidecar 트랜스코드 후 렌더(읽기 전용)                                                                               |
 | `pbm`         | `image/x-portable-bitmap`   | JPEG sidecar 트랜스코드 후 렌더(읽기 전용). 1비트 비트맵                                                                  |
-| `cr2`, `nef`, `nrw`, `arw`, `dng`, `orf`, `rw2`, `pef`, `srw`, `cr3`, `raf`, `mrw`, `sr2`, `srf`, `rwl`, `3fr`, `kdc`, `dcr`, `iiq` | `image/x-raw` | JPEG sidecar 트랜스코드 후 렌더(읽기 전용). 센서 데이터를 현상하지 않고 RAW에 든 카메라 제작 JPEG 미리보기를 꺼내 쓰고(2.3절), 못 찾으면 rawler 폴백(미리보기 → 썸네일 → 센서 현상). 방향은 IFD0 Orientation(1~8)을 따르며, 폴백에서는 rawler 메타데이터의 Orientation을 따른다 |
+| `cr2`, `nef`, `nrw`, `arw`, `dng`, `orf`, `rw2`, `pef`, `srw`, `cr3`, `raf`, `mrw`, `sr2`, `srf`, `rwl`, `3fr`, `kdc`, `dcr`, `iiq` | `image/x-raw` | JPEG sidecar 트랜스코드 후 렌더(읽기 전용). 센서 데이터를 현상하지 않고 RAW에 든 카메라 제작 JPEG 미리보기를 꺼내 쓰고(2.4절), 못 찾으면 rawler 폴백(미리보기 → 썸네일 → 센서 현상). 방향은 IFD0 Orientation(1~8)을 따르며, 폴백에서는 rawler 메타데이터의 Orientation을 따른다 |
 
-### 2.2 아카이브 2종
+### 2.2 동영상 5종
+
+목록·연결·판별에 더해 첫 프레임 정지 미리보기(포스터)와 본격 재생을 지원한다. 디코더는 rsmpeg(FFmpeg 8.x, MIT)이며, `vcpkg.json` 매니페스트가 `builtin-baseline`으로 FFmpeg 8.0.1을 고정한다(`rsmpeg 0.18`이 8.0 헤더 기준). 재생 동작은 7.6절을 따른다. `crates/araview-core/src/video.rs`의 `VideoProbe`(메타데이터)와 포스터 JPEG sidecar(`paint/`의 `video-<hash>.jpg`)가 렌더·썸네일·클립보드의 입력이다.
+
+| 확장자 | MIME                   | 비고                                                              |
+| ------ | ---------------------- | ----------------------------------------------------------------- |
+| `mp4`  | `video/mp4`            | 첫 프레임 포스터로 표시. ftyp 브랜드(`isom`, `mp41` 등)로 판별     |
+| `mov`  | `video/quicktime`      | 첫 프레임 포스터로 표시. ftyp 브랜드(`qt  `)로 판별                |
+| `webm` | `video/webm`           | 첫 프레임 포스터로 표시. EBML 계열 판별 후 확장자가 최종 MIME을 정함 |
+| `mkv`  | `video/x-matroska`     | 첫 프레임 포스터로 표시. EBML 계열 판별 후 확장자가 최종 MIME을 정함 |
+| `avi`  | `video/x-msvideo`      | 첫 프레임 포스터로 표시. RIFF/`AVI ` 시그니처로 판별               |
+
+### 2.3 아카이브 2종
 
 | 확장자 | MIME                            | 비고                                  |
 | ------ | ------------------------------- | ------------------------------------- |
@@ -63,13 +75,14 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 
 백엔드 판별:
 
-- MIME은 확장자를 1차로 보되, 렌더 경로를 정하는 `resolve_mime`(`image.rs`)이 파일 선두 32바이트 시그니처(`sniff.rs`)로 보정한다. 이름이 바뀐 파일(HEIC를 `.jpg`로 저장 등)이나 확장자 없는 파일도 올바른 경로를 탄다. PNG 시그니처 파일은 확장자가 `apng`이거나 첫 `IDAT` 앞에 `acTL` 청크가 있으면 `image/apng`로 보고한다(확장자가 `.png`인 APNG 포함). Radiance HDR(`#?RADIANCE`)은 시그니처로 판별한다. 시그니처가 불확실한 SVG, 아카이브, TGA, PNM, HEIF/AVIF 공용 브랜드(`mif1`)는 확장자를 따른다. 폴더 목록은 확장자 기준 그대로다.
+- MIME은 확장자를 1차로 보되, 렌더 경로를 정하는 `resolve_mime`(`image.rs`)이 파일 선두 32바이트 시그니처(`sniff.rs`)로 보정한다. 이름이 바뀐 파일(HEIC를 `.jpg`로 저장 등)이나 확장자 없는 파일도 올바른 경로를 탄다. PNG 시그니처 파일은 확장자가 `apng`이거나 첫 `IDAT` 앞에 `acTL` 청크가 있으면 `image/apng`로 보고한다(확장자가 `.png`인 APNG 포함). Radiance HDR(`#?RADIANCE`)은 시그니처로 판별한다. 시그니처가 불확실한 SVG, 아카이브, TGA, PNM, HEIF/AVIF 공용 브랜드(`mif1`)는 확장자를 따른다. 동영상은 ftyp 브랜드(`video/mp4`, `video/quicktime`), RIFF/`AVI `(`video/x-msvideo`), EBML(`video/x-matroska` 계열, `webm`/`mkv`는 확장자가 최종 판별)로 판별한다. 폴더 목록은 확장자 기준 그대로다.
 
-- `is_image_file`: MIME이 `application/`으로 시작하지 않는 지원 파일.
+- `is_image_file`: `image/` MIME인 지원 파일.
+- `is_video_file`: `video/` MIME인 지원 파일.
 - `is_archive_file`: 위 2종 MIME 해당.
-- `is_supported_file`: 둘 중 하나.
+- `is_supported_file`: 셋 중 하나.
 
-### 2.3 제외 포맷
+### 2.4 제외 포맷
 
 - PSB는 제외 유지.
   - PSB: 실제 PSB는 `8BPS` + version 2인데 디코더가 없어 진입 차단한다(`psd` 크레이트는 PSD만 지원).
@@ -98,7 +111,9 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 
 - 열린 이미지가 없으면 홈을 보여준다.
 - 구성: 읽기 영역 + 이미지 목록 도크(상/하/좌/우) + 드래그 오버레이 + 썸네일 그리드(선택) + 이름 변경 다이얼로그.
-- 도크: 뷰어 가장자리 플로우에 붙으며 읽기 영역을 밀어낸다. 위치(`dockPosition`, 기본 `bottom`), 표시(`dockVisible`, 기본 펼침), 썸네일 크기(`dockThumbSize` S/M/L), 파일명(`dockShowName`)/번호(`dockShowIndex`)는 보기 설정에서만 바꾼다. 바 전체를 접으면 도크는 사라지고, 상태바의 목록 버튼으로 다시 펼친다. 목록은 휠·스크롤바로 단순 스크롤만 하며(이미지 이동 아님), 현재 이미지가 바뀔 때만 그 항목이 보이도록 따라간다. 보이는 칸(앞뒤 여유 포함)만 그리고 그 범위의 썸네일을 요청한다. 접힘·자동숨김 동안에도 목록 스크롤 위치와 로드한 썸네일이 유지된다. 이미지가 2장 이상일 때만 표시한다. 읽기 영역 좌우 가장자리에는 이전/다음 화살표 버튼이 있다(우→좌 양쪽 보기는 왼쪽이 다음, 순환 이동이 꺼져 있으면 처음·끝에서 비활성).
+- 도크: 뷰어 가장자리 플로우에 붙으며 읽기 영역을 밀어낸다. 위치(`dockPosition`, 기본 `bottom`), 표시(`dockVisible`, 기본 펼침), 썸네일 크기(`dockThumbSize` S/M/L), 파일명(`dockShowName`)/번호(`dockShowIndex`)는 보기 설정에서만 바꾼다. 바 전체를 접으면 도크는 사라지고, 상태바의 목록 버튼으로 다시 펼친다.
+- 도크 스크롤: 스크롤바는 항상 표시한다(OS 자동 숨김 무시). 목록은 휠·스크롤바로 단순 스크롤만 하며(이미지 이동 아님), 현재 이미지가 바뀔 때만 그 항목이 보이도록 따라간다.
+- 도크 렌더: 보이는 칸(앞뒤 여유 포함)만 그리고 그 범위의 썸네일을 요청한다. 접힘·자동숨김 동안에도 목록 스크롤 위치와 로드한 썸네일이 유지된다. 이미지가 2장 이상일 때만 표시한다. 읽기 영역 좌우 가장자리에는 이전/다음 화살표 버튼이 있다(우→좌 양쪽 보기는 왼쪽이 다음, 순환 이동이 꺼져 있으면 처음·끝에서 비활성).
 - 도크 구성: 한 줄에 썸네일 목록(가상화)만 둔다. 이전/다음 버튼과 슬라이더는 없다. 목록 접기 버튼과 그리드 토글 버튼을 상태바 왼쪽(파일명 앞)에 두고, 이미지가 2장 이상이거나 애니메이션일 때만 보인다. 목록 접기 버튼은 접힌 도크를 다시 펼치는 토글이다. 목록은 폴더/아카이브의 모든 항목을 같은 순서로 유지하며, 보이는 창을 먼저 채운 뒤 나머지 썸네일을 이어서 로드한다. 우→좌 양쪽 보기(`right-to-left`, 만화 자동 판정 포함)에서 가로 도크(상/하)는 읽는 방향을 따라 첫 장을 오른쪽 끝에 두고 왼쪽으로 늘어놓는다. 세로 도크(좌/우)는 위에서 아래 그대로다.
 - 도크 위 휠은 설정된 휠 동작(`wheel`)을 따른다(기본: 위=이전, 아래=다음, Ctrl+휠=확대/축소). 동작이 `none`이면 목록 스크롤로 넘긴다. 웹툰 모드에서도 도크 휠은 이동으로 동작한다.
 - `G`(기본, 재할당 가능)로 썸네일 그리드 오버레이를 연다. 열 때 현재 이미지를 중앙에 둔다.
@@ -257,10 +272,22 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 
 ### 7.5 GIF/APNG 재생 제어
 
-- 단일 보기에서 GIF와 APNG는 프레임을 디코드해 재생/정지(`P`), 프레임 이동(`,`/`.`), 프레임 카운터를 제공한다. 정지 GIF/PNG와 양쪽/웹툰 보기에서는 첫 프레임을 정지 상태로 보여준다.
+- 단일 보기에서 GIF와 APNG는 프레임을 디코드해 재생/정지(`P`), 프레임 이동(`,`/`.`), 프레임 카운터를 제공한다. 카운터는 4자리 고정 슬롯을 쓰고, 10,000프레임 이상은 앞자리를 줄임표로 대체해(`…2345/…9999`) 어떤 애니메이션이든 같은 폭을 차지한다. 하단 오버레이는 읽기 영역 가로를 모두 채운다. 정지 GIF/PNG와 양쪽/웹툰 보기에서는 첫 프레임을 정지 상태로 보여준다.
 - 재생은 이미지 진입 시 자동 시작하며, OS 모션 최소화(`prefers-reduced-motion: reduce`)면 정지 상태로 시작한다.
 - 단일/다중 프레임 판정과 반복 횟수는 디코더 트랙 정보를 따르고, 유한 반복 GIF는 마지막 회차에서 멈춘다.
 - 좁은 창에서 헤더는 500 논리 px 최소 폭에서도 좌측 파일 메뉴, 우측 팔레트/설정/항상 위 메뉴와 창 최소화·최대화·닫기 캡션 버튼을 유지한다. 690px 미만에서는 맞춤/줌, 840px 미만에서는 보기 모드, 단일 보기 1010px 미만에서는 회전/반전 그룹을 차례로 숨긴다. 애니메이션 재생 제어(재생/정지, 프레임 이동, 프레임 카운터)는 헤더가 아니라 하단 독에 표시한다. 어느 폭에서도 우측 메뉴가 캡션 버튼과 겹치지 않아야 한다. 단축키와 명령 팔레트는 항상 쓸 수 있다.
+
+### 7.6 동영상 재생
+
+- 단일 보기에서만 재생한다. 양쪽·웹툰 보기에서는 첫 프레임 정지 상태로 보여준다(포스터).
+- 진입 시 자동 재생한다(`videoAutoplay`, 기본 true). OS 모션 최소화(`prefers-reduced-motion: reduce`)면 정지 상태로 시작한다.
+- 전송 제어는 하단 독에 둔다(애니메이션 오버레이와 같은 자리): 재생/정지 버튼, 타임라인 스크럽, 현재/전체 시간, 속도, 음량·음소거, 프레임 카운터. 전송 컨트롤은 읽기 영역 가로를 모두 채우고 타임라인이 남는 폭을 차지한다. 프레임 카운터는 4자리 고정 슬롯을 쓰고, 10,000프레임 이상은 앞자리를 줄임표로 대체한다. 시간·속도·음소거 표시에도 고정 폭을 주어 값이 바뀌어도 컨트롤 내부 폭이 흔들리지 않게 한다. 창 폭이 720px 미만이면 속도·음량·음소거 버튼을 접어 재생/정지, 타임라인, 시간, 프레임 카운터만 남긴다. 단축키와 명령 팔레트는 항상 쓸 수 있다.
+- `P` 재생/정지, `,`/`.` 1프레임 이동(정지 후 이동), `J`/`L` 10초 뒤/앞 이동, `[`/`]` 속도 내림/올림(`0.25/0.5/1/1.5/2`), `M` 음소거.
+- 속도와 음소거는 세션 단위다. 음량(`videoVolume`, 기본 80)은 저장된다.
+- 재생 프레임은 긴 변 기준 1920px로 줄여 디코드한다(원본이 더 작으면 그대로). 표시 해상도보다 큰 원본의 변환·업로드 비용을 줄이기 위해서다. swscale은 UI로 넘길 BGRA 버퍼에 바로 쓰고, 프레임마다 중간 사본을 만들지 않는다. 회전·반전은 재생 프레임에도 적용한다.
+- 탐색은 키프레임 기준 탐색 후 목표 지점까지 순방향 디코드라 프레임 정확도를 보장한다. 탐색 직후에는 첫 프레임(보통 키프레임)을 먼저 보여 주어 긴 GOP에서도 화면이 바로 반응한다. 타임라인을 빠르게 끌어 탐색 명령이 연속되면 마지막 목표만 적용한다. 오디오가 있으면 오디오 클럭이 마스터, 없으면 단조 클럭이 마스터다. 오디오 장치를 열 수 없으면 영상만 단조 클럭으로 재생한다. 속도는 영상·오디오에 함께 적용된다.
+- 오디오 출력은 오디오 콜백이 실시간 스레드라는 전제를 지킨다. 콜백은 공유 큐 잠금을 기다리지 않고 200ms 지역 버퍼로 재생하며, 모자랄 때만 `try_lock`으로 보충한다. 재생 시작과 탐색 뒤에는 60ms 선행 버퍼가 찰 때까지 소리를 내지 않고 클럭도 세우지 않는다(끊김 대신 짧은 대기). 큐가 마르거나 다시 차면 5ms 페이드로 이어, 표본이 0으로 튀는 클릭을 막는다. 오디오 클럭은 실제로 낸 소리만큼만 진행하고, 스트림이 끝났거나 400ms 넘게 비면 클럭만 진행해 영상이 멈추지 않게 한다. 속도는 선형 보간으로 소스를 앞당기거나 늦춘다. 출력 장치는 프로브가 고른 설정과 정확히 같은 것을 열고, 출력 버퍼는 백엔드가 허용하면 1024프레임으로 키운다. 정지 중에는 지역 버퍼를 버리지 않고 1초까지만 앞서 디코드해, 재개가 멈춘 지점에서 이어지고 재생 위치가 건너뛰지 않는다. 끊긴 횟수는 `audioUnderruns`로 센다(제어 채널 `state.video`).
+- 정보 패널에 동영상 섹션(치수·길이·fps·코덱·오디오)을 둔다(`showVideoInfo`, 기본 true).
 
 ## 8. 아카이브
 
@@ -318,7 +345,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 ### 9.3 썸네일
 
 - `generate_thumbnail`: 기본 256px, JPEG 캐시 후 재사용한다. 상한(500MB)을 넘기면 오래된 것부터 상한의 90%까지 제거한다. 상한 초과는 새로 쓴 파일 크기를 누적해 판단하므로, 쓸 때마다 폴더 전체를 다시 훑지 않는다(HEIC/PSD sidecar의 `paint/`, 축소본의 `scaled/`, 클립보드 복사용 PNG의 `clipboard/`도 같다. 11.3절).
-- HEIC/HEIF/AVIF/JXL/PSD/TGA/DDS/EXR/QOI/HDR/PNM/RAW는 썸네일용 JPEG sidecar 경로를 쓴다(AVIF와 JXL은 표시만 네이티브이고 썸네일은 각각 libheif, jxl-oxide로 디코드한다).
+- HEIC/HEIF/AVIF/JXL/PSD/TGA/DDS/EXR/QOI/HDR/PNM/RAW는 썸네일용 JPEG sidecar 경로를 쓴다(AVIF와 JXL은 표시만 네이티브이고 썸네일은 각각 libheif, jxl-oxide로 디코드한다). 동영상은 첫 프레임 포스터 JPEG(`paint/`의 `video-<hash>.jpg`)를 쓴다(2.2절).
 - 디코드 불가 입력(SVG 등)이나 아카이브 엔트리명은 에러를 내고, UI는 원본으로 폴백한다.
 - 배치 조회와 아카이브 엔트리용 썸네일 API를 별도로 제공한다. 아카이브 썸네일은 추출물과 캐시를 재사용해 풀사이즈 로드를 피한다.
 - 도크와 그리드의 아카이브 엔트리는 청크마다 `generate_archive_thumbnails_batch` 1회로 요청한다. 추출 디렉터리 식별은 배치당 한 번만 계산하고, 워커마다 아카이브를 한 번만 열어 자기 몫의 엔트리를 추출·축소한다. 실패한 엔트리와 배치 자체의 실패는 UI가 원본 로드로 폴백한다.
@@ -355,7 +382,6 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 진실: `crates/araview-core/src/ops/metadata.rs`, `crates/araview-core/src/image_info.rs`, `app/src/app/info_panel.rs`.
 
 - `get_exif_data`는 문자열 맵을 반환한다. EXIF가 없거나 읽을 수 없는 파일은 오류가 아니라 빈 맵이고, UI는 이를 "EXIF 없음" 상태로 보여준다. 파일이 없으면 `not_found` 오류다.
-- 파일 없음이면 `not_found`, EXIF 없으면 `unsupported`.
 - `I`로 패널 토글. 패널 내부 포커스에서는 `I` 닫기를 허용한다.
 - 패널은 데이터를 기다리지 않고 바로 열린다. 읽는 동안(`infoLoading`) 로딩 안내를 보여주고, EXIF/히스토그램/파일 상세는 도착하는 대로 채운다. 읽는 중에는 아직 오지 않은 섹션을 "없음"으로 표시하지 않는다.
 - 표시 범주는 Camera, Exposure, Image, Lens, DateTime, GPS, Software 계열이다.
@@ -400,7 +426,9 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
   - trim 후 비어 있으면 거부.
   - `/`, `\` 포함 거부.
   - `< > : " | ? *` 포함 거부.
+  - 제어 문자와 BiDi 제어 문자(`U+200E`, `U+200F`, `U+202A`-`U+202E`, `U+2066`-`U+2069`) 포함 거부.
   - 끝이 공백/마침표면 거부.
+  - Windows 예약어(`CON`, `PRN`, `AUX`, `NUL`, `COM1`-`COM9`, `LPT1`-`LPT9`) 거부(확장자 앞부분 기준, 대소문자 무시).
 - 이동 전 지원 확장자 검사, 중복 이름이면 `already_exists`.
 - 이름이 그대로면 이동을 생략한다. 대소문자만 바꾸는 이름은 같은 파일이므로 중복으로 보지 않고 그대로 바꾼다.
 - 이동 뒤 새 이름으로 읽지 못하면 이름을 되돌리고 실패를 반환한다.
@@ -409,7 +437,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 ### 11.3 클립보드 복사 `Ctrl+C`
 
 - `export_clipboard_png`: 렌더 바이트(`file_path`)를 코어가 디코드해 PNG로 재인코딩하고, 파생 이미지 캐시의 `clipboard/` 아래 발행해 경로를 반환한다. UI가 그 PNG를 클립보드에 쓴다.
-- 표시와 같은 내용을 복사한다: EXIF Orientation은 표시와 같은 기준으로 JPEG와 TIFF에만 픽셀에 반영하고(§18), GIF/APNG/움직이는 WebP/움직이는 JXL은 첫 프레임만 담는다. SVG는 내재 치수로 래스터화하되 긴 변 8192px 상한을 둔다.
+- 표시와 같은 내용을 복사한다: EXIF Orientation은 표시와 같은 기준으로 JPEG와 TIFF에만 픽셀에 반영하고(§18), GIF/APNG/움직이는 WebP/움직이는 JXL은 첫 프레임만 담는다. 동영상은 포스터(첫 프레임) JPEG를 PNG로 담는다. SVG는 내재 치수로 래스터화하되 긴 변 8192px 상한을 둔다.
 - 알파는 렌더 바이트에 있는 만큼 유지한다(AVIF는 libheif RGBA 디코드, JXL은 jxl-oxide 디코드, SVG는 resvg 래스터화). AVIF와 JXL은 8비트로 디코드하므로 고비트/HDR 원본은 8비트로 내려간다.
 - 일반 래스터는 1억 픽셀(할당 1GiB)을 넘으면 `TooLarge`로 거부한다. HEIC/HEIF/PSD 등 JPEG sidecar로 표시하는 포맷은 sidecar를 복사하므로 알파가 없다.
 - 픽셀 값은 색 변환하지 않고, 렌더 바이트의 ICC 프로파일을 PNG에 옮겨 싣는다(JPEG/PNG/WebP/AVIF/JXL). 예외로 JXL은 표시와 같게, 색 공간이 열거형으로 신호된 이미지와 CMYK 이미지를 sRGB로 변환한 픽셀과 sRGB 프로파일을 싣는다(§18). 디코드 결과와 색 공간이 다른 프로파일(CMYK 등)은 싣지 않는다.
@@ -490,6 +518,9 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 | `showWidePageAlone`     | 양쪽 보기에서 가로가 더 긴 페이지(가로 스캔)를 단독 표시                | `true`                             |
 | `showComicInfo`         | 정보 패널에 만화 정보(ComicInfo.xml) 섹션 표시                          | `true`                             |
 | `comicAutoDualView`     | 아카이브(만화)를 열면 자동으로 양쪽 보기, ComicInfo 방향 적용           | `true`                             |
+| `videoAutoplay`         | 동영상을 열면 자동 재생                                                | `true`                             |
+| `videoVolume`           | 동영상 음량(0~100)                                                      | `80`                               |
+| `showVideoInfo`         | 정보 패널에 동영상 섹션 표시                                           | `true`                             |
 | `fitMode`               | 맞춤 기억 `width \| height \| screen \| auto`                           | `auto`                             |
 | `dockPosition`          | 이미지 목록 위치 `top \| bottom \| left \| right`                       | `bottom`                           |
 | `dockVisible`           | 이미지 목록 표시                                                        | `true`                             |
@@ -549,6 +580,11 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 | 애니메이션 재생/정지   | `P`               |
 | 이전 애니메이션 프레임 | `,`               |
 | 다음 애니메이션 프레임 | `.`               |
+| 동영상 10초 뒤로       | `J`               |
+| 동영상 10초 앞으로     | `L`               |
+| 동영상 속도 내리기     | `[`               |
+| 동영상 속도 올리기     | `]`               |
+| 동영상 음소거          | `M`               |
 
 그리드 내부: 화살표(선택 이동), `Home`/`End`, `PageUp`/`PageDown`, `Enter`(점프), `Esc`/`G`(닫기). 그리드가 열려 있는 동안 다른 뷰어 단축키는 동작하지 않는다.
 
@@ -569,7 +605,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 ### 14.4 명령 팔레트 `Ctrl+K`
 
 - 그룹 순서: `file → navigate → view → display → system`.
-- 이미지가 있을 때만, 이동 가능할 때만, 제어 가능한 GIF일 때만, 아카이브 안일 때만(표지 지정) 활성화되는 명령이 있다. `system` 그룹은 항상 활성이다.
+- 이미지가 있을 때만, 이동 가능할 때만, 제어 가능한 GIF·동영상일 때만, 아카이브 안일 때만(표지 지정) 활성화되는 명령이 있다. `system` 그룹은 항상 활성이다.
 - 공백 분리 토큰 AND 매칭이며 라벨 앞부분 일치를 우선한다.
 - 한국어 UI에서도 영문 별칭으로 검색된다.
 - `Esc`, 명령 확정, 팔레트 영역 밖 클릭으로 닫힌다. 닫으면 뷰어에 포커스가 돌아간다. 영역 밖 닫기는 뗌에서 정해지므로 누름만으로는 닫히지 않는다(1절의 배경 드래그 규칙).
@@ -588,6 +624,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 | `get_image_details`                      | `filePath`                                                                                     | `ImageDetails`                         |
 | `get_archive_images`                     | `filePath`                                                                                     | `DirectoryImages`(엔트리 목록)         |
 | `get_comic_info`                         | `filePath`                                                                                     | `ComicInfo \| null`                    |
+| `get_video_info`                         | `filePath`                                                                                     | `VideoProbe`                           |
 | `set_comic_cover_pages`                  | `filePath`, `coverPages`                                                                       | `ComicInfo`                            |
 | `load_archive_image`                     | `archivePath`, `entryName`, `maxSide?`, `protect?`, `imageScalingMode?`                        | `ImageInfo`                            |
 | `archive_prefetch`                       | `archivePath`, `entryNames`                                                                    | 추출 개수 `number`                     |
@@ -640,9 +677,10 @@ Rust와 TypeScript는 같은 모양을 유지한다.
 
 - `DirectoryImages`: `{ images: string[], current_index: number, availability: ("local"|"cloud_only"|"unknown")[] }`.
 - `ThumbnailInfo`: `{ file_path: string, width: number, height: number }`.
-- `ClipboardPng`: `{ file_path: string }`. 클립보드에 쓸 PNG의 파생 이미지 캐시 경로다(11.3절).
+- `ClipboardPng`: `{ file_path: string }`. 클립보드에 쓸 PNG의 파생 이미지 캐시 경로다(11.3절). 동영상은 포스터(첫 프레임) JPEG를 PNG로 담은 경로다.
 - `OcrResult`: `{ lines: OcrLine[], width: number, height: number }`. `width`/`height`는 인식에 넣은 이미지 치수(엔진 한계로 줄였다면 줄인 뒤 값)다.
 - `OcrLine`: `{ text, rect: OcrRect, words: OcrWord[], language }`. `OcrWord`는 `{ text, rect }`, `OcrRect`는 이미지 전체를 1로 본 `{ x, y, width, height }`다.
+- `VideoProbe`: `{ mime_type: string, width: number | null, height: number | null, duration_ms: number | null, fps: number | null, codec: string | null, has_audio: boolean, decodable: boolean }`. 치수·길이·fps는 컨테이너 헤더에서 읽는다(2.2절).
 - `ExifData`: `Record<string, string>`.
 - `Histogram`: `{ r: number[256], g: number[256], b: number[256], sampled_pixels: number }`.
 - `ImageDetails`: 16.2 모양 그대로. 색상 모드, 비트/채널, 생성/수정 시각, DPI, ICC 상태를 포함한다.
@@ -668,7 +706,7 @@ UI 분류 5종:
 
 - `not-found`: 파일 이동/삭제, 빈 폴더/아카이브.
 - `permission`: 권한/잠금.
-- `unsupported`: 미지원 포맷, EXIF 없음 포함.
+- `unsupported`: 미지원 포맷.
 - `corrupt`: 디코드/읽기 실패, 손상.
 - `unknown`: 그 외.
 
@@ -682,12 +720,13 @@ UI 분류 5종:
 ## 18. 렌더링 경로
 
 - 코어는 디코드용 파일 경로를 돌려주고, UI는 그 파일을 `display.rs`로 RGBA 프레임으로 디코드해 GPU 텍스처(타일)로 올려 그린다. GPUI 텍스처는 한 변 16384px 제한과 밉맵 없는 선형 보간뿐이라 큰 이미지는 8192px 타일로 나누고 축소 단계를 CPU에서 만든다(`app/src/picture.rs`).
-- HDR 디스플레이 출력은 지원하지 않는다. Radiance HDR·EXR은 8비트 sRGB 변환으로 표시하고(2.3절), 스왑체인은 sRGB 8비트로 둔다. HDR 출력 도입 계획은 `docs/hdr-display.md`를 따른다. 개발용으로 Windows에서 `ARAVIEW_HDR_OUTPUT=1`이면 hwnd 스왑체인과 FP16 scRGB로 출력한다. 이때 Radiance HDR·EXR 정지 이미지는 원본을 선형 float로 다시 디코드해 SDR 흰색(Windows SDR 콘텐츠 밝기)을 넘는 하이라이트를 패널 피크까지 부드럽게 눌러 표시하고, 나머지 이미지와 UI는 SDR과 같은 밝기로 보인다.
+- HDR 디스플레이 출력은 지원하지 않는다. Radiance HDR·EXR은 8비트 sRGB 변환으로 표시하고(2.4절), 스왑체인은 sRGB 8비트로 둔다. HDR 출력 도입 계획은 `docs/hdr-display.md`를 따른다. 개발용으로 Windows에서 `ARAVIEW_HDR_OUTPUT=1`이면 hwnd 스왑체인과 FP16 scRGB로 출력한다. 이때 Radiance HDR·EXR 정지 이미지는 원본을 선형 float로 다시 디코드해 SDR 흰색(Windows SDR 콘텐츠 밝기)을 넘는 하이라이트를 패널 피크까지 부드럽게 눌러 표시하고, 나머지 이미지와 UI는 SDR과 같은 밝기로 보인다.
 - 디코더가 따로 필요한 HEIC/HEIF/PSD/TGA/DDS/EXR/QOI/HDR/PNM/RAW는 JPEG sidecar를(`transcode.rs`가 디코더를 고르고 `sidecar.rs`의 `SidecarSpec` 파이프라인을 공유한다), 표시 해상도 제한이 걸린 큰 래스터는 `scaled/` 사본(9.4절)을 만든다. sidecar와 아카이브 추출물, 썸네일 캐시는 `cacheStorageMode`가 `persistent`면 `%LOCALAPPDATA%\<식별자>\`의 버전된 루트(`cache-v2/`)에, `temporary`면 프로세스 수명 TempDir에 둔다.
 - JPEG와 TIFF의 EXIF Orientation(1~8)은 디코드할 때 적용하고, 치수(`ImageInfo.width/height`, `get_image_details`)와 썸네일도 같은 기준으로 회전해 보고한다(SVG/WebP/PNG/HEIC는 대상 아님).
-- RAW(CR2/CR3/NEF/NRW/ARW/DNG/ORF/RW2/PEF/SRW/RAF/MRW/SR2/SRF/RWL/3FR/KDC/DCR/IIQ)는 새 의존성 없이 `raw.rs`가 내장 JPEG 미리보기를 꺼내 디코드한다. 방향은 미리보기 JPEG가 아니라 RAW IFD0의 Orientation을 픽셀에 반영하고, TIFF 기반이 아닌 CR3/RAF는 JPEG 표지 훑기로만 미리보기를 찾아 IFD가 없으므로 방향을 적용하지 않는다. 1단계에서 미리보기를 못 찾으면 rawler(LGPL-2.1)로 폴백해 카메라 제작 미리보기 → 썸네일 → 센서 현상 순서로 디코드하고, 이때 방향은 rawler 메타데이터의 Orientation을 따른다(2.3절). 파일이 TIFF 시그니처를 가져도 확장자가 RAW이면 RAW로 본다(`resolve_mime`). 색상 모드는 `rgb` 8비트로 보고하며, 센서 쪽 정보(실제 비트 수, 색 프로파일)는 읽지 않는다.
+- RAW(CR2/CR3/NEF/NRW/ARW/DNG/ORF/RW2/PEF/SRW/RAF/MRW/SR2/SRF/RWL/3FR/KDC/DCR/IIQ)는 새 의존성 없이 `raw.rs`가 내장 JPEG 미리보기를 꺼내 디코드한다. 방향은 미리보기 JPEG가 아니라 RAW IFD0의 Orientation을 픽셀에 반영하고, TIFF 기반이 아닌 CR3/RAF는 JPEG 표지 훑기로만 미리보기를 찾아 IFD가 없으므로 방향을 적용하지 않는다. 1단계에서 미리보기를 못 찾으면 rawler(LGPL-2.1)로 폴백해 카메라 제작 미리보기 → 썸네일 → 센서 현상 순서로 디코드하고, 이때 방향은 rawler 메타데이터의 Orientation을 따른다(2.4절). 파일이 TIFF 시그니처를 가져도 확장자가 RAW이면 RAW로 본다(`resolve_mime`). 색상 모드는 `rgb` 8비트로 보고하며, 센서 쪽 정보(실제 비트 수, 색 프로파일)는 읽지 않는다.
 - JXL은 jxl-oxide(순수 Rust, 추가 DLL 없음)로 디코드한다. 코드스트림 헤더의 orientation은 디코더가 픽셀과 치수에 반영하므로 EXIF 회전을 따로 적용하지 않는다. 색 공간이 열거형으로 신호된 이미지(XYB 손실 압축, Display P3, PQ/HLG, 선형 등)는 sRGB로 변환하고, ICC 프로파일만 실린 RGB·회색조 이미지는 픽셀을 그대로 둔다. CMYK는 실린 ICC 프로파일을 moxcms(순수 Rust CMS)로 해석해 sRGB로 변환하고, 상세 패널에는 디코드 결과대로 RGB로 표시한다. 움직이는 JXL은 키프레임을 모두 디코드해 GIF/APNG/WebP와 같은 재생 경로를 타고, 전체 프레임이 애니메이션 예산(RGBA 512MB)을 넘으면 첫 프레임만 표시한다. 1억 픽셀을 넘으면 `TooLarge`로 거부한다.
 - AVIF는 libheif로 디코드한다. 이미지 시퀀스(움직이는 AVIF, `avis`)는 첫 영상 트랙의 프레임을 모두 디코드해 GIF/APNG/WebP와 같은 재생 경로를 타고, 프레임 지연은 트랙 타임스케일에서 계산한다. 전체 프레임이 애니메이션 예산(RGBA 512MB)을 넘으면 첫 프레임만 표시한다. edit list의 반복 횟수는 읽지 않고 항상 무한 반복한다. 썸네일·히스토그램·클립보드는 기본 이미지(정지 항목)를 쓴다.
+- 동영상(mp4/mov/webm/mkv/avi)은 첫 프레임 포스터 JPEG sidecar(`paint/`의 `video-<hash>.jpg`, 원본 식별 해시 + 한 변 기준)를 `file_path`로 돌려주고, UI는 이를 정지 이미지처럼 그린다. 치수(`ImageInfo.width/height`)는 포스터 기준이다. 썸네일은 같은 포스터 파이프라인을 쓰고, 클립보드 복사는 포스터의 첫 프레임을 PNG로 담는다. 히스토그램은 렌더 바이트(포스터) 기준이라 별도 분기 없이 동작한다. 재생은 스트리밍 디코드다. `video_player.rs`가 디먹스·디코드 워커 스레드를 소유하고, UI는 오디오(있으면) 또는 단조 클럭으로 `VideoFrame`(BGRA)을 뽑아 밉맵 없는 `RenderImage` 한 장으로 그려 매 프레임 교체한다. 디코드 단계에서 긴 변 1920px로 줄이고(swscale이 표시 버퍼에 직접 기록해 사본을 없앤다), 전 프레임을 미리 적재하지 않는다(7.6절).
 - 표시 보간은 `smooth`(GPU 선형 보간과 CPU 축소 단계)와 `pixelated`(최근접 확대 래스터) 두 가지다. 픽셀 보존 판정은 표시 배율이 1x 이상(확대)일 때만 적용되며, 축소 배율에서는 설정과 무관하게 항상 `smooth`로 강제된다. 자동 모드는 표시 배율이 2x 이상이면 `pixelated`로 전환한다(원본 픽셀 표시). nearest 축소는 스크린톤 같은 주기 패턴을 계단·무아레로 깨뜨린다. 단일 보기 배율은 이미지 크기에 대한 `zoom`이고, 웹툰/양쪽 보기는 렌더된 크기에서 실측한다(측정 전에는 기존 판정 유지).
 - 사용자 원본 파일은 필터링하지 않는다. 표시 해상도 상한 sidecar와 썸네일은 기존 파생 이미지 파이프라인을 유지하며, 픽셀 보존 판정은 메인 이미지 표시 힌트로만 사용한다.
 
@@ -715,11 +754,8 @@ UI 분류 5종:
 - 릴리스 파이프라인: 안정 채널 브랜치는 `release`, 베타 채널 브랜치는 `main`이다. `npm run release -- patch|minor|major|<X.Y.Z>`(`scripts/release.mjs`)는 `release`에서 `vX.Y.Z`를, `npm run release -- beta`는 `main`에서 `vX.Y.Z-beta.N`을 만든다. 스크립트가 `app/Cargo.toml`과 `Cargo.lock`의 버전을 올려 커밋하고 해당 브랜치와 태그를 함께 푸시한다. 태그 푸시를 `.github/workflows/release.yml`이 받아 태그와 버전 파일의 일치, 서명 키 Secrets를 확인한 뒤 검증(cargo fmt/test/clippy, 보안 감사, 라이선스 검사), 설치 프로그램 빌드, 서명, 업데이트 피드 생성, 원본 저장소 `ara-hwang/araview` 릴리스 생성까지 자동으로 수행한다. 안정 태그는 정식 릴리스와 `update-feed.json`을, 베타 태그는 프리릴리스와 `update-feed-beta.json`을 만들고 롤링 `beta` 릴리스의 베타 피드 자산을 갱신한다. `ci.yml`이 검증을 담당하고 릴리스가 이를 재사용한다. 권한과 절차 상세는 `docs/releasing.md`를 따른다.
 - Linux 배포: `scripts/package-linux.sh`가 `target/AraView-<버전>-linux-<arch>.tar.gz`를 만든다(`bin/araview`, `bin/licenses/`, `share/applications/com.araview.viewer.desktop`, 아이콘, `install.sh`). `install.sh`는 `~/.local`(또는 `PREFIX`)에 관리자 권한 없이 설치하고 `--uninstall`로 제거한다. `.desktop`의 `MimeType`이 지원 형식을 선언하고 `StartupWMClass`와 창 `app_id`가 식별자 `com.araview.viewer`다. libheif는 vcpkg 정적 링크다. 실행에는 X11 또는 Wayland, Vulkan, `libxkbcommon`이 필요하다.
 - macOS 배포: `scripts/package-macos.sh`가 `AraView.app`(`Info.plist`의 `CFBundleDocumentTypes`가 지원 확장자를 `Viewer`/`Alternate`로 선언, `AraView.icns`)을 만들고 ad-hoc 서명해 `target/AraView-<버전>-macos-<arch>.dmg`로 묶는다. 공증하지 않으므로 첫 실행은 우클릭 > 열기다. CI는 Apple silicon(arm64)만 빌드한다.
-- 파일 연결(Windows): 연결은 OS 확인 없이 바꿀 수 없다. macOS와 Linux는 설정에 연결 UI가 없고(탭 자체가 없다) 번들·`.desktop` 선언이 "다음으로 열기" 목록을 채운다. 연결 3그룹:
-  - Image 47종: png, apng, jpg, jpeg, jpe, jfif, gif, bmp, webp, svg, ico, avif, tif, tiff, jxl, heic, heif, psd, tga, dds, exr, qoi, hdr, pnm, pam, ppm, pgm, pbm, cr2, cr3, nef, nrw, arw, dng, orf, rw2, pef, srw, raf, mrw, sr2, srf, rwl, 3fr, kdc, dcr, iiq.
-  - Comic 1종: cbz.
-  - Archive 1종: zip.
-- HEIC/HEIF는 vcpkg `libheif[libde265,aom]`(1.21 이상, AVIF 시퀀스 디코드에 필요)으로 HEVC(`libde265`)와 AV1(`aom`, AVIF 표시/썸네일/히스토그램)만 사용한다. Windows는 동적 링크(DLL 동봉), Linux와 macOS 배포는 정적 링크다. 설치와 DLL 복사는 `docs/development.md`를 따른다.
+- 파일 연결(Windows): 연결은 OS 확인 없이 바꿀 수 없다. macOS와 Linux는 설정에 연결 UI가 없고(탭 자체가 없다) 번들·`.desktop` 선언이 "다음으로 열기" 목록을 채운다. 연결 대상은 §2의 47종 이미지 + 5종 동영상 + `cbz` + `zip`이며 별도 목록을 두지 않는다.
+- HEIC/HEIF는 vcpkg `libheif[core,aom]`(1.21 이상, AVIF 시퀀스 디코드에 필요) + `libde265`(HEVC), `aom`(AV1, AVIF 표시/썸네일/히스토그램)만 사용한다. Windows는 동적 링크(DLL 동봉), Linux와 macOS 배포는 정적 링크다. 설치와 DLL 복사는 `docs/development.md`를 따른다.
 
 ### 20.1 자동 업데이트
 
@@ -749,10 +785,11 @@ Windows 전용이다(macOS와 Linux에서는 `araview-thumb`가 빈 크레이트
 
 ## 22. 변경 시 동기화 체크리스트
 
-작업 절차는 `AGENTS.md`와 `docs/playbooks.md`를, 코드 작성 규칙은 `CODING_STANDARDS.md`를 따른다. 변경 후 아래 SPEC 절을 갱신한다.
+작업 절차는 `AGENTS.md`와 `docs/playbooks.md`를, 코드 작성 규칙은 `CODING_STANDARDS.md`를 따른다. 동작을 바꾼 커밋은 그 동작이 적힌 SPEC 절과 영향받는 문서(`docs/usage.md`, `docs/development.md`, `site/`)를 같은 커밋에 갱신한다. 해당 절이 없으면 리뷰에서 차단한다.
 
-- 포맷 추가: 2절 + 필요 시 15/16절, `samples/` 검증.
+- 포맷 추가: 2절 + 필요 시 15/16절, `samples/` 검증. §20 파일 연결 열거는 §2를 참조하고 복제하지 않는다.
 - 코어 연산 추가: 15절 연산 표 + 16절 데이터 모델.
-- 설정/단축키 추가: 12~14절.
+- 설정/단축키/휠 추가·변경: 12~14절 + `docs/usage.md` + `site/` 단축키 표.
+- UI 동작 변경(§3/§6/§7): 해당 절 + `docs/usage.md`.
 - 파생 이미지 캐시 변경: 9절 + 12~16절 + `docs/development.md`.
-- 문서 정합성 검사: `npm run docs:check`(버전, 확장자, 설정 키, plan). CI에서 PR마다 돈다.
+- 문서 정합성 검사: `npm run docs:check`(버전, 확장자, 설정 키, 단축키/휠, plan). CI에서 PR마다 돈다.
