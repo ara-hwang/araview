@@ -23,7 +23,7 @@ the relinking requirement of LGPL-2.1 section 6(a).
 
 | Library | License (upstream) | Shipped files | Note |
 | ------- | ------------------ | ------------- | ---- |
-| libheif (vcpkg libheif[core,aom]) | GNU LGPL | heif.dll | stays dynamically linked, never static |
+| libheif (vcpkg libheif[libde265,aom]) | GNU LGPL | heif.dll | stays dynamically linked, never static |
 | libde265 | GNU LGPL | libde265.dll | HEVC decode only, x265 excluded |
 | aom | BSD-2-Clause + AOM patent license | aom.dll | AV1 decode for AVIF thumbnails/histogram |
 

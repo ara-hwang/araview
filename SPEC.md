@@ -719,7 +719,7 @@ UI 분류 5종:
   - Image 47종: png, apng, jpg, jpeg, jpe, jfif, gif, bmp, webp, svg, ico, avif, tif, tiff, jxl, heic, heif, psd, tga, dds, exr, qoi, hdr, pnm, pam, ppm, pgm, pbm, cr2, cr3, nef, nrw, arw, dng, orf, rw2, pef, srw, raf, mrw, sr2, srf, rwl, 3fr, kdc, dcr, iiq.
   - Comic 1종: cbz.
   - Archive 1종: zip.
-- HEIC/HEIF는 vcpkg `libheif[core,aom]`(1.21 이상, AVIF 시퀀스 디코드에 필요) + `libde265`(HEVC), `aom`(AV1, AVIF 표시/썸네일/히스토그램)만 사용한다. Windows는 동적 링크(DLL 동봉), Linux와 macOS 배포는 정적 링크다. 설치와 DLL 복사는 `docs/development.md`를 따른다.
+- HEIC/HEIF는 vcpkg `libheif[libde265,aom]`(1.21 이상, AVIF 시퀀스 디코드에 필요)으로 HEVC(`libde265`)와 AV1(`aom`, AVIF 표시/썸네일/히스토그램)만 사용한다. Windows는 동적 링크(DLL 동봉), Linux와 macOS 배포는 정적 링크다. 설치와 DLL 복사는 `docs/development.md`를 따른다.
 
 ### 20.1 자동 업데이트
 
