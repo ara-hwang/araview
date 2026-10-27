@@ -91,20 +91,23 @@ runs:
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ${{ (steps.vcpkg-win.outputs.root || steps.vcpkg-unix.outputs.root) }}/installed
-        key: vcpkg-libheif-${{ (steps.vcpkg-win.outputs.triplet || steps.vcpkg-unix.outputs.triplet) }}-${{ hashFiles('Cargo.toml', 'Cargo.lock') }}
+        # 기능 이름이나 설치 명령을 바꾸면 v2 접두사를 올려 이전 캐시를 무효화한다.
+        # 그래야 오래된 installed 트리를 복원해 설치를 건너뛰는 일이 없다.
+        key: vcpkg-libheif-v2-${{ (steps.vcpkg-win.outputs.triplet || steps.vcpkg-unix.outputs.triplet) }}-${{ hashFiles('Cargo.toml', 'Cargo.lock', '.github/actions/setup-rust-native/action.yml') }}
         restore-keys: |
-          vcpkg-libheif-${{ (steps.vcpkg-win.outputs.triplet || steps.vcpkg-unix.outputs.triplet) }}-
+          vcpkg-libheif-v2-${{ (steps.vcpkg-win.outputs.triplet || steps.vcpkg-unix.outputs.triplet) }}-
 
+    # libheif 포트는 core 대신 libde265 기능으로 HEVC 디코더를 넣는다(x265 인코더는 제외).
     - name: Install libheif via vcpkg (Windows)
       if: runner.os == 'Windows' && steps.vcpkg-cache.outputs.cache-hit != 'true'
       shell: pwsh
-      run: vcpkg install "libheif[core,aom]:x64-windows"
+      run: vcpkg install "libheif[libde265,aom]:x64-windows"
 
     - name: Install libheif via vcpkg (Linux, macOS)
       if: runner.os != 'Windows' && steps.vcpkg-cache.outputs.cache-hit != 'true'
       shell: bash
       run: |
-        "${{ steps.vcpkg-unix.outputs.root }}/vcpkg" install "libheif[core,aom]:${{ steps.vcpkg-unix.outputs.triplet }}"
+        "${{ steps.vcpkg-unix.outputs.root }}/vcpkg" install "libheif[libde265,aom]:${{ steps.vcpkg-unix.outputs.triplet }}"
 
     - name: Configure libheif environment (Windows)
       if: runner.os == 'Windows'

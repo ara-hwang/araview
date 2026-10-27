@@ -11,7 +11,7 @@ Rust와 [GPUI Kit](https://github.com/longbridge/gpui-kit)으로 만든 Windows,
 
 - Windows 11 (x64): 정식 지원
 - macOS 11 이상, Linux x64(X11/Wayland): 실험적 지원(빌드는 확인하지만 실제 동작은 충분히 검증하지 않음)
-- Rust stable(`rust-toolchain.toml`), `libheif` 1.21 이상(Windows는 vcpkg의 `libheif[core,aom]:x64-windows`), Node.js `>= 24`(릴리스·문서 검사 스크립트용)
+- Rust stable(`rust-toolchain.toml`), `libheif` 1.21 이상(Windows는 vcpkg의 `libheif[libde265,aom]:x64-windows`), Node.js `>= 24`(릴리스·문서 검사 스크립트용)
 - OS별 준비와 배포 묶음(Windows 설치 프로그램, macOS dmg, Linux tar.gz)은 `docs/development.md` 참고.
 
 ## 로컬 개발
