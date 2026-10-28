@@ -30,6 +30,8 @@ pub(crate) const WM_GPUI_GPU_DEVICE_LOST: u32 = WM_USER + 7;
 pub(crate) const WM_GPUI_DISPLAYS_CHANGED: u32 = WM_USER + 10;
 
 const SIZE_MOVE_LOOP_TIMER_ID: usize = 1;
+/// AraView fork: 이 시간 넘게 못 그렸으면 입력 처리 중에 프레임을 그린다(약 60Hz).
+const INPUT_STARVED_FRAME_MS: u64 = 16;
 
 /// Coordinates window draws on the UI thread. Owned by the platform and
 /// shared with every window (like `WindowsPlatformState::cursor_visible`),
@@ -413,8 +415,23 @@ impl WindowsWindowInner {
         });
         let handled = !func(input).propagate;
         self.state.callbacks.input.set(Some(func));
+        if pressed_button.is_some() {
+            self.draw_input_starved_frame(handle);
+        }
 
         if handled { Some(0) } else { Some(1) }
+    }
+
+    /// AraView fork: 슬라이더 드래그처럼 버튼을 누른 채 마우스를 계속 움직이면
+    /// 입력 메시지가 큐를 채워 우선순위가 낮은 `WM_PAINT`가 오지 않는다. 그동안
+    /// 동영상·애니메이션이 멈추므로, 한 프레임 넘게 못 그렸으면 여기서 그린다.
+    fn draw_input_starved_frame(&self, handle: HWND) {
+        let starved = self.state.last_draw.get().is_none_or(|at| {
+            at.elapsed() >= std::time::Duration::from_millis(INPUT_STARVED_FRAME_MS)
+        });
+        if starved {
+            self.handle_paint_msg(handle);
+        }
     }
 
     fn handle_mouse_leave_msg(&self) -> Option<isize> {
@@ -1422,6 +1439,8 @@ impl WindowsWindowInner {
         });
 
         self.state.callbacks.request_frame.set(Some(request_frame));
+        // AraView fork: 입력 중 프레임 기아 판정용.
+        self.state.last_draw.set(Some(std::time::Instant::now()));
         self.update_ime_enabled(handle);
         unsafe { ValidateRect(Some(handle), None).ok().log_err() };
 
