@@ -46,6 +46,7 @@ npm run release -- beta --dry-run
 
 - `beta`는 현재 버전이 `X.Y.Z-beta.N`이면 `N+1`을, 안정 버전이면 다음 minor의 `beta.1`을 만듭니다.
 - 베타 태그는 프리릴리스로 게시되며 Latest 자리가 바뀌지 않습니다.
+- `main`에 푸시하면 `.github/workflows/beta-release.yml`이 위 명령(`beta --yes`)을 대신 실행해 베타를 자동으로 냅니다. 버전 커밋(`chore: 버전 ...`)은 다시 릴리스를 일으키지 않고, 연속 푸시는 줄 세워 최신 `main`으로 한 번씩 냅니다. `GITHUB_TOKEN`으로 푸시한 태그는 다른 워크플로를 깨우지 않으므로 이 워크플로가 `release.yml`을 태그 기준 `workflow_dispatch`로 직접 호출합니다. `main`에 브랜치 보호가 있으면 우회 권한이 있는 토큰을 `RELEASE_TOKEN` 시크릿으로 등록해야 하며, 이때는 태그 푸시가 `release.yml`을 직접 깨웁니다. 수동 실행(Actions 탭)도 됩니다. 안정 릴리스는 자동화하지 않습니다.
 - 베타 릴리스는 설치 프로그램과 `update-feed-beta.json`을 만들고, 롤링 `beta` 프리릴리스의 같은 이름 자산을 덮어씁니다. 앱은 이 고정 URL로 최신 베타를 찾습니다.
 
 ### 공통 확인

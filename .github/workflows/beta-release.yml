@@ -1,0 +1,55 @@
+name: Beta Release
+
+# main에 푸시되면 다음 베타 버전으로 올려(`scripts/release.mjs beta`) 커밋과 태그를
+# 푸시하고, 태그에 대해 Release 워크플로를 실행한다. 수동 실행으로도 같은 일을 한다.
+# 푸시된 태그는 `GITHUB_TOKEN`으로는 다른 워크플로를 깨우지 못하므로(무한 루프 방지
+# 규칙), Release 워크플로를 `workflow_dispatch`로 직접 호출한다.
+# `RELEASE_TOKEN` 시크릿이 있으면 푸시에 그것을 쓰고, 이때는 태그 푸시가 Release를
+# 직접 깨우므로 호출 단계를 건너뛴다.
+# main에 브랜치 보호가 있으면 이 워크플로의 버전 커밋 푸시가 거부된다. 그 경우
+# `RELEASE_TOKEN`에 우회 권한이 있는 토큰을 등록한다.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# 연속 푸시는 줄 세운다. 실행마다 최신 main을 받으므로 한 번에 묶여 릴리스된다.
+concurrency:
+  group: beta-release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  beta:
+    # 이 워크플로가 만든 버전 커밋(토큰 종류와 무관하게)에는 다시 릴리스하지 않는다.
+    if: "!startsWith(github.event.head_commit.message, 'chore: 버전 ')"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      HAS_RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN != '' }}
+
+    steps:
+      # 이벤트 SHA가 아니라 최신 main을 받는다. 앞선 실행이 버전 커밋을 올렸어도
+      # origin/main보다 뒤처졌다는 이유로 스크립트가 멈추지 않는다.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.RELEASE_TOKEN || github.token }}
+
+      - name: Bump version, commit, tag and push
+        id: bump
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          node scripts/release.mjs beta --yes
+          echo "tag=$(git describe --tags --exact-match HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Start Release workflow for the tag
+        if: env.HAS_RELEASE_TOKEN != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run release.yml --repo "${{ github.repository }}" --ref "${{ steps.bump.outputs.tag }}"
