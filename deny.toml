@@ -1,5 +1,5 @@
-# cargo-deny 설정. 실행: cargo deny check licenses bans sources
-# 취약점 자문은 CI의 rustsec/audit-check가 맡는다.
+# cargo-deny 설정.
+# 실행: cargo deny check (advisories licenses bans sources)
 [graph]
 targets = [
     "x86_64-pc-windows-msvc",
@@ -9,7 +9,8 @@ targets = [
 
 [licenses]
 confidence-threshold = 0.8
-# 허용 목록은 about.toml의 accepted와 같게 유지한다.
+# 허용 목록은 about.toml의 accepted와 같게 유지한다. 예외: rawler는 아래 clarify로
+# LGPL-2.1-only가 되고(about.toml은 원표기 LGPL-2.1), NCSA는 cargo-deny 그래프에 없어 뺐다.
 # 약한 카피레프트만 허용한다(파일 단위 MPL-2.0, 라이브러리 단위 LGPL-2.1). GPL/AGPL은 넣지 않는다.
 # `OR` 표현식은 허용 라이선스가 하나라도 있으면 통과한다.
 allow = [
@@ -23,23 +24,41 @@ allow = [
     "IJG",
     "ISC",
     "Apache-2.0 WITH LLVM-exception",
-    "LGPL-2.1",
+    "LGPL-2.1-only",
     "MIT",
     "MIT-0",
     "MPL-2.0",
-    "NCSA",
     "Unicode-3.0",
     "Unlicense",
     "Zlib",
 ]
 
+# rawler 0.8.0이 SPDX 폐기 식별자 "LGPL-2.1"을 써서 파싱 경고가 난다. 원문은 LGPL-2.1-only다.
+[[licenses.clarify]]
+crate = "rawler"
+expression = "LGPL-2.1-only"
+license-files = []
+
 [licenses.private]
 ignore = true
 
 [bans]
-# 전이 의존성의 중복 버전이 많아 경고만 한다.
-multiple-versions = "warn"
+# 중복 버전은 모두 전이 의존성(gpui 생태계 등)이라 직접 고칠 수 없어 허용한다.
+multiple-versions = "allow"
 wildcards = "allow"
+
+[advisories]
+# 취약점·unsound는 실패한다. 아래는 전이 의존성의 unmaintained 자문으로, 상위 크레이트
+# (gpui, rustls, zbus 등)가 교체하기 전에는 고칠 수 없다. 상위가 바뀌면 지운다.
+ignore = [
+    { id = "RUSTSEC-2024-0384", reason = "instant: 전이 의존성, 대체 대기" },
+    { id = "RUSTSEC-2024-0436", reason = "paste: 전이 의존성, 대체 대기" },
+    { id = "RUSTSEC-2026-0192", reason = "ttf-parser: 전이 의존성, 대체 대기" },
+    { id = "RUSTSEC-2026-0206", reason = "rustybuzz: 전이 의존성, 대체 대기" },
+    { id = "RUSTSEC-2026-0370", reason = "zvariant: zbus 6 이전 대기" },
+    { id = "RUSTSEC-2026-0371", reason = "zbus_names: zbus 6 이전 대기" },
+    { id = "RUSTSEC-2026-0372", reason = "zvariant_derive: zbus 6 이전 대기" },
+]
 
 [sources]
 unknown-registry = "deny"
