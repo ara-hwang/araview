@@ -597,6 +597,8 @@ struct AudioDecoder {
     swr: rsmpeg::swresample::SwrContext,
     stream_index: usize,
     time_base: (i32, i32),
+    /// 재생 위치 0에 해당하는 컨테이너 시작 시각(ms). 영상과 같은 기준이다.
+    origin_ms: i64,
     out_rate: u32,
     in_rate: i32,
     in_fmt: i32,
@@ -640,12 +642,14 @@ fn open_audio_decoder(source: &Path, out_rate: u32) -> Result<AudioDecoder, Stri
         let tb = ictx.streams()[stream_index].time_base;
         (tb.num, tb.den)
     };
+    let origin_ms = crate::video_player::container_origin_ms(&ictx);
     Ok(AudioDecoder {
         ictx,
         ctx,
         swr: new_swr(out_rate, in_rate, in_fmt, in_channels)?,
         stream_index,
         time_base,
+        origin_ms,
         out_rate,
         in_rate,
         in_fmt,
@@ -757,9 +761,7 @@ fn pump_audio(
         if pkt.stream_index != dec.stream_index as i32 {
             continue;
         }
-        dec.ctx
-            .send_packet(Some(&pkt))
-            .map_err(|e| format!("Failed to decode audio: {e:?}"))?;
+        crate::video_player::send_packet_lenient(&mut dec.ctx, &pkt);
         pkt.set_stream_index(-1);
         while let Ok(frame) = dec.ctx.receive_frame() {
             push_audio(dec, &frame, shared, target_ms)?;
@@ -792,7 +794,8 @@ fn push_audio(
     }
     // 탐색 목표보다 이른 프레임은 버린다.
     if let Some(target) = target_ms.take() {
-        let pts = frame_ms_of_audio(frame, dec.time_base).unwrap_or(0);
+        let pts =
+            crate::video_player::frame_time_ms(frame, dec.time_base, dec.origin_ms).unwrap_or(0);
         if pts < target {
             *target_ms = Some(target);
             return Ok(());
@@ -834,31 +837,16 @@ fn push_audio(
     Ok(())
 }
 
-fn frame_ms_of_audio(frame: &rsmpeg::avutil::AVFrame, time_base: (i32, i32)) -> Option<u64> {
-    const NOPTS: i64 = i64::MIN;
-    let pts: i64 = frame.pts;
-    if pts == NOPTS || pts < 0 || time_base.1 <= 0 {
-        return None;
-    }
-    let ms = pts as f64 * 1000.0 * time_base.0 as f64 / time_base.1 as f64;
-    if ms.is_finite() && ms >= 0.0 {
-        Some(ms as u64)
-    } else {
-        None
-    }
-}
-
 fn seek_audio(dec: &mut AudioDecoder, target_ms: u64) -> Result<(), String> {
     use rsmpeg::ffi;
-    let (num, den) = dec.time_base;
-    if den <= 0 {
+    if dec.time_base.1 <= 0 {
         return Err("Invalid time base".to_string());
     }
-    let ts = (target_ms as f64 * den as f64 / (1000.0 * num as f64)) as i64;
+    let ts = crate::video_player::seek_timestamp(target_ms, dec.time_base, dec.origin_ms);
     dec.ictx
         .seek(
             dec.stream_index as i32,
-            ts.max(0),
+            ts,
             ffi::AVSEEK_FLAG_BACKWARD as i32,
         )
         .map_err(|e| format!("Failed to seek audio: {e:?}"))?;

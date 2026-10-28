@@ -226,6 +226,11 @@ impl VideoPlayer {
         if !speed.is_finite() || speed <= 0.0 {
             return;
         }
+        // 끝에서 다시 재생하면 처음부터 시작한다. 그대로 두면 위치가 이미 끝이라
+        // `position_ms`가 곧바로 다시 멈춘다.
+        if self.info.duration_ms > 0 && self.position_ms() >= self.info.duration_ms {
+            self.seek(0);
+        }
         {
             let mut clock = self.clock.lock().unwrap_or_else(|e| e.into_inner());
             clock.base_ms = self.clamped_position(&clock);
@@ -509,6 +514,8 @@ struct Decoder {
     scaler_key: Option<(u32, u32, u32, u32, i32)>,
     stream_index: usize,
     time_base: (i32, i32),
+    /// 재생 위치 0에 해당하는 컨테이너 시작 시각(ms). 오디오와 같은 기준이다.
+    origin_ms: i64,
 }
 
 fn open_decoder(source: &Path) -> Result<Decoder, String> {
@@ -548,6 +555,7 @@ fn open_decoder(source: &Path) -> Result<Decoder, String> {
     }
     ctx.open(None)
         .map_err(|e| format!("Failed to open decoder: {e:?}"))?;
+    let origin_ms = container_origin_ms(&ictx);
     Ok(Decoder {
         ictx,
         ctx,
@@ -555,7 +563,64 @@ fn open_decoder(source: &Path) -> Result<Decoder, String> {
         scaler_key: None,
         stream_index,
         time_base,
+        origin_ms,
     })
+}
+
+/// 컨테이너 시작 시각(ms). MPEG-TS나 편집 목록이 있는 MP4는 첫 pts가 0이
+/// 아니다. 재생 위치는 이 시각을 0으로 잰다. 오디오도 같은 값을 써서 동기를 맞춘다.
+pub(crate) fn container_origin_ms(ictx: &rsmpeg::avformat::AVFormatContextInput) -> i64 {
+    const NOPTS: i64 = i64::MIN;
+    let start = ictx.start_time;
+    if start == NOPTS || start <= 0 {
+        0
+    } else {
+        start / 1000
+    }
+}
+
+/// 프레임 시각(ms, 컨테이너 시작 기준). pts가 없으면 디코더 추정값을 쓴다.
+pub(crate) fn frame_time_ms(
+    frame: &rsmpeg::avutil::AVFrame,
+    time_base: (i32, i32),
+    origin_ms: i64,
+) -> Option<u64> {
+    const NOPTS: i64 = i64::MIN;
+    let pts: i64 = if frame.pts != NOPTS {
+        frame.pts
+    } else {
+        frame.best_effort_timestamp
+    };
+    if pts == NOPTS || time_base.1 <= 0 {
+        return None;
+    }
+    let ms = pts as f64 * 1000.0 * time_base.0 as f64 / time_base.1 as f64 - origin_ms as f64;
+    if ms.is_finite() && ms >= 0.0 {
+        Some(ms as u64)
+    } else {
+        None
+    }
+}
+
+/// 재생 위치(ms)를 스트림 time_base 시각으로 바꾼다. 탐색 대상이다.
+pub(crate) fn seek_timestamp(target_ms: u64, time_base: (i32, i32), origin_ms: i64) -> i64 {
+    let (num, den) = time_base;
+    if num <= 0 || den <= 0 {
+        return 0;
+    }
+    let ms = target_ms as f64 + origin_ms as f64;
+    ((ms * den as f64 / (1000.0 * num as f64)) as i64).max(0)
+}
+
+/// 패킷을 디코더에 넣는다. 손상된 패킷 하나로 재생 전체를 끝내지 않도록
+/// 디코드 오류는 그 패킷만 건너뛴다.
+pub(crate) fn send_packet_lenient(
+    ctx: &mut rsmpeg::avcodec::AVCodecContext,
+    pkt: &rsmpeg::avcodec::AVPacket,
+) {
+    if let Err(e) = ctx.send_packet(Some(pkt)) {
+        log::debug!("skipping undecodable packet: {e:?}");
+    }
 }
 
 /// 재생 출력 크기. 긴 변이 `MAX_OUTPUT_SIDE`를 넘으면 비율을 유지해 줄인다.
@@ -637,11 +702,15 @@ fn worker_loop(
 ) -> Result<(), String> {
     let mut dec = open_decoder(source)?;
     let mut playing = false;
+    // 끝까지 디코드했는가. 재생 상태와 따로 둔다. 디코드는 화면보다 앞서
+    // 끝나므로, 여기서 `playing`을 끄면 재생 중 뒤로 탐색했을 때 목표
+    // 프레임 하나만 넣고 디코드가 멈춰 화면이 굳는다.
+    let mut at_eof = false;
     let mut pending = VecDeque::new();
     loop {
         let cmd = if let Some(cmd) = pending.pop_front() {
             Some(cmd)
-        } else if playing {
+        } else if playing && !at_eof {
             match cmd_rx.try_recv() {
                 Ok(cmd) => Some(cmd),
                 Err(mpsc::TryRecvError::Empty) => None,
@@ -661,7 +730,7 @@ fn worker_loop(
             }
             if pump(&mut dec, shared)? {
                 shared.eof.store(true, Ordering::SeqCst);
-                playing = false;
+                at_eof = true;
             }
             continue;
         };
@@ -680,6 +749,9 @@ fn worker_loop(
                     Err(_) => break,
                 }
             }
+        }
+        if matches!(cmd, Command::Seek(_) | Command::Step(_)) {
+            at_eof = false;
         }
         if apply_command(&mut dec, cmd, &mut playing, shared)? {
             return Ok(());
@@ -748,9 +820,7 @@ fn pump(dec: &mut Decoder, shared: &Arc<Shared>) -> Result<bool, String> {
         if pkt.stream_index != dec.stream_index as i32 {
             continue;
         }
-        dec.ctx
-            .send_packet(Some(&pkt))
-            .map_err(|e| format!("Failed to decode video: {e:?}"))?;
+        send_packet_lenient(&mut dec.ctx, &pkt);
         pkt.set_stream_index(-1);
         while let Ok(frame) = dec.ctx.receive_frame() {
             push_frame(dec, &frame, shared)?;
@@ -775,7 +845,7 @@ fn push_frame(
     frame: &rsmpeg::avutil::AVFrame,
     shared: &Arc<Shared>,
 ) -> Result<(), String> {
-    let Some(pts_ms) = frame_ms_of(frame, dec.time_base) else {
+    let Some(pts_ms) = frame_time_ms(frame, dec.time_base, dec.origin_ms) else {
         return Ok(());
     };
     let (buf, width, height) = dec.scale_to_bgra(frame)?;
@@ -802,20 +872,6 @@ fn push_frame(
     Ok(())
 }
 
-fn frame_ms_of(frame: &rsmpeg::avutil::AVFrame, time_base: (i32, i32)) -> Option<u64> {
-    const NOPTS: i64 = i64::MIN;
-    let pts: i64 = frame.pts;
-    if pts == NOPTS || pts < 0 || time_base.1 <= 0 {
-        return None;
-    }
-    let ms = pts as f64 * 1000.0 * time_base.0 as f64 / time_base.1 as f64;
-    if ms.is_finite() && ms >= 0.0 {
-        Some(ms as u64)
-    } else {
-        None
-    }
-}
-
 /// 키프레임 기준 탐색 후 목표 지점까지 순방향 디코드해 목표 프레임을 큐에 넣는다.
 /// `preview`면 첫 프레임(보통 키프레임)을 먼저 넣어 긴 GOP에서도 화면이 바로 반응한다.
 fn seek_to_push(
@@ -826,15 +882,14 @@ fn seek_to_push(
 ) -> Result<(), String> {
     use rsmpeg::ffi;
     clear_queue(shared);
-    let (num, den) = dec.time_base;
-    if den <= 0 {
+    if dec.time_base.1 <= 0 {
         return Err("Invalid time base".to_string());
     }
-    let ts = (target_ms as f64 * den as f64 / (1000.0 * num as f64)) as i64;
+    let ts = seek_timestamp(target_ms, dec.time_base, dec.origin_ms);
     dec.ictx
         .seek(
             dec.stream_index as i32,
-            ts.max(0),
+            ts,
             ffi::AVSEEK_FLAG_BACKWARD as i32,
         )
         .map_err(|e| format!("Failed to seek: {e:?}"))?;
@@ -853,12 +908,10 @@ fn seek_to_push(
         if pkt.stream_index != dec.stream_index as i32 {
             continue;
         }
-        dec.ctx
-            .send_packet(Some(&pkt))
-            .map_err(|e| format!("Failed to decode video: {e:?}"))?;
+        send_packet_lenient(&mut dec.ctx, &pkt);
         pkt.set_stream_index(-1);
         while let Ok(frame) = dec.ctx.receive_frame() {
-            let pts = frame_ms_of(&frame, dec.time_base).unwrap_or(u64::MAX);
+            let pts = frame_time_ms(&frame, dec.time_base, dec.origin_ms).unwrap_or(u64::MAX);
             if pts >= target_ms {
                 push_frame(dec, &frame, shared)?;
                 return Ok(());
@@ -980,6 +1033,55 @@ mod tests {
         player.pause();
         assert!(pts.len() > 1, "expected several frames, got {pts:?}");
         assert!(pts.windows(2).all(|pair| pair[0] < pair[1]));
+    }
+
+    #[test]
+    fn seek_back_after_decode_eof_keeps_playing() {
+        // 디코드는 화면보다 앞서 끝난다. 그 뒤 재생 중에 뒤로 탐색해도
+        // 목표 프레임 하나로 굳지 않고 계속 디코드해야 한다.
+        let player = VideoPlayer::open(&sample("sample.mp4")).unwrap();
+        player.play(1.0);
+        for _ in 0..500 {
+            if player.shared.eof.load(Ordering::SeqCst) {
+                break;
+            }
+            let _ = player.poll_frame();
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        assert!(
+            player.shared.eof.load(Ordering::SeqCst),
+            "never reached eof"
+        );
+        player.seek(0);
+        player.play(1.0);
+        let mut pts = Vec::new();
+        for _ in 0..60 {
+            if let Ok(Some(frame)) = player.poll_frame() {
+                pts.push(frame.pts_ms);
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        player.pause();
+        assert!(pts.len() > 2, "decode stalled after seek: {pts:?}");
+    }
+
+    #[test]
+    fn play_at_end_restarts_from_start() {
+        let player = VideoPlayer::open(&sample("sample.mp4")).unwrap();
+        let duration = player.info().duration_ms;
+        player.seek(duration);
+        assert_eq!(player.position_ms(), duration);
+        player.play(1.0);
+        assert!(player.is_playing());
+        assert!(player.position_ms() < duration);
+    }
+
+    #[test]
+    fn seek_timestamp_adds_container_origin() {
+        // 1/90000 time_base(MPEG-TS), 시작 1400ms.
+        assert_eq!(seek_timestamp(0, (1, 90_000), 1_400), 126_000);
+        assert_eq!(seek_timestamp(1_000, (1, 1_000), 0), 1_000);
+        assert_eq!(seek_timestamp(1_000, (0, 1_000), 0), 0);
     }
 
     #[test]
