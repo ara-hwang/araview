@@ -128,7 +128,7 @@ jobs:
       # 레지스트리/git 소스가 들어오면 실패한다. 설정: deny.toml.
       - name: Install cargo-deny
         if: matrix.os == 'windows-latest'
-        uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2
+        uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2
         with:
           tool: cargo-deny@0.20.2
 
