@@ -238,8 +238,7 @@ fn decode_first_frame_rgb8(source: &Path, max_side: u32) -> Result<Rgb8, AppErro
         if pkt.stream_index != opened.stream_index as i32 {
             continue;
         }
-        ctx.send_packet(Some(&pkt))
-            .map_err(|e| AppError::corrupt(format!("Failed to decode video: {e:?}")))?;
+        crate::video_player::send_packet_lenient(&mut ctx, &pkt);
         pkt.set_stream_index(-1);
         match ctx.receive_frame() {
             Ok(f) => {
