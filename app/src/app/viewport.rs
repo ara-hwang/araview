@@ -83,6 +83,14 @@ fn format_frame_counter(current: u64, total: u64) -> String {
     }
 }
 
+/// 동영상 재생 위치의 1부터 세는 프레임 번호와 전체 프레임 수. 애니메이션
+/// 카운터와 같은 기준이다: 첫 프레임은 1이고, 프레임 구간 안에서는 번호가 바뀌지 않는다.
+fn video_frame_position(pos_ms: u64, duration_ms: u64, fps: f64) -> (u64, u64) {
+    let total = ((duration_ms as f64 * fps / 1000.0).round() as u64).max(1);
+    let current = (pos_ms as f64 * fps / 1000.0).floor() as u64 + 1;
+    (current.min(total), total)
+}
+
 /// 읽기 값의 숫자 폭을 고정한다(DESIGN "Readout").
 fn tabular_figures() -> FontFeatures {
     static FIGURES: std::sync::LazyLock<FontFeatures> =
@@ -994,8 +1002,7 @@ impl AraView {
         let speed = player.speed();
         let muted = player.is_muted();
         let frame_text = info.fps.filter(|fps| *fps > 0.0).map(|fps| {
-            let total = (duration as f64 * fps / 1000.0).round() as u64;
-            let current = (pos as f64 * fps / 1000.0).round() as u64;
+            let (current, total) = video_frame_position(pos, duration, fps);
             format_frame_counter(current, total)
         });
         let compact = f32::from(self.viewport.get().size.width) < VIDEO_BAR_COMPACT_BELOW;
@@ -2029,7 +2036,17 @@ impl AraView {
 
 #[cfg(test)]
 mod tests {
-    use super::format_frame_counter;
+    use super::{format_frame_counter, video_frame_position};
+
+    #[test]
+    fn video_frame_position_counts_from_one() {
+        // 10fps, 12초: 120프레임.
+        assert_eq!(video_frame_position(0, 12_000, 10.0), (1, 120));
+        // 첫 프레임 구간(0..100ms) 안에서는 번호가 그대로다.
+        assert_eq!(video_frame_position(99, 12_000, 10.0), (1, 120));
+        assert_eq!(video_frame_position(100, 12_000, 10.0), (2, 120));
+        assert_eq!(video_frame_position(12_000, 12_000, 10.0), (120, 120));
+    }
 
     #[test]
     fn frame_counter_uses_a_fixed_field() {
