@@ -91,6 +91,9 @@ pub struct WindowsWindowState {
     pub in_size_move: Cell<bool>,
     /// 이동 루프 안에서 프레임을 너무 자주 그리지 않게 하는 마지막 시각.
     pub last_size_move_draw: Cell<Option<std::time::Instant>>,
+    /// AraView fork: 마지막으로 프레임을 그린 시각. 버튼을 누른 채 마우스를
+    /// 계속 움직이면 `WM_PAINT`가 밀리므로, 오래 못 그렸으면 이동 메시지에서 그린다.
+    pub last_draw: Cell<Option<std::time::Instant>>,
     fullscreen: Cell<Option<StyleAndBounds>>,
     initial_placement: Cell<Option<WindowOpenStatus>>,
     hwnd: HWND,
@@ -198,6 +201,7 @@ impl WindowsWindowState {
             a11y: RefCell::new(None),
             in_size_move: Cell::new(false),
             last_size_move_draw: Cell::new(None),
+            last_draw: Cell::new(None),
         })
     }
 
