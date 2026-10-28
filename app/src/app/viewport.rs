@@ -948,11 +948,9 @@ impl AraView {
             .iter()
             .position(|speed| (speed - current).abs() < f32::EPSILON)
             .unwrap_or(2);
-        if direction > 0 {
-            index = (index + 1).min(SPEEDS.len() - 1);
-        } else if direction < 0 {
-            index = index.saturating_sub(1);
-        }
+        index = index
+            .saturating_add_signed(direction as isize)
+            .min(SPEEDS.len() - 1);
         let speed = SPEEDS[index];
         if player.is_playing() {
             player.play(speed);
@@ -960,6 +958,19 @@ impl AraView {
             player.set_speed(speed);
         }
         cx.notify();
+    }
+
+    /// 배속 버튼: 최대 배속 다음에는 가장 느린 배속으로 돌아간다.
+    fn video_cycle_speed(&mut self, cx: &mut Context<Self>) {
+        let at_max = self
+            .video
+            .as_ref()
+            .is_some_and(|player| player.speed() >= SPEEDS[SPEEDS.len() - 1]);
+        if at_max {
+            self.video_step_speed(-(SPEEDS.len() as i32), cx);
+        } else {
+            self.video_step_speed(1, cx);
+        }
     }
 
     pub(super) fn toggle_video_mute(&mut self, cx: &mut Context<Self>) {
@@ -1073,9 +1084,7 @@ impl AraView {
                         .w(px(VIDEO_SPEED_WIDTH))
                         .label(format!("{speed}×"))
                         .tooltip(t("menu.videoSpeedUp"))
-                        .on_click(cx.listener(|this, _, window, cx| {
-                            this.run_action("videoSpeedUp", window, cx)
-                        })),
+                        .on_click(cx.listener(|this, _, _, cx| this.video_cycle_speed(cx))),
                 )
             })
             .when(!compact, |row| {
