@@ -32,6 +32,23 @@ pub(super) struct Page {
     pub archive_preview: bool,
 }
 
+/// 대기 중인 full 디코드 요청.
+pub(super) struct DecodeJob {
+    index: usize,
+    protect: bool,
+    seq: u64,
+}
+
+/// 대기 중인 요청 가운데 다음에 돌릴 것. 현재 화면(`protect`)이 먼저이고,
+/// 같으면 현재 위치에서 가까운 순, 그다음 요청 순이다.
+fn next_decode_job(queue: &[DecodeJob], anchor: usize) -> Option<usize> {
+    queue
+        .iter()
+        .enumerate()
+        .min_by_key(|(_, job)| (!job.protect, job.index.abs_diff(anchor), job.seq))
+        .map(|(position, _)| position)
+}
+
 /// 새 이미지가 디코드될 때까지 이전 이미지를 붙잡는 최대 시간(SPEC §3.3).
 /// 열기가 이 시간보다 길어지면 로딩 표시를 보인다.
 pub(super) const LOADING_DELAY: std::time::Duration = std::time::Duration::from_millis(200);
@@ -341,6 +358,8 @@ impl AraView {
             Self::drop_picture(&oriented, window, cx);
         }
         self.page_loading.clear();
+        self.decode_queue.clear();
+        self.decode_running = false;
         self.page_failed.clear();
         self.wide.clear();
         self.shown.clear();
@@ -551,6 +570,7 @@ impl AraView {
             .copied()
             .chain(self.shown.iter().copied())
             .collect();
+        self.cancel_queued_outside(&keep);
         let evicted = self.evict_except(&keep, &protect, window, cx);
         if base > 0 && self.cache_bytes() < budget.bytes {
             for index in self.index.saturating_sub(before)..=(self.index + after).min(total - 1) {
@@ -632,10 +652,34 @@ impl AraView {
         {
             return;
         }
-        let Some(item) = self.list.get(index).cloned() else {
+        if index >= self.list.len() {
+            return;
+        }
+        self.page_loading.insert(index);
+        self.decode_seq += 1;
+        self.decode_queue.push(DecodeJob {
+            index,
+            protect,
+            seq: self.decode_seq,
+        });
+        self.pump_decode(window, cx);
+    }
+
+    /// 실행 중인 full 디코드가 없으면 대기열에서 하나를 골라 시작한다.
+    fn pump_decode(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.decode_running {
+            return;
+        }
+        let Some(position) = next_decode_job(&self.decode_queue, self.index) else {
             return;
         };
-        self.page_loading.insert(index);
+        let DecodeJob { index, protect, .. } = self.decode_queue.swap_remove(position);
+        let Some(item) = self.list.get(index).cloned() else {
+            self.page_loading.remove(&index);
+            self.pump_decode(window, cx);
+            return;
+        };
+        self.decode_running = true;
         let generation = self.list_gen;
         let settings = &SettingsStore::global(cx).settings;
         let max_side = settings.max_resolution.max_side();
@@ -693,6 +737,7 @@ impl AraView {
                 if this.list_gen != generation {
                     return;
                 }
+                this.decode_running = false;
                 this.page_loading.remove(&index);
                 match result {
                     Ok(page) => {
@@ -711,11 +756,25 @@ impl AraView {
                     this.navigate(false, window, cx);
                 }
                 this.sync_pages(window, cx);
+                this.pump_decode(window, cx);
                 cx.notify();
             })
             .ok();
         })
         .detach();
+    }
+
+    /// 범위 밖으로 밀려난 대기 요청을 시작 전에 취소한다. 이미 시작한 디코드는
+    /// 끝까지 돌고 결과는 캐시 정리가 맡는다.
+    fn cancel_queued_outside(&mut self, keep: &HashSet<usize>) {
+        let page_loading = &mut self.page_loading;
+        self.decode_queue.retain(|job| {
+            let wanted = keep.contains(&job.index);
+            if !wanted {
+                page_loading.remove(&job.index);
+            }
+            wanted
+        });
     }
 
     /// 이동한 화면의 페이지가 모두 도착했으면 화면을 바꾼다.
@@ -922,6 +981,29 @@ impl AraView {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn job(index: usize, protect: bool, seq: u64) -> DecodeJob {
+        DecodeJob {
+            index,
+            protect,
+            seq,
+        }
+    }
+
+    #[::core::prelude::v1::test]
+    fn decode_queue_picks_current_screen_then_nearest_then_oldest() {
+        let queue = vec![
+            job(9, false, 1),
+            job(6, false, 2),
+            job(4, false, 3),
+            job(5, true, 4),
+        ];
+        assert_eq!(next_decode_job(&queue, 5), Some(3));
+        let queue = vec![job(9, false, 1), job(6, false, 2), job(4, false, 3)];
+        // 거리가 같으면 먼저 요청한 것이 앞선다.
+        assert_eq!(next_decode_job(&queue, 5), Some(1));
+        assert_eq!(next_decode_job(&[], 5), None);
+    }
 
     /// `use gpui_kit::*`가 gpui의 `test` 매크로를 끌어오므로 빌트인 `#[test]`를
     /// 전체 경로로 고른다.

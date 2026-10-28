@@ -127,6 +127,12 @@ pub struct AraView {
 
     pages: HashMap<usize, pages::Page>,
     page_loading: HashSet<usize>,
+    /// 아직 시작하지 않은 full 디코드 요청. 한 번에 하나만 돌리고 우선순위로 고른다(§9.1).
+    decode_queue: Vec<pages::DecodeJob>,
+    /// full 디코드가 실행 중인지.
+    decode_running: bool,
+    /// 요청 순서를 매기는 번호.
+    decode_seq: u64,
     page_failed: HashMap<usize, AppError>,
     /// 가로가 더 긴 페이지. 로드하면서 알게 된다.
     wide: HashSet<usize>,
@@ -260,6 +266,9 @@ impl AraView {
             progress_held: false,
             pages: HashMap::new(),
             page_loading: HashSet::new(),
+            decode_queue: Vec::new(),
+            decode_running: false,
+            decode_seq: 0,
             page_failed: HashMap::new(),
             wide: HashSet::new(),
             shown: Vec::new(),
