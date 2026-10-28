@@ -27,9 +27,6 @@ concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
-env:
-  VCPKG_BINARY_SOURCES: clear;x-gha,readwrite
-
 permissions:
   contents: read
 
@@ -73,8 +70,6 @@ jobs:
     needs: preflight
     permissions:
       contents: read
-      # rustsec/audit-check가 결과를 check run으로 기록하는 데 필요하다.
-      checks: write
     uses: ./.github/workflows/ci.yml
 
   # Windows 설치 프로그램 빌드, 서명, 업데이트 피드 생성. 릴리스는 마지막 `release` 잡이 만든다.
