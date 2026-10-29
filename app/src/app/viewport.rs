@@ -66,7 +66,6 @@ const VIDEO_BAR_COMPACT_BELOW: f32 = 720.0;
 /// 동영상 읽기 값의 고정 폭(px). 값이 바뀌어도 컨트롤 폭이 흔들리지 않게 한다.
 const VIDEO_TIME_WIDTH: f32 = 100.0;
 const VIDEO_SPEED_WIDTH: f32 = 40.0;
-const VIDEO_MUTE_WIDTH: f32 = 28.0;
 
 /// 프레임 카운터. 4자리까지는 그대로 보여주고, 그보다 큰 값은 앞자리를
 /// 줄임표로 대체해 항상 같은 폭(11자)을 차지하게 한다.
@@ -1007,7 +1006,6 @@ impl AraView {
         let pos = player.position_ms();
         let duration = info.duration_ms;
         let speed = player.speed();
-        let muted = player.is_muted();
         let frame_text = info.fps.filter(|fps| *fps > 0.0).map(|fps| {
             let (current, total) = video_frame_position(pos, duration, fps);
             format_frame_counter(current, total)
@@ -1106,19 +1104,6 @@ impl AraView {
                     div()
                         .w(px(80.))
                         .child(Slider::new(&controls.volume).horizontal()),
-                )
-            })
-            .when(!compact, |row| {
-                row.child(
-                    Button::new("video-mute")
-                        .ghost()
-                        .xsmall()
-                        .w(px(VIDEO_MUTE_WIDTH))
-                        .label(if muted { "M✕" } else { "M" })
-                        .tooltip(t("menu.videoMute"))
-                        .on_click(cx.listener(|this, _, window, cx| {
-                            this.run_action("videoMute", window, cx)
-                        })),
                 )
             })
             .into_any_element()
