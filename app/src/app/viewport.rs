@@ -818,8 +818,9 @@ impl AraView {
                             player.play(1.0);
                         }
                         this.video = Some(player);
-                        // 출력 스트림은 오디오 전용 스레드가 연다(Windows WASAPI는 STA를
-                        // 요구하고 UI 스레드는 MTA다). 실패하면 이유를 남기고 영상만 재생한다.
+                        // 출력 스트림은 오디오 전용 스레드가 연다(Windows에서 기본 장치
+                        // 핸들의 클라이언트 활성화가 실패하면 같은 엔드포인트를 특정 장치로
+                        // 다시 시도한다). 실패하면 이유를 남기고 영상만 재생한다.
                         let stream = this.video.as_ref().and_then(|player| {
                             match player.attach_audio_output() {
                                 Ok(stream) => Some(stream),

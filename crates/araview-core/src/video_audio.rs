@@ -4,9 +4,12 @@
 //! 콜백이 꺼내 재생한다. 오디오가 있으면 오디오 클럭이 마스터다. 장치를 열 수
 //! 없으면 호출자가 영상만 재생하도록 `Err`를 돌려주고 이유를 경고로 남긴다.
 //!
-//! cpal 출력 스트림은 전용 스레드가 만들고 들고 있다. Windows의 WASAPI 기본 장치
-//! 활성화는 STA를 요구하는데 GPUI의 UI 스레드는 MTA라, 그 자리에서 열면
-//! `RPC_E_CHANGED_MODE`로 실패해 소리가 조용히 사라진다(2.7.0-beta.10까지의 증상).
+//! cpal 출력 스트림은 전용 스레드가 만들고 들고 있다. Windows에서 cpal의 기본 장치
+//! 핸들은 오디오 클라이언트를 `ActivateAudioInterfaceAsync`로 만드는데, GPUI가 COM을
+//! 먼저 초기화한 이 프로세스에서는 그 호출이 `RPC_E_CHANGED_MODE`로 실패해 소리가
+//! 조용히 사라진다(2.7.0-beta.10까지의 증상). 그래서 같은 엔드포인트를 "특정 장치"
+//! 핸들로 여는 경로로 넘어간다. 스트림 스레드는 `!Send`인 백엔드 스트림을 만든
+//! 스레드에서 그대로 버리기 위해서도 필요하다.
 //!
 //! 콜백은 실시간 스레드다. 공유 큐 잠금을 기다리면 데드라인을 놓쳐 소리가
 //! 깨지므로, 콜백은 지역 버퍼(200ms)를 들고 재생하고 모자랄 때만 `try_lock`으로
@@ -78,11 +81,9 @@ pub struct AudioOutput {
 
 /// cpal 출력 스트림을 소유하는 전용 스레드 핸들. 이 값이 살아 있는 동안 소리가 난다.
 ///
-/// 스트림은 UI 스레드가 아니라 여기서 함께 도는 전용 스레드에서 만들고 버린다. Windows의
-/// WASAPI 기본 장치 활성화(`ActivateAudioInterfaceAsync`)는 호출 스레드가 STA를 요구하는데
-/// GPUI의 UI 스레드는 MTA라, 그 자리에서 열면 `RPC_E_CHANGED_MODE`로 실패한다. 전용
-/// 스레드는 cpal이 STA로 초기화하고, `!Send`인 백엔드 스트림을 만든 스레드에서 그대로
-/// 버리므로 플랫폼 차이도 없다.
+/// 스트림은 이 전용 스레드에서 만들고 같은 스레드에서 버린다. 백엔드에 따라
+/// `cpal::Stream`이 `!Send`라 만든 스레드에서 버려야 하고, 오디오 장치 활성화가
+/// 호출 스레드의 COM 아파트먼트에 민감한 백엔드(Windows)도 같은 방식으로 피해 간다.
 pub struct AudioStream {
     /// 신호를 보내거나 버리면 스트림 스레드가 스트림을 버리고 끝난다.
     stop: Option<mpsc::Sender<()>>,
@@ -333,11 +334,45 @@ fn open_stream(
     format: cpal::SampleFormat,
     buffer_frames: Option<u32>,
 ) -> Result<cpal::Stream, AppError> {
-    use cpal::SampleFormat;
     let host = cpal::default_host();
     let device = host
         .default_output_device()
         .ok_or_else(|| AppError::unknown("No audio output device"))?;
+    match build_stream(&device, shared, rate, channels, format, buffer_frames) {
+        Ok(stream) => Ok(stream),
+        Err(first) => {
+            // cpal의 기본 장치 핸들은 오디오 클라이언트를 `ActivateAudioInterfaceAsync`로
+            // 만든다. COM 아파트먼트가 이미 설정된 프로세스(Windows에서 GPUI가 먼저
+            // 초기화한다)에서는 이 호출이 `RPC_E_CHANGED_MODE`로 실패한다. 같은
+            // 엔드포인트를 특정 장치 핸들로 열면 일반 `IMMDevice::Activate`를 쓰므로 그
+            // 제약이 없다. 기본 장치를 따라가는 대신 같은 장치에 그대로 연다.
+            let Some(device) = same_endpoint(&host, &device) else {
+                return Err(first);
+            };
+            log::warn!(
+                "audio output via the default device failed, retrying on the same endpoint: {first:?}"
+            );
+            build_stream(&device, shared, rate, channels, format, buffer_frames)
+        }
+    }
+}
+
+/// 기본 장치와 같은 엔드포인트를 "특정 장치" 핸들로 돌려준다. ID를 읽지 못하면 `None`이다.
+fn same_endpoint(host: &cpal::Host, default: &cpal::Device) -> Option<cpal::Device> {
+    let id = default.id().ok()?;
+    host.device_by_id(&id)
+}
+
+/// 한 장치에 출력 스트림을 만든다. 설정은 `probe_output`이 고른 것과 정확히 같다.
+fn build_stream(
+    device: &cpal::Device,
+    shared: &Arc<AudioShared>,
+    rate: u32,
+    channels: u16,
+    format: cpal::SampleFormat,
+    buffer_frames: Option<u32>,
+) -> Result<cpal::Stream, AppError> {
+    use cpal::SampleFormat;
     let configs: Vec<_> = device
         .supported_output_configs()
         .map_err(|e| AppError::unknown(format!("No audio output configs: {e}")))?
