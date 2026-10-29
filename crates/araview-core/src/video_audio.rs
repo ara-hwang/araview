@@ -186,7 +186,9 @@ impl AudioOutput {
             && PREFERRED_RATE <= picked.max_sample_rate()
         {
             PREFERRED_RATE
-        } else if picked.min_sample_rate() <= default_rate && default_rate <= picked.max_sample_rate() {
+        } else if picked.min_sample_rate() <= default_rate
+            && default_rate <= picked.max_sample_rate()
+        {
             default_rate
         } else {
             picked.max_sample_rate()
