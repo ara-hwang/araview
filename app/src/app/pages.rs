@@ -78,7 +78,13 @@ impl Page {
     }
 
     pub fn is_archive_preview(&self) -> bool {
-        matches!(self, Self::Full { archive_preview: true, .. })
+        matches!(
+            self,
+            Self::Full {
+                archive_preview: true,
+                ..
+            }
+        )
     }
 }
 
@@ -770,7 +776,11 @@ impl AraView {
         let Some(position) = next_decode_job(&self.decode_queue, self.index) else {
             return;
         };
-        let DecodeJob { index, protect, seq } = self.decode_queue.swap_remove(position);
+        let DecodeJob {
+            index,
+            protect,
+            seq,
+        } = self.decode_queue.swap_remove(position);
         let Some(item) = self.list.get(index).cloned() else {
             self.page_loading.remove(&index);
             self.pump_decode(window, cx);
@@ -844,12 +854,9 @@ impl AraView {
                     return;
                 };
                 this.update_in(cx, |this, window, cx| {
-                    let sequence_is_stale = this
-                        .pages
-                        .get(&index)
-                        .is_some_and(|page| {
-                            preview_is_stale(page.is_full(), page.preview_sequence(), seq)
-                        });
+                    let sequence_is_stale = this.pages.get(&index).is_some_and(|page| {
+                        preview_is_stale(page.is_full(), page.preview_sequence(), seq)
+                    });
                     if this.list_gen != generation
                         || this.index != index
                         || !this.pending_commit
