@@ -2,10 +2,16 @@
 //!
 //! 경로는 파일 내용을 보증하지 않으므로(같은 경로에 다른 CBZ가 들어옴) 경로로
 //! 저장한 상태(이어보기 위치 등)를 다시 믿을 때 이 identity로 내용이 그대로인지
-//! 확인한다. 관행은 아카이브 인덱스 캐시(`archive_index.rs`)와 같은 mtime + size다.
+//! 확인한다. 읽기 진도에는 mtime + size를 쓰고, 아카이브 파생 캐시는 OS 파일
+//! identity와 변경 시각까지 포함한 [`ArchiveCacheIdentity`]를 쓴다.
 
 use serde::{Deserialize, Serialize};
-use std::{fs, path::Path, time::UNIX_EPOCH};
+use std::{
+    fs::{self, File, Metadata},
+    io,
+    path::Path,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 /// 크기와 수정 시각으로 쓴 파일 identity. 경로는 담지 않는다. mtime을 읽을 수
 /// 없는 파일은 0으로 둔다(`sidecar::file_identity_hash`와 같다).
@@ -37,6 +43,121 @@ impl FileIdentity {
             modified_nanos,
         }
     }
+}
+
+/// Fast source identity for archive-derived caches. It uses filesystem metadata
+/// only, so validating a cache hit never reads or hashes archive contents.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct ArchiveCacheIdentity {
+    pub(crate) size: u64,
+    pub(crate) modified: Option<SystemTime>,
+    file_id: [u64; 2],
+    change_time: Option<i128>,
+}
+
+impl ArchiveCacheIdentity {
+    pub(crate) fn from_file(file: &File) -> io::Result<Self> {
+        let metadata = file.metadata()?;
+        let (file_id, change_time) = platform_file_identity(file, &metadata);
+        Ok(Self {
+            size: metadata.len(),
+            modified: metadata.modified().ok(),
+            file_id,
+            change_time,
+        })
+    }
+
+    pub(crate) fn write_hash(self, hasher: &mut crate::stable_hash::StableHasher) {
+        hasher.write_u64_le(self.size);
+        if let Some(modified) = self
+            .modified
+            .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
+        {
+            hasher.write(&[1]);
+            hasher.write_u128_le(modified.as_nanos());
+        } else {
+            hasher.write(&[0]);
+        }
+        hasher.write_u64_le(self.file_id[0]);
+        hasher.write_u64_le(self.file_id[1]);
+        if let Some(change_time) = self.change_time {
+            hasher.write(&[1]);
+            hasher.write(&change_time.to_le_bytes());
+        } else {
+            hasher.write(&[0]);
+        }
+    }
+}
+
+#[cfg(unix)]
+fn platform_file_identity(_file: &File, metadata: &Metadata) -> ([u64; 2], Option<i128>) {
+    use std::os::unix::fs::MetadataExt;
+
+    let change_time =
+        i128::from(metadata.ctime()) * 1_000_000_000 + i128::from(metadata.ctime_nsec());
+    ([metadata.dev(), metadata.ino()], Some(change_time))
+}
+
+#[cfg(windows)]
+fn platform_file_identity(file: &File, metadata: &Metadata) -> ([u64; 2], Option<i128>) {
+    use std::os::windows::fs::MetadataExt;
+
+    let file_id = [
+        u64::from(metadata.volume_serial_number().unwrap_or_default()),
+        metadata.file_index().unwrap_or_default(),
+    ];
+    (file_id, windows_change_time(file))
+}
+
+#[cfg(windows)]
+fn windows_change_time(file: &File) -> Option<i128> {
+    use std::{
+        ffi::c_void,
+        mem::{size_of, MaybeUninit},
+        os::windows::io::AsRawHandle,
+    };
+
+    #[repr(C)]
+    struct FileBasicInfo {
+        creation_time: i64,
+        last_access_time: i64,
+        last_write_time: i64,
+        change_time: i64,
+        file_attributes: u32,
+    }
+
+    #[link(name = "kernel32")]
+    unsafe extern "system" {
+        fn GetFileInformationByHandleEx(
+            file: *mut c_void,
+            information_class: u32,
+            information: *mut c_void,
+            buffer_size: u32,
+        ) -> i32;
+    }
+
+    const FILE_BASIC_INFO: u32 = 0;
+    let mut information = MaybeUninit::<FileBasicInfo>::uninit();
+    // SAFETY: `file` is a live std::fs::File handle and the output buffer has
+    // the exact C layout and size required for FILE_BASIC_INFO.
+    let succeeded = unsafe {
+        GetFileInformationByHandleEx(
+            file.as_raw_handle().cast(),
+            FILE_BASIC_INFO,
+            information.as_mut_ptr().cast(),
+            size_of::<FileBasicInfo>() as u32,
+        )
+    };
+    if succeeded == 0 {
+        return None;
+    }
+    // SAFETY: a nonzero result means Windows initialized the full output struct.
+    Some(i128::from(unsafe { information.assume_init() }.change_time))
+}
+
+#[cfg(not(any(unix, windows)))]
+fn platform_file_identity(_file: &File, _metadata: &Metadata) -> ([u64; 2], Option<i128>) {
+    ([0, 0], None)
 }
 
 #[cfg(test)]
