@@ -139,8 +139,18 @@ mod tests {
 
     fn replace_contents(path: &std::path::Path, bytes: &[u8], modified: SystemTime) {
         assert_eq!(fs::metadata(path).unwrap().len(), bytes.len() as u64);
-        fs::write(path, bytes).unwrap();
-        set_modified(path, modified);
+        let replacement = path.with_extension("replacement");
+        fs::write(&replacement, bytes).unwrap();
+        set_modified(&replacement, modified);
+        assert_eq!(
+            fs::metadata(&replacement).unwrap().modified().unwrap(),
+            modified
+        );
+        // Keep the original alive while creating the replacement so its OS file
+        // ID must differ even when the filesystem has coarse change-time ticks.
+        fs::remove_file(path).unwrap();
+        fs::rename(replacement, path).unwrap();
+        assert_eq!(fs::metadata(path).unwrap().len(), bytes.len() as u64);
         assert_eq!(fs::metadata(path).unwrap().modified().unwrap(), modified);
     }
 
