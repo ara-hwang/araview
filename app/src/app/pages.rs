@@ -496,8 +496,12 @@ impl AraView {
         })
         .detach();
         if self.view_mode(cx) == ViewMode::Webtoon {
-            self.wt_anchor = index;
-            self.wt_offset = 0.0;
+            reset_webtoon_scroll_for_navigation(
+                &mut self.wt_anchor,
+                &mut self.wt_offset,
+                &mut self.wt_pending,
+                index,
+            );
         }
         self.sync_pages(window, cx);
         self.request_thumbs(window, cx);
@@ -1157,6 +1161,18 @@ impl AraView {
     }
 }
 
+fn reset_webtoon_scroll_for_navigation(
+    anchor: &mut usize,
+    offset: &mut f32,
+    pending: &mut f32,
+    index: usize,
+) {
+    *anchor = index;
+    *offset = 0.0;
+    // 이미 예약된 프레임이 `wt_animating`을 정리하므로 남은 이동 거리만 버린다.
+    *pending = 0.0;
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1167,6 +1183,13 @@ mod tests {
             protect,
             seq,
         }
+    }
+
+    #[::core::prelude::v1::test]
+    fn webtoon_navigation_discards_pending_smooth_scroll() {
+        let (mut anchor, mut offset, mut pending) = (2, 120.0, 350.0);
+        reset_webtoon_scroll_for_navigation(&mut anchor, &mut offset, &mut pending, 8);
+        assert_eq!((anchor, offset, pending), (8, 0.0, 0.0));
     }
 
     #[::core::prelude::v1::test]
