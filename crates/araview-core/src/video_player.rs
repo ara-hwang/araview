@@ -271,12 +271,19 @@ impl VideoPlayer {
             clock.base_ms = target;
             clock.base_at = Instant::now();
         }
-        self.shared.eof.store(false, Ordering::SeqCst);
-        self.shared.last_pts.store(0, Ordering::SeqCst);
-        self.shared
-            .seek_pending
-            .store(target.saturating_add(1), Ordering::SeqCst);
-        self.shared.seek_result.store(0, Ordering::SeqCst);
+        {
+            // 프레임 큐 읽기·쓰기와 탐색 장벽을 같은 잠금으로 직렬화한다. 새 목표가
+            // 대기 중인 뒤에는 이전 위치 프레임이 큐에 남거나 소비되지 않는다.
+            let mut queue = self.shared.queue.lock().unwrap_or_else(|e| e.into_inner());
+            queue.clear();
+            self.shared.queue_bytes.store(0, Ordering::SeqCst);
+            self.shared.eof.store(false, Ordering::SeqCst);
+            self.shared.last_pts.store(0, Ordering::SeqCst);
+            self.shared
+                .seek_pending
+                .store(target.saturating_add(1), Ordering::SeqCst);
+            self.shared.seek_result.store(0, Ordering::SeqCst);
+        }
         if let Some(audio) = &self.audio {
             audio.seek(target);
         }
@@ -306,12 +313,17 @@ impl VideoPlayer {
             clock.base_ms = target;
             clock.base_at = Instant::now();
         }
-        self.shared.eof.store(false, Ordering::SeqCst);
-        self.shared.last_pts.store(0, Ordering::SeqCst);
-        self.shared
-            .seek_pending
-            .store(target.saturating_add(1), Ordering::SeqCst);
-        self.shared.seek_result.store(0, Ordering::SeqCst);
+        {
+            let mut queue = self.shared.queue.lock().unwrap_or_else(|e| e.into_inner());
+            queue.clear();
+            self.shared.queue_bytes.store(0, Ordering::SeqCst);
+            self.shared.eof.store(false, Ordering::SeqCst);
+            self.shared.last_pts.store(0, Ordering::SeqCst);
+            self.shared
+                .seek_pending
+                .store(target.saturating_add(1), Ordering::SeqCst);
+            self.shared.seek_result.store(0, Ordering::SeqCst);
+        }
         if let Some(audio) = &self.audio {
             audio.seek(target);
         }
@@ -778,16 +790,10 @@ fn apply_command(
             let preview = matches!(cmd, Command::Seek(_));
             seek_to_push(dec, shared, target_ms, preview)?;
             shared.eof.store(false, Ordering::SeqCst);
-            let pending = target_ms.saturating_add(1);
-            if shared
-                .seek_pending
-                .compare_exchange(pending, 0, Ordering::SeqCst, Ordering::SeqCst)
-                .is_ok()
-            {
-                shared.seek_result.store(pending, Ordering::SeqCst);
-            }
-            // 스텝은 목표 1프레임을 넣는 즉시 멈춘다.
-            if matches!(cmd, Command::Step(_)) {
+            let completed = complete_seek(shared, target_ms);
+            // 스텝이 최신 목표로 완료된 경우에만 멈춘다. 더 새 탐색이 시작됐다면
+            // 취소된 스텝이 재생 상태를 덮지 않게 한다.
+            if completed && matches!(cmd, Command::Step(_)) {
                 *playing = false;
             }
         }
@@ -809,13 +815,16 @@ fn queue_full(shared: &Arc<Shared>) -> bool {
 /// 패킷을 읽어 프레임을 큐에 넣는다. EOF면 `true`다.
 fn pump(dec: &mut Decoder, shared: &Arc<Shared>) -> Result<bool, String> {
     loop {
+        if shared.seek_pending.load(Ordering::SeqCst) != 0 {
+            return Ok(false);
+        }
         let packet = dec
             .ictx
             .read_packet()
             .map_err(|e| format!("Failed to read packet: {e:?}"))?;
         let Some(mut pkt) = packet else {
             dec.ctx.send_packet(None).ok();
-            return flush_decoder(dec, shared);
+            return flush_decoder(dec, shared, None);
         };
         if pkt.stream_index != dec.stream_index as i32 {
             continue;
@@ -823,7 +832,10 @@ fn pump(dec: &mut Decoder, shared: &Arc<Shared>) -> Result<bool, String> {
         send_packet_lenient(&mut dec.ctx, &pkt);
         pkt.set_stream_index(-1);
         while let Ok(frame) = dec.ctx.receive_frame() {
-            push_frame(dec, &frame, shared)?;
+            if shared.seek_pending.load(Ordering::SeqCst) != 0 {
+                return Ok(false);
+            }
+            push_frame(dec, &frame, shared, None)?;
         }
         if queue_full(shared) {
             return Ok(false);
@@ -831,10 +843,21 @@ fn pump(dec: &mut Decoder, shared: &Arc<Shared>) -> Result<bool, String> {
     }
 }
 
-fn flush_decoder(dec: &mut Decoder, shared: &Arc<Shared>) -> Result<bool, String> {
+fn flush_decoder(
+    dec: &mut Decoder,
+    shared: &Arc<Shared>,
+    seek_target: Option<u64>,
+) -> Result<bool, String> {
     loop {
+        let current = match seek_target {
+            Some(target) => seek_is_current(shared, target),
+            None => shared.seek_pending.load(Ordering::SeqCst) == 0,
+        };
+        if !current {
+            return Ok(false);
+        }
         match dec.ctx.receive_frame() {
-            Ok(frame) => push_frame(dec, &frame, shared)?,
+            Ok(frame) => push_frame(dec, &frame, shared, seek_target)?,
             Err(_) => return Ok(true),
         }
     }
@@ -844,14 +867,38 @@ fn push_frame(
     dec: &mut Decoder,
     frame: &rsmpeg::avutil::AVFrame,
     shared: &Arc<Shared>,
+    seek_target: Option<u64>,
 ) -> Result<(), String> {
     let Some(pts_ms) = frame_time_ms(frame, dec.time_base, dec.origin_ms) else {
         return Ok(());
     };
     let (buf, width, height) = dec.scale_to_bgra(frame)?;
+    queue_video_frame(
+        shared,
+        VideoFrame {
+            width,
+            height,
+            bgra: buf,
+            pts_ms,
+        },
+        seek_target,
+    );
+    Ok(())
+}
+
+/// 현재 탐색의 프리뷰/결과 프레임이거나 탐색 중이 아닐 때만 프레임을 큐에 넣는다.
+fn queue_video_frame(shared: &Shared, frame: VideoFrame, seek_target: Option<u64>) -> bool {
     let mut queue = shared.queue.lock().unwrap_or_else(|e| e.into_inner());
+    let current = match seek_target {
+        Some(target) => seek_is_current(shared, target),
+        None => shared.seek_pending.load(Ordering::SeqCst) == 0,
+    };
+    if !current {
+        return false;
+    }
     // 같은 위치 탐색 반복으로 큐가 무한히 불지 않게 상한을 둔다.
-    while shared.queue_bytes.load(Ordering::SeqCst) + buf.len() as u64 > QUEUE_BYTES_MAX * 2 {
+    while shared.queue_bytes.load(Ordering::SeqCst) + frame.bgra.len() as u64 > QUEUE_BYTES_MAX * 2
+    {
         if let Some(old) = queue.pop_front() {
             shared
                 .queue_bytes
@@ -862,14 +909,9 @@ fn push_frame(
     }
     shared
         .queue_bytes
-        .fetch_add(buf.len() as u64, Ordering::SeqCst);
-    queue.push_back(VideoFrame {
-        width,
-        height,
-        bgra: buf,
-        pts_ms,
-    });
-    Ok(())
+        .fetch_add(frame.bgra.len() as u64, Ordering::SeqCst);
+    queue.push_back(frame);
+    true
 }
 
 /// 키프레임 기준 탐색 후 목표 지점까지 순방향 디코드해 목표 프레임을 큐에 넣는다.
@@ -881,6 +923,9 @@ fn seek_to_push(
     preview: bool,
 ) -> Result<(), String> {
     use rsmpeg::ffi;
+    if !seek_is_current(shared, target_ms) {
+        return Ok(());
+    }
     clear_queue(shared);
     if dec.time_base.1 <= 0 {
         return Err("Invalid time base".to_string());
@@ -896,13 +941,16 @@ fn seek_to_push(
     dec.ctx.flush_buffers();
     let mut previewed = false;
     loop {
+        if !seek_is_current(shared, target_ms) {
+            return Ok(());
+        }
         let packet = dec
             .ictx
             .read_packet()
             .map_err(|e| format!("Failed to read packet: {e:?}"))?;
         let Some(mut pkt) = packet else {
             dec.ctx.send_packet(None).ok();
-            let _ = flush_decoder(dec, shared);
+            let _ = flush_decoder(dec, shared, Some(target_ms));
             return Ok(());
         };
         if pkt.stream_index != dec.stream_index as i32 {
@@ -911,16 +959,39 @@ fn seek_to_push(
         send_packet_lenient(&mut dec.ctx, &pkt);
         pkt.set_stream_index(-1);
         while let Ok(frame) = dec.ctx.receive_frame() {
+            if !seek_is_current(shared, target_ms) {
+                return Ok(());
+            }
             let pts = frame_time_ms(&frame, dec.time_base, dec.origin_ms).unwrap_or(u64::MAX);
             if pts >= target_ms {
-                push_frame(dec, &frame, shared)?;
+                push_frame(dec, &frame, shared, Some(target_ms))?;
                 return Ok(());
             }
             if preview && !previewed {
-                push_frame(dec, &frame, shared)?;
+                push_frame(dec, &frame, shared, Some(target_ms))?;
                 previewed = true;
             }
         }
+    }
+}
+
+fn seek_is_current(shared: &Shared, target_ms: u64) -> bool {
+    shared.seek_pending.load(Ordering::SeqCst) == target_ms.saturating_add(1)
+}
+
+/// 탐색 완료와 결과 기록을 큐 잠금으로 직렬화해 새 탐색이 이전 결과를 덮지 않게 한다.
+fn complete_seek(shared: &Shared, target_ms: u64) -> bool {
+    let _queue = shared.queue.lock().unwrap_or_else(|e| e.into_inner());
+    let pending = target_ms.saturating_add(1);
+    if shared
+        .seek_pending
+        .compare_exchange(pending, 0, Ordering::SeqCst, Ordering::SeqCst)
+        .is_ok()
+    {
+        shared.seek_result.store(pending, Ordering::SeqCst);
+        true
+    } else {
+        false
     }
 }
 
@@ -982,6 +1053,34 @@ mod tests {
         player.seek(duration + 10_000);
         assert_eq!(player.position_ms(), duration);
         assert!(!player.is_playing());
+    }
+
+    #[test]
+    fn pending_seek_rejects_stale_frames_but_allows_its_preview() {
+        let player = VideoPlayer::open(&sample("sample.mp4")).unwrap();
+        player.shared.seek_pending.store(501, Ordering::SeqCst);
+        let frame = |pts_ms| VideoFrame {
+            width: 1,
+            height: 1,
+            bgra: vec![0; 4],
+            pts_ms,
+        };
+        assert!(!queue_video_frame(&player.shared, frame(100), None));
+        assert!(!queue_video_frame(&player.shared, frame(100), Some(300)));
+        assert!(queue_video_frame(&player.shared, frame(100), Some(500)));
+        let preview = player.poll_frame().unwrap().expect("current seek preview");
+        assert_eq!(preview.pts_ms, 100);
+    }
+
+    #[test]
+    fn seek_cancellation_uses_latest_pending_target() {
+        let player = VideoPlayer::open(&sample("sample.mp4")).unwrap();
+        player.shared.seek_pending.store(801, Ordering::SeqCst);
+        assert!(!seek_is_current(&player.shared, 500));
+        assert!(seek_is_current(&player.shared, 800));
+        assert!(!complete_seek(&player.shared, 500));
+        assert_eq!(player.shared.seek_pending.load(Ordering::SeqCst), 801);
+        assert_eq!(player.shared.seek_result.load(Ordering::SeqCst), 0);
     }
 
     #[test]
