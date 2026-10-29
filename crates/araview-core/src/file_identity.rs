@@ -96,10 +96,7 @@ impl ArchiveCacheIdentity {
 }
 
 #[cfg(unix)]
-fn platform_file_identity(
-    _file: &File,
-    metadata: &Metadata,
-) -> io::Result<([u64; 3], i128)> {
+fn platform_file_identity(_file: &File, metadata: &Metadata) -> io::Result<([u64; 3], i128)> {
     use std::os::unix::fs::MetadataExt;
 
     let change_time =
