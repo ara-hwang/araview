@@ -184,6 +184,11 @@
       "declared": "선언된 라이선스",
       "documentsGroup": "문서"
     },
+    "diagnostics": {
+      "title": "진단 정보",
+      "desc": "버전, 운영체제, 코덱 라이브러리, 캐시와 로그 경로, 최근 오류를 클립보드로 복사합니다. 사진 경로와 파일 이름은 담지 않으며 어디로도 보내지 않습니다.",
+      "copy": "진단 정보 복사"
+    },
     "view": {
       "title": "보기 모드",
       "desc": "단일 / 양쪽 / 세로 스크롤 표시 방식",
@@ -621,6 +626,9 @@
   "toast": {
     "copyMessage": "오류 메시지 복사",
     "copied": "복사됨",
+    "diagnostics": {
+      "done": "진단 정보를 복사했습니다"
+    },
     "close": "닫기",
     "settings": {
       "saveFail": "설정 저장 실패",

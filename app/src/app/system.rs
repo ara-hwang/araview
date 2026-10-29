@@ -129,6 +129,14 @@ impl AraView {
         self.request_thumbs(window, cx);
     }
 
+    /// 진단 정보를 클립보드로 복사한다(SPEC §17.1). 지원 요청에 붙이는 용도라
+    /// 사진 경로·파일 이름·환경 변수 값은 담지 않는다.
+    pub(super) fn copy_diagnostics(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let text = crate::diag::collect(SettingsStore::global(cx));
+        cx.write_to_clipboard(ClipboardItem::new_string(text));
+        window.toast(Toast::success(t("toast.diagnostics.done")), cx);
+    }
+
     pub(super) fn apply_always_on_top(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let on_top = SettingsStore::global(cx).settings.always_on_top;
         if !platform::set_always_on_top(window, on_top) {
