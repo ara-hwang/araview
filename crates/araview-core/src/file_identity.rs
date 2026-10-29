@@ -51,14 +51,23 @@ impl FileIdentity {
 pub(crate) struct ArchiveCacheIdentity {
     pub(crate) size: u64,
     pub(crate) modified: Option<SystemTime>,
-    file_id: [u64; 2],
+    file_id: [u64; 3],
     change_time: i128,
 }
 
 impl ArchiveCacheIdentity {
     pub(crate) fn from_file(file: &File) -> io::Result<Self> {
+        Self::from_file_with_identity(file, platform_file_identity)
+    }
+
+    fn from_file_with_identity(
+        file: &File,
+        get_identity: impl FnOnce(&File, &Metadata) -> io::Result<([u64; 3], i128)>,
+    ) -> io::Result<Self> {
         let metadata = file.metadata()?;
-        let (file_id, change_time) = platform_file_identity(file, &metadata)?;
+        // No cache identity is valid unless the platform can supply its file ID
+        // and change stamp; do not degrade to only size and modification time.
+        let (file_id, change_time) = get_identity(file, &metadata)?;
         Ok(Self {
             size: metadata.len(),
             modified: metadata.modified().ok(),
@@ -80,6 +89,7 @@ impl ArchiveCacheIdentity {
         }
         hasher.write_u64_le(self.file_id[0]);
         hasher.write_u64_le(self.file_id[1]);
+        hasher.write_u64_le(self.file_id[2]);
         hasher.write(&[1]);
         hasher.write(&self.change_time.to_le_bytes());
     }
@@ -89,16 +99,16 @@ impl ArchiveCacheIdentity {
 fn platform_file_identity(
     _file: &File,
     metadata: &Metadata,
-) -> io::Result<([u64; 2], i128)> {
+) -> io::Result<([u64; 3], i128)> {
     use std::os::unix::fs::MetadataExt;
 
     let change_time =
         i128::from(metadata.ctime()) * 1_000_000_000 + i128::from(metadata.ctime_nsec());
-    Ok(([metadata.dev(), metadata.ino()], change_time))
+    Ok(([metadata.dev(), metadata.ino(), 0], change_time))
 }
 
 #[cfg(windows)]
-fn platform_file_identity(file: &File, _metadata: &Metadata) -> io::Result<([u64; 2], i128)> {
+fn platform_file_identity(file: &File, _metadata: &Metadata) -> io::Result<([u64; 3], i128)> {
     use std::{
         ffi::c_void,
         mem::{size_of, MaybeUninit},
@@ -106,23 +116,9 @@ fn platform_file_identity(file: &File, _metadata: &Metadata) -> io::Result<([u64
     };
 
     #[repr(C)]
-    struct FileTime {
-        _low: u32,
-        _high: u32,
-    }
-
-    #[repr(C)]
-    struct ByHandleFileInformation {
-        _file_attributes: u32,
-        _creation_time: FileTime,
-        _last_access_time: FileTime,
-        _last_write_time: FileTime,
-        volume_serial_number: u32,
-        _file_size_high: u32,
-        _file_size_low: u32,
-        _number_of_links: u32,
-        file_index_high: u32,
-        file_index_low: u32,
+    struct FileIdInfo {
+        volume_serial_number: u64,
+        file_id: [u8; 16],
     }
 
     #[repr(C)]
@@ -136,10 +132,6 @@ fn platform_file_identity(file: &File, _metadata: &Metadata) -> io::Result<([u64
 
     #[link(name = "kernel32")]
     unsafe extern "system" {
-        fn GetFileInformationByHandle(
-            file: *mut c_void,
-            information: *mut ByHandleFileInformation,
-        ) -> i32;
         fn GetFileInformationByHandleEx(
             file: *mut c_void,
             information_class: u32,
@@ -149,16 +141,24 @@ fn platform_file_identity(file: &File, _metadata: &Metadata) -> io::Result<([u64
     }
 
     const FILE_BASIC_INFO: u32 = 0;
+    const FILE_ID_INFO: u32 = 18;
     let handle = file.as_raw_handle().cast();
-    let mut file_information = MaybeUninit::<ByHandleFileInformation>::uninit();
+    let mut file_id_information = MaybeUninit::<FileIdInfo>::uninit();
     // SAFETY: `handle` is a live std::fs::File handle and the output buffer has
-    // the exact C layout and size required for BY_HANDLE_FILE_INFORMATION.
-    let succeeded = unsafe { GetFileInformationByHandle(handle, file_information.as_mut_ptr()) };
+    // the exact C layout and size required for FILE_ID_INFO.
+    let succeeded = unsafe {
+        GetFileInformationByHandleEx(
+            handle,
+            FILE_ID_INFO,
+            file_id_information.as_mut_ptr().cast(),
+            size_of::<FileIdInfo>() as u32,
+        )
+    };
     if succeeded == 0 {
         return Err(io::Error::last_os_error());
     }
     // SAFETY: a nonzero result means Windows initialized the full output struct.
-    let file_information = unsafe { file_information.assume_init() };
+    let file_id_information = unsafe { file_id_information.assume_init() };
 
     let mut basic_information = MaybeUninit::<FileBasicInfo>::uninit();
     // SAFETY: `handle` is a live std::fs::File handle and the output buffer has
@@ -176,16 +176,20 @@ fn platform_file_identity(file: &File, _metadata: &Metadata) -> io::Result<([u64
     }
     // SAFETY: a nonzero result means Windows initialized the full output struct.
     let change_time = i128::from(unsafe { basic_information.assume_init() }.change_time);
+    let mut id_low = [0; 8];
+    let mut id_high = [0; 8];
+    id_low.copy_from_slice(&file_id_information.file_id[..8]);
+    id_high.copy_from_slice(&file_id_information.file_id[8..]);
     let file_id = [
-        u64::from(file_information.volume_serial_number),
-        (u64::from(file_information.file_index_high) << 32)
-            | u64::from(file_information.file_index_low),
+        file_id_information.volume_serial_number,
+        u64::from_le_bytes(id_low),
+        u64::from_le_bytes(id_high),
     ];
     Ok((file_id, change_time))
 }
 
 #[cfg(not(any(unix, windows)))]
-fn platform_file_identity(_file: &File, _metadata: &Metadata) -> io::Result<([u64; 2], i128)> {
+fn platform_file_identity(_file: &File, _metadata: &Metadata) -> io::Result<([u64; 3], i128)> {
     Err(io::Error::new(
         io::ErrorKind::Unsupported,
         "archive cache identity is unsupported on this platform",
@@ -217,5 +221,21 @@ mod tests {
 
         assert_ne!(first, second);
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// Platform identity errors are returned instead of creating a weak cache key.
+    #[test]
+    fn archive_cache_identity_fails_closed_when_platform_identity_is_unavailable() {
+        let file = tempfile::tempfile().unwrap();
+
+        let error = ArchiveCacheIdentity::from_file_with_identity(&file, |_, _| {
+            Err(io::Error::new(
+                io::ErrorKind::Unsupported,
+                "simulated unsupported platform identity",
+            ))
+        })
+        .unwrap_err();
+
+        assert_eq!(error.kind(), io::ErrorKind::Unsupported);
     }
 }
