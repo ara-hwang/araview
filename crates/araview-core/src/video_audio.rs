@@ -65,7 +65,7 @@ pub struct AudioShared {
 }
 
 enum AudioCommand {
-    Seek(u64),
+    Seek { position_ms: u64, generation: u64 },
     Stop,
 }
 
@@ -288,17 +288,22 @@ impl AudioOutput {
     /// 재생 위치를 옮긴다. 큐를 비우고 카운터를 리셋한 뒤 워커에 탐색을 건다.
     /// 세대를 올려 콜백이 들고 있던 이전 위치의 소리를 버리게 한다.
     pub fn seek(&self, position_ms: u64) {
-        {
+        let generation = {
+            // 큐 쓰기도 같은 잠금을 잡고 디코드 세대를 검사한다. 따라서 탐색과 동시에
+            // 이전 패킷 디코드가 끝나더라도 이전 위치 표본이 새 큐에 들어오지 않는다.
             let mut queue = self.shared.queue.lock().unwrap_or_else(|e| e.into_inner());
             queue.clear();
-        }
-        self.shared.eof.store(false, Ordering::SeqCst);
-        self.shared.played_pairs.store(
-            position_ms.saturating_mul(self.sample_rate as u64) / 1000,
-            Ordering::SeqCst,
-        );
-        self.shared.seek_gen.fetch_add(1, Ordering::SeqCst);
-        let _ = self.cmd_tx.send(AudioCommand::Seek(position_ms));
+            self.shared.eof.store(false, Ordering::SeqCst);
+            self.shared.played_pairs.store(
+                position_ms.saturating_mul(self.sample_rate as u64) / 1000,
+                Ordering::SeqCst,
+            );
+            self.shared.seek_gen.fetch_add(1, Ordering::SeqCst) + 1
+        };
+        let _ = self.cmd_tx.send(AudioCommand::Seek {
+            position_ms,
+            generation,
+        });
     }
 
     /// 출력한 샘플 기준 위치. 오디오 마스터 클럭이다.
@@ -514,7 +519,10 @@ impl Mixer {
             self.cur = None;
             self.next = None;
             self.phase = 0.0;
+            self.carry = 0.0;
             self.primed = false;
+            self.fade = 0.0;
+            self.last = (0.0, 0.0);
             self.stalled = None;
         }
     }
@@ -646,6 +654,9 @@ fn fill_output<T>(
         // 지역 버퍼는 버리지 않는다. 버리면 재개할 때 그만큼 건너뛴다.
         mixer.sync(shared);
         for frame in out.chunks_exact_mut(channels) {
+            if shared.seek_gen.load(Ordering::SeqCst) != mixer.generation {
+                mixer.sync(shared);
+            }
             mixer.fade = (mixer.fade - fade_step).max(0.0);
             let gain = volume * mixer.fade;
             let (left, right) = mixer.last;
@@ -658,9 +669,15 @@ fn fill_output<T>(
     if !mixer.primed {
         mixer.primed = mixer.ready();
     }
-    let eof = shared.eof.load(Ordering::SeqCst);
+    let mut eof = shared.eof.load(Ordering::SeqCst);
     let mut played = 0u64;
     for frame in out.chunks_exact_mut(channels) {
+        if shared.seek_gen.load(Ordering::SeqCst) != mixer.generation {
+            mixer.sync(shared);
+            mixer.refill(shared);
+            mixer.primed = mixer.ready();
+            eof = shared.eof.load(Ordering::SeqCst);
+        }
         let sample = if mixer.primed {
             mixer.next_sample(speed)
         } else {
@@ -800,16 +817,27 @@ fn audio_loop(
 ) -> Result<(), String> {
     let mut dec = open_audio_decoder(source, out_rate)?;
     let mut target_ms: Option<u64> = None;
+    let mut decode_generation = shared.seek_gen.load(Ordering::SeqCst);
     loop {
+        // 타임라인을 끌며 탐색이 여러 번 쌓이면 마지막 위치만 적용한다. 이전 세대에서
+        // 디코드가 끝난 표본은 출력 큐에 들어가지 않는다.
+        let mut latest_seek = None;
         while let Ok(cmd) = cmd_rx.try_recv() {
             match cmd {
-                AudioCommand::Seek(ms) => {
-                    seek_audio(&mut dec, ms)?;
-                    clear_audio(shared);
-                    target_ms = Some(ms);
-                }
+                AudioCommand::Seek {
+                    position_ms,
+                    generation,
+                } => latest_seek = Some((position_ms, generation)),
                 AudioCommand::Stop => return Ok(()),
             }
+        }
+        if let Some((position_ms, generation)) = latest_seek {
+            if seek_audio_to(&mut dec, shared, position_ms, generation, &mut target_ms)? {
+                decode_generation = generation;
+            }
+        }
+        if shared.seek_gen.load(Ordering::SeqCst) != decode_generation {
+            continue;
         }
         // 정지 중에는 재개에 필요한 만큼만 미리 담아 둔다. 더 담으면 큐가 넘쳐
         // 오래 멈춘 뒤 재개할 때 재생 위치가 앞으로 건너뛴다.
@@ -821,20 +849,59 @@ fn audio_loop(
             std::thread::sleep(std::time::Duration::from_millis(10));
             continue;
         }
-        if pump_audio(&mut dec, shared, &mut target_ms)? {
+        if pump_audio(&mut dec, shared, &mut target_ms, decode_generation)?
+            && shared.seek_gen.load(Ordering::SeqCst) == decode_generation
+        {
             shared.eof.store(true, Ordering::SeqCst);
             // 끝까지 디코드했으면 명령만 기다린다.
             match cmd_rx.recv() {
-                Ok(AudioCommand::Seek(ms)) => {
-                    seek_audio(&mut dec, ms)?;
-                    clear_audio(shared);
-                    target_ms = Some(ms);
-                    shared.eof.store(false, Ordering::SeqCst);
+                Ok(AudioCommand::Seek {
+                    mut position_ms,
+                    mut generation,
+                }) => {
+                    while let Ok(cmd) = cmd_rx.try_recv() {
+                        match cmd {
+                            AudioCommand::Seek {
+                                position_ms: next_position,
+                                generation: next_generation,
+                            } => {
+                                position_ms = next_position;
+                                generation = next_generation;
+                            }
+                            AudioCommand::Stop => return Ok(()),
+                        }
+                    }
+                    if seek_audio_to(&mut dec, shared, position_ms, generation, &mut target_ms)? {
+                        decode_generation = generation;
+                    }
                 }
                 Ok(AudioCommand::Stop) | Err(_) => return Ok(()),
             }
         }
     }
+}
+
+/// 현재 세대의 탐색만 적용하고, 이미 대체된 탐색은 건너뛴다.
+fn seek_audio_to(
+    dec: &mut AudioDecoder,
+    shared: &Arc<AudioShared>,
+    position_ms: u64,
+    generation: u64,
+    target_ms: &mut Option<u64>,
+) -> Result<bool, String> {
+    if shared.seek_gen.load(Ordering::SeqCst) != generation {
+        return Ok(false);
+    }
+    if let Err(error) = seek_audio(dec, position_ms) {
+        if shared.seek_gen.load(Ordering::SeqCst) != generation {
+            return Ok(false);
+        }
+        return Err(error);
+    }
+    clear_audio(shared);
+    *target_ms = Some(position_ms);
+    shared.eof.store(false, Ordering::SeqCst);
+    Ok(true)
 }
 
 fn clear_audio(shared: &Arc<AudioShared>) {
@@ -856,15 +923,19 @@ fn pump_audio(
     dec: &mut AudioDecoder,
     shared: &Arc<AudioShared>,
     target_ms: &mut Option<u64>,
+    generation: u64,
 ) -> Result<bool, String> {
     loop {
+        if shared.seek_gen.load(Ordering::SeqCst) != generation {
+            return Ok(false);
+        }
         let packet = dec
             .ictx
             .read_packet()
             .map_err(|e| format!("Failed to read packet: {e:?}"))?;
         let Some(mut pkt) = packet else {
             dec.ctx.send_packet(None).ok();
-            return flush_audio(dec, shared, target_ms);
+            return flush_audio(dec, shared, target_ms, generation);
         };
         if pkt.stream_index != dec.stream_index as i32 {
             continue;
@@ -872,7 +943,7 @@ fn pump_audio(
         crate::video_player::send_packet_lenient(&mut dec.ctx, &pkt);
         pkt.set_stream_index(-1);
         while let Ok(frame) = dec.ctx.receive_frame() {
-            push_audio(dec, &frame, shared, target_ms)?;
+            push_audio(dec, &frame, shared, target_ms, generation)?;
         }
         if audio_queue_full(shared) {
             return Ok(false);
@@ -884,9 +955,10 @@ fn flush_audio(
     dec: &mut AudioDecoder,
     shared: &Arc<AudioShared>,
     target_ms: &mut Option<u64>,
+    generation: u64,
 ) -> Result<bool, String> {
     while let Ok(frame) = dec.ctx.receive_frame() {
-        push_audio(dec, &frame, shared, target_ms)?;
+        push_audio(dec, &frame, shared, target_ms, generation)?;
     }
     Ok(true)
 }
@@ -896,6 +968,7 @@ fn push_audio(
     frame: &rsmpeg::avutil::AVFrame,
     shared: &Arc<AudioShared>,
     target_ms: &mut Option<u64>,
+    generation: u64,
 ) -> Result<(), String> {
     if frame.nb_samples <= 0 {
         return Ok(());
@@ -932,8 +1005,17 @@ fn push_audio(
         }
         std::slice::from_raw_parts(ptr, samples)
     };
+    queue_audio_samples(shared, generation, bytes);
+    Ok(())
+}
+
+/// 디코드 중 탐색 세대가 바뀌지 않은 경우에만 표본을 출력 큐에 넣는다.
+fn queue_audio_samples(shared: &Arc<AudioShared>, generation: u64, samples: &[f32]) -> bool {
     let mut queue = shared.queue.lock().unwrap_or_else(|e| e.into_inner());
-    while queue.len() + bytes.len() > QUEUE_PAIRS_MAX * 2 {
+    if shared.seek_gen.load(Ordering::SeqCst) != generation {
+        return false;
+    }
+    while queue.len() + samples.len() > QUEUE_PAIRS_MAX * 2 {
         if queue.len() >= 2 {
             queue.pop_front();
             queue.pop_front();
@@ -941,8 +1023,8 @@ fn push_audio(
             break;
         }
     }
-    queue.extend(bytes.iter().copied());
-    Ok(())
+    queue.extend(samples.iter().copied());
+    true
 }
 
 fn seek_audio(dec: &mut AudioDecoder, target_ms: u64) -> Result<(), String> {
@@ -1053,12 +1135,29 @@ mod tests {
         prime(&shared, &mut mixer, 1.0);
         let out = run(&shared, &mut mixer, 480);
         assert!(out[479] > 0.7);
-        shared.queue.lock().unwrap().clear();
-        shared.seek_gen.fetch_add(1, Ordering::SeqCst);
+        let stale_generation = shared.seek_gen.load(Ordering::SeqCst);
+        {
+            let mut queue = shared.queue.lock().unwrap();
+            queue.clear();
+            shared.seek_gen.fetch_add(1, Ordering::SeqCst);
+        }
+        // 탐색 전에 시작한 패킷 디코드가 늦게 끝나도 새 세대 큐에는 넣지 않는다.
+        assert!(!queue_audio_samples(
+            &shared,
+            stale_generation,
+            &[0.25; 7200]
+        ));
         let out = run(&shared, &mut mixer, 480);
         assert!(
             out[479].abs() < 1e-3,
             "이전 위치의 소리를 이어 쓰면 안 된다"
+        );
+        let generation = shared.seek_gen.load(Ordering::SeqCst);
+        assert!(queue_audio_samples(&shared, generation, &[-0.5; 7200]));
+        let out = run(&shared, &mut mixer, 1);
+        assert!(
+            out[0].abs() < 0.01,
+            "새 위치의 소리는 짧게 페이드 인해야 한다"
         );
     }
 
