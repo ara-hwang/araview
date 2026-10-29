@@ -184,6 +184,11 @@
       "declared": "Declared license",
       "documentsGroup": "Documents"
     },
+    "diagnostics": {
+      "title": "Diagnostics",
+      "desc": "Copies the version, OS, codec libraries, cache and log paths, and recent errors to the clipboard. Photo paths and file names are left out, and nothing is sent anywhere.",
+      "copy": "Copy diagnostics"
+    },
     "view": {
       "title": "View mode",
       "desc": "Single / dual / vertical scroll layout",
@@ -621,6 +626,9 @@
   "toast": {
     "copyMessage": "Copy error message",
     "copied": "Copied",
+    "diagnostics": {
+      "done": "Diagnostics copied"
+    },
     "close": "Close",
     "settings": {
       "saveFail": "Failed to save settings",

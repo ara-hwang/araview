@@ -596,6 +596,20 @@ impl SettingsPanel {
                     })),
                 cx,
             ))
+            .child(setting_row(
+                t("settings.diagnostics.title"),
+                Some(t("settings.diagnostics.desc")),
+                Button::new("copy-diagnostics")
+                    .small()
+                    .outline()
+                    .label(t("settings.diagnostics.copy"))
+                    .on_click(cx.listener(|this, _, window, cx| {
+                        this.view
+                            .update(cx, |view, cx| view.copy_diagnostics(window, cx))
+                            .ok();
+                    })),
+                cx,
+            ))
     }
 
     fn view_tab(&mut self, window: &mut Window, cx: &mut Context<Self>) -> Div {

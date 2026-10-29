@@ -6,6 +6,9 @@
   "scripts": {
     "docs:check": "node scripts/check-docs.mjs",
     "licenses": "node scripts/generate-license-data.mjs",
-    "release": "node scripts/release.mjs"
+    "release": "node scripts/release.mjs",
+    "bench": "cargo bench -p araview-core",
+    "bench:record": "node scripts/bench.mjs record",
+    "bench:compare": "node scripts/bench.mjs compare"
   }
 }
