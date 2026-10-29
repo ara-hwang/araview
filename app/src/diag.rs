@@ -114,6 +114,8 @@ fn platform_os_version() -> Option<String> {
 }
 
 /// `/etc/os-release`의 `PRETTY_NAME`, 없으면 `NAME`.
+/// Windows는 배포판 파일도 plist도 읽지 않으므로 컴파일 대상에서 뺀다.
+#[cfg(any(unix, test))]
 fn os_release_pretty_name(text: &str) -> Option<String> {
     ["PRETTY_NAME", "NAME"].iter().find_map(|wanted| {
         text.lines()
@@ -125,6 +127,7 @@ fn os_release_pretty_name(text: &str) -> Option<String> {
 }
 
 /// 따옴표로 감싼 값을 벗긴다(`/etc/os-release` 형식).
+#[cfg(any(unix, test))]
 fn unquote(value: &str) -> &str {
     for quote in ['"', '\''] {
         if let Some(inner) = value
@@ -138,6 +141,7 @@ fn unquote(value: &str) -> &str {
 }
 
 /// `SystemVersion.plist`의 `ProductVersion` 값.
+#[cfg(any(unix, test))]
 fn plist_version(text: &str) -> Option<String> {
     let (_, after_key) = text.split_once("<key>ProductVersion</key>")?;
     let (_, after_open) = after_key.split_once("<string>")?;
