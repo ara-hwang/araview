@@ -47,7 +47,7 @@ fn embed_icon() {
 fn embed_icon() {}
 
 /// vcpkg로 동적 링크한 네이티브 런타임 DLL을 실행 파일 옆에 둔다. 없으면 앱이
-/// 시작되지 않는다. 대상은 libheif 3종과 FFmpeg 8 영상 DLL이다.
+/// 시작되지 않는다. 대상은 libheif, FFmpeg 8 영상, dav1d와 ICU 런타임 DLL이다.
 fn copy_vcpkg_runtime_dlls() {
     println!("cargo:rerun-if-env-changed=VCPKG_ROOT");
     println!("cargo:rerun-if-env-changed=VCPKG_INSTALLATION_ROOT");
@@ -90,20 +90,22 @@ fn is_vcpkg_runtime_dll(name: &str) -> bool {
     if !lower.ends_with(".dll") {
         return false;
     }
-    matches!(
-        lower.as_str(),
-        "heif.dll" | "libde265.dll" | "aom.dll" | "dav1d.dll"
-    ) || [
-        "avcodec-",
-        "avformat-",
-        "avutil-",
-        "avfilter-",
-        "avdevice-",
-        "swscale-",
-        "swresample-",
-    ]
-    .iter()
-    .any(|prefix| lower.starts_with(prefix))
+    lower.starts_with("icu")
+        || matches!(
+            lower.as_str(),
+            "heif.dll" | "libde265.dll" | "aom.dll" | "dav1d.dll"
+        )
+        || [
+            "avcodec-",
+            "avformat-",
+            "avutil-",
+            "avfilter-",
+            "avdevice-",
+            "swscale-",
+            "swresample-",
+        ]
+        .iter()
+        .any(|prefix| lower.starts_with(prefix))
 }
 
 /// vcpkg 네이티브 라이브러리(libheif, libde265, aom, FFmpeg, dav1d)의 저작권 문서를

@@ -41,7 +41,7 @@ $env:Path += ";$env:VCPKG_ROOT\installed\x64-windows\bin"
 `.cargo/config.toml` 고정)과 짝을 이룬다. 바인딩을 로컬 생성하지 않으므로
 Windows에서는 libclang이 필요 없다.
 
-앱은 `libheif`와 FFmpeg를 동적 링크합니다. `app/build.rs`가 `VCPKG_ROOT`(또는 `VCPKG_INSTALLATION_ROOT`) 아래 `installed/x64-windows/bin`에서 `heif.dll`, `libde265.dll`, `aom.dll`, `avcodec-62.dll`, `avformat-62.dll`, `avutil-60.dll`, `avfilter-11.dll`, `avdevice-62.dll`, `swscale-9.dll`, `swresample-6.dll`, `dav1d.dll`을 실행 파일 옆(`target/<profile>/`)으로 복사하고, vcpkg의 `libheif`, `libde265`, `aom`, `ffmpeg`, `dav1d` `copyright`를 같은 위치의 `licenses/`로 모읍니다. 설치 프로그램은 이 파일들을 그대로 동봉합니다. CI에서는 `VCPKGRS_DYNAMIC=1`과 `PKG_CONFIG_PATH`를 함께 둡니다(워크플로 참조). FFmpeg 메이저가 바뀌면 DLL 이름(SONAME)도 바뀌므로 `app/build.rs`와 `scripts/Build-Installer.ps1`을 함께 고칩니다.
+앱은 `libheif`와 FFmpeg를 동적 링크합니다. `app/build.rs`가 `VCPKG_ROOT`(또는 `VCPKG_INSTALLATION_ROOT`) 아래 `installed/x64-windows/bin`에서 `heif.dll`, `libde265.dll`, `aom.dll`, `avcodec-62.dll`, `avformat-62.dll`, `avutil-60.dll`, `avfilter-11.dll`, `avdevice-62.dll`, `swscale-9.dll`, `swresample-6.dll`, `dav1d.dll`과 ICU 런타임(`icu*.dll`)을 실행 파일 옆(`target/<profile>/`)으로 복사하고, vcpkg의 `libheif`, `libde265`, `aom`, `ffmpeg`, `dav1d` `copyright`를 같은 위치의 `licenses/`로 모읍니다. 설치 프로그램은 이 파일들을 그대로 동봉하며 `icuuc.dll`이 빠지면 패키징을 실패시킵니다. CI에서는 `VCPKGRS_DYNAMIC=1`과 `PKG_CONFIG_PATH`를 함께 둡니다(워크플로 참조). FFmpeg 메이저가 바뀌면 DLL 이름(SONAME)도 바뀌므로 `app/build.rs`와 `scripts/Build-Installer.ps1`을 함께 고칩니다.
 
 ### macOS
 
