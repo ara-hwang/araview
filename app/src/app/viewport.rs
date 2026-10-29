@@ -1455,9 +1455,7 @@ impl AraView {
 
     /// 지금 단일 보기를 최근접 보간으로 그려야 하는지(SPEC §18). 축소에서는 항상 부드럽게.
     fn wants_pixelated(&self, cx: &App) -> bool {
-        if !self.current_page_is_full()
-            || self.view_mode(cx) != ViewMode::Single
-            || self.zoom < 1.0
+        if !self.current_page_is_full() || self.view_mode(cx) != ViewMode::Single || self.zoom < 1.0
         {
             return false;
         }
@@ -1865,13 +1863,16 @@ impl AraView {
         let preview_thumb = (mode == ViewMode::Single
             && self.pending_commit
             && self.nav_started.elapsed() >= super::pages::PREVIOUS_HOLD
-            && self.pages.get(&self.index).is_none_or(|page| page.is_full()))
-            .then(|| self.list.get(self.index))
-            .flatten()
-            .and_then(|item| match self.thumbs.get(item) {
-                Some(super::ThumbState::Ready(path)) => Some(path.clone()),
-                _ => None,
-            });
+            && self
+                .pages
+                .get(&self.index)
+                .is_none_or(|page| page.is_full()))
+        .then(|| self.list.get(self.index))
+        .flatten()
+        .and_then(|item| match self.thumbs.get(item) {
+            Some(super::ThumbState::Ready(path)) => Some(path.clone()),
+            _ => None,
+        });
         let preview = (mode != ViewMode::Webtoon)
             .then(|| self.pages.get(&self.index))
             .flatten()
