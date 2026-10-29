@@ -65,13 +65,6 @@ foreach ($dll in "heif.dll", "libde265.dll", "aom.dll", "avcodec-62.dll", "avfor
   Copy-Item $source $stage
 }
 
-# Windows 앱은 ICU의 icuuc.dll을 직접 가져오므로 ICU 런타임 전체(예: icudt.dll)도 동봉한다.
-$icuDlls = @(Get-ChildItem -Path $release -Filter "icu*.dll" -File)
-if (-not ($icuDlls | Where-Object { $_.Name -ieq "icuuc.dll" })) {
-  throw "런타임 DLL이 없습니다: $(Join-Path $release 'icuuc.dll') (VCPKG_ROOT 확인)"
-}
-$icuDlls | Copy-Item -Destination $stage
-
 # PSD 탐색기 썸네일 DLL. 1.x 설치본의 등록 경로(resources\)를 그대로 쓰도록 같은 자리에 둔다.
 $thumb = Join-Path $release "araview_thumb.dll"
 if (-not (Test-Path $thumb)) { throw "썸네일 DLL이 없습니다: $thumb" }
