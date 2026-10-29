@@ -338,8 +338,8 @@ impl VideoPlayer {
             || self.shared.seek_result.load(Ordering::SeqCst) != 0
     }
 
-    /// cpal 출력 스트림을 UI 스레드에서 열어 돌려준다.
-    /// `AudioStream`을 들고 있는 동안 소리가 난다.
+    /// cpal 출력 스트림을 전용 스레드에서 열어 돌려준다.
+    /// `AudioStream`을 들고 있는 동안 소리가 난다. 어느 스레드에서든 호출할 수 있다.
     pub fn attach_audio_output(&self) -> Result<crate::video_audio::AudioStream, AppError> {
         let audio = self
             .audio

@@ -2,7 +2,11 @@
 //!
 //! 디코드 워커가 오디오를 스테레오 f32로 리샘플링해 공유 큐에 넣고, cpal 출력
 //! 콜백이 꺼내 재생한다. 오디오가 있으면 오디오 클럭이 마스터다. 장치를 열 수
-//! 없으면 호출자가 영상만 재생하도록 `Err`를 돌려준다.
+//! 없으면 호출자가 영상만 재생하도록 `Err`를 돌려주고 이유를 경고로 남긴다.
+//!
+//! cpal 출력 스트림은 전용 스레드가 만들고 들고 있다. Windows의 WASAPI 기본 장치
+//! 활성화는 STA를 요구하는데 GPUI의 UI 스레드는 MTA라, 그 자리에서 열면
+//! `RPC_E_CHANGED_MODE`로 실패해 소리가 조용히 사라진다(2.7.0-beta.10까지의 증상).
 //!
 //! 콜백은 실시간 스레드다. 공유 큐 잠금을 기다리면 데드라인을 놓쳐 소리가
 //! 깨지므로, 콜백은 지역 버퍼(200ms)를 들고 재생하고 모자랄 때만 `try_lock`으로
@@ -72,9 +76,28 @@ pub struct AudioOutput {
     format: cpal::SampleFormat,
 }
 
-/// cpal 출력 스트림. `!Send`라 UI 스레드에서 만들고 들고 있는다.
-/// 필드를 읽지 않지만, 값이 살아 있는 동안 소리가 난다.
-pub struct AudioStream(#[allow(dead_code)] cpal::Stream);
+/// cpal 출력 스트림을 소유하는 전용 스레드 핸들. 이 값이 살아 있는 동안 소리가 난다.
+///
+/// 스트림은 UI 스레드가 아니라 여기서 함께 도는 전용 스레드에서 만들고 버린다. Windows의
+/// WASAPI 기본 장치 활성화(`ActivateAudioInterfaceAsync`)는 호출 스레드가 STA를 요구하는데
+/// GPUI의 UI 스레드는 MTA라, 그 자리에서 열면 `RPC_E_CHANGED_MODE`로 실패한다. 전용
+/// 스레드는 cpal이 STA로 초기화하고, `!Send`인 백엔드 스트림을 만든 스레드에서 그대로
+/// 버리므로 플랫폼 차이도 없다.
+pub struct AudioStream {
+    /// 신호를 보내거나 버리면 스트림 스레드가 스트림을 버리고 끝난다.
+    stop: Option<mpsc::Sender<()>>,
+    thread: Option<std::thread::JoinHandle<()>>,
+}
+
+impl Drop for AudioStream {
+    fn drop(&mut self) {
+        // 송신자를 버리면 스트림 스레드의 `recv`가 풀리고, 그 스레드는 스트림을 버린 뒤 끝난다.
+        self.stop.take();
+        if let Some(thread) = self.thread.take() {
+            let _ = thread.join();
+        }
+    }
+}
 
 impl AudioOutput {
     /// 디코드 워커를 시작한다. 출력 장치는 열지 않는다(어느 스레드에서든 호출 가능).
@@ -99,9 +122,7 @@ impl AudioOutput {
         let worker = std::thread::Builder::new()
             .name("araview-audio".to_string())
             .spawn(move || {
-                log::warn!("[audio] worker started: out_rate={out_rate}");
                 if let Err(e) = audio_loop(&source, out_rate, &cmd_rx, &worker_shared) {
-                    log::warn!("[audio] worker error: {e}");
                     *worker_shared
                         .error
                         .lock()
@@ -120,7 +141,7 @@ impl AudioOutput {
     }
 
     /// 출력 장치와 설정을 고른다. 값만 돌려주므로 어느 스레드에서든 호출 가능하고,
-    /// 실제 스트림은 UI 스레드에서 `open_output_stream`으로 연다.
+    /// 실제 스트림은 `open_output_stream`이 전용 스레드에서 연다.
     pub fn probe_output() -> Result<(u32, u16, cpal::SampleFormat), AppError> {
         let host = cpal::default_host();
         let device = host
@@ -130,15 +151,28 @@ impl AudioOutput {
             .supported_output_configs()
             .map_err(|e| AppError::unknown(format!("No audio output configs: {e}")))?
             .collect();
-        // F32 스테레오 48kHz 우선, 없으면 F32, 그래도 없으면 첫 설정이다.
+        // 장치 기본(믹스) 레이트를 함께 본다. 사용자가 제어판에서 고른 값이고 WASAPI가 항상
+        // 받아들이는 형식이다. 스테레오를 요구하지 않는 이유는 8채널처럼 스테레오 설정이
+        // 없는 장치에서도 48kHz를 유지하기 위해서다(예전에는 첫 F32 설정인 8kHz로 떨어졌다).
+        let default_rate = device
+            .default_output_config()
+            .map(|config| config.sample_rate())
+            .unwrap_or(PREFERRED_RATE);
         use cpal::SampleFormat;
+        let in_range = |c: &&cpal::SupportedStreamConfigRange| {
+            c.sample_format() == SampleFormat::F32
+                && c.min_sample_rate() <= PREFERRED_RATE
+                && PREFERRED_RATE <= c.max_sample_rate()
+        };
         let picked = configs
             .iter()
-            .filter(|c| c.sample_format() == SampleFormat::F32)
-            .find(|c| {
-                c.channels() == AUDIO_CHANNELS as u16
-                    && c.min_sample_rate() <= PREFERRED_RATE
-                    && PREFERRED_RATE <= c.max_sample_rate()
+            .find(in_range)
+            .or_else(|| {
+                configs.iter().find(|c| {
+                    c.sample_format() == SampleFormat::F32
+                        && c.min_sample_rate() <= default_rate
+                        && default_rate <= c.max_sample_rate()
+                })
             })
             .or_else(|| {
                 configs
@@ -151,35 +185,64 @@ impl AudioOutput {
             && PREFERRED_RATE <= picked.max_sample_rate()
         {
             PREFERRED_RATE
+        } else if picked.min_sample_rate() <= default_rate && default_rate <= picked.max_sample_rate() {
+            default_rate
         } else {
             picked.max_sample_rate()
         };
         Ok((rate, picked.channels(), picked.sample_format()))
     }
 
-    /// cpal 출력 스트림을 연다. `!Send`라 UI 스레드에서 호출하고 들고 있는다.
+    /// cpal 출력 스트림을 전용 스레드에서 열고, 그 스레드가 스트림을 들고 있게 한다.
     /// 버퍼를 크게 잡아 CPU 스파이크를 흡수하고, 백엔드가 고정 크기를 거부하면
-    /// 기본값으로 다시 연다.
+    /// 기본값으로 다시 연다. 열지 못하면 이유를 경고로 남기고 `Err`를 돌려준다
+    /// (호출자는 영상만 재생한다).
     pub fn open_output_stream(&self) -> Result<AudioStream, AppError> {
         let rate = self.sample_rate;
         let channels = self.channels;
         let format = self.format;
-        match open_stream(
-            &self.shared,
-            rate,
-            channels,
-            format,
-            Some(OUTPUT_BUFFER_FRAMES),
-        ) {
-            Ok(stream) => Ok(AudioStream(stream)),
-            Err(first) => {
-                log::warn!("[audio] fixed-buffer stream failed: {first:?}");
-                open_stream(&self.shared, rate, channels, format, None)
-                    .map(AudioStream)
-                    .map_err(|second| {
-                        log::warn!("[audio] default-buffer stream failed: {second:?}");
-                        first
-                    })
+        let shared = Arc::clone(&self.shared);
+        let (ready_tx, ready_rx) = mpsc::channel();
+        let (stop_tx, stop_rx) = mpsc::channel::<()>();
+        let thread = std::thread::Builder::new()
+            .name("araview-audio-out".to_string())
+            .spawn(move || {
+                let opened =
+                    open_stream(&shared, rate, channels, format, Some(OUTPUT_BUFFER_FRAMES))
+                        .or_else(|first| {
+                            log::warn!("audio output with a fixed buffer failed: {first:?}");
+                            open_stream(&shared, rate, channels, format, None)
+                        });
+                let stream = match opened {
+                    Ok(stream) => stream,
+                    Err(error) => {
+                        log::warn!("audio output unavailable, playing video only: {error:?}");
+                        let _ = ready_tx.send(Err(error));
+                        return;
+                    }
+                };
+                if ready_tx.send(Ok(())).is_err() {
+                    return;
+                }
+                // 정지 신호가 올 때까지 스트림을 살려 둔다. 스트림은 만든 스레드에서 버린다.
+                let _ = stop_rx.recv();
+                drop(stream);
+            })
+            .map_err(|e| AppError::unknown(format!("Failed to start audio thread: {e}")))?;
+        match ready_rx.recv_timeout(Duration::from_secs(5)) {
+            Ok(Ok(())) => Ok(AudioStream {
+                stop: Some(stop_tx),
+                thread: Some(thread),
+            }),
+            Ok(Err(error)) => {
+                let _ = thread.join();
+                Err(error)
+            }
+            // 시간 안에 열리지 않았다. 송신자를 버려 스레드를 정리한다.
+            Err(_) => {
+                drop(stop_tx);
+                let _ = thread.join();
+                Err(AppError::unknown("Audio output did not start in time"))
             }
         }
     }
@@ -298,10 +361,6 @@ fn open_stream(
             }
         }
     }
-    log::warn!(
-        "[audio] opening stream: rate={rate} channels={channels} format={format:?} buffer={buffer_frames:?} picked_buf={:?}",
-        picked.buffer_size()
-    );
     let err_fn = |e| log::warn!("audio output error: {e}");
     let stream = match format {
         SampleFormat::F32 => {
@@ -309,13 +368,7 @@ fn open_stream(
             let mut mixer = Mixer::new(rate);
             device.build_output_stream(
                 config,
-                move |out: &mut [f32], _| {
-                    static ONCE: std::sync::Once = std::sync::Once::new();
-                    ONCE.call_once(|| {
-                        log::warn!("[audio] first output callback: len={} channels={channels}", out.len())
-                    });
-                    fill_output(&worker, &mut mixer, channels, out, |s| s)
-                },
+                move |out: &mut [f32], _| fill_output(&worker, &mut mixer, channels, out, |s| s),
                 err_fn,
                 None,
             )
@@ -567,9 +620,6 @@ fn fill_output<T>(
     mixer.refill(shared);
     if !mixer.primed {
         mixer.primed = mixer.ready();
-        if mixer.primed {
-            log::warn!("[audio] mixer primed: local={}", mixer.local.len());
-        }
     }
     let eof = shared.eof.load(Ordering::SeqCst);
     let mut played = 0u64;
@@ -711,19 +761,7 @@ fn audio_loop(
     cmd_rx: &mpsc::Receiver<AudioCommand>,
     shared: &Arc<AudioShared>,
 ) -> Result<(), String> {
-    let mut dec = match open_audio_decoder(source, out_rate) {
-        Ok(dec) => {
-            log::warn!(
-                "[audio] decoder open: out_rate={out_rate} in_rate={} in_fmt={} in_channels={}",
-                dec.in_rate, dec.in_fmt, dec.in_channels
-            );
-            dec
-        }
-        Err(e) => {
-            log::warn!("[audio] decoder open failed: {e}");
-            return Err(e);
-        }
-    };
+    let mut dec = open_audio_decoder(source, out_rate)?;
     let mut target_ms: Option<u64> = None;
     loop {
         while let Ok(cmd) = cmd_rx.try_recv() {
@@ -846,16 +884,6 @@ fn push_audio(
         .convert_frame(Some(frame), &mut out)
         .map_err(|e| format!("Failed to resample audio: {e:?}"))?;
     let samples = out.nb_samples.max(0) as usize * AUDIO_CHANNELS;
-    {
-        static PUSHES: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-        let n = PUSHES.fetch_add(1, Ordering::Relaxed);
-        if n < 3 {
-            log::warn!(
-                "[audio] decoded frame {n}: nb_samples={} out_nb={} samples={samples}",
-                frame.nb_samples, out.nb_samples
-            );
-        }
-    }
     if samples == 0 {
         return Ok(());
     }

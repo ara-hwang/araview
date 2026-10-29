@@ -818,12 +818,13 @@ impl AraView {
                             player.play(1.0);
                         }
                         this.video = Some(player);
-                        // 출력 스트림은 UI 스레드에서 연다. 실패하면 영상만 재생한다.
+                        // 출력 스트림은 오디오 전용 스레드가 연다(Windows WASAPI는 STA를
+                        // 요구하고 UI 스레드는 MTA다). 실패하면 이유를 남기고 영상만 재생한다.
                         let stream = this.video.as_ref().and_then(|player| {
                             match player.attach_audio_output() {
                                 Ok(stream) => Some(stream),
                                 Err(error) => {
-                                    log::warn!("[audio] attach_audio_output failed: {error:?}");
+                                    log::warn!("video audio unavailable: {error:?}");
                                     None
                                 }
                             }
