@@ -99,7 +99,9 @@ impl AudioOutput {
         let worker = std::thread::Builder::new()
             .name("araview-audio".to_string())
             .spawn(move || {
+                log::warn!("[audio] worker started: out_rate={out_rate}");
                 if let Err(e) = audio_loop(&source, out_rate, &cmd_rx, &worker_shared) {
+                    log::warn!("[audio] worker error: {e}");
                     *worker_shared
                         .error
                         .lock()
@@ -170,9 +172,15 @@ impl AudioOutput {
             Some(OUTPUT_BUFFER_FRAMES),
         ) {
             Ok(stream) => Ok(AudioStream(stream)),
-            Err(first) => open_stream(&self.shared, rate, channels, format, None)
-                .map(AudioStream)
-                .map_err(|_| first),
+            Err(first) => {
+                log::warn!("[audio] fixed-buffer stream failed: {first:?}");
+                open_stream(&self.shared, rate, channels, format, None)
+                    .map(AudioStream)
+                    .map_err(|second| {
+                        log::warn!("[audio] default-buffer stream failed: {second:?}");
+                        first
+                    })
+            }
         }
     }
 
@@ -290,6 +298,10 @@ fn open_stream(
             }
         }
     }
+    log::warn!(
+        "[audio] opening stream: rate={rate} channels={channels} format={format:?} buffer={buffer_frames:?} picked_buf={:?}",
+        picked.buffer_size()
+    );
     let err_fn = |e| log::warn!("audio output error: {e}");
     let stream = match format {
         SampleFormat::F32 => {
@@ -297,7 +309,13 @@ fn open_stream(
             let mut mixer = Mixer::new(rate);
             device.build_output_stream(
                 config,
-                move |out: &mut [f32], _| fill_output(&worker, &mut mixer, channels, out, |s| s),
+                move |out: &mut [f32], _| {
+                    static ONCE: std::sync::Once = std::sync::Once::new();
+                    ONCE.call_once(|| {
+                        log::warn!("[audio] first output callback: len={} channels={channels}", out.len())
+                    });
+                    fill_output(&worker, &mut mixer, channels, out, |s| s)
+                },
                 err_fn,
                 None,
             )
@@ -549,6 +567,9 @@ fn fill_output<T>(
     mixer.refill(shared);
     if !mixer.primed {
         mixer.primed = mixer.ready();
+        if mixer.primed {
+            log::warn!("[audio] mixer primed: local={}", mixer.local.len());
+        }
     }
     let eof = shared.eof.load(Ordering::SeqCst);
     let mut played = 0u64;
@@ -690,7 +711,19 @@ fn audio_loop(
     cmd_rx: &mpsc::Receiver<AudioCommand>,
     shared: &Arc<AudioShared>,
 ) -> Result<(), String> {
-    let mut dec = open_audio_decoder(source, out_rate)?;
+    let mut dec = match open_audio_decoder(source, out_rate) {
+        Ok(dec) => {
+            log::warn!(
+                "[audio] decoder open: out_rate={out_rate} in_rate={} in_fmt={} in_channels={}",
+                dec.in_rate, dec.in_fmt, dec.in_channels
+            );
+            dec
+        }
+        Err(e) => {
+            log::warn!("[audio] decoder open failed: {e}");
+            return Err(e);
+        }
+    };
     let mut target_ms: Option<u64> = None;
     loop {
         while let Ok(cmd) = cmd_rx.try_recv() {
@@ -813,6 +846,16 @@ fn push_audio(
         .convert_frame(Some(frame), &mut out)
         .map_err(|e| format!("Failed to resample audio: {e:?}"))?;
     let samples = out.nb_samples.max(0) as usize * AUDIO_CHANNELS;
+    {
+        static PUSHES: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        let n = PUSHES.fetch_add(1, Ordering::Relaxed);
+        if n < 3 {
+            log::warn!(
+                "[audio] decoded frame {n}: nb_samples={} out_nb={} samples={samples}",
+                frame.nb_samples, out.nb_samples
+            );
+        }
+    }
     if samples == 0 {
         return Ok(());
     }

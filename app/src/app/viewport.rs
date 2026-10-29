@@ -819,10 +819,15 @@ impl AraView {
                         }
                         this.video = Some(player);
                         // 출력 스트림은 UI 스레드에서 연다. 실패하면 영상만 재생한다.
-                        let stream = this
-                            .video
-                            .as_ref()
-                            .and_then(|player| player.attach_audio_output().ok());
+                        let stream = this.video.as_ref().and_then(|player| {
+                            match player.attach_audio_output() {
+                                Ok(stream) => Some(stream),
+                                Err(error) => {
+                                    log::warn!("[audio] attach_audio_output failed: {error:?}");
+                                    None
+                                }
+                            }
+                        });
                         match stream {
                             Some(stream) => {
                                 this.video_audio_stream = Some(stream);
