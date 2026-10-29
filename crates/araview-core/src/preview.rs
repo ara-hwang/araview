@@ -88,8 +88,8 @@ pub(crate) fn decode_png_sampled(
         {
             let dest_row = output_y as usize * out_width as usize * 4;
             for output_x in 0..out_width {
-                let source_x = (u64::from(output_x) * u64::from(width)
-                    / u64::from(out_width)) as usize;
+                let source_x =
+                    (u64::from(output_x) * u64::from(width) / u64::from(out_width)) as usize;
                 let src = source_x * 3;
                 let dst = dest_row + output_x as usize * 4;
                 output[dst..dst + 3].copy_from_slice(&data[src..src + 3]);
@@ -160,7 +160,9 @@ pub(crate) fn jpeg_has_icc_profile(source: &Path) -> Option<bool> {
             if &signature == b"ICC_PROFILE\0" {
                 return Some(true);
             }
-            reader.seek(SeekFrom::Current((payload_len - signature.len()) as i64)).ok()?;
+            reader
+                .seek(SeekFrom::Current((payload_len - signature.len()) as i64))
+                .ok()?;
         } else {
             reader.seek(SeekFrom::Current(payload_len as i64)).ok()?;
         }
@@ -302,8 +304,11 @@ mod tests {
 
     #[::core::prelude::v1::test]
     fn jpeg_icc_marker_detection_is_conservative() {
-        let original = fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/../../samples/sample.jpg"))
-            .unwrap();
+        let original = fs::read(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../samples/sample.jpg"
+        ))
+        .unwrap();
         let temp = tempfile::tempdir().unwrap();
         let plain = temp.path().join("plain.jpg");
         fs::write(&plain, &original).unwrap();
