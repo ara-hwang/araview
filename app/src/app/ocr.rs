@@ -367,6 +367,10 @@ impl AraView {
             window.toast(Toast::warning(t("toast.ocr.unsupported")), cx);
             return;
         }
+        if !self.current_page_is_full() {
+            window.toast(Toast::warning(t("toast.ocr.empty")), cx);
+            return;
+        }
         let Some(info) = &self.info else {
             window.toast(Toast::warning(t("toast.ocr.empty")), cx);
             return;

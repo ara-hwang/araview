@@ -341,6 +341,7 @@ dependencies = [
  "libheif-rs",
  "log",
  "notify",
+ "png 0.18.1",
  "psd",
  "quick-xml 0.42.0",
  "rawler",

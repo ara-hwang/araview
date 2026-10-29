@@ -17,6 +17,7 @@ zip = "9.0"
 tempfile = "3"
 jpeg-encoder = "0.7"
 jpeg-decoder = { version = "0.3", default-features = false }
+png = "0.18"
 libheif-rs = { version = "3", default-features = false, features = ["v1_21"] }
 rawler = "0.8"
 trash = "5"

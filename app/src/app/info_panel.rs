@@ -205,7 +205,7 @@ impl AraView {
     /// 패널이 열려 있으면 현재 이미지의 정보를 다시 읽는다. 패널은 데이터를
     /// 기다리지 않고 바로 열리며 섹션은 도착하는 대로 채운다.
     pub(super) fn load_info(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if !self.info_open {
+        if !self.info_open || !self.current_page_is_full() {
             return;
         }
         let Some(info) = &self.info else {
