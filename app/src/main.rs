@@ -5,11 +5,13 @@
 
 mod app;
 mod assets;
+mod diag;
 mod dialog;
 mod geometry;
 mod i18n;
 mod keys;
 mod layout;
+mod logging;
 mod picture;
 mod platform;
 mod settings;
@@ -68,7 +70,7 @@ fn config_dir() -> Option<PathBuf> {
 
 /// 캐시 폴더. Windows는 `%LOCALAPPDATA%`, macOS는 `~/Library/Caches`,
 /// 그 밖의 유닉스는 `$XDG_CACHE_HOME`(없으면 `~/.cache`) 아래다.
-fn cache_dir() -> Option<PathBuf> {
+pub(crate) fn cache_dir() -> Option<PathBuf> {
     if cfg!(windows) {
         app_dir(env_dir("LOCALAPPDATA"))
     } else if cfg!(target_os = "macos") {
@@ -122,8 +124,8 @@ fn restored_bounds(saved: Option<WindowState>, cx: &App) -> Option<WindowBounds>
 }
 
 fn main() {
-    let _ = env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("warn"))
-        .try_init();
+    // 콘솔과 파일(`logs/araview.log`)에 같은 기록을 남긴다(SPEC §17.1).
+    logging::init();
 
     // 파일 연결이나 터미널로 실행하면 경로를 첫 인자로 받는다.
     let initial = std::env::args().nth(1);

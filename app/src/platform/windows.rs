@@ -134,6 +134,39 @@ pub fn hwnd(window: &Window) -> isize {
     }
 }
 
+/// 진단 정보에 실을 운영체제 표시 이름(예: `Windows 11 (build 22631)`).
+///
+/// `GetVersionEx`는 매니페스트에 따라 8.1로 고정되므로 커널이 알려 주는 값을 읽는다.
+pub fn os_version() -> Option<String> {
+    // RtlGetVersion이 기대하는 RTL_OSVERSIONINFOW 배치. 뒤쪽 필드는 읽지 않지만
+    // 구조체 크기 안에 있어야 하므로 자리만 잡아 둔다.
+    #[allow(dead_code)]
+    #[repr(C)]
+    struct OsVersionInfo {
+        size: u32,
+        major: u32,
+        minor: u32,
+        build: u32,
+        platform_id: u32,
+        csd_version: [u16; 128],
+    }
+    #[link(name = "ntdll")]
+    unsafe extern "system" {
+        fn RtlGetVersion(info: *mut OsVersionInfo) -> i32;
+    }
+    let mut info = OsVersionInfo {
+        size: size_of::<OsVersionInfo>() as u32,
+        major: 0,
+        minor: 0,
+        build: 0,
+        platform_id: 0,
+        csd_version: [0; 128],
+    };
+    // SAFETY: 구조체 크기를 채운 유효한 버퍼를 넘기며, 커널은 그 크기 안에서만 쓴다.
+    let status = unsafe { RtlGetVersion(&raw mut info) };
+    (status == 0).then(|| crate::diag::describe_windows_version(info.major, info.minor, info.build))
+}
+
 /// 이미지를 움직일 여유가 없을 때 왼쪽 드래그로 창을 옮긴다.
 ///
 /// OS 이동 루프는 이 함수를 부른 마우스 처리가 끝난 뒤에 돌아야 한다.
