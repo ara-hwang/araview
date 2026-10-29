@@ -52,13 +52,13 @@ pub(crate) struct ArchiveCacheIdentity {
     pub(crate) size: u64,
     pub(crate) modified: Option<SystemTime>,
     file_id: [u64; 2],
-    change_time: Option<i128>,
+    change_time: i128,
 }
 
 impl ArchiveCacheIdentity {
     pub(crate) fn from_file(file: &File) -> io::Result<Self> {
         let metadata = file.metadata()?;
-        let (file_id, change_time) = platform_file_identity(file, &metadata);
+        let (file_id, change_time) = platform_file_identity(file, &metadata)?;
         Ok(Self {
             size: metadata.len(),
             modified: metadata.modified().ok(),
@@ -80,37 +80,25 @@ impl ArchiveCacheIdentity {
         }
         hasher.write_u64_le(self.file_id[0]);
         hasher.write_u64_le(self.file_id[1]);
-        if let Some(change_time) = self.change_time {
-            hasher.write(&[1]);
-            hasher.write(&change_time.to_le_bytes());
-        } else {
-            hasher.write(&[0]);
-        }
+        hasher.write(&[1]);
+        hasher.write(&self.change_time.to_le_bytes());
     }
 }
 
 #[cfg(unix)]
-fn platform_file_identity(_file: &File, metadata: &Metadata) -> ([u64; 2], Option<i128>) {
+fn platform_file_identity(
+    _file: &File,
+    metadata: &Metadata,
+) -> io::Result<([u64; 2], i128)> {
     use std::os::unix::fs::MetadataExt;
 
     let change_time =
         i128::from(metadata.ctime()) * 1_000_000_000 + i128::from(metadata.ctime_nsec());
-    ([metadata.dev(), metadata.ino()], Some(change_time))
+    Ok(([metadata.dev(), metadata.ino()], change_time))
 }
 
 #[cfg(windows)]
-fn platform_file_identity(file: &File, metadata: &Metadata) -> ([u64; 2], Option<i128>) {
-    use std::os::windows::fs::MetadataExt;
-
-    let file_id = [
-        u64::from(metadata.volume_serial_number().unwrap_or_default()),
-        metadata.file_index().unwrap_or_default(),
-    ];
-    (file_id, windows_change_time(file))
-}
-
-#[cfg(windows)]
-fn windows_change_time(file: &File) -> Option<i128> {
+fn platform_file_identity(file: &File, _metadata: &Metadata) -> io::Result<([u64; 2], i128)> {
     use std::{
         ffi::c_void,
         mem::{size_of, MaybeUninit},
@@ -118,16 +106,40 @@ fn windows_change_time(file: &File) -> Option<i128> {
     };
 
     #[repr(C)]
+    struct FileTime {
+        _low: u32,
+        _high: u32,
+    }
+
+    #[repr(C)]
+    struct ByHandleFileInformation {
+        _file_attributes: u32,
+        _creation_time: FileTime,
+        _last_access_time: FileTime,
+        _last_write_time: FileTime,
+        volume_serial_number: u32,
+        _file_size_high: u32,
+        _file_size_low: u32,
+        _number_of_links: u32,
+        file_index_high: u32,
+        file_index_low: u32,
+    }
+
+    #[repr(C)]
     struct FileBasicInfo {
-        creation_time: i64,
-        last_access_time: i64,
-        last_write_time: i64,
+        _creation_time: i64,
+        _last_access_time: i64,
+        _last_write_time: i64,
         change_time: i64,
-        file_attributes: u32,
+        _file_attributes: u32,
     }
 
     #[link(name = "kernel32")]
     unsafe extern "system" {
+        fn GetFileInformationByHandle(
+            file: *mut c_void,
+            information: *mut ByHandleFileInformation,
+        ) -> i32;
         fn GetFileInformationByHandleEx(
             file: *mut c_void,
             information_class: u32,
@@ -137,27 +149,47 @@ fn windows_change_time(file: &File) -> Option<i128> {
     }
 
     const FILE_BASIC_INFO: u32 = 0;
-    let mut information = MaybeUninit::<FileBasicInfo>::uninit();
-    // SAFETY: `file` is a live std::fs::File handle and the output buffer has
+    let handle = file.as_raw_handle().cast();
+    let mut file_information = MaybeUninit::<ByHandleFileInformation>::uninit();
+    // SAFETY: `handle` is a live std::fs::File handle and the output buffer has
+    // the exact C layout and size required for BY_HANDLE_FILE_INFORMATION.
+    let succeeded = unsafe { GetFileInformationByHandle(handle, file_information.as_mut_ptr()) };
+    if succeeded == 0 {
+        return Err(io::Error::last_os_error());
+    }
+    // SAFETY: a nonzero result means Windows initialized the full output struct.
+    let file_information = unsafe { file_information.assume_init() };
+
+    let mut basic_information = MaybeUninit::<FileBasicInfo>::uninit();
+    // SAFETY: `handle` is a live std::fs::File handle and the output buffer has
     // the exact C layout and size required for FILE_BASIC_INFO.
     let succeeded = unsafe {
         GetFileInformationByHandleEx(
-            file.as_raw_handle().cast(),
+            handle,
             FILE_BASIC_INFO,
-            information.as_mut_ptr().cast(),
+            basic_information.as_mut_ptr().cast(),
             size_of::<FileBasicInfo>() as u32,
         )
     };
     if succeeded == 0 {
-        return None;
+        return Err(io::Error::last_os_error());
     }
     // SAFETY: a nonzero result means Windows initialized the full output struct.
-    Some(i128::from(unsafe { information.assume_init() }.change_time))
+    let change_time = i128::from(unsafe { basic_information.assume_init() }.change_time);
+    let file_id = [
+        u64::from(file_information.volume_serial_number),
+        (u64::from(file_information.file_index_high) << 32)
+            | u64::from(file_information.file_index_low),
+    ];
+    Ok((file_id, change_time))
 }
 
 #[cfg(not(any(unix, windows)))]
-fn platform_file_identity(_file: &File, _metadata: &Metadata) -> ([u64; 2], Option<i128>) {
-    ([0, 0], None)
+fn platform_file_identity(_file: &File, _metadata: &Metadata) -> io::Result<([u64; 2], i128)> {
+    Err(io::Error::new(
+        io::ErrorKind::Unsupported,
+        "archive cache identity is unsupported on this platform",
+    ))
 }
 
 #[cfg(test)]
