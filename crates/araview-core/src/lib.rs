@@ -54,6 +54,7 @@ pub mod ocr;
 pub mod ops;
 pub mod orientation;
 pub mod process_temp;
+mod preview;
 pub mod psd_sidecar;
 pub mod raster_sidecar;
 pub mod raw;

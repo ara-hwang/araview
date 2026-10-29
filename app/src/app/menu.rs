@@ -194,7 +194,9 @@ impl AraView {
                 true
             }
             "toggleAlwaysOnTop" => platform::ALWAYS_ON_TOP_SUPPORTED,
-            "ocr" | "ocrHighlight" => has_image && platform::OCR_SUPPORTED,
+            "ocr" | "ocrHighlight" => {
+                has_image && self.current_page_is_full() && platform::OCR_SUPPORTED
+            }
             "navigatePrev" | "navigateNext" | "jumpPrev10" | "jumpNext10" | "jumpFirst"
             | "jumpLast" | "toggleGrid" | TOGGLE_DOCK => self.list.len() > 1,
             "toggleGifPlayback" | "gifPrevFrame" | "gifNextFrame" => {

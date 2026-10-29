@@ -22,14 +22,64 @@ use crate::layout::{self, CoverLayout, Solo};
 use crate::picture::{self, Orientation, Picture};
 use crate::settings::{ArchiveProgress, CacheMode, SettingsStore, ViewMode};
 
-pub(super) struct Page {
-    pub info: ImageInfo,
-    pub picture: Arc<Picture>,
-    /// 디코드 결과의 보존 바이트(타일·밉 단계·애니메이션 프레임 합계). 바이트
-    /// 예산이 이 값으로 페이지를 내려놓는다(SPEC §9.1).
-    pub bytes: u64,
-    /// 폴더 목록의 아카이브를 첫 페이지로 미리 보여주는 중인지.
-    pub archive_preview: bool,
+pub(super) enum Page {
+    Preview {
+        picture: Arc<Picture>,
+        bytes: u64,
+        sequence: u64,
+    },
+    Full {
+        info: ImageInfo,
+        picture: Arc<Picture>,
+        /// 디코드 결과의 보존 바이트(타일·밉 단계·애니메이션 프레임 합계). 바이트
+        /// 예산이 이 값으로 페이지를 내려놓는다(SPEC §9.1).
+        bytes: u64,
+        /// 폴더 목록의 아카이브를 첫 페이지로 미리 보여주는 중인지.
+        archive_preview: bool,
+    },
+}
+
+impl Page {
+    pub fn picture(&self) -> &Arc<Picture> {
+        match self {
+            Self::Preview { picture, .. } | Self::Full { picture, .. } => picture,
+        }
+    }
+
+    pub fn info(&self) -> Option<&ImageInfo> {
+        match self {
+            Self::Preview { .. } => None,
+            Self::Full { info, .. } => Some(info),
+        }
+    }
+
+    pub fn info_mut(&mut self) -> Option<&mut ImageInfo> {
+        match self {
+            Self::Preview { .. } => None,
+            Self::Full { info, .. } => Some(info),
+        }
+    }
+
+    pub fn bytes(&self) -> u64 {
+        match self {
+            Self::Preview { bytes, .. } | Self::Full { bytes, .. } => *bytes,
+        }
+    }
+
+    pub fn is_full(&self) -> bool {
+        matches!(self, Self::Full { .. })
+    }
+
+    pub fn preview_sequence(&self) -> Option<u64> {
+        match self {
+            Self::Preview { sequence, .. } => Some(*sequence),
+            Self::Full { .. } => None,
+        }
+    }
+
+    pub fn is_archive_preview(&self) -> bool {
+        matches!(self, Self::Full { archive_preview: true, .. })
+    }
 }
 
 /// 대기 중인 full 디코드 요청.
@@ -41,6 +91,10 @@ pub(super) struct DecodeJob {
 
 /// 대기 중인 요청 가운데 다음에 돌릴 것. 현재 화면(`protect`)이 먼저이고,
 /// 같으면 현재 위치에서 가까운 순, 그다음 요청 순이다.
+fn preview_is_stale(is_full_page: bool, previous_preview: Option<u64>, sequence: u64) -> bool {
+    is_full_page || previous_preview.is_some_and(|previous| previous >= sequence)
+}
+
 fn next_decode_job(queue: &[DecodeJob], anchor: usize) -> Option<usize> {
     queue
         .iter()
@@ -352,7 +406,7 @@ impl AraView {
     pub(super) fn clear_pages(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.list_gen += 1;
         for (_, page) in std::mem::take(&mut self.pages) {
-            Self::drop_picture(&page.picture, window, cx);
+            Self::drop_picture(page.picture(), window, cx);
         }
         if let Some(oriented) = self.oriented.take() {
             Self::drop_picture(&oriented, window, cx);
@@ -601,9 +655,9 @@ impl AraView {
                 let displayed = self
                     .picture
                     .as_ref()
-                    .is_some_and(|shown| Arc::ptr_eq(shown, &page.picture));
+                    .is_some_and(|shown| Arc::ptr_eq(shown, page.picture()));
                 if !displayed {
-                    Self::drop_picture(&page.picture, window, cx);
+                    Self::drop_picture(page.picture(), window, cx);
                 }
             }
         }
@@ -614,7 +668,7 @@ impl AraView {
         let bytes: HashMap<usize, u64> = self
             .pages
             .iter()
-            .map(|(index, page)| (*index, page.bytes))
+            .map(|(index, page)| (*index, page.bytes()))
             .collect();
         let plan = evict_plan(&bytes, self.index, protect, budget.items, budget.bytes);
         for index in &plan {
@@ -624,9 +678,9 @@ impl AraView {
             let displayed = self
                 .picture
                 .as_ref()
-                .is_some_and(|shown| Arc::ptr_eq(shown, &page.picture));
+                .is_some_and(|shown| Arc::ptr_eq(shown, page.picture()));
             if !displayed {
-                Self::drop_picture(&page.picture, window, cx);
+                Self::drop_picture(page.picture(), window, cx);
             }
         }
         plan
@@ -634,7 +688,50 @@ impl AraView {
 
     /// 페이지 캐시가 지금 들고 있는 디코드 바이트 합계.
     pub(super) fn cache_bytes(&self) -> u64 {
-        self.pages.values().map(|page| page.bytes).sum()
+        self.pages.values().map(Page::bytes).sum()
+    }
+
+    pub(super) fn current_page_is_full(&self) -> bool {
+        self.pages.get(&self.index).is_some_and(Page::is_full)
+    }
+
+    /// 프리뷰는 화면에만 올린다. ImageInfo 기반 동작은 full 디코드가 끝날 때까지
+    /// 비활성으로 두고, 늦게 끝난 프리뷰가 full 결과를 덮지 않도록 Page 상태도 유지한다.
+    fn show_preview_current(&mut self, index: usize, window: &mut Window, cx: &mut Context<Self>) {
+        if index != self.index || !self.pending_commit || self.view_mode(cx) != ViewMode::Single {
+            return;
+        }
+        let Some(Page::Preview { picture, .. }) = self.pages.get(&index) else {
+            return;
+        };
+        let picture = picture.clone();
+        if let Some(oriented) = self.oriented.take() {
+            Self::drop_picture(&oriented, window, cx);
+        }
+        if let Some(previous) = self.picture.replace(picture.clone()) {
+            let cached = self
+                .pages
+                .values()
+                .any(|page| Arc::ptr_eq(page.picture(), &previous));
+            if !cached {
+                Self::drop_picture(&previous, window, cx);
+            }
+        }
+        self.info = None;
+        self.orientation = Orientation::default();
+        self.playing = false;
+        self.frame = 0;
+        self.info_seq += 1;
+        self.info_data = Default::default();
+        self.ocr_shown = None;
+        self.ocr_select = None;
+        self.ocr_drag = None;
+        self.close_video();
+        self.drop_pixel_view(window, cx);
+        self.shown = vec![index];
+        self.fit_locked = true;
+        self.position = Offset::default();
+        self.apply_fit(cx);
     }
 
     /// 페이지가 캐시에 없으면 백그라운드에서 디코드한다. `protect`는 표시용 추출물을
@@ -646,7 +743,7 @@ impl AraView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self.pages.contains_key(&index)
+        if self.pages.get(&index).is_some_and(Page::is_full)
             || self.page_loading.contains(&index)
             || self.page_failed.contains_key(&index)
         {
@@ -673,7 +770,7 @@ impl AraView {
         let Some(position) = next_decode_job(&self.decode_queue, self.index) else {
             return;
         };
-        let DecodeJob { index, protect, .. } = self.decode_queue.swap_remove(position);
+        let DecodeJob { index, protect, seq } = self.decode_queue.swap_remove(position);
         let Some(item) = self.list.get(index).cloned() else {
             self.page_loading.remove(&index);
             self.pump_decode(window, cx);
@@ -685,6 +782,16 @@ impl AraView {
         let max_side = settings.max_resolution.max_side();
         let scaling = Some(settings.image_scaling_mode.as_str().to_owned());
         let archive = self.archive.clone();
+        let preview_task = if archive.is_none() && self.view_mode(cx) == ViewMode::Single {
+            let preview_path = PathBuf::from(&*item);
+            let preview_side = max_side.unwrap_or(2048).min(2048);
+            Some(cx.background_spawn(async move {
+                araview_core::display::decode_preview_for_display(&preview_path, preview_side)
+                    .map(|decoded| Arc::new(picture::build(decoded, Orientation::default(), None)))
+            }))
+        } else {
+            None
+        };
         let task = cx.background_spawn(async move {
             let (info, archive_preview) = match &archive {
                 Some(archive) => (
@@ -724,13 +831,56 @@ impl AraView {
             )?;
             let picture = Arc::new(picture);
             let bytes = picture::retained_bytes(&picture);
-            Ok::<_, AppError>(Page {
+            Ok::<_, AppError>(Page::Full {
                 info,
                 picture,
                 bytes,
                 archive_preview,
             })
         });
+        if let Some(preview_task) = preview_task {
+            cx.spawn_in(window, async move |this, cx| {
+                let Some(picture) = preview_task.await else {
+                    return;
+                };
+                this.update_in(cx, |this, window, cx| {
+                    let sequence_is_stale = this
+                        .pages
+                        .get(&index)
+                        .is_some_and(|page| {
+                            preview_is_stale(page.is_full(), page.preview_sequence(), seq)
+                        });
+                    if this.list_gen != generation
+                        || this.index != index
+                        || !this.pending_commit
+                        || this.view_mode(cx) != ViewMode::Single
+                        || sequence_is_stale
+                    {
+                        Self::drop_picture(&picture, window, cx);
+                        return;
+                    }
+                    let bytes = picture::retained_bytes(&picture);
+                    let preview = Page::Preview {
+                        picture: picture.clone(),
+                        bytes,
+                        sequence: seq,
+                    };
+                    if let Some(previous) = this.pages.insert(index, preview) {
+                        let displayed = this
+                            .picture
+                            .as_ref()
+                            .is_some_and(|shown| Arc::ptr_eq(shown, previous.picture()));
+                        if !displayed {
+                            Self::drop_picture(previous.picture(), window, cx);
+                        }
+                    }
+                    this.show_preview_current(index, window, cx);
+                    cx.notify();
+                })
+                .ok();
+            })
+            .detach();
+        }
         cx.spawn_in(window, async move |this, cx| {
             let result = task.await;
             this.update_in(cx, |this, window, cx| {
@@ -741,11 +891,21 @@ impl AraView {
                 this.page_loading.remove(&index);
                 match result {
                     Ok(page) => {
-                        if page.picture.width > page.picture.height && !page.archive_preview {
+                        if page.picture().width > page.picture().height
+                            && !page.is_archive_preview()
+                        {
                             this.wide.insert(index);
                         }
-                        this.webtoon_page_arrived(index, &page.picture, cx);
-                        this.pages.insert(index, page);
+                        this.webtoon_page_arrived(index, page.picture(), cx);
+                        if let Some(previous) = this.pages.insert(index, page) {
+                            let displayed = this
+                                .picture
+                                .as_ref()
+                                .is_some_and(|shown| Arc::ptr_eq(shown, previous.picture()));
+                            if !displayed {
+                                Self::drop_picture(previous.picture(), window, cx);
+                            }
+                        }
                     }
                     Err(error) => {
                         this.page_failed.insert(index, error);
@@ -790,7 +950,7 @@ impl AraView {
             self.current_failed(error, window, cx);
             return;
         }
-        if !self.pages.contains_key(&self.index) {
+        if !self.pages.get(&self.index).is_some_and(Page::is_full) {
             return;
         }
         self.pending_commit = false;
@@ -828,11 +988,13 @@ impl AraView {
 
     /// 현재 인덱스의 페이지를 기준 그림으로 삼고 보기 상태를 초기화한다.
     pub(super) fn commit_current(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(page) = self.pages.get(&self.index) else {
+        let Some(page) = self.pages.get(&self.index).filter(|page| page.is_full()) else {
             return;
         };
-        let info = page.info.clone();
-        let picture = page.picture.clone();
+        let Some(info) = page.info().cloned() else {
+            return;
+        };
+        let picture = page.picture().clone();
         self.error = None;
         self.orientation = Orientation::default();
         if let Some(oriented) = self.oriented.take() {
@@ -844,7 +1006,17 @@ impl AraView {
         self.frame = 0;
         self.loops_done = 0;
         self.frame_started = Instant::now();
-        self.picture = Some(picture);
+        if let Some(previous) = self.picture.replace(picture.clone()) {
+            let cached = self
+                .pages
+                .values()
+                .any(|page| Arc::ptr_eq(page.picture(), &previous));
+            if !cached {
+                Self::drop_picture(&previous, window, cx);
+            }
+        } else {
+            self.picture = Some(picture);
+        }
         self.info = Some(info);
         if self.has_video(cx) {
             self.open_video(window, cx);
@@ -971,7 +1143,7 @@ impl AraView {
         let previewing = self
             .pages
             .get(&self.index)
-            .is_some_and(|page| page.archive_preview);
+            .is_some_and(Page::is_archive_preview);
         if let Some(path) = self.list.get(self.index).filter(|_| previewing) {
             self.open_path(path.to_string(), window, cx);
         }
@@ -1007,6 +1179,14 @@ mod tests {
 
     /// `use gpui_kit::*`가 gpui의 `test` 매크로를 끌어오므로 빌트인 `#[test]`를
     /// 전체 경로로 고른다.
+    #[::core::prelude::v1::test]
+    fn stale_previews_cannot_replace_full_or_newer_pages() {
+        assert!(!preview_is_stale(false, None, 1));
+        assert!(!preview_is_stale(false, Some(1), 2));
+        assert!(preview_is_stale(false, Some(2), 2));
+        assert!(preview_is_stale(true, None, 1));
+    }
+
     #[::core::prelude::v1::test]
     fn byte_budget_evicts_farthest_first() {
         let bytes: HashMap<usize, u64> = (8..=13).map(|index| (index, 10)).collect();

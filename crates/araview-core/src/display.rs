@@ -77,6 +77,11 @@ impl From<DecodedFrames> for DisplayImage {
 
 /// `path`의 렌더 바이트를 디코드한다. SVG는 긴 변이 `svg_max_side`를 넘지 않게
 /// 래스터화한다.
+pub fn decode_preview_for_display(path: &Path, max_side: u32) -> Option<DisplayImage> {
+    crate::preview::decode_static_preview(path, max_side)
+        .map(|image| DisplayImage::still(image, false))
+}
+
 pub fn decode_for_display(path: &Path, svg_max_side: u32) -> Result<DisplayImage, AppError> {
     let mime = crate::image::resolve_mime(path);
     match mime {

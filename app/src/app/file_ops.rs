@@ -206,8 +206,11 @@ impl AraView {
                     SettingsStore::replace_recent(cx, &old_path, &info.source_path);
                     // 표시 경로가 원본 자체였다면 이름과 함께 바뀌었으므로 정보만 교체한다.
                     // 페이지 캐시도 바꿔야 다른 장에 다녀와도 옛 경로로 돌아가지 않는다.
-                    if let Some(page) = renamed.and_then(|index| this.pages.get_mut(&index)) {
-                        page.info = info.clone();
+                    if let Some(page_info) = renamed
+                        .and_then(|index| this.pages.get_mut(&index))
+                        .and_then(|page| page.info_mut())
+                    {
+                        *page_info = info.clone();
                     }
                     // 그사이 다른 장으로 넘어갔으면 지금 보는 그림의 정보는 건드리지 않는다.
                     if renamed == Some(this.index) {

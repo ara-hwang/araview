@@ -468,6 +468,10 @@ impl AraView {
     }
 
     fn copy_image(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if !self.current_page_is_full() {
+            window.toast(Toast::warning(t("toast.copy.empty")), cx);
+            return;
+        }
         // 이미지 위에서 고른 글자가 있으면 이미지 대신 그 글자를 복사한다.
         if let Some(text) = self.ocr_selected_text() {
             cx.write_to_clipboard(ClipboardItem::new_string(text));

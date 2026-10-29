@@ -1134,7 +1134,7 @@ impl AraView {
             .filter_map(|index| {
                 self.pages
                     .get(index)
-                    .map(|page| (*index, page.picture.clone()))
+                    .map(|page| (*index, page.picture().clone()))
             })
             .collect();
         if self.view_mode(cx) == ViewMode::RightToLeft {
@@ -1228,7 +1228,7 @@ impl AraView {
         let known = self
             .pages
             .get(&index)
-            .map(|page| (page.picture.width, page.picture.height))
+            .map(|page| (page.picture().width, page.picture().height))
             .or_else(|| self.wt_dims.get(&index).copied());
         let (natural_w, aspect) = match known {
             Some((w, h)) if w > 0 => (w as f32, h as f32 / w as f32),
@@ -1429,15 +1429,18 @@ impl AraView {
         let Some(page) = self.pages.get(&center) else {
             return;
         };
+        if !page.is_full() {
+            return;
+        }
         let stale = self
             .picture
             .as_ref()
-            .is_none_or(|picture| !Arc::ptr_eq(picture, &page.picture));
+            .is_none_or(|picture| !Arc::ptr_eq(picture, page.picture()));
         if changed || stale {
             self.pending_commit = false;
             self.error = None;
-            self.picture = Some(page.picture.clone());
-            self.info = Some(page.info.clone());
+            self.picture = Some(page.picture().clone());
+            self.info = page.info().cloned();
             if let Some(info) = &self.info {
                 window.set_window_title(&self.display_name(info));
             }
@@ -1452,7 +1455,10 @@ impl AraView {
 
     /// 지금 단일 보기를 최근접 보간으로 그려야 하는지(SPEC §18). 축소에서는 항상 부드럽게.
     fn wants_pixelated(&self, cx: &App) -> bool {
-        if self.view_mode(cx) != ViewMode::Single || self.zoom < 1.0 {
+        if !self.current_page_is_full()
+            || self.view_mode(cx) != ViewMode::Single
+            || self.zoom < 1.0
+        {
             return false;
         }
         if self
@@ -1478,6 +1484,9 @@ impl AraView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Option<(Arc<RenderImage>, Bounds<Pixels>)> {
+        if !self.current_page_is_full() {
+            return None;
+        }
         let picture = self.picture.clone()?;
         let level = &picture.levels[0];
         let container = self.container();
@@ -1739,7 +1748,7 @@ impl AraView {
                     }
                     match self.pages.get(&index) {
                         Some(page) => items.push(PaintItem {
-                            picture: page.picture.clone(),
+                            picture: page.picture().clone(),
                             rect: bounds,
                             frame: 0,
                         }),
@@ -1855,7 +1864,8 @@ impl AraView {
         // 디코드가 길어지면 이미 받아 둔 썸네일을 저해상 미리보기로 먼저 깐다.
         let preview_thumb = (mode == ViewMode::Single
             && self.pending_commit
-            && self.nav_started.elapsed() >= super::pages::PREVIOUS_HOLD)
+            && self.nav_started.elapsed() >= super::pages::PREVIOUS_HOLD
+            && self.pages.get(&self.index).is_none_or(|page| page.is_full()))
             .then(|| self.list.get(self.index))
             .flatten()
             .and_then(|item| match self.thumbs.get(item) {
@@ -1865,7 +1875,7 @@ impl AraView {
         let preview = (mode != ViewMode::Webtoon)
             .then(|| self.pages.get(&self.index))
             .flatten()
-            .filter(|page| page.archive_preview && self.shown.contains(&self.index))
+            .filter(|page| page.is_archive_preview() && self.shown.contains(&self.index))
             .and_then(|_| self.list.get(self.index))
             .map(|path| {
                 std::path::Path::new(&**path)

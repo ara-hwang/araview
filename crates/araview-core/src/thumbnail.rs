@@ -121,8 +121,15 @@ pub fn generate_thumbnail(source: &Path, max_side: u32) -> Result<ThumbnailInfo,
             } else {
                 let img = match decode_jpeg_scaled(source, max_side) {
                     Some(img) => img,
-                    None => image::open(source)
-                        .map_err(|e| AppError::image_error("Failed to decode image", e))?,
+                    None => match crate::preview::decode_png_sampled(
+                        source,
+                        max_side,
+                        crate::preview::MIN_PREVIEW_PIXELS,
+                    ) {
+                        Some(img) => image::DynamicImage::ImageRgba8(img),
+                        None => image::open(source)
+                            .map_err(|e| AppError::image_error("Failed to decode image", e))?,
+                    },
                 };
                 let img = crate::orientation::apply_to_image(
                     img,
@@ -154,7 +161,9 @@ pub fn generate_thumbnail(source: &Path, max_side: u32) -> Result<ThumbnailInfo,
 pub(crate) fn decode_jpeg_scaled(source: &Path, max_side: u32) -> Option<image::DynamicImage> {
     use jpeg_decoder::PixelFormat;
 
-    if crate::image::resolve_mime(source) != Some("image/jpeg") {
+    if crate::image::resolve_mime(source) != Some("image/jpeg")
+        || crate::preview::jpeg_has_icc_profile(source)?
+    {
         return None;
     }
     let side = u16::try_from(max_side).ok()?;
