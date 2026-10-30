@@ -127,7 +127,11 @@ fn canonical(spec: &str) -> Option<String> {
     let mut parts: Vec<&str> = spec.split('+').collect();
     // 키 자체가 `+`면 마지막 조각이 비어 있다.
     let key = match parts.pop()? {
-        "" => "+".to_owned(),
+        "" if parts.last().is_some_and(|part| part.is_empty()) => {
+            parts.pop();
+            "+".to_owned()
+        }
+        "" => return None,
         key => key.trim().to_ascii_lowercase(),
     };
     let (mut ctrl, mut shift, mut alt) = (false, false, false);
@@ -247,5 +251,15 @@ mod tests {
         for spec in ["", "Tab", "Meta", "Ctrl+Tab", "Ctrl+Foo+Bar"] {
             assert!(keystroke_for_spec(spec).is_none(), "{spec}");
         }
+    }
+
+    #[test]
+    fn plus_key_specs_are_valid_and_canonical() {
+        for (spec, expected) in [("+", "+"), ("Ctrl++", "ctrl++"), ("Shift++", "shift++")] {
+            assert_eq!(canonical(spec).as_deref(), Some(expected), "{spec}");
+            assert!(is_valid_spec(spec), "{spec}");
+        }
+        assert!(canonical("Ctrl+").is_none());
+        assert!(canonical("++").is_none());
     }
 }
