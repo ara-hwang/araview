@@ -87,6 +87,7 @@ dependencies and other-OS targets are excluded.
 | atspi | 0.29.0 | Apache-2.0 OR MIT |
 | atspi-common | 0.13.0 | Apache-2.0 OR MIT |
 | atspi-proxies | 0.13.0 | Apache-2.0 OR MIT |
+| audio_thread_priority | 0.35.1 | MPL-2.0 |
 | autocfg | 1.5.1 | Apache-2.0 OR MIT |
 | backtrace | 0.3.76 | MIT OR Apache-2.0 |
 | base62 | 2.2.6 | MIT |
@@ -379,6 +380,7 @@ dependencies and other-OS targets are excluded.
 | lzma-rust2 | 0.23.0 | Apache-2.0 |
 | mac | 0.1.1 | MIT OR Apache-2.0 |
 | mac-notification-sys | 0.6.15 | MIT OR Apache-2.0 |
+| mach2 | 0.4.3 | BSD-2-Clause OR MIT OR Apache-2.0 |
 | mach2 | 0.6.0 | BSD-2-Clause OR MIT OR Apache-2.0 |
 | malloc_buf | 0.0.6 | MIT |
 | markdown | 1.0.0 | MIT |

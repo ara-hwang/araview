@@ -37,7 +37,11 @@ rsmpeg = { version = "0.18", default-features = false, features = [
     "link_vcpkg_ffmpeg",
 ] }
 # 동영상 오디오 출력. OS 기본 백엔드만 쓴다(ALSA/WASAPI/CoreAudio).
-cpal = "0.18"
+# `realtime`을 켜야 cpal이 출력 콜백 스레드를 실시간(Windows는 MMCSS, 실패 시
+# TIME_CRITICAL)으로 올린다. 끄면 콜백 스레드가 보통 우선순위로 돌아 영상 디코드가
+# CPU를 오래 잡을 때 콜백이 늦고, 우리 큐는 남아 있는데도 출력 버퍼가 비어 소리가
+# 끊긴다(2.7.0-beta.28까지의 증상).
+cpal = { version = "0.18", features = ["realtime"] }
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.56.0"
