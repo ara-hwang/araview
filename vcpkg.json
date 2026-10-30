@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg/master/scripts/vcpkg.schema.json",
   "name": "araview",
-  "version-string": "2.7.0-beta.26",
+  "version-string": "2.7.0-beta.27",
   "builtin-baseline": "f8be6942c0c5abd48bb325726d57af9ac39e251d",
   "overrides": [
     {
