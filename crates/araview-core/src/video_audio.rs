@@ -11,6 +11,12 @@
 //! 핸들로 여는 경로로 넘어간다. 스트림 스레드는 `!Send`인 백엔드 스트림을 만든
 //! 스레드에서 그대로 버리기 위해서도 필요하다.
 //!
+//! 스테레오는 열거가 아니라 직접 요청한다. cpal WASAPI 열거는 믹스 채널만
+//! 돌려주므로(7.1 믹스면 전부 8ch), 열거에서 스테레오를 고르는 방식은 8ch 믹스에서
+//! 그대로 8ch를 연다. 출력은 `AUTOCONVERTPCM` 공유 모드라 열거에 없어도 스테레오
+//! 48kHz F32를 직접 열면 Windows가 변환해 준다. 그래서 프로브는 스테레오를 고정하고,
+//! 스트림도 직접 요청을 먼저 시도한 뒤 열거 일치로 폴백한다.
+//!
 //! 콜백은 실시간 스레드다. 공유 큐 잠금을 기다리면 데드라인을 놓쳐 소리가
 //! 깨지므로, 콜백은 지역 버퍼(200ms)를 들고 재생하고 모자랄 때만 `try_lock`으로
 //! 보충한다. 시작·탐색 뒤에는 선행 버퍼가 찰 때까지 소리를 내지 않고 클럭도
@@ -150,61 +156,65 @@ impl AudioOutput {
 
     /// 출력 장치와 설정을 고른다. 값만 돌려주므로 어느 스레드에서든 호출 가능하고,
     /// 실제 스트림은 `open_output_stream`이 전용 스레드에서 연다.
+    ///
+    /// 스테레오 48kHz F32를 고정한다. cpal WASAPI 열거는 믹스 채널만 돌려주므로
+    /// 열거에서 채널을 고르면 7.1 믹스에서 8ch가 열린다. 출력은 공유 모드
+    /// `AUTOCONVERTPCM`이라 열거에 없어도 직접 요청하면 Windows가 변환한다.
+    /// 열거는 장치가 출력 가능함을 확인하고 레이트·형식을 고르는 데만 쓴다.
+    /// 활성화에 실패하면(COM 등) 고정 스테레오로 넘어가 전용 스레드의 재시도에 맡긴다.
     pub fn probe_output() -> Result<(u32, u16, cpal::SampleFormat), AppError> {
+        use cpal::SampleFormat;
         let host = cpal::default_host();
         let device = host
             .default_output_device()
             .ok_or_else(|| AppError::unknown("No audio output device"))?;
-        let configs: Vec<_> = device
-            .supported_output_configs()
-            .map_err(|e| AppError::unknown(format!("No audio output configs: {e}")))?
-            .collect();
+        let configs: Vec<_> = match device.supported_output_configs() {
+            Ok(configs) => configs.collect(),
+            Err(e) => {
+                log::warn!("audio probe failed, requesting stereo directly: {e:?}");
+                return Ok((PREFERRED_RATE, AUDIO_CHANNELS as u16, SampleFormat::F32));
+            }
+        };
+        if configs.is_empty() {
+            return Ok((PREFERRED_RATE, AUDIO_CHANNELS as u16, SampleFormat::F32));
+        }
         // 장치 기본(믹스) 레이트를 함께 본다. 사용자가 제어판에서 고른 값이고 WASAPI가 항상
-        // 받아들이는 형식이다. 채널은 스테레오를 우선한다. 채널과 무관하게 첫 일치를 고르면
-        // 8ch 스트림이 열려 일부 장치에서 재생이 끊기므로, 스테레오 설정이 있으면 스테레오를
-        // 고른다. 스테레오 설정이 없는 장치에서만 노출된 채널로 48kHz를 유지한다(예전에는
-        // 첫 F32 설정인 8kHz로 떨어졌다).
+        // 받아들이는 형식이다. 채널은 여기서 고르지 않는다. 항상 스테레오를 직접 요청한다.
         let default_rate = device
             .default_output_config()
             .map(|config| config.sample_rate())
             .unwrap_or(PREFERRED_RATE);
-        use cpal::SampleFormat;
-        let find = |rate: u32, stereo: bool| {
-            configs.iter().find(|c| {
+        let has = |rate: u32| {
+            configs.iter().any(|c| {
                 c.sample_format() == SampleFormat::F32
-                    && (!stereo || c.channels() == AUDIO_CHANNELS as u16)
                     && c.min_sample_rate() <= rate
                     && rate <= c.max_sample_rate()
             })
         };
-        let picked = find(PREFERRED_RATE, true)
-            .or_else(|| find(PREFERRED_RATE, false))
-            .or_else(|| find(default_rate, true))
-            .or_else(|| find(default_rate, false))
-            .or_else(|| {
-                configs.iter().find(|c| {
-                    c.sample_format() == SampleFormat::F32 && c.channels() == AUDIO_CHANNELS as u16
-                })
-            })
-            .or_else(|| {
-                configs
-                    .iter()
-                    .find(|c| c.sample_format() == SampleFormat::F32)
-            })
-            .or_else(|| configs.first())
-            .ok_or_else(|| AppError::unknown("No audio output configs"))?;
-        let rate = if picked.min_sample_rate() <= PREFERRED_RATE
-            && PREFERRED_RATE <= picked.max_sample_rate()
-        {
+        let rate = if has(PREFERRED_RATE) {
             PREFERRED_RATE
-        } else if picked.min_sample_rate() <= default_rate
-            && default_rate <= picked.max_sample_rate()
-        {
+        } else if has(default_rate) {
             default_rate
+        } else if let Some(first) = configs
+            .iter()
+            .find(|c| c.sample_format() == SampleFormat::F32)
+        {
+            first.max_sample_rate()
+        } else if let Some(first) = configs.first() {
+            // F32 자체가 없으면 첫 설정의 레이트·형식을 쓰고 채널만 스테레오로 요청한다.
+            // 직접 요청이 실패하면 `build_stream`의 열거 폴백이 원 설정을 연다.
+            let rate = if first.min_sample_rate() <= PREFERRED_RATE
+                && PREFERRED_RATE <= first.max_sample_rate()
+            {
+                PREFERRED_RATE
+            } else {
+                first.max_sample_rate()
+            };
+            return Ok((rate, AUDIO_CHANNELS as u16, first.sample_format()));
         } else {
-            picked.max_sample_rate()
+            return Ok((PREFERRED_RATE, AUDIO_CHANNELS as u16, SampleFormat::F32));
         };
-        Ok((rate, picked.channels(), picked.sample_format()))
+        Ok((rate, AUDIO_CHANNELS as u16, SampleFormat::F32))
     }
 
     /// cpal 출력 스트림을 전용 스레드에서 열고, 그 스레드가 스트림을 들고 있게 한다.
@@ -227,8 +237,8 @@ impl AudioOutput {
                             log::warn!("audio output with a fixed buffer failed: {first:?}");
                             open_stream(&shared, rate, channels, format, None)
                         });
-                let stream = match opened {
-                    Ok(stream) => stream,
+                let (stream, actual_channels, actual_format) = match opened {
+                    Ok(opened) => opened,
                     Err(error) => {
                         log::warn!("audio output unavailable, playing video only: {error:?}");
                         let _ = ready_tx.send(Err(error));
@@ -236,7 +246,8 @@ impl AudioOutput {
                     }
                 };
                 // 고른 설정을 남긴다. 끊김 지원 요청에서 8ch 선택 같은 오선택을 가린다.
-                log::warn!("audio output: {rate}Hz {channels}ch {format:?}");
+                // 폴백으로 열리면 요청과 다를 수 있어 실제 설정을 남긴다.
+                log::info!("audio output: {rate}Hz {actual_channels}ch {actual_format:?}");
                 if ready_tx.send(Ok(())).is_err() {
                     return;
                 }
@@ -362,7 +373,7 @@ fn open_stream(
     channels: u16,
     format: cpal::SampleFormat,
     buffer_frames: Option<u32>,
-) -> Result<cpal::Stream, AppError> {
+) -> Result<(cpal::Stream, u16, cpal::SampleFormat), AppError> {
     let host = cpal::default_host();
     let device = host
         .default_output_device()
@@ -392,7 +403,11 @@ fn same_endpoint(host: &cpal::Host, default: &cpal::Device) -> Option<cpal::Devi
     host.device_by_id(&id)
 }
 
-/// 한 장치에 출력 스트림을 만든다. 설정은 `probe_output`이 고른 것과 정확히 같다.
+/// 한 장치에 출력 스트림을 만든다. `probe_output`이 고른 스테레오 설정을 직접 먼저
+/// 요청한다. WASAPI 공유 모드는 `AUTOCONVERTPCM`이라 열거에 없는 스테레오도
+/// Windows가 변환해 준다. 직접 요청이 거부된 장치만 열거 일치로 폴백한다.
+/// 폴백도 레이트는 유지한다. 레이트가 바뀌면 리샘플러·클럭과 실제 출력이 어긋난다.
+/// 성공하면 `(스트림, 실제 채널, 실제 형식)`을 돌려준다.
 fn build_stream(
     device: &cpal::Device,
     shared: &Arc<AudioShared>,
@@ -400,24 +415,104 @@ fn build_stream(
     channels: u16,
     format: cpal::SampleFormat,
     buffer_frames: Option<u32>,
-) -> Result<cpal::Stream, AppError> {
-    use cpal::SampleFormat;
-    let configs: Vec<_> = device
-        .supported_output_configs()
-        .map_err(|e| AppError::unknown(format!("No audio output configs: {e}")))?
-        .collect();
-    // `probe_output`이 고른 설정과 정확히 같은 것을 쓴다. 다른 설정으로 폴백하면
-    // 리샘플러·클럭이 쓰는 레이트와 실제 출력 레이트가 어긋난다.
-    let picked = configs
+) -> Result<(cpal::Stream, u16, cpal::SampleFormat), AppError> {
+    let direct = cpal::StreamConfig {
+        channels,
+        sample_rate: rate,
+        buffer_size: buffer_frames
+            .map(cpal::BufferSize::Fixed)
+            .unwrap_or(cpal::BufferSize::Default),
+    };
+    match build_with_config(device, shared, rate, channels, format, direct) {
+        Ok(stream) => Ok((stream, channels, format)),
+        Err(direct_err) => {
+            let fallback = enum_fallback_config(device, rate, channels, format, buffer_frames);
+            match fallback {
+                Some((config, actual_channels, actual_format)) => {
+                    match build_with_config(
+                        device,
+                        shared,
+                        rate,
+                        actual_channels,
+                        actual_format,
+                        config,
+                    ) {
+                        Ok(stream) => {
+                            log::warn!(
+                                "audio output fell back to device config: {rate}Hz {actual_channels}ch {actual_format:?}"
+                            );
+                            Ok((stream, actual_channels, actual_format))
+                        }
+                        Err(_) => Err(direct_err),
+                    }
+                }
+                None => Err(direct_err),
+            }
+        }
+    }
+}
+
+/// 열거에서 같은 레이트의 설정을 찾는다. 직접 스테레오 요청이 거부된 장치의
+/// 폴백이라 레이트는 바꾸지 않고 채널·형식만 맞춘다. `(설정, 채널, 형식)`이다.
+fn enum_fallback_config(
+    device: &cpal::Device,
+    rate: u32,
+    channels: u16,
+    format: cpal::SampleFormat,
+    buffer_frames: Option<u32>,
+) -> Option<(cpal::StreamConfig, u16, cpal::SampleFormat)> {
+    let configs: Vec<_> = device.supported_output_configs().ok()?.collect();
+    let supported = |c: &cpal::SupportedStreamConfigRange| {
+        matches!(
+            c.sample_format(),
+            cpal::SampleFormat::F32 | cpal::SampleFormat::I16 | cpal::SampleFormat::U16
+        )
+    };
+    // 요청과 정확히 같은 것부터 찾는다. 버퍼 고정 크기는 범위 안일 때만 쓴다.
+    let exact = configs.iter().find(|c| {
+        supported(c)
+            && c.sample_format() == format
+            && c.channels() == channels
+            && c.min_sample_rate() <= rate
+            && rate <= c.max_sample_rate()
+    });
+    if let Some(picked) = exact {
+        return Some((
+            config_with_buffer(picked, rate, buffer_frames),
+            channels,
+            format,
+        ));
+    }
+    // 같은 레이트면 채널·형식이 달라도 연다. 요청 형식·스테레오를 우선한다.
+    let mut same_rate: Vec<_> = configs
         .iter()
-        .find(|c| {
-            c.sample_format() == format
-                && c.channels() == channels
-                && c.min_sample_rate() <= rate
-                && rate <= c.max_sample_rate()
-        })
-        .ok_or_else(|| AppError::unknown("No matching audio output config"))?;
-    let mut config = (*picked).with_sample_rate(rate).config();
+        .filter(|c| supported(c) && c.min_sample_rate() <= rate && rate <= c.max_sample_rate())
+        .collect();
+    same_rate.sort_by_key(|c| {
+        (
+            c.sample_format() != format,
+            c.channels() != channels,
+            c.channels() != AUDIO_CHANNELS as u16,
+        )
+    });
+    same_rate.first().map(|picked| {
+        let actual_channels = picked.channels();
+        let actual_format = picked.sample_format();
+        (
+            config_with_buffer(picked, rate, buffer_frames),
+            actual_channels,
+            actual_format,
+        )
+    })
+}
+
+/// 열거 설정에 레이트와 버퍼 크기를 입힌다. 고정 크기는 범위 안일 때만 쓴다.
+fn config_with_buffer(
+    picked: &cpal::SupportedStreamConfigRange,
+    rate: u32,
+    buffer_frames: Option<u32>,
+) -> cpal::StreamConfig {
+    let mut config = picked.with_sample_rate(rate).config();
     if let Some(frames) = buffer_frames {
         if let cpal::SupportedBufferSize::Range { min, max } = picked.buffer_size() {
             if (*min..=*max).contains(&frames) {
@@ -425,6 +520,19 @@ fn build_stream(
             }
         }
     }
+    config
+}
+
+/// 주어진 `StreamConfig`로 출력 스트림을 열고 시작한다.
+fn build_with_config(
+    device: &cpal::Device,
+    shared: &Arc<AudioShared>,
+    rate: u32,
+    channels: u16,
+    format: cpal::SampleFormat,
+    config: cpal::StreamConfig,
+) -> Result<cpal::Stream, AppError> {
+    use cpal::SampleFormat;
     let err_fn = |e| log::warn!("audio output error: {e}");
     let stream = match format {
         SampleFormat::F32 => {
