@@ -6,6 +6,7 @@
 
 - Release: run `npm run release` only when the user explicitly asks, because the tag push publishes a public release. Flow: `docs/releasing.md`.
 - Never move the user's mouse or take over their input for a runtime check unless they agreed; prefer headless tests and the dev control channel (`pwsh scripts/araview-drive.ps1`, `docs/playbooks.md` "Runtime check").
+- Windows behaviour: before calling a Windows-only change broken or fixed, run the Windows build under Wine. The prefix location, the mandatory DLL overrides, and the missing-DLL triage are in `docs/playbooks.md` "Check under Wine". A `c0000135` load failure is an import in the app until its import table says otherwise, not a Wine setup problem.
 - Agent memory lives in its own repo outside this one; never commit memory files here.
 
 ## Read first
@@ -18,6 +19,7 @@
 - Setting up the dev environment: `docs/development.md` "요구 사항".
 - Adding a supported format: `docs/playbooks.md` "Add a supported format".
 - Adding a core operation: `docs/playbooks.md` "Add an `araview-core` operation".
+- Checking Windows behaviour without a Windows machine: `docs/playbooks.md` "Check under Wine".
 
 ## Verify
 

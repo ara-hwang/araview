@@ -55,6 +55,38 @@ On a machine without a display, run the dev build under `Xvfb :99` with `DISPLAY
 - Headless checks: none for the UI. There is no headless UI suite, so `cargo test -p araview` runs only unit tests. Check keys, wheel, drag, drop, context menus, dialogs, and the bridge's own commands through the control channel above (`selftest` on Windows, the control socket on macOS and Linux).
 - Caption-area hit testing: `pwsh scripts/araview-drive.ps1 hittest` (`araview_hittest` over MCP) moves the *virtual* mouse to a point through the control channel to prime GPUI's hit-test cache, then sends `WM_NCHITTEST` with `SendMessage` and prints the code Windows returns (`HTCLIENT`, `HTCAPTION`, `HTCLOSE`, `HTMINBUTTON`, `HTMAXBUTTON`). The physical cursor never moves, so this needs no permission from the user. Baseline (no dialog open): the three caption buttons report `HTMINBUTTON`/`HTMAXBUTTON`/`HTCLOSE` and everything else `HTCLIENT`. With a dialog open the backdrop covers the window, so every point outside the dialog reports `HTCAPTION` (caption buttons stop acting, and a press there drags the window) while the dialog surface stays `HTCLIENT`. Not covered: the press-to-drag move loop itself, which only a real press starts. The selftest runs the same probe as a step, so a regression in window control areas (or a backdrop left over the window) fails the standard runtime check.
 
+## Check under Wine
+
+Windows 동작을 Windows 머신 없이 볼 때 쓴다. Linux에서 Windows 빌드를 Wine으로 실행해 기동, DLL 로딩, 화면을 확인한다. 아래는 WineHQ stable 11.0(`wine-stable-i386` 포함)에서 확인한 값이다.
+
+1. **prefix는 여유 있는 디스크에 둔다.** prefix 하나가 약 1.4 GB다. tmpfs에 만들면 금방 차고, 그 상태로 초기화하면 `err:setupapi:... copy error 112`(디스크 가득 참)로 실패하며 nls 파일이 빠진다.
+
+   ```bash
+   export WINEPREFIX=/data/workspace/wine-prefix
+   ```
+
+2. **mono/gecko 오버라이드는 필수다.** 이 Wine 패키지에는 wine-mono/wine-gecko MSI가 없고 `~/.cache/wine`도 비어 있다. 오버라이드 없이 `wineboot`나 앱을 처음 실행하면 "Wine Mono Installer" 대화상자가 뜬 채로 멈춘다(비대화형에서는 타임아웃).
+
+   ```bash
+   export WINEDLLOVERRIDES="mscoree,mshtml="
+   ```
+
+3. **초기화하고 상태를 확인한다.** `DISPLAY=<X 서버> wineboot -i`가 약 8초에 exit 0으로 끝나고 `drive_c`, `system32`(804개), `syswow64`, `*.reg`를 만든다. 같은 명령을 다시 실행해도 exit 0이고, 초기화 도중 `wineserver -k`로 끊어도 재실행으로 복구된다. 첫 실행의 `err:ole:start_rpcss` 경고와 `err:setupapi ... Unsupported style(s)`는 정상이다.
+
+4. **빌드한 실행 파일을 그대로 실행한다.** `app/build.rs`가 vcpkg DLL을 실행 파일 옆(`target/<profile>/`)에 복사하므로, 그 자리에서 띄우면 된다.
+
+   ```bash
+   wine target/x86_64-pc-windows-gnu/release/araview.exe <file>
+   ```
+
+5. **DLL 누락은 앱 쪽 문제로 먼저 판정한다.** 기동이 `err:module:import_dll Library <name> ... not found`와 `status c0000135`(프로세스 종료 코드 53)로 끝나면, 그 DLL을 import하는 코드가 원인이다. import 표를 확인하고 코드에서 import를 없애는 쪽으로 고친다. 출시 패키지에 DLL을 덧붙여 덮지 않는다(Wine은 `icuuc.dll`을 제공하지 않으며, #149가 같은 사례다).
+
+   ```bash
+   x86_64-w64-mingw32-objdump -p target/x86_64-pc-windows-gnu/release/araview.exe | grep 'DLL Name'
+   ```
+
+6. **화면은 Xvfb에서 캡처한다.** `xvfb-run -s "-screen 0 1600x1000x24" wine ...`로 띄우고 `import -window root shot.png`(ImageMagick)로 찍는다. Wine에는 PowerShell이 없어 `scripts/araview-drive.ps1`과 `araview` MCP 서버를 쓸 수 없다. 확인한 화면과 동작만 PASS/FAIL로 적고, 검증하지 못한 단계는 그대로 밝힌다.
+
 ## Update the third-party license data
 
 Run `node scripts/generate-license-data.mjs` after changing dependencies (needs `cargo install cargo-about --locked --features cli` and network). It rewrites `app/THIRD_PARTY_LICENSES.json` (embedded in the app) and the section 2 table of `THIRD_PARTY_LICENSES.md`.
