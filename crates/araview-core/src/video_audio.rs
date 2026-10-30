@@ -6,10 +6,11 @@
 //!
 //! cpal 출력 스트림은 전용 스레드가 만들고 들고 있다. Windows에서 cpal의 기본 장치
 //! 핸들은 오디오 클라이언트를 `ActivateAudioInterfaceAsync`로 만드는데, GPUI가 COM을
-//! 먼저 초기화한 이 프로세스에서는 그 호출이 `RPC_E_CHANGED_MODE`로 실패해 소리가
-//! 조용히 사라진다(2.7.0-beta.10까지의 증상). 그래서 같은 엔드포인트를 "특정 장치"
-//! 핸들로 여는 경로로 넘어간다. 스트림 스레드는 `!Send`인 백엔드 스트림을 만든
-//! 스레드에서 그대로 버리기 위해서도 필요하다.
+//! 먼저 초기화한 이 프로세스에서는 그 호출이 `RPC_E_CHANGED_MODE`로 항상 실패한다
+//! (2.7.0-beta.10까지는 이 때문에 소리가 조용히 사라졌다). 그래서 Windows에서는 같은
+//! 엔드포인트를 "특정 장치" 핸들로 먼저 열고, 그것도 실패할 때만 기본 장치 핸들로
+//! 물러난다. 스트림 스레드는 `!Send`인 백엔드 스트림을 만든 스레드에서 그대로 버리기
+//! 위해서도 필요하다.
 //!
 //! 스테레오는 열거가 아니라 직접 요청한다. cpal WASAPI 열거는 믹스 채널만
 //! 돌려주므로(7.1 믹스면 전부 8ch), 열거에서 스테레오를 고르는 방식은 8ch 믹스에서
@@ -32,6 +33,15 @@ use std::time::{Duration, Instant};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 
 use crate::app_error::AppError;
+
+/// 마지막으로 연 출력 설정(장치·레이트·채널·형식). 지원 요청의 진단 정보가 읽는다.
+/// 스트림을 열지 못했으면 비어 있다.
+static LAST_OUTPUT: Mutex<Option<String>> = Mutex::new(None);
+
+/// 마지막으로 연 출력 설정. 진단 정보용이다. 아직 열지 않았으면 `None`이다.
+pub fn last_output() -> Option<String> {
+    LAST_OUTPUT.lock().ok().and_then(|last| last.clone())
+}
 
 /// 출력 채널 수. 모노·5.1 등은 스테레오로 내린다.
 pub const AUDIO_CHANNELS: usize = 2;
@@ -237,7 +247,7 @@ impl AudioOutput {
                             log::warn!("audio output with a fixed buffer failed: {first:?}");
                             open_stream(&shared, rate, channels, format, None)
                         });
-                let (stream, actual_channels, actual_format) = match opened {
+                let (stream, actual_channels, actual_format, device) = match opened {
                     Ok(opened) => opened,
                     Err(error) => {
                         log::warn!("audio output unavailable, playing video only: {error:?}");
@@ -247,12 +257,38 @@ impl AudioOutput {
                 };
                 // 고른 설정을 남긴다. 끊김 지원 요청에서 8ch 선택 같은 오선택을 가린다.
                 // 폴백으로 열리면 요청과 다를 수 있어 실제 설정을 남긴다.
-                log::info!("audio output: {rate}Hz {actual_channels}ch {actual_format:?}");
+                let summary = format!("{device}, {rate}Hz {actual_channels}ch {actual_format:?}");
+                log::info!("audio output: {summary}");
+                if let Ok(mut last) = LAST_OUTPUT.lock() {
+                    *last = Some(summary);
+                }
                 if ready_tx.send(Ok(())).is_err() {
                     return;
                 }
                 // 정지 신호가 올 때까지 스트림을 살려 둔다. 스트림은 만든 스레드에서 버린다.
-                let _ = stop_rx.recv();
+                // 그동안 끊김 누적을 1초마다 확인해 경고로 남긴다. 오디오 콜백(실시간
+                // 스레드)에서는 로그를 남기지 않고 여기서 남겨야 재생이 흔들리지 않는다.
+                let mut reported = 0u64;
+                loop {
+                    match stop_rx.recv_timeout(Duration::from_secs(1)) {
+                        Ok(()) | Err(mpsc::RecvTimeoutError::Disconnected) => break,
+                        Err(mpsc::RecvTimeoutError::Timeout) => {
+                            let underruns = shared.underruns.load(Ordering::SeqCst);
+                            if underruns > reported {
+                                let (local, queue) = (
+                                    shared.underrun_local.load(Ordering::SeqCst),
+                                    shared.underrun_queue.load(Ordering::SeqCst),
+                                );
+                                log::warn!(
+                                    "audio underruns: {} (+{}) on {device}, {rate}Hz {actual_channels}ch {actual_format:?}, local={local}, queue={queue}",
+                                    underruns,
+                                    underruns - reported
+                                );
+                                reported = underruns;
+                            }
+                        }
+                    }
+                }
                 drop(stream);
             })
             .map_err(|e| AppError::unknown(format!("Failed to start audio thread: {e}")))?;
@@ -367,37 +403,71 @@ impl Drop for AudioOutput {
     }
 }
 
+/// 출력 스트림을 연 장치와 실제 설정. 진단 로그에 쓴다.
+type OpenedStream = (cpal::Stream, u16, cpal::SampleFormat, String);
+
 fn open_stream(
     shared: &Arc<AudioShared>,
     rate: u32,
     channels: u16,
     format: cpal::SampleFormat,
     buffer_frames: Option<u32>,
-) -> Result<(cpal::Stream, u16, cpal::SampleFormat), AppError> {
+) -> Result<OpenedStream, AppError> {
     let host = cpal::default_host();
     let device = host
         .default_output_device()
         .ok_or_else(|| AppError::unknown("No audio output device"))?;
-    match build_stream(&device, shared, rate, channels, format, buffer_frames) {
-        Ok(stream) => Ok(stream),
-        Err(first) => {
-            // cpal의 기본 장치 핸들은 오디오 클라이언트를 `ActivateAudioInterfaceAsync`로
-            // 만든다. COM 아파트먼트가 이미 설정된 프로세스(Windows에서 GPUI가 먼저
-            // 초기화한다)에서는 이 호출이 `RPC_E_CHANGED_MODE`로 실패한다. 같은
-            // 엔드포인트를 특정 장치 핸들로 열면 일반 `IMMDevice::Activate`를 쓰므로 그
-            // 제약이 없다. 기본 장치를 따라가는 대신 같은 장치에 그대로 연다.
-            let Some(device) = same_endpoint(&host, &device) else {
-                return Err(first);
-            };
-            log::warn!(
-                "audio output via the default device failed, retrying on the same endpoint: {first:?}"
-            );
-            build_stream(&device, shared, rate, channels, format, buffer_frames)
-        }
+    // Windows에서 cpal의 기본 장치 핸들은 오디오 클라이언트를 `ActivateAudioInterfaceAsync`로
+    // 만든다. COM 아파트먼트가 이미 설정된 프로세스(GPUI가 먼저 초기화한다)에서는 이 호출이
+    // 매번 `RPC_E_CHANGED_MODE`로 실패하므로, 같은 엔드포인트를 "특정 장치" 핸들로 먼저 연다.
+    // 실패했을 때만 기본 장치 핸들로 물러난다(둘 다 실패하면 그때가 진짜 실패다).
+    #[cfg(windows)]
+    {
+        let endpoint = same_endpoint(&host, &device);
+        let first = match &endpoint {
+            Some(endpoint) => build_stream(endpoint, shared, rate, channels, format, buffer_frames),
+            None => build_stream(&device, shared, rate, channels, format, buffer_frames),
+        };
+        return match first {
+            Ok((stream, actual_channels, actual_format)) => {
+                let name = match &endpoint {
+                    Some(endpoint) => device_name(endpoint),
+                    None => device_name(&device),
+                };
+                Ok((stream, actual_channels, actual_format, name))
+            }
+            Err(error) => {
+                log::warn!(
+                    "audio output via the endpoint failed, retrying on the default device: {error:?}"
+                );
+                match build_stream(&device, shared, rate, channels, format, buffer_frames) {
+                    Ok((stream, actual_channels, actual_format)) => {
+                        Ok((stream, actual_channels, actual_format, device_name(&device)))
+                    }
+                    Err(_) => Err(error),
+                }
+            }
+        };
+    }
+    // 그 밖의 OS는 기본 장치 핸들이 기본 장치 변경을 따라가므로 그대로 연다.
+    #[cfg(not(windows))]
+    {
+        let (stream, actual_channels, actual_format) =
+            build_stream(&device, shared, rate, channels, format, buffer_frames)?;
+        Ok((stream, actual_channels, actual_format, device_name(&device)))
     }
 }
 
+/// 장치 표시 이름. 이름을 읽지 못하면 `None` 없이 기본 문구를 쓴다.
+fn device_name(device: &cpal::Device) -> String {
+    device
+        .description()
+        .map(|description| description.name().to_string())
+        .unwrap_or_else(|_| "unknown device".to_string())
+}
+
 /// 기본 장치와 같은 엔드포인트를 "특정 장치" 핸들로 돌려준다. ID를 읽지 못하면 `None`이다.
+#[cfg(windows)]
 fn same_endpoint(host: &cpal::Host, default: &cpal::Device) -> Option<cpal::Device> {
     let id = default.id().ok()?;
     host.device_by_id(&id)
@@ -438,9 +508,11 @@ fn build_stream(
                         config,
                     ) {
                         Ok(stream) => {
-                            log::warn!(
-                                "audio output fell back to device config: {rate}Hz {actual_channels}ch {actual_format:?}"
-                            );
+                            if actual_channels != channels || actual_format != format {
+                                log::warn!(
+                                    "audio output fell back to device config: {rate}Hz {actual_channels}ch {actual_format:?}"
+                                );
+                            }
                             Ok((stream, actual_channels, actual_format))
                         }
                         Err(_) => Err(direct_err),

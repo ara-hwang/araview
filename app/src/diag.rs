@@ -52,6 +52,7 @@ pub(crate) fn collect(store: &SettingsStore) -> String {
             "Codec libraries: {}",
             codec_summary(exe_dir().as_deref(), CODEC_DLLS)
         ),
+        format!("Audio output: {}", audio_line()),
         format!("Cache: {}", cache_line(store)),
         format!("Log: {}", log_line()),
     ];
@@ -186,6 +187,11 @@ fn codec_summary(install_dir: Option<&Path>, dlls: &[&str]) -> String {
             missing.join(", ")
         )
     }
+}
+
+/// 현재 연 동영상 오디오 출력 설정. 아직 열지 않았으면 그렇게 적는다.
+fn audio_line() -> String {
+    araview_core::video_audio::last_output().unwrap_or_else(|| "not opened".to_owned())
 }
 
 /// 캐시 폴더와 보관 모드.
