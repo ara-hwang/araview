@@ -424,17 +424,10 @@ fn open_stream(
     #[cfg(windows)]
     {
         let endpoint = same_endpoint(&host, &device);
-        let first = match &endpoint {
-            Some(endpoint) => build_stream(endpoint, shared, rate, channels, format, buffer_frames),
-            None => build_stream(&device, shared, rate, channels, format, buffer_frames),
-        };
-        return match first {
+        let target = endpoint.as_ref().unwrap_or(&device);
+        match build_stream(target, shared, rate, channels, format, buffer_frames) {
             Ok((stream, actual_channels, actual_format)) => {
-                let name = match &endpoint {
-                    Some(endpoint) => device_name(endpoint),
-                    None => device_name(&device),
-                };
-                Ok((stream, actual_channels, actual_format, name))
+                Ok((stream, actual_channels, actual_format, device_name(target)))
             }
             Err(error) => {
                 log::warn!(
@@ -447,7 +440,7 @@ fn open_stream(
                     Err(_) => Err(error),
                 }
             }
-        };
+        }
     }
     // 그 밖의 OS는 기본 장치 핸들이 기본 장치 변경을 따라가므로 그대로 연다.
     #[cfg(not(windows))]
