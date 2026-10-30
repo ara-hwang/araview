@@ -458,6 +458,7 @@ impl AraView {
             "frame": self.frame,
             "loopsDone": self.loops_done,
             "video": self.video.as_ref().map(|player| {
+                let (ur_local, ur_queue) = player.audio_last_underrun();
                 json!({
                     "position": player.position_ms(),
                     "playing": player.is_playing(),
@@ -466,6 +467,8 @@ impl AraView {
                     "muted": player.is_muted(),
                     "audio": player.audio_active(),
                     "audioUnderruns": player.audio_underruns(),
+                    "audioUnderrunLocal": ur_local,
+                    "audioUnderrunQueue": ur_queue,
                     "width": player.info().width,
                     "height": player.info().height,
                     "presentedPts": self.video_frame_pts,

@@ -61,6 +61,11 @@ pub struct AudioShared {
     seek_gen: AtomicU64,
     /// 누적 언더런 수. 진단용이다.
     underruns: AtomicU64,
+    /// 마지막 언더런 시점의 지역 버퍼 깊이(샘플 수). 진단용이다.
+    underrun_local: AtomicU64,
+    /// 마지막 언더런 시점의 공유 큐 깊이(샘플 수). 그 순간 잠금을 못 잡았으면
+    /// `u64::MAX`다. 디코드 경합과 디코드 부족을 구분하는 진단용이다.
+    underrun_queue: AtomicU64,
     error: Mutex<Option<String>>,
 }
 
@@ -114,6 +119,8 @@ impl AudioOutput {
             eof: AtomicBool::new(false),
             seek_gen: AtomicU64::new(0),
             underruns: AtomicU64::new(0),
+            underrun_local: AtomicU64::new(0),
+            underrun_queue: AtomicU64::new(0),
             error: Mutex::new(None),
         });
         let out_rate = rate;
@@ -153,26 +160,30 @@ impl AudioOutput {
             .map_err(|e| AppError::unknown(format!("No audio output configs: {e}")))?
             .collect();
         // 장치 기본(믹스) 레이트를 함께 본다. 사용자가 제어판에서 고른 값이고 WASAPI가 항상
-        // 받아들이는 형식이다. 스테레오를 요구하지 않는 이유는 8채널처럼 스테레오 설정이
-        // 없는 장치에서도 48kHz를 유지하기 위해서다(예전에는 첫 F32 설정인 8kHz로 떨어졌다).
+        // 받아들이는 형식이다. 채널은 스테레오를 우선한다. 채널과 무관하게 첫 일치를 고르면
+        // 8ch 스트림이 열려 일부 장치에서 재생이 끊기므로, 스테레오 설정이 있으면 스테레오를
+        // 고른다. 스테레오 설정이 없는 장치에서만 노출된 채널로 48kHz를 유지한다(예전에는
+        // 첫 F32 설정인 8kHz로 떨어졌다).
         let default_rate = device
             .default_output_config()
             .map(|config| config.sample_rate())
             .unwrap_or(PREFERRED_RATE);
         use cpal::SampleFormat;
-        let in_range = |c: &&cpal::SupportedStreamConfigRange| {
-            c.sample_format() == SampleFormat::F32
-                && c.min_sample_rate() <= PREFERRED_RATE
-                && PREFERRED_RATE <= c.max_sample_rate()
+        let find = |rate: u32, stereo: bool| {
+            configs.iter().find(|c| {
+                c.sample_format() == SampleFormat::F32
+                    && (!stereo || c.channels() == AUDIO_CHANNELS as u16)
+                    && c.min_sample_rate() <= rate
+                    && rate <= c.max_sample_rate()
+            })
         };
-        let picked = configs
-            .iter()
-            .find(in_range)
+        let picked = find(PREFERRED_RATE, true)
+            .or_else(|| find(PREFERRED_RATE, false))
+            .or_else(|| find(default_rate, true))
+            .or_else(|| find(default_rate, false))
             .or_else(|| {
                 configs.iter().find(|c| {
-                    c.sample_format() == SampleFormat::F32
-                        && c.min_sample_rate() <= default_rate
-                        && default_rate <= c.max_sample_rate()
+                    c.sample_format() == SampleFormat::F32 && c.channels() == AUDIO_CHANNELS as u16
                 })
             })
             .or_else(|| {
@@ -224,6 +235,8 @@ impl AudioOutput {
                         return;
                     }
                 };
+                // 고른 설정을 남긴다. 끊김 지원 요청에서 8ch 선택 같은 오선택을 가린다.
+                log::warn!("audio output: {rate}Hz {channels}ch {format:?}");
                 if ready_tx.send(Ok(())).is_err() {
                     return;
                 }
@@ -314,6 +327,15 @@ impl AudioOutput {
     /// 누적 언더런 수. 선행 버퍼가 모자라 소리를 0으로 메운 횟수다.
     pub fn underruns(&self) -> u64 {
         self.shared.underruns.load(Ordering::SeqCst)
+    }
+
+    /// 마지막 언더런 시점의 (지역 버퍼, 공유 큐) 깊이(샘플 수). 큐 깊이가
+    /// `u64::MAX`면 그 순간 공유 큐 잠금을 잡지 못했다(디코드 경합). 진단용이다.
+    pub fn last_underrun_depths(&self) -> (u64, u64) {
+        (
+            self.shared.underrun_local.load(Ordering::SeqCst),
+            self.shared.underrun_queue.load(Ordering::SeqCst),
+        )
     }
 
     pub fn has_error(&self) -> Option<String> {
@@ -697,6 +719,17 @@ fn fill_output<T>(
                     // 선행 버퍼가 마르면 다시 찰 때까지 기다린다. 클럭도 세운다.
                     mixer.primed = false;
                     shared.underruns.fetch_add(1, Ordering::SeqCst);
+                    shared
+                        .underrun_local
+                        .store(mixer.local.len() as u64, Ordering::SeqCst);
+                    shared.underrun_queue.store(
+                        shared
+                            .queue
+                            .try_lock()
+                            .map(|queue| queue.len() as u64)
+                            .unwrap_or(u64::MAX),
+                        Ordering::SeqCst,
+                    );
                 }
                 mixer.stalled.get_or_insert_with(Instant::now);
                 mixer.fade = (mixer.fade - fade_step).max(0.0);
@@ -1062,6 +1095,8 @@ mod tests {
             eof: AtomicBool::new(false),
             seek_gen: AtomicU64::new(0),
             underruns: AtomicU64::new(0),
+            underrun_local: AtomicU64::new(0),
+            underrun_queue: AtomicU64::new(0),
             error: Mutex::new(None),
         })
     }
@@ -1158,6 +1193,26 @@ mod tests {
         assert!(
             out[0].abs() < 0.01,
             "새 위치의 소리는 짧게 페이드 인해야 한다"
+        );
+    }
+
+    #[test]
+    fn decodes_audio_from_sample_with_audio() {
+        // 출력 장치 없이 디코드 경로만 검증한다. 오디오 없는 샘플은 디코더가 없다.
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../samples")
+            .join("sample-audio.mp4");
+        assert!(path.is_file(), "missing sample: {}", path.to_string_lossy());
+        let probed = crate::video::probe(&path).unwrap();
+        assert!(probed.has_audio);
+        let mut dec = open_audio_decoder(&path, PREFERRED_RATE).unwrap();
+        let shared = shared_with(true);
+        let mut target_ms = None;
+        let eof = pump_audio(&mut dec, &shared, &mut target_ms, 0).unwrap();
+        assert!(eof, "tiny sample should decode to EOF");
+        assert!(
+            buffered_pairs(&shared) > 0,
+            "expected decoded samples in the queue"
         );
     }
 

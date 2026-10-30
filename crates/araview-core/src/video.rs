@@ -381,6 +381,13 @@ mod tests {
     }
 
     #[test]
+    fn probe_detects_audio_stream() {
+        let probed = probe(&sample("sample-audio.mp4")).unwrap();
+        assert!(probed.has_audio);
+        assert!(!probe(&sample("sample.mp4")).unwrap().has_audio);
+    }
+
+    #[test]
     fn poster_decodes_first_frame() {
         for name in [
             "sample.mp4",

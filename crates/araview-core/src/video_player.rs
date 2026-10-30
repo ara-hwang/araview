@@ -343,6 +343,14 @@ impl VideoPlayer {
             .unwrap_or(0)
     }
 
+    /// 마지막 오디오 언더런 시점의 (지역 버퍼, 공유 큐) 깊이(샘플 수). 진단용이다.
+    pub fn audio_last_underrun(&self) -> (u64, u64) {
+        self.audio
+            .as_ref()
+            .map(|audio| audio.last_underrun_depths())
+            .unwrap_or((0, 0))
+    }
+
     /// 탐색·스텝 결과 프레임이 아직 오지 않았는가. UI는 이 동안 프레임을
     /// 계속 요청해 정지 상태에서도 결과를 화면에 올린다.
     pub fn is_seeking(&self) -> bool {
