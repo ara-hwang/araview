@@ -1120,8 +1120,10 @@ fn buffered_pairs(shared: &Arc<AudioShared>) -> usize {
     shared.queue.lock().unwrap_or_else(|e| e.into_inner()).len() / AUDIO_CHANNELS
 }
 
+/// 디코드를 쉴 만큼 찼는가. 버림 상한(`queue_audio_samples`)보다 충분히 낮아야
+/// 재생 중 새 패킷이 곧 재생될 소리를 밀어내지 않는다.
 fn audio_queue_full(shared: &Arc<AudioShared>) -> bool {
-    shared.queue.lock().unwrap_or_else(|e| e.into_inner()).len() >= QUEUE_PAIRS_MAX * 2
+    shared.queue.lock().unwrap_or_else(|e| e.into_inner()).len() >= QUEUE_PAIRS_MAX * AUDIO_CHANNELS
 }
 
 /// 패킷을 읽어 f32 스테레오로 큐에 넣는다. EOF면 `true`다.
@@ -1221,7 +1223,10 @@ fn queue_audio_samples(shared: &Arc<AudioShared>, generation: u64, samples: &[f3
     if shared.seek_gen.load(Ordering::SeqCst) != generation {
         return false;
     }
-    while queue.len() + samples.len() > QUEUE_PAIRS_MAX * 2 {
+    // 디코더는 `audio_queue_full`에서 멈추므로 정상 재생에서는 여기에 닿지 않는다.
+    // 그 기준과 같으면 재생 중 패킷마다 앞쪽 소리를 버려 소리가 건너뛴다. 영상
+    // 큐처럼 두 배를 넘을 때만 버려 큐가 끝없이 붇는 것만 막는다.
+    while queue.len() + samples.len() > QUEUE_PAIRS_MAX * AUDIO_CHANNELS * 2 {
         if queue.len() >= 2 {
             queue.pop_front();
             queue.pop_front();
@@ -1367,6 +1372,38 @@ mod tests {
             out[0].abs() < 0.01,
             "새 위치의 소리는 짧게 페이드 인해야 한다"
         );
+    }
+
+    #[test]
+    fn steady_decode_never_discards_audio_about_to_play() {
+        // 재생 중에는 큐가 늘 상한 근처다. 콜백이 조금 꺼내 가면 디코더가 패킷
+        // 하나를 더 넣는데, 이때 곧 재생될 앞쪽 소리를 버리면 소리가 건너뛰어
+        // 끊기고 영상보다 앞서 간다.
+        let shared = shared_with(true);
+        let generation = shared.seek_gen.load(Ordering::SeqCst);
+        let packet: Vec<f32> = (0..2048).map(|i| i as f32).collect();
+        while !audio_queue_full(&shared) {
+            assert!(queue_audio_samples(&shared, generation, &packet));
+        }
+        let front = shared.queue.lock().unwrap()[0];
+        // 콜백이 10ms(480쌍)씩 꺼내 가 상한 아래로 막 내려온 상태.
+        while audio_queue_full(&shared) {
+            shared.queue.lock().unwrap().drain(..480 * AUDIO_CHANNELS);
+        }
+        let before = shared.queue.lock().unwrap().len();
+        let next_front = shared.queue.lock().unwrap()[0];
+        assert!(queue_audio_samples(&shared, generation, &packet));
+        let queue = shared.queue.lock().unwrap();
+        assert_eq!(
+            queue.len(),
+            before + packet.len(),
+            "디코드한 소리를 버리면 안 된다"
+        );
+        assert_eq!(
+            queue[0], next_front,
+            "곧 재생될 소리가 그대로 맨 앞이어야 한다"
+        );
+        assert_eq!(front, 0.0);
     }
 
     #[test]
