@@ -14,7 +14,7 @@ use super::AraView;
 use super::settings_panel::{Effect, SettingsPanel};
 use crate::dialog::{
     BackdropClick, SETTINGS_HEIGHT, SETTINGS_TITLE_HEIGHT, SETTINGS_WIDTH, centered,
-    centered_margin_top, watch_backdrop_click,
+    estimated_dialog_top, watch_backdrop_click,
 };
 use crate::i18n::{self, t};
 use crate::platform;
@@ -129,6 +129,14 @@ impl AraView {
         self.request_thumbs(window, cx);
     }
 
+    /// 진단 정보를 클립보드로 복사한다(SPEC §17.1). 지원 요청에 붙이는 용도라
+    /// 사진 경로·파일 이름·환경 변수 값은 담지 않는다.
+    pub(super) fn copy_diagnostics(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let text = crate::diag::collect(SettingsStore::global(cx));
+        cx.write_to_clipboard(ClipboardItem::new_string(text));
+        window.toast(Toast::success(t("toast.diagnostics.done")), cx);
+    }
+
     pub(super) fn apply_always_on_top(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let on_top = SettingsStore::global(cx).settings.always_on_top;
         if !platform::set_always_on_top(window, on_top) {
@@ -154,7 +162,7 @@ impl AraView {
         let outside_view = cx.entity();
         // 배경 누름 판정은 설정 창이 사는 동안 유지해야 한다(다이얼로그 빌더는 다시 돈다).
         let backdrop = BackdropClick::default();
-        window.open_dialog(cx, move |dialog, window, _| {
+        window.open_dialog(cx, move |dialog, _window, _| {
             let panel = panel.clone();
             let outside_view = outside_view.clone();
             let backdrop = backdrop.clone();
@@ -162,7 +170,7 @@ impl AraView {
             // 바깥 클릭 닫기는 설정 영역 밖에서 직접 처리한다. 누름에서는 닫지 않는다:
             // 배경이 캡션 판정이라 그 누름이 곧 창 이동 드래그의 시작일 수 있다.
             // 그 위에 확인 다이얼로그가 떠 있으면 그쪽 클릭이므로 건드리지 않는다.
-            centered(dialog, window, SETTINGS_HEIGHT)
+            centered(dialog)
                 .title(t("settings.title"))
                 .width(px(SETTINGS_WIDTH))
                 .child({
@@ -183,10 +191,11 @@ impl AraView {
                                 if panel.read(cx).has_nested_dialog() {
                                     return;
                                 }
-                                // 제목 줄은 다이얼로그 안쪽이지만 감싼 영역 밖이다.
+                                // 제목 줄은 다이얼로그 안쪽이지만 감싼 영역 밖이다. 배치는
+                                // kit이 실제 높이로 맞추므로 제목 줄 판정에만 추정 상단을 쓴다.
                                 let width = f32::from(window.viewport_size().width);
                                 let left = (width - SETTINGS_WIDTH) / 2.0;
-                                let top = f32::from(centered_margin_top(window, SETTINGS_HEIGHT));
+                                let top = f32::from(estimated_dialog_top(window, SETTINGS_HEIGHT));
                                 let (x, y) =
                                     (f32::from(event.position.x), f32::from(event.position.y));
                                 if (left..left + SETTINGS_WIDTH).contains(&x)

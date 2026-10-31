@@ -184,6 +184,11 @@
       "declared": "Declared license",
       "documentsGroup": "Documents"
     },
+    "diagnostics": {
+      "title": "Diagnostics",
+      "desc": "Copies the version, OS, codec libraries, cache and log paths, and recent errors to the clipboard. Photo paths and file names are left out, and nothing is sent anywhere.",
+      "copy": "Copy diagnostics"
+    },
     "view": {
       "title": "View mode",
       "desc": "Single / dual / vertical scroll layout",
@@ -214,7 +219,9 @@
       "comicAutoDual": "Open comic archives in dual view automatically (follows ComicInfo reading direction)",
       "coverAlone": "Show cover alone in dual view",
       "wideAlone": "Show wide pages (landscape scans) alone in dual view",
-      "showComicInfo": "Show comic metadata (ComicInfo.xml) in the info panel"
+      "showComicInfo": "Show comic metadata (ComicInfo.xml) in the info panel",
+      "videoAutoplay": "Auto-play videos on open",
+      "showVideoInfo": "Show video info in the info panel"
     },
     "dock": {
       "title": "Image list dock",
@@ -263,12 +270,12 @@
     },
     "cache": {
       "title": "Image preloading",
-      "desc": "Image preload range and cache item limit",
+      "desc": "Image preload range and page cache item/byte limits",
       "off": "Off (current image only)",
-      "nearby": "Nearby (preload prev/next)",
-      "extended": "Extended (preload up to ±3)",
-      "gb1": "Cache item limit 1 GB",
-      "gb2": "Cache item limit 2 GB"
+      "nearby": "Nearby (preload prev/next, 512 MB cache)",
+      "extended": "Extended (preload up to ±3, 1 GB cache)",
+      "gb1": "Page cache 1 GB (preload up to ±2)",
+      "gb2": "Page cache 2 GB (preload up to ±3)"
     },
     "cacheStorage": {
       "title": "Cache retention",
@@ -468,6 +475,18 @@
     "summary": "Summary",
     "loadFail": "Could not read comic metadata."
   },
+  "video": {
+    "section": "Video",
+    "title": "Video",
+    "mime": "Format",
+    "codec": "Codec",
+    "audio": "Audio",
+    "dimensions": "Dimensions",
+    "duration": "Duration",
+    "fps": "Frames per second",
+    "yes": "Yes",
+    "no": "No"
+  },
   "histogram": {
     "title": "Histogram",
     "unavailable": "Histogram is not available for this format.",
@@ -539,6 +558,11 @@
     "gifPause": "Pause",
     "gifPrevFrame": "Previous Animation Frame",
     "gifNextFrame": "Next Animation Frame",
+    "videoSeekBack": "Back 10 Seconds",
+    "videoSeekFwd": "Forward 10 Seconds",
+    "videoSpeedDown": "Decrease Playback Speed",
+    "videoSpeedUp": "Increase Playback Speed",
+    "videoMute": "Toggle Mute",
     "toggleFullscreen": "Toggle Fullscreen",
     "toggleAlwaysOnTop": "Toggle Always on Top",
     "copyImage": "Copy Image",
@@ -602,6 +626,9 @@
   "toast": {
     "copyMessage": "Copy error message",
     "copied": "Copied",
+    "diagnostics": {
+      "done": "Diagnostics copied"
+    },
     "close": "Close",
     "settings": {
       "saveFail": "Failed to save settings",
@@ -723,7 +750,7 @@
     }
   },
   "picker": {
-    "images": "Images"
+    "images": "Images and videos"
   },
   "ext": {
     "png": "PNG image",
@@ -774,7 +801,12 @@
     "pgm": "PGM image",
     "pbm": "PBM image",
     "cbz": "Comic archive",
-    "zip": "ZIP archive"
+    "zip": "ZIP archive",
+    "mp4": "MP4 video",
+    "mov": "MOV video",
+    "webm": "WebM video",
+    "mkv": "MKV video",
+    "avi": "AVI video"
   },
   "platform": {
     "macos": {

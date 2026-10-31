@@ -72,11 +72,11 @@ impl SmoothScroll {
     }
 
     /// 휠을 `horizontal` 축으로 부드럽게 처리하는 핸들러. 기본 스크롤을 끈
-    /// (`overflow_*_hidden`) 요소의 `on_scroll_wheel`에 붙인다.
+    /// (`overflow_*_hidden`) 요소의 `on_scroll`에 붙인다.
     pub fn wheel_handler(
         &self,
         horizontal: bool,
-    ) -> impl Fn(&ScrollWheelEvent, &mut Window, &mut App) + 'static {
+    ) -> impl Fn(&ScrollEvent, &mut Window, &mut App) + 'static {
         let this = self.clone();
         move |event, window, cx| {
             this.on_wheel(event, horizontal, window);
@@ -122,7 +122,7 @@ impl SmoothScroll {
             .flex_col()
             .overflow_y_hidden()
             .track_scroll(&self.handle)
-            .on_scroll_wheel(wheel)
+            .on_scroll(wheel)
             .child(content.flex_none().h_auto().min_h_full());
         div()
             .id(id)
@@ -132,7 +132,7 @@ impl SmoothScroll {
             .vertical_scrollbar(&self.handle)
     }
 
-    fn on_wheel(&self, event: &ScrollWheelEvent, horizontal: bool, window: &mut Window) {
+    fn on_wheel(&self, event: &ScrollEvent, horizontal: bool, window: &mut Window) {
         let pixels = event.delta.pixel_delta(window.line_height());
         // 가로 영역은 세로 휠(일반 마우스)도 가로 이동으로 받는다.
         let delta = if horizontal && pixels.x == px(0.) {

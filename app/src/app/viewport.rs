@@ -2,15 +2,17 @@
 //! (SPEC §6, §7, §18).
 
 use std::collections::HashSet;
+use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use gpui_kit::component::button::{Button, ButtonVariants as _};
+use gpui_kit::component::slider::{Slider, SliderEvent, SliderState, SliderValue};
 use gpui_kit::component::{ActiveTheme as _, Disableable as _, Sizable as _, h_flex};
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
 use image::{Frame, RgbaImage};
-use smallvec::SmallVec;
+use smallvec::{SmallVec, smallvec};
 
 use super::{AraView, DragState, paint_checker};
 use crate::assets::Ph;
@@ -18,7 +20,9 @@ use crate::geometry::{
     self, MAX_ZOOM, MAX_ZOOM_VECTOR, Offset, Size2, ZOOM_STEP, clamp_position, position_bounds,
     zoom_about, zoom_for_fit,
 };
+use crate::toast::{Toast, WindowToast};
 use araview_core::ocr::OcrRect;
+use araview_core::video_player::SPEEDS;
 
 use crate::i18n::{t, t_with};
 use crate::picture::Picture;
@@ -35,6 +39,72 @@ const WT_MIN_WIDTH: f32 = 64.0;
 pub(super) const WT_KEY_SCROLL: f32 = 120.0;
 /// 웹툰 스크롤이 목표 위치로 수렴하는 감속 시간 상수(초).
 const WT_SMOOTH_TIME: f32 = 0.08;
+
+/// 동영상 전송 컨트롤 상태. 타임라인·음량 슬라이더와 구독을 함께 들고 다닌다.
+pub(super) struct VideoControls {
+    timeline: Entity<SliderState>,
+    volume: Entity<SliderState>,
+    _timeline_sub: Subscription,
+    _volume_sub: Subscription,
+}
+
+/// `mm:ss` 표시.
+fn format_time(ms: u64) -> String {
+    let total = ms / 1000;
+    format!("{}:{:02}", total / 60, total % 60)
+}
+
+/// 프레임 카운터가 표시하는 자릿수(4자리). 이보다 큰 값은 앞자리를 줄임표로
+/// 대체해 어떤 애니메이션이든 같은 폭을 차지하게 한다.
+const FRAME_COUNTER_MODULUS: u64 = 10_000;
+/// 앞자리 생략 표시(공백 또는 `…`)를 포함한 슬롯 폭(px).
+const FRAME_COUNTER_WIDTH: f32 = 100.0;
+
+/// 이 폭 미만에서는 동영상 컨트롤에서 부가 조작(속도·음량·음소거)을 접는다.
+const VIDEO_BAR_COMPACT_BELOW: f32 = 720.0;
+
+/// 동영상 읽기 값의 고정 폭(px). 값이 바뀌어도 컨트롤 폭이 흔들리지 않게 한다.
+const VIDEO_TIME_WIDTH: f32 = 100.0;
+const VIDEO_SPEED_WIDTH: f32 = 40.0;
+
+/// 프레임 카운터. 4자리까지는 그대로 보여주고, 그보다 큰 값은 앞자리를
+/// 줄임표로 대체해 항상 같은 폭(11자)을 차지하게 한다.
+fn format_frame_counter(current: u64, total: u64) -> String {
+    let current = current.min(total);
+    if total >= FRAME_COUNTER_MODULUS {
+        format!(
+            "…{:04}/…{:04}",
+            current % FRAME_COUNTER_MODULUS,
+            total % FRAME_COUNTER_MODULUS
+        )
+    } else {
+        format!(" {current:04}/ {total:04}")
+    }
+}
+
+/// 동영상 재생 위치의 1부터 세는 프레임 번호와 전체 프레임 수. 애니메이션
+/// 카운터와 같은 기준이다: 첫 프레임은 1이고, 프레임 구간 안에서는 번호가 바뀌지 않는다.
+fn video_frame_position(pos_ms: u64, duration_ms: u64, fps: f64) -> (u64, u64) {
+    let total = ((duration_ms as f64 * fps / 1000.0).round() as u64).max(1);
+    let current = (pos_ms as f64 * fps / 1000.0).floor() as u64 + 1;
+    (current.min(total), total)
+}
+
+/// 읽기 값의 숫자 폭을 고정한다(DESIGN "Readout").
+fn tabular_figures() -> FontFeatures {
+    static FIGURES: std::sync::LazyLock<FontFeatures> =
+        std::sync::LazyLock::new(|| FontFeatures(Arc::new(vec![("tnum".into(), 1)])));
+    FIGURES.clone()
+}
+
+fn slider_ms(event: &SliderEvent) -> u64 {
+    match event {
+        SliderEvent::Change(SliderValue::Single(value))
+        | SliderEvent::Release(SliderValue::Single(value)) => (*value).max(0.0) as u64,
+        SliderEvent::Change(SliderValue::Range(start, _))
+        | SliderEvent::Release(SliderValue::Range(start, _)) => (*start).max(0.0) as u64,
+    }
+}
 /// 자동 표시 모드가 픽셀 보존으로 바뀌는 확대 배율(SPEC §18).
 const AUTO_PIXELATED_ZOOM: f32 = 2.0;
 /// 양쪽·웹툰 보기의 상대 배율 범위.
@@ -418,11 +488,7 @@ impl AraView {
     }
 
     /// 휠 이벤트를 설정된 동작으로 바꾼다. 수식키 없는 휠만 `plain`이다.
-    pub(super) fn wheel_action(
-        event: &ScrollWheelEvent,
-        up: bool,
-        cx: &App,
-    ) -> (WheelAction, bool) {
+    pub(super) fn wheel_action(event: &ScrollEvent, up: bool, cx: &App) -> (WheelAction, bool) {
         let wheel = &SettingsStore::global(cx).settings.wheel;
         let modifiers = event.modifiers;
         if modifiers.control {
@@ -457,7 +523,7 @@ impl AraView {
         }
     }
 
-    fn on_wheel(&mut self, event: &ScrollWheelEvent, window: &mut Window, cx: &mut Context<Self>) {
+    fn on_wheel(&mut self, event: &ScrollEvent, window: &mut Window, cx: &mut Context<Self>) {
         let delta = event.delta.pixel_delta(window.line_height()).y;
         if delta == px(0.) {
             return;
@@ -488,7 +554,7 @@ impl AraView {
         }
         // 글자가 아닌 곳을 누르면 고른 글자를 푼다.
         self.clear_ocr_selection(cx);
-        let mouse = SettingsStore::global(cx).settings.mouse.clone();
+        let mouse = SettingsStore::global(cx).settings.mouse;
         match event.button {
             MouseButton::Left if event.click_count >= 2 => {
                 self.drag = None;
@@ -621,7 +687,14 @@ impl AraView {
     }
 
     pub(super) fn toggle_playback(&mut self, cx: &mut Context<Self>) {
-        if self.has_animation(cx) {
+        if let Some(player) = &self.video {
+            if player.is_playing() {
+                player.pause();
+            } else {
+                player.play(player.speed());
+            }
+            cx.notify();
+        } else if self.has_animation(cx) {
             self.playing = !self.playing;
             self.loops_done = 0;
             self.frame_started = Instant::now();
@@ -630,6 +703,13 @@ impl AraView {
     }
 
     pub(super) fn step_frame(&mut self, delta: isize, cx: &mut Context<Self>) {
+        if self.video.is_some() {
+            if let Some(player) = &self.video {
+                player.step(delta.clamp(-1, 1) as i32);
+            }
+            cx.notify();
+            return;
+        }
         if !self.has_animation(cx) {
             return;
         }
@@ -642,6 +722,393 @@ impl AraView {
         cx.notify();
     }
 
+    /// 단일 보기에서 재생 중인 동영상이 있는지.
+    pub(super) fn has_video(&self, cx: &App) -> bool {
+        self.view_mode(cx) == ViewMode::Single
+            && self
+                .info
+                .as_ref()
+                .is_some_and(|info| info.mime_type.starts_with("video/"))
+    }
+
+    /// 현재 페이지가 동영상이면 재생기를 연다. 실패하면 토스트만 띄우고
+    /// 포스터 정지 화면에 머문다.
+    pub(super) fn open_video(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.close_video();
+        let Some(info) = self.info.clone() else {
+            return;
+        };
+        self.video_seq += 1;
+        let seq = self.video_seq;
+        let source = info.source_path.clone();
+        let open_source = source.clone();
+        let (video_volume, video_autoplay) = {
+            let settings = &SettingsStore::global(cx).settings;
+            (settings.video_volume, settings.video_autoplay)
+        };
+        let task = cx.background_spawn(async move {
+            araview_core::video_player::VideoPlayer::open(Path::new(&open_source))
+        });
+        cx.spawn_in(window, async move |this, cx| {
+            let result = task.await;
+            this.update_in(cx, |this, window, cx| {
+                if this.video_seq != seq {
+                    return;
+                }
+                // 그 사이 다른 페이지로 옮겼으면 버린다.
+                let current = this
+                    .info
+                    .as_ref()
+                    .is_some_and(|info| info.source_path == source);
+                if !current {
+                    return;
+                }
+                match result {
+                    Ok(player) => {
+                        player.set_volume(video_volume as f32 / 100.0);
+                        let duration = player.info().duration_ms as f32;
+                        let timeline = cx.new(|_| {
+                            SliderState::new()
+                                .min(0.0)
+                                .max(duration.max(1.0))
+                                .step(1000.0)
+                        });
+                        let timeline_sub = cx.subscribe_in(
+                            &timeline,
+                            window,
+                            |this, _, event: &SliderEvent, _, cx| {
+                                if let Some(player) = &this.video {
+                                    player.seek(slider_ms(event));
+                                }
+                                cx.notify();
+                            },
+                        );
+                        let volume = cx.new(|_| {
+                            SliderState::new()
+                                .min(0.0)
+                                .max(100.0)
+                                .step(1.0)
+                                .default_value(video_volume as f32)
+                        });
+                        let volume_sub = cx.subscribe_in(
+                            &volume,
+                            window,
+                            |this, _, event: &SliderEvent, _, cx| {
+                                let value = slider_ms(event) as f32;
+                                if let Some(player) = &this.video {
+                                    player.set_volume(value / 100.0);
+                                }
+                                if matches!(event, SliderEvent::Release(_)) {
+                                    SettingsStore::update(cx, |settings| {
+                                        settings.video_volume = value as f64;
+                                    });
+                                }
+                                cx.notify();
+                            },
+                        );
+                        this.video_controls = Some(VideoControls {
+                            timeline,
+                            volume,
+                            _timeline_sub: timeline_sub,
+                            _volume_sub: volume_sub,
+                        });
+                        let autoplay = video_autoplay && !crate::platform::reduced_motion();
+                        if autoplay {
+                            player.play(1.0);
+                        }
+                        this.video = Some(player);
+                        // 출력 스트림은 오디오 전용 스레드가 연다(Windows에서 기본 장치
+                        // 핸들의 클라이언트 활성화가 실패하면 같은 엔드포인트를 특정 장치로
+                        // 다시 시도한다). 실패하면 이유를 남기고 영상만 재생한다.
+                        let stream = this.video.as_ref().and_then(|player| {
+                            match player.attach_audio_output() {
+                                Ok(stream) => Some(stream),
+                                Err(error) => {
+                                    log::warn!("video audio unavailable: {error:?}");
+                                    None
+                                }
+                            }
+                        });
+                        match stream {
+                            Some(stream) => {
+                                this.video_audio_stream = Some(stream);
+                            }
+                            None => {
+                                if let Some(player) = &mut this.video {
+                                    player.disable_audio();
+                                }
+                            }
+                        }
+                        this.video_frame_pts = None;
+                        this.video_clock_ms = 0;
+                        // 프레임 예약은 렌더 단계의 `advance_video`가 맡는다.
+                        // 여기서 `request_animation_frame`을 부르면 paint/prepaint
+                        // 단계가 아니라 패닉한다(GPUI 제약).
+                        cx.notify();
+                    }
+                    Err(error) => {
+                        log::warn!("open_video failed: {error:?}");
+                        window.toast(
+                            Toast::error(error.message.clone()).title(t("toast.load.imageFail")),
+                            cx,
+                        );
+                        this.video = None;
+                        this.video_controls = None;
+                    }
+                }
+            })
+            .ok();
+        })
+        .detach();
+    }
+
+    pub(super) fn close_video(&mut self) {
+        self.video.take();
+        self.video_controls.take();
+        self.video_audio_stream.take();
+        self.video_frame_pts = None;
+        self.video_clock_ms = 0;
+    }
+
+    /// 재생 중이면 현재 위치의 프레임을 화면에 올리고 다음 프레임을 예약한다.
+    /// 정지 상태에서는 탐색·스텝 뒤에 화면이 따라잡을 때까지만 틱한다.
+    pub(super) fn advance_video(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let (pos, playing, seeking, frame, error) = match &self.video {
+            Some(player) => (
+                player.position_ms(),
+                player.is_playing(),
+                player.is_seeking(),
+                player.poll_frame().ok().flatten(),
+                player.has_error(),
+            ),
+            None => return,
+        };
+        if let Some(error) = error {
+            window.toast(Toast::error(error).title(t("toast.load.imageFail")), cx);
+            self.close_video();
+            cx.notify();
+            return;
+        }
+        let mut presented = false;
+        if let Some(frame) = frame {
+            let pts = frame.pts_ms;
+            if self.video_frame_pts != Some(pts) {
+                self.present_video_frame(frame, window, cx);
+                self.video_frame_pts = Some(pts);
+                presented = true;
+            }
+        }
+        if playing || seeking || pos != self.video_clock_ms {
+            self.video_clock_ms = pos;
+            window.request_animation_frame();
+        } else if presented {
+            cx.notify();
+        }
+        if let Some(controls) = &self.video_controls {
+            let value = SliderValue::Single(pos as f32);
+            // 값이 같으면 슬라이더를 갱신하지 않는다. `set_value`가 항상
+            // notify하므로 그대로 두면 정지 상태에서 렌더가 끝없이 반복된다.
+            if controls.timeline.read(cx).value() != value {
+                controls.timeline.update(cx, |state, cx| {
+                    state.set_value(value, window, cx);
+                });
+            }
+        }
+    }
+
+    /// 디코드 프레임을 표시용 그림으로 올려 현재 그림과 바꾼다.
+    fn present_video_frame(
+        &mut self,
+        frame: araview_core::video_player::VideoFrame,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(picture) = crate::picture::from_video_frame(
+            frame.width,
+            frame.height,
+            frame.bgra,
+            self.orientation,
+        ) else {
+            return;
+        };
+        let picture = Arc::new(picture);
+        let refit = self.picture.as_ref().is_none_or(|current| {
+            current.width != picture.width || current.height != picture.height
+        });
+        if let Some(old) = self.picture.replace(picture) {
+            Self::drop_picture(&old, window, cx);
+        }
+        if refit {
+            self.apply_fit(cx);
+        }
+    }
+
+    pub(super) fn video_seek_by(&mut self, delta_ms: i64, cx: &mut Context<Self>) {
+        let Some(player) = &self.video else {
+            return;
+        };
+        let pos = player.position_ms() as i64 + delta_ms;
+        player.seek(pos.max(0) as u64);
+        // 프레임 예약은 렌더 단계의 `advance_video`가 맡는다.
+        cx.notify();
+    }
+
+    pub(super) fn video_step_speed(&mut self, direction: i32, cx: &mut Context<Self>) {
+        let Some(player) = &self.video else {
+            return;
+        };
+        let current = player.speed();
+        let mut index = SPEEDS
+            .iter()
+            .position(|speed| (speed - current).abs() < f32::EPSILON)
+            .unwrap_or(2);
+        index = index
+            .saturating_add_signed(direction as isize)
+            .min(SPEEDS.len() - 1);
+        let speed = SPEEDS[index];
+        if player.is_playing() {
+            player.play(speed);
+        } else {
+            player.set_speed(speed);
+        }
+        cx.notify();
+    }
+
+    /// 배속 버튼: 최대 배속 다음에는 가장 느린 배속으로 돌아간다.
+    fn video_cycle_speed(&mut self, cx: &mut Context<Self>) {
+        let at_max = self
+            .video
+            .as_ref()
+            .is_some_and(|player| player.speed() >= SPEEDS[SPEEDS.len() - 1]);
+        if at_max {
+            self.video_step_speed(-(SPEEDS.len() as i32), cx);
+        } else {
+            self.video_step_speed(1, cx);
+        }
+    }
+
+    pub(super) fn toggle_video_mute(&mut self, cx: &mut Context<Self>) {
+        if let Some(player) = &self.video {
+            player.set_muted(!player.is_muted());
+            cx.notify();
+        }
+    }
+
+    /// 동영상 전송 컨트롤(하단 독). 애니메이션 오버레이와 같은 자리다.
+    pub(super) fn render_video_overlay(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
+        let Some(player) = &self.video else {
+            return div().into_any_element();
+        };
+        let Some(controls) = &self.video_controls else {
+            return div().into_any_element();
+        };
+        let info = player.info();
+        let pos = player.position_ms();
+        let duration = info.duration_ms;
+        let speed = player.speed();
+        let frame_text = info.fps.filter(|fps| *fps > 0.0).map(|fps| {
+            let (current, total) = video_frame_position(pos, duration, fps);
+            format_frame_counter(current, total)
+        });
+        let compact = f32::from(self.viewport.get().size.width) < VIDEO_BAR_COMPACT_BELOW;
+        h_flex()
+            .w_full()
+            .gap_2()
+            .px_2()
+            .py_1()
+            .rounded_md()
+            .border_1()
+            .border_color(cx.theme().border)
+            .bg(cx.theme().popover.opacity(0.75))
+            .text_xs()
+            .on_mouse_down(
+                MouseButton::Left,
+                cx.listener(|_this, _event, _window, cx| {
+                    cx.stop_propagation();
+                }),
+            )
+            .debug_selector(|| "dock-video-controls".to_owned())
+            .child(
+                Button::new("video-back")
+                    .ghost()
+                    .xsmall()
+                    .icon(Ph::CaretLeft)
+                    .tooltip(t("menu.videoSeekBack"))
+                    .on_click(cx.listener(|this, _, window, cx| {
+                        this.run_action("videoSeekBack", window, cx)
+                    })),
+            )
+            .child(
+                Button::new("video-play")
+                    .ghost()
+                    .xsmall()
+                    .icon(if player.is_playing() {
+                        Ph::Pause
+                    } else {
+                        Ph::Play
+                    })
+                    .tooltip(t(if player.is_playing() {
+                        "menu.gifPause"
+                    } else {
+                        "menu.gifPlay"
+                    }))
+                    .on_click(cx.listener(|this, _, window, cx| {
+                        this.run_action("toggleGifPlayback", window, cx)
+                    })),
+            )
+            .child(
+                Button::new("video-fwd")
+                    .ghost()
+                    .xsmall()
+                    .icon(Ph::CaretRight)
+                    .tooltip(t("menu.videoSeekFwd"))
+                    .on_click(cx.listener(|this, _, window, cx| {
+                        this.run_action("videoSeekFwd", window, cx)
+                    })),
+            )
+            .child(
+                div()
+                    .flex_1()
+                    .min_w(px(120.))
+                    .child(Slider::new(&controls.timeline).horizontal()),
+            )
+            .child(
+                div()
+                    .w(px(VIDEO_TIME_WIDTH))
+                    .text_right()
+                    .whitespace_nowrap()
+                    .font_features(tabular_figures())
+                    .child(format!("{} / {}", format_time(pos), format_time(duration))),
+            )
+            .child(
+                div()
+                    .w(px(FRAME_COUNTER_WIDTH))
+                    .text_right()
+                    .whitespace_nowrap()
+                    .font_features(tabular_figures())
+                    .when_some(frame_text, |slot, text| slot.child(text)),
+            )
+            .when(!compact, |row| {
+                row.child(
+                    Button::new("video-speed")
+                        .ghost()
+                        .xsmall()
+                        .w(px(VIDEO_SPEED_WIDTH))
+                        .label(format!("{speed}×"))
+                        .tooltip(t("menu.videoSpeedUp"))
+                        .on_click(cx.listener(|this, _, _, cx| this.video_cycle_speed(cx))),
+                )
+            })
+            .when(!compact, |row| {
+                row.child(
+                    div()
+                        .w(px(80.))
+                        .child(Slider::new(&controls.volume).horizontal()),
+                )
+            })
+            .into_any_element()
+    }
+
     // ----- 양쪽 보기 배치 -----
 
     /// 화면에 올린 페이지를 보이는 순서(왼쪽→오른쪽)로 돌려준다.
@@ -652,7 +1119,7 @@ impl AraView {
             .filter_map(|index| {
                 self.pages
                     .get(index)
-                    .map(|page| (*index, page.picture.clone()))
+                    .map(|page| (*index, page.picture().clone()))
             })
             .collect();
         if self.view_mode(cx) == ViewMode::RightToLeft {
@@ -746,7 +1213,7 @@ impl AraView {
         let known = self
             .pages
             .get(&index)
-            .map(|page| (page.picture.width, page.picture.height))
+            .map(|page| (page.picture().width, page.picture().height))
             .or_else(|| self.wt_dims.get(&index).copied());
         let (natural_w, aspect) = match known {
             Some((w, h)) if w > 0 => (w as f32, h as f32 / w as f32),
@@ -930,7 +1397,9 @@ impl AraView {
             .into_iter()
             .map(|(index, _)| index)
             .collect();
-        self.evict_except(&keep, window, cx);
+        // 화면에 걸친 페이지는 예산이 넘어도 유지하고, 넘는 만큼 먼 페이지부터 내려놓는다.
+        let protect: HashSet<usize> = self.shown.iter().copied().collect();
+        self.evict_except(&keep, &protect, window, cx);
 
         let middle = px(viewport_h / 2.0);
         let center = self
@@ -945,15 +1414,18 @@ impl AraView {
         let Some(page) = self.pages.get(&center) else {
             return;
         };
+        if !page.is_full() {
+            return;
+        }
         let stale = self
             .picture
             .as_ref()
-            .is_none_or(|picture| !Arc::ptr_eq(picture, &page.picture));
+            .is_none_or(|picture| !Arc::ptr_eq(picture, page.picture()));
         if changed || stale {
             self.pending_commit = false;
             self.error = None;
-            self.picture = Some(page.picture.clone());
-            self.info = Some(page.info.clone());
+            self.picture = Some(page.picture().clone());
+            self.info = page.info().cloned();
             if let Some(info) = &self.info {
                 window.set_window_title(&self.display_name(info));
             }
@@ -968,7 +1440,8 @@ impl AraView {
 
     /// 지금 단일 보기를 최근접 보간으로 그려야 하는지(SPEC §18). 축소에서는 항상 부드럽게.
     fn wants_pixelated(&self, cx: &App) -> bool {
-        if self.view_mode(cx) != ViewMode::Single || self.zoom < 1.0 {
+        if !self.current_page_is_full() || self.view_mode(cx) != ViewMode::Single || self.zoom < 1.0
+        {
             return false;
         }
         if self
@@ -994,6 +1467,9 @@ impl AraView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Option<(Arc<RenderImage>, Bounds<Pixels>)> {
+        if !self.current_page_is_full() {
+            return None;
+        }
         let picture = self.picture.clone()?;
         let level = &picture.levels[0];
         let container = self.container();
@@ -1054,7 +1530,7 @@ impl AraView {
         }
         // 원본이 이미 BGRA라 채널을 바꾸지 않고 그대로 옮긴다.
         let frames: SmallVec<[Frame; 1]> =
-            SmallVec::from_elem(Frame::new(RgbaImage::from_raw(width, height, buffer)?), 1);
+            smallvec![Frame::new(RgbaImage::from_raw(width, height, buffer)?)];
         let image = Arc::new(RenderImage::new(frames));
         if let Some(previous) = self.pixel_view.replace(PixelView {
             key,
@@ -1084,8 +1560,9 @@ impl AraView {
             .as_ref()
             .map(|picture| picture.frame_count())
             .unwrap_or(1);
-        let counter_width = 16.0 + 14.0 * (frames.to_string().len() as f32);
+        let counter_width = FRAME_COUNTER_WIDTH;
         h_flex()
+            .w_full()
             .gap_2()
             .px_2()
             .py_1()
@@ -1135,11 +1612,15 @@ impl AraView {
                         this.run_action("gifNextFrame", window, cx)
                     })),
             )
-            .child(div().w(px(counter_width)).text_center().child(format!(
-                "{}/{}",
-                self.frame + 1,
-                frames
-            )))
+            .child(div().flex_1())
+            .child(
+                div()
+                    .w(px(counter_width))
+                    .text_right()
+                    .whitespace_nowrap()
+                    .font_features(tabular_figures())
+                    .child(format_frame_counter((self.frame + 1) as u64, frames as u64)),
+            )
     }
 
     /// 읽기 영역 좌우 가장자리의 이전/다음 버튼. 우→좌 양쪽 보기는 읽는 방향대로
@@ -1187,9 +1668,17 @@ impl AraView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> impl IntoElement + use<> {
-        let settings = SettingsStore::global(cx).settings.clone();
+        // 매 프레임 `Settings` 전체를 클론하지 않고 렌더에 쓰는 `Copy` 필드만 복사한다.
+        let (background, webtoon_page_boundaries, webtoon_show_progress, webtoon_thumbnail_jump) = {
+            let settings = &SettingsStore::global(cx).settings;
+            (
+                settings.viewer_background,
+                settings.webtoon_page_boundaries,
+                settings.webtoon_show_progress,
+                settings.webtoon_thumbnail_jump,
+            )
+        };
         let mode = self.view_mode(cx);
-        let background = settings.viewer_background;
         let fill = match background {
             ViewerBackground::Theme | ViewerBackground::Checker => cx.theme().background,
             ViewerBackground::Black => gpui_kit::black(),
@@ -1237,12 +1726,12 @@ impl AraView {
             ViewMode::Webtoon => {
                 self.drop_pixel_view(window, cx);
                 for (index, bounds) in self.webtoon_rects() {
-                    if settings.webtoon_page_boundaries && index > 0 {
+                    if webtoon_page_boundaries && index > 0 {
                         boundaries.push(bounds.top());
                     }
                     match self.pages.get(&index) {
                         Some(page) => items.push(PaintItem {
-                            picture: page.picture.clone(),
+                            picture: page.picture().clone(),
                             rect: bounds,
                             frame: 0,
                         }),
@@ -1358,17 +1847,21 @@ impl AraView {
         // 디코드가 길어지면 이미 받아 둔 썸네일을 저해상 미리보기로 먼저 깐다.
         let preview_thumb = (mode == ViewMode::Single
             && self.pending_commit
-            && self.nav_started.elapsed() >= super::pages::PREVIOUS_HOLD)
-            .then(|| self.list.get(self.index))
-            .flatten()
-            .and_then(|item| match self.thumbs.get(item) {
-                Some(super::ThumbState::Ready(path)) => Some(path.clone()),
-                _ => None,
-            });
+            && self.nav_started.elapsed() >= super::pages::PREVIOUS_HOLD
+            && self
+                .pages
+                .get(&self.index)
+                .is_none_or(|page| page.is_full()))
+        .then(|| self.list.get(self.index))
+        .flatten()
+        .and_then(|item| match self.thumbs.get(item) {
+            Some(super::ThumbState::Ready(path)) => Some(path.clone()),
+            _ => None,
+        });
         let preview = (mode != ViewMode::Webtoon)
             .then(|| self.pages.get(&self.index))
             .flatten()
-            .filter(|page| page.archive_preview && self.shown.contains(&self.index))
+            .filter(|page| page.is_archive_preview() && self.shown.contains(&self.index))
             .and_then(|_| self.list.get(self.index))
             .map(|path| {
                 std::path::Path::new(&**path)
@@ -1377,12 +1870,12 @@ impl AraView {
                     .unwrap_or_else(|| path.to_string())
             });
         let progress = (mode == ViewMode::Webtoon
-            && (settings.webtoon_show_progress || settings.webtoon_thumbnail_jump))
+            && (webtoon_show_progress || webtoon_thumbnail_jump))
             .then(|| {
                 let total = self.list.len().max(1);
                 let percent = ((self.index + 1) * 100 / total).min(100);
                 (
-                    settings.webtoon_show_progress.then(|| {
+                    webtoon_show_progress.then(|| {
                         t_with(
                             "viewer.webtoon.position",
                             &[
@@ -1392,7 +1885,7 @@ impl AraView {
                             ],
                         )
                     }),
-                    settings.webtoon_thumbnail_jump,
+                    webtoon_thumbnail_jump,
                 )
             });
 
@@ -1422,7 +1915,7 @@ impl AraView {
                     this.ocr_drag = None;
                 }),
             )
-            .on_scroll_wheel(cx.listener(Self::on_wheel))
+            .on_scroll(cx.listener(Self::on_wheel))
             .child(drawing)
             .children(self.render_ocr_layer(cx))
             .when_some(preview_thumb, |area, path| {
@@ -1526,9 +2019,59 @@ impl AraView {
                     div()
                         .absolute()
                         .bottom_3()
+                        .left_3()
                         .right_3()
                         .child(self.render_animation_overlay(cx)),
                 )
             })
+            .when(self.has_video(cx), |area| {
+                area.child(
+                    div()
+                        .absolute()
+                        .bottom_3()
+                        .left_3()
+                        .right_3()
+                        .child(self.render_video_overlay(cx)),
+                )
+            })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{format_frame_counter, video_frame_position};
+
+    #[test]
+    fn video_frame_position_counts_from_one() {
+        // 10fps, 12초: 120프레임.
+        assert_eq!(video_frame_position(0, 12_000, 10.0), (1, 120));
+        // 첫 프레임 구간(0..100ms) 안에서는 번호가 그대로다.
+        assert_eq!(video_frame_position(99, 12_000, 10.0), (1, 120));
+        assert_eq!(video_frame_position(100, 12_000, 10.0), (2, 120));
+        assert_eq!(video_frame_position(12_000, 12_000, 10.0), (120, 120));
+    }
+
+    #[test]
+    fn frame_counter_uses_a_fixed_field() {
+        assert_eq!(format_frame_counter(1, 10), " 0001/ 0010");
+        assert_eq!(format_frame_counter(999, 1000), " 0999/ 1000");
+        assert_eq!(format_frame_counter(9999, 9999), " 9999/ 9999");
+    }
+
+    #[test]
+    fn frame_counter_omits_leading_digits_past_four() {
+        assert_eq!(format_frame_counter(10_000, 10_000), "…0000/…0000");
+        assert_eq!(format_frame_counter(12_345, 12_345), "…2345/…2345");
+        assert_eq!(format_frame_counter(12_345, 99_999), "…2345/…9999");
+    }
+
+    #[test]
+    fn frame_counter_clamps_past_the_end() {
+        assert_eq!(format_frame_counter(101, 100), " 0100/ 0100");
+    }
+
+    #[test]
+    fn frame_counter_handles_an_empty_total() {
+        assert_eq!(format_frame_counter(0, 0), " 0000/ 0000");
     }
 }

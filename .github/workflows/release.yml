@@ -27,9 +27,6 @@ concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
-env:
-  VCPKG_BINARY_SOURCES: clear;x-gha,readwrite
-
 permissions:
   contents: read
 
@@ -50,9 +47,10 @@ jobs:
         run: |
           $cargo = (Select-String -Path app/Cargo.toml -Pattern '^version = "(.+)"' | Select-Object -First 1).Matches.Groups[1].Value
           $lock = (Select-String -Path Cargo.lock -Pattern 'name = "araview"' -Context 0,1 | Select-Object -First 1).Context.PostContext[0] -replace '.*"(.+)".*','$1'
-          Write-Host "Cargo.toml=$cargo Cargo.lock=$lock"
-          if ($cargo -ne $lock) {
-            Write-Error "Cargo.toml($cargo)과 Cargo.lock($lock)의 버전이 다르다."
+          $vcpkg = (Select-String -Path vcpkg.json -Pattern '"version-string": "(.+)"' | Select-Object -First 1).Matches.Groups[1].Value
+          Write-Host "Cargo.toml=$cargo Cargo.lock=$lock vcpkg.json=$vcpkg"
+          if ($cargo -ne $lock -or $cargo -ne $vcpkg) {
+            Write-Error "버전 불일치: Cargo.toml($cargo), Cargo.lock($lock), vcpkg.json($vcpkg)."
             exit 1
           }
           if ("${{ github.ref_type }}" -eq "tag") {
@@ -72,8 +70,6 @@ jobs:
     needs: preflight
     permissions:
       contents: read
-      # rustsec/audit-check가 결과를 check run으로 기록하는 데 필요하다.
-      checks: write
     uses: ./.github/workflows/ci.yml
 
   # Windows 설치 프로그램 빌드, 서명, 업데이트 피드 생성. 릴리스는 마지막 `release` 잡이 만든다.

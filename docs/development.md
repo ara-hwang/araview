@@ -14,46 +14,68 @@
 ## 요구 사항
 
 - **OS**: Windows 11 (x64), macOS 11 이상(실험적), Linux x64(실험적)
-- **Rust**: stable (`rust-toolchain.toml`, `1.97` 이상)
+- **Rust**: stable (`rust-toolchain.toml` 채널, 최소 버전은 `app/Cargo.toml`의 `rust-version = "1.97"`)
 - **Node.js**: `>= 24` (`release`, `docs:check`, `licenses` 스크립트용. 의존성 설치는 없습니다)
 - **NSIS**: Windows 설치 프로그램을 만들 때만 필요합니다(`makensis`가 PATH에 있거나 `Program Files (x86)\NSIS`에 있어야 합니다)
 
-모든 OS에서 HEIC/HEIF/AVIF를 쓰려면 `libheif` 1.21 이상이 필요합니다. `[libde265]`(예전 포트는 `[core]`)는 HEVC 디코더만 넣고, 인코더 `x265`는 빼는 설치입니다. CI는 러너의 vcpkg 포트 파일을 보고 둘 중 있는 기능을 고릅니다. `aom` feature는 AVIF(AV1) 디코드용이며, 없으면 AVIF 표시와 썸네일, 히스토그램이 실패합니다. 움직이는 AVIF를 디코드하려면 1.21 이상이 필요합니다(`libheif-rs`의 `v1_21` feature). 앱은 HEIC/AVIF를 인코드하지 않습니다.
+모든 OS에서 HEIC/HEIF/AVIF를 쓰려면 `libheif` 1.21 이상이 필요합니다. `vcpkg.json`은 `libheif`의 `default-features`를 끄고(`hevc` 인코더 `x265` 제외) `aom`만 켭니다. HEVC 디코더 `libde265`는 하드 의존성이라 항상 들어갑니다. 버전은 baseline의 1.21.2와 1.23.1이 모두 Windows에서 DLL 로드 시 초기화 실패(`0xC0000142`)를 일으켜 `cargo test`가 실행조차 되지 않으므로, `overrides`로 1.23.2를 고정합니다(`libheif-rs 3.0`의 sys 바인딩도 1.23 기준). `aom` feature는 AVIF(AV1) 디코드용이며, 없으면 AVIF 표시와 썸네일, 히스토그램이 실패합니다. 움직이는 AVIF를 디코드하려면 1.21 이상이 필요합니다(`libheif-rs`의 `v1_21` feature). 앱은 HEIC/AVIF를 인코드하지 않습니다.
+
+동영상(mp4/mov/webm/mkv/avi)은 FFmpeg 8.x가 필요합니다. `rsmpeg`의 `ffmpeg8` feature와 메이저가 맞아야 컴파일되므로, 저장소 루트의 `vcpkg.json` 매니페스트가 `builtin-baseline`으로 FFmpeg 8.0.1(vcpkg 2026-03-23)을 고정합니다. `rsmpeg 0.18`이 FFmpeg 8.0 헤더 기준이라 8.1(구조체 필드 개명)에서는 컴파일되지 않으므로, 8.0.x를 유지합니다. classic 명령(`vcpkg install ffmpeg...`)은 pin을 무시하고 최신(9.x, 미지원)을 가져오므로 쓰지 않습니다. FFmpeg feature는 LGPL 호환 기본값 + AV1 디코드용 `dav1d`만 켭니다(GPL 계열 `gpl`/`x264`/`x265` 미포함). 시스템 FFmpeg(배포판 패키지)는 메이저가 다르면 빌드가 깨지므로 개발·CI 모두 vcpkg 제공 FFmpeg를 씁니다.
 
 ### Windows
 
-[vcpkg](https://vcpkg.io/)로 `libheif`를 설치합니다.
+[vcpkg](https://vcpkg.io/) 매니페스트로 네이티브 의존성(`libheif`, FFmpeg)을 설치합니다. 저장소 루트에서 실행해야 `vcpkg.json`이 적용됩니다.
 
 ```powershell
-vcpkg install "libheif[libde265,aom]:x64-windows"
+cd <araview>
+vcpkg install --triplet x64-windows --x-install-root="<vcpkg root>/installed"
 $env:VCPKG_ROOT = "<vcpkg root>"
+$env:FFMPEG_LIBS_DIR = "<vcpkg root>\installed\x64-windows\lib"
 $env:Path += ";$env:VCPKG_ROOT\installed\x64-windows\bin"
 ```
 
-앱은 `libheif`를 동적 링크합니다(`libheif-rs`, `default-features = false`). `app/build.rs`가 `VCPKG_ROOT`(또는 `VCPKG_INSTALLATION_ROOT`) 아래 `installed/x64-windows/bin`에서 `heif.dll`, `libde265.dll`, `aom.dll`을 실행 파일 옆(`target/<profile>/`)으로 복사하고, vcpkg의 `libheif`, `libde265`, `aom` `copyright`를 같은 위치의 `licenses/`로 모읍니다. 설치 프로그램은 이 파일들을 그대로 동봉합니다. CI에서는 `VCPKGRS_DYNAMIC=1`과 `PKG_CONFIG_PATH`를 함께 둡니다(워크플로 참조).
+`--x-install-root`는 pin은 그대로 두고 설치 위치만 vcpkg 루트로 옮긴다.
+`app/build.rs`와 pkg-config 설정이 그 위치를 보기 때문이다(그냥 `vcpkg install`만
+하면 저장소 아래 `vcpkg_installed/`에 깔려 빌드가 찾지 못한다). Windows에서
+`FFMPEG_LIBS_DIR`는 rsmpeg의 prebuilt 바인딩(`FFMPEG_BINDING_PATH`,
+`.cargo/config.toml` 고정)과 짝을 이룬다. 바인딩을 로컬 생성하지 않으므로
+Windows에서는 libclang이 필요 없다.
+
+앱은 `libheif`와 FFmpeg를 동적 링크합니다. `app/build.rs`가 `VCPKG_ROOT`(또는 `VCPKG_INSTALLATION_ROOT`) 아래 `installed/x64-windows/bin`에서 `heif.dll`, `libde265.dll`, `aom.dll`, `avcodec-62.dll`, `avformat-62.dll`, `avutil-60.dll`, `avfilter-11.dll`, `avdevice-62.dll`, `swscale-9.dll`, `swresample-6.dll`, `dav1d.dll`을 실행 파일 옆(`target/<profile>/`)으로 복사하고, vcpkg의 `libheif`, `libde265`, `aom`, `ffmpeg`, `dav1d` `copyright`를 같은 위치의 `licenses/`로 모읍니다. 설치 프로그램은 이 파일들을 그대로 동봉합니다. CI에서는 `VCPKGRS_DYNAMIC=1`과 `PKG_CONFIG_PATH`를 함께 둡니다(워크플로 참조). FFmpeg 메이저가 바뀌면 DLL 이름(SONAME)도 바뀌므로 `app/build.rs`와 `scripts/Build-Installer.ps1`을 함께 고칩니다.
 
 ### macOS
 
-Xcode 명령줄 도구와 `pkg-config`가 필요합니다. 개발에는 Homebrew의 `libheif`(1.21 이상)가 가장 간단합니다.
+Xcode 명령줄 도구와 `pkg-config`가 필요합니다. 네이티브 의존성은 Windows와 같은 vcpkg 매니페스트로 설치합니다(Homebrew의 `libheif`/FFmpeg는 메이저가 맞지 않으면 빌드가 깨집니다).
 
 ```bash
-brew install pkgconf libheif
+brew install pkgconf
+# vcpkg가 없으면 https://vcpkg.io/ 절차로 설치
+cd <araview>
+vcpkg install --triplet arm64-osx --x-install-root="<vcpkg root>/installed"  # Intel은 x64-osx
+export VCPKG_ROOT="<vcpkg root>"
+export PKG_CONFIG_PATH="<vcpkg root>/installed/arm64-osx/lib/pkgconfig"  # Intel은 x64-osx
+export PKG_CONFIG_ALL_STATIC=1
 cargo run -p araview -- ~/Pictures/image.png
 ```
 
-배포 묶음은 vcpkg 정적 빌드(`arm64-osx`, Intel은 `x64-osx`)로 `libheif`를 실행 파일에 넣어 dylib를 동봉하지 않습니다. CI의 `.github/actions/setup-rust-native`가 이 환경(`VCPKG_ROOT`, `PKG_CONFIG_PATH`, `PKG_CONFIG_ALL_STATIC=1`)을 만듭니다.
+배포 묶음은 vcpkg 정적 빌드(`arm64-osx`, Intel은 `x64-osx`)로 `libheif`와 FFmpeg를 실행 파일에 넣어 dylib를 동봉하지 않습니다. CI의 `.github/actions/setup-rust-native`가 이 환경(`VCPKG_ROOT`, `PKG_CONFIG_PATH`, `PKG_CONFIG_ALL_STATIC=1`)을 만듭니다. Windows는 여기에 `FFMPEG_LIBS_DIR`가 더해집니다.
 
 ### Linux
 
-배포판 패키지의 `libheif`는 1.21보다 오래된 경우가 많습니다(Ubuntu 24.04는 1.17). 1.21 이상이 없으면 [소스에서 빌드](https://github.com/strukturag/libheif)해 `PKG_CONFIG_PATH`에 `libheif.pc`가 보이게 하거나 macOS와 같은 vcpkg 정적 빌드(`x64-linux`)를 씁니다. 그 밖의 빌드 의존성(Debian/Ubuntu 기준):
+GPUI의 X11/Wayland 연동에 필요한 개발 패키지를 설치합니다(Debian/Ubuntu 기준). 배포판의 `libheif`/FFmpeg 패키지는 쓰지 않습니다(메이저가 맞지 않으면 `rsmpeg` 빌드가 깨집니다). 네이티브 의존성은 macOS와 같은 vcpkg 매니페스트 정적 빌드(`x64-linux`)를 씁니다.
 
 ```bash
-sudo apt-get install pkg-config cmake clang libclang-dev \
+sudo apt-get install pkg-config cmake nasm clang libclang-dev libasound2-dev \
   libxkbcommon-dev libxkbcommon-x11-dev libxcb1-dev libxcb-xkb-dev libx11-xcb-dev \
-  libwayland-dev libfontconfig-dev libfreetype-dev libde265-dev libaom-dev
+  libwayland-dev libfontconfig-dev libfreetype-dev
+cd <araview>
+vcpkg install --triplet x64-linux --x-install-root="<vcpkg root>/installed"
+export VCPKG_ROOT="<vcpkg root>"
+export PKG_CONFIG_PATH="<vcpkg root>/installed/x64-linux/lib/pkgconfig"
+export PKG_CONFIG_ALL_STATIC=1
 ```
 
-실행에는 X11 또는 Wayland 세션, Vulkan 드라이버, `libxkbcommon`이 필요합니다. 파일 열기 대화상자는 `xdg-desktop-portal`을 씁니다. 디스플레이가 없는 환경에서는 `Xvfb`와 소프트웨어 Vulkan(`mesa-vulkan-drivers`)으로 실제 창을 띄워 확인할 수 있습니다.
+실행에는 X11 또는 Wayland 세션, Vulkan 드라이버, `libxkbcommon`, `libasound2`(동영상 오디오 출력용)가 필요합니다. 파일 열기 대화상자는 `xdg-desktop-portal`을 씁니다. 디스플레이가 없는 환경에서는 `Xvfb`와 소프트웨어 Vulkan(`mesa-vulkan-drivers`)으로 실제 창을 띄워 확인할 수 있습니다.
 
 ## 시작하기
 
@@ -110,7 +132,7 @@ npm run licenses
 ## 앱 구조 요약
 
 - `app`는 UI와 입력만 맡고, 파일과 이미지 작업은 `araview-core`의 동기 함수(`ops/`)를 `cx.background_spawn`으로 호출합니다.
-- 렌더링: `araview-core`의 `display.rs`가 디코드한 RGBA 프레임을 GPU 타일로 그립니다. GPUI 텍스처는 한 변 16384px 제한과 밉맵 없는 선형 보간뿐이라, 큰 이미지는 타일로 나누고 축소 단계를 CPU에서 만듭니다. 픽셀 보존 표시는 보이는 영역만 최근접 확대한 래스터로 그립니다.
+- 렌더링: `araview-core`의 `display.rs`가 디코드한 RGBA 프레임을 GPU 타일로 그립니다. 큰 정지 JPEG/PNG는 `preview.rs`에서 축소 디코드/행 샘플링을 먼저 시도하고, ICC·인터레이스·애니메이션·알파 등 비지원 입력과 TIFF는 기존 full 디코드로 폴백합니다. GPUI 텍스처는 한 변 16384px 제한과 밉맵 없는 선형 보간뿐이라, 큰 이미지는 타일로 나누고 축소 단계를 CPU에서 만듭니다. 픽셀 보존 표시는 보이는 영역만 최근접 확대한 래스터로 그립니다.
 - 단축키: GPUI 키맵 대신 뷰어 루트의 키 입력에서 설정 맵을 직접 찾습니다(`src/keys.rs`).
 - 파일 열기 대화상자: GPUI의 경로 선택 창에는 형식 필터가 없어 `rfd`의 네이티브 대화상자를 씁니다.
 - 고대비: Windows 대비 테마 여부를 시작할 때, 테마를 바꿀 때, 창이 다시 활성화될 때 읽어 글자·테두리 대비를 올립니다(다른 OS는 항상 꺼짐). 모션 최소화는 Windows "애니메이션 효과", macOS "동작 줄이기", GNOME `enable-animations`를 따릅니다(`src/platform/`).
@@ -120,9 +142,9 @@ npm run licenses
 - 단일 인스턴스: 두 번째 실행은 첫 인자를 기존 창에 넘기고 종료합니다. Windows는 명명된 파이프(`\\.\pipe\<식별자>`), Linux와 macOS는 유닉스 도메인 소켓(`$XDG_RUNTIME_DIR` 또는 임시 폴더의 `<식별자>.sock`, 경로가 100바이트를 넘으면 `/tmp/araview-<uid>-<해시>.sock`)입니다. macOS에서 Finder로 파일을 열면 `open-document` 이벤트가 같은 경로로 전달됩니다.
 - 런타임 확인: 디버그 빌드는 실행 중인 창에 `araview action:<동작 ID>`(Windows는 `araview.exe`)로 동작을 실행시킬 수 있습니다(`src/app/menu.rs`의 `run_action`, 단축키 동작 ID와 `openSettings`, `viewLtr` 등). 릴리스 빌드에는 이 통로가 없습니다.
 - 제어 브리지(개발 빌드 전용): 디버그 빌드는 `\\.\pipe\<식별자>-control`(Linux와 macOS는 유닉스 소켓 `<식별자>-control.sock`)을 열고 한 줄 JSON 요청에 한 줄 JSON 응답을 돌려줍니다(`src/app/bridge.rs`, 통로는 `src/platform/`). 입력은 창 메시지가 아니라 GPUI 입력 경로(`Window::dispatch_event`, `Window::dispatch_keystroke`)로 들어가므로 수식키 조합(ctrl-휠, ctrl-shift-c)과 파일 드롭이 그대로 살고 사용자의 마우스·키보드를 건드리지 않습니다. 상태(열린 파일, 인덱스, 보기 모드, 배율, 위치, 읽기 영역, 패널, 전체화면, 에러)를 함께 돌려줍니다. `scripts/araview-drive.ps1`(CLI), `scripts/araview-mcp.ps1`(MCP 서버), `scripts/AraViewControl.psm1`(캡처와 통로 클라이언트)이 이 통로를 씁니다. 릴리스 빌드에는 이 통로가 없습니다(The control channel is compiled out of release builds).
-- 업데이트: 설정 `updateChannel`이 `stable`(기본)이면 `update-feed.json`, `beta`면 롤링 `beta` 릴리스의 `update-feed-beta.json`을 읽고, 두 피드 모두 minisign 서명을 `app/update-pubkey.txt`의 공개키로 확인합니다. 시작 시 자동 확인(`autoCheckUpdates`, 기본 켜짐)은 시작 약 5초 뒤 조용히 1회 수행하고 새 버전이 있을 때만 대화상자를 띄우며(최신·실패는 알리지 않음), 수동 확인(설정 버튼, 팔레트)은 최신·실패도 토스트로 알립니다. 새 버전이 있으면(Windows) 설치 프로그램을 내려받아 서명을 확인한 뒤 실행하고 앱을 종료합니다. macOS와 Linux는 인앱 설치 없이 릴리스 페이지로 안내합니다(`update.rs`의 `PLATFORM`). 피드가 없으면(404) 확인 결과는 "최신"입니다(자동 확인은 조용히 넘어감). 다운로드 중에는 진행 막대가 있는 대화상자를 띄우고(취소 가능), 실패는 토스트로 알립니다.
+- 업데이트: 동작 계약은 `SPEC.md` §20.1을 따른다(피드 `update-feed.json`, 공개키 `app/update-pubkey.txt`, `PLATFORM` 분기). 피드가 없으면(404) 확인 결과는 "최신"이다.
 - 업데이트 로컬 검증: `cargo run -p araview --example local_update_feed -- <setup.exe> <출력 폴더> http://127.0.0.1:8765`가 임시 키로 서명한 피드를 만듭니다. 그 폴더를 `python -m http.server 8765 --bind 127.0.0.1`로 띄우고, 디버그 빌드를 `ARAVIEW_UPDATE_FEED`(피드 주소)와 `ARAVIEW_UPDATE_PUBKEY`(`pubkey.txt` 내용)를 준 채 실행한 뒤 `action:checkUpdates`나 `action:installUpdate`를 보냅니다. 릴리스 빌드는 두 환경 변수를 읽지 않습니다.
-- 서드파티 라이선스: `npm run licenses`가 Rust 의존성을 `app/THIRD_PARTY_LICENSES.json`에 모으고, 앱이 이 파일을 컴파일 시점에 포함합니다. 같은 스크립트가 `THIRD_PARTY_LICENSES.md`의 2절 표도 다시 씁니다. 1절(네이티브 라이브러리)은 직접 고칩니다. 의존성을 바꾸면 다시 생성합니다. 허용하지 않은 라이선스는 `cargo deny check licenses bans sources`(설정 `deny.toml`, `cargo install cargo-deny --locked`)로 검사하며 CI와 릴리스 워크플로도 같은 검사를 합니다. 패키지에 LICENSE 파일이 없어 표준 템플릿("Copyright (c) <year> <owner>")이 나오는 크레이트는 스크립트가 경고로 알려 주며, 업스트림 LICENSE를 `licenses-extra/`에 복사하고 스크립트의 `EXTRA_LICENSES`에 추가합니다. 새 라이선스가 나오면 `about.toml`의 `accepted`와 `deny.toml`의 `allow`를 같이 고칩니다.
+- 서드파티 라이선스: `npm run licenses`가 Rust 의존성을 `app/THIRD_PARTY_LICENSES.json`에 모으고, 앱이 이 파일을 컴파일 시점에 포함합니다. 같은 스크립트가 `THIRD_PARTY_LICENSES.md`의 2절 표도 다시 씁니다. 1절(네이티브 라이브러리)은 직접 고칩니다. 의존성을 바꾸면 다시 생성합니다. 허용하지 않은 라이선스와 RustSec 자문은 `cargo deny check`(설정 `deny.toml`, `cargo install cargo-deny --locked`)로 검사하며 CI와 릴리스 워크플로도 같은 검사를 합니다. 패키지에 LICENSE 파일이 없어 표준 템플릿("Copyright (c) <year> <owner>")이 나오는 크레이트는 스크립트가 경고로 알려 주며, 업스트림 LICENSE를 `licenses-extra/`에 복사하고 스크립트의 `EXTRA_LICENSES`에 추가합니다. 새 라이선스가 나오면 `about.toml`의 `accepted`와 `deny.toml`의 `allow`를 같이 고칩니다.
 - 스크롤: GPUI에는 휠 스크롤 감속이 없어 `src/smooth.rs`의 `SmoothScroll`이 홈, 설정, 정보 패널, 라이선스 창(원문과 목록), 썸네일 그리드의 휠 입력을 목표 오프셋으로 쌓아 프레임마다 따라가게 합니다. 가상 목록(그리드, 라이선스 목록, 도크)은 목록이 추적하는 핸들을 공유하고 기본 스크롤을 끈 뒤(`overflow_hidden`) 바깥에서 휠을 처리합니다. 웹툰 보기는 `src/app/viewport.rs`가 같은 방식으로 휠과 위·아래 키 스크롤을 나눠 반영합니다.
 - 알림: GPUI 알림 레이어는 다이얼로그보다 아래에 그려지므로, 다이얼로그가 열려 있으면 `src/toast.rs`가 같은 내용을 경고창으로 띄웁니다.
 - 로딩 표시: 파일을 여는 중(200ms 이상)에는 홈 위에, 그림이 아직 없을 때는 가운데에, 그림이 떠 있는 채 새 페이지나 웹툰 페이지가 늦어지면(페이지 이동은 300ms 이상) 오른쪽 위에 스피너를 보입니다.
@@ -131,77 +153,20 @@ npm run licenses
 ## 프로젝트 구조
 
 ```text
-Cargo.toml           # 워크스페이스(crates/*, app). Cargo.lock도 하나
-crates/
-  araview-core/src/  # UI 비의존 코어
-    ops/             # 연산 구현(도메인별 동기 함수, mod.rs에서 재내보내기)
-    display.rs       # 표시용 RGBA 프레임 디코드(렌더 경로)
-    file_assoc.rs    # Windows 확장자 연결(레지스트리). 다른 OS는 lib.rs의 빈 자리 표시
-    clipboard_png.rs # 클립보드 복사용 PNG 재인코딩 캐시(clipboard/)
-    image.rs         # MIME/확장자 판별(resolve_mime), load_viewable
-    sniff.rs         # 파일 선두 시그니처 기반 포맷 판별
-    heif.rs          # HEIC/HEIF 디코드 및 JPEG sidecar
-    psd_sidecar.rs   # PSD 합성 디코드(`psd` 크레이트) 및 JPEG sidecar (읽기 전용)
-    raster_sidecar.rs # TGA/DDS/EXR/QOI/HDR/PNM 디코드(`image` 크레이트) 및 JPEG sidecar (읽기 전용)
-    raw.rs           # 카메라 RAW 내장 JPEG 미리보기 추출(IFD 순회, 표지 스캔) 및 rawler 폴백, JPEG sidecar (읽기 전용)
-    transcode.rs     # 포맷(resolve_mime)별 sidecar 디코더 디스패치
-    process_temp.rs  # 임시/영구 파생 이미지 캐시 루트, 보호, 상한, 시작 정리
-    cache.rs         # 캐시 통계 및 종류별/전체 삭제
-    archive.rs       # 아카이브 목록/추출 처리 (cbz/zip)
-    archive_index.rs # 아카이브 엔트리 목록 캐시 (mtime+size 검증 LRU)
-    comic_info.rs    # CBZ/ZIP ComicInfo.xml 파싱, 표지 지정 쓰기
-    thumbnail.rs     # 썸네일 생성/캐시
-    svg_raster.rs    # SVG 래스터화(resvg, 썸네일/히스토그램 전용)
-    svg_size.rs      # SVG 헤더(width/height/viewBox) 치수 파서
-    sidecar.rs       # sidecar/썸네일/추출물 공용 헬퍼(해시, 락, 원자 발행)
-    scaled.rs        # 표시 해상도 제한 축소본
-    thumb_shell.rs   # PSD 탐색기 썸네일 셸 연동(Windows 전용)
-    app_error.rs     # 구조화 에러 코드 매핑
-    dir_cache.rs     # 디렉토리 목록 캐시
-    file_availability.rs # Files On-Demand availability 판별(Windows만 판별, 그 밖은 unknown)
-    image_info.rs    # 이미지 상세/파일 정보 조회
-    stable_hash.rs   # 영속 캐시 파일명용 안정 해시
-    orientation.rs   # EXIF Orientation 읽기/적용
-  araview-thumb/     # PSD 탐색기 썸네일 COM DLL(Windows 전용)
-
-app/            # 앱
-  update-pubkey.txt  # 업데이트 서명 공개키(minisign, base64)
-  locales/           # 번역(ko.json, en.json)
-  src/main.rs        # 부트스트랩: 단일 인스턴스, 설정 로드, 캐시 초기화, 창 생성
-  src/app.rs         # 메인 뷰 조립: 상태, 헤더, 홈, 상태바, 키 입력
-  src/app/pages.rs   # 목록 열기, 페이지 캐시와 프리페치, 이동
-  src/app/viewport.rs # 단일·양쪽·웹툰 배치, 줌/팬, 픽셀 보존 표시
-  src/app/dock.rs    # 이미지 목록 도크와 썸네일 요청
-  src/app/grid.rs    # 썸네일 그리드 오버레이
-  src/app/menu.rs    # 동작 실행, 컨텍스트 메뉴, 명령 팔레트, 표지 지정
-  src/app/info_panel.rs # 정보 패널(만화 정보, 파일, 히스토그램, EXIF)
-  src/app/file_ops.rs # 휴지통 이동, 이름 변경
-  src/app/settings_panel.rs # 설정 다이얼로그
-  src/app/system.rs  # 설정 반영, 테마, 항상 위, 두 번째 실행 전달, 창 상태
-  src/app/update.rs  # 업데이트 확인·설치
-  src/app/licenses.rs # 오픈소스 라이선스 창(목록과 원문)
-  src/app/bridge.rs  # 제어 브리지(개발 빌드 전용, 런타임 확인 통로)
-  src/layout.rs      # 이동 인덱스와 양쪽 보기 화면 배치 계산
-  src/picture.rs     # 디코드 프레임을 GPU 타일과 축소 단계로 변환
-  src/geometry.rs    # 줌/팬/맞춤 계산
-  src/settings.rs    # 설정, 최근 파일, 이어보기 기록 영속화
-  src/smooth.rs      # 휠 스크롤을 감속시키는 스크롤 영역
-  src/toast.rs       # 토스트(다이얼로그가 열려 있으면 경고창)
-  src/keys.rs        # 단축키 표기와 매칭
-  src/platform/      # OS 연동: mod.rs(공통), windows.rs(Win32), unix.rs(Linux·macOS 소켓)
-  src/i18n.rs        # 번역 로드(locales/*.json)
-  src/assets.rs      # 아이콘 자산 소스
-  installer/         # NSIS 설치 스크립트(Windows)
-  packaging/         # Linux .desktop과 install.sh, macOS Info.plist
-  resources/         # 앱 아이콘(icon.ico, icon.png), Windows 리소스
-
-scripts/             # 릴리스, 설치 프로그램, 문서 검사, 라이선스 자료 생성
-  package-linux.sh    # Linux tar.gz 묶음
-  package-macos.sh    # macOS .app + dmg 묶음
-  AraViewControl.psm1 # 실행 중인 창 제어/캡처(Win32 + PNG 인코더)
-  araview-drive.ps1   # 위 모듈의 CLI
-  araview-mcp.ps1     # 같은 도구를 MCP 서버(stdio)로 노출
-licenses-extra/      # LICENSE 파일이 없는 크레이트의 업스트림 LICENSE 사본
+Cargo.toml  # 워크스페이스(crates/*, app). Cargo.lock도 하나
+crates/araview-core/src/  # UI 비의존 코어. 경계: app=표현, ops/**=동기 연산
+  ops/  # 도메인별 동기 함수(directory, file_ops, archive, load, metadata, thumbnail, ocr, system)
+  decode/  # display, image(resolve_mime), sniff, heif, psd_sidecar, raster_sidecar, raw, jxl, svg_*, transcode
+  cache/  # process_temp, cache, sidecar, scaled, thumbnail, archive_index, comic_info
+  meta/  # image_info, orientation, natural_sort, ocr, dir_cache, file_availability, app_error, stable_hash, clipboard_png, file_assoc
+  araview-thumb/  # PSD 탐색기 썸네일 COM DLL(Windows 전용)
+app/  # 표현 계층. 상세는 코드 읽기
+  src/app/  # 화면: pages, viewport, dock, grid, menu, info_panel, file_ops, ocr, settings_panel, system, update, licenses, bridge
+  src/  # layout, picture, geometry, settings, smooth, toast, keys, dialog, i18n, assets, platform/, build.rs
+  locales/ update-pubkey.txt THIRD_PARTY_LICENSES.json(생성물) installer/ packaging/ resources/
+scripts/  # check-docs/release/licenses(.mjs), package-*.sh, Build-Installer.ps1, araview-drive/mcp(.ps1)
+vendor/  # [patch.crates-io] 포크(HDR 실험용 gpui-pre-windows)
+licenses-extra/  # 업스트림 LICENSE 사본
 ```
 
 ## 파생 이미지 캐시

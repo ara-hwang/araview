@@ -6,6 +6,7 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
+use araview_core::file_identity::FileIdentity;
 use gpui_kit::{App, Global};
 use serde::{Deserialize, Serialize};
 
@@ -292,7 +293,7 @@ impl WheelMap {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct MouseMap {
     pub left_drag: MouseAction,
@@ -354,6 +355,11 @@ pub const DEFAULT_SHORTCUTS: &[(&str, &str)] = &[
     ("toggleGifPlayback", "P"),
     ("gifPrevFrame", ","),
     ("gifNextFrame", "."),
+    ("videoSeekBack", "J"),
+    ("videoSeekFwd", "L"),
+    ("videoSpeedDown", "["),
+    ("videoSpeedUp", "]"),
+    ("videoMute", "M"),
 ];
 
 pub type ShortcutMap = BTreeMap<String, String>;
@@ -426,6 +432,10 @@ pub struct Settings {
     pub dock_thumb_size: DockThumbSize,
     pub dock_show_name: bool,
     pub dock_show_index: bool,
+    pub video_autoplay: bool,
+    /// 0~100. 실제 출력에는 `/100`으로 넘긴다.
+    pub video_volume: f64,
+    pub show_video_info: bool,
     pub shortcuts: ShortcutMap,
     pub wheel: WheelMap,
     pub mouse: MouseMap,
@@ -469,6 +479,9 @@ impl Default for Settings {
             dock_thumb_size: DockThumbSize::S,
             dock_show_name: false,
             dock_show_index: false,
+            video_autoplay: true,
+            video_volume: 80.0,
+            show_video_info: true,
             shortcuts: default_shortcuts(),
             wheel: WheelMap::default(),
             mouse: MouseMap::default(),
@@ -492,6 +505,23 @@ pub struct ArchiveProgress {
     pub entry: String,
     pub index: usize,
     pub total: usize,
+    /// 파일 identity(SPEC §8). identity가 있는 기록만 지금 파일과 같은지 검증해
+    /// 같은 경로의 아카이브가 내용만 교체되면 기록을 버린다. identity 없는
+    /// 옛 기록은 한 번만 신뢰하고 다음 저장 때 identity를 기록한다(SPEC §12).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub identity: Option<FileIdentity>,
+}
+
+impl ArchiveProgress {
+    /// 이 기록을 지금 파일 identity에서도 이어볼 수 있는지. identity가 기록된
+    /// 기록만 검증하고, 지금 파일을 못 읽는 경우(없어서 열기가 어차피 실패함)는
+    /// 신뢰한다.
+    pub fn matches_identity(&self, current: Option<FileIdentity>) -> bool {
+        match (&self.identity, current) {
+            (Some(stored), Some(current)) => *stored == current,
+            _ => true,
+        }
+    }
 }
 
 #[derive(Default, Serialize, Deserialize)]
@@ -631,6 +661,15 @@ impl SettingsStore {
 
     pub fn push_recent(cx: &mut App, path: &str) {
         let store = cx.global_mut::<Self>();
+        // 이미 맨 앞이면 파일 쓰기를 생략한다. 파일 열기마다 동기 저장이
+        // 일어나므로 같은 파일을 다시 열 때의 쓰기를 아낀다.
+        if store
+            .recent_files
+            .first()
+            .is_some_and(|first| first == path)
+        {
+            return;
+        }
         store.recent_files.retain(|item| item != path);
         store.recent_files.insert(0, path.to_owned());
         store.recent_files.truncate(RECENT_FILES_LIMIT);
@@ -668,6 +707,15 @@ impl SettingsStore {
 
     pub fn set_archive_progress(cx: &mut App, archive: &str, progress: ArchiveProgress) {
         let store = cx.global_mut::<Self>();
+        // 같은 위치를 다시 저장하면 동기 파일 쓰기를 생략한다. 아카이브 웹툰에서
+        // 중심 페이지가 바뀔 때마다 호출되므로 반복 저장을 아낀다.
+        if store
+            .archive_progress
+            .iter()
+            .any(|(path, existing)| path == archive && existing == &progress)
+        {
+            return;
+        }
         store.archive_progress.retain(|(path, _)| path != archive);
         store.archive_progress.push((archive.to_owned(), progress));
         let overflow = store
@@ -812,6 +860,49 @@ mod tests {
     fn an_unknown_update_channel_falls_back_to_stable() {
         let restored = restore_settings(serde_json::json!({ "updateChannel": "nightly" }));
         assert_eq!(restored.update_channel, UpdateChannel::Stable);
+    }
+
+    /// identity 없는 옛 `settings.json` 기록은 그대로 로드되고 한 번만
+    /// 신뢰한다(SPEC §12).
+    #[test]
+    fn archive_progress_without_identity_loads_from_old_settings_files() {
+        let progress: ArchiveProgress = serde_json::from_value(serde_json::json!({
+            "entry": "001.jpg",
+            "index": 3,
+            "total": 12,
+        }))
+        .expect("이전 기록 복원");
+        assert_eq!(progress.index, 3);
+        assert!(progress.identity.is_none());
+        assert!(progress.matches_identity(None));
+
+        // 저장하면 identity가 함께 기록된다.
+        let saved = serde_json::to_value(progress).expect("기록 직렬화");
+        assert!(saved["identity"].is_null());
+    }
+
+    /// identity가 기록된 기록은 지금 파일과 같을 때만 이어보고, 같은 경로에
+    /// 다른 내용이 들어오면 버린다(SPEC §8).
+    #[test]
+    fn archive_progress_validates_the_file_identity() {
+        let identity = FileIdentity {
+            size: 1024,
+            modified_nanos: 42,
+        };
+        let progress = ArchiveProgress {
+            entry: "001.jpg".to_owned(),
+            index: 3,
+            total: 12,
+            identity: Some(identity),
+        };
+        assert!(progress.matches_identity(Some(identity)));
+        assert!(!progress.matches_identity(Some(FileIdentity {
+            size: 2048,
+            modified_nanos: 42,
+        })));
+        // identity 직렬화 키는 camelCase다.
+        let saved = serde_json::to_value(&progress).expect("기록 직렬화");
+        assert_eq!(saved["identity"]["modifiedNanos"], serde_json::json!(42));
     }
 
     /// 일반 휠 위/아래가 한 쌍을 이루면 묶음 동작을 알아보고, 따로 놀면 없다(SPEC §14.2).

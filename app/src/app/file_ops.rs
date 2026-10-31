@@ -7,13 +7,13 @@ use araview_core::app_error::AppError;
 use araview_core::ops;
 use gpui_kit::component::WindowExt as _;
 use gpui_kit::component::button::{Button, ButtonVariant, ButtonVariants as _};
-use gpui_kit::component::dialog::{DialogEntrance, DialogFooter};
+use gpui_kit::component::dialog::DialogFooter;
 use gpui_kit::component::form::{Field, Form};
 use gpui_kit::component::input::{Input, InputEvent, InputState};
 use gpui_kit::*;
 
 use super::AraView;
-use crate::dialog::{ALERT_HEIGHT, RENAME_HEIGHT, centered, centered_margin_top};
+use crate::dialog::centered;
 use crate::i18n::{t, t_with};
 use crate::settings::SettingsStore;
 
@@ -36,12 +36,11 @@ impl AraView {
             return;
         }
         let entity = cx.entity();
-        window.open_alert_dialog(cx, move |alert, window, _cx| {
+        window.open_alert_dialog(cx, move |alert, _window, _cx| {
             let entity = entity.clone();
             let path = path.clone();
             alert
-                .margin_top(centered_margin_top(window, ALERT_HEIGHT))
-                .entrance(DialogEntrance::Fade)
+                .centered()
                 .title(t("confirm.trash.title"))
                 .description(t_with("confirm.trash.message", &[("name", &name)]))
                 // Enter로도 지운다. gpui-kit 다이얼로그는 `Enter`를 확인 동작으로
@@ -129,11 +128,11 @@ impl AraView {
         };
         submit_on_enter.detach();
         let name_input = input.clone();
-        window.open_dialog(cx, move |dialog, window, _| {
+        window.open_dialog(cx, move |dialog, _window, _| {
             let entity = entity.clone();
             let input = input.clone();
             let old_path = old_path.clone();
-            centered(dialog, window, RENAME_HEIGHT)
+            centered(dialog)
                 .title(t("dialog.rename.title"))
                 .child(
                     Form::new().child(
@@ -207,8 +206,11 @@ impl AraView {
                     SettingsStore::replace_recent(cx, &old_path, &info.source_path);
                     // 표시 경로가 원본 자체였다면 이름과 함께 바뀌었으므로 정보만 교체한다.
                     // 페이지 캐시도 바꿔야 다른 장에 다녀와도 옛 경로로 돌아가지 않는다.
-                    if let Some(page) = renamed.and_then(|index| this.pages.get_mut(&index)) {
-                        page.info = info.clone();
+                    if let Some(page_info) = renamed
+                        .and_then(|index| this.pages.get_mut(&index))
+                        .and_then(|page| page.info_mut())
+                    {
+                        *page_info = info.clone();
                     }
                     // 그사이 다른 장으로 넘어갔으면 지금 보는 그림의 정보는 건드리지 않는다.
                     if renamed == Some(this.index) {

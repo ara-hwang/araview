@@ -77,6 +77,11 @@ impl From<DecodedFrames> for DisplayImage {
 
 /// `path`의 렌더 바이트를 디코드한다. SVG는 긴 변이 `svg_max_side`를 넘지 않게
 /// 래스터화한다.
+pub fn decode_preview_for_display(path: &Path, max_side: u32) -> Option<DisplayImage> {
+    crate::preview::decode_static_preview(path, max_side)
+        .map(|image| DisplayImage::still(image, false))
+}
+
 pub fn decode_for_display(path: &Path, svg_max_side: u32) -> Result<DisplayImage, AppError> {
     let mime = crate::image::resolve_mime(path);
     match mime {
@@ -85,6 +90,11 @@ pub fn decode_for_display(path: &Path, svg_max_side: u32) -> Result<DisplayImage
         }
         Some(crate::jxl::JXL_MIME) => {
             Ok(crate::jxl::decode_frames(path, MAX_ANIMATION_BYTES)?.into())
+        }
+        // 동영상 원본을 직접 디코드하지 않는다. 로드 경로는 포스터 JPEG를
+        // `file_path`로 넘기므로 이 분기는 직접 호출의 안전망이다.
+        Some(mime) if crate::image::VIDEO_MIMES.contains(&mime) => {
+            Err(AppError::unsupported("Video playback is not supported yet"))
         }
         Some("image/svg+xml") => Ok(DisplayImage::still(
             crate::svg_raster::rasterize_rgba(path, svg_max_side)?,

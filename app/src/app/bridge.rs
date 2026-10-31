@@ -171,7 +171,7 @@ fn apply_input(request: &Value, window: &mut Window, cx: &mut App) -> Result<(),
     match text_field(request, "cmd")? {
         "key" => {
             let spec = text_field(request, "spec")?;
-            let keystroke = Keystroke::parse(spec)
+            let keystroke = Keystroke::parse_with_os(spec, cx.platform_info().os)
                 .map_err(|error| format!("invalid keystroke {spec:?}: {error}"))?;
             window.dispatch_keystroke(keystroke, cx);
         }
@@ -340,11 +340,12 @@ fn apply_mouse(request: &Value, window: &mut Window, cx: &mut App) -> Result<(),
                 (None, None) => return Err("wheel needs lines or delta".to_owned()),
             };
             window.dispatch_event(
-                ScrollWheelEvent {
+                ScrollEvent {
                     position: at(x, y),
                     delta,
                     modifiers,
                     touch_phase: TouchPhase::Moved,
+                    source: ScrollSource::Pointer,
                 }
                 .to_platform_input(),
                 cx,
@@ -429,6 +430,9 @@ impl AraView {
             "index": self.index,
             "count": self.list.len(),
             "archive": self.archive.as_ref().map(|archive| archive.to_string()),
+            // 페이지 캐시 지표(§9.1). 예산 정리와 프리페치를 에이전트가 확인하게 한다.
+            "pagesCount": self.pages.len(),
+            "pagesBytes": self.cache_bytes(),
             "comic": self.comic.is_some(),
             "comicFailed": self.comic_failed,
             "viewMode": view_mode,
@@ -453,6 +457,26 @@ impl AraView {
             "playing": self.playing,
             "frame": self.frame,
             "loopsDone": self.loops_done,
+            "video": self.video.as_ref().map(|player| {
+                let (ur_local, ur_queue) = player.audio_last_underrun();
+                json!({
+                    "position": player.position_ms(),
+                    "playing": player.is_playing(),
+                    "seeking": player.is_seeking(),
+                    "speed": player.speed(),
+                    "muted": player.is_muted(),
+                    "audio": player.audio_active(),
+                    "audioUnderruns": player.audio_underruns(),
+                    "audioUnderrunLocal": ur_local,
+                    "audioUnderrunQueue": ur_queue,
+                    "width": player.info().width,
+                    "height": player.info().height,
+                    "presentedPts": self.video_frame_pts,
+                    "presentedSize": self.picture.as_ref().map(|picture| {
+                        json!({ "width": picture.width, "height": picture.height })
+                    }),
+                })
+            }),
             "opening": self.opening,
             "pagesLoaded": self.pages.len(),
             "webtoon": { "anchor": self.wt_anchor, "offset": self.wt_offset },

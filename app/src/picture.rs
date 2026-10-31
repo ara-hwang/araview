@@ -13,7 +13,7 @@ use araview_core::display::{DisplayImage, decode_for_display};
 use araview_core::raster_sidecar::decode_linear;
 use gpui_kit::RenderImage;
 use image::{Frame, Rgba32FImage, RgbaImage, imageops};
-use smallvec::SmallVec;
+use smallvec::{SmallVec, smallvec};
 
 use crate::platform;
 
@@ -162,6 +162,28 @@ pub fn load(path: &Path, source: &Path, orientation: Orientation) -> Result<Pict
     Ok(build(decoded, orientation, hdr))
 }
 
+/// 디코드 결과가 GPU 아틀라스에 보존하는 바이트. 타일·밉 단계·애니메이션
+/// 프레임 버퍼를 합계한다. 페이지 캐시의 바이트 예산이 이 값으로 잰다(SPEC §9.1).
+/// HDR 확장 픽셀 등록은 셈에 넣지 않는다.
+pub fn retained_bytes(picture: &Picture) -> u64 {
+    picture
+        .levels
+        .iter()
+        .flat_map(|level| &level.tiles)
+        .map(|tile| tile_buffer_bytes(&tile.image))
+        .sum()
+}
+
+fn tile_buffer_bytes(image: &RenderImage) -> u64 {
+    let mut total = 0;
+    let mut frame = 0;
+    while let Some(bytes) = image.as_bytes(frame) {
+        total += bytes.len() as u64;
+        frame += 1;
+    }
+    total
+}
+
 pub fn build(
     decoded: DisplayImage,
     orientation: Orientation,
@@ -249,6 +271,41 @@ pub fn build(
         loop_count,
         is_vector,
     }
+}
+
+/// 디코드한 동영상 프레임(BGRA)을 밉맵 없이 한 장의 그림으로 만든다.
+/// 동영상은 매 프레임 새로 그리므로 축소 단계를 만들지 않는다. GPUI가 BGRA를
+/// 받으므로 채널을 바꾸지 않고 그대로 넘긴다.
+pub fn from_video_frame(
+    width: u32,
+    height: u32,
+    bgra: Vec<u8>,
+    orientation: Orientation,
+) -> Option<Picture> {
+    let buffer = RgbaImage::from_raw(width, height, bgra)?;
+    let buffer = orient(buffer, orientation);
+    let (width, height) = buffer.dimensions();
+    let frame = Frame::from_parts(buffer, 0, 0, image::Delay::from_numer_denom_ms(1, 1));
+    let image = Arc::new(RenderImage::new(smallvec![frame]));
+    Some(Picture {
+        width,
+        height,
+        levels: vec![Level {
+            width,
+            height,
+            tiles: vec![Tile {
+                x: 0,
+                y: 0,
+                w: width,
+                h: height,
+                image,
+                _hdr: None,
+            }],
+        }],
+        delays_ms: vec![1],
+        loop_count: None,
+        is_vector: false,
+    })
 }
 
 fn scaled_size(width: u32, height: u32, scale: f32) -> (u32, u32) {
@@ -340,5 +397,37 @@ fn tile_level(image: RgbaImage, hdr: Option<&Rgba32FImage>) -> Level {
         width,
         height,
         tiles,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn video_frame_keeps_bgra_bytes() {
+        let bgra = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+        let picture = from_video_frame(2, 2, bgra.clone(), Orientation::default()).unwrap();
+        assert_eq!((picture.width, picture.height), (2, 2));
+        assert!(!picture.is_animated());
+        assert_eq!(picture.levels.len(), 1);
+        let image = &picture.levels[0].tiles[0].image;
+        assert_eq!(image.as_bytes(0).unwrap(), bgra.as_slice());
+    }
+
+    #[test]
+    fn video_frame_rotates_dimensions() {
+        let bgra = vec![0u8; 4 * 2 * 4];
+        let picture = from_video_frame(
+            4,
+            2,
+            bgra,
+            Orientation {
+                rotation: 90,
+                ..Orientation::default()
+            },
+        )
+        .unwrap();
+        assert_eq!((picture.width, picture.height), (2, 4));
     }
 }

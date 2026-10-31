@@ -45,6 +45,19 @@ pub fn cached_thumbnail(source: &Path) -> Option<ThumbnailInfo> {
     if !source.is_file() {
         return None;
     }
+    // 동영상은 포스터 캐시만 본다. 디코더 없이 원본을 건드리지 않는다.
+    if crate::image::is_video_file(source) {
+        for &max_side in PREVIEW_THUMB_CANDIDATES {
+            if let Some((path, width, height)) = crate::video::cached_poster(source, max_side) {
+                return Some(ThumbnailInfo {
+                    file_path: path.to_string_lossy().to_string(),
+                    width,
+                    height,
+                });
+            }
+        }
+        return None;
+    }
     let decoder = crate::transcode::decoder_for(source);
     for &max_side in PREVIEW_THUMB_CANDIDATES {
         let path = if let Some(decoder) = decoder {
@@ -70,6 +83,15 @@ pub fn cached_thumbnail(source: &Path) -> Option<ThumbnailInfo> {
 pub fn generate_thumbnail(source: &Path, max_side: u32) -> Result<ThumbnailInfo, AppError> {
     if !source.is_file() {
         return Err(AppError::not_found("File not found"));
+    }
+    // 동영상은 포스터 파이프라인을 쓴다. 원본 로드 시도로 손상 판정하지 않는다.
+    if crate::image::is_video_file(source) {
+        let (poster, width, height) = crate::video::ensure_poster(source, max_side)?;
+        return Ok(ThumbnailInfo {
+            file_path: poster.to_string_lossy().to_string(),
+            width,
+            height,
+        });
     }
     let max_side = max_side.clamp(32, 1024);
     if let Some(decoder) = crate::transcode::decoder_for(source) {
@@ -99,8 +121,15 @@ pub fn generate_thumbnail(source: &Path, max_side: u32) -> Result<ThumbnailInfo,
             } else {
                 let img = match decode_jpeg_scaled(source, max_side) {
                     Some(img) => img,
-                    None => image::open(source)
-                        .map_err(|e| AppError::image_error("Failed to decode image", e))?,
+                    None => match crate::preview::decode_png_sampled(
+                        source,
+                        max_side,
+                        crate::preview::MIN_PREVIEW_PIXELS,
+                    ) {
+                        Some(img) => image::DynamicImage::ImageRgba8(img),
+                        None => image::open(source)
+                            .map_err(|e| AppError::image_error("Failed to decode image", e))?,
+                    },
                 };
                 let img = crate::orientation::apply_to_image(
                     img,
@@ -132,7 +161,9 @@ pub fn generate_thumbnail(source: &Path, max_side: u32) -> Result<ThumbnailInfo,
 pub(crate) fn decode_jpeg_scaled(source: &Path, max_side: u32) -> Option<image::DynamicImage> {
     use jpeg_decoder::PixelFormat;
 
-    if crate::image::resolve_mime(source) != Some("image/jpeg") {
+    if crate::image::resolve_mime(source) != Some("image/jpeg")
+        || crate::preview::jpeg_has_icc_profile(source)?
+    {
         return None;
     }
     let side = u16::try_from(max_side).ok()?;

@@ -44,6 +44,7 @@ pub mod file_assoc {
     }
 }
 pub mod file_availability;
+pub mod file_identity;
 pub mod heif;
 pub mod image;
 pub mod image_info;
@@ -52,6 +53,7 @@ pub mod natural_sort;
 pub mod ocr;
 pub mod ops;
 pub mod orientation;
+mod preview;
 pub mod process_temp;
 pub mod psd_sidecar;
 pub mod raster_sidecar;
@@ -95,3 +97,6 @@ pub mod thumb_shell {
 }
 pub mod thumbnail;
 pub mod transcode;
+pub mod video;
+pub mod video_audio;
+pub mod video_player;

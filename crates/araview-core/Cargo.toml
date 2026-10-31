@@ -17,19 +17,43 @@ zip = "9.0"
 tempfile = "3"
 jpeg-encoder = "0.7"
 jpeg-decoder = { version = "0.3", default-features = false }
+png = "0.18"
 libheif-rs = { version = "3", default-features = false, features = ["v1_21"] }
 rawler = "0.8"
 trash = "5"
-image = { version = "0.25", default-features = false, features = ["rayon", "avif", "bmp", "dds", "exr", "ff", "gif", "hdr", "ico", "jpeg", "png", "pnm", "qoi", "tga", "tiff", "webp"] }
+image = { version = "0.25", default-features = false, features = ["rayon", "bmp", "dds", "exr", "ff", "gif", "hdr", "ico", "jpeg", "png", "pnm", "qoi", "tga", "tiff", "webp"] }
 psd = "0.3"
-resvg = { version = "0.48", default-features = false, features = ["text", "system-fonts"] }
+resvg = { version = "0.49", default-features = false, features = ["text", "system-fonts"] }
 notify = "8"
 rayon = "1"
 quick-xml = { version = "0.42", features = ["serialize"] }
 jxl-oxide = { version = "0.12", features = ["moxcms"] }
+# 동영상 디먹스·디코드. FFmpeg 메이저와 feature를 맞춘다(vcpkg pin은 FFmpeg 8.x).
+# link_system_ffmpeg는 PKG_CONFIG_PATH의 FFmpeg를, 없으면 link_vcpkg_ffmpeg가
+# vcpkg 제공 FFmpeg로 폴백한다. WTFPL인 ffmpeg-next 계열은 쓰지 않는다.
+rsmpeg = { version = "0.18", default-features = false, features = [
+    "ffmpeg8",
+    "link_system_ffmpeg",
+    "link_vcpkg_ffmpeg",
+] }
+# 동영상 오디오 출력. OS 기본 백엔드만 쓴다(ALSA/WASAPI/CoreAudio).
+# `realtime`을 켜야 cpal이 출력 콜백 스레드를 실시간(Windows는 MMCSS, 실패 시
+# TIME_CRITICAL)으로 올린다. 끄면 콜백 스레드가 보통 우선순위로 돌아 영상 디코드가
+# CPU를 오래 잡을 때 콜백이 늦고, 우리 큐는 남아 있는데도 출력 버퍼가 비어 소리가
+# 끊긴다(2.7.0-beta.28까지의 증상).
+cpal = { version = "0.18", features = ["realtime"] }
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.56.0"
+
+[dev-dependencies]
+# 벤치 하네스(이슈 #125). 기본 기능(플롯·HTML 보고서)은 쓰지 않고 JSON 측정값만
+# 남기므로 기준선 비교는 저장소 스크립트(`scripts/bench.mjs`)가 읽는다.
+criterion = { version = "0.8", default-features = false, features = ["cargo_bench_support"] }
+
+[[bench]]
+name = "core_ops"
+harness = false
 
 [lints.rust]
 unsafe_op_in_unsafe_fn = "deny"

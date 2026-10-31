@@ -184,6 +184,11 @@
       "declared": "선언된 라이선스",
       "documentsGroup": "문서"
     },
+    "diagnostics": {
+      "title": "진단 정보",
+      "desc": "버전, 운영체제, 코덱 라이브러리, 캐시와 로그 경로, 최근 오류를 클립보드로 복사합니다. 사진 경로와 파일 이름은 담지 않으며 어디로도 보내지 않습니다.",
+      "copy": "진단 정보 복사"
+    },
     "view": {
       "title": "보기 모드",
       "desc": "단일 / 양쪽 / 세로 스크롤 표시 방식",
@@ -214,7 +219,9 @@
       "comicAutoDual": "만화 아카이브를 열면 자동으로 양쪽 보기 (ComicInfo의 읽기 방향 적용)",
       "coverAlone": "양쪽 보기에서 표지 단독 표시",
       "wideAlone": "양쪽 보기에서 넓은 페이지(가로 스캔) 단독 표시",
-      "showComicInfo": "정보 패널에 만화 정보(ComicInfo.xml) 표시"
+      "showComicInfo": "정보 패널에 만화 정보(ComicInfo.xml) 표시",
+      "videoAutoplay": "동영상을 열면 자동 재생",
+      "showVideoInfo": "정보 패널에 동영상 정보 표시"
     },
     "dock": {
       "title": "이미지 목록 도크",
@@ -263,12 +270,12 @@
     },
     "cache": {
       "title": "이미지 미리 로드",
-      "desc": "이미지 미리 로드 범위와 캐시 항목 한도",
+      "desc": "이미지 미리 로드 범위와 페이지 캐시의 항목·바이트 상한",
       "off": "끄기 (현재 이미지만)",
-      "nearby": "인접 (이전/다음 미리 로드)",
-      "extended": "확장 (최대 ±3 미리 로드)",
-      "gb1": "캐시 항목 한도 1 GB",
-      "gb2": "캐시 항목 한도 2 GB"
+      "nearby": "인접 (이전/다음 미리 로드, 캐시 512 MB)",
+      "extended": "확장 (최대 ±3 미리 로드, 캐시 1 GB)",
+      "gb1": "페이지 캐시 1 GB (최대 ±2 미리 로드)",
+      "gb2": "페이지 캐시 2 GB (최대 ±3 미리 로드)"
     },
     "cacheStorage": {
       "title": "캐시 보관",
@@ -468,6 +475,18 @@
     "summary": "줄거리",
     "loadFail": "만화 정보를 읽지 못했습니다."
   },
+  "video": {
+    "section": "동영상 정보",
+    "title": "동영상",
+    "mime": "형식",
+    "codec": "코덱",
+    "audio": "오디오",
+    "dimensions": "치수",
+    "duration": "길이",
+    "fps": "초당 프레임",
+    "yes": "있음",
+    "no": "없음"
+  },
   "histogram": {
     "title": "히스토그램",
     "unavailable": "이 형식은 히스토그램을 계산할 수 없습니다.",
@@ -539,6 +558,11 @@
     "gifPause": "일시정지",
     "gifPrevFrame": "이전 애니메이션 프레임",
     "gifNextFrame": "다음 애니메이션 프레임",
+    "videoSeekBack": "10초 뒤로",
+    "videoSeekFwd": "10초 앞으로",
+    "videoSpeedDown": "재생 속도 내리기",
+    "videoSpeedUp": "재생 속도 올리기",
+    "videoMute": "음소거 토글",
     "toggleFullscreen": "전체화면 토글",
     "toggleAlwaysOnTop": "맨 위에 두기 토글",
     "copyImage": "이미지 복사",
@@ -602,6 +626,9 @@
   "toast": {
     "copyMessage": "오류 메시지 복사",
     "copied": "복사됨",
+    "diagnostics": {
+      "done": "진단 정보를 복사했습니다"
+    },
     "close": "닫기",
     "settings": {
       "saveFail": "설정 저장 실패",
@@ -723,7 +750,7 @@
     }
   },
   "picker": {
-    "images": "이미지"
+    "images": "이미지·동영상"
   },
   "ext": {
     "png": "PNG 이미지",
@@ -774,7 +801,12 @@
     "pgm": "PGM 이미지",
     "pbm": "PBM 이미지",
     "cbz": "만화 아카이브",
-    "zip": "ZIP 아카이브"
+    "zip": "ZIP 아카이브",
+    "mp4": "MP4 동영상",
+    "mov": "MOV 동영상",
+    "webm": "WebM 동영상",
+    "mkv": "MKV 동영상",
+    "avi": "AVI 동영상"
   },
   "platform": {
     "macos": {
