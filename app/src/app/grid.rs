@@ -330,7 +330,7 @@ impl AraView {
             .relative()
             .flex_1()
             .min_h_0()
-            .on_scroll_wheel(grid.smooth.wheel_handler(false))
+            .on_scroll(grid.smooth.wheel_handler(false))
             .vertical_scrollbar(&grid.scroll)
             .child(list);
 

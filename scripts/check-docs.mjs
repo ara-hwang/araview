@@ -10,7 +10,8 @@ import { dirname, join } from "node:path"
  * 1. 버전 일치 (app/Cargo.toml, Cargo.lock)
  * 2. 지원 확장자 일치 (image.rs, SPEC.md §2 표)
  * 3. 설정 키 일치 (SPEC.md §13 표, settings.rs Settings)
- * 4. 완료 plan 잔류 금지 (docs/plans 아래 .md 없음)
+ * 4. 단축키 기본값 일치 (SPEC.md §14.1 표, settings.rs DEFAULT_SHORTCUTS)
+ * 5. 완료 plan 잔류 금지 (docs/plans 아래 .md 없음)
  */
 import process from "node:process"
 import { fileURLToPath } from "node:url"
@@ -114,7 +115,29 @@ function tableNames(section) {
   checkSetEqual("설정 키", "SPEC.md §13", specKeys, "Settings", keys)
 }
 
-/** 4. 완료 plan 잔류 금지 */
+/** 4. 단축키 기본값 */
+{
+  const spec = read("SPEC.md")
+  const h1 = spec.indexOf("### 14.1")
+  const h2 = spec.indexOf("### 14.2", h1)
+  const section = spec.slice(h1, h2)
+  const documented = []
+  for (const line of section.split("\n")) {
+    if (!line.startsWith("|")) continue
+    const cells = line.split("|")
+    if (cells.length < 3) continue
+    const second = cells[2] ?? ""
+    const m = second.match(/`([^`]+)`/)
+    if (m) documented.push(m[1])
+  }
+  const settings = read("app/src/settings.rs")
+  const start = settings.indexOf("pub const DEFAULT_SHORTCUTS")
+  const end = settings.indexOf("];", start)
+  const code = [...settings.slice(start, end).matchAll(/\("([^"]+)", "([^"]+)"\)/g)].map((m) => m[2])
+  checkSetEqual("단축키", "SPEC.md §14.1", documented, "DEFAULT_SHORTCUTS", code)
+}
+
+/** 5. 완료 plan 잔류 금지 */
 {
   const plansDir = join(root, "docs/plans")
   if (!existsSync(plansDir)) {

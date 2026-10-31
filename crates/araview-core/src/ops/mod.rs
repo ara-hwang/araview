@@ -9,6 +9,7 @@ mod metadata;
 mod ocr;
 mod system;
 mod thumbnail;
+mod video;
 
 pub use archive::*;
 pub use directory::*;
@@ -18,3 +19,4 @@ pub use metadata::*;
 pub use ocr::*;
 pub use system::*;
 pub use thumbnail::*;
+pub use video::*;

@@ -31,7 +31,7 @@ npm run release -- patch --dry-run  # 계획만 출력
 `scripts/release.mjs`가 다음을 순서대로 수행합니다.
 
 1. `release` 브랜치, 깨끗한 작업 트리, `origin/release`와 동기화 상태, 태그 중복 여부를 확인합니다.
-2. `app/Cargo.toml`과 `Cargo.lock`의 버전을 올립니다. `cargo metadata --locked`와 `npm run docs:check`로 검증하고, 실패하면 파일을 되돌립니다.
+2. `app/Cargo.toml`과 `Cargo.lock`, `vcpkg.json`의 버전을 올립니다. `cargo metadata --locked`와 `npm run docs:check`로 검증하고, 실패하면 파일을 되돌립니다.
 3. `chore: 버전 X.Y.Z`로 커밋하고 태그를 만든 뒤 `release`와 태그를 한 번에(`--atomic`) 푸시합니다. 푸시 전에 확인을 묻고, `--yes`로 생략할 수 있습니다.
 
 ### 베타 릴리스 (`main`)
@@ -46,6 +46,7 @@ npm run release -- beta --dry-run
 
 - `beta`는 현재 버전이 `X.Y.Z-beta.N`이면 `N+1`을, 안정 버전이면 다음 minor의 `beta.1`을 만듭니다.
 - 베타 태그는 프리릴리스로 게시되며 Latest 자리가 바뀌지 않습니다.
+- `main`에 푸시하면 `.github/workflows/beta-release.yml`이 위 명령(`beta --yes`)을 대신 실행해 베타를 자동으로 냅니다. 버전 커밋(`chore: 버전 ...`)은 다시 릴리스를 일으키지 않고, 연속 푸시는 줄 세워 최신 `main`으로 한 번씩 냅니다. `GITHUB_TOKEN`으로 푸시한 태그는 다른 워크플로를 깨우지 않으므로 이 워크플로가 `release.yml`을 태그 기준 `workflow_dispatch`로 직접 호출합니다. `main`에 브랜치 보호가 있으면 우회 권한이 있는 토큰을 `RELEASE_TOKEN` 시크릿으로 등록해야 하며, 이때는 태그 푸시가 `release.yml`을 직접 깨웁니다. 수동 실행(Actions 탭)도 됩니다. 안정 릴리스는 자동화하지 않습니다.
 - 베타 릴리스는 설치 프로그램과 `update-feed-beta.json`을 만들고, 롤링 `beta` 프리릴리스의 같은 이름 자산을 덮어씁니다. 앱은 이 고정 URL로 최신 베타를 찾습니다.
 
 ### 공통 확인
@@ -61,9 +62,57 @@ npm run release -- beta --dry-run
 - 실패하면 Actions에서 해당 실행을 재실행합니다. 코드를 고쳐야 하면 태그를 지우고(`git push --delete origin vX.Y.Z`, `git tag -d vX.Y.Z`) 고친 커밋에 다시 붙입니다. 이미 만들어진 릴리스가 있으면 함께 지웁니다.
 - 저장소 기본 워크플로 권한이 read여도 `contents: write`를 job에서 직접 선언하므로 별도 토큰 없이 동작합니다. `RELEASE_TOKEN` 시크릿이 있으면 그것을 우선 씁니다.
 
+## 성능 기준선과 표
+
+"즉시 열림"(`PRODUCT.md`)을 수치로 판정할 수 있게 코어 연산 벤치를 둡니다. 하네스는
+`crates/araview-core/benches/core_ops.rs`이고, 측정 대상은 큰 JPEG/PNG/TIFF의 full
+디코드, 썸네일 생성(캐시 미스), 해상도 상한 sidecar 생성(캐시 미스), 폴더 목록 스캔과
+자연 정렬입니다. 샘플 파일은 저장소에 넣지 않고 실행할 때 임시 폴더에 12MP(4000x3000)
+이미지를 만들어 씁니다. 캐시도 임시 폴더로 돌리므로 실행해도 사용자의 실제 캐시는
+그대로입니다.
+
+```bash
+cargo bench -p araview-core                                  # 측정 (앱과 같은 네이티브 의존성 필요)
+node scripts/bench.mjs record --label 2.7.0                  # 기준선 저장
+node scripts/bench.mjs compare crates/araview-core/benches/baselines/2.6.0.json
+```
+
+- 기준선 JSON은 `crates/araview-core/benches/baselines/<버전>.json`에 두고, 릴리스
+  브랜치의 버전 커밋과 함께 남깁니다. 파일에는 벤치별 p50·p95·평균(ns)과 표본 수가
+  들어갑니다.
+- `compare`는 현재 측정(`target/criterion`)을 기준선과 나란히 찍고, p50이 `--limit`
+  (기본 10%) 넘게 느려진 벤치가 있으면 exit 1로 실패합니다. 새 벤치와 사라진 벤치는
+  실패가 아니라 표에 `신규`·`사라짐`으로 표시됩니다.
+- 같은 장비·같은 전원 상태에서 재는 것이 원칙입니다. 노트북 배터리, 다른 앱의 부하,
+  디스크 캐시 상태가 p50을 십수 퍼센트 흔듭니다. 회귀가 의심되면 세 번 재서 중간값을
+  봅니다.
+- CI에서 상시 돌리지 않습니다. 러너 성능이 들쭉날쭉해 회귀 판정이 되지 않기 때문에,
+  측정은 릴리스 전 로컬에서 하고 결과 표만 릴리스 노트에 남깁니다.
+
+### 릴리스 노트에 남길 표
+
+성능에 영향을 주는 변경(`perf`, 디코드·캐시·썸네일 경로 수정)이 있으면 릴리스 본문에
+아래 표를 넣습니다. 측정하지 않은 항목은 지우고, 측정 환경(CPU, OS)을 표 위에 한 줄로
+적습니다. RSS는 큰 이미지 3장을 연 뒤 작업 관리자(Windows) 또는 `ps -o rss`로 잽니다.
+
+```markdown
+측정: <CPU>, <OS>, 릴리스 빌드
+
+| 연산 | 이전 p50 / p95 | 이번 p50 / p95 | 변화 |
+| --- | --- | --- | --- |
+| full 디코드 JPEG 12MP | 24.1 ms / 26.0 ms | 23.8 ms / 25.1 ms | -1.2% |
+| 썸네일 생성 512px | 31.0 ms / 34.2 ms | 30.4 ms / 33.0 ms | -1.9% |
+| 폴더 목록 300개 | 4.2 ms / 5.1 ms | 4.0 ms / 4.8 ms | -4.8% |
+
+피크 RSS(큰 이미지 3장): 1.8 GiB -> 1.7 GiB
+
+알려진 제한
+- <이번 릴리스에서 재지 못한 항목, 알려진 회귀와 그 이유>
+```
+
 ## 태그 없이 파이프라인 시험
 
-Actions 탭에서 Release 워크플로를 수동 실행(`workflow_dispatch`)하면 검증, 세 OS 빌드, 서명, 피드 생성까지 같은 과정을 돌리고 릴리스는 만들지 않습니다. 설치 프로그램, `.sig`, `update-feed.json`, Linux tar.gz, macOS dmg, `SHA256SUMS.txt`, 릴리스 노트가 `release-dry-run` 아티팩트로 남습니다. 워크플로나 빌드 스크립트를 고친 뒤 태그를 달기 전에 쓰세요. 수동 실행은 안정 경로를 시험합니다.
+Actions 탭에서 Release 워크플로를 수동 실행(`workflow_dispatch`)하면 검증, 세 OS 빌드, 서명, 피드 생성까지 같은 과정을 돌리고 릴리스는 만들지 않습니다. 설치 프로그램, `.sig`, `update-feed.json`, `latest-gpui.json`, `feed-notes.md`, `release-notes.md`, Linux tar.gz, macOS dmg, `SHA256SUMS.txt`가 `release-dry-run` 아티팩트로 남습니다. 워크플로나 빌드 스크립트를 고친 뒤 태그를 달기 전에 쓰세요. 수동 실행은 안정 경로를 시험합니다.
 
 ## 업데이트 피드와 채널
 

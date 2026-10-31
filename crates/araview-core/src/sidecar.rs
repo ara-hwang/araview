@@ -110,6 +110,23 @@ pub fn file_identity_hash(source: &Path, extra: &[u8]) -> Result<u64, AppError> 
     Ok(hasher.finish())
 }
 
+/// Stable archive cache key using canonical path plus cheap filesystem identity.
+/// Unlike the generic file hash, this includes the platform change stamp and
+/// file identifier so same-size files with restored mtimes do not share data.
+pub(crate) fn archive_file_identity_hash(source: &Path) -> Result<u64, AppError> {
+    let canonical = fs::canonicalize(source).unwrap_or_else(|_| source.to_path_buf());
+    let file = fs::File::open(source)
+        .map_err(|e| AppError::io("Failed to read archive", e, ErrorCode::Corrupt))?;
+    let identity = crate::file_identity::ArchiveCacheIdentity::from_file(&file)
+        .map_err(|e| AppError::io("Failed to read archive metadata", e, ErrorCode::Corrupt))?;
+    let mut hasher = StableHasher::new();
+    hasher.write_u64_le(crate::process_temp::CACHE_FORMAT_REVISION);
+    hasher.write(canonical.to_string_lossy().as_bytes());
+    hasher.write(&[0xfb]);
+    identity.write_hash(&mut hasher);
+    Ok(hasher.finish())
+}
+
 /// Stable hash of an archive entry name (path traversal is irrelevant here
 /// because extracts are flattened to basename + hash prefix).
 pub fn entry_name_hash(entry_name: &str) -> u64 {

@@ -19,7 +19,7 @@ use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
 
 use super::AraView;
-use crate::dialog::{DOWNLOAD_HEIGHT, UPDATE_HEIGHT, centered};
+use crate::dialog::centered;
 use crate::i18n::{t, t_with};
 use crate::settings::{SettingsStore, UpdateChannel};
 
@@ -397,7 +397,7 @@ impl AraView {
         let version = feed.version;
         let notes = feed.notes;
         let notes_scroll = SmoothScroll::default();
-        window.open_dialog(cx, move |dialog, window, cx| {
+        window.open_dialog(cx, move |dialog, _window, cx| {
             let notes = if notes.trim().is_empty() {
                 t("dialog.update.noNotes").to_string()
             } else {
@@ -406,7 +406,7 @@ impl AraView {
             let view = view.clone();
             let asset = asset.clone();
             let download_version = version.clone();
-            centered(dialog, window, UPDATE_HEIGHT)
+            centered(dialog)
                 .title(t_with(
                     "dialog.update.availableTitle",
                     &[("version", &version)],
@@ -478,10 +478,10 @@ impl AraView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        window.open_dialog(cx, move |dialog, window, cx| {
+        window.open_dialog(cx, move |dialog, _window, cx| {
             let percent = progress.percent();
             let cancel = progress.clone();
-            centered(dialog, window, DOWNLOAD_HEIGHT)
+            centered(dialog)
                 .close_button(false)
                 .keyboard(false)
                 .title(t("dialog.update.downloading"))

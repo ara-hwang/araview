@@ -2,7 +2,6 @@ use std::fs;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
-use std::time::SystemTime;
 
 use crate::app_error::{AppError, ErrorCode};
 use crate::image::is_image_file;
@@ -181,11 +180,10 @@ fn open_archive_file(archive_path: &Path) -> Result<fs::File, AppError> {
         .map_err(|e| AppError::io("Failed to open archive", e, ErrorCode::Corrupt))
 }
 
-/// 파싱해 둔 ZIP 중앙 디렉터리. 경로, 수정 시각, 크기가 모두 같을 때만 다시 쓴다.
+/// 파싱해 둔 ZIP 중앙 디렉터리. 경로와 source identity가 모두 같을 때만 다시 쓴다.
 struct ZipIndex {
     path: PathBuf,
-    modified: Option<SystemTime>,
-    len: u64,
+    identity: crate::file_identity::ArchiveCacheIdentity,
     metadata: Arc<zip::read::ZipArchiveMetadata>,
 }
 
@@ -198,37 +196,31 @@ const MAX_ZIP_INDEXES: usize = 4;
 fn open_zip(archive_path: &Path) -> Result<zip::ZipArchive<fs::File>, AppError> {
     let file = open_archive_file(archive_path)?;
     // 방금 연 핸들에서 읽으므로 캐시 판정과 실제 읽을 파일이 어긋나지 않는다.
-    let identity = file
-        .metadata()
-        .ok()
-        .map(|meta| (meta.modified().ok(), meta.len()));
-    let cached = identity.and_then(|(modified, len)| {
+    let identity = crate::file_identity::ArchiveCacheIdentity::from_file(&file).ok();
+    let cached = identity.and_then(|identity| {
         let indexes = ZIP_INDEXES.lock().ok()?;
         indexes
             .iter()
-            .find(|index| {
-                index.path == archive_path && index.modified == modified && index.len == len
-            })
+            .find(|index| index.path == archive_path && index.identity == identity)
             .map(|index| Arc::clone(&index.metadata))
     });
     if let Some(metadata) = cached {
         // SAFETY: 이 함수의 `unsafe`는 메모리 안전성이 아니라 reader와 메타데이터가
-        // 같은 파일의 것이어야 한다는 계약이다. 메타데이터는 경로, 수정 시각,
-        // 크기가 방금 연 핸들과 같은 파일에서 파싱한 것만 꺼냈다.
+        // 같은 파일의 것이어야 한다는 계약이다. 인덱스는 방금 연 핸들의 OS 파일
+        // identity, 변경 시각, mtime, 크기와 일치할 때만 재사용한다.
         return Ok(unsafe { zip::ZipArchive::unsafe_new_with_metadata(file, metadata) });
     }
 
     let archive = zip::ZipArchive::new(file)
         .map_err(|e| AppError::corrupt(format!("Failed to read ZIP: {e}")))?;
-    if let (Some((modified, len)), Ok(mut indexes)) = (identity, ZIP_INDEXES.lock()) {
+    if let (Some(identity), Ok(mut indexes)) = (identity, ZIP_INDEXES.lock()) {
         indexes.retain(|index| index.path != archive_path);
         if indexes.len() >= MAX_ZIP_INDEXES {
             indexes.remove(0);
         }
         indexes.push(ZipIndex {
             path: archive_path.to_path_buf(),
-            modified,
-            len,
+            identity,
             metadata: archive.metadata(),
         });
     }

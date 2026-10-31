@@ -66,10 +66,10 @@ pub fn load_archive_image_blocking(
 
 pub(crate) fn archive_sub_dir(archive_path: &Path) -> Result<std::path::PathBuf, AppError> {
     let temp_dir = process_temp_dir()?;
-    // 같은 stem을 가진 다른 아카이브가 캐시를 공유하지 않도록 canonical 경로 +
-    // mtime + 크기로 하위 디렉터리를 구분한다. 영속 파일명에 쓰이므로 안정
-    // 해시와 캐시 포맷 revision을 사용한다.
-    let hash = crate::sidecar::file_identity_hash(archive_path, &[])?;
+    // 같은 경로에 교체된 아카이브가 이전 추출물을 재사용하지 않도록 canonical 경로 +
+    // OS 파일 identity/change time으로 하위 디렉터리를 구분한다. 전체 압축 파일은
+    // 매 페이지 해시하지 않는다.
+    let hash = crate::sidecar::archive_file_identity_hash(archive_path)?;
     let sub_dir = temp_dir
         .join(crate::cache::ARCHIVES_SUBDIR)
         .join(format!("{hash:016x}"));

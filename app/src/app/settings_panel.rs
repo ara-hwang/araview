@@ -6,7 +6,6 @@ use araview_core::file_assoc::FileAssociation;
 use araview_core::thumb_shell::PsdThumbStatus;
 use gpui_kit::component::alert::Alert;
 use gpui_kit::component::button::{Button, ButtonVariant, ButtonVariants as _};
-use gpui_kit::component::dialog::DialogEntrance;
 use gpui_kit::component::group_box::{GroupBox, GroupBoxVariants as _};
 use gpui_kit::component::kbd::Kbd;
 use gpui_kit::component::select::{SearchableVec, Select, SelectEvent, SelectState};
@@ -25,7 +24,6 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use super::{AraView, format_bytes};
-use crate::dialog::{ALERT_HEIGHT, centered_margin_top};
 use crate::i18n::{Language, t, t_with};
 use crate::keys;
 use crate::settings::{
@@ -598,6 +596,20 @@ impl SettingsPanel {
                     })),
                 cx,
             ))
+            .child(setting_row(
+                t("settings.diagnostics.title"),
+                Some(t("settings.diagnostics.desc")),
+                Button::new("copy-diagnostics")
+                    .small()
+                    .outline()
+                    .label(t("settings.diagnostics.copy"))
+                    .on_click(cx.listener(|this, _, window, cx| {
+                        this.view
+                            .update(cx, |view, cx| view.copy_diagnostics(window, cx))
+                            .ok();
+                    })),
+                cx,
+            ))
     }
 
     fn view_tab(&mut self, window: &mut Window, cx: &mut Context<Self>) -> Div {
@@ -760,6 +772,20 @@ impl SettingsPanel {
                         "settings.reading.showComicInfo",
                         s.show_comic_info,
                         |settings, value| settings.show_comic_info = value,
+                        Effect::Redraw,
+                    ),
+                    (
+                        "video-autoplay",
+                        "settings.reading.videoAutoplay",
+                        s.video_autoplay,
+                        |settings, value| settings.video_autoplay = value,
+                        Effect::Redraw,
+                    ),
+                    (
+                        "show-video-info",
+                        "settings.reading.showVideoInfo",
+                        s.show_video_info,
+                        |settings, value| settings.show_video_info = value,
                         Effect::Redraw,
                     ),
                 ]
@@ -1020,12 +1046,11 @@ impl SettingsPanel {
     fn confirm_clear_all(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let guard = self.nested_guard();
         let panel = cx.entity();
-        window.open_alert_dialog(cx, move |alert, window, _cx| {
+        window.open_alert_dialog(cx, move |alert, _window, _cx| {
             let _guard = &guard;
             let panel = panel.clone();
             alert
-                .margin_top(centered_margin_top(window, ALERT_HEIGHT))
-                .entrance(DialogEntrance::Fade)
+                .centered()
                 .title(t("confirm.cache.clearAll.title"))
                 .description(t("confirm.cache.clearAll.message"))
                 // Enter로도 지운다. gpui-kit 다이얼로그는 `Enter`를 확인 동작으로
@@ -1349,15 +1374,14 @@ impl SettingsPanel {
             .unwrap_or_else(|| spec.clone())
             .into();
         let pressed_kbd = pressed_keystroke.clone();
-        window.open_alert_dialog(cx, move |alert, window, _cx| {
+        window.open_alert_dialog(cx, move |alert, _window, _cx| {
             let _guard = &guard;
             let panel = panel.clone();
             let cancelled = panel.clone();
             let action = action.clone();
             let spec = spec.clone();
             alert
-                .margin_top(centered_margin_top(window, ALERT_HEIGHT))
-                .entrance(DialogEntrance::Fade)
+                .centered()
                 .title(t("settings.shortcuts.conflictTitle"))
                 .description(t_with(
                     "settings.shortcuts.conflictDesc",
@@ -1945,12 +1969,11 @@ impl SettingsPanel {
     fn confirm_reset(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let guard = self.nested_guard();
         let panel = cx.entity();
-        window.open_alert_dialog(cx, move |alert, window, _cx| {
+        window.open_alert_dialog(cx, move |alert, _window, _cx| {
             let _guard = &guard;
             let panel = panel.clone();
             alert
-                .margin_top(centered_margin_top(window, ALERT_HEIGHT))
-                .entrance(DialogEntrance::Fade)
+                .centered()
                 .title(t("confirm.resetSettings.title"))
                 .description(t("confirm.resetSettings.message"))
                 // Enter로도 초기화한다(확인 동작에 초기화를 건다).

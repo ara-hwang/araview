@@ -1,38 +1,27 @@
-//! 다이얼로그 수직 배치: gpui-kit `Dialog`는 기본으로 뷰포트 상단 1/10에 뜨므로,
-//! 화면 가운데에 오게 하는 상단 오프셋을 계산한다. 실제 높이는 콘텐츠·언어에
-//! 따라 달라 대략적인 가운데 정렬이다. 배경 누름이 클릭인지 창 이동 드래그인지
-//! 가르는 판정도 여기 둔다(다이얼로그 배경이 캡션 판정이라 누름이 곧 드래그일 수 있다).
+//! 다이얼로그 배치와 배경 클릭 판정. 가운데 배치는 gpui-kit의 `Dialog::centered`가
+//! 실제 높이로 맞춘다. 설정의 제목 줄은 다이얼로그 안쪽이지만 본문 요소 밖이라
+//! 바깥 클릭으로 잡히므로, 추정 상단으로 그 줄을 걸러 낸다. 배경 누름이 클릭인지
+//! 창 이동 드래그인지 가르는 판정도 여기 둔다(다이얼로그 배경이 캡션 판정이라
+//! 누름이 곧 드래그일 수 있다).
 
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Duration;
 
-use gpui_kit::component::dialog::{Dialog, DialogEntrance};
+use gpui_kit::component::dialog::Dialog;
 use gpui_kit::{App, Pixels, Point, Window, px};
 
 use crate::platform;
 
-/// 짧은 확인 경고창(제목+설명+버튼) 추정 높이.
-pub const ALERT_HEIGHT: f32 = 240.0;
-/// 이름 변경(제목+설명+입력+버튼) 추정 높이.
-pub const RENAME_HEIGHT: f32 = 300.0;
-/// 업데이트(제목+설명+릴리스 노트+버튼) 추정 높이.
-pub const UPDATE_HEIGHT: f32 = 430.0;
-/// 업데이트 다운로드(제목+설명+진행 막대+버튼) 추정 높이.
-pub const DOWNLOAD_HEIGHT: f32 = 260.0;
-/// 명령 팔레트(검색+목록) 추정 높이.
-pub const PALETTE_HEIGHT: f32 = 480.0;
-/// 라이선스(제목+520 목록) 추정 높이.
-pub const LICENSES_HEIGHT: f32 = 600.0;
-/// 설정(제목+520 본문) 추정 높이.
+/// 설정 다이얼로그(제목+520 본문) 추정 높이. 제목 줄 클릭 판정에만 쓴다.
 pub const SETTINGS_HEIGHT: f32 = 600.0;
 /// 설정 다이얼로그 폭과 제목 줄 추정 높이(제목 줄 클릭은 바깥 클릭이 아니다).
 pub const SETTINGS_WIDTH: f32 = 760.0;
 pub const SETTINGS_TITLE_HEIGHT: f32 = 64.0;
 
-/// 추정 높이를 받아 다이얼로그가 화면 가운데에 오게 하는 상단 오프셋을 구한다.
-/// 작은 창에서는 잘리지 않게 최소 여백만 둔다.
-pub fn centered_margin_top(window: &mut Window, estimated_height: f32) -> Pixels {
+/// 추정 높이로 가운데 배치했을 때의 상단 오프셋. 배치는 `Dialog::centered`가
+/// 실제 높이로 맞추므로 설정의 제목 줄 클릭 판정에만 쓴다.
+pub fn estimated_dialog_top(window: &mut Window, estimated_height: f32) -> Pixels {
     let view_h = f32::from(window.viewport_size().height);
     px((view_h - estimated_height).max(32.0) / 2.0)
 }
@@ -45,11 +34,8 @@ pub fn centered_margin_top(window: &mut Window, estimated_height: f32) -> Pixels
 /// 다이얼로그가 열려 있는 동안 Windows는 창 전체를 캡션으로 판정한다: 최소화/최대화/
 /// 닫기 버튼은 동작하지 않고(다이얼로그 호스트의 `occlude()`가 OS 히트테스트용 마우스
 /// 좌표 수집을 막는다), 배경을 잡아 끌면 창이 움직인다.
-pub fn centered(dialog: Dialog, window: &mut Window, estimated_height: f32) -> Dialog {
-    dialog
-        .margin_top(centered_margin_top(window, estimated_height))
-        .overlay_closable(false)
-        .entrance(DialogEntrance::Fade)
+pub fn centered(dialog: Dialog) -> Dialog {
+    dialog.centered().overlay_closable(false)
 }
 
 /// 누른 자리에서 이만큼(창 논리 px) 넘게 떨어져 떼면 클릭이 아니라 드래그로 본다.

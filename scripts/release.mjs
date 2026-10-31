@@ -121,6 +121,11 @@ const FILES = [
     path: "Cargo.lock",
     pattern: /(\[\[package\]\]\r?\nname = "araview"\r?\nversion = ")([^"]+)(")/g,
     expected: 1
+  },
+  {
+    path: "vcpkg.json",
+    pattern: /("version-string": ")([^"]+)(")/,
+    expected: 1
   }
 ]
 

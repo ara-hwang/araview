@@ -350,16 +350,23 @@
           <li>CBZ</li>
           <li>ZIP</li>
         </ul>
+        <p
+          class="note"
+          data-ko="묶음 표기이며 전체 49종 목록은 SPEC.md §2를 따릅니다."
+          data-en="Grouped labels; the full 49-extension list is in SPEC.md §2."
+        >
+          묶음 표기이며 전체 49종 목록은 SPEC.md §2를 따릅니다.
+        </p>
       </section>
 
       <section id="keys">
         <h2 class="label" data-ko="단축키" data-en="Shortcuts">단축키</h2>
         <p
           class="note"
-          data-ko="모든 단축키는 앱 설정에서 다시 지정할 수 있습니다."
-          data-en="Every shortcut can be reassigned in the app settings."
+          data-ko="모든 단축키는 앱 설정에서 다시 지정할 수 있습니다. 더하기 키는 수식키와 함께 Ctrl++처럼 표기합니다."
+          data-en="Every shortcut can be reassigned in the app settings. With modifiers, the plus key is written as Ctrl++."
         >
-          모든 단축키는 설정에서 다시 지정할 수 있습니다.
+          모든 단축키는 설정에서 다시 지정할 수 있습니다. 더하기 키는 수식키와 함께 Ctrl++처럼 표기합니다.
         </p>
 
         <h3 class="sub-h" data-ko="파일 / 탐색" data-en="File / navigation">파일 / 탐색</h3>
@@ -392,7 +399,7 @@
           <h3 class="sub-h" data-ko="화면 이동" data-en="Pan">화면 이동</h3>
           <dl class="keys">
             <div>
-              <dt><kbd>Ctrl</kbd> <kbd>←</kbd> <kbd>→</kbd> <kbd>↑</kbd> <kbd>↓</kbd></dt>
+              <dt><kbd>Ctrl</kbd> <kbd>←</kbd> <kbd>→</kbd> / <kbd>↑</kbd> <kbd>↓</kbd></dt>
               <dd data-ko="이미지 이동" data-en="Move the image">이미지 이동</dd>
             </div>
           </dl>
@@ -488,11 +495,47 @@
           </dl>
           <p
             class="note"
-            data-ko="단일 보기에서만 동작합니다. 정지 이미지와 웹툰/양쪽 보기에서는 원래 애니메이션으로 재생됩니다."
-            data-en="Single view only. Still images, and animations in webtoon or two-page view, play as the original animation."
+            data-ko="단일 보기에서만 재생하고, 그 밖은 첫 프레임 정지(SPEC.md §7.5)."
+            data-en="Plays in single view only; otherwise first frame still (SPEC.md \u00a77.5)."
           >
-            단일 보기에서만 동작합니다. 정지 이미지와 웹툰/양쪽 보기에서는 원래 애니메이션으로
-            재생됩니다.
+            단일 보기에서만 재생하고, 그 밖은 첫 프레임 정지(SPEC.md §7.5).
+          </p>
+
+          <h3 class="sub-h" data-ko="동영상" data-en="Video">동영상</h3>
+          <dl class="keys">
+            <div>
+              <dt><kbd>P</kbd></dt>
+              <dd data-ko="재생 / 정지" data-en="Play / pause">재생 / 정지</dd>
+            </div>
+            <div>
+              <dt><kbd>,</kbd> <kbd>.</kbd></dt>
+              <dd data-ko="이전 / 다음 프레임" data-en="Previous / next frame">
+                이전 / 다음 프레임
+              </dd>
+            </div>
+            <div>
+              <dt><kbd>J</kbd> <kbd>L</kbd></dt>
+              <dd data-ko="10초 뒤로 / 앞으로" data-en="Back / forward 10 seconds">
+                10초 뒤로 / 앞으로
+              </dd>
+            </div>
+            <div>
+              <dt><kbd>[</kbd> <kbd>]</kbd></dt>
+              <dd data-ko="재생 속도 내리기 / 올리기" data-en="Decrease / increase playback speed">
+                재생 속도 내리기 / 올리기
+              </dd>
+            </div>
+            <div>
+              <dt><kbd>M</kbd></dt>
+              <dd data-ko="음소거 토글" data-en="Toggle mute">음소거 토글</dd>
+            </div>
+          </dl>
+          <p
+            class="note"
+            data-ko="단일 보기에서만 재생한다. 타임라인·음량은 하단 전송 컨트롤에서 조절한다(SPEC.md §7.6)."
+            data-en="Plays in single view only. Scrub the timeline and volume in the bottom transport controls (SPEC.md §7.6)."
+          >
+            단일 보기에서만 재생한다. 타임라인·음량은 하단 전송 컨트롤에서 조절한다(SPEC.md §7.6).
           </p>
 
           <h3 class="sub-h" data-ko="복사 / 외부 앱" data-en="Copy / external">복사 / 외부 앱</h3>
@@ -623,10 +666,10 @@
       </p>
       <p
         class="credits"
-        data-ko="아이콘: Lucide (ISC 라이선스)."
-        data-en="Icons: Lucide (ISC license)."
+        data-ko="아이콘: Phosphor (MIT) + Lucide (ISC 라이선스, gpui-kit 내부)."
+        data-en="Icons: Phosphor (MIT) + Lucide (ISC license, inside gpui-kit)."
       >
-        아이콘: Lucide (ISC 라이선스).
+        아이콘: Phosphor (MIT) + Lucide (ISC 라이선스, gpui-kit 내부).
       </p>
     </footer>
 

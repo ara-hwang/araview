@@ -12,7 +12,7 @@ use super::AraView;
 use super::ocr::OcrOutcome;
 use super::settings_panel::Effect;
 use super::viewport::WT_KEY_SCROLL;
-use crate::dialog::{BackdropClick, PALETTE_HEIGHT, centered, watch_backdrop_click};
+use crate::dialog::{BackdropClick, centered, watch_backdrop_click};
 use crate::geometry::{PAN_STEP, ZOOM_STEP};
 use crate::i18n::{t, t_en};
 use crate::keys;
@@ -82,6 +82,11 @@ const PALETTE_GROUPS: &[(&str, &[&str])] = &[
             "toggleGifPlayback",
             "gifPrevFrame",
             "gifNextFrame",
+            "videoSeekBack",
+            "videoSeekFwd",
+            "videoSpeedDown",
+            "videoSpeedUp",
+            "videoMute",
         ],
     ),
     (
@@ -158,6 +163,11 @@ impl AraView {
             "toggleGifPlayback" => self.toggle_playback(cx),
             "gifPrevFrame" => self.step_frame(-1, cx),
             "gifNextFrame" => self.step_frame(1, cx),
+            "videoSeekBack" => self.video_seek_by(-10_000, cx),
+            "videoSeekFwd" => self.video_seek_by(10_000, cx),
+            "videoSpeedDown" => self.video_step_speed(-1, cx),
+            "videoSpeedUp" => self.video_step_speed(1, cx),
+            "videoMute" => self.toggle_video_mute(cx),
             OPEN_SETTINGS => self.open_settings(window, cx),
             CHECK_UPDATES => self.check_updates(window, cx),
             TOGGLE_DOCK => {
@@ -184,10 +194,17 @@ impl AraView {
                 true
             }
             "toggleAlwaysOnTop" => platform::ALWAYS_ON_TOP_SUPPORTED,
-            "ocr" | "ocrHighlight" => has_image && platform::OCR_SUPPORTED,
+            "ocr" | "ocrHighlight" => {
+                has_image && self.current_page_is_full() && platform::OCR_SUPPORTED
+            }
             "navigatePrev" | "navigateNext" | "jumpPrev10" | "jumpNext10" | "jumpFirst"
             | "jumpLast" | "toggleGrid" | TOGGLE_DOCK => self.list.len() > 1,
-            "toggleGifPlayback" | "gifPrevFrame" | "gifNextFrame" => self.has_animation(cx),
+            "toggleGifPlayback" | "gifPrevFrame" | "gifNextFrame" => {
+                self.has_animation(cx) || self.has_video(cx)
+            }
+            "videoSeekBack" | "videoSeekFwd" | "videoSpeedDown" | "videoSpeedUp" | "videoMute" => {
+                self.has_video(cx)
+            }
             TOGGLE_COVER => has_image && self.archive.is_some(),
             _ => has_image,
         }
@@ -387,13 +404,13 @@ impl AraView {
         let search = state.clone();
         // 배경 누름 판정은 팔레트가 사는 동안 유지해야 한다(다이얼로그 빌더는 다시 돈다).
         let backdrop = BackdropClick::default();
-        window.open_dialog(cx, move |dialog, window, _| {
+        window.open_dialog(cx, move |dialog, _window, _| {
             let state = state.clone();
             let groups = groups.clone();
             let shortcuts = shortcuts.clone();
             let view = view.clone();
             let backdrop = backdrop.clone();
-            centered(dialog, window, PALETTE_HEIGHT)
+            centered(dialog)
                 .close_button(false)
                 .p_0()
                 .content(move |content, _, _| {

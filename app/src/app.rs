@@ -29,8 +29,11 @@ use crate::toast::{Toast, WindowToast};
 use araview_core::app_error::{AppError, ErrorCode};
 use araview_core::comic_info::ComicInfo;
 use araview_core::file_availability::FileAvailability;
+use araview_core::file_identity::FileIdentity;
 use araview_core::image::{ImageInfo, is_archive_file};
 use araview_core::ops::{self, DirListOptions, DirSortKey};
+use araview_core::video_audio::AudioStream;
+use araview_core::video_player::VideoPlayer;
 use gpui_kit::component::button::{Button, ButtonVariants as _};
 use gpui_kit::component::empty::{
     Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyMediaVariant, EmptyTitle,
@@ -95,6 +98,8 @@ struct Listing {
     /// 이어보기 기록에서 시작했는지.
     resumed: bool,
     archive: Option<Arc<str>>,
+    /// 열 때 캡처한 파일 identity(SPEC §8). 이어보기 기록 저장에 함께 쓴다.
+    identity: Option<FileIdentity>,
     availability: Vec<FileAvailability>,
     /// 아카이브의 ComicInfo.xml. 파싱 실패는 로드를 막지 않고 패널에 에러로만 남긴다.
     comic: Result<Option<ComicInfo>, AppError>,
@@ -114,12 +119,20 @@ pub struct AraView {
     comic_failed: bool,
     /// 아카이브를 열 때 자동으로 정한 보기 모드. 직접 고르면 해제된다.
     comic_mode: Option<ViewMode>,
+    /// 열 때 캡처한 아카이브 파일 identity. 이어보기 기록에 함께 저장한다(§8).
+    archive_identity: Option<FileIdentity>,
     /// 이어보기를 끈 채 연 아카이브에서 첫 페이지를 벗어나기 전인지. 그동안은
     /// 열기만으로 저장된 위치를 덮지 않도록 진행 상황을 저장하지 않는다.
     progress_held: bool,
 
     pages: HashMap<usize, pages::Page>,
     page_loading: HashSet<usize>,
+    /// 아직 시작하지 않은 full 디코드 요청. 한 번에 하나만 돌리고 우선순위로 고른다(§9.1).
+    decode_queue: Vec<pages::DecodeJob>,
+    /// full 디코드가 실행 중인지.
+    decode_running: bool,
+    /// 요청 순서를 매기는 번호.
+    decode_seq: u64,
     page_failed: HashMap<usize, AppError>,
     /// 가로가 더 긴 페이지. 로드하면서 알게 된다.
     wide: HashSet<usize>,
@@ -154,6 +167,13 @@ pub struct AraView {
     frame_started: Instant,
     /// 끝까지 재생한 횟수. 유한 반복 애니메이션을 마지막 회차에서 멈추는 데 쓴다.
     loops_done: u32,
+    /// 동영상 재생기. 단일 보기의 동영상 페이지에서만 열린다(§7.6).
+    video: Option<VideoPlayer>,
+    video_seq: u64,
+    video_controls: Option<viewport::VideoControls>,
+    video_audio_stream: Option<AudioStream>,
+    video_frame_pts: Option<u64>,
+    video_clock_ms: u64,
     /// 뒤로 넘기기 전에 도착할 자리의 페이지 크기를 확인하는 중인지.
     pending_back: bool,
     pixel_view: Option<viewport::PixelView>,
@@ -242,9 +262,13 @@ impl AraView {
             comic: None,
             comic_failed: false,
             comic_mode: None,
+            archive_identity: None,
             progress_held: false,
             pages: HashMap::new(),
             page_loading: HashSet::new(),
+            decode_queue: Vec::new(),
+            decode_running: false,
+            decode_seq: 0,
             page_failed: HashMap::new(),
             wide: HashSet::new(),
             shown: Vec::new(),
@@ -270,6 +294,12 @@ impl AraView {
             frame: 0,
             frame_started: Instant::now(),
             loops_done: 0,
+            video: None,
+            video_seq: 0,
+            video_controls: None,
+            video_audio_stream: None,
+            video_frame_pts: None,
+            video_clock_ms: 0,
             pending_back: false,
             pixel_view: None,
             wt_anchor: 0,
@@ -332,7 +362,7 @@ impl AraView {
         this
     }
 
-    /// 이미지 필터가 걸린 파일 선택 창을 연다. GPUI의 경로 선택 창에는 형식 필터가
+    /// 이미지·동영상 필터가 걸린 파일 선택 창을 연다. GPUI의 경로 선택 창에는 형식 필터가
     /// 없어 네이티브 대화상자를 직접 쓴다.
     fn prompt_open(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let dialog = rfd::AsyncFileDialog::new()
@@ -438,6 +468,10 @@ impl AraView {
     }
 
     fn copy_image(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if !self.current_page_is_full() {
+            window.toast(Toast::warning(t("toast.copy.empty")), cx);
+            return;
+        }
         // 이미지 위에서 고른 글자가 있으면 이미지 대신 그 글자를 복사한다.
         if let Some(text) = self.ocr_selected_text() {
             cx.write_to_clipboard(ClipboardItem::new_string(text));
@@ -571,9 +605,14 @@ impl AraView {
                                 } else {
                                     Ph::FileImage
                                 };
-                                // 아카이브는 읽기 진도를 함께 보여준다.
+                                // 아카이브는 읽기 진도를 함께 보여준다. 경로만 같다고
+                                // 믿지 않아 identity가 지금 파일과 다르면(§8) 진도를
+                                // 숨긴다(§12).
                                 let progress = SettingsStore::global(cx)
                                     .archive_progress(&path)
+                                    .filter(|progress| {
+                                        progress.matches_identity(FileIdentity::capture(file))
+                                    })
                                     .map(|progress| {
                                         t_with(
                                             "home.card.progress",
@@ -745,7 +784,14 @@ impl AraView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> impl IntoElement + use<> {
-        let settings = SettingsStore::global(cx).settings.clone();
+        let (fit_mode, always_on_top, menu_bar_hidden) = {
+            let settings = &SettingsStore::global(cx).settings;
+            (
+                settings.fit_mode,
+                settings.always_on_top,
+                settings.menu_bar_hidden,
+            )
+        };
         let has_image = self.picture.is_some();
         let mode = self.view_mode(cx);
         let single = mode == ViewMode::Single;
@@ -835,9 +881,7 @@ impl AraView {
                                         "fitWidth",
                                         cx,
                                     )
-                                    .selected(
-                                        self.fit_locked && settings.fit_mode == FitMode::Width,
-                                    ),
+                                    .selected(self.fit_locked && fit_mode == FitMode::Width),
                                 )
                                 .child(
                                     Self::icon_button(
@@ -847,9 +891,7 @@ impl AraView {
                                         "fitHeight",
                                         cx,
                                     )
-                                    .selected(
-                                        self.fit_locked && settings.fit_mode == FitMode::Height,
-                                    ),
+                                    .selected(self.fit_locked && fit_mode == FitMode::Height),
                                 )
                                 .child(
                                     Self::icon_button(
@@ -859,9 +901,7 @@ impl AraView {
                                         "fitScreen",
                                         cx,
                                     )
-                                    .selected(
-                                        self.fit_locked && settings.fit_mode == FitMode::Screen,
-                                    ),
+                                    .selected(self.fit_locked && fit_mode == FitMode::Screen),
                                 ),
                         )
                     })
@@ -1051,7 +1091,7 @@ impl AraView {
                             row.child(
                                 Self::icon_button(
                                     "on-top",
-                                    if settings.always_on_top {
+                                    if always_on_top {
                                         Ph::PushPinFill
                                     } else {
                                         Ph::PushPin
@@ -1061,25 +1101,25 @@ impl AraView {
                                     cx,
                                 )
                                 .when(extra_labels, |button| button.label(t("header.onTop")))
-                                .selected(settings.always_on_top),
+                                .selected(always_on_top),
                             )
                         })
                         .when(has_image, |row| {
                             row.child(
                                 Button::new("hide-bar")
                                     .ghost()
-                                    .icon(if settings.menu_bar_hidden {
+                                    .icon(if menu_bar_hidden {
                                         Ph::CaretDown
                                     } else {
                                         Ph::CaretUp
                                     })
-                                    .tooltip(t(if settings.menu_bar_hidden {
+                                    .tooltip(t(if menu_bar_hidden {
                                         "header.showMenuBar"
                                     } else {
                                         "header.hideMenuBar"
                                     }))
                                     .when(extra_labels, |button| {
-                                        button.label(t(if settings.menu_bar_hidden {
+                                        button.label(t(if menu_bar_hidden {
                                             "header.showBar"
                                         } else {
                                             "header.hideBar"
@@ -1146,19 +1186,34 @@ impl AraView {
 impl Render for AraView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.advance_animation(window);
-        let settings = SettingsStore::global(cx).settings.clone();
+        self.advance_video(window, cx);
+        if !self.has_video(cx) {
+            self.close_video();
+        }
+        // 매 프레임 `Settings` 전체(BTreeMap 44쌍 포함)를 클론하지 않고 렌더에
+        // 쓰는 `Copy` 필드만 복사한다.
+        let (auto_hide_ui, menu_bar_hidden, dock_position, dock_visible, context_menu) = {
+            let settings = &SettingsStore::global(cx).settings;
+            (
+                settings.auto_hide_ui,
+                settings.menu_bar_hidden,
+                settings.dock_position,
+                settings.dock_visible,
+                settings.mouse.right_click == MouseAction::ContextMenu,
+            )
+        };
         let reading = self.picture.is_some() || !self.shown.is_empty();
         // 크롬 숨김은 이미지를 보고 있을 때만 적용한다. 홈에서는 항상 보인다.
-        let hide_all = reading && settings.auto_hide_ui;
-        let hide_header = reading && (settings.menu_bar_hidden || settings.auto_hide_ui);
+        let hide_all = reading && auto_hide_ui;
+        let hide_header = reading && (menu_bar_hidden || auto_hide_ui);
         let animated = self.has_animation(cx);
+        let video = self.has_video(cx);
         // 애니메이션 컨트롤이 하단 독으로 이동했으므로, 애니메이션 이미지에서는
-        // 목록이 하나뿐이어도 독을 보여 컨트롤을 노출한다.
-        let show_dock =
-            reading && (self.list.len() > 1 || animated) && (!hide_all || self.peek_bottom);
+        // 목록이 하나뿐이어도 독을 보여 컨트롤을 노출한다. 동영상도 같다.
+        let show_dock = reading
+            && (self.list.len() > 1 || animated || video)
+            && (!hide_all || self.peek_bottom);
         let show_status = reading && (!hide_all || self.peek_bottom);
-        let dock_position = settings.dock_position;
-        let context_menu = settings.mouse.right_click == MouseAction::ContextMenu;
 
         let header = (!hide_header || self.peek_top)
             .then(|| self.render_header(window, cx).into_any_element());
@@ -1168,7 +1223,7 @@ impl Render for AraView {
             (header, None)
         };
         // 접힌 도크는 그리지 않는다. 다시 펼치는 버튼은 상태바에만 둔다.
-        let dock = (show_dock && settings.dock_visible).then(|| self.render_dock(window, cx));
+        let dock = (show_dock && dock_visible).then(|| self.render_dock(window, cx));
         let status = self
             .info
             .clone()

@@ -1,6 +1,6 @@
 [package]
 name = "araview"
-version = "2.6.1"
+version = "2.7.0"
 description = "Desktop image viewer (GPUI Kit) for Windows, macOS and Linux"
 authors = ["Ara"]
 license = "EUPL-1.2"
@@ -32,7 +32,7 @@ tempfile = "3"
 
 # HDR 출력에서 스왑체인 경로를 고르려고 직접 의존한다(루트 Cargo.toml의 포크 patch).
 [target.'cfg(windows)'.dependencies]
-gpui_windows = { package = "gpui-pre-windows", version = "0.3.9" }
+gpui_windows = { package = "gpui-pre-windows", version = "0.3.10" }
 # 글자 인식(OCR)에 쓰는 WinRT 바인딩. GPUI Windows 백엔드와 같은 버전을 써서 중복을 피한다.
 windows = { version = "0.62", features = [
     "Foundation_Collections",
