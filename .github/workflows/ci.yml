@@ -42,6 +42,9 @@ jobs:
       - name: Docs consistency
         run: node scripts/check-docs.mjs
 
+      - name: Release automation regression tests
+        run: node --test scripts/release-automation.test.mjs
+
   # Rust 쪽 파일이 바뀐 PR과 main 푸시에서만 rust-check를 돌리기 위한 판별 잡.
   # 태그(릴리스)는 rust 잡이 맡으므로 제외한다. workflow_call에서는 event_name이
   # 호출자(태그 푸시) 것이라 ref_type으로 거른다.

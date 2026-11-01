@@ -11,9 +11,13 @@ name: Beta Release
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - 'site/**'
   workflow_dispatch:
 
-# 연속 푸시는 줄 세운다. 실행마다 최신 main을 받으므로 한 번에 묶여 릴리스된다.
+# 대기 실행은 최신 것으로 합친다. 실행 시 최신 main의 미배포 변경을 다시 확인한다.
 concurrency:
   group: beta-release
   cancel-in-progress: false
@@ -40,16 +44,23 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.RELEASE_TOKEN || github.token }}
 
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+
+      - name: Test release automation
+        run: node --test scripts/release-automation.test.mjs
+
       - name: Bump version, commit, tag and push
         id: bump
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          node scripts/release.mjs beta --yes
-          echo "tag=$(git describe --tags --exact-match HEAD)" >> "$GITHUB_OUTPUT"
+          node scripts/auto-beta-release.mjs
 
       - name: Start Release workflow for the tag
-        if: env.HAS_RELEASE_TOKEN != 'true'
+        if: steps.bump.outputs.tag != '' && env.HAS_RELEASE_TOKEN != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh workflow run release.yml --repo "${{ github.repository }}" --ref "${{ steps.bump.outputs.tag }}"
