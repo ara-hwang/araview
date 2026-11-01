@@ -171,6 +171,10 @@ pub struct AraView {
     video: Option<VideoPlayer>,
     video_seq: u64,
     video_controls: Option<viewport::VideoControls>,
+    /// 애니메이션(GIF/APNG 등) 프레임 진행 슬라이더.
+    anim_timeline: Option<viewport::AnimTimeline>,
+    /// 마지막 마우스·키보드 조작 시각. 재생 중 하단 컨트롤 자동 숨김에 쓴다.
+    overlay_active: Instant,
     video_audio_stream: Option<AudioStream>,
     video_frame_pts: Option<u64>,
     video_clock_ms: u64,
@@ -297,6 +301,8 @@ impl AraView {
             video: None,
             video_seq: 0,
             video_controls: None,
+            anim_timeline: None,
+            overlay_active: Instant::now(),
             video_audio_stream: None,
             video_frame_pts: None,
             video_clock_ms: 0,

@@ -48,6 +48,22 @@ pub(super) struct VideoControls {
     _volume_sub: Subscription,
 }
 
+/// 애니메이션 프레임 진행 슬라이더. 프레임 수가 바뀌면 다시 만든다.
+pub(super) struct AnimTimeline {
+    frames: usize,
+    slider: Entity<SliderState>,
+    _sub: Subscription,
+}
+
+/// 재생 중 조작이 없으면 하단 컨트롤을 숨기기까지의 시간.
+const OVERLAY_HIDE_AFTER: Duration = Duration::from_secs(3);
+
+/// 하단 재생 컨트롤을 보일지. 정지 중에는 항상 보이고, 재생 중에는 마지막
+/// 조작 뒤 `OVERLAY_HIDE_AFTER`가 지나면 숨겨 화면을 가리지 않는다.
+fn overlay_visible(playing: bool, idle: Duration) -> bool {
+    !playing || idle < OVERLAY_HIDE_AFTER
+}
+
 /// `mm:ss` 표시.
 fn format_time(ms: u64) -> String {
     let total = ms / 1000;
@@ -544,6 +560,7 @@ impl AraView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.bump_overlay();
         self.focus.focus(window, cx);
         // 글자 위를 누르면 선택을 시작하고, 이미지 이동이나 더블클릭 동작은 하지 않는다.
         if event.button == MouseButton::Left
@@ -605,6 +622,7 @@ impl AraView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.bump_overlay();
         if self.ocr_drag.is_some() {
             if event.pressed_button == Some(MouseButton::Left) {
                 if let Some(glyph) = self.ocr_glyph_at(event.position, cx) {
@@ -780,6 +798,7 @@ impl AraView {
                                 if let Some(player) = &this.video {
                                     player.seek(slider_ms(event));
                                 }
+                                this.bump_overlay();
                                 cx.notify();
                             },
                         );
@@ -806,6 +825,7 @@ impl AraView {
                                 cx.notify();
                             },
                         );
+                        this.bump_overlay();
                         this.video_controls = Some(VideoControls {
                             timeline,
                             volume,
@@ -1550,6 +1570,64 @@ impl AraView {
 
     // ----- 렌더 -----
 
+    /// 조작이 있었음을 기록해 숨겨진 재생 컨트롤을 다시 보이게 한다.
+    pub(super) fn bump_overlay(&mut self) {
+        self.overlay_active = Instant::now();
+    }
+
+    /// 애니메이션 프레임 슬라이더를 현재 그림에 맞춰 만들고 위치를 동기화한다.
+    fn sync_anim_timeline(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let frames = if self.has_animation(cx) {
+            self.picture
+                .as_ref()
+                .map_or(0, |picture| picture.frame_count())
+        } else {
+            0
+        };
+        if frames < 2 {
+            self.anim_timeline = None;
+            return;
+        }
+        if self
+            .anim_timeline
+            .as_ref()
+            .is_none_or(|timeline| timeline.frames != frames)
+        {
+            let slider = cx.new(|_| {
+                SliderState::new()
+                    .min(0.0)
+                    .max((frames - 1) as f32)
+                    .step(1.0)
+            });
+            let sub = cx.subscribe_in(
+                &slider,
+                window,
+                move |this, _, event: &SliderEvent, _, cx| {
+                    this.frame = (slider_ms(event) as usize).min(frames - 1);
+                    // 재생 중이면 끌어 놓은 프레임부터 지연 시간을 다시 센다.
+                    this.frame_started = Instant::now();
+                    this.bump_overlay();
+                    cx.notify();
+                },
+            );
+            self.anim_timeline = Some(AnimTimeline {
+                frames,
+                slider,
+                _sub: sub,
+            });
+            self.bump_overlay();
+        }
+        if let Some(timeline) = &self.anim_timeline {
+            let value = SliderValue::Single(self.frame as f32);
+            // 값이 같으면 갱신하지 않는다. `set_value`가 항상 notify하기 때문이다.
+            if timeline.slider.read(cx).value() != value {
+                timeline.slider.update(cx, |state, cx| {
+                    state.set_value(value, window, cx);
+                });
+            }
+        }
+    }
+
     /// 애니메이션 재생 제어를 뷰포트 우하단에 떠 있는 반투명 패널로 그린다.
     pub(super) fn render_animation_overlay(
         &self,
@@ -1612,7 +1690,14 @@ impl AraView {
                         this.run_action("gifNextFrame", window, cx)
                     })),
             )
-            .child(div().flex_1())
+            .child(match &self.anim_timeline {
+                Some(timeline) => div()
+                    .flex_1()
+                    .min_w(px(120.))
+                    .child(Slider::new(&timeline.slider).horizontal())
+                    .into_any_element(),
+                None => div().flex_1().into_any_element(),
+            })
             .child(
                 div()
                     .w(px(counter_width))
@@ -1668,6 +1753,12 @@ impl AraView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> impl IntoElement + use<> {
+        self.sync_anim_timeline(window, cx);
+        let idle = self.overlay_active.elapsed();
+        let video_playing = self
+            .video
+            .as_ref()
+            .is_some_and(|player| player.is_playing());
         // 매 프레임 `Settings` 전체를 클론하지 않고 렌더에 쓰는 `Copy` 필드만 복사한다.
         let (background, webtoon_page_boundaries, webtoon_show_progress, webtoon_thumbnail_jump) = {
             let settings = &SettingsStore::global(cx).settings;
@@ -2014,32 +2105,52 @@ impl AraView {
                 area.child(self.nav_arrow(true, cx))
                     .child(self.nav_arrow(false, cx))
             })
-            .when(self.has_animation(cx), |area| {
-                area.child(
-                    div()
-                        .absolute()
-                        .bottom_3()
-                        .left_3()
-                        .right_3()
-                        .child(self.render_animation_overlay(cx)),
-                )
-            })
-            .when(self.has_video(cx), |area| {
-                area.child(
-                    div()
-                        .absolute()
-                        .bottom_3()
-                        .left_3()
-                        .right_3()
-                        .child(self.render_video_overlay(cx)),
-                )
-            })
+            .when(
+                self.has_animation(cx) && overlay_visible(self.playing, idle),
+                |area| {
+                    area.child(
+                        div()
+                            .absolute()
+                            .bottom_3()
+                            .left_3()
+                            .right_3()
+                            .child(self.render_animation_overlay(cx)),
+                    )
+                },
+            )
+            .when(
+                self.has_video(cx) && overlay_visible(video_playing, idle),
+                |area| {
+                    area.child(
+                        div()
+                            .absolute()
+                            .bottom_3()
+                            .left_3()
+                            .right_3()
+                            .child(self.render_video_overlay(cx)),
+                    )
+                },
+            )
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{format_frame_counter, video_frame_position};
+    use super::{OVERLAY_HIDE_AFTER, format_frame_counter, overlay_visible, video_frame_position};
+    use std::time::Duration;
+
+    #[test]
+    fn overlay_hides_only_while_playing_and_idle() {
+        let long = OVERLAY_HIDE_AFTER + Duration::from_millis(1);
+        assert!(overlay_visible(true, Duration::ZERO));
+        assert!(overlay_visible(
+            true,
+            OVERLAY_HIDE_AFTER - Duration::from_millis(1)
+        ));
+        assert!(!overlay_visible(true, long));
+        // 정지 중에는 조작이 없어도 계속 보인다.
+        assert!(overlay_visible(false, long));
+    }
 
     #[test]
     fn video_frame_position_counts_from_one() {

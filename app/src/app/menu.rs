@@ -115,6 +115,8 @@ fn command_label_key(id: &str) -> &'static str {
 impl AraView {
     /// 동작 ID를 실행한다. 단축키, 컨텍스트 메뉴, 명령 팔레트가 모두 여기로 온다.
     pub(super) fn run_action(&mut self, id: &str, window: &mut Window, cx: &mut Context<Self>) {
+        // 키보드·버튼 조작이면 숨겨진 재생 컨트롤을 다시 보여 준다.
+        self.bump_overlay();
         let webtoon = self.view_mode(cx) == ViewMode::Webtoon;
         match id {
             "navigatePrev" => self.navigate(false, window, cx),
