@@ -1,5 +1,6 @@
 //! 동작 실행, 컨텍스트 메뉴, 명령 팔레트, 표지 지정(SPEC §8, §14).
 
+use crate::smooth::SmoothScroll;
 use crate::toast::{Toast, WindowToast};
 use gpui_kit::component::command::{Command, CommandGroup, CommandItem, CommandState};
 use gpui_kit::component::menu::{PopupMenu, PopupMenuItem};
@@ -402,6 +403,11 @@ impl AraView {
         }
         let shortcuts = SettingsStore::global(cx).settings.shortcuts.clone();
         let state = cx.new(|cx| CommandState::new(window, cx));
+        // 목록은 자체 휠 스크롤을 끄고(`wheel_handoff`) 같은 핸들을 바깥
+        // SmoothScroll이 감속시킨다. 키보드 이동·검색 초기화 같은 즉시 이동과는
+        // `on_scroll_to_item`에서 먼저 감속을 멈춰 겹치지 않게 한다.
+        let smooth =
+            SmoothScroll::from_handle(state.read(cx).scroll_handle().base_handle().clone());
         let view = cx.entity();
         let search = state.clone();
         // 배경 누름 판정은 팔레트가 사는 동안 유지해야 한다(다이얼로그 빌더는 다시 돈다).
@@ -412,15 +418,24 @@ impl AraView {
             let shortcuts = shortcuts.clone();
             let view = view.clone();
             let backdrop = backdrop.clone();
+            let smooth = smooth.clone();
             centered(dialog)
                 .close_button(false)
                 .p_0()
                 .content(move |content, _, _| {
                     let confirm_groups = groups.clone();
                     let view = view.clone();
+                    let smooth = smooth.clone();
                     let mut command = Command::new(&state)
                         .bordered(false)
-                        .placeholder(t("palette.search"));
+                        .placeholder(t("palette.search"))
+                        // 휠은 바깥 SmoothScroll이 감속시키고 목록 자체의 기본
+                        // 스크롤은 꺼 둔다.
+                        .wheel_handoff(true)
+                        .on_scroll_to_item({
+                            let smooth = smooth.clone();
+                            move |_, _| smooth.cancel()
+                        });
                     for (label, ids) in &groups {
                         let mut group = CommandGroup::new().label(t(label));
                         for id in ids {
@@ -455,6 +470,10 @@ impl AraView {
                     let release_backdrop = backdrop.clone();
                     content.child(
                         div()
+                            .id("palette-scroller")
+                            // 휠은 바깥 SmoothScroll이 처리한다(`wheel_handoff`로
+                            // 목록 자체의 세로 기본 스크롤은 꺼 둔다).
+                            .on_scroll(smooth.wheel_handler(false))
                             .on_mouse_down_out({
                                 let close_palette = close_palette.clone();
                                 move |event, window, cx| {

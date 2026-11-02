@@ -165,7 +165,7 @@ app/  # 표현 계층. 상세는 코드 읽기
   src/  # layout, picture, geometry, settings, smooth, toast, keys, dialog, i18n, assets, platform/, build.rs
   locales/ update-pubkey.txt THIRD_PARTY_LICENSES.json(생성물) installer/ packaging/ resources/
 scripts/  # check-docs/release/licenses(.mjs), package-*.sh, Build-Installer.ps1, araview-drive/mcp(.ps1)
-vendor/  # [patch.crates-io] 포크(HDR 실험용 gpui-pre-windows)
+vendor/  # [patch.crates-io] 포크(HDR 실험용 gpui-pre-windows, 명령 팔레트 스크롤용 gpui-component)
 licenses-extra/  # 업스트림 LICENSE 사본
 ```
 
