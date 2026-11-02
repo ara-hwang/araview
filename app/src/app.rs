@@ -1062,8 +1062,15 @@ impl AraView {
                                     )
                                     .selected(self.ocr_visible()),
                                 )
-                            })
-                            .child(
+                            }),
+                    )
+                })
+                .child(div().flex_1().min_w_0())
+                .child(
+                    group()
+                        .debug_selector(|| "header-right-menu".to_owned())
+                        .when(has_image, |row| {
+                            row.child(
                                 Self::icon_button(
                                     "info",
                                     Ph::Info,
@@ -1072,13 +1079,8 @@ impl AraView {
                                     cx,
                                 )
                                 .selected(self.info_open),
-                            ),
-                    )
-                })
-                .child(div().flex_1().min_w_0())
-                .child(
-                    group()
-                        .debug_selector(|| "header-right-menu".to_owned())
+                            )
+                        })
                         .child(Self::icon_button(
                             "palette",
                             Ph::MagnifyingGlass,
