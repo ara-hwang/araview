@@ -168,7 +168,7 @@ jobs:
         run: cargo deny check
 
   # cargo test의 소요가 검증 잡의 절반 이상이라 크레이트 단위로 나눠 병렬로 돌린다.
-  # 조각 합이 이전 `cargo test --workspace`와 같다(워크스페이스 멤버 = core+thumb ∪ app).
+  # 조각 합이 이전 `cargo test --workspace`와 같다(아래 -p 합집합 = 워크스페이스 멤버).
   rust-test:
     if: github.event_name == 'workflow_dispatch' || github.ref_type == 'tag'
     strategy:
@@ -196,6 +196,7 @@ jobs:
         if: matrix.shard == 'core+thumb'
         run: cargo test -p araview-core -p araview-thumb
 
-      - name: Cargo test (app)
+      - name: Cargo test (araview — app/)
         if: matrix.shard == 'app'
-        run: cargo test -p app
+        # app/ 디렉터리의 크레이트 이름은 araview다.
+        run: cargo test -p araview
