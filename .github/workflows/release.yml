@@ -77,6 +77,12 @@ jobs:
     needs: verify
     runs-on: windows-latest
     timeout-minutes: 90
+    env:
+      # sccache는 컴파일 결과를 캐시 백엔드(GitHub Actions 캐시)에 모으므로 다음
+      # 버전 빌드가 이전 태그 빌드의 산출물로 크게 단축된다. 백엔드는 잡 단위 env로
+      # SCCACHE_GHA_ENABLED를 켜고, 컴파일을 거치는 모든 스텝에 RUSTC_WRAPPER를 둔다.
+      SCCACHE_GHA_ENABLED: "true"
+      RUSTC_WRAPPER: sccache
 
     steps:
       # 릴리스 노트가 이전 태그 이후 커밋 목록을 쓰므로 전체 히스토리가 필요하다.
@@ -90,10 +96,12 @@ jobs:
         with:
           node-version: 24
 
+      # 잡 단위 env(SCCACHE_GHA_ENABLED, RUSTC_WRAPPER)로 sccache를 켠다.
       - name: Setup Rust and native dependencies
         uses: ./.github/actions/setup-rust-native
         with:
-          cache-key: release
+          cache-key: rust-windows-latest
+          rust-cache-save-if: "false"
           sccache: "true"
 
       - name: Resolve version
@@ -116,8 +124,6 @@ jobs:
           if (-not (Test-Path "${env:ProgramFiles(x86)}\NSIS\makensis.exe")) { Write-Error "makensis를 찾지 못했다"; exit 1 }
 
       - name: Build installer
-        env:
-          RUSTC_WRAPPER: sccache
         run: pwsh -NoProfile -File scripts/Build-Installer.ps1
 
       # 릴리스 노트: 이전 태그 이후 커밋 목록으로 본문을 만든다.
@@ -216,6 +222,10 @@ jobs:
     needs: verify
     runs-on: ubuntu-latest
     timeout-minutes: 90
+    # Windows와 같은 이유로 sccache를 켠다.
+    env:
+      SCCACHE_GHA_ENABLED: "true"
+      RUSTC_WRAPPER: sccache
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -223,7 +233,9 @@ jobs:
       - name: Setup Rust and native dependencies
         uses: ./.github/actions/setup-rust-native
         with:
-          cache-key: release-ubuntu-latest
+          cache-key: rust-ubuntu-latest
+          rust-cache-save-if: "false"
+          sccache: "true"
 
       - name: Build Linux package
         run: scripts/package-linux.sh
@@ -240,6 +252,10 @@ jobs:
     needs: verify
     runs-on: macos-latest
     timeout-minutes: 90
+    # Windows와 같은 이유로 sccache를 켠다.
+    env:
+      SCCACHE_GHA_ENABLED: "true"
+      RUSTC_WRAPPER: sccache
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -247,7 +263,9 @@ jobs:
       - name: Setup Rust and native dependencies
         uses: ./.github/actions/setup-rust-native
         with:
-          cache-key: release-macos-latest
+          cache-key: rust-macos-latest
+          rust-cache-save-if: "false"
+          sccache: "true"
 
       - name: Build macOS package
         run: scripts/package-macos.sh
