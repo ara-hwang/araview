@@ -81,9 +81,9 @@ jobs:
       # sccache는 컴파일 결과를 캐시 백엔드(GitHub Actions 캐시)에 모으므로 다음
       # 버전 빌드가 이전 태그 빌드의 산출물로 크게 단축된다. 백엔드는 잡 단위 env로
       # SCCACHE_GHA_ENABLED를 켜고, 컴파일을 거치는 모든 스텝에 RUSTC_WRAPPER를 둔다.
-      # 캐시 용량은 저장소 전체 한도(10GB)를 sccache 혼자 먹지 않게 3GB로 묶는다.
+      # 캐시 용량은 세 OS가 나눠 쓰므로 6GB로 묶는다(저장소 전체 한도 10GB 안에 rust/vcpkg 트리 캐시 ~4GB와 함께 둔다).
       SCCACHE_GHA_ENABLED: "true"
-      SCCACHE_CACHE_SIZE: "3G"
+      SCCACHE_CACHE_SIZE: "6G"
       RUSTC_WRAPPER: sccache
 
     steps:
@@ -227,7 +227,7 @@ jobs:
     # Windows와 같은 이유로 sccache를 켠다(용량 한도도 동일하다).
     env:
       SCCACHE_GHA_ENABLED: "true"
-      SCCACHE_CACHE_SIZE: "3G"
+      SCCACHE_CACHE_SIZE: "6G"
       RUSTC_WRAPPER: sccache
 
     steps:
@@ -258,7 +258,7 @@ jobs:
     # Windows와 같은 이유로 sccache를 켠다(용량 한도도 동일하다).
     env:
       SCCACHE_GHA_ENABLED: "true"
-      SCCACHE_CACHE_SIZE: "3G"
+      SCCACHE_CACHE_SIZE: "6G"
       RUSTC_WRAPPER: sccache
 
     steps:
