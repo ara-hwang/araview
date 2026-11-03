@@ -1,13 +1,18 @@
 name: CI
 
 # 문서 정합성은 PR과 main(베타)·release(안정) 푸시에서 자동으로 돈다.
-# Rust는 두 단계다. 전체 검증(rust 잡: fmt, test, clippy, audit, deny)은 비용이
-# 커서 Actions 탭 수동 실행(workflow_dispatch)과 릴리스(release.yml이
-# workflow_call로 호출)에서만 돈다. 대신 Rust 쪽 파일이 바뀐 PR과 브랜치 푸시에서는
-# 가벼운 rust-check 잡(cargo check)이 돌아 의존성 업데이트가 빌드를 깨는 것을 병합
-# 전에 잡는다. 브랜치 푸시에서도 같은 조건으로 돌리는 이유는 캐시다. PR은 자기 ref와
-# 기본 브랜치의 캐시만 복원할 수 있어서, main이 캐시를 저장해 두지 않으면 모든 PR이
-# 빈 캐시로 시작한다.
+# Rust는 두 단계다. 전체 검증(rust 잡: fmt, clippy, deny와 rust-test 잡: cargo test를
+# 두 조각으로 나눠 각 OS에서 두 머신에 실어 병렬로 돈다)은 비용이 커서 Actions 탭
+# 수동 실행(workflow_dispatch)과 릴리스(release.yml이 workflow_call로 호출)에서만
+# 돈다. 대신 Rust 쪽 파일이 바뀐 PR과 브랜치 푸시에서는 가벼운 rust-check 잡(cargo
+# check)이 돌아 의존성 업데이트가 빌드를 깨는 것을 병합 전에 잡는다. 브랜치 푸시에서도
+# rust-check를 돌리는 이유는 캐시다. PR은 자기 ref와 기본 브랜치의 캐시만 복원할 수
+# 있어서, main이 캐시를 저장해 두지 않으면 모든 PR이 빈 캐시로 시작한다.
+# cache-key는 검증·rust-check·릴리스 빌드가 같은 이름(rust-<os>)을 쓴다. 같은 키를
+# 쓰는 잡들은 서로의 캐시를 복원하므로 릴리스 빌드가 그 방금 끝난 검증 산출물을 그대로
+# 받는다. 저장은 중복 방지를 위해 core+thumb test 조각 하나만 맡는다: 같은 키로 여러
+# 잡이 저장 경쟁을 하면 조각마다 산출물이 다른 트리가 남는다. check 산출물만 있는
+# rust-check와 fmt·clippy 잡은 복원만 한다.
 # 릴리스 검증은 이 파일을 그대로 재사용하므로 검증 항목은 여기서만 고친다.
 on:
   pull_request:
@@ -18,7 +23,7 @@ on:
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  # PR 브랜치의 이전 실행만 취소한다. main 푸시가 연달아 들어와도 앞선 실행이
+  # PR 브랜ッチ의 이전 실행만 취소한다. main 푸시가 연달아 들어와도 앞선 실행이
   # 끝까지 돌아야 하고, 태그(릴리스) 검증도 도중에 취소하지 않는다.
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
@@ -27,6 +32,19 @@ permissions:
 
 jobs:
   docs:
+    # workflow_call(릴리스)·수동 실행·태그에서는 항상 돈다. PR과 브랜치 푸시에서는
+    # changes가 실제 필요 여부를 판정한다. 워크플로 트리거와 무관하게 잡을 항상
+    # 만들어 검사 목록에 남겨두므로, 나중에 이 잡을 필수 검사로 지정해도 스킵된
+    # 실행이 "skipped"로 정상 종료되어 PR 병합이 막히지 않는다.
+    # check-docs.mjs는 app/Cargo.toml, Cargo.lock, image.rs, settings.rs도 읽는다.
+    # 이들은 rust 변화에 잡혀 있으므로 docs 검사는 docs 조건에 rust 조건도 더한다.
+    if: >-
+      github.event_name == 'workflow_call'
+      || github.event_name == 'workflow_dispatch'
+      || github.ref_type == 'tag'
+      || needs.changes.outputs.docs == 'true'
+      || needs.changes.outputs.rust == 'true'
+    needs: [changes]
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
@@ -38,40 +56,48 @@ jobs:
         with:
           node-version: 24
 
-      # 문서-코드 정합성 (버전, 지원 확장자, 설정 키, plan 잔류).
       - name: Docs consistency
         run: node scripts/check-docs.mjs
 
       - name: Release automation regression tests
         run: node --test scripts/release-automation.test.mjs
 
-  # Rust 쪽 파일이 바뀐 PR과 main 푸시에서만 rust-check를 돌리기 위한 판별 잡.
-  # 태그(릴리스)는 rust 잡이 맡으므로 제외한다. workflow_call에서는 event_name이
-  # 호출자(태그 푸시) 것이라 ref_type으로 거른다.
+  # docs 잡이 스킵 조건을 판정하는 데 필요한 output을 두 개로 나눠 낸다: rust와 docs.
+  # 스크립트는 비교 대상을 못 찾으면(새 브랜치의 0 커밋, 강제 푸시 등) 안전하게
+  # 모든 output을 true로 만들어 무엇을 건너뛰지 않도록 한다.
   changes:
-    if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref_type == 'branch')
+    if: github.event_name == 'pull_request' || github.ref_type == 'branch'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
       rust: ${{ steps.filter.outputs.rust }}
+      docs: ${{ steps.filter.outputs.docs }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
-      - name: Detect Rust-related changes
+      - name: Detect workflow-relevant changes
         id: filter
         env:
           # PR은 베이스 커밋, 푸시는 푸시 직전 커밋과 비교한다.
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: |
-          # 비교 대상을 못 찾으면(새 브랜치의 0 커밋, 강제 푸시 등) 안전하게 돌린다.
-          if ! files=$(git diff --name-only "$BASE_SHA" HEAD 2>/dev/null); then
+          files=$(git diff --name-only "$BASE_SHA" HEAD 2>/dev/null || true)
+          if [ -z "$files" ]; then
             echo "rust=true" >> "$GITHUB_OUTPUT"
-          elif echo "$files" | grep -Eq '^(crates/|app/|vendor/|vcpkg\.json$|Cargo\.(toml|lock)$|rust-toolchain\.toml$|deny\.toml$|\.cargo/|\.github/actions/setup-rust-native/|\.github/workflows/ci\.yml$)'; then
+            echo "docs=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if echo "$files" | grep -Eq '^(crates/|app/|vendor/|vcpkg\.json$|Cargo\.(toml|lock)$|rust-toolchain\.toml$|deny\.toml$|\.cargo/|\.github/actions/setup-rust-native/|\.github/workflows/ci\.yml$)'; then
             echo "rust=true" >> "$GITHUB_OUTPUT"
           else
             echo "rust=false" >> "$GITHUB_OUTPUT"
+          fi
+          if echo "$files" | grep -Eq '^(docs/|[^/]*\.md$|scripts/|\.github/(RELEASE_TEMPLATE\.md|dependabot\.yml|pull_request_template\.md|ISSUE_TEMPLATE/))'; then
+            echo "docs=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "docs=false" >> "$GITHUB_OUTPUT"
           fi
 
   # 풀 검증(rust 잡)보다 훨씬 싼 컴파일 검사.
@@ -92,11 +118,14 @@ jobs:
       - name: Setup Rust and native dependencies
         uses: ./.github/actions/setup-rust-native
         with:
-          cache-key: check-${{ matrix.os }}
+          cache-key: rust-${{ matrix.os }}
+          rust-cache-save-if: "false"
 
       - name: Cargo check
         run: cargo check --workspace --all-targets
 
+  # 검사 잡은 fmt와 clippy·cargo-deny만 돌린다. fmt는 플랫폼과 무관해 Linux에서
+  # 한 번이면 충분하다.
   rust:
     # PR과 main 푸시에서는 건너뛴다. workflow_call에서는 event_name이 호출자(태그 푸시)
     # 것이라 ref_type으로 릴리스 호출을 구분한다.
@@ -106,7 +135,7 @@ jobs:
       matrix:
         os: [windows-latest, ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 60
+    timeout-minutes: 45
     permissions:
       contents: read
 
@@ -116,13 +145,12 @@ jobs:
       - name: Setup Rust and native dependencies
         uses: ./.github/actions/setup-rust-native
         with:
-          cache-key: verify-${{ matrix.os }}
+          cache-key: rust-${{ matrix.os }}
+          rust-cache-save-if: "false"
 
       - name: Cargo fmt
+        if: matrix.os == 'ubuntu-latest'
         run: cargo fmt --all --check
-
-      - name: Cargo test
-        run: cargo test --workspace
 
       - name: Cargo clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
@@ -138,3 +166,40 @@ jobs:
       - name: Rust advisory, license and source check
         if: matrix.os == 'windows-latest'
         run: cargo deny check
+
+  # cargo test의 소요가 검증 잡의 절반 이상이라 크레이트 단위로 나눠 병렬로 돌린다.
+  # 조각 합이 이전 `cargo test --workspace`와 같다(아래 -p 합집합 = 워크스페이스 멤버).
+  # 조각마다 별도 키 공간(rust-<os>, rust-app-<os>)을 쓴다. app/ 은 gpui를 dev로
+  # 다시 컴파일하는 시간이 검증의 긴 몫이라, core쪽 캐시만 복원하면 app 조각이
+  # 매번 그 컴파일을 반복해 검증의 병목이 되었다.
+  rust-test:
+    if: github.event_name == 'workflow_dispatch' || github.ref_type == 'tag'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+        shard:
+          - core+thumb
+          - app
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Rust and native dependencies
+        uses: ./.github/actions/setup-rust-native
+        with:
+          # app 조각만 자기 키 공간을 쓴다: core+thumb는 rust-<os>, app는 rust-app-<os>.
+          cache-key: ${{ matrix.shard == 'app' && format('rust-app-{0}', matrix.os) || format('rust-{0}', matrix.os) }}
+
+      - name: Cargo test (araview-core, araview-thumb)
+        if: matrix.shard == 'core+thumb'
+        run: cargo test -p araview-core -p araview-thumb
+
+      - name: Cargo test (araview — app/)
+        if: matrix.shard == 'app'
+        # app/ 디렉터리의 크레이트 이름은 araview다.
+        run: cargo test -p araview

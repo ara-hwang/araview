@@ -4,7 +4,7 @@ Radiance HDR(`.hdr`)과 OpenEXR(`.exr`) 같은 고동적 범위 소스를 HDR �
 
 ## 현재 상태(조사 근거, M1 조사 시점 스냅샷)
 
-앱은 gpui-kit 0.8.1을 쓰고, Windows 렌더러는 `gpui-pre-windows 0.3.10`(DirectX 11, 라이브러리 이름 `gpui_windows`)다. gpui-kit 0.8.1은 `gpui-pre-platform`을 거쳐 이 크레이트를 쓰며, 레지스트리에 함께 있는 `gpui-fast-windows`는 쓰지 않는다(`cargo tree -i gpui-pre-windows`). 확인한 코드 상태:
+앱은 gpui-kit 0.9.0을 쓰고, Windows 렌더러는 `gpui-pre-windows 0.3.11`(DirectX 11, 라이브러리 이름 `gpui_windows`)다. gpui-kit 0.9.0은 `gpui-pre-platform`을 거쳐 이 크레이트를 쓰며, 레지스트리에 함께 있는 `gpui-fast-windows`는 쓰지 않는다(`cargo tree -i gpui-pre-windows`). 확인한 코드 상태:
 
 | 항목 | 상태 | 근거 |
 | --- | --- | --- |
