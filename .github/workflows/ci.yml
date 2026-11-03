@@ -169,6 +169,9 @@ jobs:
 
   # cargo test의 소요가 검증 잡의 절반 이상이라 크레이트 단위로 나눠 병렬로 돌린다.
   # 조각 합이 이전 `cargo test --workspace`와 같다(아래 -p 합집합 = 워크스페이스 멤버).
+  # 조각마다 별도 키 공간(rust-<os>, rust-app-<os>)을 쓴다. app/ 은 gpui를 dev로
+  # 다시 컴파일하는 시간이 검증의 긴 몫이라, core쪽 캐시만 복원하면 app 조각이
+  # 매번 그 컴파일을 반복해 검증의 병목이 되었다.
   rust-test:
     if: github.event_name == 'workflow_dispatch' || github.ref_type == 'tag'
     strategy:
@@ -189,8 +192,8 @@ jobs:
       - name: Setup Rust and native dependencies
         uses: ./.github/actions/setup-rust-native
         with:
-          cache-key: rust-${{ matrix.os }}
-          rust-cache-save-if: ${{ matrix.shard == 'core+thumb' && 'true' || 'false' }}
+          # app 조각만 자기 키 공간을 쓴다: core+thumb는 rust-<os>, app는 rust-app-<os>.
+          cache-key: ${{ matrix.shard == 'app' && format('rust-app-{0}', matrix.os) || format('rust-{0}', matrix.os) }}
 
       - name: Cargo test (araview-core, araview-thumb)
         if: matrix.shard == 'core+thumb'
