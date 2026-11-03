@@ -117,7 +117,8 @@ pub struct AraView {
     archive: Option<Arc<str>>,
     comic: Option<ComicInfo>,
     comic_failed: bool,
-    /// 아카이브를 열 때 자동으로 정한 보기 모드. 직접 고르면 해제된다.
+    /// 아카이브 세션 보기 모드. 열 때 자동으로 정하고, 보는 동안 직접 고르면
+    /// 세션에만 바뀐다. 일반 이미지는 설정값을 그대로 쓴다(§15).
     comic_mode: Option<ViewMode>,
     /// 열 때 캡처한 아카이브 파일 identity. 이어보기 기록에 함께 저장한다(§8).
     archive_identity: Option<FileIdentity>,
