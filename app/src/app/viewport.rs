@@ -187,13 +187,23 @@ impl AraView {
         if self.view_mode(cx) != ViewMode::Single {
             // 양쪽 보기의 배율은 화면 맞춤 대비 상대값이다.
             self.zoom = 1.0;
+            self.fit_pending = false;
             return;
         }
         let Some(image) = self.image_size() else {
             return;
         };
+        let container = self.container();
+        if container.is_empty() {
+            // 캔버스가 읽기 영역을 아직 재기 전은 맞춤 배율을 정할 수 없다.
+            // 기본 배율(100%)로 그리면 실제 크기가 한순간 보이므로, 크기를
+            // 재면 바로 적용하도록 기다린다.
+            self.fit_pending = true;
+            return;
+        }
         let mode = SettingsStore::global(cx).settings.fit_mode;
-        self.zoom = zoom_for_fit(mode, self.container(), image);
+        self.zoom = zoom_for_fit(mode, container, image);
+        self.fit_pending = false;
     }
 
     pub(super) fn zoom_by(&mut self, factor: f32, anchor: Option<Offset>, cx: &mut Context<Self>) {
@@ -228,6 +238,9 @@ impl AraView {
                     return;
                 };
                 let container = self.container();
+                if container.is_empty() {
+                    return;
+                }
                 let max = if self
                     .picture
                     .as_ref()
@@ -313,7 +326,7 @@ impl AraView {
     pub(super) fn viewport_resized(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         match self.view_mode(cx) {
             ViewMode::Webtoon => self.webtoon_sync(window, cx),
-            ViewMode::Single if self.fit_locked => self.apply_fit(cx),
+            ViewMode::Single if self.fit_locked || self.fit_pending => self.apply_fit(cx),
             _ => {
                 if let Some(extent) = self.pan_extent(cx) {
                     self.position = clamp_position(
@@ -328,9 +341,14 @@ impl AraView {
     }
 
     /// 한 장 보기에서 그림이 놓인 사각형(읽기 영역 왼쪽 위 기준).
+    /// 읽기 영역을 아직 재기 전에는 `None`으로 그리지 않는다. 빈 컨테이너
+    /// 기준 사각형은 기본 배율(100%)의 실제 크기로 그려지기 때문이다.
     fn single_dest(&self) -> Option<Bounds<Pixels>> {
         let picture = self.picture.as_ref()?;
         let container = self.container();
+        if container.is_empty() {
+            return None;
+        }
         let (dw, dh) = (
             picture.width as f32 * self.zoom,
             picture.height as f32 * self.zoom,

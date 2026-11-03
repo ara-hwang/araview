@@ -159,6 +159,11 @@ pub struct AraView {
     position: Offset,
     /// 맞춤 잠금. 수동 줌을 하면 풀려 리사이즈해도 줌을 유지한다.
     fit_locked: bool,
+    /// 읽기 영역 크기를 아직 재지 못해 맞춤 배율이 확정되지 않은 상태다.
+    /// 캔버스가 크기를 재면 `apply_fit`으로 바로 확정한다. 재기 전에 그리면
+    /// 100% 기본 배율로 잠깐 실제 크기가 표시되는 문제가 있었으므로, 이 동안에는
+    /// 그림을 비둔다.
+    fit_pending: bool,
     /// 읽기 영역의 창 좌표 경계. 캔버스 prepaint가 갱신한다.
     viewport: Rc<Cell<Bounds<Pixels>>>,
     drag: Option<DragState>,
@@ -292,6 +297,7 @@ impl AraView {
             zoom: 1.0,
             position: Offset::default(),
             fit_locked: true,
+            fit_pending: true,
             viewport: Rc::new(Cell::new(Bounds::default())),
             drag: None,
             playing: false,
