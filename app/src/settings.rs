@@ -352,7 +352,7 @@ pub const DEFAULT_SHORTCUTS: &[(&str, &str)] = &[
     ("jumpFirst", "Home"),
     ("jumpLast", "End"),
     ("toggleGrid", "G"),
-    ("toggleGifPlayback", "P"),
+    ("toggleGifPlayback", "Space"),
     ("gifPrevFrame", ","),
     ("gifNextFrame", "."),
     ("videoSeekBack", "J"),
@@ -903,6 +903,23 @@ mod tests {
         // identity 직렬화 키는 camelCase다.
         let saved = serde_json::to_value(&progress).expect("기록 직렬화");
         assert_eq!(saved["identity"]["modifiedNanos"], serde_json::json!(42));
+    }
+
+    /// 재생/정지는 `Space`가 기본이고(SPEC §14.1), 기본 단축키끼리 겹치지 않는다.
+    #[test]
+    fn playback_defaults_to_space_without_conflicts() {
+        let shortcuts = default_shortcuts();
+        assert_eq!(
+            shortcuts.get("toggleGifPlayback").map(String::as_str),
+            Some("Space")
+        );
+        assert!(crate::keys::is_valid_spec("Space"));
+        for (action, spec) in &shortcuts {
+            assert!(
+                crate::keys::conflict(&shortcuts, action, spec).is_none(),
+                "{action}의 {spec}가 다른 동작과 겹친다"
+            );
+        }
     }
 
     /// 일반 휠 위/아래가 한 쌍을 이루면 묶음 동작을 알아보고, 따로 놀면 없다(SPEC §14.2).

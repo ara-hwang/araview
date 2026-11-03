@@ -235,6 +235,7 @@ mod tests {
             ("ArrowLeft", "left"),
             ("Ctrl+ArrowLeft", "ctrl-left"),
             ("PageUp", "pageup"),
+            ("Space", "space"),
             ("F11", "f11"),
             ("I", "i"),
             ("=", "="),
