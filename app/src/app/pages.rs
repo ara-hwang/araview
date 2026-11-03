@@ -203,7 +203,8 @@ fn evict_plan(
 }
 
 impl AraView {
-    /// 화면에 적용되는 보기 모드. 아카이브는 자동 결정(`comic_mode`)이 설정보다 우선한다.
+    /// 화면에 적용되는 보기 모드. 아카이브는 세션 모드(`comic_mode`), 일반
+    /// 이미지는 설정값을 쓴다.
     pub(super) fn view_mode(&self, cx: &App) -> ViewMode {
         let base = SettingsStore::global(cx).settings.view_mode;
         if self.archive.is_some() {
@@ -357,6 +358,9 @@ impl AraView {
         self.comic = listing.comic.ok().flatten();
         let settings = &SettingsStore::global(cx).settings;
         self.progress_held = self.archive.is_some() && !settings.resume_reading;
+        // 아카이브 세션 보기 모드를 새로 정한다. 목록이 바뀔 때마다 내려놓으므로
+        // 다른 목록으로 가면 세션 모드도 사라지고, 일반 이미지는 설정값으로
+        // 돌아간다(§15).
         self.comic_mode = self.archive.as_ref().and_then(|_| {
             layout::comic_view_mode(
                 settings.view_mode,
@@ -576,15 +580,28 @@ impl AraView {
         }
     }
 
-    /// 헤더·설정에서 보기 모드를 직접 고른다. 아카이브의 자동 결정은 해제된다.
+    /// 헤더·설정·단축키에서 보기 모드를 직접 고른다. 아카이브를 보는 동안에는
+    /// 설정값을 바꾸지 않고 세션 보기 모드(`comic_mode`)에만 적용해, 일반
+    /// 이미지는 아카이브를 열기 전 설정 그대로 열린다(§15).
     pub(super) fn set_view_mode(
         &mut self,
         mode: ViewMode,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if self.archive.is_some() {
+            // 아카이브의 자동 결정을 내려놓고 고른 모드를 세션에 반영한다.
+            if self.comic_mode == Some(mode) {
+                return;
+            }
+            self.comic_mode = Some(mode);
+            self.view_mode_changed(window, cx);
+            return;
+        }
+        if SettingsStore::global(cx).settings.view_mode == mode {
+            return;
+        }
         SettingsStore::update(cx, |settings| settings.view_mode = mode);
-        self.comic_mode = None;
         self.view_mode_changed(window, cx);
     }
 

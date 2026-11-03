@@ -90,8 +90,8 @@ impl AraView {
             Effect::Relist => self.refresh_listing(window, cx),
             Effect::Reload => self.reload(window, cx),
             Effect::Layout => {
-                // 설정에서 보기 모드를 직접 골랐으므로 아카이브의 자동 결정을 해제한다.
-                self.comic_mode = None;
+                // 표지·넓은 페이지 단독 같은 배치 설정이 바뀌었다. 세션 보기
+                // 모드는 그대로 두고 현재 위치만 새 배치에 맞춘다.
                 self.view_mode_changed(window, cx);
             }
             Effect::AlwaysOnTop => self.apply_always_on_top(window, cx),
