@@ -1403,14 +1403,15 @@ impl AraView {
         self.webtoon_normalize();
         let viewport_h = self.container().h.max(1.0);
 
-        // 위아래 2화면 안은 로드하고, 4화면 밖은 내려놓는다.
+        // 위아래 2화면 안은 로드하고, 4화면 밖은 내려놓는다. 스크롤로 곧바로
+        // 보게 될 페이지도 지금 화면에 속한다: 설정과 관계없이 내려받는다(SPEC §9.6).
         let near: Vec<usize> = self
             .webtoon_span(viewport_h * 2.0, viewport_h * 2.0)
             .into_iter()
             .map(|(index, _)| index)
             .collect();
         for index in &near {
-            self.ensure_page(*index, true, window, cx);
+            self.ensure_page(*index, true, false, window, cx);
         }
         let keep: HashSet<usize> = self
             .webtoon_span(viewport_h * 4.0, viewport_h * 4.0)

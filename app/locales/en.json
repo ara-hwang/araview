@@ -287,6 +287,10 @@
       "pendingTitle": "Applies on the next run",
       "pendingDesc": "The current cache stays unchanged until the storage mode changes on the next run."
     },
+    "cloud": {
+      "title": "Auto-download cloud files",
+      "desc": "Also prefetch thumbnails and neighboring pages for files that exist only in the cloud (OneDrive Files On-Demand, etc.). Off: only download a file when it is actually shown."
+    },
     "cacheManagement": {
       "title": "Cache management",
       "desc": "Review and delete image-derived cache files for the active storage mode.",

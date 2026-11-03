@@ -1285,6 +1285,18 @@ impl SettingsPanel {
                 cx,
             ))
             .child(setting_row(
+                t("settings.cloud.title"),
+                Some(t("settings.cloud.desc")),
+                self.toggle(
+                    "cloud-auto-download",
+                    s.cloud_auto_download,
+                    |settings, value| settings.cloud_auto_download = value,
+                    Effect::Redraw,
+                    cx,
+                ),
+                cx,
+            ))
+            .child(setting_row(
                 t("settings.resolution.title"),
                 Some(t("settings.resolution.desc")),
                 self.select(

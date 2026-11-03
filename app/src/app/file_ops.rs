@@ -98,7 +98,12 @@ impl AraView {
             return;
         }
         let next = removed.min(items.len() - 1);
-        self.replace_list(items, next, window, cx);
+        // 지운 항목 자리를 클라우드 전용 판별값에서도 같이 빼서 새 목록과 맞춘다(§9.6).
+        let mut availability = std::mem::take(&mut self.availability);
+        if availability.len() == items.len() + 1 {
+            availability.remove(removed);
+        }
+        self.replace_list(items, availability, next, window, cx);
     }
 
     pub(super) fn open_rename_dialog(&mut self, window: &mut Window, cx: &mut Context<Self>) {

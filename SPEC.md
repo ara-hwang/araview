@@ -171,7 +171,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 - 이름순은 탐색기와 같은 자연 정렬이다(`crates/araview-core/src/natural_sort.rs`): 숫자 구간은 값으로 비교해 `2.jpg`가 `10.jpg`보다 앞이고, 대소문자는 무시한다. 기호와 비ASCII 문자는 Windows에서 사용자 로캘 규칙(`LCMapStringEx`)을, 다른 OS에서는 소문자 UTF-8 코드포인트 순서를 따른다(한글은 가나다순). 경로는 폴더 단위로 나눠 비교한다. `date`/`size` 정렬의 동률과 아카이브 엔트리 순서에도 같은 규칙을 쓴다.
 - 재귀가 켜지면 하위 폴더 이미지를 포함한다. 재귀 목록이 캐시에서 올 때만 항목별 존재를 다시 확인해(256개 이상은 병렬) 워처 이벤트가 오기 전에 지워진 파일을 뺀다. 방금 스캔한 목록은 다시 확인하지 않는다.
 - 디렉토리 목록은 캐시되며 상한이 있다.
-- 응답 `availability`는 `images`와 같은 순서의 `local` | `cloud_only` | `unknown` 배열이다. Windows Files On-Demand placeholder는 `cloud_only`로 표시한다(다른 OS는 판별하지 않고 항상 `unknown`). 아카이브 목록은 빈 배열이다.
+- 응답 `availability`는 `images`와 같은 순서의 `local` | `cloud_only` | `unknown` 배열이다. Windows Files On-Demand placeholder는 `cloud_only`로 표시한다(다른 OS는 판별하지 않고 항상 `unknown`). 아카이브 목록은 빈 배열이다. 클라우드 전용 파일을 자동으로 다루는 규칙은 9.6절이다.
 
 ### 5.2 목록 새로고침
 
@@ -389,6 +389,16 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 - 진행 중인 `*.tmp-<pid>-...` 파일은 통계와 삭제 대상에서 제외한다.
 - 삭제 성공 후 UI는 페이지 캐시와 썸네일 상태를 무효화한다. 다음 탐색에서 필요한 캐시를 다시 만든다.
 
+### 9.6 클라우드 전용 파일
+
+진실: `crates/araview-core/src/file_availability.rs`, `app/src/app/pages.rs`, `app/src/app/dock.rs`, `app/src/app/grid.rs`.
+
+- Windows의 Files On-Demand placeholder(클라우드에만 있는 파일)는 파일을 읽는 순간 OS가 자동으로 내려받아 로컬에 둔다. 목록·썸네일·미리 로드가 곧 클라우드 내려받기가 되지 않게, 실제로 건드리는 범위를 설정 `cloudAutoDownload`(기본 꺼짐, §13)이 정한다. 판별은 파일을 읽지 않는 특성(§5.1의 Offline·Recall 계열)으로 한다.
+- 설정이 꺼져 있으면 클라우드 전용 파일은 화면에 들어온 것만 내려받는다: 지금 화면, 웹툰의 화면 ±2화면 창, 뒤로 넘기기 전에 확인하는 앞두 장은 읽고, 나머지 미리 로드(§9.1 거리)는 하지 않는다. 도크와 그리드는 클라우드 전용 칸의 썸네일을 요청하지 않고 구름 아이콘과 "클라우드에만 있음" 안내만 보여준다.
+- 대기열에 남아 있던 미리 로드 요청은 시작 전에 버리고, 토글을 바꾸면 설정의 Redraw 효과로 페이지 동기화와 썸네일 요청을 다시 한다. 휴지통 이동으로 목록이 밀릴 때는 판별 배열도 같은 자리를 빼서 따라간다.
+- 표시 디코드나 미리보기 디코드가 성공한 파일은 `local`로 되돌려 기록해 아이콘과 썸네일이 실제 상태를 따른다. 실패 배지의 썸네일 다시 시도는 사용자의 직접 요청이라 클라우드 전용 파일도 다시 만든다.
+- 설정이 켜져 있으면 클라우드 전용 파일도 로컬 파일과 같은 규칙(§9.1)으로 미리 내려받는다.
+
 ## 10. EXIF/파일 정보
 
 진실: `crates/araview-core/src/ops/metadata.rs`, `crates/araview-core/src/image_info.rs`, `app/src/app/info_panel.rs`.
@@ -505,6 +515,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 | `loopNavigation`        | 끝에서 루프 여부                                                        | `false`                            |
 | `cacheMode`             | `off \| nearby \| extended \| memory-1gb \| memory-2gb`                 | `nearby`                           |
 | `cacheStorageMode`      | `temporary \| persistent`                                               | `persistent`                       |
+| `cloudAutoDownload`     | 클라우드 전용(온디맨드) 파일을 썸네일·미리 로드로 미리 내려받기 (9.6절) | `false`                            |
 | `maxResolution`         | `original \| 4k \| 1080p` (긴 변 상한, 9.4절)                           | `original`                         |
 | `imageScalingMode`      | `auto \| smooth \| pixelated` 이미지 보간 방식                          | `auto`                             |
 | `viewMode`              | `single \| left-to-right \| right-to-left \| webtoon`                   | `single`                           |
