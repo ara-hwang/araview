@@ -547,27 +547,17 @@ impl AraView {
                 .gap_4()
                 .p_6()
                 .child(
-                    Empty::new()
-                        .header(
-                            EmptyHeader::new()
-                                .media(
-                                    EmptyMedia::new()
-                                        .with_variant(EmptyMediaVariant::Icon)
-                                        .child(Icon::new(Ph::Image)),
-                                )
-                                .title(EmptyTitle::new().child(t("home.emptyDesc"))),
-                        )
-                        .content(
-                            EmptyContent::new().child(
-                                Button::new("home-open")
-                                    .primary()
-                                    .icon(Ph::FolderOpen)
-                                    .label(t("home.openFile"))
-                                    .on_click(cx.listener(|this, _, window, cx| {
-                                        this.prompt_open(window, cx)
-                                    })),
-                            ),
+                    Empty::new().content(
+                        EmptyContent::new().child(
+                            Button::new("home-open")
+                                .primary()
+                                .icon(Ph::FolderOpen)
+                                .label(t("home.openFile"))
+                                .on_click(
+                                    cx.listener(|this, _, window, cx| this.prompt_open(window, cx)),
+                                ),
                         ),
+                    ),
                 )
                 .when(!recent.is_empty(), |home| {
                     home.child(

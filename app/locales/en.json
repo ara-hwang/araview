@@ -357,7 +357,6 @@
   },
   "home": {
     "drop": "Drop here to open",
-    "emptyDesc": "Drop files here or use Open File.",
     "openFile": "Open File",
     "recent": "Recent files {{count}}",
     "clearAll": "Clear all",
