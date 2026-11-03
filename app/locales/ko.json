@@ -361,7 +361,6 @@
   },
   "home": {
     "drop": "여기에 놓아 열기",
-    "emptyDesc": "파일을 끌어다 놓거나 파일 열기로 여세요.",
     "openFile": "파일 열기",
     "recent": "최근 파일 {{count}}",
     "clearAll": "전체 지우기",
