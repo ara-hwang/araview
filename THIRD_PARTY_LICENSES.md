@@ -100,7 +100,6 @@ dependencies and other-OS targets are excluded.
 | bitflags | 1.3.2 | MIT OR Apache-2.0 |
 | bitflags | 2.13.2 | MIT OR Apache-2.0 |
 | bitstream-io | 4.10.0 | MIT OR Apache-2.0 |
-| block | 0.1.6 | MIT |
 | block-buffer | 0.10.4 | MIT OR Apache-2.0 |
 | block-buffer | 0.12.1 | MIT OR Apache-2.0 |
 | block-padding | 0.3.3 | MIT OR Apache-2.0 |
@@ -256,29 +255,29 @@ dependencies and other-OS targets are excluded.
 | glow | 0.17.0 | MIT OR Apache-2.0 OR Zlib |
 | glutin_wgl_sys | 0.6.1 | Apache-2.0 |
 | gpu-allocator | 0.28.0 | MIT OR Apache-2.0 |
-| gpui-base | 0.8.1 | Apache-2.0 |
-| gpui-component | 0.8.1 | Apache-2.0 |
-| gpui-component-macros | 0.8.1 | Apache-2.0 |
-| gpui-kit | 0.8.1 | Apache-2.0 |
-| gpui-kit-assets | 0.8.1 | Apache-2.0 |
-| gpui-pre | 0.3.10 | Apache-2.0 |
-| gpui-pre-apple | 0.3.10 | Apache-2.0 |
-| gpui-pre-collections | 0.3.10 | Apache-2.0 |
-| gpui-pre-derive-refineable | 0.3.10 | Apache-2.0 |
-| gpui-pre-http-client | 0.3.10 | Apache-2.0 |
-| gpui-pre-linux | 0.3.10 | Apache-2.0 |
-| gpui-pre-macos | 0.3.10 | Apache-2.0 |
-| gpui-pre-macros | 0.3.10 | Apache-2.0 |
-| gpui-pre-platform | 0.3.10 | Apache-2.0 |
-| gpui-pre-refineable | 0.3.10 | Apache-2.0 |
-| gpui-pre-scheduler | 0.3.10 | Apache-2.0 |
-| gpui-pre-shared-string | 0.3.10 | Apache-2.0 |
-| gpui-pre-sum-tree | 0.3.10 | Apache-2.0 |
-| gpui-pre-util | 0.3.10 | Apache-2.0 |
-| gpui-pre-wgpu | 0.3.10 | Apache-2.0 |
-| gpui-pre-windows | 0.3.10 | Apache-2.0 |
-| gpui-pre-ztracing | 0.3.10 | Apache-2.0 |
-| gpui-pre-ztracing-macro | 0.3.10 | Apache-2.0 |
+| gpui-base | 0.9.0 | Apache-2.0 |
+| gpui-component | 0.9.0 | Apache-2.0 |
+| gpui-component-macros | 0.9.0 | Apache-2.0 |
+| gpui-kit | 0.9.0 | Apache-2.0 |
+| gpui-kit-assets | 0.9.0 | Apache-2.0 |
+| gpui-pre | 0.3.11 | Apache-2.0 |
+| gpui-pre-apple | 0.3.11 | Apache-2.0 |
+| gpui-pre-collections | 0.3.11 | Apache-2.0 |
+| gpui-pre-derive-refineable | 0.3.11 | Apache-2.0 |
+| gpui-pre-http-client | 0.3.11 | Apache-2.0 |
+| gpui-pre-linux | 0.3.11 | Apache-2.0 |
+| gpui-pre-macos | 0.3.11 | Apache-2.0 |
+| gpui-pre-macros | 0.3.11 | Apache-2.0 |
+| gpui-pre-platform | 0.3.11 | Apache-2.0 |
+| gpui-pre-refineable | 0.3.11 | Apache-2.0 |
+| gpui-pre-scheduler | 0.3.11 | Apache-2.0 |
+| gpui-pre-shared-string | 0.3.11 | Apache-2.0 |
+| gpui-pre-sum-tree | 0.3.11 | Apache-2.0 |
+| gpui-pre-util | 0.3.11 | Apache-2.0 |
+| gpui-pre-wgpu | 0.3.11 | Apache-2.0 |
+| gpui-pre-windows | 0.3.11 | Apache-2.0 |
+| gpui-pre-ztracing | 0.3.11 | Apache-2.0 |
+| gpui-pre-ztracing-macro | 0.3.11 | Apache-2.0 |
 | granit-parser | 1.3.0 | MIT OR Apache-2.0 |
 | half | 2.7.1 | MIT OR Apache-2.0 |
 | harfrust | 0.5.2 | MIT |
@@ -302,11 +301,15 @@ dependencies and other-OS targets are excluded.
 | iana-time-zone | 0.1.65 | MIT OR Apache-2.0 |
 | icu_collections | 2.4.0 | Unicode-3.0 |
 | icu_locale_core | 2.4.0 | Unicode-3.0 |
+| icu_locale_fallback | 2.4.0 | Unicode-3.0 |
+| icu_locale_fallback_data | 2.4.0 | Unicode-3.0 |
 | icu_normalizer | 2.4.0 | Unicode-3.0 |
 | icu_normalizer_data | 2.4.0 | Unicode-3.0 |
 | icu_properties | 2.4.0 | Unicode-3.0 |
 | icu_properties_data | 2.4.0 | Unicode-3.0 |
 | icu_provider | 2.4.0 | Unicode-3.0 |
+| icu_segmenter | 2.4.0 | Unicode-3.0 |
+| icu_segmenter_data | 2.4.0 | Unicode-3.0 |
 | ident_case | 1.0.1 | MIT OR Apache-2.0 |
 | idna | 1.1.0 | MIT OR Apache-2.0 |
 | idna_adapter | 1.2.2 | Apache-2.0 OR MIT |
@@ -382,7 +385,6 @@ dependencies and other-OS targets are excluded.
 | mac-notification-sys | 0.6.15 | MIT OR Apache-2.0 |
 | mach2 | 0.4.3 | BSD-2-Clause OR MIT OR Apache-2.0 |
 | mach2 | 0.6.0 | BSD-2-Clause OR MIT OR Apache-2.0 |
-| malloc_buf | 0.0.6 | MIT |
 | markdown | 1.0.0 | MIT |
 | markup5ever | 0.12.1 | MIT OR Apache-2.0 |
 | markup5ever_rcdom | 0.3.0 | MIT OR Apache-2.0 |
@@ -391,7 +393,6 @@ dependencies and other-OS targets are excluded.
 | memchr | 2.8.3 | Unlicense OR MIT |
 | memmap2 | 0.9.12 | MIT OR Apache-2.0 |
 | memoffset | 0.9.1 | MIT |
-| metal | 0.33.0 | MIT OR Apache-2.0 |
 | mime | 0.3.17 | MIT OR Apache-2.0 |
 | mime_guess | 2.0.5 | MIT |
 | minimal-lexical | 0.2.1 | MIT OR Apache-2.0 |
@@ -427,7 +428,6 @@ dependencies and other-OS targets are excluded.
 | num-iter | 0.1.46 | MIT OR Apache-2.0 |
 | num-rational | 0.4.2 | MIT OR Apache-2.0 |
 | num-traits | 0.2.19 | MIT OR Apache-2.0 |
-| objc | 0.2.7 | MIT |
 | objc-sys | 0.3.5 | MIT |
 | objc2 | 0.5.3 | MIT |
 | objc2 | 0.6.5 | MIT |
@@ -449,6 +449,7 @@ dependencies and other-OS targets are excluded.
 | objc2-metal | 0.3.2 | Zlib OR Apache-2.0 OR MIT |
 | objc2-quartz-core | 0.3.2 | Zlib OR Apache-2.0 OR MIT |
 | objc2-security | 0.3.2 | Zlib OR Apache-2.0 OR MIT |
+| objc2-uniform-type-identifiers | 0.3.2 | Zlib OR Apache-2.0 OR MIT |
 | objc2-user-notifications | 0.3.2 | Zlib OR Apache-2.0 OR MIT |
 | object | 0.37.3 | Apache-2.0 OR MIT |
 | once_cell | 1.21.4 | MIT OR Apache-2.0 |

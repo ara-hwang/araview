@@ -98,6 +98,7 @@ pub struct WindowsWindowState {
     initial_placement: Cell<Option<WindowOpenStatus>>,
     hwnd: HWND,
     pub(crate) a11y: RefCell<Option<A11yState>>,
+    pub mouse_position: Cell<Point<Pixels>>,
 }
 
 pub(crate) struct WindowsWindowInner {
@@ -202,6 +203,7 @@ impl WindowsWindowState {
             in_size_move: Cell::new(false),
             last_size_move_draw: Cell::new(None),
             last_draw: Cell::new(None),
+            mouse_position: Cell::new(Point::default()),
         })
     }
 
@@ -1052,7 +1054,7 @@ impl PlatformWindow for WindowsWindow {
             .log_err();
     }
 
-    #[cfg(any(test, feature = "test-support"))]
+    #[cfg(feature = "test-support")]
     fn render_to_image(&self, scene: &Scene) -> anyhow::Result<image::RgbaImage> {
         self.state
             .renderer
