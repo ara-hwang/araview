@@ -398,6 +398,9 @@ pub struct Settings {
     pub loop_navigation: bool,
     pub cache_mode: CacheMode,
     pub cache_storage_mode: CacheStorageMode,
+    /// 켜면 클라우드 전용(온디맨드) 파일도 썸네일·옆 페이지를 미리 내려받는다.
+    /// 끄면(기본) 실제로 화면에 들어온 파일만 내려받는다(SPEC §9.6).
+    pub cloud_auto_download: bool,
     pub max_resolution: MaxResolution,
     pub image_scaling_mode: ImageScalingMode,
     pub view_mode: ViewMode,
@@ -448,6 +451,7 @@ impl Default for Settings {
             loop_navigation: false,
             cache_mode: CacheMode::Nearby,
             cache_storage_mode: CacheStorageMode::Persistent,
+            cloud_auto_download: false,
             max_resolution: MaxResolution::Original,
             image_scaling_mode: ImageScalingMode::Auto,
             view_mode: ViewMode::Single,

@@ -10,6 +10,7 @@ use std::time::Instant;
 
 use crate::toast::{Toast, WindowToast, push_timed_notification};
 use araview_core::app_error::AppError;
+use araview_core::file_availability::FileAvailability;
 use araview_core::file_identity::FileIdentity;
 use araview_core::image::{ImageInfo, is_archive_file};
 use araview_core::ops;
@@ -92,6 +93,9 @@ impl Page {
 pub(super) struct DecodeJob {
     index: usize,
     protect: bool,
+    /// 미리 로드(자동 내려받기) 요청인지. 클라우드 전용 파일은 설정에 따라
+    /// 대기열에서 버릴 수 있다(SPEC §9.6).
+    prefetch: bool,
     seq: u64,
 }
 
@@ -388,17 +392,19 @@ impl AraView {
     }
 
     /// 목록을 바꾼다(휴지통 이동 뒤 등). 인덱스가 밀리므로 페이지 캐시를 비운다.
+    /// `availability`는 새 목록과 같은 순서의 파일 판별값이다. 비었으면 클라우드
+    /// 자동 내려받기 억제가 풀린다(SPEC §9.6).
     pub(super) fn replace_list(
         &mut self,
         items: Vec<Arc<str>>,
+        availability: Vec<FileAvailability>,
         index: usize,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
         self.clear_pages(window, cx);
         self.list = Arc::new(items);
-        // 인덱스가 밀려 파일별 상태 배열이 맞지 않게 되므로 버린다.
-        self.availability.clear();
+        self.availability = availability;
         self.go_to(index, window, cx);
     }
 
@@ -539,7 +545,7 @@ impl AraView {
             if self.wt_dims.contains_key(&index) || self.page_failed.contains_key(&index) {
                 continue;
             }
-            self.ensure_page(index, false, window, cx);
+            self.ensure_page(index, false, false, window, cx);
             waiting = true;
         }
         waiting
@@ -608,7 +614,7 @@ impl AraView {
         }
         let screen = self.screen_at(self.index, cx);
         for index in &screen {
-            self.ensure_page(*index, true, window, cx);
+            self.ensure_page(*index, true, false, window, cx);
         }
         self.try_commit(window, cx);
 
@@ -638,10 +644,15 @@ impl AraView {
         let evicted = self.evict_except(&keep, &protect, window, cx);
         if base > 0 && self.cache_bytes() < budget.bytes {
             for index in self.index.saturating_sub(before)..=(self.index + after).min(total - 1) {
+                // 미리 로드는 자동 내려받기이므로, 자동 내려받기가 꺼진 채로는 클라우드
+                // 전용(온디맨드) 파일을 건드리지 않는다(§9.6).
+                if self.hold_cloud(index, cx) {
+                    continue;
+                }
                 if evicted.contains(&index) {
                     continue;
                 }
-                self.ensure_page(index, false, window, cx);
+                self.ensure_page(index, false, true, window, cx);
             }
         }
     }
@@ -745,11 +756,14 @@ impl AraView {
     }
 
     /// 페이지가 캐시에 없으면 백그라운드에서 디코드한다. `protect`는 표시용 추출물을
-    /// 캐시 정리에서 보호할지이며, 프리페치는 보호 슬롯을 쓰지 않는다.
+    /// 캐시 정리에서 보호할지이며, 프리페치는 보호 슬롯을 쓰지 않는다. `prefetch`는
+    /// 지금 화면이 아니라 미리 로드라는 뜻이고, 클라우드 전용 파일은 설정에 따라
+    /// 자동으로 내려받지 않는다(SPEC §9.6).
     pub(super) fn ensure_page(
         &mut self,
         index: usize,
         protect: bool,
+        prefetch: bool,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
@@ -762,14 +776,56 @@ impl AraView {
         if index >= self.list.len() {
             return;
         }
+        if prefetch && self.hold_cloud(index, cx) {
+            return;
+        }
         self.page_loading.insert(index);
         self.decode_seq += 1;
         self.decode_queue.push(DecodeJob {
             index,
             protect,
+            prefetch,
             seq: self.decode_seq,
         });
         self.pump_decode(window, cx);
+    }
+
+    /// 자동 내려받기가 꺼져 있을 때 클라우드 전용(온디맨드) 파일을 미리 읽지 않는지.
+    /// 판별값은 목록을 읽을 때 파일을 건드리지 않는 속성으로 정리된 `availability`다.
+    pub(super) fn hold_cloud(&self, index: usize, cx: &App) -> bool {
+        !SettingsStore::global(cx).settings.cloud_auto_download
+            && matches!(
+                self.availability.get(index),
+                Some(FileAvailability::CloudOnly)
+            )
+    }
+
+    /// 이 인덱스의 파일을 실제로 읽었다. 폴더 목록이 클라우드 전용으로 판별해 둔
+    /// 값을 local로 되돌려, 도크·그리드의 구름 아이콘과 썸네일 요청이 실제 상태를
+    /// 따르게 한다(`availability`는 폴더 목록 길이와 같을 때만 의미가 있다, SPEC §9.6).
+    fn mark_local(&mut self, index: usize) {
+        if self.availability.len() == self.list.len() && self.list.get(index).is_some() {
+            self.availability[index] = FileAvailability::Local;
+        }
+    }
+
+    /// 대기 중인 full 디코드 요청 가운데 다음으로 시작할 것을 고른다. 고르는 중에
+    /// 범위를 벗어난 항목과, 자동 내려받기가 꺼진 뒤에는 대기 중인 클라우드 전용
+    /// 프리페치도 버린다(§9.6). 이미 시작한 디코드는 끝까지 돈다.
+    fn pick_decode_job(&mut self, cx: &App) -> Option<DecodeJob> {
+        while let Some(position) = next_decode_job(&self.decode_queue, self.index) {
+            let job = self.decode_queue.swap_remove(position);
+            if job.prefetch && self.hold_cloud(job.index, cx) {
+                self.page_loading.remove(&job.index);
+                continue;
+            }
+            if self.list.get(job.index).is_none() {
+                self.page_loading.remove(&job.index);
+                continue;
+            }
+            return Some(job);
+        }
+        None
     }
 
     /// 실행 중인 full 디코드가 없으면 대기열에서 하나를 골라 시작한다.
@@ -777,17 +833,17 @@ impl AraView {
         if self.decode_running {
             return;
         }
-        let Some(position) = next_decode_job(&self.decode_queue, self.index) else {
-            return;
-        };
-        let DecodeJob {
+        let Some(DecodeJob {
             index,
             protect,
             seq,
-        } = self.decode_queue.swap_remove(position);
+            ..
+        }) = self.pick_decode_job(cx)
+        else {
+            return;
+        };
         let Some(item) = self.list.get(index).cloned() else {
             self.page_loading.remove(&index);
-            self.pump_decode(window, cx);
             return;
         };
         self.decode_running = true;
@@ -870,6 +926,8 @@ impl AraView {
                         Self::drop_picture(&picture, window, cx);
                         return;
                     }
+                    // 미리보기 디코드도 파일을 실제로 읽은 결과다(§9.6).
+                    this.mark_local(index);
                     let bytes = picture::retained_bytes(&picture);
                     let preview = Page::Preview {
                         picture: picture.clone(),
@@ -902,6 +960,8 @@ impl AraView {
                 this.page_loading.remove(&index);
                 match result {
                     Ok(page) => {
+                        // 표시든 미리 로드든 파일을 실제로 읽었다. 이제 local이다(§9.6).
+                        this.mark_local(index);
                         if page.picture().width > page.picture().height
                             && !page.is_archive_preview()
                         {
@@ -1181,6 +1241,7 @@ mod tests {
         DecodeJob {
             index,
             protect,
+            prefetch: false,
             seq,
         }
     }

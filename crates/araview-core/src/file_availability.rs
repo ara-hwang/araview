@@ -1,7 +1,8 @@
 //! Windows cloud-sync placeholder detection (Files On-Demand).
 //!
-//! Used when building directory listings so the frontend can skip thumbnail
-//! hydration for offline-only files without reading file contents.
+//! Used when building directory listings so automatic hydration (thumbnails,
+//! pagination prefetch) can skip cloud-only files without reading contents.
+//! Gating is the `cloudAutoDownload` setting (SPEC §9.6).
 
 use serde::{Deserialize, Serialize};
 use std::fs;
