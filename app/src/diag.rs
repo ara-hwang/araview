@@ -41,11 +41,12 @@ pub(crate) fn collect(store: &SettingsStore) -> String {
         format!("OS: {}", os_line()),
         format!("Arch: {} {}", std::env::consts::OS, std::env::consts::ARCH),
         format!(
-            "Locale: {:?}, theme: {:?}, view: {:?}, cache: {:?}, resolution: {:?}",
+            "Locale: {:?}, theme: {:?}, view: {:?}, cache: {:?}/{:?}, resolution: {:?}",
             settings.language,
             store.theme,
             settings.view_mode,
             settings.cache_mode,
+            settings.cache_max,
             settings.max_resolution
         ),
         format!(

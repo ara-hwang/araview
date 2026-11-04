@@ -21,7 +21,7 @@ use crate::geometry::Offset;
 use crate::i18n::{t, t_with};
 use crate::layout::{self, CoverLayout, Solo};
 use crate::picture::{self, Orientation, Picture};
-use crate::settings::{ArchiveProgress, CacheMode, SettingsStore, ViewMode};
+use crate::settings::{ArchiveProgress, CacheMax, CacheMode, SettingsStore, ViewMode};
 
 pub(super) enum Page {
     Preview {
@@ -118,13 +118,13 @@ fn next_decode_job(queue: &[DecodeJob], anchor: usize) -> Option<usize> {
 pub(super) const LOADING_DELAY: std::time::Duration = std::time::Duration::from_millis(200);
 pub(super) const PREVIOUS_HOLD: std::time::Duration = std::time::Duration::from_millis(300);
 
-/// 캐시 모드별 프리페치 거리(SPEC §9.1).
-fn prefetch_distance(mode: CacheMode) -> usize {
+/// 캐시 모드별 프리페치 거리(SPEC §9.1). 폴더 전체 모드는 목록 길이를 쓴다.
+fn prefetch_distance(mode: CacheMode, total: usize) -> usize {
     match mode {
         CacheMode::Off => 0,
         CacheMode::Nearby => 1,
-        CacheMode::Memory1Gb => 2,
-        CacheMode::Extended | CacheMode::Memory2Gb => 3,
+        CacheMode::Extended => 3,
+        CacheMode::Folder | CacheMode::Memory1Gb | CacheMode::Memory2Gb => total,
     }
 }
 
@@ -135,15 +135,11 @@ pub(super) struct CacheBudget {
     pub bytes: u64,
 }
 
-/// `nearby`/`extended`의 기본 바이트 상한. 거리 창이 좁아 평소에는 바이트
-/// 예산에 닿지 않지만, 밉 단계와 프레임이 붙은 큰 이미지가 창을 채울 때를
-/// 제한한다(SPEC §9.1).
-const NEARBY_BYTES: u64 = 512 * 1024 * 1024;
-const EXTENDED_BYTES: u64 = 1024 * 1024 * 1024;
+/// 폴더 전체 모드에서 한 번에 대기시키는 프리페치 요청 수. full 디코드는 한 번에
+/// 하나만 돌므로 더 많이 쌓아도 이득이 없고, 긴 목록에서 대기열이 넘치지 않게 한다.
+const FOLDER_PREFETCH_BATCH: usize = 8;
 
-const GIB: u64 = 1024 * 1024 * 1024;
-
-fn cache_budget(mode: CacheMode) -> CacheBudget {
+fn cache_budget(mode: CacheMode, max: CacheMax) -> CacheBudget {
     match mode {
         CacheMode::Off => CacheBudget {
             items: 1,
@@ -151,20 +147,16 @@ fn cache_budget(mode: CacheMode) -> CacheBudget {
         },
         CacheMode::Nearby => CacheBudget {
             items: 24,
-            bytes: NEARBY_BYTES,
+            bytes: max.bytes(),
         },
         CacheMode::Extended => CacheBudget {
             items: 64,
-            bytes: EXTENDED_BYTES,
+            bytes: max.bytes(),
         },
-        // 거리 창과 바이트 예산이 한도를 대신한다.
-        CacheMode::Memory1Gb => CacheBudget {
+        // 거리 창 대신 바이트 상한이 한도를 정한다.
+        CacheMode::Folder | CacheMode::Memory1Gb | CacheMode::Memory2Gb => CacheBudget {
             items: usize::MAX,
-            bytes: GIB,
-        },
-        CacheMode::Memory2Gb => CacheBudget {
-            items: usize::MAX,
-            bytes: 2 * GIB,
+            bytes: max.bytes(),
         },
     }
 }
@@ -635,10 +627,13 @@ impl AraView {
         }
         self.try_commit(window, cx);
 
-        let cache_mode = SettingsStore::global(cx).settings.cache_mode;
-        let base = prefetch_distance(cache_mode);
-        let budget = cache_budget(cache_mode);
+        let (cache_mode, cache_max) = {
+            let settings = &SettingsStore::global(cx).settings;
+            (settings.cache_mode, settings.cache_max)
+        };
         let total = self.list.len();
+        let base = prefetch_distance(cache_mode, total);
+        let budget = cache_budget(cache_mode, cache_max);
         let (before, after) = if self.view_mode(cx).is_dual() {
             (base + 1, base + 2)
         } else {
@@ -659,17 +654,34 @@ impl AraView {
             .collect();
         self.cancel_queued_outside(&keep);
         let evicted = self.evict_except(&keep, &protect, window, cx);
-        if base > 0 && self.cache_bytes() < budget.bytes {
-            for index in self.index.saturating_sub(before)..=(self.index + after).min(total - 1) {
+        if base > 0 {
+            let start = self.index.saturating_sub(before);
+            let end = (self.index + after).min(total - 1);
+            let mut candidates: Vec<usize> = (start..=end).collect();
+            if cache_mode.covers_folder() {
+                // 긴 목록에서도 지금 위치와 가까운 페이지부터 예산을 채운다.
+                candidates.sort_by_key(|index| (index.abs_diff(self.index), *index));
+            }
+            let mut prefetched = 0;
+            for index in candidates {
+                if cache_mode.covers_folder() && prefetched >= FOLDER_PREFETCH_BATCH {
+                    break;
+                }
+                if self.cache_bytes() >= budget.bytes {
+                    break;
+                }
                 // 미리 로드는 자동 내려받기이므로, 자동 내려받기가 꺼진 채로는 클라우드
                 // 전용(온디맨드) 파일을 건드리지 않는다(§9.6).
-                if self.hold_cloud(index, cx) {
-                    continue;
-                }
-                if evicted.contains(&index) {
+                if self.hold_cloud(index, cx)
+                    || evicted.contains(&index)
+                    || self.pages.contains_key(&index)
+                    || self.page_loading.contains(&index)
+                    || self.page_failed.contains_key(&index)
+                {
                     continue;
                 }
                 self.ensure_page(index, false, true, window, cx);
+                prefetched += 1;
             }
         }
     }
@@ -702,7 +714,11 @@ impl AraView {
         self.page_failed.retain(|index, _| keep.contains(index));
 
         // 항목 수와 바이트 예산이 넘으면 가장 먼 페이지부터 내려놓는다(§9.1).
-        let budget = cache_budget(SettingsStore::global(cx).settings.cache_mode);
+        let (cache_mode, cache_max) = {
+            let settings = &SettingsStore::global(cx).settings;
+            (settings.cache_mode, settings.cache_max)
+        };
+        let budget = cache_budget(cache_mode, cache_max);
         let bytes: HashMap<usize, u64> = self
             .pages
             .iter()
@@ -1339,16 +1355,42 @@ mod tests {
         );
     }
 
-    /// 예산 표(SPEC §9.1)와 코드가 같다.
+    /// 예산 표(SPEC §9.1)와 코드가 같다. 바이트 상한은 전략과 따로 고른다.
     #[::core::prelude::v1::test]
     fn cache_budgets_match_the_mode_table() {
-        assert_eq!(cache_budget(CacheMode::Off).items, 1);
-        assert_eq!(cache_budget(CacheMode::Nearby).items, 24);
-        assert_eq!(cache_budget(CacheMode::Extended).items, 64);
-        assert_eq!(cache_budget(CacheMode::Nearby).bytes, 512 * MB);
-        assert_eq!(cache_budget(CacheMode::Extended).bytes, 1024 * MB);
-        assert_eq!(cache_budget(CacheMode::Memory1Gb).bytes, 1024 * MB);
-        assert_eq!(cache_budget(CacheMode::Memory2Gb).bytes, 2048 * MB);
+        assert_eq!(cache_budget(CacheMode::Off, CacheMax::Gb1).items, 1);
+        assert_eq!(cache_budget(CacheMode::Nearby, CacheMax::Gb1).items, 24);
+        assert_eq!(cache_budget(CacheMode::Extended, CacheMax::Gb1).items, 64);
+        assert_eq!(
+            cache_budget(CacheMode::Folder, CacheMax::Gb1).items,
+            usize::MAX
+        );
+        assert_eq!(cache_budget(CacheMode::Off, CacheMax::Gb2).bytes, u64::MAX);
+        assert_eq!(
+            cache_budget(CacheMode::Nearby, CacheMax::Gb1).bytes,
+            1024 * MB
+        );
+        assert_eq!(
+            cache_budget(CacheMode::Nearby, CacheMax::Mb512).bytes,
+            512 * MB
+        );
+        assert_eq!(
+            cache_budget(CacheMode::Extended, CacheMax::Gb2).bytes,
+            2048 * MB
+        );
+        assert_eq!(
+            cache_budget(CacheMode::Folder, CacheMax::Mb512).bytes,
+            512 * MB
+        );
+    }
+
+    /// 폴더 전체 모드의 프리페치 거리는 목록 전체다.
+    #[::core::prelude::v1::test]
+    fn folder_prefetch_covers_the_whole_list() {
+        assert_eq!(prefetch_distance(CacheMode::Off, 100), 0);
+        assert_eq!(prefetch_distance(CacheMode::Nearby, 100), 1);
+        assert_eq!(prefetch_distance(CacheMode::Extended, 100), 3);
+        assert_eq!(prefetch_distance(CacheMode::Folder, 100), 100);
     }
 
     const MB: u64 = 1024 * 1024;

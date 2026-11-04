@@ -16,6 +16,7 @@ pub const RECENT_FILES_LIMIT: usize = 20;
 pub const ARCHIVE_PROGRESS_LIMIT: usize = 100;
 pub const PALETTE_MRU_LIMIT: usize = 5;
 
+/// 이미지 미리 로드 전략(SPEC §9.1). 페이지 캐시의 바이트 상한은 `CacheMax`가 따로 정한다.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CacheMode {
     #[serde(rename = "off")]
@@ -25,10 +26,45 @@ pub enum CacheMode {
     Nearby,
     #[serde(rename = "extended")]
     Extended,
+    /// 현재 목록 전체를 가까운 순으로 미리 로드한다.
+    #[serde(rename = "folder")]
+    Folder,
+    /// 예전 값. 불러올 때 `Folder` + 1GB로 옮긴다.
     #[serde(rename = "memory-1gb")]
     Memory1Gb,
+    /// 예전 값. 불러올 때 `Folder` + 2GB로 옮긴다.
     #[serde(rename = "memory-2gb")]
     Memory2Gb,
+}
+
+impl CacheMode {
+    /// 현재 목록 전체를 프리페치하는 모드인지.
+    pub fn covers_folder(self) -> bool {
+        matches!(self, Self::Folder | Self::Memory1Gb | Self::Memory2Gb)
+    }
+}
+
+/// 페이지 캐시 바이트 상한(SPEC §9.1). 미리 로드 전략과 따로 고른다.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CacheMax {
+    #[serde(rename = "512mb")]
+    Mb512,
+    #[default]
+    #[serde(rename = "1gb")]
+    Gb1,
+    #[serde(rename = "2gb")]
+    Gb2,
+}
+
+impl CacheMax {
+    pub fn bytes(self) -> u64 {
+        const MB: u64 = 1024 * 1024;
+        match self {
+            Self::Mb512 => 512 * MB,
+            Self::Gb1 => 1024 * MB,
+            Self::Gb2 => 2 * 1024 * MB,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -397,6 +433,8 @@ pub struct Settings {
     pub language: Language,
     pub loop_navigation: bool,
     pub cache_mode: CacheMode,
+    /// 페이지 캐시 바이트 상한. 미리 로드 전략과 따로 고른다(SPEC §9.1).
+    pub cache_max: CacheMax,
     pub cache_storage_mode: CacheStorageMode,
     /// 켜면 클라우드 전용(온디맨드) 파일도 썸네일·옆 페이지를 미리 내려받는다.
     /// 끄면(기본) 실제로 화면에 들어온 파일만 내려받는다(SPEC §9.6).
@@ -450,6 +488,7 @@ impl Default for Settings {
             language: Language::Ko,
             loop_navigation: false,
             cache_mode: CacheMode::Nearby,
+            cache_max: CacheMax::Gb1,
             cache_storage_mode: CacheStorageMode::Persistent,
             cloud_auto_download: false,
             max_resolution: MaxResolution::Original,
@@ -495,6 +534,18 @@ impl Default for Settings {
 
 impl Settings {
     fn sanitized(mut self) -> Self {
+        // 예전 `memory-*` 캐시 모드는 폴더 전체 전략과 바이트 상한으로 나눠 옮긴다(SPEC §9.1).
+        match self.cache_mode {
+            CacheMode::Memory1Gb => {
+                self.cache_mode = CacheMode::Folder;
+                self.cache_max = CacheMax::Gb1;
+            }
+            CacheMode::Memory2Gb => {
+                self.cache_mode = CacheMode::Folder;
+                self.cache_max = CacheMax::Gb2;
+            }
+            _ => {}
+        }
         self.shortcuts = sanitize_shortcuts(std::mem::take(&mut self.shortcuts));
         // 왼쪽 드래그는 pan 또는 none만 허용한다(SPEC §14.3).
         if !matches!(self.mouse.left_drag, MouseAction::Pan | MouseAction::None) {
@@ -792,6 +843,36 @@ mod tests {
     #[test]
     fn trash_confirmation_is_kept_by_default() {
         assert!(!Settings::default().trash_without_confirm);
+    }
+
+    /// 페이지 캐시 상한은 1GB가 기본이고 전략과 따로 저장된다(SPEC §9.1, §13).
+    #[test]
+    fn cache_mode_and_max_are_saved_separately() {
+        let settings = Settings {
+            cache_mode: CacheMode::Folder,
+            cache_max: CacheMax::Mb512,
+            ..Settings::default()
+        };
+        let saved = serde_json::to_value(&settings).expect("설정 직렬화");
+        assert_eq!(saved["cacheMode"], serde_json::json!("folder"));
+        assert_eq!(saved["cacheMax"], serde_json::json!("512mb"));
+        let restored: Settings = serde_json::from_value(saved).expect("설정 복원");
+        assert_eq!(restored.cache_mode, CacheMode::Folder);
+        assert_eq!(restored.cache_max, CacheMax::Mb512);
+    }
+
+    /// 예전 memory 캐시 모드는 폴더 전체 전략과 바이트 상한으로 나눠 옮긴다(SPEC §9.1).
+    #[test]
+    fn legacy_memory_cache_modes_move_to_folder_and_max() {
+        let restored =
+            restore_settings(serde_json::json!({ "cacheMode": "memory-1gb" })).sanitized();
+        assert_eq!(restored.cache_mode, CacheMode::Folder);
+        assert_eq!(restored.cache_max, CacheMax::Gb1);
+
+        let restored =
+            restore_settings(serde_json::json!({ "cacheMode": "memory-2gb" })).sanitized();
+        assert_eq!(restored.cache_mode, CacheMode::Folder);
+        assert_eq!(restored.cache_max, CacheMax::Gb2);
     }
 
     /// 설정 파일의 키 이름은 camelCase로 저장된다(SPEC §13, `npm run docs:check`).
