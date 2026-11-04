@@ -27,9 +27,9 @@ use super::{AraView, format_bytes};
 use crate::i18n::{Language, t, t_with};
 use crate::keys;
 use crate::settings::{
-    CacheMode, CacheStorageMode, DockPosition, DockThumbSize, ImageScalingMode, MaxResolution,
-    MouseAction, Settings, SettingsStore, SortKey, ThemeChoice, UpdateChannel, ViewMode,
-    ViewerBackground, WheelAction, WheelMode, default_shortcuts,
+    CacheMax, CacheMode, CacheStorageMode, DockPosition, DockThumbSize, ImageScalingMode,
+    MaxResolution, MouseAction, Settings, SettingsStore, SortKey, ThemeChoice, UpdateChannel,
+    ViewMode, ViewerBackground, WheelAction, WheelMode, default_shortcuts,
 };
 use crate::smooth::SmoothScroll;
 
@@ -1290,11 +1290,33 @@ impl SettingsPanel {
                             ("settings.cache.off", CacheMode::Off),
                             ("settings.cache.nearby", CacheMode::Nearby),
                             ("settings.cache.extended", CacheMode::Extended),
-                            ("settings.cache.gb1", CacheMode::Memory1Gb),
-                            ("settings.cache.gb2", CacheMode::Memory2Gb),
+                            ("settings.cache.folder", CacheMode::Folder),
                         ],
                         get: |settings: &Settings| settings.cache_mode,
                         set: |settings, value| settings.cache_mode = value,
+                        effect: Effect::Redraw,
+                        view_pick: None,
+                    },
+                    window,
+                    cx,
+                ),
+                cx,
+            ))
+            .child(setting_row(
+                t("settings.cacheMax.title"),
+                Some(t("settings.cacheMax.desc")),
+                self.select(
+                    "cache-max",
+                    t("settings.cacheMax.title"),
+                    ChoiceDef {
+                        current: s.cache_max,
+                        options: &[
+                            ("settings.cacheMax.512mb", CacheMax::Mb512),
+                            ("settings.cacheMax.1gb", CacheMax::Gb1),
+                            ("settings.cacheMax.2gb", CacheMax::Gb2),
+                        ],
+                        get: |settings: &Settings| settings.cache_max,
+                        set: |settings, value| settings.cache_max = value,
                         effect: Effect::Redraw,
                         view_pick: None,
                     },

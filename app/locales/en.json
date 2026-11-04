@@ -270,12 +270,18 @@
     },
     "cache": {
       "title": "Image preloading",
-      "desc": "Image preload range and page cache item/byte limits",
+      "desc": "Image preload range and page cache byte limit",
       "off": "Off (current image only)",
-      "nearby": "Nearby (preload prev/next, 512 MB cache)",
-      "extended": "Extended (preload up to ±3, 1 GB cache)",
-      "gb1": "Page cache 1 GB (preload up to ±2)",
-      "gb2": "Page cache 2 GB (preload up to ±3)"
+      "nearby": "Nearby (preload prev/next)",
+      "extended": "Extended (preload up to ±3)",
+      "folder": "Whole folder (all images)"
+    },
+    "cacheMax": {
+      "title": "Maximum cache size",
+      "desc": "Byte limit for decoded images kept in the page cache",
+      "512mb": "512 MB",
+      "1gb": "1 GB",
+      "2gb": "2 GB"
     },
     "cacheStorage": {
       "title": "Cache retention",
