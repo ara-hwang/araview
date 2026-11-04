@@ -42,8 +42,8 @@ use gpui_kit::component::menu::ContextMenuExt as _;
 use gpui_kit::component::spinner::Spinner;
 use gpui_kit::component::tag::Tag;
 use gpui_kit::component::{
-    ActiveTheme as _, Icon, Selectable as _, Sizable as _, TitleBar, VirtualListScrollHandle,
-    WindowExt as _, h_flex, v_flex,
+    ActiveTheme as _, Disableable as _, Icon, Selectable as _, Sizable as _, TitleBar,
+    VirtualListScrollHandle, WindowExt as _, h_flex, v_flex,
 };
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
@@ -803,9 +803,12 @@ impl AraView {
         // Below the compact toolbar's natural width, hide secondary groups in order;
         // keep the left/right menus and native caption controls outside the shrinkable area.
         let show_zoom_controls = width >= HEADER_FIT_CONTROLS_MIN_WIDTH;
-        let show_fit_controls = single && show_zoom_controls;
+        // 양쪽 보기의 배율은 화면 맞춤 대비 상대값이라 맞춤과 회전/반전은 화면을 바꾸는
+        // 기능을 하지 않는다. 그래도 버튼을 숨기면 모드를 바꿀 때 다른 버튼이 옮겨 가므로
+        // 보이는 채로 두고 비활성화만 한다.
+        let show_fit_controls = show_zoom_controls;
         let show_view_modes = width >= HEADER_VIEW_MODES_MIN_WIDTH;
-        let show_transform_controls = single && width >= HEADER_TRANSFORM_CONTROLS_MIN_WIDTH;
+        let show_transform_controls = width >= HEADER_TRANSFORM_CONTROLS_MIN_WIDTH;
         // 창 드래그 가능 표시 그립(Tauri 시절 DotsNine 자리). 빈 div라
         // 타이틀바 드래그 영역에 포함돼 그립을 잡고 창을 옮길 수 있다.
         let grip_dot = cx.theme().muted_foreground;
@@ -884,6 +887,7 @@ impl AraView {
                                         "fitWidth",
                                         cx,
                                     )
+                                    .disabled(!single)
                                     .selected(self.fit_locked && fit_mode == FitMode::Width),
                                 )
                                 .child(
@@ -894,6 +898,7 @@ impl AraView {
                                         "fitHeight",
                                         cx,
                                     )
+                                    .disabled(!single)
                                     .selected(self.fit_locked && fit_mode == FitMode::Height),
                                 )
                                 .child(
@@ -904,6 +909,7 @@ impl AraView {
                                         "fitScreen",
                                         cx,
                                     )
+                                    .disabled(!single)
                                     .selected(self.fit_locked && fit_mode == FitMode::Screen),
                                 ),
                         )
@@ -1005,6 +1011,7 @@ impl AraView {
                                         "rotateCCW",
                                         cx,
                                     )
+                                    .disabled(!single)
                                     .when(extra_labels, |button| {
                                         button.label(t("header.rotateCcw"))
                                     }),
@@ -1017,6 +1024,7 @@ impl AraView {
                                         "rotateCW",
                                         cx,
                                     )
+                                    .disabled(!single)
                                     .when(extra_labels, |button| {
                                         button.label(t("header.rotateCw"))
                                     }),
@@ -1029,6 +1037,7 @@ impl AraView {
                                         "flipH",
                                         cx,
                                     )
+                                    .disabled(!single)
                                     .when(extra_labels, |button| button.label(t("header.flipH")))
                                     .selected(self.orientation.flip_h),
                                 )
@@ -1040,6 +1049,7 @@ impl AraView {
                                         "flipV",
                                         cx,
                                     )
+                                    .disabled(!single)
                                     .when(extra_labels, |button| button.label(t("header.flipV")))
                                     .selected(self.orientation.flip_v),
                                 ),
