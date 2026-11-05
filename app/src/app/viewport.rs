@@ -25,6 +25,7 @@ use araview_core::ocr::OcrRect;
 use araview_core::video_player::SPEEDS;
 
 use crate::i18n::{t, t_with};
+use crate::layout;
 use crate::picture::Picture;
 use crate::platform;
 use crate::settings::{
@@ -1730,14 +1731,17 @@ impl AraView {
     /// 읽기 영역 좌우 가장자리의 이전/다음 버튼. 우→좌 양쪽 보기는 읽는 방향대로
     /// 왼쪽이 다음이다.
     fn nav_arrow(&self, left: bool, cx: &mut Context<Self>) -> impl IntoElement + use<> {
-        let forward = left == (self.view_mode(cx) == ViewMode::RightToLeft);
+        let mode = self.view_mode(cx);
+        let forward = left == (mode == ViewMode::RightToLeft);
         let looped = SettingsStore::global(cx).settings.loop_navigation;
-        let enabled = looped
-            || if forward {
-                self.index + 1 < self.list.len()
-            } else {
-                self.index > 0
-            };
+        // 누르면 실제로 움직이는지로 판정한다. 양쪽 보기의 마지막 화면은 시작 인덱스가
+        // 끝이 아니어도 다음 화면이 없다(SPEC §3.2).
+        let total = self.list.len();
+        let enabled = if mode.is_dual() {
+            layout::dual_step(self.index, total, looped, forward, &self.solo(cx)).is_some()
+        } else {
+            layout::step_index(self.index, total, 1, looped, forward).is_some()
+        };
         let (id, icon, label) = match (left, forward) {
             (true, false) => ("nav-left", Ph::CaretLeft, "viewer.nav.prev"),
             (true, true) => ("nav-left", Ph::CaretLeft, "viewer.nav.next"),

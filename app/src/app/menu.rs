@@ -103,6 +103,24 @@ const PALETTE_GROUPS: &[(&str, &[&str])] = &[
     ("palette.group.system", &[OPEN_SETTINGS, CHECK_UPDATES]),
 ];
 
+/// 양쪽 보기에서 실행하지 않는 명령. 두 장 보기의 배율은 화면 맞춤 대비 상대값이라
+/// 맞춤과 회전/반전이 화면을 바꾸지 않는다. 헤더 버튼이 비활성인 것과 같게
+/// 단축키·우클릭 메뉴·명령 팔레트로도 실행하지 않는다(SPEC §7.5). 맞춤은 실행하면
+/// 단일 보기에도 쓰이는 `fitMode` 설정을 바꾼다.
+const SINGLE_VIEW_COMMANDS: &[&str] = &[
+    "fitWidth",
+    "fitHeight",
+    "fitScreen",
+    "rotateCW",
+    "rotateCCW",
+    "flipH",
+    "flipV",
+];
+
+fn single_view_only(id: &str) -> bool {
+    SINGLE_VIEW_COMMANDS.contains(&id)
+}
+
 fn command_label_key(id: &str) -> &'static str {
     match id {
         OPEN_SETTINGS => "palette.settings",
@@ -118,6 +136,9 @@ impl AraView {
     pub(super) fn run_action(&mut self, id: &str, window: &mut Window, cx: &mut Context<Self>) {
         // 키보드·버튼 조작이면 숨겨진 재생 컨트롤을 다시 보여 준다.
         self.bump_overlay();
+        if single_view_only(id) && self.view_mode(cx).is_dual() {
+            return;
+        }
         let webtoon = self.view_mode(cx) == ViewMode::Webtoon;
         match id {
             "navigatePrev" => self.navigate(false, window, cx),
@@ -209,6 +230,7 @@ impl AraView {
                 self.has_video(cx)
             }
             TOGGLE_COVER => has_image && self.archive.is_some(),
+            id if single_view_only(id) => has_image && !self.view_mode(cx).is_dual(),
             _ => has_image,
         }
     }
@@ -220,12 +242,13 @@ impl AraView {
         window: &mut Window,
         cx: &mut Context<PopupMenu>,
     ) -> PopupMenu {
+        let dual = view.read(cx).view_mode(cx).is_dual();
         let item = |id: &'static str, window: &mut Window| {
-            PopupMenuItem::new(t(command_label_key(id))).on_click(
-                window.listener_for(view, move |this, _, window, cx| {
+            PopupMenuItem::new(t(command_label_key(id)))
+                .disabled(dual && single_view_only(id))
+                .on_click(window.listener_for(view, move |this, _, window, cx| {
                     this.run_action(id, window, cx)
-                }),
-            )
+                }))
         };
         let mut menu = menu
             .item(item("openFile", window))
