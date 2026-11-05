@@ -558,13 +558,14 @@ impl SettingsPanel {
                     "update-channel",
                     t("settings.update.channelTitle"),
                     ChoiceDef {
-                        current: s.update_channel,
+                        current: s.effective_update_channel(),
                         options: &[
                             ("settings.update.channelStable", UpdateChannel::Stable),
                             ("settings.update.channelBeta", UpdateChannel::Beta),
                         ],
-                        get: |settings: &Settings| settings.update_channel,
-                        set: |settings, value| settings.update_channel = value,
+                        get: |settings: &Settings| settings.effective_update_channel(),
+                        // 고른 경우에만 저장된다(SPEC §20.1).
+                        set: |settings, value| settings.update_channel = Some(value),
                         effect: Effect::Redraw,
                         view_pick: None,
                     },
