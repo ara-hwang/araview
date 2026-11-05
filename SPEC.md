@@ -157,7 +157,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 
 - Windows와 Linux는 CLI 인자(`args[1]`)로 파일 경로를 넘긴다(Linux는 `.desktop`의 `Exec=... %F`). macOS는 Finder가 열기 이벤트(`open-document`, GPUI `on_open_urls`)로 파일 URL을 넘기고, 앱은 이를 첫 인스턴스의 수신 채널로 보낸다(`platform::open_urls`).
 - 시작 인자로 받은 경로는 창이 준비되면 한 번 연다(`app/src/main.rs`, `open_path`).
-- 두 번째 실행은 첫 인자를 기존 창에 넘기고 종료한다. Windows는 명명된 파이프(`\\.\pipe\<식별자>`), Linux와 macOS는 유닉스 도메인 소켓(`$XDG_RUNTIME_DIR` 또는 임시 폴더의 `<식별자>.sock`, 경로가 100바이트를 넘으면 `/tmp/araview-<uid>-<해시>.sock`, 권한 0600)이다. 소켓 파일이 남아 있어도 연결에 실패하면 새로 만든다. 기존 창은 받은 경로를 바로 연다(`app/src/app/system.rs`).
+- 두 번째 실행은 첫 인자를 기존 창에 넘기고 종료한다. Windows는 명명된 파이프(`\\.\pipe\<식별자>`), Linux와 macOS는 유닉스 도메인 소켓(`$XDG_RUNTIME_DIR` 또는 임시 폴더의 `<식별자>.sock`, 경로가 100바이트를 넘으면 `/tmp/araview-<uid>-<해시>.sock`, 권한 0600)이다. 소켓 파일이 남아 있어도 연결에 실패하면 새로 만든다. 기존 창은 받은 경로를 바로 연다(`app/src/app/system.rs`). Windows 파이프 서버는 연결을 받자마자 다음 파이프 인스턴스를 만들어 두므로, 탐색기에서 여러 파일을 한꺼번에 Enter로 열거나 연속으로 더블클릭해 두 번째 실행이 동시에 여럿 와도 모두 기존 창으로 간다. 두 번째 실행은 인스턴스가 모두 바쁘면(`ERROR_PIPE_BUSY`) `WaitNamedPipeW`로, 파이프가 아직 없으면(첫 실행이 막 시작함) 짧게 쉬며 최대 3초 동안 다시 연결하고, 그래도 닿지 못할 때만 새 창으로 연다. 파이프는 원격 클라이언트를 받지 않는다(`PIPE_REJECT_REMOTE_CLIENTS`, 지원하지 않는 Windows에서는 생략).
 - 연결 프로그램으로 실행하든 두 번째 실행이든 같은 `open_path` 흐름을 탄다.
 
 ## 5. 디렉토리 목록과 탐색
