@@ -313,6 +313,19 @@ fn download_installer(
     Ok(Some(path))
 }
 
+/// 취소된 다운로드의 결과를 버린다. 다 받아 서명까지 확인한 뒤에 취소됐으면 임시 폴더에 남은
+/// 설치 프로그램을 지운다(SPEC §20.1 "취소하면 받던 내용을 버린다").
+fn discard_cancelled_download(result: &Result<Option<PathBuf>, String>) {
+    if let Ok(Some(installer)) = result
+        && let Err(error) = std::fs::remove_file(installer)
+    {
+        log::warn!(
+            "[update] failed to remove cancelled installer {}: {error}",
+            installer.display()
+        );
+    }
+}
+
 impl AraView {
     /// 수동 업데이트 확인. 설정에서 자동 확인을 끄더라도 버튼과 팔레트는 항상 동작한다.
     pub(super) fn check_updates(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -329,6 +342,11 @@ impl AraView {
             let result = task.await;
             this.update_in(cx, |this, window, cx| {
                 this.update_checking = false;
+                // 이번 실행에서 이미 확인했으므로 아직 기다리는 시작 시 자동 확인은 건너뛴다.
+                // 그러지 않으면 5초 안에 끝난 수동 확인의 대화상자 위에 같은 대화상자가 또 뜬다.
+                if result.is_ok() {
+                    this.update_checked = true;
+                }
                 // 열린 설정 대화상자가 있으면 확인 버튼을 원래대로 되돌린다.
                 window.refresh();
                 match result {
@@ -348,6 +366,7 @@ impl AraView {
 
     /// 시작 시 1회 자동 확인. 설정이 켜져 있을 때만 창이 자리 잡은 뒤 조용히 확인하고,
     /// 새 버전이 있을 때만 대화상자를 띄운다. 최신이거나 실패하면 알리지 않는다.
+    /// 그 전에 수동 확인이 끝났으면 다시 확인하지 않는다.
     pub(super) fn maybe_auto_check_updates(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if !SettingsStore::global(cx).settings.auto_check_updates {
             return;
@@ -358,6 +377,7 @@ impl AraView {
                 .update_in(cx, |this, _, cx| {
                     if !SettingsStore::global(cx).settings.auto_check_updates
                         || this.update_checking
+                        || this.update_checked
                     {
                         return None;
                     }
@@ -484,9 +504,11 @@ impl AraView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        let view = cx.entity().downgrade();
         window.open_dialog(cx, move |dialog, _window, cx| {
             let percent = progress.percent();
             let cancel = progress.clone();
+            let view = view.clone();
             centered(dialog)
                 .close_button(false)
                 .keyboard(false)
@@ -524,6 +546,10 @@ impl AraView {
                             .on_click(move |_, window, cx| {
                                 cancel.cancelled.store(true, Ordering::Relaxed);
                                 window.close_dialog(cx);
+                                // 응답이 멈춘 다운로드는 기한(10분)까지 끝나지 않는다. 끝나기를
+                                // 기다리지 않고 바로 다음 확인과 다운로드를 받을 수 있게 한다.
+                                // 늦게 끝난 결과는 `download_update`가 버린다.
+                                view.update(cx, |this, _| this.update_checking = false).ok();
                             }),
                     ),
                 )
@@ -554,11 +580,17 @@ impl AraView {
         let progress = Arc::new(DownloadProgress::default());
         Self::show_download(progress.clone(), version, window, cx);
         // 받은 양은 배경 스레드가 기록하므로, 대화상자는 일정 간격으로 다시 그린다.
-        let refresh = cx.spawn_in(window, async move |_, cx| {
-            loop {
-                cx.background_executor().timer(PROGRESS_TICK).await;
-                if cx.update(|window, _| window.refresh()).is_err() {
-                    break;
+        let refresh = cx.spawn_in(window, {
+            let progress = progress.clone();
+            async move |_, cx| {
+                loop {
+                    cx.background_executor().timer(PROGRESS_TICK).await;
+                    // 취소하면 대화상자가 없으니 다시 그릴 것도 없다.
+                    if progress.cancelled.load(Ordering::Relaxed)
+                        || cx.update(|window, _| window.refresh()).is_err()
+                    {
+                        break;
+                    }
                 }
             }
         });
@@ -570,12 +602,14 @@ impl AraView {
         cx.spawn_in(window, async move |this, cx| {
             let result = task.await;
             drop(refresh);
+            // 취소 버튼이 이미 대화상자를 닫고 확인 상태를 풀었다. 그 뒤에 시작한 확인이나
+            // 다운로드가 있을 수 있으니 상태와 대화상자를 건드리지 않고 결과만 버린다.
+            if progress.cancelled.load(Ordering::Relaxed) {
+                discard_cancelled_download(&result);
+                return;
+            }
             this.update_in(cx, |this, window, cx| {
                 this.update_checking = false;
-                // 취소 버튼은 대화상자를 직접 닫았다. 그때는 아래 다이얼로그를 건드리지 않는다.
-                if progress.cancelled.load(Ordering::Relaxed) {
-                    return;
-                }
                 window.close_dialog(cx);
                 let launched = result.and_then(|installer| {
                     let installer = installer.ok_or("download was cancelled")?;
@@ -714,5 +748,29 @@ mod tests {
         assert_eq!(parse_version("2.7.0-beta."), None);
         assert!(!is_newer("not-a-version", "2.6.1"));
         assert!(!is_newer("2.6.1", "not-a-version"));
+    }
+}
+
+#[cfg(test)]
+mod cancel_tests {
+    use super::discard_cancelled_download;
+
+    /// 다 받은 뒤 취소된 설치 프로그램은 임시 폴더에 남지 않는다.
+    #[test]
+    fn a_cancelled_finished_download_is_removed() {
+        let dir = tempfile::tempdir().expect("임시 폴더");
+        let installer = dir.path().join("araview-update-test.exe");
+        std::fs::write(&installer, b"installer").unwrap();
+        discard_cancelled_download(&Ok(Some(installer.clone())));
+        assert!(!installer.exists());
+    }
+
+    /// 도중에 멈춘 취소나 실패는 지울 파일이 없고, 이미 없는 파일도 문제없이 넘어간다.
+    #[test]
+    fn other_cancelled_results_leave_nothing_to_remove() {
+        discard_cancelled_download(&Ok(None));
+        discard_cancelled_download(&Err("network".to_owned()));
+        let dir = tempfile::tempdir().expect("임시 폴더");
+        discard_cancelled_download(&Ok(Some(dir.path().join("missing.exe"))));
     }
 }
