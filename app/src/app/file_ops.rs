@@ -1,5 +1,7 @@
 //! 휴지통 이동과 이름 변경(SPEC §11.1, §11.2).
 
+use std::cell::Cell;
+use std::rc::Rc;
 use std::sync::Arc;
 
 use crate::toast::{Toast, WindowToast};
@@ -118,15 +120,20 @@ impl AraView {
         let old_path = info.source_path.clone();
         let input = cx.new(|cx| InputState::new(window, cx).default_value(info.file_name.clone()));
         let entity = cx.entity();
+        // Enter와 확인 버튼이 같은 이름 변경을 두 번 보내지 않게 한다. 첫 요청이 성공해
+        // 원래 파일이 없어진 뒤 두 번째가 돌면 "File not found" 실패가 하나 더 뜬다.
+        // 다이얼로그마다 새로 만들고, 요청이 끝나면(실패 포함) 다시 받는다.
+        let busy = Rc::new(Cell::new(false));
         // Enter로도 제출한다. 다이얼로그가 닫히면 입력 엔티티와 함께 구독도 사라진다.
         let submit_on_enter = {
             let entity = entity.clone();
             let old_path = old_path.clone();
+            let busy = busy.clone();
             window.subscribe(&input, cx, move |input, event: &InputEvent, window, cx| {
                 if matches!(event, InputEvent::PressEnter { .. }) {
                     let name = input.read(cx).value().to_string();
                     entity.update(cx, |this, cx| {
-                        this.rename(old_path.clone(), name, window, cx);
+                        this.rename(old_path.clone(), name, busy.clone(), window, cx);
                     });
                 }
             })
@@ -137,6 +144,7 @@ impl AraView {
             let entity = entity.clone();
             let input = input.clone();
             let old_path = old_path.clone();
+            let busy = busy.clone();
             centered(dialog)
                 .title(t("dialog.rename.title"))
                 .child(
@@ -163,7 +171,13 @@ impl AraView {
                                 .on_click(move |_, window, cx| {
                                     let name = input.read(cx).value().to_string();
                                     entity.update(cx, |this, cx| {
-                                        this.rename(old_path.clone(), name, window, cx);
+                                        this.rename(
+                                            old_path.clone(),
+                                            name,
+                                            busy.clone(),
+                                            window,
+                                            cx,
+                                        );
                                     });
                                 }),
                         ),
@@ -177,13 +191,19 @@ impl AraView {
         &mut self,
         old_path: String,
         name: String,
+        busy: Rc<Cell<bool>>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        // 앞선 요청이 아직 돌고 있으면 무시한다(다이얼로그에서 Enter와 버튼을 연달아).
+        if busy.get() {
+            return;
+        }
         if name.trim().is_empty() {
             window.toast(Toast::warning(t("toast.rename.blank")), cx);
             return;
         }
+        busy.set(true);
         let settings = &SettingsStore::global(cx).settings;
         let max_side = settings.max_resolution.max_side();
         let mode =
@@ -194,6 +214,7 @@ impl AraView {
         });
         cx.spawn_in(window, async move |this, cx| {
             let result: Result<_, AppError> = task.await;
+            busy.set(false);
             this.update_in(cx, |this, window, cx| match result {
                 Ok(info) => {
                     window.close_dialog(cx);
