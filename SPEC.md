@@ -167,10 +167,10 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 ### 5.1 `get_directory_images`
 
 - 입력: `file_path`, `options?: DirListOptions`(`sortKey: name | date | size`, `descending`, `recursive`).
-- 부모 폴더 기준으로 정렬 목록을 만들고, `current_index`는 요청 경로의 위치(없으면 0)이다.
+- 부모 폴더 기준으로 정렬 목록을 만들고, `current_index`는 요청 경로의 위치(없으면 0)이다. 철자가 정확히 같은 항목이 없을 때 대소문자만 다른 항목으로 찾는 폴백은 Windows와 macOS에서만 한다. Linux에서 대소문자만 다른 이름은 다른 파일이다.
 - 이름순은 탐색기와 같은 자연 정렬이다(`crates/araview-core/src/natural_sort.rs`): 숫자 구간은 값으로 비교해 `2.jpg`가 `10.jpg`보다 앞이고, 대소문자는 무시한다. 기호와 비ASCII 문자는 Windows에서 사용자 로캘 규칙(`LCMapStringEx`)을, 다른 OS에서는 소문자 UTF-8 코드포인트 순서를 따른다(한글은 가나다순). 경로는 폴더 단위로 나눠 비교한다. `date`/`size` 정렬의 동률과 아카이브 엔트리 순서에도 같은 규칙을 쓴다.
 - 재귀가 켜지면 하위 폴더 이미지를 포함한다. 재귀 목록이 캐시에서 올 때만 항목별 존재를 다시 확인해(256개 이상은 병렬) 워처 이벤트가 오기 전에 지워진 파일을 뺀다. 방금 스캔한 목록은 다시 확인하지 않는다.
-- 디렉토리 목록은 캐시되며 상한이 있다.
+- 디렉토리 목록은 캐시되며 상한이 있다. 캐시 키는 canonical 폴더 경로이고 Windows에서만 대소문자를 무시한다(Linux와 대소문자 구분 볼륨에서 `Comics/`와 `comics/`는 다른 목록이다). 스캔하는 동안 그 폴더에 워처 이벤트가 오면 스캔 결과는 돌려주되 캐시하지 않아, 스캔 중 추가된 파일이 다음 변경 전까지 빠지지 않는다.
 - 응답 `availability`는 `images`와 같은 순서의 `local` | `cloud_only` | `unknown` 배열이다. Windows Files On-Demand placeholder는 `cloud_only`로 표시한다(다른 OS는 판별하지 않고 항상 `unknown`). 아카이브 목록은 빈 배열이다. 클라우드 전용 파일을 자동으로 다루는 규칙은 9.6절이다.
 
 ### 5.2 목록 새로고침
