@@ -45,6 +45,7 @@ pub mod file_assoc {
 }
 pub mod file_availability;
 pub mod file_identity;
+mod fs_move;
 pub mod heif;
 pub mod image;
 pub mod image_info;
