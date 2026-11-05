@@ -175,6 +175,7 @@ licenses-extra/  # 업스트림 LICENSE 사본
 - 영구 모드는 캐시 폴더(위 표)의 `<식별자>/cache-v2/`를 사용합니다. 식별자는 설치 빌드가 `com.araview.viewer`, 디버그 빌드가 `com.araview.viewer.dev`라 개발 빌드는 별도 루트를 씁니다.
 - `temporary` 모드는 사용자 앱 캐시 디렉터리의 `session-v1/` 아래 프로세스별 `TempDir`를 사용합니다. 정상 종료 이벤트와 다음 시작 시 이전 세션 루트를 정리합니다. 모드 설정 변경은 다음 실행부터 적용되며, 영구 캐시를 끄면 다음 시작 때 이전 버전 루트를 정리합니다.
 - `cache.rs`의 `get_cache_stats`와 `clear_cache`는 캐시 트리만 대상으로 합니다. 사용자 원본 파일 경로를 입력받아 삭제하지 않습니다.
+- 동영상 포스터(`paint/video-<hash>.jpg`)의 해시에는 `video.rs`의 `POSTER_KEY_VERSION`이 섞입니다. 포스터 픽셀이 바뀌는 수정(회전 메타데이터·SAR 반영 등)을 하면 이 값을 올려 예전 포스터와 그 포스터를 쓰는 썸네일이 다시 만들어지게 합니다. 예전 파일은 LRU 축출로 정리됩니다.
 - `process_temp::mark_in_use`로 보호된 파일과 `*.tmp-<pid>-...` 작성 중 파일은 삭제하지 않습니다. 영구 캐시 hit은 mtime을 갱신해 LRU 순서를 유지합니다.
 
 ## 픽셀 보존 표시와 축소

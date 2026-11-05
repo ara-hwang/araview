@@ -24,6 +24,173 @@ const POSTER_SIDE_MAX: u32 = 4096;
 const MAX_FIRST_FRAME_PACKETS: usize = 4000;
 /// 디코드 허용 픽셀 수. 표시 경로(`display.rs`)와 같은 값이다.
 const MAX_DECODE_PIXELS: u64 = 100_000_000;
+/// 포스터 캐시 키에 섞는 형식 버전. 포스터 픽셀이 바뀌는 수정(회전·SAR 반영 등)마다
+/// 올려 예전 포스터를 다시 쓰지 않게 한다.
+const POSTER_KEY_VERSION: u8 = 2;
+
+/// 표시 기하: 회전 메타데이터(DISPLAYMATRIX)와 픽셀 종횡비(SAR).
+/// 디코드 프레임은 저장된 그대로라, 폰 세로 영상은 누워 있고 아나모픽 영상은 찌그러져
+/// 있다. 포스터·썸네일·재생 프레임과 치수가 모두 이 값을 같은 방식으로 적용한다.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct Geometry {
+    /// 시계 방향 회전(0, 90, 180, 270).
+    pub rotation: u32,
+    /// 픽셀 종횡비(가로:세로). 모르면 1:1이다.
+    pub sar: (i32, i32),
+}
+
+impl Geometry {
+    /// 회전 전 표시 크기. SAR은 FFmpeg처럼 가로를 늘이거나 줄여 반영한다.
+    pub(crate) fn unrotated(&self, width: u32, height: u32) -> (u32, u32) {
+        let (num, den) = self.sar;
+        if num <= 0 || den <= 0 || num == den {
+            return (width, height);
+        }
+        let display = (f64::from(width) * f64::from(num) / f64::from(den)).round();
+        ((display as u32).max(1), height)
+    }
+
+    /// 화면에 보이는 크기(SAR과 회전을 모두 반영).
+    pub(crate) fn display(&self, width: u32, height: u32) -> (u32, u32) {
+        let (w, h) = self.unrotated(width, height);
+        if self.rotation % 180 == 90 {
+            (h, w)
+        } else {
+            (w, h)
+        }
+    }
+}
+
+/// 스트림의 표시 기하를 읽는다.
+pub(crate) fn stream_geometry(
+    ictx: &rsmpeg::avformat::AVFormatContextInput,
+    stream_index: usize,
+) -> Geometry {
+    use rsmpeg::ffi;
+    let stream = &ictx.streams()[stream_index];
+    // SAFETY: 열린 입력 컨텍스트와 그 안의 스트림 포인터다. 프레임은 넘기지 않는다(null).
+    let sar = unsafe {
+        ffi::av_guess_sample_aspect_ratio(
+            ictx.as_ptr() as *mut _,
+            stream.as_ptr() as *mut _,
+            std::ptr::null_mut(),
+        )
+    };
+    let sar = if sar.num > 0 && sar.den > 0 {
+        (sar.num, sar.den)
+    } else {
+        (1, 1)
+    };
+    let par = stream.codecpar();
+    // SAFETY: 코덱 파라미터의 coded_side_data 배열과 그 길이를 그대로 넘긴다.
+    let side = unsafe {
+        ffi::av_packet_side_data_get(
+            par.coded_side_data,
+            par.nb_coded_side_data,
+            ffi::AV_PKT_DATA_DISPLAYMATRIX,
+        )
+    };
+    let mut rotation = 0;
+    // SAFETY: null이 아니면 FFmpeg가 소유한 유효한 side data 항목이다. 크기를 확인한 뒤
+    // 3x3 int32 행렬로 읽는다.
+    unsafe {
+        if !side.is_null() && !(*side).data.is_null() && (*side).size >= 9 * 4 {
+            let theta = ffi::av_display_rotation_get((*side).data as *const i32);
+            rotation = clockwise_rotation(theta);
+        }
+    }
+    Geometry { rotation, sar }
+}
+
+/// `av_display_rotation_get`(반시계 방향 각도)을 시계 방향 90도 단위로 바꾼다.
+/// fftools의 `get_rotation`과 같은 규칙이다. 90도 단위가 아닌 각도는 가장 가까운 단위로 맞춘다.
+fn clockwise_rotation(ccw_degrees: f64) -> u32 {
+    if !ccw_degrees.is_finite() {
+        return 0;
+    }
+    let theta = (-ccw_degrees).rem_euclid(360.0);
+    (((theta / 90.0).round() as u32) % 4) * 90
+}
+
+/// 픽셀 버퍼를 시계 방향으로 돌린다(`bpp`는 픽셀당 바이트). 90/270이면 가로세로가 바뀐다.
+/// 큰 프레임에서 캐시를 덜 흐트러뜨리도록 타일 단위로 옮긴다.
+pub(crate) fn rotate_pixels(
+    src: &[u8],
+    width: u32,
+    height: u32,
+    bpp: usize,
+    rotation: u32,
+) -> (Vec<u8>, u32, u32) {
+    let (w, h) = (width as usize, height as usize);
+    if rotation.is_multiple_of(360) || w == 0 || h == 0 {
+        return (src.to_vec(), width, height);
+    }
+    let mut dst = vec![0u8; src.len()];
+    let (out_w, out_h) = if rotation % 180 == 90 { (h, w) } else { (w, h) };
+    if bpp == 4 {
+        // 재생 프레임(BGRA)은 픽셀을 u32 하나로 옮긴다. 바이트 단위 복사보다 몇 배 빠르다.
+        // SAFETY: u8 버퍼를 u32로 보는 것은 정렬만 맞으면 안전하고, `align_to`가 정렬이
+        // 맞는 가운데 부분만 돌려준다. 앞뒤가 남으면(정렬 안 됨) 아래 일반 경로로 간다.
+        let (src_head, src_px, src_tail) = unsafe { src.align_to::<u32>() };
+        // SAFETY: 위와 같다. `dst`는 0으로 채운 같은 길이의 버퍼다.
+        let (dst_head, dst_px, dst_tail) = unsafe { dst.align_to_mut::<u32>() };
+        if src_head.is_empty()
+            && src_tail.is_empty()
+            && dst_head.is_empty()
+            && dst_tail.is_empty()
+            && src_px.len() == w * h
+        {
+            rotate_tiles(src_px, dst_px, w, h, out_w, rotation);
+            return (dst, out_w as u32, out_h as u32);
+        }
+    }
+    const TILE: usize = 64;
+    for ty in (0..h).step_by(TILE) {
+        for tx in (0..w).step_by(TILE) {
+            for y in ty..(ty + TILE).min(h) {
+                for x in tx..(tx + TILE).min(w) {
+                    let (dx, dy) = match rotation % 360 {
+                        90 => (h - 1 - y, x),
+                        180 => (w - 1 - x, h - 1 - y),
+                        _ => (y, w - 1 - x),
+                    };
+                    let s = (y * w + x) * bpp;
+                    let d = (dy * out_w + dx) * bpp;
+                    dst[d..d + bpp].copy_from_slice(&src[s..s + bpp]);
+                }
+            }
+        }
+    }
+    (dst, out_w as u32, out_h as u32)
+}
+
+/// 픽셀 하나가 원소 하나인 버퍼를 타일 단위로 돌린다.
+fn rotate_tiles<T: Copy>(
+    src: &[T],
+    dst: &mut [T],
+    w: usize,
+    h: usize,
+    out_w: usize,
+    rotation: u32,
+) {
+    const TILE: usize = 32;
+    for ty in (0..h).step_by(TILE) {
+        for tx in (0..w).step_by(TILE) {
+            for y in ty..(ty + TILE).min(h) {
+                let row = &src[y * w..(y + 1) * w];
+                let x_end = (tx + TILE).min(w);
+                for (x, &pixel) in row.iter().enumerate().take(x_end).skip(tx) {
+                    let (dx, dy) = match rotation % 360 {
+                        90 => (h - 1 - y, x),
+                        180 => (w - 1 - x, h - 1 - y),
+                        _ => (y, w - 1 - x),
+                    };
+                    dst[dy * out_w + dx] = pixel;
+                }
+            }
+        }
+    }
+}
 
 /// 동영상 프로브 결과. 재생(M2) 전에는 메타데이터와 포스터만 쓴다.
 #[derive(Serialize, Debug, Clone, PartialEq)]
@@ -97,7 +264,9 @@ pub fn cached_poster(source: &Path, max_side: u32) -> Option<(PathBuf, u32, u32)
 }
 
 fn poster_path(source: &Path, max_side: u32) -> Result<PathBuf, AppError> {
-    let hash = crate::sidecar::file_identity_hash(source, &max_side.to_le_bytes())?;
+    let mut salt = max_side.to_le_bytes().to_vec();
+    salt.push(POSTER_KEY_VERSION);
+    let hash = crate::sidecar::file_identity_hash(source, &salt)?;
     Ok(crate::sidecar::paint_dir()?.join(format!("{POSTER_PREFIX}{hash:016x}.jpg")))
 }
 
@@ -114,6 +283,7 @@ struct OpenedVideo {
     fps: Option<f64>,
     duration_ms: Option<u64>,
     has_audio: bool,
+    geometry: Geometry,
 }
 
 fn cstr(path: &Path) -> Result<CString, AppError> {
@@ -151,6 +321,7 @@ fn open_input(path: &Path) -> Result<OpenedVideo, AppError> {
         .find_best_stream(ffi::AVMEDIA_TYPE_AUDIO)
         .map(|r| r.is_some())
         .unwrap_or(false);
+    let geometry = stream_geometry(&ictx, stream_index);
     Ok(OpenedVideo {
         stream_index,
         decoder_name,
@@ -159,11 +330,16 @@ fn open_input(path: &Path) -> Result<OpenedVideo, AppError> {
         fps,
         duration_ms,
         has_audio,
+        geometry,
     })
 }
 
+/// 표시 치수. 회전 메타데이터와 SAR을 반영해 화면에 보이는 크기를 돌려준다.
 fn stream_dims(opened: &OpenedVideo) -> Result<(Option<u32>, Option<u32>), AppError> {
-    Ok((Some(opened.width as u32), Some(opened.height as u32)))
+    let (width, height) = opened
+        .geometry
+        .display(opened.width as u32, opened.height as u32);
+    Ok((Some(width), Some(height)))
 }
 
 fn stream_fps(opened: &OpenedVideo) -> Option<f64> {
@@ -258,21 +434,27 @@ fn decode_first_frame_rgb8(source: &Path, max_side: u32) -> Result<Rgb8, AppErro
         }
     }
     let frame = frame.ok_or_else(|| AppError::corrupt("No decodable video frame"))?;
-    rgb24_of(&frame, max_side)
+    rgb24_of(&frame, max_side, opened.geometry)
 }
 
 /// 디코드 프레임을 RGB24 바이트로 바꾼다. 포스터에 필요한 크기로 바로
 /// 줄여서 변환해, 전체 해상도 버퍼를 만든 뒤 다시 줄이는 비용을 없앤다.
-fn rgb24_of(frame: &rsmpeg::avutil::AVFrame, max_side: u32) -> Result<Rgb8, AppError> {
+/// SAR은 변환 크기에, 회전은 변환 뒤 픽셀에 반영한다.
+fn rgb24_of(
+    frame: &rsmpeg::avutil::AVFrame,
+    max_side: u32,
+    geometry: Geometry,
+) -> Result<Rgb8, AppError> {
     use rsmpeg::ffi;
     let (width, height) = (frame.width, frame.height);
     if width <= 0 || height <= 0 {
         return Err(AppError::corrupt("Invalid video frame"));
     }
-    let longest = width.max(height) as u32;
+    let (display_width, display_height) = geometry.unrotated(width as u32, height as u32);
+    let longest = display_width.max(display_height);
     let scale = (f64::from(max_side.max(1)) / f64::from(longest)).min(1.0);
-    let out_width = ((width as f64 * scale).round() as u32).max(1);
-    let out_height = ((height as f64 * scale).round() as u32).max(1);
+    let out_width = ((f64::from(display_width) * scale).round() as u32).max(1);
+    let out_height = ((f64::from(display_height) * scale).round() as u32).max(1);
     let mut scaler = rsmpeg::swscale::SwsContext::get_context(
         width,
         height,
@@ -301,10 +483,11 @@ fn rgb24_of(frame: &rsmpeg::avutil::AVFrame, max_side: u32) -> Result<Rgb8, AppE
     framed
         .image_copy_to_buffer(&mut buf, 1)
         .map_err(|e| AppError::corrupt(format!("Failed to copy frame: {e:?}")))?;
+    let (bytes, width, height) = rotate_pixels(&buf, out_width, out_height, 3, geometry.rotation);
     Ok(Rgb8 {
-        width: out_width,
-        height: out_height,
-        bytes: buf,
+        width,
+        height,
+        bytes,
     })
 }
 
@@ -426,6 +609,138 @@ mod tests {
         assert!(
             bottom.iter().any(|&b| b != 0),
             "720p+ bottom row is all zero (swscale src_slice_h)"
+        );
+    }
+
+    /// RGB24 버퍼에서 빨간 칸(왼쪽 위 16x12로 그린 표식)의 경계 상자.
+    fn red_box(
+        rgb: &[u8],
+        width: u32,
+        height: u32,
+        bpp: usize,
+        red_index: usize,
+    ) -> (u32, u32, u32, u32) {
+        let (mut x0, mut y0, mut x1, mut y1) = (u32::MAX, u32::MAX, 0, 0);
+        for y in 0..height {
+            for x in 0..width {
+                let p = ((y * width + x) as usize) * bpp;
+                let red = rgb[p + red_index];
+                let green = rgb[p + 1];
+                if red > 180 && green < 80 {
+                    x0 = x0.min(x);
+                    y0 = y0.min(y);
+                    x1 = x1.max(x);
+                    y1 = y1.max(y);
+                }
+            }
+        }
+        (x0, y0, x1, y1)
+    }
+
+    #[test]
+    fn rotation_metadata_turns_dimensions_and_poster() {
+        // 64x48로 저장되고 시계 방향 90도로 표시해야 하는 영상(폰 세로 영상과 같은 메타데이터).
+        // 왼쪽 위 빨간 칸은 화면에서 오른쪽 위에 와야 한다(ffmpeg 자동 회전과 같음).
+        let path = sample("sample-rotated.mp4");
+        let probed = probe(&path).unwrap();
+        assert_eq!((probed.width, probed.height), (Some(48), Some(64)));
+        let rgb = decode_first_frame_rgb8(&path, 64).unwrap();
+        assert_eq!((rgb.width, rgb.height), (48, 64));
+        let (x0, y0, x1, y1) = red_box(&rgb.bytes, rgb.width, rgb.height, 3, 0);
+        assert!(
+            x0 >= 32 && x1 == 47 && y0 == 0 && y1 <= 16,
+            "red at {x0},{y0}-{x1},{y1}"
+        );
+        let (poster, width, height) = ensure_poster(&path, 64).unwrap();
+        assert_eq!((width, height), (48, 64));
+        assert!(poster.is_file());
+    }
+
+    #[test]
+    fn sample_aspect_ratio_widens_dimensions_and_poster() {
+        // 64x48, SAR 2:1. 화면 비율 8:3으로 보여야 한다.
+        let path = sample("sample-anamorphic.mp4");
+        let probed = probe(&path).unwrap();
+        assert_eq!((probed.width, probed.height), (Some(128), Some(48)));
+        let rgb = decode_first_frame_rgb8(&path, 128).unwrap();
+        assert_eq!((rgb.width, rgb.height), (128, 48));
+        let (x0, y0, x1, y1) = red_box(&rgb.bytes, rgb.width, rgb.height, 3, 0);
+        // 16x12 칸이 가로로 두 배가 된다.
+        assert!(
+            x0 == 0 && (29..=33).contains(&x1) && y0 == 0 && y1 <= 12,
+            "red at {x0},{y0}-{x1},{y1}"
+        );
+    }
+
+    #[test]
+    fn clockwise_rotation_follows_fftools() {
+        assert_eq!(clockwise_rotation(0.0), 0);
+        // ffprobe의 rotation=-90(폰 세로 영상)은 시계 방향 90도다.
+        assert_eq!(clockwise_rotation(-90.0), 90);
+        assert_eq!(clockwise_rotation(90.0), 270);
+        assert_eq!(clockwise_rotation(180.0), 180);
+        assert_eq!(clockwise_rotation(-180.0), 180);
+        assert_eq!(clockwise_rotation(-89.6), 90);
+        assert_eq!(clockwise_rotation(f64::NAN), 0);
+    }
+
+    #[test]
+    fn rotate_pixels_moves_corners() {
+        // 3x2, 픽셀 값은 인덱스. 0 1 2 / 3 4 5
+        let src: Vec<u8> = (0..6).collect();
+        let (cw, w, h) = rotate_pixels(&src, 3, 2, 1, 90);
+        assert_eq!((w, h), (2, 3));
+        assert_eq!(cw, vec![3, 0, 4, 1, 5, 2]);
+        let (flip, w, h) = rotate_pixels(&src, 3, 2, 1, 180);
+        assert_eq!((w, h), (3, 2));
+        assert_eq!(flip, vec![5, 4, 3, 2, 1, 0]);
+        let (ccw, w, h) = rotate_pixels(&src, 3, 2, 1, 270);
+        assert_eq!((w, h), (2, 3));
+        assert_eq!(ccw, vec![2, 5, 1, 4, 0, 3]);
+    }
+
+    #[test]
+    fn rotate_pixels_moves_four_byte_pixels_whole() {
+        // 3x2 BGRA. 픽셀 i는 [i, i, i, 255].
+        let src: Vec<u8> = (0..6u8).flat_map(|i| [i, i, i, 255]).collect();
+        for (rotation, order) in [
+            (90, vec![3u8, 0, 4, 1, 5, 2]),
+            (180, vec![5, 4, 3, 2, 1, 0]),
+            (270, vec![2, 5, 1, 4, 0, 3]),
+        ] {
+            let (out, _, _) = rotate_pixels(&src, 3, 2, 4, rotation);
+            let expected: Vec<u8> = order.iter().flat_map(|&i| [i, i, i, 255]).collect();
+            assert_eq!(out, expected, "rotation {rotation}");
+        }
+    }
+
+    #[test]
+    fn geometry_applies_sar_before_rotation() {
+        let geometry = Geometry {
+            rotation: 90,
+            sar: (4, 3),
+        };
+        assert_eq!(geometry.unrotated(1440, 1080), (1920, 1080));
+        assert_eq!(geometry.display(1440, 1080), (1080, 1920));
+        let identity = Geometry {
+            rotation: 0,
+            sar: (1, 1),
+        };
+        assert_eq!(identity.display(64, 48), (64, 48));
+    }
+}
+#[cfg(test)]
+mod rot_bench {
+    #[test]
+    fn bench() {
+        let src = vec![7u8; 1920 * 1080 * 4];
+        let t = std::time::Instant::now();
+        for _ in 0..10 {
+            let _ = super::rotate_pixels(&src, 1920, 1080, 4, 90);
+        }
+        println!(
+            "ROT 1080p bgra avg {:.2}ms",
+            t.elapsed().as_secs_f64() * 100.0
         );
     }
 }
