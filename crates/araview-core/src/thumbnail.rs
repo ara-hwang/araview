@@ -131,10 +131,16 @@ pub fn generate_thumbnail(source: &Path, max_side: u32) -> Result<ThumbnailInfo,
                             .map_err(|e| AppError::image_error("Failed to decode image", e))?,
                     },
                 };
-                let img = crate::orientation::apply_to_image(
-                    img,
-                    crate::orientation::read_orientation(source),
-                );
+                // 표시와 같은 기준(JPEG/TIFF)으로만 회전한다. PNG/WebP의 태그를
+                // 반영하면 썸네일만 돌아가 원본 보기와 어긋난다.
+                let img = if crate::orientation::applies_to(source) {
+                    crate::orientation::apply_to_image(
+                        img,
+                        crate::orientation::read_orientation(source),
+                    )
+                } else {
+                    img
+                };
                 img.thumbnail(max_side, max_side)
             };
             write_jpeg_atomic(&dest, &thumb)?;
@@ -286,7 +292,9 @@ fn thumbs_dir() -> Result<PathBuf, AppError> {
 }
 
 fn thumb_path(source: &Path, max_side: u32) -> Result<PathBuf, AppError> {
-    let hash = crate::sidecar::file_identity_hash(source, &max_side.to_le_bytes())?;
+    let mut extra = max_side.to_le_bytes().to_vec();
+    extra.extend_from_slice(crate::orientation::cache_scope_tag(source));
+    let hash = crate::sidecar::file_identity_hash(source, &extra)?;
     Ok(thumbs_dir()?.join(format!("{hash:016x}.jpg")))
 }
 
@@ -304,4 +312,46 @@ fn write_jpeg_atomic(dest: &Path, img: &image::DynamicImage) -> Result<(), AppEr
         )));
     }
     crate::sidecar::publish_atomic(&tmp, dest, "Failed to publish thumbnail")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::orientation::test_images::{write_jpeg, write_png};
+
+    /// 원본 보기는 PNG의 EXIF Orientation을 적용하지 않으므로 썸네일도 돌리지 않는다.
+    #[test]
+    fn png_orientation_tag_does_not_rotate_the_thumbnail() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("wide.png");
+        write_png(&path, 80, 40, 6);
+        assert_eq!(crate::orientation::read_orientation(&path), 6);
+
+        let thumb = generate_thumbnail(&path, 64).unwrap();
+
+        assert!(
+            thumb.width > thumb.height,
+            "{}x{}",
+            thumb.width,
+            thumb.height
+        );
+    }
+
+    /// JPEG는 표시와 같이 Orientation을 반영한다.
+    #[test]
+    fn jpeg_orientation_tag_rotates_the_thumbnail() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("wide.jpg");
+        write_jpeg(&path, 80, 40, 6);
+        assert_eq!(crate::orientation::read_orientation(&path), 6);
+
+        let thumb = generate_thumbnail(&path, 64).unwrap();
+
+        assert!(
+            thumb.height > thumb.width,
+            "{}x{}",
+            thumb.width,
+            thumb.height
+        );
+    }
 }
