@@ -616,6 +616,8 @@ struct Decoder {
     time_base: (i32, i32),
     /// 재생 위치 0에 해당하는 컨테이너 시작 시각(ms). 오디오와 같은 기준이다.
     origin_ms: i64,
+    /// 회전 메타데이터와 SAR. 출력 프레임에 반영한다(포스터와 같은 기준).
+    geometry: crate::video::Geometry,
 }
 
 fn open_decoder(source: &Path) -> Result<Decoder, String> {
@@ -656,6 +658,7 @@ fn open_decoder(source: &Path) -> Result<Decoder, String> {
     ctx.open(None)
         .map_err(|e| format!("Failed to open decoder: {e:?}"))?;
     let origin_ms = container_origin_ms(&ictx);
+    let geometry = crate::video::stream_geometry(&ictx, stream_index);
     Ok(Decoder {
         ictx,
         ctx,
@@ -664,6 +667,7 @@ fn open_decoder(source: &Path) -> Result<Decoder, String> {
         stream_index,
         time_base,
         origin_ms,
+        geometry,
     })
 }
 
@@ -789,7 +793,9 @@ impl Decoder {
         if width <= 0 || height <= 0 {
             return Err("Invalid video frame".to_string());
         }
-        let (out_width, out_height) = output_dimensions(width as u32, height as u32);
+        // SAR을 반영한 표시 크기로 바로 변환해 픽셀이 정사각형이 되게 한다.
+        let (display_width, display_height) = self.geometry.unrotated(width as u32, height as u32);
+        let (out_width, out_height) = output_dimensions(display_width, display_height);
         let format = frame.format;
         let key = (width as u32, height as u32, out_width, out_height, format);
         if self.scaler.is_none() || self.scaler_key != Some(key) {
@@ -832,6 +838,17 @@ impl Decoder {
                     linesize.as_ptr(),
                 )
                 .map_err(|e| format!("Failed to scale frame: {e:?}"))?;
+        }
+        if self.geometry.rotation != 0 {
+            // 회전 메타데이터(폰 세로 영상 등)는 변환 뒤 BGRA에 적용한다. 출력이 긴 변
+            // 1920px로 줄어든 뒤라 회전 비용이 원본 해상도에 비례하지 않는다.
+            return Ok(crate::video::rotate_pixels(
+                &buf,
+                out_width,
+                out_height,
+                4,
+                self.geometry.rotation,
+            ));
         }
         Ok((buf, out_width, out_height))
     }
@@ -1143,6 +1160,47 @@ mod tests {
         Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../samples")
             .join(name)
+    }
+
+    fn first_frame(name: &str) -> VideoFrame {
+        let player = VideoPlayer::open(&sample(name)).unwrap();
+        player.play(1.0);
+        for _ in 0..500 {
+            if let Ok(Some(frame)) = player.poll_frame() {
+                player.pause();
+                return frame;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        panic!("no frame decoded from {name}");
+    }
+
+    #[test]
+    fn playback_frames_follow_rotation_metadata() {
+        let player = VideoPlayer::open(&sample("sample-rotated.mp4")).unwrap();
+        assert_eq!((player.info().width, player.info().height), (48, 64));
+        drop(player);
+        let frame = first_frame("sample-rotated.mp4");
+        assert_eq!((frame.width, frame.height), (48, 64));
+        // BGRA. 저장 영상 왼쪽 위 빨간 칸이 화면 오른쪽 위에 와야 한다.
+        let pixel = |x: u32, y: u32| {
+            let p = ((y * frame.width + x) * 4) as usize;
+            (frame.bgra[p + 2], frame.bgra[p + 1], frame.bgra[p])
+        };
+        let (r, g, _) = pixel(44, 3);
+        assert!(
+            r > 180 && g < 80,
+            "top-right should be red: {:?}",
+            pixel(44, 3)
+        );
+        let (r, _, _) = pixel(3, 3);
+        assert!(r < 80, "top-left should not be red: {:?}", pixel(3, 3));
+    }
+
+    #[test]
+    fn playback_frames_apply_sample_aspect_ratio() {
+        let frame = first_frame("sample-anamorphic.mp4");
+        assert_eq!((frame.width, frame.height), (128, 48));
     }
 
     #[test]

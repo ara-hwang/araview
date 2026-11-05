@@ -54,7 +54,7 @@
 
 ### 2.2 동영상 5종
 
-목록·연결·판별에 더해 첫 프레임 정지 미리보기(포스터)와 본격 재생을 지원한다. 디코더는 rsmpeg(FFmpeg 8.x, MIT)이며, `vcpkg.json` 매니페스트가 `builtin-baseline`으로 FFmpeg 8.0.1을 고정한다(`rsmpeg 0.18`이 8.0 헤더 기준). 재생 동작은 7.6절을 따른다. `crates/araview-core/src/video.rs`의 `VideoProbe`(메타데이터)와 포스터 JPEG sidecar(`paint/`의 `video-<hash>.jpg`)가 렌더·썸네일·클립보드의 입력이다.
+목록·연결·판별에 더해 첫 프레임 정지 미리보기(포스터)와 본격 재생을 지원한다. 디코더는 rsmpeg(FFmpeg 8.x, MIT)이며, `vcpkg.json` 매니페스트가 `builtin-baseline`으로 FFmpeg 8.0.1을 고정한다(`rsmpeg 0.18`이 8.0 헤더 기준). 재생 동작은 7.6절을 따른다. `crates/araview-core/src/video.rs`의 `VideoProbe`(메타데이터)와 포스터 JPEG sidecar(`paint/`의 `video-<hash>.jpg`)가 렌더·썸네일·클립보드의 입력이다. 회전 메타데이터(스트림 DISPLAYMATRIX, `av_display_rotation_get`)는 fftools와 같은 규칙으로 시계 방향 90도 단위(0/90/180/270)로 맞춰 적용하고, 픽셀 종횡비(SAR, `av_guess_sample_aspect_ratio`)는 FFmpeg처럼 가로를 늘이거나 줄여 정사각 픽셀로 만든다(SAR 먼저, 회전 나중). 그래서 폰 세로 영상은 세로로, 아나모픽 영상은 화면 비율대로 보이고, 치수(`VideoProbe`, `ImageInfo`)·포스터·썸네일·클립보드·재생 프레임이 모두 같은 기준이다. 재생 프레임은 SAR을 swscale 출력 크기에, 회전을 줄인 BGRA 버퍼에 반영한다. 반전이 섞인 행렬은 회전만 반영한다.
 
 | 확장자 | MIME                   | 비고                                                              |
 | ------ | ---------------------- | ----------------------------------------------------------------- |
@@ -362,7 +362,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 ### 9.3 썸네일
 
 - `generate_thumbnail`: 기본 256px, JPEG 캐시 후 재사용한다. 상한(500MB)을 넘기면 오래된 것부터 상한의 90%까지 제거한다. 상한 초과는 새로 쓴 파일 크기를 누적해 판단하므로, 쓸 때마다 폴더 전체를 다시 훑지 않는다(HEIC/PSD sidecar의 `paint/`, 축소본의 `scaled/`, 클립보드 복사용 PNG의 `clipboard/`도 같다. 11.3절).
-- HEIC/HEIF/AVIF/JXL/PSD/TGA/DDS/EXR/QOI/HDR/PNM/RAW는 썸네일용 JPEG sidecar 경로를 쓴다(AVIF와 JXL은 표시만 네이티브이고 썸네일은 각각 libheif, jxl-oxide로 디코드한다). 동영상은 첫 프레임 포스터 JPEG(`paint/`의 `video-<hash>.jpg`)를 쓴다(2.2절).
+- HEIC/HEIF/AVIF/JXL/PSD/TGA/DDS/EXR/QOI/HDR/PNM/RAW는 썸네일용 JPEG sidecar 경로를 쓴다(AVIF와 JXL은 표시만 네이티브이고 썸네일은 각각 libheif, jxl-oxide로 디코드한다). 동영상은 첫 프레임 포스터 JPEG(`paint/`의 `video-<hash>.jpg`)를 쓴다(2.2절). 포스터는 회전 메타데이터와 SAR을 반영한 표시 방향·비율이다.
 - 디코드 불가 입력(SVG 등)이나 아카이브 엔트리명은 에러를 내고, UI는 원본으로 폴백한다.
 - 배치 조회와 아카이브 엔트리용 썸네일 API를 별도로 제공한다. 아카이브 썸네일은 추출물과 캐시를 재사용해 풀사이즈 로드를 피한다.
 - 도크와 그리드의 아카이브 엔트리는 청크마다 `generate_archive_thumbnails_batch` 1회로 요청한다. 추출 디렉터리 식별은 배치당 한 번만 계산하고, 워커마다 아카이브를 한 번만 열어 자기 몫의 엔트리를 추출·축소한다. 실패한 엔트리와 배치 자체의 실패는 UI가 원본 로드로 폴백한다.
@@ -715,7 +715,7 @@ Rust와 TypeScript는 같은 모양을 유지한다.
 - `ClipboardPng`: `{ file_path: string }`. 클립보드에 쓸 PNG의 파생 이미지 캐시 경로다(11.3절). 동영상은 포스터(첫 프레임) JPEG를 PNG로 담은 경로다.
 - `OcrResult`: `{ lines: OcrLine[], width: number, height: number }`. `width`/`height`는 인식에 넣은 이미지 치수(엔진 한계로 줄였다면 줄인 뒤 값)다.
 - `OcrLine`: `{ text, rect: OcrRect, words: OcrWord[], language }`. `OcrWord`는 `{ text, rect }`, `OcrRect`는 이미지 전체를 1로 본 `{ x, y, width, height }`다.
-- `VideoProbe`: `{ mime_type: string, width: number | null, height: number | null, duration_ms: number | null, fps: number | null, codec: string | null, has_audio: boolean, decodable: boolean }`. 치수·길이·fps는 컨테이너 헤더에서 읽는다(2.2절).
+- `VideoProbe`: `{ mime_type: string, width: number | null, height: number | null, duration_ms: number | null, fps: number | null, codec: string | null, has_audio: boolean, decodable: boolean }`. 치수·길이·fps는 컨테이너 헤더에서 읽는다(2.2절). 치수는 회전 메타데이터와 SAR을 반영한 표시 치수다.
 - `ExifData`: `Record<string, string>`.
 - `Histogram`: `{ r: number[256], g: number[256], b: number[256], sampled_pixels: number }`.
 - `ImageDetails`: 16.2 모양 그대로. 색상 모드, 비트/채널, 생성/수정 시각, DPI, ICC 상태를 포함한다.
@@ -771,7 +771,7 @@ UI 분류 5종:
 - RAW(CR2/CR3/NEF/NRW/ARW/DNG/ORF/RW2/PEF/SRW/RAF/MRW/SR2/SRF/RWL/3FR/KDC/DCR/IIQ)는 새 의존성 없이 `raw.rs`가 내장 JPEG 미리보기를 꺼내 디코드한다. 방향은 미리보기 JPEG가 아니라 RAW IFD0의 Orientation을 픽셀에 반영하고, TIFF 기반이 아닌 CR3/RAF는 JPEG 표지 훑기로만 미리보기를 찾아 IFD가 없으므로 방향을 적용하지 않는다. 1단계에서 미리보기를 못 찾으면 rawler(LGPL-2.1)로 폴백해 카메라 제작 미리보기 → 썸네일 → 센서 현상 순서로 디코드하고, 이때 방향은 rawler 메타데이터의 Orientation을 따른다(2.4절). 파일이 TIFF 시그니처를 가져도 확장자가 RAW이면 RAW로 본다(`resolve_mime`). 색상 모드는 `rgb` 8비트로 보고하며, 센서 쪽 정보(실제 비트 수, 색 프로파일)는 읽지 않는다.
 - JXL은 jxl-oxide(순수 Rust, 추가 DLL 없음)로 디코드한다. 코드스트림 헤더의 orientation은 디코더가 픽셀과 치수에 반영하므로 EXIF 회전을 따로 적용하지 않는다. 색 공간이 열거형으로 신호된 이미지(XYB 손실 압축, Display P3, PQ/HLG, 선형 등)는 sRGB로 변환하고, ICC 프로파일만 실린 RGB·회색조 이미지는 픽셀을 그대로 둔다. CMYK는 실린 ICC 프로파일을 moxcms(순수 Rust CMS)로 해석해 sRGB로 변환하고, 상세 패널에는 디코드 결과대로 RGB로 표시한다. 움직이는 JXL은 키프레임을 모두 디코드해 GIF/APNG/WebP와 같은 재생 경로를 타고, 전체 프레임이 애니메이션 예산(RGBA 512MB)을 넘으면 첫 프레임만 표시한다. 1억 픽셀을 넘으면 `TooLarge`로 거부한다.
 - AVIF는 libheif로 디코드한다. 이미지 시퀀스(움직이는 AVIF, `avis`)는 첫 영상 트랙의 프레임을 모두 디코드해 GIF/APNG/WebP와 같은 재생 경로를 타고, 프레임 지연은 트랙 타임스케일에서 계산한다. 전체 프레임이 애니메이션 예산(RGBA 512MB)을 넘으면 첫 프레임만 표시한다. edit list의 반복 횟수는 읽지 않고 항상 무한 반복한다. 썸네일·히스토그램·클립보드는 기본 이미지(정지 항목)를 쓴다.
-- 동영상(mp4/mov/webm/mkv/avi)은 첫 프레임 포스터 JPEG sidecar(`paint/`의 `video-<hash>.jpg`, 원본 식별 해시 + 한 변 기준)를 `file_path`로 돌려주고, UI는 이를 정지 이미지처럼 그린다. 치수(`ImageInfo.width/height`)는 포스터 기준이다. 썸네일은 같은 포스터 파이프라인을 쓰고, 클립보드 복사는 포스터의 첫 프레임을 PNG로 담는다. 히스토그램은 렌더 바이트(포스터) 기준이라 별도 분기 없이 동작한다. 재생은 스트리밍 디코드다. `video_player.rs`가 디먹스·디코드 워커 스레드를 소유하고, UI는 오디오(있으면) 또는 단조 클럭으로 `VideoFrame`(BGRA)을 뽑아 밉맵 없는 `RenderImage` 한 장으로 그려 매 프레임 교체한다. 디코드 단계에서 긴 변 1920px로 줄이고(swscale이 표시 버퍼에 직접 기록해 사본을 없앤다), 전 프레임을 미리 적재하지 않는다(7.6절).
+- 동영상(mp4/mov/webm/mkv/avi)은 첫 프레임 포스터 JPEG sidecar(`paint/`의 `video-<hash>.jpg`, 원본 식별 해시 + 한 변 + 포스터 형식 버전 기준. 회전·SAR 반영처럼 포스터 픽셀이 바뀌는 수정은 형식 버전을 올려 예전 포스터를 다시 쓰지 않는다)를 `file_path`로 돌려주고, UI는 이를 정지 이미지처럼 그린다. 치수(`ImageInfo.width/height`)는 포스터 기준이다. 썸네일은 같은 포스터 파이프라인을 쓰고, 클립보드 복사는 포스터의 첫 프레임을 PNG로 담는다. 히스토그램은 렌더 바이트(포스터) 기준이라 별도 분기 없이 동작한다. 재생은 스트리밍 디코드다. `video_player.rs`가 디먹스·디코드 워커 스레드를 소유하고, UI는 오디오(있으면) 또는 단조 클럭으로 `VideoFrame`(BGRA)을 뽑아 밉맵 없는 `RenderImage` 한 장으로 그려 매 프레임 교체한다. 디코드 단계에서 긴 변 1920px로 줄이고(swscale이 표시 버퍼에 직접 기록해 사본을 없앤다), 전 프레임을 미리 적재하지 않는다(7.6절).
 - 표시 보간은 `smooth`(GPU 선형 보간과 CPU 축소 단계)와 `pixelated`(최근접 확대 래스터) 두 가지다. 픽셀 보존 판정은 표시 배율이 1x 이상(확대)일 때만 적용되며, 축소 배율에서는 설정과 무관하게 항상 `smooth`로 강제된다. 자동 모드는 표시 배율이 2x 이상이면 `pixelated`로 전환한다(원본 픽셀 표시). nearest 축소는 스크린톤 같은 주기 패턴을 계단·무아레로 깨뜨린다. 단일 보기 배율은 이미지 크기에 대한 `zoom`이고, 웹툰/양쪽 보기는 렌더된 크기에서 실측한다(측정 전에는 기존 판정 유지).
 - 큰 정지 JPEG/PNG의 저해상 프리뷰는 별도 `Preview` 상태로만 화면에 표시한다. `Full` 교체 전에는 원본 픽셀 분석이나 복사를 실행하지 않는다(9.3절). 사용자 원본 파일은 필터링하지 않는다. 표시 해상도 상한 sidecar와 썸네일은 기존 파생 이미지 파이프라인을 유지하며, 픽셀 보존 판정은 메인 이미지 표시 힌트로만 사용한다.
 
