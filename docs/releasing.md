@@ -122,8 +122,8 @@ Actions 탭에서 Release 워크플로를 수동 실행(`workflow_dispatch`)하�
 
 앱의 업데이트 확인은 인증 없이 읽을 수 있는 공개 저장소 릴리스의 자산을 씁니다. 소스 저장소가 공개이므로 원본 저장소가 곧 피드입니다.
 
-- 설정 `updateChannel`이 `stable`(기본)이면 `https://github.com/ara-hwang/araview/releases/latest/download/update-feed.json`을 읽습니다. `releases/latest`는 프리릴리스를 제외하므로 베타가 섞이지 않습니다.
-- `beta`면 `https://github.com/ara-hwang/araview/releases/download/beta/update-feed-beta.json`을 읽습니다. 이 파일은 롤링 `beta` 프리릴리스에 있고, 베타 릴리스마다 워크플로가 덮어씁니다. 베타 설치 프로그램은 버전별 `vX.Y.Z-beta.N` 릴리스에 있습니다.
+- 설정 `updateChannel`이 `stable`(정식 빌드의 기본값)이면 `https://github.com/ara-hwang/araview/releases/latest/download/update-feed.json`을 읽습니다. `releases/latest`는 프리릴리스를 제외하므로 베타가 섞이지 않습니다.
+- `beta`(베타 빌드의 기본값)면 `https://github.com/ara-hwang/araview/releases/download/beta/update-feed-beta.json`을 읽습니다. 이 파일은 롤링 `beta` 프리릴리스에 있고, 베타 릴리스마다 워크플로가 덮어씁니다. 베타 설치 프로그램은 버전별 `vX.Y.Z-beta.N` 릴리스에 있습니다.
 - 두 피드 모두 `version`, `notes`, `pub_date`, `platforms.windows-x86_64.{url,signature}`를 가집니다. `signature`는 설치 프로그램의 `.sig` 내용이고, 앱은 내려받은 설치 프로그램을 `app/update-pubkey.txt`의 공개키로 확인한 뒤에만 실행합니다.
 - 버전 비교는 세미버전 규칙을 따릅니다. `2.7.0-beta.2`는 `2.7.0-beta.1`보다 크고, `2.7.0`은 `2.7.0-beta.2`보다 큽니다. 채널을 바꿔도 설치된 버전보다 낮은 버전으로 내려가지 않습니다.
 - 앱은 다운로드가 끝나면 설치 프로그램을 실행하고 종료합니다. 설치 프로그램 실행 이후의 실패(사용자 취소, 디스크 부족 등)는 앱이 이미 종료된 뒤라 앱에서 피드백할 수 없고 NSIS 창이 표시합니다.

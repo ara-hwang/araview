@@ -470,7 +470,11 @@ pub struct Settings {
     pub trash_without_confirm: bool,
     #[serde(default = "default_auto_check_updates")]
     pub auto_check_updates: bool,
-    pub update_channel: UpdateChannel,
+    /// 사용자가 설정 화면에서 고른 업데이트 채널. 고르지 않았으면 `None`이고 실행 중인
+    /// 빌드 버전을 따른다(`effective_update_channel`, SPEC §13, §20.1). 고른 경우에만
+    /// 저장해야 빌드를 바꿔 설치해도 기본값이 그 빌드를 따른다.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub update_channel: Option<UpdateChannel>,
     pub viewer_background: ViewerBackground,
     #[serde(rename = "autoHideUI")]
     pub auto_hide_ui: bool,
@@ -520,7 +524,7 @@ impl Default for Settings {
             record_recent_files: true,
             trash_without_confirm: false,
             auto_check_updates: true,
-            update_channel: UpdateChannel::default(),
+            update_channel: None,
             viewer_background: ViewerBackground::Theme,
             auto_hide_ui: false,
             menu_bar_hidden: false,
@@ -551,6 +555,11 @@ impl Default for Settings {
 }
 
 impl Settings {
+    /// 업데이트 확인에 쓸 채널. 사용자가 고른 채널이 없으면 빌드 버전을 따른다.
+    pub fn effective_update_channel(&self) -> UpdateChannel {
+        self.update_channel.unwrap_or_default()
+    }
+
     fn sanitized(mut self) -> Self {
         // 예전 `memory-*` 캐시 모드는 폴더 전체 전략과 바이트 상한으로 나눠 옮긴다(SPEC §9.1).
         match self.cache_mode {
@@ -674,11 +683,12 @@ impl SettingsStore {
     /// 필드 단위로 손상된 값만 기본값으로 되돌린다.
     pub fn load(dir: Option<PathBuf>) -> Self {
         let path = dir.map(|dir| dir.join("settings.json"));
-        let file = path
+        let mut file = path
             .as_ref()
             .and_then(|path| std::fs::read(path).ok())
             .and_then(|bytes| serde_json::from_slice::<StoreFile>(&bytes).ok())
             .unwrap_or_default();
+        migrate_update_channel(&mut file.settings);
         let has_language = file.settings.get("language").is_some();
         let mut settings = restore_settings(file.settings).sanitized();
         if !has_language {
@@ -804,7 +814,7 @@ impl SettingsStore {
             return;
         };
         let file = StoreFile {
-            settings: serde_json::to_value(&self.settings).unwrap_or_default(),
+            settings: settings_to_value(&self.settings),
             recent_files: self.recent_files.clone(),
             archive_progress: self.archive_progress.clone(),
             theme: serde_json::to_value(self.theme).unwrap_or_default(),
@@ -828,6 +838,41 @@ impl SettingsStore {
     }
 }
 
+/// `updateChannel`이 사용자가 고른 값임을 표시하는 `settings.json` 키. 이 표시가 없는
+/// 옛 파일은 예전 저장 방식(설정 전체를 저장해 채널이 항상 기록됨) 때문에 고르지 않은
+/// 기본값까지 들어 있을 수 있다.
+const UPDATE_CHANNEL_CHOSEN_KEY: &str = "updateChannelChosen";
+
+/// 옛 `settings.json`의 업데이트 채널을 한 번 옮긴다(SPEC §20.1). 표시 없이 저장된
+/// `stable`은 예전 기본값이 자동으로 기록된 것일 수 있으므로 지우고 빌드 기본값을 따르게
+/// 한다(정식 빌드는 그대로 `stable`, 베타 빌드는 `beta`). 예전 기본값이 될 수 없던
+/// `beta`는 사용자가 고른 값으로 남긴다. 표시가 있으면 고른 값 그대로다.
+fn migrate_update_channel(saved: &mut serde_json::Value) {
+    let serde_json::Value::Object(map) = saved else {
+        return;
+    };
+    let chosen = map
+        .remove(UPDATE_CHANNEL_CHOSEN_KEY)
+        .is_some_and(|value| value == serde_json::Value::Bool(true));
+    if !chosen && map.get("updateChannel").and_then(|value| value.as_str()) == Some("stable") {
+        map.remove("updateChannel");
+    }
+}
+
+/// 저장할 설정 JSON. 고른 업데이트 채널이 있으면 고른 값이라는 표시를 함께 남긴다.
+fn settings_to_value(settings: &Settings) -> serde_json::Value {
+    let mut value = serde_json::to_value(settings).unwrap_or_default();
+    if settings.update_channel.is_some()
+        && let serde_json::Value::Object(map) = &mut value
+    {
+        map.insert(
+            UPDATE_CHANNEL_CHOSEN_KEY.to_owned(),
+            serde_json::Value::Bool(true),
+        );
+    }
+    value
+}
+
 /// 저장된 객체에서 읽을 수 있는 필드만 살리고 나머지는 기본값으로 둔다.
 fn restore_settings(saved: serde_json::Value) -> Settings {
     if let Ok(settings) = serde_json::from_value::<Settings>(saved.clone()) {
@@ -841,13 +886,15 @@ fn restore_settings(saved: serde_json::Value) -> Settings {
         _ => return Settings::default(),
     };
     for (key, value) in saved {
-        let Some(slot) = merged.get_mut(&key) else {
-            continue;
-        };
-        let previous = std::mem::replace(slot, value);
+        // 기본값에서 생략되는 선택 키(`updateChannel`)도 살린다. 모르는 키는 역직렬화가
+        // 무시하므로 넣어도 해가 없다.
+        let previous = merged.insert(key.clone(), value);
         let candidate = serde_json::Value::Object(merged.clone());
         if serde_json::from_value::<Settings>(candidate).is_err() {
-            merged.insert(key, previous);
+            match previous {
+                Some(previous) => merged.insert(key, previous),
+                None => merged.remove(&key),
+            };
         }
     }
     serde_json::from_value(serde_json::Value::Object(merged)).unwrap_or_default()
@@ -947,8 +994,9 @@ mod tests {
             UpdateChannel::for_version("2.7.0-beta.45"),
             UpdateChannel::Beta
         );
+        assert_eq!(Settings::default().update_channel, None);
         assert_eq!(
-            Settings::default().update_channel,
+            Settings::default().effective_update_channel(),
             UpdateChannel::for_version(env!("CARGO_PKG_VERSION"))
         );
     }
@@ -957,29 +1005,102 @@ mod tests {
     #[test]
     fn a_missing_update_channel_uses_the_build_default() {
         let restored = restore_settings(serde_json::json!({ "language": "en" }));
-        assert_eq!(restored.update_channel, UpdateChannel::default());
+        assert_eq!(restored.update_channel, None);
+        assert_eq!(
+            restored.effective_update_channel(),
+            UpdateChannel::default()
+        );
         let parsed: Settings = serde_json::from_value(serde_json::json!({})).expect("빈 설정 복원");
-        assert_eq!(parsed.update_channel, UpdateChannel::default());
+        assert_eq!(parsed.update_channel, None);
     }
 
-    /// 설정 파일의 키 이름은 camelCase로 저장된다(SPEC §13, `npm run docs:check`).
+    /// 고르지 않은 채널은 저장하지 않는다. 그래야 다른 빌드를 설치해도 기본값이 따라간다.
     #[test]
-    fn update_channel_round_trips() {
-        let settings = Settings {
-            update_channel: UpdateChannel::Beta,
-            ..Settings::default()
-        };
-        let saved = serde_json::to_value(&settings).expect("설정 직렬화");
-        assert_eq!(saved["updateChannel"], serde_json::json!("beta"));
-        let restored: Settings = serde_json::from_value(saved).expect("설정 복원");
-        assert_eq!(restored.update_channel, UpdateChannel::Beta);
+    fn an_unchosen_update_channel_is_not_saved() {
+        let saved = settings_to_value(&Settings::default());
+        assert!(saved.get("updateChannel").is_none());
+        assert!(saved.get(UPDATE_CHANNEL_CHOSEN_KEY).is_none());
+    }
+
+    /// 고른 채널은 camelCase 키와 고른 값 표시로 저장되고, 다음 실행에서 그대로 유지된다.
+    #[test]
+    fn a_chosen_update_channel_round_trips() {
+        for channel in [UpdateChannel::Stable, UpdateChannel::Beta] {
+            let settings = Settings {
+                update_channel: Some(channel),
+                ..Settings::default()
+            };
+            let mut saved = settings_to_value(&settings);
+            assert_eq!(
+                saved["updateChannel"],
+                serde_json::to_value(channel).unwrap()
+            );
+            assert_eq!(saved[UPDATE_CHANNEL_CHOSEN_KEY], serde_json::json!(true));
+            migrate_update_channel(&mut saved);
+            let restored = restore_settings(saved);
+            assert_eq!(restored.update_channel, Some(channel));
+            assert_eq!(restored.effective_update_channel(), channel);
+        }
+    }
+
+    /// 고른 값 표시 없이 `stable`이 박힌 옛 파일(빌드 기본값이 생기기 전에 저장된 파일)은
+    /// 빌드 기본값을 따른다. 베타 빌드에서는 베타 채널이 된다.
+    #[test]
+    fn a_legacy_stable_channel_follows_the_build_default() {
+        let mut saved = serde_json::json!({ "language": "en", "updateChannel": "stable" });
+        migrate_update_channel(&mut saved);
+        let restored = restore_settings(saved);
+        assert_eq!(restored.update_channel, None);
+        assert_eq!(
+            restored.effective_update_channel(),
+            UpdateChannel::for_version(env!("CARGO_PKG_VERSION"))
+        );
+        // 옛 기본값이 될 수 없던 `beta`는 사용자가 고른 값으로 남는다.
+        let mut saved = serde_json::json!({ "updateChannel": "beta" });
+        migrate_update_channel(&mut saved);
+        assert_eq!(
+            restore_settings(saved).update_channel,
+            Some(UpdateChannel::Beta)
+        );
+    }
+
+    /// 다른 키가 깨져 필드 단위 복원을 거쳐도 고른 채널은 남는다.
+    #[test]
+    fn a_chosen_update_channel_survives_a_broken_neighbour() {
+        let restored = restore_settings(serde_json::json!({
+            "updateChannel": "stable",
+            "cacheMode": "nonsense",
+        }));
+        assert_eq!(restored.update_channel, Some(UpdateChannel::Stable));
+        assert_eq!(restored.cache_mode, Settings::default().cache_mode);
     }
 
     /// 알 수 없는 채널 값은 빌드 기본값으로 되돌린다.
     #[test]
     fn an_unknown_update_channel_falls_back_to_the_build_default() {
         let restored = restore_settings(serde_json::json!({ "updateChannel": "nightly" }));
-        assert_eq!(restored.update_channel, UpdateChannel::default());
+        assert_eq!(restored.update_channel, None);
+    }
+
+    /// 저장소 전체 흐름: 빈 설정으로 시작해 저장해도 채널이 기록되지 않고, 고른 뒤
+    /// 저장하면 기록되어 다시 읽어도 유지된다.
+    #[test]
+    fn the_store_saves_the_channel_only_after_a_choice() {
+        let dir = tempfile::tempdir().expect("임시 폴더");
+        let mut store = SettingsStore::load(Some(dir.path().to_path_buf()));
+        store.save();
+        let file: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(dir.path().join("settings.json")).unwrap())
+                .unwrap();
+        assert!(file["settings"].get("updateChannel").is_none());
+
+        store.settings.update_channel = Some(UpdateChannel::Stable);
+        store.save();
+        let reloaded = SettingsStore::load(Some(dir.path().to_path_buf()));
+        assert_eq!(
+            reloaded.settings.update_channel,
+            Some(UpdateChannel::Stable)
+        );
     }
 
     /// identity 없는 옛 `settings.json` 기록은 그대로 로드되고 한 번만

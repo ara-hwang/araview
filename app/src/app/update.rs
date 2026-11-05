@@ -321,7 +321,9 @@ impl AraView {
             return;
         }
         self.update_checking = true;
-        let channel = SettingsStore::global(cx).settings.update_channel;
+        let channel = SettingsStore::global(cx)
+            .settings
+            .effective_update_channel();
         let task = cx.background_spawn(async move { fetch_feed(&feed_url(channel)) });
         cx.spawn_in(window, async move |this, cx| {
             let result = task.await;
@@ -360,7 +362,11 @@ impl AraView {
                         return None;
                     }
                     this.update_checking = true;
-                    Some(SettingsStore::global(cx).settings.update_channel)
+                    Some(
+                        SettingsStore::global(cx)
+                            .settings
+                            .effective_update_channel(),
+                    )
                 })
                 .ok()
                 .flatten();
@@ -611,7 +617,9 @@ impl AraView {
     /// 대화상자 없이 최신 버전을 바로 내려받아 설치를 시작한다. 디버그 빌드의
     /// 런타임 검증 통로(`action:installUpdate`)에서만 쓴다.
     pub(super) fn install_latest_update(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let channel = SettingsStore::global(cx).settings.update_channel;
+        let channel = SettingsStore::global(cx)
+            .settings
+            .effective_update_channel();
         let task = cx.background_spawn(async move { fetch_feed(&feed_url(channel)) });
         cx.spawn_in(window, async move |this, cx| {
             let feed = task.await.ok().flatten()?;
