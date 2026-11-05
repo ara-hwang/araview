@@ -1,11 +1,12 @@
 import assert from "node:assert/strict"
-import { execFileSync } from "node:child_process"
+import { execFileSync, spawnSync } from "node:child_process"
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import test from "node:test"
 import { autoBetaRelease, isReleasePath } from "./auto-beta-release.mjs"
 import { isNewerBeta, publishBetaFeed } from "./publish-beta-feed.mjs"
+import { latestStable, nextVersion } from "./release.mjs"
 
 test("문서/사이트 제외, 코드 및 빌드 설정 포함", () => {
   for (const path of ["README.md", "docs/diagram.svg", "site/index.html"]) assert.equal(isReleasePath(path), false)
@@ -19,6 +20,44 @@ test("베타 버전의 숫자 비교 및 잘못된 버전 거부", () => {
   assert.equal(isNewerBeta("2.7.0-beta.10", "2.7.0-beta.10"), false)
   assert.throws(() => isNewerBeta("2.7.0", "2.7.0-beta.10"))
   assert.throws(() => isNewerBeta("2.7.0-beta.10", "invalid"))
+})
+
+test("다음 베타: 같은 X.Y.Z 정식 태그가 있으면 다음 minor의 beta.1", () => {
+  const tags = ["v2.6.1", "v2.7.0-beta.46", "v2.7.0", "v2.6.0", "legacy"]
+  assert.equal(latestStable(tags), "2.7.0")
+  assert.equal(nextVersion("2.7.0-beta.46", "beta", "beta", tags), "2.8.0-beta.1")
+  assert.equal(nextVersion("2.7.0-beta.46", "beta", "beta", [...tags, "v2.7.1"]), "2.8.0-beta.1")
+  assert.equal(nextVersion("2.7.0-beta.46", "beta", "beta", [...tags, "v2.8.0"]), "2.9.0-beta.1")
+  assert.equal(nextVersion("2.7.0", "beta", "beta", tags), "2.8.0-beta.1")
+  // 아직 정식으로 나가지 않은 X.Y.Z는 베타 번호만 올린다.
+  assert.equal(nextVersion("2.8.0-beta.1", "beta", "beta", tags), "2.8.0-beta.2")
+  assert.equal(nextVersion("2.7.0-beta.9", "beta", "beta", ["v2.6.1"]), "2.7.0-beta.10")
+  assert.equal(nextVersion("2.7.0-beta.9", "beta", "beta"), "2.7.0-beta.10")
+  assert.equal(nextVersion("2.8.0-beta.1", "2.8.0-beta.5", "beta", tags), "2.8.0-beta.5")
+  assert.throws(() => nextVersion("2.7.0-beta.46", "2.7.0-beta.47", "beta", tags), /정식 2\.7\.0/)
+  assert.throws(() => nextVersion("2.7.0-beta.46", "2.8.0", "beta", tags), /X\.Y\.Z-beta\.N/)
+})
+
+test("안정 릴리스: 베타를 병합한 release에서도 버전 계산", () => {
+  assert.equal(nextVersion("2.7.0", "patch", "stable", ["v2.7.0"]), "2.7.1")
+  assert.equal(nextVersion("2.7.0", "minor", "stable", ["v2.7.0"]), "2.8.0")
+  assert.equal(nextVersion("2.7.0", "major", "stable", ["v2.7.0"]), "3.0.0")
+  // main(2.8.0-beta.N)을 release에 병합한 직후: 접미사를 뗀 2.8.0을 건너뛰지 않는다.
+  const tags = ["v2.7.0", "v2.7.1"]
+  assert.equal(nextVersion("2.8.0-beta.5", "patch", "stable", tags), "2.8.0")
+  assert.equal(nextVersion("2.8.0-beta.5", "minor", "stable", tags), "2.8.0")
+  assert.equal(nextVersion("2.8.0-beta.5", "major", "stable", tags), "3.0.0")
+  assert.equal(nextVersion("3.0.0-beta.2", "major", "stable", tags), "3.0.0")
+  assert.equal(nextVersion("2.8.1-beta.2", "minor", "stable", tags), "2.9.0")
+  assert.equal(nextVersion("2.8.0-beta.5", "2.8.0", "stable", tags), "2.8.0")
+  assert.equal(nextVersion("2.8.0-beta.5", "2.8.3", "stable", tags), "2.8.3")
+  // 같은 X.Y.Z가 이미 정식으로 나갔으면 그 정식 태그에서 올린다(2.7.0-beta.46 + v2.7.0).
+  assert.equal(nextVersion("2.7.0-beta.46", "patch", "stable", tags), "2.7.2")
+  assert.equal(nextVersion("2.7.0-beta.46", "minor", "stable", tags), "2.8.0")
+  for (const request of ["patch", "minor", "major"]) {
+    assert.doesNotMatch(nextVersion("2.7.0-beta.30", request, "stable", ["v2.6.1"]), /NaN/)
+  }
+  assert.throws(() => nextVersion("2.8.0-beta.5", "2.8.0-beta.6", "stable", tags), /X\.Y\.Z 형식/)
 })
 
 function temporary(t) {
@@ -119,6 +158,28 @@ test("실제 릴리스 스크립트: 문서만 변경/기배포 HEAD는 무배�
   assert.equal(autoBetaRelease(cwd), "")
 })
 
+test("실제 릴리스 스크립트: 같은 X.Y.Z 정식 태그가 있으면 다음 minor 베타로", (t) => {
+  const { cwd, git, commit } = repository(t)
+  git(cwd, "tag", "v1.0.0")
+  git(cwd, "push", "origin", "--tags")
+  commit("app/src/lib.rs", "// changed\n")
+  assert.equal(autoBetaRelease(cwd), "v1.1.0-beta.1")
+  assert.match(readFileSync(join(cwd, "app/Cargo.toml"), "utf8"), /version = "1\.1\.0-beta\.1"/)
+})
+
+test("실제 릴리스 스크립트: 베타 버전인 release에서 안정 버전 계산", (t) => {
+  const { cwd, git } = repository(t)
+  git(cwd, "switch", "-c", "release")
+  git(cwd, "push", "origin", "release")
+  for (const [request, expected] of [["patch", "1.0.0"], ["minor", "1.0.0"], ["1.0.0", "1.0.0"], ["1.2.0", "1.2.0"]]) {
+    const out = execFileSync(process.execPath, ["scripts/release.mjs", request, "--dry-run"], { cwd, encoding: "utf8" })
+    assert.match(out, new RegExp(`1\\.0\\.0-beta\\.1 -> ${expected.replaceAll(".", "\\.")} `))
+  }
+  const lower = spawnSync(process.execPath, ["scripts/release.mjs", "0.9.0", "--dry-run"], { cwd, encoding: "utf8" })
+  assert.equal(lower.status, 1)
+  assert.match(lower.stderr, /^중단: 새 버전 0\.9\.0/)
+})
+
 for (const mode of ["code", "release", "exhausted"]) {
   test(`실제 atomic push 충돌 처리: ${mode}`, (t) => {
     const { root, remote, cwd, git, commit } = repository(t)
@@ -128,7 +189,7 @@ for (const mode of ["code", "release", "exhausted"]) {
     git(writer, "config", "user.email", "writer@example.invalid")
     // docs 검증 직후 경쟁자가 커밋을 푸시해 실제 release.mjs의 atomic push를 거부시킨다.
     commit("scripts/check-docs.mjs", `
-      import { execFileSync } from "node:child_process"
+      import { execFileSync, spawnSync } from "node:child_process"
       import { existsSync, writeFileSync } from "node:fs"
       const marker = ${JSON.stringify(join(root, "raced"))}
       if (!existsSync(marker)) {
