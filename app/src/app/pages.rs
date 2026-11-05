@@ -194,6 +194,44 @@ fn evict_plan(
     plan
 }
 
+/// 예산 때문에 내려놓은 페이지 가운데 지금 위치에서 가장 가까운 거리. 같은 위치,
+/// 같은 바이트 예산에서는 이 거리 이상인 페이지를 다시 미리 로드하지 않는다. 그렇지
+/// 않으면 예산보다 큰 목록에서 경계 밖 페이지를 로드하고 내려놓기를 끝없이
+/// 되풀이한다(SPEC §9.1 "상한에 닿으면 더 요청하지 않고"). 위치나 예산이 바뀌면
+/// 효력을 잃는다.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct BudgetReach {
+    anchor: usize,
+    budget: u64,
+    distance: usize,
+}
+
+impl BudgetReach {
+    /// 이번 정리(`evicted`)를 반영한 경계. 같은 위치·예산의 이전 경계와는 더 가까운 쪽을 남긴다.
+    fn after_evict(
+        previous: Option<Self>,
+        evicted: &[usize],
+        anchor: usize,
+        budget: u64,
+    ) -> Option<Self> {
+        let previous = previous.filter(|reach| reach.anchor == anchor && reach.budget == budget);
+        let Some(distance) = evicted.iter().map(|index| index.abs_diff(anchor)).min() else {
+            return previous;
+        };
+        let distance = previous.map_or(distance, |reach| reach.distance.min(distance));
+        Some(Self {
+            anchor,
+            budget,
+            distance,
+        })
+    }
+
+    /// `index`가 예산 경계 밖이라 미리 로드하지 않아야 하는지.
+    fn blocks(&self, anchor: usize, budget: u64, index: usize) -> bool {
+        self.anchor == anchor && self.budget == budget && index.abs_diff(anchor) >= self.distance
+    }
+}
+
 impl AraView {
     /// 화면에 적용되는 보기 모드. 아카이브는 세션 모드(`comic_mode`), 일반
     /// 이미지는 설정값을 쓴다.
@@ -430,6 +468,7 @@ impl AraView {
         self.orientation = Orientation::default();
         self.pending_commit = false;
         self.pending_back = false;
+        self.budget_reach = None;
         self.wt_dims.clear();
         self.wt_anchor = 0;
         self.wt_offset = 0.0;
@@ -654,6 +693,13 @@ impl AraView {
             .collect();
         self.cancel_queued_outside(&keep);
         let evicted = self.evict_except(&keep, &protect, window, cx);
+        self.budget_reach =
+            BudgetReach::after_evict(self.budget_reach, &evicted, self.index, budget.bytes);
+        if let Some(reach) = self.budget_reach {
+            // 경계 밖으로 이미 대기시킨 미리 로드도 시작 전에 버린다. 도착하면 곧바로
+            // 내려놓을 페이지다.
+            self.cancel_queued_beyond(reach, budget.bytes);
+        }
         if base > 0 {
             let start = self.index.saturating_sub(before);
             let end = (self.index + after).min(total - 1);
@@ -662,6 +708,8 @@ impl AraView {
                 // 긴 목록에서도 지금 위치와 가까운 페이지부터 예산을 채운다.
                 candidates.sort_by_key(|index| (index.abs_diff(self.index), *index));
             }
+            // 대기·진행 중인 요청도 묶음 수에 센다. 세지 않으면 동기화할 때마다 묶음만큼
+            // 더 쌓여, 디코드가 도착하기 전에 목록 전체가 대기열에 들어간다.
             let mut prefetched = 0;
             for index in candidates {
                 if cache_mode.covers_folder() && prefetched >= FOLDER_PREFETCH_BATCH {
@@ -673,11 +721,16 @@ impl AraView {
                 // 미리 로드는 자동 내려받기이므로, 자동 내려받기가 꺼진 채로는 클라우드
                 // 전용(온디맨드) 파일을 건드리지 않는다(§9.6).
                 if self.hold_cloud(index, cx)
-                    || evicted.contains(&index)
+                    || self
+                        .budget_reach
+                        .is_some_and(|reach| reach.blocks(self.index, budget.bytes, index))
                     || self.pages.contains_key(&index)
-                    || self.page_loading.contains(&index)
                     || self.page_failed.contains_key(&index)
                 {
+                    continue;
+                }
+                if self.page_loading.contains(&index) {
+                    prefetched += 1;
                     continue;
                 }
                 self.ensure_page(index, false, true, window, cx);
@@ -1026,6 +1079,19 @@ impl AraView {
             .ok();
         })
         .detach();
+    }
+
+    /// 바이트 예산 경계 밖의 대기 중인 미리 로드를 시작 전에 취소한다(§9.1).
+    fn cancel_queued_beyond(&mut self, reach: BudgetReach, budget: u64) {
+        let anchor = self.index;
+        let page_loading = &mut self.page_loading;
+        self.decode_queue.retain(|job| {
+            let beyond = job.prefetch && reach.blocks(anchor, budget, job.index);
+            if beyond {
+                page_loading.remove(&job.index);
+            }
+            !beyond
+        });
     }
 
     /// 범위 밖으로 밀려난 대기 요청을 시작 전에 취소한다. 이미 시작한 디코드는
@@ -1394,6 +1460,64 @@ mod tests {
     }
 
     const MB: u64 = 1024 * 1024;
+
+    /// 예산보다 큰 목록을 폴더 전체 모드로 미리 로드하는 흐름. 경계 밖 페이지를
+    /// 내려놓은 뒤에는 같은 위치에서 그보다 먼 페이지를 다시 요청하지 않아야 한다.
+    fn simulate_folder_prefetch(remember: bool) -> Vec<usize> {
+        let (anchor, budget) = (0, 350);
+        let protect = HashSet::from([anchor]);
+        let mut cache: HashMap<usize, u64> = HashMap::new();
+        let mut reach: Option<BudgetReach> = None;
+        let mut requested = Vec::new();
+        for _ in 0..40 {
+            if cache.values().sum::<u64>() >= budget {
+                break;
+            }
+            let next = (0..10).find(|index| {
+                !cache.contains_key(index)
+                    && !reach.is_some_and(|reach| reach.blocks(anchor, budget, *index))
+            });
+            let Some(next) = next else {
+                break;
+            };
+            requested.push(next);
+            cache.insert(next, 100);
+            let evicted = evict_plan(&cache, anchor, &protect, usize::MAX, budget);
+            for index in &evicted {
+                cache.remove(index);
+            }
+            if remember {
+                reach = BudgetReach::after_evict(reach, &evicted, anchor, budget);
+            }
+        }
+        requested
+    }
+
+    #[::core::prelude::v1::test]
+    fn folder_prefetch_stops_after_the_budget_evicts() {
+        // 4번째 페이지(인덱스 3)가 예산을 넘겨 내려가면 그 뒤로는 더 요청하지 않는다.
+        assert_eq!(simulate_folder_prefetch(true), vec![0, 1, 2, 3]);
+        // 경계를 기억하지 않으면 3을 로드하고 내려놓기를 되풀이한다(#166 회귀).
+        assert!(simulate_folder_prefetch(false).len() > 10);
+    }
+
+    #[::core::prelude::v1::test]
+    fn budget_reach_resets_when_position_or_budget_changes() {
+        let reach = BudgetReach::after_evict(None, &[7, 9], 2, 100).unwrap();
+        assert!(reach.blocks(2, 100, 7));
+        assert!(!reach.blocks(2, 100, 0));
+        assert!(!reach.blocks(3, 100, 9));
+        assert!(!reach.blocks(2, 200, 9));
+        // 같은 위치에서 더 가까운 페이지를 내려놓으면 경계가 당겨진다.
+        let closer = BudgetReach::after_evict(Some(reach), &[5], 2, 100).unwrap();
+        assert!(closer.blocks(2, 100, 5));
+        // 이번 정리가 없으면 이전 경계를 유지하고, 위치가 바뀌었으면 버린다.
+        assert_eq!(
+            BudgetReach::after_evict(Some(reach), &[], 2, 100),
+            Some(reach)
+        );
+        assert_eq!(BudgetReach::after_evict(Some(reach), &[], 4, 100), None);
+    }
 
     fn plan_assert(
         bytes: &HashMap<usize, u64>,

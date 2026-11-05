@@ -132,6 +132,8 @@ pub struct AraView {
     decode_queue: Vec<pages::DecodeJob>,
     /// full 디코드가 실행 중인지.
     decode_running: bool,
+    /// 바이트 예산 때문에 내려놓은 경계. 그보다 먼 페이지는 다시 미리 로드하지 않는다(§9.1).
+    budget_reach: Option<pages::BudgetReach>,
     /// 요청 순서를 매기는 번호.
     decode_seq: u64,
     page_failed: HashMap<usize, AppError>,
@@ -278,6 +280,7 @@ impl AraView {
             page_loading: HashSet::new(),
             decode_queue: Vec::new(),
             decode_running: false,
+            budget_reach: None,
             decode_seq: 0,
             page_failed: HashMap::new(),
             wide: HashSet::new(),
