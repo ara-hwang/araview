@@ -302,6 +302,8 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 - 아카이브 source identity(엔트리 인덱스, 추출 디렉터리, ZIP 중앙 디렉터리 캐시)는 canonical 경로 + 파일 크기·mtime + OS 파일 ID·변경 시각을 쓴다. 같은 크기와 mtime이어도 다른 OS 파일 ID로 교체된 파일은 구분하며, 전체 아카이브 내용을 캐시 hit마다 해시하지 않는다. 같은 파일 ID에 내용을 덮어쓴 경우는 OS 변경 시각이 달라져야 감지되며, 파일시스템이 같은 변경 시각을 보고하면 metadata-only identity로는 감지할 수 없다. 파일 ID/변경 시각 조회에 실패하면 약한 size/mtime identity로 대체하지 않고, 해당 캐시를 재사용하지 않거나 identity가 필요한 호출에서 오류를 반환한다.
 - 엔트리 인덱스 캐시(`archive_index.rs`): 아카이브별 이미지/전체 엔트리 목록을 위 identity로 검증해 캐시한다(최대 64개 LRU). `get_archive_images`, `get_comic_info`, `generate_archive_file_thumbnail(s)_batch`가 공유해 아카이브당 전체 스캔이 1회로 수렴한다. `clear_cache` 시 함께 비워진다.
 - `get_archive_images`: 내부 이미지 엔트리 목록 + `current_index: 0`. 비어 있으면 `not_found`.
+- 엔트리 목록은 디렉터리와 숨김 엔트리를 뺀다. 숨김 판정은 앞의 `./`를 떼고 경로 구성요소로 한다: `__MACOSX` 폴더 아래이거나 구성요소 하나라도 `.`으로 시작하면(`.DS_Store`, `folder/.hidden.jpg`) 숨김이다. `./001.jpg` 같은 엔트리와 `__cover.jpg`처럼 밑줄로 시작하는 파일은 보통 엔트리다. 목록과 추출에는 아카이브에 적힌 이름을 그대로 쓴다.
+- 추출 파일 이름은 엔트리 전체 경로의 안정 해시와 정제한 소문자 확장자(`<hash>.jpg`, ASCII 영숫자 16자 이하가 아니면 확장자 없음)다. 엔트리 이름은 넣지 않으므로 Windows 금지 문자(`: ? * " < > |`)나 긴 이름이 든 엔트리도 추출된다.
 - `load_archive_image`: canonical 경로 + 파일 크기·mtime + OS 파일 ID·변경 시각으로 구별한 활성 파생 이미지 캐시 루트의 `archives/` 아래에 추출 후 표시 가능한 경로로 반환한다. 캐시 identity 확인은 파일 메타데이터만 사용하고 큰 아카이브를 페이지마다 해시하지 않는다.
 - `archive_prefetch`: 이웃 선추출용 fire-and-forget 명령이다. 엔트리마다 압축 해제가 독립이라 썸네일 배치와 같은 워커 수로 병렬 추출한다.
 - ZIP 중앙 디렉터리 캐시(`archive.rs`): 최근에 연 아카이브 4개의 파싱 결과를 경로 + 파일 크기·mtime + OS 파일 ID·변경 시각이 같을 때만 재사용한다. 추출물이 없는 페이지를 열거나 배치 워커가 각자 핸들을 열 때 디렉터리를 다시 파싱하지 않는다. 파일 핸들은 캐시에 남기지 않는다.
