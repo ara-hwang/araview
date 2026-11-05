@@ -1031,6 +1031,47 @@ mod tests {
             .join(name)
     }
 
+    fn first_frame(name: &str) -> VideoFrame {
+        let player = VideoPlayer::open(&sample(name)).unwrap();
+        player.play(1.0);
+        for _ in 0..500 {
+            if let Ok(Some(frame)) = player.poll_frame() {
+                player.pause();
+                return frame;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        panic!("no frame decoded from {name}");
+    }
+
+    #[test]
+    fn playback_frames_follow_rotation_metadata() {
+        let player = VideoPlayer::open(&sample("sample-rotated.mp4")).unwrap();
+        assert_eq!((player.info().width, player.info().height), (48, 64));
+        drop(player);
+        let frame = first_frame("sample-rotated.mp4");
+        assert_eq!((frame.width, frame.height), (48, 64));
+        // BGRA. 저장 영상 왼쪽 위 빨간 칸이 화면 오른쪽 위에 와야 한다.
+        let pixel = |x: u32, y: u32| {
+            let p = ((y * frame.width + x) * 4) as usize;
+            (frame.bgra[p + 2], frame.bgra[p + 1], frame.bgra[p])
+        };
+        let (r, g, _) = pixel(44, 3);
+        assert!(
+            r > 180 && g < 80,
+            "top-right should be red: {:?}",
+            pixel(44, 3)
+        );
+        let (r, _, _) = pixel(3, 3);
+        assert!(r < 80, "top-left should not be red: {:?}", pixel(3, 3));
+    }
+
+    #[test]
+    fn playback_frames_apply_sample_aspect_ratio() {
+        let frame = first_frame("sample-anamorphic.mp4");
+        assert_eq!((frame.width, frame.height), (128, 48));
+    }
+
     #[test]
     fn player_opens_and_reports_info() {
         let player = VideoPlayer::open(&sample("sample.mp4")).unwrap();
@@ -1255,46 +1296,5 @@ mod tests {
             bottom.iter().any(|&b| b != 0),
             "bottom row is all zero (swscale src_slice_h)"
         );
-    }
-
-    fn first_frame(name: &str) -> VideoFrame {
-        let player = VideoPlayer::open(&sample(name)).unwrap();
-        player.play(1.0);
-        for _ in 0..500 {
-            if let Ok(Some(frame)) = player.poll_frame() {
-                player.pause();
-                return frame;
-            }
-            std::thread::sleep(std::time::Duration::from_millis(10));
-        }
-        panic!("no frame decoded from {name}");
-    }
-
-    #[test]
-    fn playback_frames_follow_rotation_metadata() {
-        let player = VideoPlayer::open(&sample("sample-rotated.mp4")).unwrap();
-        assert_eq!((player.info().width, player.info().height), (48, 64));
-        drop(player);
-        let frame = first_frame("sample-rotated.mp4");
-        assert_eq!((frame.width, frame.height), (48, 64));
-        // BGRA. 저장 영상 왼쪽 위 빨간 칸이 화면 오른쪽 위에 와야 한다.
-        let pixel = |x: u32, y: u32| {
-            let p = ((y * frame.width + x) * 4) as usize;
-            (frame.bgra[p + 2], frame.bgra[p + 1], frame.bgra[p])
-        };
-        let (r, g, _) = pixel(44, 3);
-        assert!(
-            r > 180 && g < 80,
-            "top-right should be red: {:?}",
-            pixel(44, 3)
-        );
-        let (r, _, _) = pixel(3, 3);
-        assert!(r < 80, "top-left should not be red: {:?}", pixel(3, 3));
-    }
-
-    #[test]
-    fn playback_frames_apply_sample_aspect_ratio() {
-        let frame = first_frame("sample-anamorphic.mp4");
-        assert_eq!((frame.width, frame.height), (128, 48));
     }
 }
