@@ -341,9 +341,10 @@ pub(crate) fn matches_temp_shape(path: &Path) -> bool {
 /// A cache hit within this window of the last touch skips the touch.
 const TOUCH_MIN_INTERVAL: std::time::Duration = std::time::Duration::from_secs(60);
 
-/// Best-effort LRU touch for persistent cache hits. Reopening the file and
-/// setting its current length updates its modification time without adding a
-/// platform-specific timestamp dependency.
+/// Best-effort LRU touch for persistent cache hits: sets the modification time
+/// to now. Setting the same length (`set_len`) is not enough, because Windows
+/// and macOS may treat an unchanged length as a no-op and keep the old time,
+/// which turns LRU eviction into FIFO.
 pub(crate) fn touch_cache_file(path: &Path) {
     let Ok(metadata) = fs::metadata(path) else {
         return;
@@ -359,7 +360,7 @@ pub(crate) fn touch_cache_file(path: &Path) {
         return;
     }
     if let Ok(file) = fs::OpenOptions::new().write(true).open(path) {
-        let _ = file.set_len(metadata.len());
+        let _ = file.set_modified(std::time::SystemTime::now());
     }
 }
 
@@ -650,5 +651,29 @@ mod tests {
 
         clear_inflight(&crafted);
         assert_eq!(collect_files(dir.path(), false).unwrap().len(), 1);
+    }
+
+    /// A cache hit moves the file's modification time to now, so LRU eviction
+    /// keeps recently used files (set_len to the same length is a no-op on some
+    /// platforms).
+    #[test]
+    fn touch_moves_the_modification_time_forward() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("thumb.jpg");
+        fs::write(&path, b"cached").unwrap();
+        let old = std::time::SystemTime::now() - std::time::Duration::from_secs(3600);
+        fs::OpenOptions::new()
+            .write(true)
+            .open(&path)
+            .unwrap()
+            .set_modified(old)
+            .unwrap();
+
+        touch_cache_file(&path);
+
+        let modified = fs::metadata(&path).unwrap().modified().unwrap();
+        let age = modified.elapsed().unwrap_or_default();
+        assert!(age < TOUCH_MIN_INTERVAL, "touched file is {age:?} old");
+        assert_eq!(fs::read(&path).unwrap(), b"cached");
     }
 }
