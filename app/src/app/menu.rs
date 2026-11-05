@@ -7,6 +7,9 @@ use gpui_kit::component::menu::{PopupMenu, PopupMenuItem};
 use gpui_kit::component::{ActiveTheme as _, WindowExt as _, v_flex};
 use gpui_kit::*;
 
+use std::path::Path;
+
+use araview_core::file_identity::FileIdentity;
 use araview_core::ops;
 
 use super::AraView;
@@ -340,8 +343,12 @@ impl AraView {
             .filter_map(|page| u32::try_from(page).ok())
             .collect();
         let generation = self.list_gen;
-        let task =
-            cx.background_spawn(async move { ops::set_comic_cover_pages_impl(&archive, &next) });
+        let task = cx.background_spawn(async move {
+            // 표지 지정은 CBZ를 다시 써서 크기와 수정 시각이 바뀐다. 이어보기 기록이
+            // 다음에 열 때도 맞도록 새 identity를 함께 읽는다(SPEC §8).
+            ops::set_comic_cover_pages_impl(&archive, &next)
+                .map(|comic| (comic, FileIdentity::capture(Path::new(&*archive))))
+        });
         cx.spawn_in(window, async move |this, cx| {
             let result = task.await;
             this.update_in(cx, |this, window, cx| {
@@ -349,9 +356,12 @@ impl AraView {
                     return;
                 }
                 match result {
-                    Ok(comic) => {
+                    Ok((comic, identity)) => {
                         this.comic = Some(comic);
                         this.comic_failed = false;
+                        // 옛 identity로 진도를 저장하면 다시 열 때 이어보기와 홈의
+                        // 진도 표시가 사라진다.
+                        this.archive_identity = identity;
                         let key = if was_cover {
                             "toast.cover.unset"
                         } else {
@@ -360,6 +370,7 @@ impl AraView {
                         window.toast(Toast::success(t(key)), cx);
                         // 배치가 바뀌었으므로 그 페이지의 쌍 시작으로 다시 맞춘다.
                         this.index = index;
+                        this.save_progress(cx);
                         this.view_mode_changed(window, cx);
                     }
                     Err(error) => {
