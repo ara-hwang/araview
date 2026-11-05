@@ -815,7 +815,7 @@ UI 분류 5종:
 - HTTP 타임아웃: 확인 요청은 30초, 다운로드 요청은 10분(본문 수신을 포함한 요청 전체 기한)이다. 초과하면 각각 확인 실패와 다운로드 실패 알림으로 처리한다(자동 확인의 실패는 알리지 않는다).
 - 채널 기본값: 설정 파일에 `updateChannel`이 없으면 실행 중인 빌드 버전을 따른다. 프리릴리스(`X.Y.Z-beta.N`) 빌드는 `beta`, 정식 빌드는 `stable`로 시작하므로 베타 설치 프로그램을 받은 사용자는 첫 확인부터 베타 피드를 본다. `updateChannel`은 사용자가 설정 화면에서 채널을 바꿨을 때만 저장하고(다른 설정을 저장할 때 기본값이 함께 기록되지 않는다), 고른 값이라는 표시 `updateChannelChosen: true`를 같은 `settings` 객체에 함께 남긴다. 고른 채널은 이후 빌드 종류와 상관없이 유지된다.
 - 채널 마이그레이션: 예전 버전은 설정 전체를 저장해 고르지 않은 기본값(`stable`)도 `updateChannel`에 기록했다. 그래서 `updateChannelChosen` 표시 없이 `stable`이 저장된 옛 파일은 읽을 때 그 값을 버리고 빌드 기본값을 따른다(베타 빌드는 `beta`). 표시 없는 `beta`는 예전에도 사용자가 골라야만 생기던 값이라 고른 값으로 유지한다.
-- 피드: 설정 `updateChannel`이 `stable`이면 최신 정식 릴리스의 `update-feed.json`을, `beta`면 롤링 `beta` 프리릴리스의 `update-feed-beta.json`을 읽는다(버전, 노트, 플랫폼별 URL과 서명). `releases/latest`는 프리릴리스를 제외하므로 베타 릴리스가 안정 채널에 노출되지 않는다. 서명 공개키는 `app/update-pubkey.txt`다. 1.x(Tauri) 앱이 보던 `latest.json`은 안정 릴리스에만 함께 올리므로 1.x는 2.x 베타를 받지 않는다.
+- 피드: 설정 `updateChannel`이 `stable`이면 최신 정식 릴리스의 `update-feed.json`을 읽는다. `beta`면 롤링 `beta` 프리릴리스의 `update-feed-beta.json`과 안정 피드 `update-feed.json`을 함께(동시에) 읽고 둘 중 더 높은 버전을 안내한다. 베타 피드에는 베타 버전만 올라가므로 이렇게 해야 `release`에서 낸 정식 핫픽스도 베타 사용자에게 보인다. 한쪽 피드가 실패해도 다른 쪽 결과를 쓰고(실패는 로그에만 남긴다), 모두 실패했을 때만 확인 실패다. 피드 내용은 버전, 노트, 플랫폼별 URL과 서명이다. `releases/latest`는 프리릴리스를 제외하므로 베타 릴리스가 안정 채널에 노출되지 않는다. 서명 공개키는 `app/update-pubkey.txt`다. 1.x(Tauri) 앱이 보던 `latest.json`은 안정 릴리스에만 함께 올리므로 1.x는 2.x 베타를 받지 않는다.
 - 키 발급, 서명 빌드, 로컬 릴리스 절차는 `docs/releasing.md`를 따른다.
 
 ### 20.2 PSD 탐색기 썸네일 (IThumbnailProvider)

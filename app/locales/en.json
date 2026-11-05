@@ -161,7 +161,7 @@
       "autoTitle": "Check automatically on startup",
       "autoDesc": "Checks for new versions on startup. Only notifies when a new version is available.",
       "channelTitle": "Update channel",
-      "channelDesc": "Stable checks regular releases only; Beta also checks beta releases.",
+      "channelDesc": "Stable checks regular releases only; Beta checks both regular and beta releases and offers the newer one.",
       "channelStable": "Stable",
       "channelBeta": "Beta",
       "current": "Current version {{version}}",

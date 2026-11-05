@@ -161,7 +161,7 @@
       "autoTitle": "시작 시 자동 확인",
       "autoDesc": "시작할 때 새 버전을 자동으로 확인합니다. 새 버전이 있을 때만 알립니다.",
       "channelTitle": "업데이트 채널",
-      "channelDesc": "안정 채널은 정식 릴리스만, 베타 채널은 베타 릴리스까지 확인합니다.",
+      "channelDesc": "안정 채널은 정식 릴리스만, 베타 채널은 정식과 베타 릴리스 중 더 새 버전을 확인합니다.",
       "channelStable": "안정",
       "channelBeta": "베타",
       "current": "현재 버전 {{version}}",
