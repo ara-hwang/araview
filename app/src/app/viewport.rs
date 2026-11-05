@@ -153,6 +153,61 @@ struct PixelKey {
     scale: u32,
 }
 
+/// 레벨의 타일을 실제 좌표로 찾는 격자. 정지 이미지는 `TILE_SIDE` 격자로 나뉘지만
+/// 애니메이션은 타일 하나(한 변 최대 16384px)라, 한 변 크기를 가정하지 않고 각 타일의
+/// 시작 좌표로 열과 행을 나눈다.
+struct TileGrid {
+    /// 열 시작 x(오름차순).
+    xs: Vec<u32>,
+    /// 행 시작 y(오름차순).
+    ys: Vec<u32>,
+    /// 행 우선 칸마다 그 칸을 덮는 타일 번호.
+    cells: Vec<Option<usize>>,
+}
+
+impl TileGrid {
+    fn new(origins: &[(u32, u32)]) -> Self {
+        let mut xs: Vec<u32> = origins.iter().map(|(x, _)| *x).collect();
+        let mut ys: Vec<u32> = origins.iter().map(|(_, y)| *y).collect();
+        xs.sort_unstable();
+        xs.dedup();
+        ys.sort_unstable();
+        ys.dedup();
+        let mut cells = vec![None; xs.len() * ys.len()];
+        for (tile, (x, y)) in origins.iter().enumerate() {
+            let column = xs.partition_point(|start| start < x);
+            let row = ys.partition_point(|start| start < y);
+            cells[row * xs.len() + column] = Some(tile);
+        }
+        Self { xs, ys, cells }
+    }
+
+    /// `x`가 속한 열과 그 열 안의 x.
+    fn column(&self, x: u32) -> (usize, u32) {
+        let column = self
+            .xs
+            .partition_point(|start| *start <= x)
+            .saturating_sub(1);
+        (column, x - self.xs[column])
+    }
+
+    /// `y`가 속한 행과 그 행 안의 y.
+    fn row(&self, y: u32) -> (usize, u32) {
+        let row = self
+            .ys
+            .partition_point(|start| *start <= y)
+            .saturating_sub(1);
+        (row, y - self.ys[row])
+    }
+
+    fn tile(&self, column: usize, row: usize) -> Option<usize> {
+        self.cells
+            .get(row * self.xs.len() + column)
+            .copied()
+            .flatten()
+    }
+}
+
 /// 글자 강조의 (줄 사각형, 글자 사각형) 목록.
 type OcrBoxes = (Vec<Bounds<Pixels>>, Vec<Bounds<Pixels>>);
 
@@ -1536,35 +1591,50 @@ impl AraView {
         {
             return Some((cached.image.clone(), cached.rect));
         }
-        // 원본은 타일 격자(행 우선)로 나뉘어 있을 수 있어, 출력 픽셀마다 타일을 찾아 읽는다.
-        let tile_side = crate::picture::TILE_SIDE as usize;
-        let (src_w, src_h) = (level.width as usize, level.height as usize);
-        let tile_columns = src_w.div_ceil(tile_side);
+        // 원본은 타일로 나뉘어 있을 수 있어, 출력 픽셀마다 타일을 실제 좌표로 찾아
+        // 읽는다. 정지 이미지는 8192px 격자, 애니메이션은 큰 타일 한 장이다.
+        let (src_w, src_h) = (level.width, level.height);
+        if src_w == 0 || src_h == 0 || picture.width == 0 || picture.height == 0 {
+            return None;
+        }
+        let origins: Vec<(u32, u32)> = level.tiles.iter().map(|tile| (tile.x, tile.y)).collect();
+        let grid = TileGrid::new(&origins);
         let sources: Vec<(&[u8], usize)> = level
             .tiles
             .iter()
             .map(|tile| Some((tile.image.as_bytes(frame)?, tile.w as usize)))
             .collect::<Option<_>>()?;
-        let step = 1.0 / (self.zoom * scale_factor);
-        let start_x = f32::from(visible.origin.x - dest.origin.x) / self.zoom;
-        let start_y = f32::from(visible.origin.y - dest.origin.y) / self.zoom;
+        // 배율과 위치는 원본(`Picture`) 크기 기준이다. 아틀라스 한계로 줄여 둔
+        // 애니메이션은 레벨이 더 작으므로 그 비율로 좌표를 옮긴다.
+        let ratio_x = src_w as f32 / picture.width as f32;
+        let ratio_y = src_h as f32 / picture.height as f32;
+        let step_x = ratio_x / (self.zoom * scale_factor);
+        let step_y = ratio_y / (self.zoom * scale_factor);
+        let start_x = f32::from(visible.origin.x - dest.origin.x) / self.zoom * ratio_x;
+        let start_y = f32::from(visible.origin.y - dest.origin.y) / self.zoom * ratio_y;
         // 열마다 (타일 열, 타일 안 바이트 오프셋)을 미리 구한다.
         let columns: Vec<(usize, usize)> = (0..width)
             .map(|x| {
-                let src_x = ((start_x + (x as f32 + 0.5) * step) as usize).min(src_w - 1);
-                (src_x / tile_side, (src_x % tile_side) * 4)
+                let src_x = ((start_x + (x as f32 + 0.5) * step_x) as u32).min(src_w - 1);
+                let (column, local_x) = grid.column(src_x);
+                (column, local_x as usize * 4)
             })
             .collect();
         let mut buffer = vec![0u8; width as usize * height as usize * 4];
         for (y, row) in buffer.chunks_exact_mut(width as usize * 4).enumerate() {
-            let src_y = ((start_y + (y as f32 + 0.5) * step) as usize).min(src_h - 1);
-            let (tile_row, local_y) = (src_y / tile_side, src_y % tile_side);
+            let src_y = ((start_y + (y as f32 + 0.5) * step_y) as u32).min(src_h - 1);
+            let (tile_row, local_y) = grid.row(src_y);
             for (pixel, (tile_column, offset)) in
                 row.as_chunks_mut::<4>().0.iter_mut().zip(&columns)
             {
-                let (bytes, tile_w) = sources[tile_row * tile_columns + tile_column];
-                let at = local_y * tile_w * 4 + offset;
-                pixel.copy_from_slice(&bytes[at..at + 4]);
+                let Some(tile) = grid.tile(*tile_column, tile_row) else {
+                    continue;
+                };
+                let (bytes, tile_w) = sources[tile];
+                let at = local_y as usize * tile_w * 4 + offset;
+                if let Some(source) = bytes.get(at..at + 4) {
+                    pixel.copy_from_slice(source);
+                }
             }
         }
         // 원본이 이미 BGRA라 채널을 바꾸지 않고 그대로 옮긴다.
@@ -2155,8 +2225,31 @@ impl AraView {
 
 #[cfg(test)]
 mod tests {
-    use super::{OVERLAY_HIDE_AFTER, format_frame_counter, overlay_visible, video_frame_position};
+    use super::{
+        OVERLAY_HIDE_AFTER, TileGrid, format_frame_counter, overlay_visible, video_frame_position,
+    };
     use std::time::Duration;
+
+    #[test]
+    fn tile_grid_finds_a_single_wide_animation_tile() {
+        // 애니메이션은 9000px 넘는 프레임도 타일 하나다. 8192px 격자로 가정하면
+        // 없는 두 번째 타일을 찾아 패닉했다.
+        let grid = TileGrid::new(&[(0, 0)]);
+        assert_eq!(grid.column(8999), (0, 8999));
+        assert_eq!(grid.row(99), (0, 99));
+        assert_eq!(grid.tile(0, 0), Some(0));
+    }
+
+    #[test]
+    fn tile_grid_maps_a_tiled_still_image() {
+        // 정지 이미지 10000x9000은 8192px 격자 2x2 타일(행 우선)이다.
+        let grid = TileGrid::new(&[(0, 0), (8192, 0), (0, 8192), (8192, 8192)]);
+        assert_eq!(grid.column(8191), (0, 8191));
+        assert_eq!(grid.column(8192), (1, 0));
+        assert_eq!(grid.row(8500), (1, 308));
+        assert_eq!(grid.tile(1, 1), Some(3));
+        assert_eq!(grid.tile(1, 0), Some(1));
+    }
 
     #[test]
     fn overlay_hides_only_while_playing_and_idle() {
