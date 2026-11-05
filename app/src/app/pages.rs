@@ -266,6 +266,9 @@ impl AraView {
         if SettingsStore::global(cx).settings.show_wide_page_alone {
             solo.extend(self.wide.iter().copied());
         }
+        // 로드에 실패한 페이지도 혼자 한 화면이다. 짝을 지은 채 두면 손상 파일을
+        // 건너뛸 때 화면이 한 장만 밀려 앞뒤 화면이 같은 페이지를 겹쳐 보여준다.
+        solo.extend(self.page_failed.keys().copied());
         solo
     }
 
@@ -466,6 +469,8 @@ impl AraView {
         self.picture = None;
         self.info = None;
         self.orientation = Orientation::default();
+        // 진행 중인 회전 결과가 새 목록의 화면을 덮지 않게 한다.
+        self.orient_seq += 1;
         self.pending_commit = false;
         self.pending_back = false;
         self.budget_reach = None;
@@ -527,7 +532,11 @@ impl AraView {
         }
         self.index = index;
         self.pending_commit = true;
-        self.error = None;
+        // 앞 장 로드를 기다리던 뒤로 넘기기는 다른 이동이 오면 버린다. 남겨 두면
+        // 다음 디코드 결과에서 한 화면 더 뒤로 간다.
+        self.pending_back = false;
+        // 실패한 페이지의 에러 카드는 다음 화면이 커밋될 때까지 남긴다
+        // (`commit_current`가 지운다). 여기서 지우면 그 사이 홈이 깜빡인다.
         self.skip_budget = self.list.len();
         self.nav_started = Instant::now();
         // 이전 화면 유지 시간이 지나면 미리보기로 바꿔 그리도록 한 번 깨운다.
@@ -601,6 +610,8 @@ impl AraView {
         if index >= self.list.len() {
             return;
         }
+        // 점프는 기다리던 뒤로 넘기기를 대신한다. 같은 화면이라 이동하지 않아도 버린다.
+        self.pending_back = false;
         let target = if self.view_mode(cx).is_dual() {
             layout::pair_start(index, self.list.len(), &self.solo(cx), None)
         } else {
@@ -826,6 +837,7 @@ impl AraView {
         }
         self.info = None;
         self.orientation = Orientation::default();
+        self.orient_seq += 1;
         self.playing = false;
         self.frame = 0;
         self.info_seq += 1;
@@ -1138,9 +1150,14 @@ impl AraView {
             self.skip_budget -= 1;
             let total = self.list.len();
             let looped = SettingsStore::global(cx).settings.loop_navigation;
-            if let Some(next) = layout::step_index(self.index, total, 1, looped, self.last_forward)
-                .filter(|next| !self.page_failed.contains_key(next))
-            {
+            // 양쪽 보기는 화면 단위로 건너뛴다. 실패한 페이지는 단독 화면이므로 짝이
+            // 있던 페이지를 잃지 않고, 화면 시작이 아닌 자리로 옮겨 짝이 어긋나지도 않는다.
+            let next = if self.view_mode(cx).is_dual() {
+                layout::dual_step(self.index, total, looped, self.last_forward, &self.solo(cx))
+            } else {
+                layout::step_index(self.index, total, 1, looped, self.last_forward)
+            };
+            if let Some(next) = next.filter(|next| !self.page_failed.contains_key(next)) {
                 window.toast(Toast::warning(t("toast.load.skipped")), cx);
                 self.index = next;
                 self.sync_pages(window, cx);
@@ -1148,12 +1165,45 @@ impl AraView {
             }
         }
         self.pending_commit = false;
+        // 이전 이미지를 남겨 두면 에러 카드가 가려지고 상태바가 두 파일을 섞어
+        // 보여준다. 화면을 비워 재시도·홈 경로가 있는 에러 카드를 띄운다(§3.2).
+        self.clear_shown(window, cx);
         window.toast(
             Toast::error(error.message.clone()).title(t("toast.load.imageFail")),
             cx,
         );
         self.error = Some(error);
         cx.notify();
+    }
+
+    /// 지금 화면의 그림과 보기 상태를 내려놓는다. 페이지 캐시는 그대로 둔다.
+    fn clear_shown(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(oriented) = self.oriented.take() {
+            Self::drop_picture(&oriented, window, cx);
+        }
+        if let Some(previous) = self.picture.take() {
+            let cached = self
+                .pages
+                .values()
+                .any(|page| Arc::ptr_eq(page.picture(), &previous));
+            if !cached {
+                Self::drop_picture(&previous, window, cx);
+            }
+        }
+        self.info = None;
+        self.shown.clear();
+        self.orientation = Orientation::default();
+        self.orient_seq += 1;
+        self.playing = false;
+        self.frame = 0;
+        self.info_seq += 1;
+        self.info_data = Default::default();
+        self.ocr_shown = None;
+        self.ocr_select = None;
+        self.ocr_drag = None;
+        self.close_video();
+        self.drop_pixel_view(window, cx);
+        window.set_window_title(&t("app.title"));
     }
 
     /// 현재 인덱스의 페이지를 기준 그림으로 삼고 보기 상태를 초기화한다.
@@ -1167,6 +1217,8 @@ impl AraView {
         let picture = page.picture().clone();
         self.error = None;
         self.orientation = Orientation::default();
+        // 이전 페이지에서 시작한 회전 결과가 도착해도 새 페이지를 덮지 않게 한다.
+        self.orient_seq += 1;
         if let Some(oriented) = self.oriented.take() {
             Self::drop_picture(&oriented, window, cx);
         }
