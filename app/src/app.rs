@@ -101,6 +101,8 @@ struct Listing {
     /// 열 때 캡처한 파일 identity(SPEC §8). 이어보기 기록 저장에 함께 쓴다.
     identity: Option<FileIdentity>,
     availability: Vec<FileAvailability>,
+    /// 폴더 목록을 만든 기준 경로(처음 연 파일, 부모 폴더 기준). 아카이브는 `None`.
+    root: Option<Arc<str>>,
     /// 아카이브의 ComicInfo.xml. 파싱 실패는 로드를 막지 않고 패널에 에러로만 남긴다.
     comic: Result<Option<ComicInfo>, AppError>,
 }
@@ -115,6 +117,12 @@ pub struct AraView {
     /// 현재 화면의 시작 인덱스.
     index: usize,
     archive: Option<Arc<str>>,
+    /// 폴더 목록을 만든 기준 경로. 정렬·하위 폴더 설정이 바뀌면 이 경로로 목록을
+    /// 다시 읽는다(§5.2). 보던 파일로 다시 열면 하위 폴더 파일에서는 목록이 그
+    /// 폴더로 좁아진다.
+    list_root: Option<Arc<str>>,
+    /// 목록 새로고침 순번. 늦게 끝난 새로고침 결과를 버린다.
+    relist_seq: u64,
     comic: Option<ComicInfo>,
     comic_failed: bool,
     /// 아카이브 세션 보기 모드. 열 때 자동으로 정하고, 보는 동안 직접 고르면
@@ -274,6 +282,8 @@ impl AraView {
             comic: None,
             comic_failed: false,
             comic_mode: None,
+            list_root: None,
+            relist_seq: 0,
             archive_identity: None,
             progress_held: false,
             pages: HashMap::new(),

@@ -328,6 +328,7 @@ impl AraView {
                     index: resumed.unwrap_or(0),
                     resumed: resumed.is_some_and(|index| index > 0),
                     archive: Some(Arc::from(source.as_str())),
+                    root: None,
                     identity,
                     availability: Vec::new(),
                     comic: ops::get_comic_info_blocking(&source),
@@ -343,6 +344,7 @@ impl AraView {
                     items: listing.images,
                     resumed: false,
                     archive: None,
+                    root: Some(Arc::from(source.as_str())),
                     identity: None,
                     comic: Ok(None),
                 })
@@ -386,6 +388,7 @@ impl AraView {
         self.list = Arc::new(listing.items);
         self.availability = listing.availability;
         self.archive = listing.archive;
+        self.list_root = listing.root;
         self.archive_identity = listing.identity;
         self.comic_failed = listing.comic.is_err();
         self.comic = listing.comic.ok().flatten();
@@ -492,6 +495,7 @@ impl AraView {
         self.clear_pages(window, cx);
         self.list = Arc::new(Vec::new());
         self.archive = None;
+        self.list_root = None;
         self.archive_identity = None;
         self.comic = None;
         self.comic_failed = false;

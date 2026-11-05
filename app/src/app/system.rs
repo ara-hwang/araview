@@ -1,10 +1,12 @@
 //! 설정 반영, 항상 위, 업데이트 확인, 라이선스, 두 번째 실행 전달(SPEC §4.3, §20).
 
 use std::rc::Rc;
+use std::sync::Arc;
 use std::sync::mpsc::{Receiver, TryRecvError};
 use std::time::Duration;
 
 use crate::toast::{Toast, WindowToast};
+use araview_core::app_error::AppError;
 use gpui_kit::component::WindowExt as _;
 use gpui_kit::component::scroll::ScrollbarMode;
 use gpui_kit::component::theme::{Theme, ThemeMode};
@@ -99,16 +101,62 @@ impl AraView {
         cx.notify();
     }
 
-    /// 정렬·하위 폴더 설정이 바뀌면 폴더 목록을 다시 읽고 보던 파일 위치를 복원한다.
+    /// 정렬·하위 폴더 설정이 바뀌면 폴더 목록을 다시 읽고 보던 파일 위치를 복원한다
+    /// (SPEC §5.2). 처음 목록을 만든 기준 경로로 다시 읽으므로 하위 폴더 파일을
+    /// 보던 중이어도 목록이 그 폴더로 좁아지지 않고, 폴더 목록의 아카이브를
+    /// 미리 보던 중이어도 만화 모드로 들어가지 않는다. 최근 파일은 건드리지 않는다.
     /// 아카이브 모드에서는 하지 않는다.
     fn refresh_listing(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self.archive.is_some() {
             return;
         }
-        // sidecar처럼 표시 경로가 원본과 다를 수 있어 목록의 원본 경로를 쓴다.
-        if let Some(path) = self.list.get(self.index) {
-            self.open_path(path.to_string(), window, cx);
-        }
+        let Some(root) = self.list_root.clone() else {
+            return;
+        };
+        let options = Self::list_options(cx);
+        self.relist_seq += 1;
+        let (relist_seq, open_seq) = (self.relist_seq, self.open_seq);
+        let task = cx.background_spawn(async move {
+            let listing = araview_core::ops::get_directory_images_impl(&root, Some(options))?;
+            if listing.images.is_empty() {
+                return Err(AppError::not_found("No images found in directory"));
+            }
+            Ok(listing)
+        });
+        cx.spawn_in(window, async move |this, cx| {
+            let result = task.await;
+            this.update_in(cx, |this, window, cx| {
+                // 그사이 다른 파일을 열었거나 더 새 새로고침이 시작됐으면 버린다.
+                if this.relist_seq != relist_seq
+                    || this.open_seq != open_seq
+                    || this.archive.is_some()
+                {
+                    return;
+                }
+                match result {
+                    Ok(listing) => {
+                        // sidecar처럼 표시 경로가 원본과 다를 수 있어 목록의 원본 경로로 찾는다.
+                        let previous = this.list.get(this.index).cloned();
+                        let index = restore_index(&listing.images, previous.as_deref(), this.index);
+                        this.clear_pages(window, cx);
+                        this.list = Arc::new(listing.images);
+                        this.availability = listing.availability;
+                        let index = if this.view_mode(cx).is_dual() {
+                            crate::layout::pair_start(index, this.list.len(), &this.solo(cx), None)
+                        } else {
+                            index
+                        };
+                        this.go_to(index, window, cx);
+                    }
+                    Err(error) => window.toast(
+                        Toast::error(error.message).title(t("toast.load.imageFail")),
+                        cx,
+                    ),
+                }
+            })
+            .ok();
+        })
+        .detach();
     }
 
     /// 실행 중에 OS 대비 설정이 바뀌었으면 테마를 다시 적용한다. 설정 앱에서 바꾸고
@@ -282,5 +330,37 @@ impl AraView {
                 maximized,
             },
         );
+    }
+}
+
+/// 새로 읽은 목록에서 이전에 보던 원본 경로의 위치. 없으면 이전 인덱스를 범위 안으로
+/// 맞춘다(SPEC §5.2).
+fn restore_index(items: &[Arc<str>], previous: Option<&str>, index: usize) -> usize {
+    previous
+        .and_then(|previous| items.iter().position(|item| &**item == previous))
+        .unwrap_or_else(|| index.min(items.len().saturating_sub(1)))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn items(names: &[&str]) -> Vec<Arc<str>> {
+        names.iter().map(|name| Arc::from(*name)).collect()
+    }
+
+    #[::core::prelude::v1::test]
+    fn relist_restores_the_previous_original_path() {
+        // 하위 폴더 포함 목록에서 정렬만 바뀌어도 보던 하위 폴더 파일 위치로 돌아간다.
+        let sorted = items(&["/r/sub/b.jpg", "/r/c.jpg", "/r/a.jpg"]);
+        assert_eq!(restore_index(&sorted, Some("/r/sub/b.jpg"), 2), 0);
+        assert_eq!(restore_index(&sorted, Some("/r/a.jpg"), 0), 2);
+    }
+
+    #[::core::prelude::v1::test]
+    fn relist_clamps_when_the_previous_path_is_gone() {
+        let sorted = items(&["/r/a.jpg", "/r/b.jpg"]);
+        assert_eq!(restore_index(&sorted, Some("/r/gone.jpg"), 5), 1);
+        assert_eq!(restore_index(&sorted, None, 0), 0);
     }
 }
