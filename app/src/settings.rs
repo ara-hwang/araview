@@ -155,12 +155,30 @@ impl ViewerBackground {
 }
 
 /// 업데이트 확인 채널. 안정 채널은 정식 릴리스만, 베타 채널은 프리릴리스까지 본다.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum UpdateChannel {
-    #[default]
     Stable,
     Beta,
+}
+
+impl UpdateChannel {
+    /// 실행 중인 빌드 버전에 맞는 기본 채널. 프리릴리스(`2.7.0-beta.3`처럼 `-`가 붙은
+    /// 버전)는 베타 채널에서, 정식 릴리스는 안정 채널에서 시작한다(SPEC §13, §20.1).
+    pub fn for_version(version: &str) -> Self {
+        if version.contains('-') {
+            Self::Beta
+        } else {
+            Self::Stable
+        }
+    }
+}
+
+impl Default for UpdateChannel {
+    /// 설정 파일에 채널이 없을 때 쓰는 값. 베타 빌드를 처음 실행해도 베타 피드를 본다.
+    fn default() -> Self {
+        Self::for_version(env!("CARGO_PKG_VERSION"))
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -502,7 +520,7 @@ impl Default for Settings {
             record_recent_files: true,
             trash_without_confirm: false,
             auto_check_updates: true,
-            update_channel: UpdateChannel::Stable,
+            update_channel: UpdateChannel::default(),
             viewer_background: ViewerBackground::Theme,
             auto_hide_ui: false,
             menu_bar_hidden: false,
@@ -921,10 +939,27 @@ mod tests {
         assert!(restored.auto_check_updates);
     }
 
-    /// 업데이트 채널은 안정 채널이 기본이다(SPEC §13, §20.1).
+    /// 업데이트 채널 기본값은 빌드 버전을 따른다: 정식 릴리스는 안정, 프리릴리스는 베타(SPEC §13, §20.1).
     #[test]
-    fn update_channel_defaults_to_stable() {
-        assert_eq!(Settings::default().update_channel, UpdateChannel::Stable);
+    fn update_channel_default_follows_the_build_version() {
+        assert_eq!(UpdateChannel::for_version("2.7.0"), UpdateChannel::Stable);
+        assert_eq!(
+            UpdateChannel::for_version("2.7.0-beta.45"),
+            UpdateChannel::Beta
+        );
+        assert_eq!(
+            Settings::default().update_channel,
+            UpdateChannel::for_version(env!("CARGO_PKG_VERSION"))
+        );
+    }
+
+    /// 베타 빌드를 처음 실행하면(설정 파일 없음, 또는 채널 키 없음) 베타 피드를 본다.
+    #[test]
+    fn a_missing_update_channel_uses_the_build_default() {
+        let restored = restore_settings(serde_json::json!({ "language": "en" }));
+        assert_eq!(restored.update_channel, UpdateChannel::default());
+        let parsed: Settings = serde_json::from_value(serde_json::json!({})).expect("빈 설정 복원");
+        assert_eq!(parsed.update_channel, UpdateChannel::default());
     }
 
     /// 설정 파일의 키 이름은 camelCase로 저장된다(SPEC §13, `npm run docs:check`).
@@ -940,11 +975,11 @@ mod tests {
         assert_eq!(restored.update_channel, UpdateChannel::Beta);
     }
 
-    /// 알 수 없는 채널 값은 기본값으로 되돌린다.
+    /// 알 수 없는 채널 값은 빌드 기본값으로 되돌린다.
     #[test]
-    fn an_unknown_update_channel_falls_back_to_stable() {
+    fn an_unknown_update_channel_falls_back_to_the_build_default() {
         let restored = restore_settings(serde_json::json!({ "updateChannel": "nightly" }));
-        assert_eq!(restored.update_channel, UpdateChannel::Stable);
+        assert_eq!(restored.update_channel, UpdateChannel::default());
     }
 
     /// identity 없는 옛 `settings.json` 기록은 그대로 로드되고 한 번만
