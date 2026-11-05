@@ -95,6 +95,49 @@ impl ArchiveCacheIdentity {
     }
 }
 
+/// 두 경로가 같은 파일(같은 볼륨의 같은 OS 파일 ID)을 가리키는지. 대소문자 무시
+/// 볼륨에서 `a.jpg`와 `A.jpg`는 같은 파일이고, 대소문자 구분 볼륨에서는 별개의
+/// 파일일 수 있어 이름 비교만으로는 판단할 수 없다. `b`가 없으면 `false`다.
+pub(crate) fn same_file(a: &Path, b: &Path) -> io::Result<bool> {
+    let b_id = match file_id_of(b) {
+        Ok(id) => id,
+        Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(false),
+        Err(e) => return Err(e),
+    };
+    Ok(file_id_of(a)? == b_id)
+}
+
+#[cfg(unix)]
+fn file_id_of(path: &Path) -> io::Result<[u64; 3]> {
+    use std::os::unix::fs::MetadataExt;
+
+    let metadata = fs::metadata(path)?;
+    Ok([metadata.dev(), metadata.ino(), 0])
+}
+
+#[cfg(windows)]
+fn file_id_of(path: &Path) -> io::Result<[u64; 3]> {
+    use std::os::windows::fs::OpenOptionsExt;
+
+    const FILE_READ_ATTRIBUTES: u32 = 0x80;
+    const FILE_SHARE_ALL: u32 = 0x1 | 0x2 | 0x4;
+    // 속성 읽기 권한만으로 연다. 다른 프로그램이 쓰는 중인 파일도 막지 않는다.
+    let file = fs::OpenOptions::new()
+        .access_mode(FILE_READ_ATTRIBUTES)
+        .share_mode(FILE_SHARE_ALL)
+        .open(path)?;
+    let metadata = file.metadata()?;
+    platform_file_identity(&file, &metadata).map(|(id, _)| id)
+}
+
+#[cfg(not(any(unix, windows)))]
+fn file_id_of(_path: &Path) -> io::Result<[u64; 3]> {
+    Err(io::Error::new(
+        io::ErrorKind::Unsupported,
+        "file identity is unsupported on this platform",
+    ))
+}
+
 #[cfg(unix)]
 fn platform_file_identity(_file: &File, metadata: &Metadata) -> io::Result<([u64; 3], i128)> {
     use std::os::unix::fs::MetadataExt;
@@ -218,6 +261,42 @@ mod tests {
 
         assert_ne!(first, second);
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// A hard link is the same file under another name, which is what a
+    /// case-insensitive volume reports for `a.jpg` and `A.jpg`.
+    #[test]
+    fn same_file_follows_file_identity_not_names() {
+        let dir = tempfile::tempdir().unwrap();
+        let a = dir.path().join("a.bin");
+        let b = dir.path().join("b.bin");
+        let link = dir.path().join("link.bin");
+        std::fs::write(&a, b"a").unwrap();
+        std::fs::write(&b, b"a").unwrap();
+        std::fs::hard_link(&a, &link).unwrap();
+
+        assert!(same_file(&a, &a).unwrap());
+        assert!(same_file(&a, &link).unwrap());
+        assert!(!same_file(&a, &b).unwrap());
+        assert!(!same_file(&a, &dir.path().join("missing.bin")).unwrap());
+    }
+
+    /// On a case-insensitive volume (macOS and Windows defaults) the two
+    /// spellings resolve to one file; on a case-sensitive one they are two.
+    #[test]
+    fn same_file_tells_case_aliases_from_distinct_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let lower = dir.path().join("page.png");
+        let upper = dir.path().join("PAGE.png");
+        std::fs::write(&lower, b"lower").unwrap();
+
+        if crate::fs_move::tests::is_case_sensitive(dir.path()) {
+            assert!(!same_file(&lower, &upper).unwrap());
+            std::fs::write(&upper, b"upper").unwrap();
+            assert!(!same_file(&lower, &upper).unwrap());
+        } else {
+            assert!(same_file(&lower, &upper).unwrap());
+        }
     }
 
     /// Platform identity errors are returned instead of creating a weak cache key.

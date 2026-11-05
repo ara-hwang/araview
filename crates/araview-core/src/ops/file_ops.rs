@@ -1,6 +1,5 @@
 //! 휴지통 이동과 이름 변경 같은 원본 파일 조작 커맨드.
 
-use std::fs;
 use std::path::Path;
 
 use crate::app_error::{AppError, ErrorCode};
@@ -47,23 +46,39 @@ pub fn rename_file_impl_with_mode(
         if !is_supported_file(&new_path) {
             return Err(AppError::unsupported("Unsupported image format"));
         }
-        // 대소문자만 다른 이름은 같은 파일을 가리키므로 중복으로 보지 않는다.
-        // `Path` 비교는 대소문자를 구분해 여기까지 오고, `exists()`는 자기 자신을 찾는다.
-        if !differs_only_in_case(old, &new_path) && new_path.exists() {
-            return Err(AppError::already_exists(
-                "A file with that name already exists",
-            ));
-        }
-        fs::rename(old, &new_path)
-            .map_err(|e| AppError::io("Failed to rename", e, ErrorCode::Unknown))?;
+        // 존재 확인과 이동을 따로 하지 않는다. 덮어쓰지 않는 이동이 대상이 있으면
+        // 실패하므로, 그 사이에 같은 이름의 파일이 생겨도 지우지 않는다.
+        rename_no_replace(old, &new_path).map_err(|e| {
+            if e.kind() == std::io::ErrorKind::AlreadyExists {
+                AppError::already_exists("A file with that name already exists")
+            } else {
+                AppError::io("Failed to rename", e, ErrorCode::Unknown)
+            }
+        })?;
     }
 
     crate::image::load_viewable_with_limit_mode(&new_path, max_side, mode).inspect_err(|_| {
         // 새 이름으로 읽지 못하면 되돌려, 실패 보고와 디스크 상태가 어긋나지 않게 한다.
+        // 그사이 옛 이름에 다른 파일이 생겼으면 덮어쓰지 않고 새 이름에 남긴다.
         if moved {
-            let _ = fs::rename(&new_path, old);
+            if let Err(e) = rename_no_replace(&new_path, old) {
+                log::warn!("[rename] failed to restore {}: {e}", old.display());
+            }
         }
     })
+}
+
+/// 같은 폴더 안에서 `old`를 `new`로 옮기되 다른 파일은 덮어쓰지 않는다.
+///
+/// 대소문자만 다른 이름은 볼륨에 따라 같은 파일(대소문자 무시)이거나 별개의
+/// 파일(Linux·macOS 대소문자 구분 볼륨, Windows 대소문자 구분 폴더)이다. 이름으로
+/// 추측하지 않고 두 경로의 OS 파일 ID가 같을 때만 같은 파일로 보고 임시 이름을
+/// 거쳐 바꾼다. 별개의 파일이면 일반 이름 변경처럼 `AlreadyExists`로 거부된다.
+fn rename_no_replace(old: &Path, new: &Path) -> std::io::Result<()> {
+    if differs_only_in_case(old, new) && crate::file_identity::same_file(old, new)? {
+        return crate::fs_move::move_case_only(old, new);
+    }
+    crate::fs_move::move_no_replace(old, new)
 }
 
 fn differs_only_in_case(old: &Path, new: &Path) -> bool {
@@ -127,7 +142,85 @@ fn validate_new_file_name(name: &str) -> Result<String, AppError> {
 
 #[cfg(test)]
 mod tests {
-    use super::validate_new_file_name;
+    use super::*;
+
+    fn write_png(path: &Path) {
+        image::RgbImage::from_pixel(2, 2, image::Rgb([10, 20, 30]))
+            .save(path)
+            .unwrap();
+    }
+
+    /// 대소문자 구분 볼륨에서 `a.png`와 `A.png`는 별개의 파일이다. 대소문자만 다른
+    /// 이름으로 바꿔도 다른 파일을 덮어쓰지 않고 중복으로 거부해야 한다.
+    #[test]
+    fn case_only_rename_does_not_overwrite_a_distinct_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let lower = dir.path().join("a.png");
+        let upper = dir.path().join("A.png");
+        std::fs::write(&lower, b"lower").unwrap();
+        std::fs::write(&upper, b"upper").unwrap();
+        if std::fs::read(&lower).unwrap() != b"lower" {
+            // 대소문자 무시 볼륨(macOS·Windows 기본)에서는 재현할 수 없다.
+            return;
+        }
+
+        let error = rename_file_impl_with_mode(
+            lower.to_str().unwrap(),
+            "A.png",
+            None,
+            crate::scaled::ImageScalingMode::Smooth,
+        )
+        .unwrap_err();
+
+        assert_eq!(error.code, ErrorCode::AlreadyExists);
+        assert_eq!(std::fs::read(&lower).unwrap(), b"lower");
+        assert_eq!(std::fs::read(&upper).unwrap(), b"upper");
+    }
+
+    /// 다른 파일이 없으면 대소문자만 바꾸는 이름 변경은 그대로 성공한다.
+    #[test]
+    fn case_only_rename_succeeds_when_the_name_is_free() {
+        let dir = tempfile::tempdir().unwrap();
+        let lower = dir.path().join("page.png");
+        write_png(&lower);
+
+        let info = rename_file_impl_with_mode(
+            lower.to_str().unwrap(),
+            "PAGE.png",
+            None,
+            crate::scaled::ImageScalingMode::Smooth,
+        )
+        .unwrap();
+
+        assert!(info.source_path.ends_with("PAGE.png"));
+        let names: Vec<_> = std::fs::read_dir(dir.path())
+            .unwrap()
+            .flatten()
+            .map(|e| e.file_name())
+            .collect();
+        assert_eq!(names, vec![std::ffi::OsString::from("PAGE.png")]);
+    }
+
+    #[test]
+    fn rename_refuses_an_existing_name() {
+        let dir = tempfile::tempdir().unwrap();
+        let from = dir.path().join("one.png");
+        let to = dir.path().join("two.png");
+        write_png(&from);
+        std::fs::write(&to, b"keep").unwrap();
+
+        let error = rename_file_impl_with_mode(
+            from.to_str().unwrap(),
+            "two.png",
+            None,
+            crate::scaled::ImageScalingMode::Smooth,
+        )
+        .unwrap_err();
+
+        assert_eq!(error.code, ErrorCode::AlreadyExists);
+        assert!(from.is_file());
+        assert_eq!(std::fs::read(&to).unwrap(), b"keep");
+    }
 
     #[test]
     fn rename_rejects_control_and_bidi_names() {
