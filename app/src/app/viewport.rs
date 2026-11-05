@@ -782,8 +782,25 @@ impl AraView {
             let settings = &SettingsStore::global(cx).settings;
             (settings.video_volume, settings.video_autoplay)
         };
+        // 오디오 출력 장치 열기도 백그라운드에서 한다. 장치가 응답하지 않으면 최대 5초를
+        // 기다리므로 UI 스레드에서 열면 그동안 창이 멈춘다.
         let task = cx.background_spawn(async move {
-            araview_core::video_player::VideoPlayer::open(Path::new(&open_source))
+            let player = araview_core::video_player::VideoPlayer::open(Path::new(&open_source))?;
+            // 출력 스트림은 오디오 전용 스레드가 연다(Windows에서 기본 장치 핸들의
+            // 클라이언트 활성화가 실패하면 같은 엔드포인트를 특정 장치로 다시 시도한다).
+            // 실패하면 이유를 남기고 영상만 재생한다.
+            let stream = if player.audio_active() {
+                match player.attach_audio_output() {
+                    Ok(stream) => Some(stream),
+                    Err(error) => {
+                        log::warn!("video audio unavailable: {error:?}");
+                        None
+                    }
+                }
+            } else {
+                None
+            };
+            Ok::<_, araview_core::app_error::AppError>((player, stream))
         });
         cx.spawn_in(window, async move |this, cx| {
             let result = task.await;
@@ -800,7 +817,10 @@ impl AraView {
                     return;
                 }
                 match result {
-                    Ok(player) => {
+                    Ok((mut player, stream)) => {
+                        if stream.is_none() {
+                            player.disable_audio();
+                        }
                         player.set_volume(video_volume as f32 / 100.0);
                         let duration = player.info().duration_ms as f32;
                         let timeline = cx.new(|_| {
@@ -855,28 +875,7 @@ impl AraView {
                             player.play(1.0);
                         }
                         this.video = Some(player);
-                        // 출력 스트림은 오디오 전용 스레드가 연다(Windows에서 기본 장치
-                        // 핸들의 클라이언트 활성화가 실패하면 같은 엔드포인트를 특정 장치로
-                        // 다시 시도한다). 실패하면 이유를 남기고 영상만 재생한다.
-                        let stream = this.video.as_ref().and_then(|player| {
-                            match player.attach_audio_output() {
-                                Ok(stream) => Some(stream),
-                                Err(error) => {
-                                    log::warn!("video audio unavailable: {error:?}");
-                                    None
-                                }
-                            }
-                        });
-                        match stream {
-                            Some(stream) => {
-                                this.video_audio_stream = Some(stream);
-                            }
-                            None => {
-                                if let Some(player) = &mut this.video {
-                                    player.disable_audio();
-                                }
-                            }
-                        }
+                        this.video_audio_stream = stream;
                         this.video_frame_pts = None;
                         this.video_clock_ms = 0;
                         // 프레임 예약은 렌더 단계의 `advance_video`가 맡는다.
@@ -911,16 +910,22 @@ impl AraView {
     /// 재생 중이면 현재 위치의 프레임을 화면에 올리고 다음 프레임을 예약한다.
     /// 정지 상태에서는 탐색·스텝 뒤에 화면이 따라잡을 때까지만 틱한다.
     pub(super) fn advance_video(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let (pos, playing, seeking, frame, error) = match &self.video {
+        let (pos, duration, playing, seeking, frame, error, audio_active) = match &self.video {
             Some(player) => (
                 player.position_ms(),
+                player.duration_ms(),
                 player.is_playing(),
                 player.is_seeking(),
                 player.poll_frame().ok().flatten(),
                 player.has_error(),
+                player.audio_active(),
             ),
             None => return,
         };
+        // 오디오가 재생 중 오류로 멈추면 재생기는 영상만 이어 간다. 출력 장치도 놓는다.
+        if !audio_active && self.video_audio_stream.is_some() {
+            self.video_audio_stream.take();
+        }
         if let Some(error) = error {
             window.toast(Toast::error(error).title(t("toast.load.imageFail")), cx);
             self.close_video();
@@ -943,6 +948,16 @@ impl AraView {
             cx.notify();
         }
         if let Some(controls) = &self.video_controls {
+            // 길이를 모르던 파일은 끝까지 재생한 뒤 알게 된 길이로 타임라인 범위를 넓힌다.
+            let max = (duration as f32).max(1.0);
+            if duration > 0 && controls.timeline.read(cx).max_value() != max {
+                controls.timeline.update(cx, |state, cx| {
+                    let value = state.value();
+                    *state = std::mem::replace(state, SliderState::new()).max(max);
+                    // 범위가 바뀌면 손잡이 비율도 다시 계산해야 한다.
+                    state.set_value(value, window, cx);
+                });
+            }
             let value = SliderValue::Single(pos as f32);
             // 값이 같으면 슬라이더를 갱신하지 않는다. `set_value`가 항상
             // notify하므로 그대로 두면 정지 상태에서 렌더가 끝없이 반복된다.
@@ -1042,7 +1057,7 @@ impl AraView {
         };
         let info = player.info();
         let pos = player.position_ms();
-        let duration = info.duration_ms;
+        let duration = player.duration_ms();
         let speed = player.speed();
         let frame_text = info.fps.filter(|fps| *fps > 0.0).map(|fps| {
             let (current, total) = video_frame_position(pos, duration, fps);

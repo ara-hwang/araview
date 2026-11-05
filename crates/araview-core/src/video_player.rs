@@ -65,6 +65,9 @@ struct Shared {
     /// 탐색이 끝나 UI가 가져갈 프레임의 목표 + 1. 0이면 없음.
     /// UI가 결과 프레임을 받을 때까지 유지해 정지 상태에서도 렌더를 이어 간다.
     seek_result: AtomicU64,
+    /// 핸들이 버려지는 중이다. 워커는 탐색·디코드 루프 안에서도 이 값을 보고 곧바로
+    /// 끝낸다. 명령 채널만 보면 긴 GOP 탐색이 끝날 때까지 `Drop`의 `join`이 막힌다.
+    stop: AtomicBool,
 }
 
 /// 동영상 재생 핸들. 워커 스레드를 소유하고, 시계는 이쪽에서 잰다.
@@ -75,7 +78,15 @@ pub struct VideoPlayer {
     clock: Mutex<Clock>,
     info: PlayerInfo,
     audio: Option<crate::video_audio::AudioOutput>,
+    /// 오디오가 오류로 멈춰 단조 클럭으로 넘어갔는가. 한 번 넘어가면 돌아오지 않는다.
+    audio_failed: AtomicBool,
+    /// 길이를 모르는 파일(`duration_ms == 0`)에서 끝까지 재생해 알아낸 길이. 0이면 아직 모른다.
+    discovered_duration_ms: AtomicU64,
 }
+
+/// 읽기 오류가 이만큼 이어지면 파일 끝으로 본다. 손상 구간 하나는 건너뛰되,
+/// 더 읽을 수 없는 파일(잘린 파일, 끊긴 네트워크 드라이브)에서 무한히 돌지 않게 한다.
+const MAX_CONSECUTIVE_READ_ERRORS: u32 = 64;
 
 struct Clock {
     base_ms: u64,
@@ -111,6 +122,7 @@ impl VideoPlayer {
             last_pts: AtomicU64::new(0),
             seek_pending: AtomicU64::new(0),
             seek_result: AtomicU64::new(0),
+            stop: AtomicBool::new(false),
         });
         let (cmd_tx, cmd_rx) = mpsc::channel();
         let worker_shared = Arc::clone(&shared);
@@ -143,6 +155,8 @@ impl VideoPlayer {
             }),
             info,
             audio,
+            audio_failed: AtomicBool::new(false),
+            discovered_duration_ms: AtomicU64::new(0),
         })
     }
 
@@ -150,47 +164,93 @@ impl VideoPlayer {
         &self.info
     }
 
-    pub fn position_ms(&self) -> u64 {
-        if self.info.duration_ms == 0 {
-            return match &self.audio {
-                Some(audio) => audio.played_ms(),
-                None => {
-                    let clock = self.clock.lock().unwrap_or_else(|e| e.into_inner());
-                    if clock.playing {
-                        let elapsed = clock.base_at.elapsed().as_secs_f64();
-                        clock.base_ms.saturating_add(
-                            (elapsed * 1000.0 * f64::from(clock.speed)).round() as u64,
-                        )
-                    } else {
-                        clock.base_ms
-                    }
-                }
-            };
+    /// 재생 길이(ms). 컨테이너에 길이가 없으면(MediaRecorder WebM 등) 끝까지 재생해
+    /// 알아낸 길이를, 아직 모르면 0을 돌려준다.
+    pub fn duration_ms(&self) -> u64 {
+        if self.info.duration_ms > 0 {
+            self.info.duration_ms
+        } else {
+            self.discovered_duration_ms.load(Ordering::SeqCst)
         }
-        // 오디오가 있으면 오디오 클럭이 마스터, 없으면 단조 클럭이 마스터다.
-        let mut pos = match &self.audio {
-            Some(audio) => audio.played_ms(),
-            None => {
-                let clock = self.clock.lock().unwrap_or_else(|e| e.into_inner());
-                if clock.playing {
-                    let elapsed = clock.base_at.elapsed().as_secs_f64();
-                    clock
-                        .base_ms
-                        .saturating_add((elapsed * 1000.0 * f64::from(clock.speed)).round() as u64)
-                } else {
-                    clock.base_ms
-                }
-            }
+    }
+
+    /// 살아 있는 오디오 출력. 오디오 디코드가 오류로 멈췄으면 경고를 남기고 그 시점의
+    /// 오디오 위치에서 단조 클럭으로 넘어간 뒤 `None`을 돌려준다(§7.6: 오디오를 쓸 수
+    /// 없으면 영상만 재생한다). 호출자는 `clock` 잠금을 잡은 채 부르지 않는다.
+    fn live_audio(&self) -> Option<&crate::video_audio::AudioOutput> {
+        let audio = self.audio.as_ref()?;
+        if self.audio_failed.load(Ordering::SeqCst) {
+            return None;
+        }
+        let Some(error) = audio.has_error() else {
+            return Some(audio);
         };
-        pos = pos.min(self.info.duration_ms);
+        if !self.audio_failed.swap(true, Ordering::SeqCst) {
+            log::warn!("audio stopped, continuing video only: {error}");
+            let played = audio.played_ms();
+            audio.set_playing(false);
+            let mut clock = self.clock.lock().unwrap_or_else(|e| e.into_inner());
+            clock.base_ms = played;
+            clock.base_at = Instant::now();
+        }
+        None
+    }
+
+    /// 마스터 클럭 위치(ms). 오디오가 살아 있으면 오디오 클럭, 아니면 단조 클럭이다.
+    fn master_ms(&self) -> u64 {
+        if let Some(audio) = self.live_audio() {
+            return audio.played_ms();
+        }
+        let clock = self.clock.lock().unwrap_or_else(|e| e.into_inner());
+        if clock.playing {
+            let elapsed = clock.base_at.elapsed().as_secs_f64();
+            clock
+                .base_ms
+                .saturating_add((elapsed * 1000.0 * f64::from(clock.speed)).round() as u64)
+        } else {
+            clock.base_ms
+        }
+    }
+
+    pub fn position_ms(&self) -> u64 {
+        let pos = self.master_ms();
+        let mut duration = self.duration_ms();
+        if duration == 0 {
+            // 길이를 모르면 마지막 프레임을 지난 시점을 끝으로 본다. 그대로 두면 디코드가
+            // 끝나도 클럭이 끝없이 늘고, 재생을 눌러도 처음으로 돌아가지 않는다.
+            match self.decoded_end_ms() {
+                Some(end) if pos >= end => {
+                    self.discovered_duration_ms.store(end, Ordering::SeqCst);
+                    duration = end;
+                }
+                _ => return pos,
+            }
+        }
         // 끝까지 가면 멈춘다. 유한 반복 GIF와 같은 규칙이다.
-        if pos >= self.info.duration_ms {
+        if pos >= duration {
             if self.is_playing() {
                 self.pause();
             }
-            return self.info.duration_ms;
+            return duration;
         }
         pos
+    }
+
+    /// 디코드가 파일 끝에 닿고 큐가 비었으면 마지막 프레임이 끝나는 시각(ms).
+    /// 길이를 모르는 파일의 끝 판정에 쓴다.
+    fn decoded_end_ms(&self) -> Option<u64> {
+        if !self.shared.eof.load(Ordering::SeqCst) || self.is_seeking() {
+            return None;
+        }
+        let queue = self.shared.queue.lock().unwrap_or_else(|e| e.into_inner());
+        if !queue.is_empty() {
+            return None;
+        }
+        let last = self.shared.last_pts.load(Ordering::SeqCst);
+        if last == 0 {
+            return None;
+        }
+        Some((last - 1).saturating_add(self.frame_ms()))
     }
 
     pub fn is_playing(&self) -> bool {
@@ -217,7 +277,7 @@ impl VideoPlayer {
         self.shared
             .speed_bits
             .store(speed.to_bits(), Ordering::SeqCst);
-        if let Some(audio) = &self.audio {
+        if let Some(audio) = self.live_audio() {
             audio.set_speed(speed);
         }
     }
@@ -228,7 +288,9 @@ impl VideoPlayer {
         }
         // 끝에서 다시 재생하면 처음부터 시작한다. 그대로 두면 위치가 이미 끝이라
         // `position_ms`가 곧바로 다시 멈춘다.
-        if self.info.duration_ms > 0 && self.position_ms() >= self.info.duration_ms {
+        let pos = self.position_ms();
+        let duration = self.duration_ms();
+        if duration > 0 && pos >= duration {
             self.seek(0);
         }
         {
@@ -241,7 +303,7 @@ impl VideoPlayer {
         self.shared
             .speed_bits
             .store(speed.to_bits(), Ordering::SeqCst);
-        if let Some(audio) = &self.audio {
+        if let Some(audio) = self.live_audio() {
             audio.set_speed(speed);
             audio.set_playing(true);
         }
@@ -254,15 +316,16 @@ impl VideoPlayer {
             clock.base_ms = self.clamped_position(&clock);
             clock.playing = false;
         }
-        if let Some(audio) = &self.audio {
+        if let Some(audio) = self.live_audio() {
             audio.set_playing(false);
         }
         let _ = self.cmd_tx.send(Command::Pause);
     }
 
     pub fn seek(&self, position_ms: u64) {
-        let target = if self.info.duration_ms > 0 {
-            position_ms.min(self.info.duration_ms)
+        let duration = self.duration_ms();
+        let target = if duration > 0 {
+            position_ms.min(duration)
         } else {
             position_ms
         };
@@ -284,7 +347,7 @@ impl VideoPlayer {
                 .store(target.saturating_add(1), Ordering::SeqCst);
             self.shared.seek_result.store(0, Ordering::SeqCst);
         }
-        if let Some(audio) = &self.audio {
+        if let Some(audio) = self.live_audio() {
             audio.seek(target);
         }
         let _ = self.cmd_tx.send(Command::Seek(target));
@@ -295,16 +358,12 @@ impl VideoPlayer {
         if direction == 0 {
             return;
         }
-        let frame_ms = self.frame_ms();
         let pos = self.position_ms();
         self.pause();
-        let target = if direction > 0 {
-            pos.saturating_add(frame_ms)
-        } else {
-            pos.saturating_sub(frame_ms)
-        };
-        let target = if self.info.duration_ms > 0 {
-            target.min(self.info.duration_ms)
+        let target = step_target(pos, self.info.fps, direction);
+        let duration = self.duration_ms();
+        let target = if duration > 0 {
+            target.min(duration)
         } else {
             target
         };
@@ -324,15 +383,16 @@ impl VideoPlayer {
                 .store(target.saturating_add(1), Ordering::SeqCst);
             self.shared.seek_result.store(0, Ordering::SeqCst);
         }
-        if let Some(audio) = &self.audio {
+        if let Some(audio) = self.live_audio() {
             audio.seek(target);
         }
         let _ = self.cmd_tx.send(Command::Step(target));
     }
 
-    /// 오디오 출력이 살아 있는가. 장치를 못 열면 영상만 재생한다.
+    /// 오디오 출력이 살아 있는가. 장치를 못 열었거나 오디오 디코드가 오류로 멈췄으면
+    /// 영상만 재생한다.
     pub fn audio_active(&self) -> bool {
-        self.audio.is_some()
+        self.live_audio().is_some()
     }
 
     /// 오디오 콜백이 선행 버퍼 부족으로 소리를 0으로 메운 횟수. 진단용이다.
@@ -409,11 +469,8 @@ impl VideoPlayer {
         {
             return Err(AppError::corrupt(err));
         }
-        if let Some(audio) = &self.audio {
-            if let Some(err) = audio.has_error() {
-                return Err(AppError::corrupt(err));
-            }
-        }
+        // 오디오 오류는 여기서 올리지 않는다. `position_ms`가 단조 클럭으로 넘어가고
+        // 영상은 계속 재생된다.
         let pos = self.position_ms();
         let mut queue = self.shared.queue.lock().unwrap_or_else(|e| e.into_inner());
         let seek_result = self.shared.seek_result.load(Ordering::SeqCst);
@@ -474,22 +531,19 @@ impl VideoPlayer {
         Ok(chosen)
     }
 
+    /// 영상 디코드 오류. 오디오 오류는 영상을 닫지 않으므로 포함하지 않는다.
     pub fn has_error(&self) -> Option<String> {
-        if let Some(err) = self
-            .shared
+        self.shared
             .error
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .clone()
-        {
-            return Some(err);
-        }
-        self.audio.as_ref().and_then(|audio| audio.has_error())
     }
 
+    /// 한 프레임 길이(ms, 올림). 길이를 모르는 파일의 끝 판정에 쓴다.
     fn frame_ms(&self) -> u64 {
         match self.info.fps {
-            Some(fps) if fps.is_finite() && fps > 0.0 => (1000.0 / fps) as u64,
+            Some(fps) if fps.is_finite() && fps > 0.0 => (1000.0 / fps).ceil() as u64,
             _ => 40,
         }
         .max(1)
@@ -504,16 +558,42 @@ impl VideoPlayer {
         } else {
             clock.base_ms
         };
-        if self.info.duration_ms == 0 {
+        let duration = self.duration_ms();
+        if duration == 0 {
             pos
         } else {
-            pos.min(self.info.duration_ms)
+            pos.min(duration)
         }
     }
 }
 
+/// 1프레임 스텝의 목표 위치(ms). 현재 위치가 든 프레임의 다음(앞) 프레임 시작 시각을
+/// 올림해 돌려준다. 프레임 길이를 정수 ms로 잘라 더하면 33.33ms 같은 길이에서 목표가
+/// 다음 프레임에 못 미쳐 같은 프레임이 반복된다.
+fn step_target(pos_ms: u64, fps: Option<f64>, direction: i32) -> u64 {
+    let fps = match fps {
+        Some(fps) if fps.is_finite() && fps > 0.0 => fps,
+        _ => 25.0,
+    };
+    let frame = 1000.0 / fps;
+    // 부동소수 오차로 프레임 시작 시각이 바로 앞 프레임으로 읽히지 않게 조금 더한다.
+    let index = ((pos_ms as f64 + 1e-6) / frame).floor();
+    let next = if direction > 0 {
+        index + 1.0
+    } else {
+        index - 1.0
+    };
+    if next <= 0.0 {
+        return 0;
+    }
+    // 1000/30*15 = 500.0000001처럼 정수 시각이 올림으로 1ms 밀리지 않게 조금 뺀다.
+    (next * frame - 1e-6).ceil() as u64
+}
+
 impl Drop for VideoPlayer {
     fn drop(&mut self) {
+        // 탐색·디코드 루프가 먼저 멈추도록 플래그를 세운 뒤 명령을 보낸다.
+        self.shared.stop.store(true, Ordering::SeqCst);
         let _ = self.cmd_tx.send(Command::Stop);
         if let Some(worker) = self.worker.take() {
             let _ = worker.join();
@@ -605,6 +685,21 @@ pub(crate) fn frame_time_ms(
     time_base: (i32, i32),
     origin_ms: i64,
 ) -> Option<u64> {
+    let ms = frame_time_ms_signed(frame, time_base, origin_ms)?;
+    if ms >= 0.0 {
+        Some(ms as u64)
+    } else {
+        None
+    }
+}
+
+/// 부호 있는 프레임 시각(ms, 컨테이너 시작 기준). 시작보다 이른 프레임은 음수다.
+/// 오디오가 탐색 목표에 걸친 프레임의 앞부분을 잘라낼 때 쓴다.
+pub(crate) fn frame_time_ms_signed(
+    frame: &rsmpeg::avutil::AVFrame,
+    time_base: (i32, i32),
+    origin_ms: i64,
+) -> Option<f64> {
     const NOPTS: i64 = i64::MIN;
     let pts: i64 = if frame.pts != NOPTS {
         frame.pts
@@ -615,11 +710,7 @@ pub(crate) fn frame_time_ms(
         return None;
     }
     let ms = pts as f64 * 1000.0 * time_base.0 as f64 / time_base.1 as f64 - origin_ms as f64;
-    if ms.is_finite() && ms >= 0.0 {
-        Some(ms as u64)
-    } else {
-        None
-    }
+    ms.is_finite().then_some(ms)
 }
 
 /// 재생 위치(ms)를 스트림 time_base 시각으로 바꾼다. 탐색 대상이다.
@@ -640,6 +731,37 @@ pub(crate) fn send_packet_lenient(
 ) {
     if let Err(e) = ctx.send_packet(Some(pkt)) {
         log::debug!("skipping undecodable packet: {e:?}");
+    }
+}
+
+/// 패킷 하나를 읽는다. 파일 끝이면 `None`이다. 손상된 구간에서 나는 읽기 오류는
+/// 그 패킷만 건너뛰고 다음 패킷을 읽는다(§7.6). 오류가 `MAX_CONSECUTIVE_READ_ERRORS`번
+/// 이어지면 더 읽을 수 없는 것으로 보고 파일 끝처럼 `None`을 돌려준다. 그러면
+/// 이미 디코드한 데까지는 재생되고, 재생 전체가 오류로 닫히지 않는다.
+pub(crate) fn read_packet_lenient(
+    ictx: &mut rsmpeg::avformat::AVFormatContextInput,
+    cancelled: impl Fn() -> bool,
+) -> Option<rsmpeg::avcodec::AVPacket> {
+    let mut errors = 0u32;
+    loop {
+        match ictx.read_packet() {
+            Ok(packet) => return packet,
+            Err(error) => {
+                if cancelled() {
+                    return None;
+                }
+                if error.raw_error() == Some(rsmpeg::ffi::AVERROR(rsmpeg::ffi::EAGAIN)) {
+                    std::thread::sleep(std::time::Duration::from_millis(5));
+                    continue;
+                }
+                errors += 1;
+                if errors >= MAX_CONSECUTIVE_READ_ERRORS {
+                    log::warn!("stopping at unreadable data after {errors} read errors: {error:?}");
+                    return None;
+                }
+                log::debug!("skipping unreadable packet: {error:?}");
+            }
+        }
     }
 }
 
@@ -823,13 +945,13 @@ fn queue_full(shared: &Arc<Shared>) -> bool {
 /// 패킷을 읽어 프레임을 큐에 넣는다. EOF면 `true`다.
 fn pump(dec: &mut Decoder, shared: &Arc<Shared>) -> Result<bool, String> {
     loop {
-        if shared.seek_pending.load(Ordering::SeqCst) != 0 {
+        if decode_interrupted(shared) {
             return Ok(false);
         }
-        let packet = dec
-            .ictx
-            .read_packet()
-            .map_err(|e| format!("Failed to read packet: {e:?}"))?;
+        let packet = read_packet_lenient(&mut dec.ictx, || decode_interrupted(shared));
+        if decode_interrupted(shared) {
+            return Ok(false);
+        }
         let Some(mut pkt) = packet else {
             dec.ctx.send_packet(None).ok();
             return flush_decoder(dec, shared, None);
@@ -840,7 +962,7 @@ fn pump(dec: &mut Decoder, shared: &Arc<Shared>) -> Result<bool, String> {
         send_packet_lenient(&mut dec.ctx, &pkt);
         pkt.set_stream_index(-1);
         while let Ok(frame) = dec.ctx.receive_frame() {
-            if shared.seek_pending.load(Ordering::SeqCst) != 0 {
+            if decode_interrupted(shared) {
                 return Ok(false);
             }
             push_frame(dec, &frame, shared, None)?;
@@ -859,7 +981,7 @@ fn flush_decoder(
     loop {
         let current = match seek_target {
             Some(target) => seek_is_current(shared, target),
-            None => shared.seek_pending.load(Ordering::SeqCst) == 0,
+            None => !decode_interrupted(shared),
         };
         if !current {
             return Ok(false);
@@ -899,7 +1021,7 @@ fn queue_video_frame(shared: &Shared, frame: VideoFrame, seek_target: Option<u64
     let mut queue = shared.queue.lock().unwrap_or_else(|e| e.into_inner());
     let current = match seek_target {
         Some(target) => seek_is_current(shared, target),
-        None => shared.seek_pending.load(Ordering::SeqCst) == 0,
+        None => !decode_interrupted(shared),
     };
     if !current {
         return false;
@@ -939,23 +1061,26 @@ fn seek_to_push(
         return Err("Invalid time base".to_string());
     }
     let ts = seek_timestamp(target_ms, dec.time_base, dec.origin_ms);
-    dec.ictx
-        .seek(
-            dec.stream_index as i32,
-            ts,
-            ffi::AVSEEK_FLAG_BACKWARD as i32,
-        )
-        .map_err(|e| format!("Failed to seek: {e:?}"))?;
+    if let Err(error) = dec.ictx.seek(
+        dec.stream_index as i32,
+        ts,
+        ffi::AVSEEK_FLAG_BACKWARD as i32,
+    ) {
+        // 탐색할 수 없는 구간이면 지금 위치에서 이어 디코드한다. 재생 전체를 닫지 않는다.
+        log::warn!(
+            "video seek to {target_ms}ms failed, decoding from the current position: {error:?}"
+        );
+    }
     dec.ctx.flush_buffers();
     let mut previewed = false;
     loop {
         if !seek_is_current(shared, target_ms) {
             return Ok(());
         }
-        let packet = dec
-            .ictx
-            .read_packet()
-            .map_err(|e| format!("Failed to read packet: {e:?}"))?;
+        let packet = read_packet_lenient(&mut dec.ictx, || !seek_is_current(shared, target_ms));
+        if !seek_is_current(shared, target_ms) {
+            return Ok(());
+        }
         let Some(mut pkt) = packet else {
             dec.ctx.send_packet(None).ok();
             let _ = flush_decoder(dec, shared, Some(target_ms));
@@ -984,7 +1109,13 @@ fn seek_to_push(
 }
 
 fn seek_is_current(shared: &Shared, target_ms: u64) -> bool {
-    shared.seek_pending.load(Ordering::SeqCst) == target_ms.saturating_add(1)
+    !shared.stop.load(Ordering::SeqCst)
+        && shared.seek_pending.load(Ordering::SeqCst) == target_ms.saturating_add(1)
+}
+
+/// 일반 디코드(탐색 아님)를 멈춰야 하는가. 새 탐색이 걸렸거나 핸들이 버려지는 중이다.
+fn decode_interrupted(shared: &Shared) -> bool {
+    shared.stop.load(Ordering::SeqCst) || shared.seek_pending.load(Ordering::SeqCst) != 0
 }
 
 /// 탐색 완료와 결과 기록을 큐 잠금으로 직렬화해 새 탐색이 이전 결과를 덮지 않게 한다.
@@ -1237,6 +1368,160 @@ mod tests {
         assert!(
             bottom.iter().any(|&b| b != 0),
             "bottom row is all zero (swscale src_slice_h)"
+        );
+    }
+
+    #[test]
+    fn audio_error_falls_back_to_the_monotonic_clock() {
+        // 오디오 디코드가 오류로 멈춰도 영상은 닫히지 않고, 오디오가 낸 위치에서
+        // 단조 클럭으로 이어 간다.
+        let mut player = VideoPlayer::open(&sample("sample.mp4")).unwrap();
+        let audio = crate::video_audio::AudioOutput::open_with(
+            &sample("sample-audio.mp4"),
+            crate::video_audio::PREFERRED_RATE,
+            crate::video_audio::AUDIO_CHANNELS as u16,
+            cpal::SampleFormat::F32,
+        )
+        .unwrap();
+        player.audio = Some(audio);
+        assert!(
+            player.audio_active(),
+            "healthy audio should stay the master clock"
+        );
+        if let Some(audio) = &player.audio {
+            audio.inject_error_for_test(200, "Failed to resample audio: test");
+        }
+        assert!(player.poll_frame().is_ok());
+        assert_eq!(player.has_error(), None);
+        assert!(!player.audio_active());
+        assert_eq!(player.position_ms(), 200);
+        player.play(1.0);
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        let position = player.position_ms();
+        player.pause();
+        assert!(
+            (250..=player.duration_ms()).contains(&position),
+            "monotonic clock should continue from 200ms, got {position}"
+        );
+    }
+
+    #[test]
+    fn unknown_duration_ends_after_the_last_frame() {
+        // MediaRecorder WebM처럼 길이가 없는 파일. 디코드가 끝나면 마지막 프레임 뒤를
+        // 끝으로 보고 멈추며, 다시 재생하면 처음부터 시작한다.
+        let player = VideoPlayer::open(&sample("sample-no-duration.webm")).unwrap();
+        assert_eq!(player.info().duration_ms, 0);
+        assert_eq!(player.duration_ms(), 0);
+        player.play(2.0);
+        for _ in 0..600 {
+            let _ = player.poll_frame();
+            if !player.is_playing() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        assert!(!player.is_playing(), "playback never ended");
+        let duration = player.duration_ms();
+        assert!((1_900..=2_100).contains(&duration), "duration {duration}");
+        assert_eq!(player.position_ms(), duration);
+        player.play(1.0);
+        assert!(player.position_ms() < duration);
+        player.pause();
+    }
+
+    #[test]
+    fn stepping_reaches_every_frame_at_fractional_frame_lengths() {
+        // 30fps는 프레임 길이가 33.33ms다. 매 스텝이 다음 프레임 시작을 지나야 한다.
+        let fps = Some(30.0);
+        let mut pos = 0;
+        for index in 1..=90u64 {
+            pos = step_target(pos, fps, 1);
+            let frame_start = (index * 1000).div_ceil(30);
+            assert_eq!(pos, frame_start, "step {index}");
+        }
+        for index in (0..90u64).rev() {
+            pos = step_target(pos, fps, -1);
+            let frame_start = (index * 1000).div_ceil(30);
+            assert_eq!(pos, frame_start, "back step to {index}");
+        }
+        assert_eq!(step_target(0, fps, -1), 0);
+        assert_eq!(step_target(0, Some(25.0), 1), 40);
+    }
+
+    #[test]
+    fn stopping_cancels_seek_and_decode_loops() {
+        let player = VideoPlayer::open(&sample("sample.mp4")).unwrap();
+        player.shared.seek_pending.store(801, Ordering::SeqCst);
+        assert!(seek_is_current(&player.shared, 800));
+        player.shared.stop.store(true, Ordering::SeqCst);
+        assert!(!seek_is_current(&player.shared, 800));
+        player.shared.seek_pending.store(0, Ordering::SeqCst);
+        assert!(decode_interrupted(&player.shared));
+    }
+
+    /// 메모리의 파일을 읽되, 절반 지점에서 `fail`번 읽기 오류(EIO)를 내는 입력.
+    fn flaky_input(name: &str, fail: u32) -> rsmpeg::avformat::AVFormatContextInput {
+        use rsmpeg::avformat::{AVIOContextContainer, AVIOContextCustom};
+        let data = std::fs::read(sample(name)).unwrap();
+        let total = data.len();
+        let mut pos = 0usize;
+        let mut failed = 0u32;
+        let read: rsmpeg::avformat::ReadPacketCallback = Box::new(move |_, buf| {
+            if pos >= total / 2 && failed < fail {
+                failed += 1;
+                return rsmpeg::ffi::AVERROR(rsmpeg::ffi::EIO);
+            }
+            if pos >= total {
+                return rsmpeg::ffi::AVERROR_EOF;
+            }
+            let n = buf.len().min(total - pos).min(512);
+            buf[..n].copy_from_slice(&data[pos..pos + n]);
+            pos += n;
+            n as i32
+        });
+        let io = AVIOContextCustom::alloc_context(
+            rsmpeg::avutil::AVMem::new(512),
+            false,
+            Vec::new(),
+            Some(read),
+            None,
+            None,
+        );
+        rsmpeg::avformat::AVFormatContextInput::from_io_context(AVIOContextContainer::Custom(io))
+            .unwrap()
+    }
+
+    #[test]
+    fn read_errors_do_not_fail_the_stream() {
+        // 읽기 오류(EIO)는 예전에는 `?`로 워커를 끝내 영상 전체를 닫았다. 이제는 건너뛰고,
+        // 더 읽을 수 없으면 그때까지 읽은 데서 파일 끝처럼 끝난다.
+        let name = "sample-late-audio.mkv";
+        let lenient = |mut ictx: rsmpeg::avformat::AVFormatContextInput| {
+            let mut packets = 0;
+            while read_packet_lenient(&mut ictx, || false).is_some() {
+                packets += 1;
+            }
+            packets
+        };
+        let intact = lenient(flaky_input(name, 0));
+        let flaky = lenient(flaky_input(name, 1));
+        let (strict, strict_error) = {
+            let mut ictx = flaky_input(name, 1);
+            let mut packets = 0;
+            let error = loop {
+                match ictx.read_packet() {
+                    Ok(Some(_)) => packets += 1,
+                    Ok(None) => break false,
+                    Err(_) => break true,
+                }
+            };
+            (packets, error)
+        };
+        assert!(strict_error, "the flaky input should surface a read error");
+        assert!(strict < intact);
+        assert!(
+            flaky >= strict,
+            "lenient read lost packets: {flaky} < {strict}"
         );
     }
 }

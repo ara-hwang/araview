@@ -231,7 +231,8 @@ fn decode_first_frame_rgb8(source: &Path, max_side: u32) -> Result<Rgb8, AppErro
     let mut packets = 0usize;
     let mut frame: Option<rsmpeg::avutil::AVFrame> = None;
     while packets < MAX_FIRST_FRAME_PACKETS {
-        let Ok(Some(mut pkt)) = ictx.read_packet() else {
+        // 손상된 패킷의 읽기 오류는 건너뛴다(재생과 같은 규칙, §7.6).
+        let Some(mut pkt) = crate::video_player::read_packet_lenient(&mut ictx, || false) else {
             break;
         };
         packets += 1;

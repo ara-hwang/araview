@@ -83,6 +83,8 @@ pub struct AudioShared {
     /// `u64::MAX`다. 디코드 경합과 디코드 부족을 구분하는 진단용이다.
     underrun_queue: AtomicU64,
     error: Mutex<Option<String>>,
+    /// 핸들이 버려지는 중이다. 디코드 루프가 명령을 기다리지 않고 곧바로 끝낸다.
+    stop: AtomicBool,
 }
 
 enum AudioCommand {
@@ -125,6 +127,17 @@ impl AudioOutput {
     /// 디코드 워커를 시작한다. 출력 장치는 열지 않는다(어느 스레드에서든 호출 가능).
     pub fn open(path: &Path) -> Result<Self, AppError> {
         let (rate, channels, format) = Self::probe_output()?;
+        Self::open_with(path, rate, channels, format)
+    }
+
+    /// 정해진 출력 설정으로 디코드 워커를 시작한다. 장치를 조회하지 않으므로 출력
+    /// 장치가 없는 환경의 테스트도 디코드·정렬 경로를 그대로 검증할 수 있다.
+    pub(crate) fn open_with(
+        path: &Path,
+        rate: u32,
+        channels: u16,
+        format: cpal::SampleFormat,
+    ) -> Result<Self, AppError> {
         let shared = Arc::new(AudioShared {
             queue: Mutex::new(VecDeque::new()),
             playing: AtomicBool::new(false),
@@ -138,6 +151,7 @@ impl AudioOutput {
             underrun_local: AtomicU64::new(0),
             underrun_queue: AtomicU64::new(0),
             error: Mutex::new(None),
+            stop: AtomicBool::new(false),
         });
         let out_rate = rate;
         let (cmd_tx, cmd_rx) = mpsc::channel();
@@ -301,10 +315,13 @@ impl AudioOutput {
                 let _ = thread.join();
                 Err(error)
             }
-            // 시간 안에 열리지 않았다. 송신자를 버려 스레드를 정리한다.
+            // 시간 안에 열리지 않았다. 스레드는 장치 열기(`open_stream`)에서 막혀 있을 수
+            // 있으므로 기다리지 않고 떼어 낸다. 늦게 열리더라도 `ready_tx` 전송이 실패해
+            // 스트림을 버리고 스스로 끝난다. 여기서 `join`하면 타임아웃이 무의미해지고
+            // 호출 스레드가 장치가 풀릴 때까지 멈춘다.
             Err(_) => {
                 drop(stop_tx);
-                let _ = thread.join();
+                drop(thread);
                 Err(AppError::unknown("Audio output did not start in time"))
             }
         }
@@ -355,7 +372,7 @@ impl AudioOutput {
             queue.clear();
             self.shared.eof.store(false, Ordering::SeqCst);
             self.shared.played_pairs.store(
-                position_ms.saturating_mul(self.sample_rate as u64) / 1000,
+                ms_to_pairs_ceil(position_ms, self.sample_rate),
                 Ordering::SeqCst,
             );
             self.shared.seek_gen.fetch_add(1, Ordering::SeqCst) + 1
@@ -392,10 +409,38 @@ impl AudioOutput {
             .unwrap_or_else(|e| e.into_inner())
             .clone()
     }
+    /// 테스트용: 오디오 워커가 오류로 멈춘 상태를 흉내 낸다.
+    #[cfg(test)]
+    pub(crate) fn inject_error_for_test(&self, played_ms: u64, error: &str) {
+        self.shared.played_pairs.store(
+            ms_to_pairs_ceil(played_ms, self.sample_rate),
+            Ordering::SeqCst,
+        );
+        *self.shared.error.lock().unwrap() = Some(error.to_string());
+    }
+
+    /// 테스트용: 공유 큐에 쌓인 표본(인터리브 스테레오)의 사본.
+    #[cfg(test)]
+    pub(crate) fn queued_for_test(&self) -> Vec<f32> {
+        self.shared.queue.lock().unwrap().iter().copied().collect()
+    }
+
+    /// 테스트용: 디코드가 파일 끝에 닿았는가.
+    #[cfg(test)]
+    pub(crate) fn eof_for_test(&self) -> bool {
+        self.shared.eof.load(Ordering::SeqCst)
+    }
+}
+
+/// 위치(ms)를 샘플 쌍 수로 올림해 바꾼다. 내림하면 `played_ms`가 1ms 작게 돌아와
+/// 44.1kHz에서 끝으로 탐색해도 끝에 닿지 않는다.
+fn ms_to_pairs_ceil(position_ms: u64, rate: u32) -> u64 {
+    position_ms.saturating_mul(u64::from(rate)).div_ceil(1000)
 }
 
 impl Drop for AudioOutput {
     fn drop(&mut self) {
+        self.shared.stop.store(true, Ordering::SeqCst);
         let _ = self.cmd_tx.send(AudioCommand::Stop);
         if let Some(worker) = self.worker.take() {
             let _ = worker.join();
@@ -925,15 +970,49 @@ fn fill_output<T>(
 struct AudioDecoder {
     ictx: rsmpeg::avformat::AVFormatContextInput,
     ctx: rsmpeg::avcodec::AVCodecContext,
-    swr: rsmpeg::swresample::SwrContext,
+    /// 리샘플러. 첫 프레임의 실제 입력 설정(레이트·형식·채널 배치)으로 만들고,
+    /// 스트림 중간에 설정이 바뀌면 다시 만든다. 탐색 뒤에는 비운다.
+    swr: Option<Resampler>,
     stream_index: usize,
     time_base: (i32, i32),
     /// 재생 위치 0에 해당하는 컨테이너 시작 시각(ms). 영상과 같은 기준이다.
     origin_ms: i64,
     out_rate: u32,
-    in_rate: i32,
-    in_fmt: i32,
-    in_channels: i32,
+    /// 탐색 목표(또는 시작점) 앞을 메울 무음(샘플 쌍). 출력 큐에 자리가 날 때마다 넣는다.
+    pending_silence: usize,
+    /// 무음 뒤에 이어 넣을 표본. 무음이 남아 있는 동안 디코드한 소리를 순서대로 담는다.
+    pending_samples: VecDeque<f32>,
+}
+
+impl AudioDecoder {
+    fn has_pending(&self) -> bool {
+        self.pending_silence > 0 || !self.pending_samples.is_empty()
+    }
+
+    fn clear_pending(&mut self) {
+        self.pending_silence = 0;
+        self.pending_samples.clear();
+    }
+}
+
+/// 리샘플러와 그것을 만든 입력 설정.
+struct Resampler {
+    ctx: rsmpeg::swresample::SwrContext,
+    rate: i32,
+    format: i32,
+    layout: rsmpeg::avutil::AVChannelLayout,
+}
+
+impl Resampler {
+    /// 프레임의 입력 설정이 이 리샘플러와 같은가.
+    fn matches(&self, frame: &rsmpeg::avutil::AVFrame) -> bool {
+        if self.rate != frame.sample_rate || self.format != frame.format {
+            return false;
+        }
+        let input = input_layout(frame);
+        // SAFETY: 두 포인터 모두 살아 있는 초기화된 채널 배치를 가리킨다.
+        unsafe { rsmpeg::ffi::av_channel_layout_compare(&*self.layout, &*input) == 0 }
+    }
 }
 
 fn open_audio_decoder(source: &Path, out_rate: u32) -> Result<AudioDecoder, String> {
@@ -946,16 +1025,6 @@ fn open_audio_decoder(source: &Path, out_rate: u32) -> Result<AudioDecoder, Stri
         .find_best_stream(ffi::AVMEDIA_TYPE_AUDIO)
         .map_err(|e| format!("Failed to find audio stream: {e:?}"))?
         .ok_or_else(|| "No audio stream".to_string())?;
-    let (in_rate, in_fmt, in_channels) = {
-        let par = ictx.streams()[stream_index].codecpar();
-        let in_rate = par.sample_rate;
-        let in_fmt = par.format;
-        let in_channels = par.ch_layout().nb_channels;
-        (in_rate, in_fmt, in_channels)
-    };
-    if in_rate <= 0 {
-        return Err("Invalid audio sample rate".to_string());
-    }
     let decoder_name = decoder.name().to_str().unwrap_or("unknown").to_string();
     let cname = std::ffi::CString::new(decoder_name.as_str())
         .map_err(|_| "Invalid codec name".to_string())?;
@@ -977,42 +1046,99 @@ fn open_audio_decoder(source: &Path, out_rate: u32) -> Result<AudioDecoder, Stri
     Ok(AudioDecoder {
         ictx,
         ctx,
-        swr: new_swr(out_rate, in_rate, in_fmt, in_channels)?,
+        swr: None,
         stream_index,
         time_base,
         origin_ms,
         out_rate,
-        in_rate,
-        in_fmt,
-        in_channels,
+        pending_silence: 0,
+        pending_samples: VecDeque::new(),
     })
 }
 
-/// 입력·출력 레이아웃으로 리샘플러를 만들어 초기화한다. 탐색 뒤에는 이전 위치의
-/// 지연 버퍼가 섞이지 않도록 다시 만들어야 한다.
-fn new_swr(
-    out_rate: u32,
-    in_rate: i32,
-    in_fmt: i32,
-    in_channels: i32,
-) -> Result<rsmpeg::swresample::SwrContext, String> {
+/// 프레임의 입력 채널 배치. 순서가 지정되지 않았거나 잘못된 배치는 채널 수 기준
+/// 기본 배치로 본다(swresample은 지정되지 않은 배치를 받지 않는다).
+fn input_layout(frame: &rsmpeg::avutil::AVFrame) -> rsmpeg::avutil::AVChannelLayout {
+    let raw = &frame.ch_layout;
+    let channels = raw.nb_channels.max(1);
+    // SAFETY: `raw`는 디코더가 채운 프레임의 채널 배치다. 검사만 하고 바꾸지 않는다.
+    let valid = unsafe { rsmpeg::ffi::av_channel_layout_check(raw) } == 1;
+    if valid && raw.order != rsmpeg::ffi::AV_CHANNEL_ORDER_UNSPEC {
+        let mut copy = std::mem::MaybeUninit::<rsmpeg::ffi::AVChannelLayout>::zeroed();
+        // SAFETY: 복사 대상은 0으로 채운 저장소이고, 성공하면 초기화된 배치를 소유한다.
+        if unsafe { rsmpeg::ffi::av_channel_layout_copy(copy.as_mut_ptr(), raw) } == 0 {
+            // SAFETY: 위 복사가 성공해 `copy`가 올바른 배치를 담고 있다.
+            return unsafe { rsmpeg::avutil::AVChannelLayout::new(copy.assume_init()) };
+        }
+    }
+    rsmpeg::avutil::AVChannelLayout::from_nb_channels(channels)
+}
+
+/// 프레임의 실제 입력 설정으로 리샘플러를 만들어 초기화한다. 채널 수만 보고 기본
+/// 배치를 가정하면 AAC 5.1(back)·AC-3 5.1(side)처럼 기본값과 다른 배치에서
+/// `swr_convert_frame`이 입력이 바뀌었다는 오류(`AVERROR_INPUT_CHANGED`)를 낸다.
+fn new_swr(out_rate: u32, frame: &rsmpeg::avutil::AVFrame) -> Result<Resampler, String> {
     use rsmpeg::ffi;
     let out_layout = rsmpeg::avutil::AVChannelLayout::from_nb_channels(AUDIO_CHANNELS as i32);
-    // 입력은 채널 수 기준 기본 레이아웃으로 본다. 특수 마스크는 기본값과
-    // 같은 순서라고 가정한다(일반적인 스테레오·모노·5.1에 해당).
-    let in_layout = rsmpeg::avutil::AVChannelLayout::from_nb_channels(in_channels);
-    let mut swr = rsmpeg::swresample::SwrContext::new(
-        &out_layout.into_inner(),
+    let in_layout = input_layout(frame);
+    let mut ctx = rsmpeg::swresample::SwrContext::new(
+        &out_layout,
         ffi::AV_SAMPLE_FMT_FLT,
         out_rate as i32,
-        &in_layout.into_inner(),
-        in_fmt,
-        in_rate,
+        &in_layout,
+        frame.format,
+        frame.sample_rate,
     )
     .map_err(|e| format!("Failed to create resampler: {e:?}"))?;
-    swr.init()
+    ctx.init()
         .map_err(|e| format!("Failed to init resampler: {e:?}"))?;
-    Ok(swr)
+    Ok(Resampler {
+        ctx,
+        rate: frame.sample_rate,
+        format: frame.format,
+        layout: in_layout,
+    })
+}
+
+/// 탐색 목표(또는 재생 시작점)에 맞춰 첫 프레임을 놓는 방법.
+#[derive(Debug, PartialEq, Eq)]
+enum Placement {
+    /// 프레임 전체가 목표보다 앞이다. 버린다.
+    Drop,
+    /// 앞에 무음 `silence` 쌍을 넣고, 프레임의 앞 `skip` 쌍을 잘라 넣는다.
+    Place { silence: usize, skip: usize },
+}
+
+/// 첫 오디오 프레임이 늦게 시작하면 이 길이까지만 무음으로 메운다. 그보다 크면
+/// 타임스탬프가 끊긴 것으로 보고 메우지 않는다.
+const MAX_LEAD_SILENCE_MS: f64 = 10_000.0;
+
+/// 오디오 클럭(출력한 샘플 쌍)은 목표 위치에서 시작한다. 첫 프레임의 pts가 목표보다
+/// 늦으면 그 차이만큼 무음을 먼저 내고, 목표에 걸친 프레임은 목표 이전 샘플만 잘라
+/// 낸다. 그래야 오디오가 늦게 시작하는 파일(MPEG-TS, MKV, MP4)과 탐색 직후에도 소리가
+/// 영상과 같은 시각에 난다. `frame_pairs`는 출력 레이트 기준 프레임 길이다.
+fn place_first_frame(start_ms: f64, frame_pairs: usize, target_ms: u64, rate: u32) -> Placement {
+    let per_ms = f64::from(rate) / 1000.0;
+    let start = (start_ms * per_ms).round() as i64;
+    let target = (target_ms as f64 * per_ms).round() as i64;
+    let end = start.saturating_add(frame_pairs as i64);
+    if end <= target {
+        return Placement::Drop;
+    }
+    if start >= target {
+        let gap_ms = (start - target) as f64 / per_ms;
+        let silence = if gap_ms <= MAX_LEAD_SILENCE_MS {
+            (start - target) as usize
+        } else {
+            log::debug!("audio starts {gap_ms:.0}ms after the target; not padding");
+            0
+        };
+        return Placement::Place { silence, skip: 0 };
+    }
+    Placement::Place {
+        silence: 0,
+        skip: (target - start) as usize,
+    }
 }
 
 fn audio_loop(
@@ -1022,9 +1148,13 @@ fn audio_loop(
     shared: &Arc<AudioShared>,
 ) -> Result<(), String> {
     let mut dec = open_audio_decoder(source, out_rate)?;
-    let mut target_ms: Option<u64> = None;
+    // 재생 시작도 위치 0으로의 탐색처럼 정렬한다. 오디오가 늦게 시작하면 앞을 무음으로 메운다.
+    let mut target_ms: Option<u64> = Some(0);
     let mut decode_generation = shared.seek_gen.load(Ordering::SeqCst);
     loop {
+        if shared.stop.load(Ordering::SeqCst) {
+            return Ok(());
+        }
         // 타임라인을 끌며 탐색이 여러 번 쌓이면 마지막 위치만 적용한다. 이전 세대에서
         // 디코드가 끝난 표본은 출력 큐에 들어가지 않는다.
         let mut latest_seek = None;
@@ -1055,7 +1185,13 @@ fn audio_loop(
             std::thread::sleep(std::time::Duration::from_millis(10));
             continue;
         }
-        if pump_audio(&mut dec, shared, &mut target_ms, decode_generation)?
+        if dec.has_pending() {
+            push_pending(&mut dec, shared, decode_generation);
+            continue;
+        }
+        let at_eof = pump_audio(&mut dec, shared, &mut target_ms, decode_generation)?;
+        if at_eof
+            && !dec.has_pending()
             && shared.seek_gen.load(Ordering::SeqCst) == decode_generation
         {
             shared.eof.store(true, Ordering::SeqCst);
@@ -1105,6 +1241,7 @@ fn seek_audio_to(
         return Err(error);
     }
     clear_audio(shared);
+    dec.clear_pending();
     *target_ms = Some(position_ms);
     shared.eof.store(false, Ordering::SeqCst);
     Ok(true)
@@ -1126,6 +1263,34 @@ fn audio_queue_full(shared: &Arc<AudioShared>) -> bool {
     shared.queue.lock().unwrap_or_else(|e| e.into_inner()).len() >= QUEUE_PAIRS_MAX * AUDIO_CHANNELS
 }
 
+/// 대기 중인 무음과 표본을 출력 큐의 빈자리만큼 넣는다. 무음이 먼저, 표본이 뒤다.
+/// 긴 무음도 큐 상한을 넘겨 앞쪽 소리를 버리지 않도록 나눠 넣는다.
+fn push_pending(dec: &mut AudioDecoder, shared: &Arc<AudioShared>, generation: u64) {
+    let room = {
+        let queue = shared.queue.lock().unwrap_or_else(|e| e.into_inner());
+        (QUEUE_PAIRS_MAX * AUDIO_CHANNELS).saturating_sub(queue.len())
+    };
+    let room = room - room % AUDIO_CHANNELS;
+    if room == 0 {
+        return;
+    }
+    if dec.pending_silence > 0 {
+        let pairs = dec.pending_silence.min(room / AUDIO_CHANNELS);
+        if queue_audio_samples(shared, generation, &vec![0.0; pairs * AUDIO_CHANNELS]) {
+            dec.pending_silence -= pairs;
+        }
+        return;
+    }
+    let take = dec.pending_samples.len().min(room);
+    let chunk: Vec<f32> = dec.pending_samples.drain(..take).collect();
+    queue_audio_samples(shared, generation, &chunk);
+}
+
+/// 디코드를 멈춰야 하는가. 새 탐색이 걸렸거나 핸들이 버려지는 중이다.
+fn audio_interrupted(shared: &Arc<AudioShared>, generation: u64) -> bool {
+    shared.stop.load(Ordering::SeqCst) || shared.seek_gen.load(Ordering::SeqCst) != generation
+}
+
 /// 패킷을 읽어 f32 스테레오로 큐에 넣는다. EOF면 `true`다.
 fn pump_audio(
     dec: &mut AudioDecoder,
@@ -1134,13 +1299,15 @@ fn pump_audio(
     generation: u64,
 ) -> Result<bool, String> {
     loop {
-        if shared.seek_gen.load(Ordering::SeqCst) != generation {
+        if audio_interrupted(shared, generation) {
             return Ok(false);
         }
-        let packet = dec
-            .ictx
-            .read_packet()
-            .map_err(|e| format!("Failed to read packet: {e:?}"))?;
+        let packet = crate::video_player::read_packet_lenient(&mut dec.ictx, || {
+            audio_interrupted(shared, generation)
+        });
+        if audio_interrupted(shared, generation) {
+            return Ok(false);
+        }
         let Some(mut pkt) = packet else {
             dec.ctx.send_packet(None).ok();
             return flush_audio(dec, shared, target_ms, generation);
@@ -1153,7 +1320,8 @@ fn pump_audio(
         while let Ok(frame) = dec.ctx.receive_frame() {
             push_audio(dec, &frame, shared, target_ms, generation)?;
         }
-        if audio_queue_full(shared) {
+        // 앞에 메울 무음이 생겼으면 큐 자리를 보며 나눠 넣도록 루프로 돌아간다.
+        if dec.has_pending() || audio_queue_full(shared) {
             return Ok(false);
         }
     }
@@ -1178,27 +1346,53 @@ fn push_audio(
     target_ms: &mut Option<u64>,
     generation: u64,
 ) -> Result<(), String> {
-    if frame.nb_samples <= 0 {
+    if frame.nb_samples <= 0 || frame.sample_rate <= 0 {
         return Ok(());
     }
-    // 탐색 목표보다 이른 프레임은 버린다.
-    if let Some(target) = target_ms.take() {
-        let pts =
-            crate::video_player::frame_time_ms(frame, dec.time_base, dec.origin_ms).unwrap_or(0);
-        if pts < target {
-            *target_ms = Some(target);
-            return Ok(());
+    // 탐색 목표(또는 시작점) 뒤 첫 프레임의 시각. pts를 모르면 정렬하지 않는다.
+    let first_start = match *target_ms {
+        Some(target) => {
+            match crate::video_player::frame_time_ms_signed(frame, dec.time_base, dec.origin_ms) {
+                Some(start) => {
+                    let length_ms =
+                        f64::from(frame.nb_samples) * 1000.0 / f64::from(frame.sample_rate);
+                    // 목표보다 완전히 앞선 프레임은 리샘플러에 넣지 않고 버린다.
+                    if start + length_ms <= target as f64 {
+                        return Ok(());
+                    }
+                    Some((start, target))
+                }
+                None => {
+                    *target_ms = None;
+                    None
+                }
+            }
         }
+        None => None,
+    };
+    // 입력 설정이 바뀌면(스트림 중간 레이트·채널 변경) 리샘플러를 다시 만든다.
+    if !dec.swr.as_ref().is_some_and(|swr| swr.matches(frame)) {
+        if dec.swr.is_some() {
+            log::debug!(
+                "audio input changed to {}Hz {}ch, rebuilding the resampler",
+                frame.sample_rate,
+                frame.ch_layout.nb_channels
+            );
+        }
+        dec.swr = Some(new_swr(dec.out_rate, frame)?);
     }
+    let Some(swr) = dec.swr.as_ref() else {
+        return Ok(());
+    };
     let mut out = rsmpeg::avutil::AVFrame::new();
     out.set_format(rsmpeg::ffi::AV_SAMPLE_FMT_FLT);
     let layout = rsmpeg::avutil::AVChannelLayout::from_nb_channels(AUDIO_CHANNELS as i32);
     out.set_ch_layout(layout.into_inner());
     out.set_sample_rate(dec.out_rate as i32);
-    out.set_nb_samples(dec.swr.get_out_samples(frame.nb_samples).max(1));
+    out.set_nb_samples(swr.ctx.get_out_samples(frame.nb_samples).max(1));
     out.alloc_buffer()
         .map_err(|e| format!("Failed to allocate audio frame: {e:?}"))?;
-    dec.swr
+    swr.ctx
         .convert_frame(Some(frame), &mut out)
         .map_err(|e| format!("Failed to resample audio: {e:?}"))?;
     let samples = out.nb_samples.max(0) as usize * AUDIO_CHANNELS;
@@ -1213,7 +1407,25 @@ fn push_audio(
         }
         std::slice::from_raw_parts(ptr, samples)
     };
-    queue_audio_samples(shared, generation, bytes);
+    let bytes = match first_start {
+        Some((start, target)) => {
+            *target_ms = None;
+            match place_first_frame(start, samples / AUDIO_CHANNELS, target, dec.out_rate) {
+                Placement::Drop => return Ok(()),
+                Placement::Place { silence, skip } => {
+                    dec.pending_silence = silence;
+                    &bytes[(skip * AUDIO_CHANNELS).min(bytes.len())..]
+                }
+            }
+        }
+        None => bytes,
+    };
+    if dec.has_pending() {
+        // 앞에 넣을 무음이 남아 있으면 순서를 지키도록 뒤에 모아 둔다.
+        dec.pending_samples.extend(bytes.iter().copied());
+    } else {
+        queue_audio_samples(shared, generation, bytes);
+    }
     Ok(())
 }
 
@@ -1254,7 +1466,7 @@ fn seek_audio(dec: &mut AudioDecoder, target_ms: u64) -> Result<(), String> {
     dec.ctx.flush_buffers();
     // 리샘플러 지연 버퍼에 이전 위치의 표본이 남아 있으면 탐색 지점에서
     // 잠깐 다른 소리가 섞인다. 새 위치는 새 리샘플러로 시작한다.
-    dec.swr = new_swr(dec.out_rate, dec.in_rate, dec.in_fmt, dec.in_channels)?;
+    dec.swr = None;
     Ok(())
 }
 
@@ -1276,6 +1488,7 @@ mod tests {
             underrun_local: AtomicU64::new(0),
             underrun_queue: AtomicU64::new(0),
             error: Mutex::new(None),
+            stop: AtomicBool::new(false),
         })
     }
 
@@ -1502,5 +1715,126 @@ mod tests {
             (value - expected).abs() < 3.0,
             "재개가 멈춘 지점에서 이어져야 한다: {value} vs {expected}"
         );
+    }
+
+    fn sample(name: &str) -> std::path::PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../samples")
+            .join(name)
+    }
+
+    /// 출력 장치 없이 디코드 워커를 돌려 파일 끝까지 큐에 담는다.
+    fn decode_all(name: &str) -> (AudioOutput, Vec<f32>) {
+        let audio = AudioOutput::open_with(
+            &sample(name),
+            PREFERRED_RATE,
+            AUDIO_CHANNELS as u16,
+            cpal::SampleFormat::F32,
+        )
+        .unwrap();
+        audio.set_playing(true);
+        for _ in 0..500 {
+            if audio.eof_for_test() || audio.has_error().is_some() {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        assert_eq!(audio.has_error(), None, "{name}: audio worker failed");
+        assert!(audio.eof_for_test(), "{name}: never reached eof");
+        let queued = audio.queued_for_test();
+        (audio, queued)
+    }
+
+    /// 큐 앞쪽 무음 길이(ms).
+    fn leading_silence_ms(samples: &[f32]) -> u64 {
+        let pairs = samples
+            .as_chunks::<AUDIO_CHANNELS>()
+            .0
+            .iter()
+            .take_while(|pair| pair.iter().all(|s| s.abs() < 1e-4))
+            .count();
+        pairs as u64 * 1000 / u64::from(PREFERRED_RATE)
+    }
+
+    #[test]
+    fn surround_layouts_other_than_the_default_decode() {
+        // AC-3 5.1(side)는 채널 수 기준 기본 배치와 다르다. 기본 배치로 리샘플러를
+        // 만들면 첫 프레임에서 `AVERROR_INPUT_CHANGED`로 워커가 멈췄다.
+        let (_audio, queued) = decode_all("sample-audio-51side.mkv");
+        assert!(queued.len() > PREFERRED_RATE as usize / 4);
+        assert!(
+            queued.iter().any(|s| s.abs() > 0.01),
+            "decoded only silence"
+        );
+    }
+
+    #[test]
+    fn late_audio_start_is_padded_with_silence() {
+        // 오디오가 컨테이너 시작보다 979ms 늦게 시작한다. 앞을 무음으로 메우지 않으면
+        // 소리가 영상보다 그만큼 앞선다.
+        let (_audio, queued) = decode_all("sample-late-audio.mkv");
+        let lead = leading_silence_ms(&queued);
+        assert!((930..=1030).contains(&lead), "leading silence {lead}ms");
+    }
+
+    #[test]
+    fn audio_starting_at_zero_is_not_padded() {
+        let (_audio, queued) = decode_all("sample-audio.mp4");
+        assert!(leading_silence_ms(&queued) < 60, "unexpected padding");
+    }
+
+    #[test]
+    fn first_frame_is_placed_on_the_target() {
+        // 48kHz, 1024쌍(21.3ms) 프레임.
+        assert_eq!(
+            place_first_frame(500.0, 1024, 0, 48_000),
+            Placement::Place {
+                silence: 24_000,
+                skip: 0
+            }
+        );
+        // 목표에 걸친 프레임은 목표 이전 샘플만 잘라 낸다.
+        assert_eq!(
+            place_first_frame(990.0, 1024, 1000, 48_000),
+            Placement::Place {
+                silence: 0,
+                skip: 480
+            }
+        );
+        assert_eq!(
+            place_first_frame(900.0, 1024, 1000, 48_000),
+            Placement::Drop
+        );
+        assert_eq!(
+            place_first_frame(1000.0, 1024, 1000, 48_000),
+            Placement::Place {
+                silence: 0,
+                skip: 0
+            }
+        );
+        // 시작보다 이른 프레임(음수 pts)도 같은 규칙이다.
+        assert_eq!(
+            place_first_frame(-10.0, 1024, 0, 48_000),
+            Placement::Place {
+                silence: 0,
+                skip: 480
+            }
+        );
+        // 끊긴 타임스탬프로 보이는 큰 간격은 메우지 않는다.
+        assert_eq!(
+            place_first_frame(60_000.0, 1024, 0, 48_000),
+            Placement::Place {
+                silence: 0,
+                skip: 0
+            }
+        );
+    }
+
+    #[test]
+    fn seek_position_round_trips_at_44_1khz() {
+        for position in [0u64, 1, 999, 1_000, 12_345, 3_600_001] {
+            let pairs = ms_to_pairs_ceil(position, 44_100);
+            assert_eq!(pairs * 1000 / 44_100, position, "{position}ms");
+        }
     }
 }

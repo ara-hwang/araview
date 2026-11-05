@@ -461,6 +461,7 @@ impl AraView {
                 let (ur_local, ur_queue) = player.audio_last_underrun();
                 json!({
                     "position": player.position_ms(),
+                    "duration": player.duration_ms(),
                     "playing": player.is_playing(),
                     "seeking": player.is_seeking(),
                     "speed": player.speed(),
