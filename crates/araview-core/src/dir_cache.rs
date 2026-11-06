@@ -630,6 +630,9 @@ fn sort_images(images: &mut [ImageEntry], opts: &DirListOptions) {
 mod tests {
     use super::*;
 
+    // 쓰는 테스트(`folders_differing_only_in_case_keep_separate_listings`)가
+    // Windows에서는 빠지므로 같은 조건으로 둔다.
+    #[cfg(not(windows))]
     fn names(images: &[ImageEntry]) -> Vec<String> {
         images
             .iter()

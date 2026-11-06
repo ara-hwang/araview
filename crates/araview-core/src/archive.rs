@@ -536,10 +536,11 @@ mod tests {
         .unwrap();
 
         let entries = list_archive_entries(&archive).unwrap();
-        assert_eq!(
-            &*entries.images,
-            &["./001.jpg", "./002.jpg", "./__cover.jpg"]
-        );
+        // 기호와 숫자의 앞뒤는 플랫폼 정렬 규칙을 따르므로(Windows는 로캘 정렬
+        // 키로 `_`가 숫자보다 앞선다) 순서가 아니라 목록에 든 엔트리를 본다.
+        let mut images = entries.images.to_vec();
+        images.sort();
+        assert_eq!(images, ["./001.jpg", "./002.jpg", "./__cover.jpg"]);
 
         let out = dir.path().join("out");
         let extracted = extract_archive_image(&archive, "./002.jpg", &out).unwrap();
