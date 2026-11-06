@@ -22,7 +22,6 @@ use crate::i18n::{t, t_with};
 use crate::layout::{self, CoverLayout, Solo};
 use crate::picture::{self, Orientation, Picture};
 use crate::settings::{ArchiveProgress, CacheMax, CacheMode, SettingsStore, ViewMode};
-use crate::smooth::Glide;
 
 pub(super) enum Page {
     Preview {
@@ -1380,7 +1379,7 @@ impl AraView {
 fn reset_webtoon_scroll_for_navigation(
     anchor: &mut usize,
     offset: &mut f32,
-    glide: &mut Glide,
+    glide: &mut crate::smooth::Glide,
     index: usize,
 ) {
     *anchor = index;
@@ -1405,7 +1404,7 @@ mod tests {
     #[::core::prelude::v1::test]
     fn webtoon_navigation_discards_pending_smooth_scroll() {
         let (mut anchor, mut offset) = (2, 120.0);
-        let mut glide = Glide::default();
+        let mut glide = crate::smooth::Glide::default();
         glide.push(350.0, Instant::now());
         reset_webtoon_scroll_for_navigation(&mut anchor, &mut offset, &mut glide, 8);
         assert_eq!((anchor, offset), (8, 0.0));
