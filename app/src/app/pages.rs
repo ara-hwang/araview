@@ -22,6 +22,7 @@ use crate::i18n::{t, t_with};
 use crate::layout::{self, CoverLayout, Solo};
 use crate::picture::{self, Orientation, Picture};
 use crate::settings::{ArchiveProgress, CacheMax, CacheMode, SettingsStore, ViewMode};
+use crate::smooth::Glide;
 
 pub(super) enum Page {
     Preview {
@@ -480,7 +481,7 @@ impl AraView {
         self.wt_dims.clear();
         self.wt_anchor = 0;
         self.wt_offset = 0.0;
-        self.wt_pending = 0.0;
+        self.wt_glide.discard();
     }
 
     pub(super) fn close_image(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -553,7 +554,7 @@ impl AraView {
             reset_webtoon_scroll_for_navigation(
                 &mut self.wt_anchor,
                 &mut self.wt_offset,
-                &mut self.wt_pending,
+                &mut self.wt_glide,
                 index,
             );
         }
@@ -852,7 +853,7 @@ impl AraView {
         self.close_video();
         self.drop_pixel_view(window, cx);
         self.shown = vec![index];
-        self.fit_locked = true;
+        self.fit = self.fit.lock();
         self.position = Offset::default();
         self.apply_fit(cx);
     }
@@ -1252,7 +1253,7 @@ impl AraView {
         if let Some(info) = &self.info {
             window.set_window_title(&self.display_name(info));
         }
-        self.fit_locked = true;
+        self.fit = self.fit.lock();
         self.position = Offset::default();
         self.apply_fit(cx);
         self.save_progress(cx);
@@ -1324,7 +1325,7 @@ impl AraView {
                 this.picture = Some(picture);
                 this.frame = 0;
                 this.frame_started = Instant::now();
-                this.fit_locked = true;
+                this.fit = this.fit.lock();
                 this.apply_fit(cx);
                 cx.notify();
             })
@@ -1354,7 +1355,7 @@ impl AraView {
         SettingsStore::update(cx, |settings| {
             settings.fit_mode = crate::settings::FitMode::Auto;
         });
-        self.fit_locked = true;
+        self.fit = self.fit.lock();
         self.wt_zoom = 1.0;
         if self.orientation != Orientation::default() {
             self.reorient(Orientation::default(), window, cx);
@@ -1379,13 +1380,13 @@ impl AraView {
 fn reset_webtoon_scroll_for_navigation(
     anchor: &mut usize,
     offset: &mut f32,
-    pending: &mut f32,
+    glide: &mut Glide,
     index: usize,
 ) {
     *anchor = index;
     *offset = 0.0;
-    // 이미 예약된 프레임이 `wt_animating`을 정리하므로 남은 이동 거리만 버린다.
-    *pending = 0.0;
+    // 이미 예약된 프레임이 스스로 끝나므로 남은 이동 거리만 버린다.
+    glide.discard();
 }
 
 #[cfg(test)]
@@ -1403,9 +1404,12 @@ mod tests {
 
     #[::core::prelude::v1::test]
     fn webtoon_navigation_discards_pending_smooth_scroll() {
-        let (mut anchor, mut offset, mut pending) = (2, 120.0, 350.0);
-        reset_webtoon_scroll_for_navigation(&mut anchor, &mut offset, &mut pending, 8);
-        assert_eq!((anchor, offset, pending), (8, 0.0, 0.0));
+        let (mut anchor, mut offset) = (2, 120.0);
+        let mut glide = Glide::default();
+        glide.push(350.0, Instant::now());
+        reset_webtoon_scroll_for_navigation(&mut anchor, &mut offset, &mut glide, 8);
+        assert_eq!((anchor, offset), (8, 0.0));
+        assert_eq!(glide.step(Instant::now()), 0.0);
     }
 
     #[::core::prelude::v1::test]
