@@ -123,8 +123,7 @@ pub struct AraView {
     list_root: Option<Arc<str>>,
     /// 목록 새로고침 순번. 늦게 끝난 새로고침 결과를 버린다.
     relist_seq: u64,
-    comic: Option<ComicInfo>,
-    comic_failed: bool,
+    comic: pages::Comic,
     /// 아카이브 세션 보기 모드. 열 때 자동으로 정하고, 보는 동안 직접 고르면
     /// 세션에만 바뀐다. 일반 이미지는 설정값을 그대로 쓴다(§15).
     comic_mode: Option<ViewMode>,
@@ -211,8 +210,8 @@ pub struct AraView {
 
     thumbs: HashMap<Arc<str>, ThumbState>,
     thumbs_pending: HashSet<Arc<str>>,
+    /// 썸네일 그리드. 닫아도 필터 입력과 스크롤 상태를 남겨 둔다(`GridState::open`).
     grid: Option<grid::GridState>,
-    grid_open: bool,
     /// 우클릭한 지점의 페이지(표지 지정 대상).
     context_page: Option<usize>,
 
@@ -281,8 +280,7 @@ impl AraView {
             list_gen: 0,
             index: 0,
             archive: None,
-            comic: None,
-            comic_failed: false,
+            comic: pages::Comic::Absent,
             comic_mode: None,
             list_root: None,
             relist_seq: 0,
@@ -341,7 +339,6 @@ impl AraView {
             thumbs: HashMap::new(),
             thumbs_pending: HashSet::new(),
             grid: None,
-            grid_open: false,
             context_page: None,
             info_open: false,
             home_scroll: SmoothScroll::default(),
@@ -1176,7 +1173,7 @@ impl AraView {
     // ----- 입력 -----
 
     fn on_key(&mut self, event: &KeyDownEvent, window: &mut Window, cx: &mut Context<Self>) {
-        if self.grid_open {
+        if self.grid_open() {
             self.on_grid_key(event, window, cx);
             return;
         }
@@ -1262,7 +1259,7 @@ impl Render for AraView {
             .map(|info| self.render_status(&info, cx).into_any_element());
         let panel =
             (reading && self.info_open).then(|| self.render_info_panel(cx).into_any_element());
-        let grid = self.grid_open.then(|| self.render_grid(window, cx));
+        let grid = self.grid_open().then(|| self.render_grid(window, cx));
 
         let body: AnyElement = if reading {
             let view = cx.entity();

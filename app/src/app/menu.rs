@@ -380,8 +380,7 @@ impl AraView {
                 }
                 match result {
                     Ok((comic, identity)) => {
-                        this.comic = Some(comic);
-                        this.comic_failed = false;
+                        this.comic = super::pages::Comic::Parsed(Box::new(comic));
                         // 옛 identity로 진도를 저장하면 다시 열 때 이어보기와 홈의
                         // 진도 표시가 사라진다.
                         this.archive_identity = identity;
