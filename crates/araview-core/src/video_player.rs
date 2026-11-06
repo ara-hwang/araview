@@ -58,16 +58,152 @@ struct Shared {
     error: Mutex<Option<String>>,
     eof: AtomicBool,
     speed_bits: AtomicU32,
-    /// 마지막으로 UI에 내준 프레임 pts + 1. 0이면 아직 없음.
-    last_pts: AtomicU64,
-    /// 진행 중인 탐색 목표 + 1. 0이면 탐색 중이 아니다.
-    seek_pending: AtomicU64,
-    /// 탐색이 끝나 UI가 가져갈 프레임의 목표 + 1. 0이면 없음.
-    /// UI가 결과 프레임을 받을 때까지 유지해 정지 상태에서도 렌더를 이어 간다.
-    seek_result: AtomicU64,
+    /// 마지막으로 UI에 내준 프레임 pts. 아직 없으면 `None`.
+    last_pts: AtomicOptMs,
+    /// 탐색 진행 상태(대기 → 탐색 중 → 결과 전달 대기 → 대기).
+    seek: SeekState,
     /// 핸들이 버려지는 중이다. 워커는 탐색·디코드 루프 안에서도 이 값을 보고 곧바로
     /// 끝낸다. 명령 채널만 보면 긴 GOP 탐색이 끝날 때까지 `Drop`의 `join`이 막힌다.
     stop: AtomicBool,
+}
+
+impl Shared {
+    /// 탐색 장벽을 세운다. 프레임 큐 읽기·쓰기와 같은 잠금으로 직렬화하므로, 새 목표가
+    /// 대기 중인 뒤에는 이전 위치 프레임이 큐에 남거나 소비되지 않는다.
+    fn begin_seek(&self, target_ms: u64) {
+        let mut queue = self.queue.lock().unwrap_or_else(|e| e.into_inner());
+        queue.clear();
+        self.queue_bytes.store(0, Ordering::SeqCst);
+        self.eof.store(false, Ordering::SeqCst);
+        self.last_pts.clear();
+        self.seek.begin(target_ms);
+    }
+}
+
+/// 밀리초 값 하나를 원자적으로 담는 `Option<u64>`. 내부 표현은 값 + 1이고 0이 `None`이다.
+/// 센티널 계산(+1/-1)을 이 타입 밖으로 내보내지 않는다. 모든 접근은 `SeqCst`다.
+struct AtomicOptMs(AtomicU64);
+
+impl AtomicOptMs {
+    const fn none() -> Self {
+        Self(AtomicU64::new(0))
+    }
+
+    fn get(&self) -> Option<u64> {
+        self.0.load(Ordering::SeqCst).checked_sub(1)
+    }
+
+    fn set(&self, value_ms: u64) {
+        self.0.store(value_ms.saturating_add(1), Ordering::SeqCst);
+    }
+
+    fn clear(&self) {
+        self.0.store(0, Ordering::SeqCst);
+    }
+}
+
+/// 탐색 단계. [`SeekState::phase`]가 원자 값 하나를 풀어 돌려준다.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SeekPhase {
+    /// 탐색 중이 아니다.
+    Idle,
+    /// 워커가 이 목표로 탐색·디코드하는 중이다. 이전 위치 프레임은 큐에 들어오지 못한다.
+    Seeking(u64),
+    /// 탐색은 끝났고 UI가 이 목표의 결과 프레임을 가져가길 기다린다. 정지 상태에서도
+    /// UI가 렌더를 이어 가 결과를 화면에 올린다.
+    Delivering(u64),
+}
+
+/// 탐색 상태 기계. 대기 → 탐색 중(t) → 결과 전달 대기(t) → 대기.
+///
+/// UI 스레드와 디코드 워커가 잠금 없이 읽으므로 `AtomicU64` 하나에 단계와 목표를 함께
+/// 담는다. 0은 대기, 그 밖에는 `(목표 + 1) << 1 | 단계 비트`(0: 탐색 중, 1: 결과 전달 대기)다.
+/// 단계가 한 값에 있으므로 "탐색 중이면서 결과 전달 대기" 같은 조합이 생기지 않고,
+/// 탐색 완료(탐색 중 → 결과 전달 대기)가 한 번의 비교 교환으로 일어난다. 모든 접근은 `SeqCst`다.
+struct SeekState(AtomicU64);
+
+impl SeekState {
+    const IDLE: u64 = 0;
+    const DELIVERING_BIT: u64 = 1;
+    /// 표현할 수 있는 가장 큰 목표(ms). 더 큰 목표는 여기로 잘린다(약 7천만 년).
+    const MAX_TARGET_MS: u64 = (u64::MAX >> 1) - 1;
+
+    const fn idle() -> Self {
+        Self(AtomicU64::new(Self::IDLE))
+    }
+
+    fn encode(target_ms: u64, delivering: bool) -> u64 {
+        let target = target_ms.min(Self::MAX_TARGET_MS);
+        ((target + 1) << 1) | u64::from(delivering)
+    }
+
+    fn decode(raw: u64) -> SeekPhase {
+        if raw == Self::IDLE {
+            return SeekPhase::Idle;
+        }
+        let target = (raw >> 1) - 1;
+        if raw & Self::DELIVERING_BIT == 0 {
+            SeekPhase::Seeking(target)
+        } else {
+            SeekPhase::Delivering(target)
+        }
+    }
+
+    fn phase(&self) -> SeekPhase {
+        Self::decode(self.0.load(Ordering::SeqCst))
+    }
+
+    /// 새 탐색을 건다. 이전 탐색과 전달 대기 결과는 버려진다(대기·탐색 중·전달 대기 → 탐색 중).
+    fn begin(&self, target_ms: u64) {
+        self.0
+            .store(Self::encode(target_ms, false), Ordering::SeqCst);
+    }
+
+    /// 이 목표로 탐색 중인가. 더 새 탐색이 걸렸으면 `false`라 워커가 낡은 탐색을 멈춘다.
+    fn is_seeking_to(&self, target_ms: u64) -> bool {
+        self.0.load(Ordering::SeqCst) == Self::encode(target_ms, false)
+    }
+
+    /// 어떤 목표로든 탐색 중인가. 일반 디코드는 이 동안 멈춘다.
+    fn is_seeking(&self) -> bool {
+        matches!(self.phase(), SeekPhase::Seeking(_))
+    }
+
+    /// 탐색 중이거나 결과 전달을 기다리는가. UI는 이 동안 프레임을 계속 요청한다.
+    fn is_active(&self) -> bool {
+        self.0.load(Ordering::SeqCst) != Self::IDLE
+    }
+
+    /// 이 목표의 탐색을 끝내고 결과 전달 대기로 넘긴다(탐색 중(t) → 전달 대기(t)).
+    /// 그 사이 새 탐색이 걸렸으면 아무것도 바꾸지 않고 `false`다.
+    fn complete(&self, target_ms: u64) -> bool {
+        self.0
+            .compare_exchange(
+                Self::encode(target_ms, false),
+                Self::encode(target_ms, true),
+                Ordering::SeqCst,
+                Ordering::SeqCst,
+            )
+            .is_ok()
+    }
+
+    /// 결과 전달을 기다리는 목표.
+    fn delivering(&self) -> Option<u64> {
+        match self.phase() {
+            SeekPhase::Delivering(target) => Some(target),
+            _ => None,
+        }
+    }
+
+    /// 이 목표의 결과 전달을 마친다(전달 대기(t) → 대기). 새 탐색이 걸렸으면 그대로 둔다.
+    fn finish_delivery(&self, target_ms: u64) {
+        let _ = self.0.compare_exchange(
+            Self::encode(target_ms, true),
+            Self::IDLE,
+            Ordering::SeqCst,
+            Ordering::SeqCst,
+        );
+    }
 }
 
 /// 동영상 재생 핸들. 워커 스레드를 소유하고, 시계는 이쪽에서 잰다.
@@ -91,6 +227,10 @@ const MAX_CONSECUTIVE_READ_ERRORS: u32 = 64;
 struct Clock {
     base_ms: u64,
     base_at: Instant,
+    /// 핸들 쪽 재생 여부. 위치 계산과 UI가 읽는 기준값이다. 같은 사실의 사본이 두 곳
+    /// 더 있다: 워커의 지역 변수(명령 채널 순서로 바뀌어 정지 중에는 `recv`로 잠든다)와
+    /// `AudioShared.playing`(잠금을 잡을 수 없는 오디오 콜백용 원자 값). 셋은 스레드마다
+    /// 읽는 방식이 달라 하나로 합치지 않는다.
     playing: bool,
     speed: f32,
 }
@@ -119,9 +259,8 @@ impl VideoPlayer {
             error: Mutex::new(None),
             eof: AtomicBool::new(false),
             speed_bits: AtomicU32::new(1.0f32.to_bits()),
-            last_pts: AtomicU64::new(0),
-            seek_pending: AtomicU64::new(0),
-            seek_result: AtomicU64::new(0),
+            last_pts: AtomicOptMs::none(),
+            seek: SeekState::idle(),
             stop: AtomicBool::new(false),
         });
         let (cmd_tx, cmd_rx) = mpsc::channel();
@@ -246,11 +385,8 @@ impl VideoPlayer {
         if !queue.is_empty() {
             return None;
         }
-        let last = self.shared.last_pts.load(Ordering::SeqCst);
-        if last == 0 {
-            return None;
-        }
-        Some((last - 1).saturating_add(self.frame_ms()))
+        let last = self.shared.last_pts.get()?;
+        Some(last.saturating_add(self.frame_ms()))
     }
 
     pub fn is_playing(&self) -> bool {
@@ -334,19 +470,7 @@ impl VideoPlayer {
             clock.base_ms = target;
             clock.base_at = Instant::now();
         }
-        {
-            // 프레임 큐 읽기·쓰기와 탐색 장벽을 같은 잠금으로 직렬화한다. 새 목표가
-            // 대기 중인 뒤에는 이전 위치 프레임이 큐에 남거나 소비되지 않는다.
-            let mut queue = self.shared.queue.lock().unwrap_or_else(|e| e.into_inner());
-            queue.clear();
-            self.shared.queue_bytes.store(0, Ordering::SeqCst);
-            self.shared.eof.store(false, Ordering::SeqCst);
-            self.shared.last_pts.store(0, Ordering::SeqCst);
-            self.shared
-                .seek_pending
-                .store(target.saturating_add(1), Ordering::SeqCst);
-            self.shared.seek_result.store(0, Ordering::SeqCst);
-        }
+        self.shared.begin_seek(target);
         if let Some(audio) = self.live_audio() {
             audio.seek(target);
         }
@@ -372,17 +496,7 @@ impl VideoPlayer {
             clock.base_ms = target;
             clock.base_at = Instant::now();
         }
-        {
-            let mut queue = self.shared.queue.lock().unwrap_or_else(|e| e.into_inner());
-            queue.clear();
-            self.shared.queue_bytes.store(0, Ordering::SeqCst);
-            self.shared.eof.store(false, Ordering::SeqCst);
-            self.shared.last_pts.store(0, Ordering::SeqCst);
-            self.shared
-                .seek_pending
-                .store(target.saturating_add(1), Ordering::SeqCst);
-            self.shared.seek_result.store(0, Ordering::SeqCst);
-        }
+        self.shared.begin_seek(target);
         if let Some(audio) = self.live_audio() {
             audio.seek(target);
         }
@@ -414,8 +528,7 @@ impl VideoPlayer {
     /// 탐색·스텝 결과 프레임이 아직 오지 않았는가. UI는 이 동안 프레임을
     /// 계속 요청해 정지 상태에서도 결과를 화면에 올린다.
     pub fn is_seeking(&self) -> bool {
-        self.shared.seek_pending.load(Ordering::SeqCst) != 0
-            || self.shared.seek_result.load(Ordering::SeqCst) != 0
+        self.shared.seek.is_active()
     }
 
     /// cpal 출력 스트림을 전용 스레드에서 열어 돌려준다.
@@ -473,7 +586,7 @@ impl VideoPlayer {
         // 영상은 계속 재생된다.
         let pos = self.position_ms();
         let mut queue = self.shared.queue.lock().unwrap_or_else(|e| e.into_inner());
-        let seek_result = self.shared.seek_result.load(Ordering::SeqCst);
+        let seek_result = self.shared.seek.delivering();
         let mut chosen = None;
         while let Some(front) = queue.front() {
             if front.pts_ms > pos {
@@ -486,7 +599,7 @@ impl VideoPlayer {
                 chosen = Some(frame);
             }
         }
-        if chosen.is_none() && seek_result != 0 {
+        if chosen.is_none() && seek_result.is_some() {
             // 탐색 결과는 목표 시각보다 조금 뒤 프레임일 수 있다. 정지 상태에서도
             // 목표 프레임을 바로 화면에 올리도록 시각을 앞질러 꺼낸다.
             if let Some(frame) = queue.pop_front() {
@@ -495,7 +608,7 @@ impl VideoPlayer {
                     .fetch_sub(frame.bgra.len() as u64, Ordering::SeqCst);
                 chosen = Some(frame);
             }
-        } else if chosen.is_none() && self.shared.last_pts.load(Ordering::SeqCst) == 0 {
+        } else if chosen.is_none() && self.shared.last_pts.get().is_none() {
             // 재생 시작 직후에는 첫 프레임의 표시 시각이 아직 오지 않았어도
             // 바로 보여 준다(포스터에서 재생 화면으로 넘어가는 지연을 없앤다).
             if let Some(frame) = queue.pop_front() {
@@ -506,27 +619,14 @@ impl VideoPlayer {
             }
         }
         if let Some(frame) = &chosen {
-            self.shared
-                .last_pts
-                .store(frame.pts_ms.saturating_add(1), Ordering::SeqCst);
-            if seek_result != 0 {
-                let target = seek_result - 1;
-                if frame.pts_ms >= target || queue.is_empty() {
-                    let _ = self.shared.seek_result.compare_exchange(
-                        seek_result,
-                        0,
-                        Ordering::SeqCst,
-                        Ordering::SeqCst,
-                    );
-                }
+            self.shared.last_pts.set(frame.pts_ms);
+        }
+        if let Some(target) = seek_result {
+            // 목표 프레임에 닿았거나 더 꺼낼 프레임이 없으면 탐색 결과 전달을 마친다.
+            let reached = chosen.as_ref().is_some_and(|frame| frame.pts_ms >= target);
+            if reached || queue.is_empty() {
+                self.shared.seek.finish_delivery(target);
             }
-        } else if seek_result != 0 && queue.is_empty() {
-            let _ = self.shared.seek_result.compare_exchange(
-                seek_result,
-                0,
-                Ordering::SeqCst,
-                Ordering::SeqCst,
-            );
         }
         Ok(chosen)
     }
@@ -1126,29 +1226,18 @@ fn seek_to_push(
 }
 
 fn seek_is_current(shared: &Shared, target_ms: u64) -> bool {
-    !shared.stop.load(Ordering::SeqCst)
-        && shared.seek_pending.load(Ordering::SeqCst) == target_ms.saturating_add(1)
+    !shared.stop.load(Ordering::SeqCst) && shared.seek.is_seeking_to(target_ms)
 }
 
 /// 일반 디코드(탐색 아님)를 멈춰야 하는가. 새 탐색이 걸렸거나 핸들이 버려지는 중이다.
 fn decode_interrupted(shared: &Shared) -> bool {
-    shared.stop.load(Ordering::SeqCst) || shared.seek_pending.load(Ordering::SeqCst) != 0
+    shared.stop.load(Ordering::SeqCst) || shared.seek.is_seeking()
 }
 
 /// 탐색 완료와 결과 기록을 큐 잠금으로 직렬화해 새 탐색이 이전 결과를 덮지 않게 한다.
 fn complete_seek(shared: &Shared, target_ms: u64) -> bool {
     let _queue = shared.queue.lock().unwrap_or_else(|e| e.into_inner());
-    let pending = target_ms.saturating_add(1);
-    if shared
-        .seek_pending
-        .compare_exchange(pending, 0, Ordering::SeqCst, Ordering::SeqCst)
-        .is_ok()
-    {
-        shared.seek_result.store(pending, Ordering::SeqCst);
-        true
-    } else {
-        false
-    }
+    shared.seek.complete(target_ms)
 }
 
 #[cfg(test)]
@@ -1255,7 +1344,7 @@ mod tests {
     #[test]
     fn pending_seek_rejects_stale_frames_but_allows_its_preview() {
         let player = VideoPlayer::open(&sample("sample.mp4")).unwrap();
-        player.shared.seek_pending.store(501, Ordering::SeqCst);
+        player.shared.seek.begin(500);
         let frame = |pts_ms| VideoFrame {
             width: 1,
             height: 1,
@@ -1272,12 +1361,12 @@ mod tests {
     #[test]
     fn seek_cancellation_uses_latest_pending_target() {
         let player = VideoPlayer::open(&sample("sample.mp4")).unwrap();
-        player.shared.seek_pending.store(801, Ordering::SeqCst);
+        player.shared.seek.begin(800);
         assert!(!seek_is_current(&player.shared, 500));
         assert!(seek_is_current(&player.shared, 800));
         assert!(!complete_seek(&player.shared, 500));
-        assert_eq!(player.shared.seek_pending.load(Ordering::SeqCst), 801);
-        assert_eq!(player.shared.seek_result.load(Ordering::SeqCst), 0);
+        // 낡은 목표의 완료는 진행 중인 탐색을 끝내지도, 결과를 남기지도 않는다.
+        assert_eq!(player.shared.seek.phase(), SeekPhase::Seeking(800));
     }
 
     #[test]
@@ -1509,12 +1598,90 @@ mod tests {
     #[test]
     fn stopping_cancels_seek_and_decode_loops() {
         let player = VideoPlayer::open(&sample("sample.mp4")).unwrap();
-        player.shared.seek_pending.store(801, Ordering::SeqCst);
+        player.shared.seek.begin(800);
         assert!(seek_is_current(&player.shared, 800));
         player.shared.stop.store(true, Ordering::SeqCst);
         assert!(!seek_is_current(&player.shared, 800));
-        player.shared.seek_pending.store(0, Ordering::SeqCst);
+        // 탐색이 끝나 대기로 돌아가도 멈추는 중이면 일반 디코드도 멈춘다.
+        assert!(player.shared.seek.complete(800));
+        player.shared.seek.finish_delivery(800);
+        assert_eq!(player.shared.seek.phase(), SeekPhase::Idle);
         assert!(decode_interrupted(&player.shared));
+    }
+
+    #[test]
+    fn seek_state_walks_idle_seeking_delivering_idle() {
+        let seek = SeekState::idle();
+        assert_eq!(seek.phase(), SeekPhase::Idle);
+        assert!(!seek.is_active());
+        assert!(!seek.is_seeking());
+        assert_eq!(seek.delivering(), None);
+
+        // 목표 0도 대기와 구분된다.
+        seek.begin(0);
+        assert_eq!(seek.phase(), SeekPhase::Seeking(0));
+        assert!(seek.is_active());
+        assert!(seek.is_seeking());
+        assert!(seek.is_seeking_to(0));
+        assert!(!seek.is_seeking_to(1));
+        assert_eq!(seek.delivering(), None);
+
+        assert!(seek.complete(0));
+        assert_eq!(seek.phase(), SeekPhase::Delivering(0));
+        // 전달 대기는 아직 활성이지만 일반 디코드를 막지 않는다.
+        assert!(seek.is_active());
+        assert!(!seek.is_seeking());
+        assert!(!seek.is_seeking_to(0));
+        assert_eq!(seek.delivering(), Some(0));
+        // 같은 목표를 두 번 완료하지 않는다.
+        assert!(!seek.complete(0));
+
+        // 다른 목표의 전달 완료는 무시된다.
+        seek.finish_delivery(5);
+        assert_eq!(seek.phase(), SeekPhase::Delivering(0));
+        seek.finish_delivery(0);
+        assert_eq!(seek.phase(), SeekPhase::Idle);
+        assert!(!seek.is_active());
+    }
+
+    #[test]
+    fn seek_state_new_target_replaces_pending_and_delivering() {
+        let seek = SeekState::idle();
+        seek.begin(300);
+        // 탐색 중에 새 목표: 낡은 탐색은 완료되지 못한다.
+        seek.begin(900);
+        assert!(!seek.complete(300));
+        assert_eq!(seek.phase(), SeekPhase::Seeking(900));
+        assert!(seek.complete(900));
+        // 결과 전달 대기 중에 새 목표: 낡은 결과는 버려지고 다시 탐색 중이 된다.
+        seek.begin(100);
+        assert_eq!(seek.phase(), SeekPhase::Seeking(100));
+        assert_eq!(seek.delivering(), None);
+        seek.finish_delivery(900);
+        assert_eq!(seek.phase(), SeekPhase::Seeking(100));
+    }
+
+    #[test]
+    fn seek_state_clamps_huge_targets_consistently() {
+        let seek = SeekState::idle();
+        seek.begin(u64::MAX);
+        assert!(seek.is_seeking_to(u64::MAX));
+        assert!(seek.complete(u64::MAX));
+        assert_eq!(seek.delivering(), Some(SeekState::MAX_TARGET_MS));
+        seek.finish_delivery(SeekState::MAX_TARGET_MS);
+        assert_eq!(seek.phase(), SeekPhase::Idle);
+    }
+
+    #[test]
+    fn atomic_optional_ms_round_trips() {
+        let value = AtomicOptMs::none();
+        assert_eq!(value.get(), None);
+        value.set(0);
+        assert_eq!(value.get(), Some(0));
+        value.set(1234);
+        assert_eq!(value.get(), Some(1234));
+        value.clear();
+        assert_eq!(value.get(), None);
     }
 
     /// 메모리의 파일을 읽되, 절반 지점에서 `fail`번 읽기 오류(EIO)를 내는 입력.

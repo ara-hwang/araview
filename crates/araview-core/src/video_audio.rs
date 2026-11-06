@@ -706,16 +706,92 @@ struct Mixer {
     phase: f32,
     /// 미디어 쌍 진행의 소수부. 속도가 소수여도 클럭이 어긋나지 않는다.
     carry: f32,
-    /// 선행 버퍼가 차서 소리를 내는 중인가.
-    primed: bool,
+    /// 공급 상태: 선행 버퍼 대기 / 재생 / 파일 끝에서 소진.
+    feed: Feed,
     /// 마지막으로 본 탐색 세대.
     generation: u64,
-    /// 0..1 페이드 값. 큐가 마르면 줄고, 차면 늘어난다.
+    /// 0..1 페이드 값. 표본을 내면 늘고, 비거나 정지하면 준다. 공급 상태와 별개로
+    /// 출력 표본마다 조금씩 움직이는 연속 값이라 `feed`에 넣지 않는다.
     fade: f32,
     /// 마지막으로 낸 표본(게인 전). 페이드 아웃에 쓴다.
     last: (f32, f32),
+}
+
+/// 콜백의 공급 상태. 예전에는 `primed: bool`과 `stalled: Option<Instant>` 두 필드였다.
+///
+/// 전이:
+/// - 탐색(세대 변경): 무엇이든 → `Buffering { since: None }`
+/// - 선행 버퍼가 참: `Buffering` → `Running`
+/// - 표본을 냄: `Running`/`Drained` → `Running`
+/// - 비었는데 파일 끝이 아님(언더런): `Running`/`Drained` → `Buffering { since: Some(..) }`
+/// - 비었고 파일 끝: `Running` → `Drained`
+/// - 선행 대기 중 비었음: `Buffering` → 빈 채로 기다린 시각을 기록
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum Feed {
+    /// 선행 버퍼가 차기를 기다리며 소리를 내지 않는다(탐색 직후, 언더런 뒤).
+    /// `since`는 큐가 빈 채로 기다리기 시작한 시각이고, 아직 비어 본 적이 없으면 `None`이다.
+    Buffering { since: Option<Instant> },
+    /// 선행 버퍼가 차서 소리를 내는 중이다.
+    Running,
+    /// 소리를 내다가 디코드가 파일 끝에 닿아 표본이 떨어졌다. 클럭만 진행한다.
+    Drained { since: Instant },
+}
+
+impl Feed {
+    const fn new() -> Self {
+        Feed::Buffering { since: None }
+    }
+
+    /// 표본을 꺼내 소리를 낼 수 있는 상태인가(선행 버퍼를 한 번 채웠다).
+    fn is_primed(&self) -> bool {
+        matches!(self, Feed::Running | Feed::Drained { .. })
+    }
+
+    /// 선행 대기 중이고 선행 버퍼가 찼으면 재생으로 넘긴다.
+    fn prime_if(&mut self, ready: bool) {
+        if ready && !self.is_primed() {
+            *self = Feed::Running;
+        }
+    }
+
+    /// 표본을 냈다.
+    fn played(&mut self) {
+        *self = Feed::Running;
+    }
+
+    /// 낼 표본이 없다. 선행이 찬 상태에서 파일 끝이 아닌데 마르면 언더런이라 `true`를
+    /// 돌려주고 다시 선행 대기로 간다. 빈 채로 기다린 시각은 처음 빈 시각을 유지하고,
+    /// `now`는 새로 기록할 때만 부른다(실시간 콜백에서 표본마다 시계를 읽지 않는다).
+    fn starve(&mut self, eof: bool, now: impl FnOnce() -> Instant) -> bool {
+        match *self {
+            Feed::Running if !eof => {
+                *self = Feed::Buffering { since: Some(now()) };
+                true
+            }
+            Feed::Drained { since } if !eof => {
+                *self = Feed::Buffering { since: Some(since) };
+                true
+            }
+            Feed::Running => {
+                *self = Feed::Drained { since: now() };
+                false
+            }
+            Feed::Buffering { since: None } => {
+                *self = Feed::Buffering { since: Some(now()) };
+                false
+            }
+            Feed::Buffering { since: Some(_) } | Feed::Drained { .. } => false,
+        }
+    }
+
     /// 큐가 빈 채로 기다리기 시작한 시각.
-    stalled: Option<Instant>,
+    fn stalled_since(&self) -> Option<Instant> {
+        match *self {
+            Feed::Buffering { since } => since,
+            Feed::Drained { since } => Some(since),
+            Feed::Running => None,
+        }
+    }
 }
 
 impl Mixer {
@@ -727,11 +803,10 @@ impl Mixer {
             next: None,
             phase: 0.0,
             carry: 0.0,
-            primed: false,
+            feed: Feed::new(),
             generation: 0,
             fade: 0.0,
             last: (0.0, 0.0),
-            stalled: None,
         }
     }
 
@@ -760,10 +835,9 @@ impl Mixer {
             self.next = None;
             self.phase = 0.0;
             self.carry = 0.0;
-            self.primed = false;
+            self.feed = Feed::new();
             self.fade = 0.0;
             self.last = (0.0, 0.0);
-            self.stalled = None;
         }
     }
 
@@ -843,7 +917,8 @@ impl Mixer {
 
     /// 큐가 빈 채로 오래 기다렸는가.
     fn stalled_out(&self) -> bool {
-        self.stalled
+        self.feed
+            .stalled_since()
             .is_some_and(|since| since.elapsed() >= Duration::from_millis(HOLD_LIMIT_MS))
     }
 }
@@ -906,26 +981,24 @@ fn fill_output<T>(
     }
     mixer.sync(shared);
     mixer.refill(shared);
-    if !mixer.primed {
-        mixer.primed = mixer.ready();
-    }
+    mixer.feed.prime_if(mixer.ready());
     let mut eof = shared.eof.load(Ordering::SeqCst);
     let mut played = 0u64;
     for frame in out.chunks_exact_mut(channels) {
         if shared.seek_gen.load(Ordering::SeqCst) != mixer.generation {
             mixer.sync(shared);
             mixer.refill(shared);
-            mixer.primed = mixer.ready();
+            mixer.feed.prime_if(mixer.ready());
             eof = shared.eof.load(Ordering::SeqCst);
         }
-        let sample = if mixer.primed {
+        let sample = if mixer.feed.is_primed() {
             mixer.next_sample(speed)
         } else {
             None
         };
         match sample {
             Some((left, right)) => {
-                mixer.stalled = None;
+                mixer.feed.played();
                 mixer.fade = (mixer.fade + fade_step).min(1.0);
                 mixer.last = (left, right);
                 let gain = volume * mixer.fade;
@@ -933,9 +1006,8 @@ fn fill_output<T>(
                 played += mixer.advance_media(speed);
             }
             None => {
-                if mixer.primed && !eof {
-                    // 선행 버퍼가 마르면 다시 찰 때까지 기다린다. 클럭도 세운다.
-                    mixer.primed = false;
+                // 선행 버퍼가 마르면 다시 찰 때까지 기다린다. 클럭도 세운다.
+                if mixer.feed.starve(eof, Instant::now) {
                     shared.underruns.fetch_add(1, Ordering::SeqCst);
                     shared
                         .underrun_local
@@ -949,7 +1021,6 @@ fn fill_output<T>(
                         Ordering::SeqCst,
                     );
                 }
-                mixer.stalled.get_or_insert_with(Instant::now);
                 mixer.fade = (mixer.fade - fade_step).max(0.0);
                 let gain = volume * mixer.fade;
                 let (left, right) = mixer.last;
@@ -1617,6 +1688,77 @@ mod tests {
             "곧 재생될 소리가 그대로 맨 앞이어야 한다"
         );
         assert_eq!(front, 0.0);
+    }
+
+    #[test]
+    fn feed_transitions_match_the_old_primed_and_stalled_flags() {
+        let t0 = Instant::now();
+        let t1 = t0 + Duration::from_millis(10);
+        let mut feed = Feed::new();
+        assert_eq!(feed, Feed::Buffering { since: None });
+        assert!(!feed.is_primed());
+        assert_eq!(feed.stalled_since(), None);
+
+        // 선행 대기 중 비면 처음 빈 시각만 남긴다. 언더런은 아니다.
+        assert!(!feed.starve(false, || t0));
+        assert!(!feed.starve(false, || t1));
+        assert_eq!(feed, Feed::Buffering { since: Some(t0) });
+        // 선행이 안 찼으면 그대로다.
+        feed.prime_if(false);
+        assert!(!feed.is_primed());
+        feed.prime_if(true);
+        assert_eq!(feed, Feed::Running);
+        assert_eq!(feed.stalled_since(), None);
+
+        // 재생 중 마르면 언더런이고 선행 대기로 돌아간다.
+        assert!(feed.starve(false, || t1));
+        assert_eq!(feed, Feed::Buffering { since: Some(t1) });
+        feed.prime_if(true);
+        feed.played();
+
+        // 파일 끝에서 마르면 언더런이 아니고 소진 상태로 클럭만 진행한다.
+        assert!(!feed.starve(true, || t0));
+        assert_eq!(feed, Feed::Drained { since: t0 });
+        assert!(feed.is_primed());
+        assert!(!feed.starve(true, || t1));
+        assert_eq!(feed.stalled_since(), Some(t0));
+        // 소진 뒤 남은 표본이 나오면 다시 재생이다.
+        feed.played();
+        assert_eq!(feed, Feed::Running);
+        // 소진 상태에서 파일 끝이 아니게 마르면 언더런이며 처음 빈 시각을 유지한다.
+        let _ = feed.starve(true, || t0);
+        assert!(feed.starve(false, || t1));
+        assert_eq!(feed, Feed::Buffering { since: Some(t0) });
+        // 선행 대기에서는 `prime_if`만 재생으로 넘긴다.
+        feed.prime_if(true);
+        assert!(feed.is_primed());
+    }
+
+    #[test]
+    fn seek_resets_the_feed_to_buffering() {
+        let shared = shared_with(true);
+        let mut mixer = Mixer::new(PREFERRED_RATE);
+        prime(&shared, &mut mixer, 1.0);
+        assert_eq!(mixer.feed, Feed::Running);
+        shared.seek_gen.fetch_add(1, Ordering::SeqCst);
+        mixer.sync(&shared);
+        assert_eq!(mixer.feed, Feed::Buffering { since: None });
+    }
+
+    #[test]
+    fn eof_after_playing_drains_and_keeps_the_clock_running() {
+        let shared = shared_with(true);
+        let mut mixer = Mixer::new(PREFERRED_RATE);
+        push(&shared, &[(0.5, 0.5); 4_800]);
+        let _ = run(&shared, &mut mixer, 480);
+        assert_eq!(mixer.feed, Feed::Running);
+        shared.eof.store(true, Ordering::SeqCst);
+        let _ = run(&shared, &mut mixer, 9_600);
+        assert!(matches!(mixer.feed, Feed::Drained { .. }));
+        assert_eq!(shared.underruns.load(Ordering::SeqCst), 0);
+        let before = shared.played_pairs.load(Ordering::SeqCst);
+        let _ = run(&shared, &mut mixer, 480);
+        assert_eq!(shared.played_pairs.load(Ordering::SeqCst), before + 480);
     }
 
     #[test]
