@@ -4,8 +4,9 @@ name: CI
 # Rust는 두 단계다. 전체 검증(rust 잡: fmt, clippy, deny와 rust-test 잡: cargo test를
 # 두 조각으로 나눠 각 OS에서 두 머신에 실어 병렬로 돈다)은 비용이 커서 Actions 탭
 # 수동 실행(workflow_dispatch)과 릴리스(release.yml이 workflow_call로 호출)에서만
-# 돈다. 대신 Rust 쪽 파일이 바뀐 PR과 브랜치 푸시에서는 가벼운 rust-check 잡(cargo
-# check)이 돌아 의존성 업데이트가 빌드를 깨는 것을 병합 전에 잡는다. 브랜치 푸시에서도
+# 돈다. 대신 Rust 쪽 파일이 바뀐 PR과 브랜치 푸시에서는 가벼운 rust-check 잡(세 OS
+# clippy -D warnings, Windows에서는 araview-core·araview-thumb 테스트까지)이 돌아
+# 의존성 업데이트나 OS 전용 경고·테스트가 빌드를 깨는 것을 병합 전에 잡는다. 브랜치 푸시에서도
 # rust-check를 돌리는 이유는 캐시다. PR은 자기 ref와 기본 브랜치의 캐시만 복원할 수
 # 있어서, main이 캐시를 저장해 두지 않으면 모든 PR이 빈 캐시로 시작한다.
 # cache-key는 검증·rust-check·릴리스 빌드가 같은 이름(rust-<os>)을 쓴다. 같은 키를
@@ -100,7 +101,11 @@ jobs:
             echo "docs=false" >> "$GITHUB_OUTPUT"
           fi
 
-  # 풀 검증(rust 잡)보다 훨씬 싼 컴파일 검사.
+  # 풀 검증(rust 잡)보다 훨씬 싼 검사. cargo check 대신 clippy를 돌려 OS별 cfg에서만
+  # 생기는 경고(-D warnings)를 PR에서 잡는다. clippy는 check와 같은 산출물을 쓰므로
+  # 비용 차이는 작다. Windows에서는 core·thumb 테스트도 돌린다: Windows 전용 정렬·경로
+  # 동작이 릴리스 검증에서야 드러나 베타 릴리스가 연달아 실패한 적이 있다(2026-11).
+  # app 조각 테스트는 gpui 재컴파일 비용이 커서 여전히 릴리스 검증에만 둔다.
   rust-check:
     needs: changes
     if: needs.changes.outputs.rust == 'true'
@@ -121,8 +126,12 @@ jobs:
           cache-key: rust-${{ matrix.os }}
           rust-cache-save-if: "false"
 
-      - name: Cargo check
-        run: cargo check --workspace --all-targets
+      - name: Cargo clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Cargo test (araview-core, araview-thumb)
+        if: matrix.os == 'windows-latest'
+        run: cargo test -p araview-core -p araview-thumb
 
   # 검사 잡은 fmt와 clippy·cargo-deny만 돌린다. fmt는 플랫폼과 무관해 Linux에서
   # 한 번이면 충분하다.
