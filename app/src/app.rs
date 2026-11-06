@@ -235,9 +235,8 @@ pub struct AraView {
     ocr_select: Option<(usize, usize)>,
     /// 드래그 선택을 시작한 글자 번호와 누른 위치.
     ocr_drag: Option<(usize, Point<Pixels>)>,
-    update_checking: bool,
-    /// 이번 실행에서 수동 확인이 끝났는지. 끝났으면 시작 시 자동 확인을 건너뛴다(SPEC §20.1).
-    update_checked: bool,
+    /// 업데이트 확인·다운로드 상태(SPEC §20.1).
+    update_status: update::UpdateStatus,
     peek_top: bool,
     peek_bottom: bool,
     high_contrast: bool,
@@ -356,8 +355,7 @@ impl AraView {
             ocr_shown: None,
             ocr_select: None,
             ocr_drag: None,
-            update_checking: false,
-            update_checked: false,
+            update_status: Default::default(),
             peek_top: false,
             peek_bottom: false,
             high_contrast: crate::platform::high_contrast(),

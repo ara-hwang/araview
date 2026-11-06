@@ -582,7 +582,7 @@ impl SettingsPanel {
                 )),
                 if self
                     .view
-                    .read_with(cx, |view, _| view.update_checking)
+                    .read_with(cx, |view, _| view.update_status.is_busy())
                     .unwrap_or(false)
                 {
                     // 새 버전 확인 응답을 기다리는 동안 버튼 대신 로딩 표시를 둔다.
