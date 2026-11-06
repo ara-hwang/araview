@@ -485,7 +485,7 @@ impl AraView {
 
     pub(super) fn close_image(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         // 고른 글자가 있으면 첫 입력은 선택만 푼다.
-        if self.ocr_select.is_some() {
+        if self.ocr.has_selection() {
             self.clear_ocr_selection(cx);
             return;
         }
@@ -846,9 +846,7 @@ impl AraView {
         self.frame = 0;
         self.info_seq += 1;
         self.info_data = Default::default();
-        self.ocr_shown = None;
-        self.ocr_select = None;
-        self.ocr_drag = None;
+        self.ocr.hide();
         self.close_video();
         self.drop_pixel_view(window, cx);
         self.shown = vec![index];
@@ -1202,9 +1200,7 @@ impl AraView {
         self.frame = 0;
         self.info_seq += 1;
         self.info_data = Default::default();
-        self.ocr_shown = None;
-        self.ocr_select = None;
-        self.ocr_drag = None;
+        self.ocr.hide();
         self.close_video();
         self.drop_pixel_view(window, cx);
         window.set_window_title(&t("app.title"));
