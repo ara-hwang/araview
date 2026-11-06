@@ -134,31 +134,22 @@ pub struct AraView {
     /// 열기만으로 저장된 위치를 덮지 않도록 진행 상황을 저장하지 않는다.
     progress_held: bool,
 
-    pages: HashMap<usize, pages::Page>,
-    page_loading: HashSet<usize>,
-    /// 아직 시작하지 않은 full 디코드 요청. 한 번에 하나만 돌리고 우선순위로 고른다(§9.1).
-    decode_queue: Vec<pages::DecodeJob>,
-    /// full 디코드가 실행 중인지.
-    decode_running: bool,
+    /// 인덱스별 디코드 상태(대기·디코드 중·완료·실패)와 대기열. full 디코드는 한 번에
+    /// 하나만 돌리고 우선순위로 고른다(§9.1).
+    pages: pages::PageSlots<pages::Page>,
     /// 바이트 예산 때문에 내려놓은 경계. 그보다 먼 페이지는 다시 미리 로드하지 않는다(§9.1).
     budget_reach: Option<pages::BudgetReach>,
-    /// 요청 순서를 매기는 번호.
-    decode_seq: u64,
-    page_failed: HashMap<usize, AppError>,
-    /// 가로가 더 긴 페이지. 로드하면서 알게 된다.
+    /// 가로가 더 긴 페이지. 로드하면서 알게 되고, 페이지를 내려놓아도 남긴다.
     wide: HashSet<usize>,
     /// 지금 화면에 올라가 있는 인덱스.
     shown: Vec<usize>,
-    /// 이동한 화면이 아직 올라가지 않았는지.
-    pending_commit: bool,
-    last_forward: bool,
-    skip_budget: usize,
-    /// 마지막 이동을 시작한 시각. 이전 화면을 얼마나 붙잡았는지 잰다.
-    nav_started: Instant,
+    /// 화면 이동 상태: 커밋 대기, 뒤로 넘기기 대기, 이동 시작 시각과 방향.
+    nav: pages::Nav,
     open_seq: u64,
-    opening: bool,
-    opening_started: Instant,
-    error: Option<AppError>,
+    /// 파일 열기를 시작한 시각. 값이 있으면 목록을 읽는 중이다.
+    opening: Option<Instant>,
+    /// 에러 카드에 보일 열기 실패 또는 페이지 실패.
+    error: Option<pages::ViewError>,
 
     /// 기준 그림과 그 정보(단일 보기의 표시 대상, 정보 패널·파일 작업의 대상).
     info: Option<ImageInfo>,
@@ -194,8 +185,6 @@ pub struct AraView {
     video_audio_stream: Option<AudioStream>,
     video_frame_pts: Option<u64>,
     video_clock_ms: u64,
-    /// 뒤로 넘기기 전에 도착할 자리의 페이지 크기를 확인하는 중인지.
-    pending_back: bool,
     pixel_view: Option<viewport::PixelView>,
 
     /// 웹툰 스크롤 위치: 화면 맨 위에 걸친 페이지와 그 안에서 내려간 거리.
@@ -288,22 +277,13 @@ impl AraView {
             relist_seq: 0,
             archive_identity: None,
             progress_held: false,
-            pages: HashMap::new(),
-            page_loading: HashSet::new(),
-            decode_queue: Vec::new(),
-            decode_running: false,
+            pages: pages::PageSlots::default(),
             budget_reach: None,
-            decode_seq: 0,
-            page_failed: HashMap::new(),
             wide: HashSet::new(),
             shown: Vec::new(),
-            pending_commit: false,
-            last_forward: true,
-            skip_budget: 0,
-            nav_started: Instant::now(),
+            nav: pages::Nav::default(),
             open_seq: 0,
-            opening: false,
-            opening_started: Instant::now(),
+            opening: None,
             error: None,
             info: None,
             picture: None,
@@ -328,7 +308,6 @@ impl AraView {
             video_audio_stream: None,
             video_frame_pts: None,
             video_clock_ms: 0,
-            pending_back: false,
             pixel_view: None,
             wt_anchor: 0,
             wt_offset: 0.0,
@@ -706,8 +685,8 @@ impl AraView {
         )
     }
 
-    fn render_error(&self, error: &AppError, cx: &mut Context<Self>) -> impl IntoElement {
-        let kind = match error.code {
+    fn render_error(&self, error: pages::ViewError, cx: &mut Context<Self>) -> impl IntoElement {
+        let kind = match error.error().code {
             ErrorCode::NotFound => "notFound",
             ErrorCode::Permission => "permission",
             ErrorCode::Unsupported => "unsupported",
@@ -733,7 +712,14 @@ impl AraView {
                         Button::new("error-retry")
                             .primary()
                             .label(t("viewer.error.retry"))
-                            .on_click(cx.listener(|this, _, window, cx| this.reload(window, cx))),
+                            .on_click(cx.listener(move |this, _, window, cx| match &error {
+                                // 열기 실패는 같은 경로를 다시 연다. 목록이 비어 있으면
+                                // 다시 디코드할 페이지가 없어 아무 일도 일어나지 않았다.
+                                pages::ViewError::Open { path, .. } => {
+                                    this.open_path(path.clone(), window, cx)
+                                }
+                                pages::ViewError::Page(_) => this.reload(window, cx),
+                            })),
                     )
                     .child(
                         Button::new("error-home")
@@ -1300,7 +1286,7 @@ impl Render for AraView {
             div()
                 .flex_1()
                 .min_h_0()
-                .child(self.render_error(&error, cx))
+                .child(self.render_error(error, cx))
                 .into_any_element()
         } else {
             div()

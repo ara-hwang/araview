@@ -1227,7 +1227,7 @@ impl AraView {
             .iter()
             .filter_map(|index| {
                 self.pages
-                    .get(index)
+                    .get(*index)
                     .map(|page| (*index, page.picture().clone()))
             })
             .collect();
@@ -1321,7 +1321,7 @@ impl AraView {
         let avail = self.container().w.max(WT_MIN_WIDTH);
         let known = self
             .pages
-            .get(&index)
+            .get(index)
             .map(|page| (page.picture().width, page.picture().height))
             .or_else(|| self.wt_dims.get(&index).copied());
         let (natural_w, aspect) = match known {
@@ -1518,10 +1518,10 @@ impl AraView {
             .find(|(_, bounds)| bounds.bottom() >= middle)
             .map(|(index, _)| index)
             .unwrap_or(self.wt_anchor);
-        let changed = center != self.index || self.pending_commit;
+        let changed = center != self.index || self.nav.is_pending();
         self.index = center;
         self.shown = vec![center];
-        let Some(page) = self.pages.get(&center) else {
+        let Some(page) = self.pages.get(center) else {
             return;
         };
         if !page.is_full() {
@@ -1532,7 +1532,7 @@ impl AraView {
             .as_ref()
             .is_none_or(|picture| !Arc::ptr_eq(picture, page.picture()));
         if changed || stale {
-            self.pending_commit = false;
+            self.nav.commit();
             self.error = None;
             self.picture = Some(page.picture().clone());
             self.info = page.info().cloned();
@@ -1928,7 +1928,7 @@ impl AraView {
                     if webtoon_page_boundaries && index > 0 {
                         boundaries.push(bounds.top());
                     }
-                    match self.pages.get(&index) {
+                    match self.pages.get(index) {
                         Some(page) => items.push(PaintItem {
                             picture: page.picture().clone(),
                             rect: bounds,
@@ -2036,21 +2036,16 @@ impl AraView {
         )
         .size_full();
 
-        let waiting = self.picture.is_none() && (self.opening || self.pending_commit);
+        let waiting = self.picture.is_none() && (self.opening.is_some() || self.nav.is_pending());
         // 이미 그림이 떠 있을 때는 새 페이지나 파일이 늦어질 때만 모서리에 작게 알린다.
         let busy = !waiting
             && (self.opening_visible()
-                || (self.pending_commit
-                    && self.nav_started.elapsed() >= super::pages::PREVIOUS_HOLD)
-                || (mode == ViewMode::Webtoon && !self.page_loading.is_empty()));
+                || self.nav.held_longer_than(super::pages::PREVIOUS_HOLD)
+                || (mode == ViewMode::Webtoon && self.pages.any_loading()));
         // 디코드가 길어지면 이미 받아 둔 썸네일을 저해상 미리보기로 먼저 깐다.
         let preview_thumb = (mode == ViewMode::Single
-            && self.pending_commit
-            && self.nav_started.elapsed() >= super::pages::PREVIOUS_HOLD
-            && self
-                .pages
-                .get(&self.index)
-                .is_none_or(|page| page.is_full()))
+            && self.nav.held_longer_than(super::pages::PREVIOUS_HOLD)
+            && self.pages.get(self.index).is_none_or(|page| page.is_full()))
         .then(|| self.list.get(self.index))
         .flatten()
         .and_then(|item| match self.thumbs.get(item) {
@@ -2058,7 +2053,7 @@ impl AraView {
             _ => None,
         });
         let preview = (mode != ViewMode::Webtoon)
-            .then(|| self.pages.get(&self.index))
+            .then(|| self.pages.get(self.index))
             .flatten()
             .filter(|page| page.is_archive_preview() && self.shown.contains(&self.index))
             .and_then(|_| self.list.get(self.index))
