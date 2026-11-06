@@ -842,8 +842,7 @@ impl AraView {
         self.info = None;
         self.orientation = Orientation::default();
         self.orient_seq += 1;
-        self.playing = false;
-        self.frame = 0;
+        self.anim.stop_at_first_frame();
         self.info_seq += 1;
         self.info_data = Default::default();
         self.ocr_shown = None;
@@ -1198,8 +1197,7 @@ impl AraView {
         self.shown.clear();
         self.orientation = Orientation::default();
         self.orient_seq += 1;
-        self.playing = false;
-        self.frame = 0;
+        self.anim.stop_at_first_frame();
         self.info_seq += 1;
         self.info_data = Default::default();
         self.ocr_shown = None;
@@ -1226,12 +1224,12 @@ impl AraView {
         if let Some(oriented) = self.oriented.take() {
             Self::drop_picture(&oriented, window, cx);
         }
-        self.playing = picture.is_animated()
-            && !self.view_mode(cx).is_dual()
-            && !crate::platform::reduced_motion();
-        self.frame = 0;
-        self.loops_done = 0;
-        self.frame_started = Instant::now();
+        self.anim.restart(
+            picture.is_animated()
+                && !self.view_mode(cx).is_dual()
+                && !crate::platform::reduced_motion(),
+            Instant::now(),
+        );
         if let Some(previous) = self.picture.replace(picture.clone()) {
             let cached = self
                 .pages
@@ -1293,7 +1291,7 @@ impl AraView {
         if self.has_video(cx) {
             self.orientation = orientation;
             self.orient_seq += 1;
-            if let Some(player) = &self.video
+            if let Some(player) = self.video_player()
                 && !player.is_playing()
             {
                 player.seek(player.position_ms());
@@ -1322,8 +1320,7 @@ impl AraView {
                     Self::drop_picture(&previous, window, cx);
                 }
                 this.picture = Some(picture);
-                this.frame = 0;
-                this.frame_started = Instant::now();
+                this.anim.rewind(Instant::now());
                 this.fit_locked = true;
                 this.apply_fit(cx);
                 cx.notify();
