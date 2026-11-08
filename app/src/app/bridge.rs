@@ -454,10 +454,11 @@ impl AraView {
             "gridOpen": self.grid_open(),
             "dialogOpen": window.has_active_dialog(cx),
             "fullscreen": window.is_fullscreen(),
-            "playing": self.playing,
-            "frame": self.frame,
-            "loopsDone": self.loops_done,
-            "video": self.video.as_ref().map(|player| {
+            "playing": self.anim.is_playing(),
+            "frame": self.anim.frame(),
+            "loopsDone": self.anim.loops_done(),
+            "video": self.video.as_ref().map(|video| {
+                let player = video.player();
                 let (ur_local, ur_queue) = player.audio_last_underrun();
                 json!({
                     "position": player.position_ms(),
@@ -472,7 +473,7 @@ impl AraView {
                     "audioUnderrunQueue": ur_queue,
                     "width": player.info().width,
                     "height": player.info().height,
-                    "presentedPts": self.video_frame_pts,
+                    "presentedPts": video.frame_pts(),
                     "presentedSize": self.picture.as_ref().map(|picture| {
                         json!({ "width": picture.width, "height": picture.height })
                     }),

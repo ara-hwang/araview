@@ -32,8 +32,6 @@ use araview_core::file_availability::FileAvailability;
 use araview_core::file_identity::FileIdentity;
 use araview_core::image::{ImageInfo, is_archive_file};
 use araview_core::ops::{self, DirListOptions, DirSortKey};
-use araview_core::video_audio::AudioStream;
-use araview_core::video_player::VideoPlayer;
 use gpui_kit::component::button::{Button, ButtonVariants as _};
 use gpui_kit::component::empty::{
     Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyMediaVariant, EmptyTitle,
@@ -163,22 +161,18 @@ pub struct AraView {
     /// 읽기 영역의 창 좌표 경계. 캔버스 prepaint가 갱신한다.
     viewport: Rc<Cell<Bounds<Pixels>>>,
     drag: Option<DragState>,
-    playing: bool,
-    frame: usize,
-    frame_started: Instant,
-    /// 끝까지 재생한 횟수. 유한 반복 애니메이션을 마지막 회차에서 멈추는 데 쓴다.
-    loops_done: u32,
-    /// 동영상 재생기. 단일 보기의 동영상 페이지에서만 열린다(§7.6).
-    video: Option<VideoPlayer>,
+    /// 애니메이션(GIF/APNG 등) 재생 상태: 현재 프레임, 재생 여부와 프레임 시작 시각, 반복 횟수.
+    anim: viewport::AnimPlayback,
+    /// 동영상 재생 세션. 단일 보기의 동영상 페이지에서만 열린다(§7.6).
+    /// 재생기·컨트롤·오디오 출력·표시 상태가 함께 생기고 함께 사라진다.
+    video: Option<viewport::VideoSession>,
+    /// 동영상 열기 세대. 세션보다 오래 살아 늦게 도착한 열기 결과를 버린다.
     video_seq: u64,
-    video_controls: Option<viewport::VideoControls>,
     /// 애니메이션(GIF/APNG 등) 프레임 진행 슬라이더.
     anim_timeline: Option<viewport::AnimTimeline>,
     /// 마지막 마우스·키보드 조작 시각. 재생 중 하단 컨트롤 자동 숨김에 쓴다.
     overlay_active: Instant,
-    video_audio_stream: Option<AudioStream>,
-    video_frame_pts: Option<u64>,
-    video_clock_ms: u64,
+
     pixel_view: Option<viewport::PixelView>,
 
     /// 웹툰 스크롤 위치: 화면 맨 위에 걸친 페이지와 그 안에서 내려간 거리.
@@ -277,18 +271,12 @@ impl AraView {
             fit: viewport::Fit::Pending,
             viewport: Rc::new(Cell::new(Bounds::default())),
             drag: None,
-            playing: false,
-            frame: 0,
-            frame_started: Instant::now(),
-            loops_done: 0,
+            anim: viewport::AnimPlayback::default(),
             video: None,
             video_seq: 0,
-            video_controls: None,
             anim_timeline: None,
             overlay_active: Instant::now(),
-            video_audio_stream: None,
-            video_frame_pts: None,
-            video_clock_ms: 0,
+
             pixel_view: None,
             wt_anchor: 0,
             wt_offset: 0.0,
