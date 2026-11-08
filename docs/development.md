@@ -177,6 +177,7 @@ licenses-extra/  # 업스트림 LICENSE 사본
 - `cache.rs`의 `get_cache_stats`와 `clear_cache`는 캐시 트리만 대상으로 합니다. 사용자 원본 파일 경로를 입력받아 삭제하지 않습니다.
 - 동영상 포스터(`paint/video-<hash>.jpg`)의 해시에는 `video.rs`의 `POSTER_KEY_VERSION`이 섞입니다. 포스터 픽셀이 바뀌는 수정(회전 메타데이터·SAR 반영 등)을 하면 이 값을 올려 예전 포스터와 그 포스터를 쓰는 썸네일이 다시 만들어지게 합니다. 예전 파일은 LRU 축출로 정리됩니다.
 - `process_temp::mark_in_use`로 보호된 파일과 `*.tmp-<pid>-...` 작성 중 파일은 삭제하지 않습니다. 영구 캐시 hit은 mtime을 갱신해 LRU 순서를 유지합니다.
+- 파생 캐시 작성은 `sidecar::write_cache_atomic(dest, context, write)`으로 수행합니다. 호출자는 같은 확장자의 임시 경로에 쓰고 파일 핸들을 닫은 뒤 결과를 반환합니다. 모듈이 작성 중 보호, 발행, 오류·panic unwinding 정리를 맡습니다. 부모 폴더 생성·잠금·축출 정책은 호출자에 남고, 사용자 원본 저장에는 사용하지 않습니다.
 - 상한: 하위 캐시별(썸네일·`paint/`·`scaled/`·`clipboard/` 500MB, 아카이브별 추출 디렉터리 1GiB)은 쓸 때 누적 바이트로, 루트 전체 2GiB(`MAX_TOTAL_CACHE_BYTES`)는 시작 시와 새 아카이브 첫 열기 때 `request_total_cap_scan`으로 강제합니다. 모두 넘으면 오래된 것부터 지우며, 추출을 중단하지 않습니다(`SPEC.md` §8, §9.2).
 
 ## 픽셀 보존 표시와 축소
