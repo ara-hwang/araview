@@ -36,7 +36,7 @@ struct ActiveCacheRoot {
 static ACTIVE_CACHE_ROOT: LazyLock<Mutex<Option<ActiveCacheRoot>>> =
     LazyLock::new(|| Mutex::new(None));
 
-/// Paths currently being published by `sidecar::tmp_path_for`.
+/// Paths currently being published by `sidecar::write_cache_atomic`.
 ///
 /// This is an exact set rather than a filename-shape match: archive entry names
 /// are attacker-controlled and could otherwise be crafted to look like one of
@@ -304,7 +304,7 @@ fn remove_stale_temp_files(root: &Path) {
     }
 }
 
-/// Detect the exact temp filename shape emitted by `sidecar::tmp_path_for`:
+/// Detect the exact temp filename shape emitted by `sidecar::write_cache_atomic`:
 /// `<stem>.tmp-<pid>-ThreadId<n>-<counter>.<ext>`. Used only to clean up
 /// leftovers at startup; runtime eviction uses the exact in-flight set.
 pub(crate) fn matches_temp_shape(path: &Path) -> bool {
@@ -498,45 +498,132 @@ pub(crate) fn enforce_total_cap(max_bytes: u64) -> Result<(), AppError> {
 
 /// Tree-wide cap sweeps are expensive, so concurrent requesters (new archive,
 /// startup) coalesce onto one worker. A request arriving while a sweep runs
-/// only sets `pending`, and the worker runs one extra pass so the cap is
+/// only marks the sweep dirty, and the worker runs one extra pass so the cap is
 /// enforced over writes that raced the sweep.
-struct TotalCapSweep {
-    running: bool,
-    pending: bool,
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum SweepState {
+    /// No worker is running.
+    Idle,
+    /// A worker is running its current pass.
+    Running,
+    /// A worker is running, and a request arrived during the pass, so it runs
+    /// one more pass before going idle.
+    RunningDirty,
 }
 
-static TOTAL_CAP_SWEEP: LazyLock<Mutex<TotalCapSweep>> = LazyLock::new(|| {
-    Mutex::new(TotalCapSweep {
-        running: false,
-        pending: false,
-    })
-});
+impl SweepState {
+    /// Record a request. Returns `true` when the caller must start the worker.
+    fn request(&mut self) -> bool {
+        match self {
+            Self::Idle => {
+                *self = Self::Running;
+                true
+            }
+            Self::Running | Self::RunningDirty => {
+                *self = Self::RunningDirty;
+                false
+            }
+        }
+    }
+
+    /// The worker finished a pass. Returns `true` when it must run another.
+    fn finish_pass(&mut self) -> bool {
+        match self {
+            Self::RunningDirty => {
+                *self = Self::Running;
+                true
+            }
+            Self::Running | Self::Idle => {
+                *self = Self::Idle;
+                false
+            }
+        }
+    }
+}
+
+static TOTAL_CAP_SWEEP: Mutex<SweepState> = Mutex::new(SweepState::Idle);
 
 /// Request a tree-wide cap sweep. Returns immediately; at most one sweep
 /// thread runs at a time and overlapping requests collapse into it.
 pub fn request_total_cap_scan() {
-    {
-        let Ok(mut sweep) = TOTAL_CAP_SWEEP.lock() else {
-            return;
-        };
-        if sweep.running {
-            sweep.pending = true;
-            return;
-        }
-        sweep.running = true;
-    }
-    std::thread::spawn(|| loop {
+    request_sweep(&TOTAL_CAP_SWEEP, || {
         enforce_total_cap(MAX_TOTAL_CACHE_BYTES).ok();
-        let Ok(mut sweep) = TOTAL_CAP_SWEEP.lock() else {
-            break;
-        };
-        if sweep.pending {
-            sweep.pending = false;
-            continue;
-        }
-        sweep.running = false;
-        break;
     });
+}
+
+/// Starts a worker running `sweep` unless one is already running, in which
+/// case the running worker is asked for one more pass. Returns the worker's
+/// handle when this call started one (tests join it).
+fn request_sweep(
+    state: &'static Mutex<SweepState>,
+    sweep: fn(),
+) -> Option<std::thread::JoinHandle<()>> {
+    {
+        let Ok(mut current) = state.lock() else {
+            return None;
+        };
+        if !current.request() {
+            return None;
+        }
+    }
+    // A failed spawn must not leave the state `Running` with no worker, or no
+    // later request would ever start one.
+    let mut guard = SweepWorkerGuard { state, armed: true };
+    match std::thread::Builder::new().spawn(move || {
+        let mut guard = SweepWorkerGuard { state, armed: true };
+        run_sweep_passes(&mut guard, sweep);
+    }) {
+        Ok(handle) => {
+            guard.armed = false;
+            Some(handle)
+        }
+        Err(e) => {
+            log::warn!("[cache] failed to start total cap sweep: {e}");
+            None
+        }
+    }
+}
+
+fn run_sweep_passes(guard: &mut SweepWorkerGuard, sweep: fn()) {
+    loop {
+        sweep();
+        let Ok(mut current) = guard.state.lock() else {
+            // The guard resets the state on drop.
+            return;
+        };
+        if !current.finish_pass() {
+            // `finish_pass` already went idle under the lock. A request may
+            // start a new worker right after this, so the guard must not
+            // touch the state again.
+            guard.armed = false;
+            return;
+        }
+    }
+}
+
+/// Owns a sweep worker's `Running` state. If the worker unwinds (a panic in
+/// the sweep) or fails to start, dropping the guard returns the state to
+/// `Idle` so the next request starts a fresh worker instead of only marking a
+/// dead worker dirty forever.
+struct SweepWorkerGuard {
+    state: &'static Mutex<SweepState>,
+    armed: bool,
+}
+
+impl Drop for SweepWorkerGuard {
+    fn drop(&mut self) {
+        if !self.armed {
+            return;
+        }
+        if std::thread::panicking() {
+            log::warn!("[cache] total cap sweep panicked; the next request starts a new sweep");
+        }
+        let mut current = self
+            .state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        *current = SweepState::Idle;
+    }
 }
 
 /// Collect `(mtime, size, path)` for evictable files. Paths currently being
@@ -675,5 +762,55 @@ mod tests {
         let age = modified.elapsed().unwrap_or_default();
         assert!(age < TOUCH_MIN_INTERVAL, "touched file is {age:?} old");
         assert_eq!(fs::read(&path).unwrap(), b"cached");
+    }
+
+    #[test]
+    fn sweep_state_transitions() {
+        let mut state = SweepState::Idle;
+        assert!(state.request(), "an idle sweep starts a worker");
+        assert_eq!(state, SweepState::Running);
+        assert!(
+            !state.request(),
+            "a running sweep does not start a second worker"
+        );
+        assert_eq!(state, SweepState::RunningDirty);
+        assert!(!state.request());
+        assert_eq!(
+            state,
+            SweepState::RunningDirty,
+            "requests collapse into one rerun"
+        );
+        assert!(state.finish_pass(), "a dirty sweep runs one more pass");
+        assert_eq!(state, SweepState::Running);
+        assert!(!state.finish_pass(), "a clean pass ends the worker");
+        assert_eq!(state, SweepState::Idle);
+    }
+
+    static SWEEP_RUNS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+    fn panicking_sweep() {
+        panic!("sweep failed");
+    }
+
+    fn counting_sweep() {
+        SWEEP_RUNS.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    }
+
+    /// A panic in one sweep must not leave the state `Running` with no worker:
+    /// before the guard, every later request only set the pending flag and
+    /// tree-wide cleanup stopped for the rest of the session.
+    #[test]
+    fn a_panicking_sweep_does_not_stop_later_sweeps() {
+        static STATE: Mutex<SweepState> = Mutex::new(SweepState::Idle);
+
+        let worker = request_sweep(&STATE, panicking_sweep).expect("first request starts a worker");
+        assert!(worker.join().is_err(), "the sweep panicked");
+        assert_eq!(*STATE.lock().unwrap(), SweepState::Idle);
+
+        let worker = request_sweep(&STATE, counting_sweep)
+            .expect("a request after the panic starts a new worker");
+        worker.join().unwrap();
+        assert_eq!(SWEEP_RUNS.load(std::sync::atomic::Ordering::SeqCst), 1);
+        assert_eq!(*STATE.lock().unwrap(), SweepState::Idle);
     }
 }

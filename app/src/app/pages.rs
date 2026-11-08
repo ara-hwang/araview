@@ -10,6 +10,7 @@ use std::time::Instant;
 
 use crate::toast::{Toast, WindowToast, push_timed_notification};
 use araview_core::app_error::AppError;
+use araview_core::comic_info::ComicInfo;
 use araview_core::file_availability::FileAvailability;
 use araview_core::file_identity::FileIdentity;
 use araview_core::image::{ImageInfo, is_archive_file};
@@ -17,17 +18,19 @@ use araview_core::ops;
 use gpui_kit::*;
 
 use super::{AraView, Listing};
+
+mod state;
 use crate::geometry::Offset;
 use crate::i18n::{t, t_with};
 use crate::layout::{self, CoverLayout, Solo};
 use crate::picture::{self, Orientation, Picture};
 use crate::settings::{ArchiveProgress, CacheMax, CacheMode, SettingsStore, ViewMode};
+pub(super) use state::{Nav, PageSlots, ViewError};
 
 pub(super) enum Page {
     Preview {
         picture: Arc<Picture>,
         bytes: u64,
-        sequence: u64,
     },
     Full {
         info: ImageInfo,
@@ -71,13 +74,6 @@ impl Page {
         matches!(self, Self::Full { .. })
     }
 
-    pub fn preview_sequence(&self) -> Option<u64> {
-        match self {
-            Self::Preview { sequence, .. } => Some(*sequence),
-            Self::Full { .. } => None,
-        }
-    }
-
     pub fn is_archive_preview(&self) -> bool {
         matches!(
             self,
@@ -87,30 +83,6 @@ impl Page {
             }
         )
     }
-}
-
-/// 대기 중인 full 디코드 요청.
-pub(super) struct DecodeJob {
-    index: usize,
-    protect: bool,
-    /// 미리 로드(자동 내려받기) 요청인지. 클라우드 전용 파일은 설정에 따라
-    /// 대기열에서 버릴 수 있다(SPEC §9.6).
-    prefetch: bool,
-    seq: u64,
-}
-
-/// 대기 중인 요청 가운데 다음에 돌릴 것. 현재 화면(`protect`)이 먼저이고,
-/// 같으면 현재 위치에서 가까운 순, 그다음 요청 순이다.
-fn preview_is_stale(is_full_page: bool, previous_preview: Option<u64>, sequence: u64) -> bool {
-    is_full_page || previous_preview.is_some_and(|previous| previous >= sequence)
-}
-
-fn next_decode_job(queue: &[DecodeJob], anchor: usize) -> Option<usize> {
-    queue
-        .iter()
-        .enumerate()
-        .min_by_key(|(_, job)| (!job.protect, job.index.abs_diff(anchor), job.seq))
-        .map(|(position, _)| position)
 }
 
 /// 새 이미지가 디코드될 때까지 이전 이미지를 붙잡는 최대 시간(SPEC §3.3).
@@ -232,6 +204,37 @@ impl BudgetReach {
     }
 }
 
+/// 아카이브의 ComicInfo.xml 상태(SPEC §8, §10).
+#[derive(Debug)]
+pub(super) enum Comic {
+    /// 아카이브가 아니거나 메타데이터가 없다.
+    Absent,
+    Parsed(Box<ComicInfo>),
+    /// 파싱에 실패했다. 정보 패널에 에러 문구만 남기고 표지 판정은 기본값을 쓴다.
+    Failed,
+}
+
+impl Comic {
+    pub(super) fn from_listing(result: Result<Option<ComicInfo>, AppError>) -> Self {
+        match result {
+            Ok(Some(comic)) => Self::Parsed(Box::new(comic)),
+            Ok(None) => Self::Absent,
+            Err(_) => Self::Failed,
+        }
+    }
+
+    pub(super) fn info(&self) -> Option<&ComicInfo> {
+        match self {
+            Self::Parsed(comic) => Some(comic.as_ref()),
+            Self::Absent | Self::Failed => None,
+        }
+    }
+
+    pub(super) fn failed(&self) -> bool {
+        matches!(self, Self::Failed)
+    }
+}
+
 impl AraView {
     /// 화면에 적용되는 보기 모드. 아카이브는 세션 모드(`comic_mode`), 일반
     /// 이미지는 설정값을 쓴다.
@@ -247,7 +250,7 @@ impl AraView {
     /// 표지 배치. 폴더 목록에는 ComicInfo를 적용하지 않는다.
     pub(super) fn cover(&self, cx: &App) -> CoverLayout {
         let default_alone = SettingsStore::global(cx).settings.show_cover_alone;
-        let comic = self.archive.as_ref().and(self.comic.as_ref());
+        let comic = self.archive.as_ref().and(self.comic.info());
         layout::cover_layout(comic, self.list.len(), default_alone)
     }
 
@@ -268,7 +271,7 @@ impl AraView {
         }
         // 로드에 실패한 페이지도 혼자 한 화면이다. 짝을 지은 채 두면 손상 파일을
         // 건너뛸 때 화면이 한 장만 밀려 앞뒤 화면이 같은 페이지를 겹쳐 보여준다.
-        solo.extend(self.page_failed.keys().copied());
+        solo.extend(self.pages.failed_indices());
         solo
     }
 
@@ -296,8 +299,7 @@ impl AraView {
         };
         self.open_seq += 1;
         let seq = self.open_seq;
-        self.opening = true;
-        self.opening_started = Instant::now();
+        self.opening = Some(Instant::now());
         self.error = None;
         cx.notify();
         // 금방 끝나는 열기에는 표시가 깜빡이지 않게, 늦어질 때만 보이도록 한 번 깨운다.
@@ -356,7 +358,7 @@ impl AraView {
                 if this.open_seq != seq {
                     return;
                 }
-                this.opening = false;
+                this.opening = None;
                 match result {
                     Ok(listing) => {
                         if SettingsStore::global(cx).settings.record_recent_files {
@@ -371,7 +373,7 @@ impl AraView {
                             "toast.load.imageFail"
                         };
                         window.toast(Toast::error(error.message.clone()).title(t(key)), cx);
-                        this.error = Some(error);
+                        this.error = Some(ViewError::Open { path, error });
                         cx.notify();
                     }
                 }
@@ -390,8 +392,7 @@ impl AraView {
         self.archive = listing.archive;
         self.list_root = listing.root;
         self.archive_identity = listing.identity;
-        self.comic_failed = listing.comic.is_err();
-        self.comic = listing.comic.ok().flatten();
+        self.comic = Comic::from_listing(listing.comic);
         let settings = &SettingsStore::global(cx).settings;
         self.progress_held = self.archive.is_some() && !settings.resume_reading;
         // 아카이브 세션 보기 모드를 새로 정한다. 목록이 바뀔 때마다 내려놓으므로
@@ -401,7 +402,7 @@ impl AraView {
             layout::comic_view_mode(
                 settings.view_mode,
                 settings.comic_auto_dual_view,
-                self.comic.as_ref(),
+                self.comic.info(),
             )
         });
         let mut index = listing.index;
@@ -457,16 +458,12 @@ impl AraView {
     /// 페이지 캐시와 표시 상태를 비우고 텍스처를 아틀라스에서 내린다.
     pub(super) fn clear_pages(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.list_gen += 1;
-        for (_, page) in std::mem::take(&mut self.pages) {
+        for page in self.pages.clear() {
             Self::drop_picture(page.picture(), window, cx);
         }
         if let Some(oriented) = self.oriented.take() {
             Self::drop_picture(&oriented, window, cx);
         }
-        self.page_loading.clear();
-        self.decode_queue.clear();
-        self.decode_running = false;
-        self.page_failed.clear();
         self.wide.clear();
         self.shown.clear();
         self.picture = None;
@@ -474,13 +471,12 @@ impl AraView {
         self.orientation = Orientation::default();
         // 진행 중인 회전 결과가 새 목록의 화면을 덮지 않게 한다.
         self.orient_seq += 1;
-        self.pending_commit = false;
-        self.pending_back = false;
+        self.nav.reset();
         self.budget_reach = None;
         self.wt_dims.clear();
         self.wt_anchor = 0;
         self.wt_offset = 0.0;
-        self.wt_pending = 0.0;
+        self.wt_glide.discard();
     }
 
     pub(super) fn close_image(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -490,27 +486,27 @@ impl AraView {
             return;
         }
         self.open_seq += 1;
-        self.opening = false;
+        self.opening = None;
         self.error = None;
         self.clear_pages(window, cx);
         self.list = Arc::new(Vec::new());
         self.archive = None;
         self.list_root = None;
         self.archive_identity = None;
-        self.comic = None;
-        self.comic_failed = false;
+        self.comic = Comic::Absent;
         self.comic_mode = None;
         self.index = 0;
         self.thumbs.clear();
         self.thumbs_pending.clear();
-        self.grid_open = false;
+        self.hide_grid();
         window.set_window_title(&t("app.title"));
         cx.notify();
     }
 
     /// 파일이나 아카이브를 여는 데 시간이 걸려 로딩 표시를 보여야 하는지.
     pub(super) fn opening_visible(&self) -> bool {
-        self.opening && self.opening_started.elapsed() >= LOADING_DELAY
+        self.opening
+            .is_some_and(|started| started.elapsed() >= LOADING_DELAY)
     }
 
     /// 현재 설정으로 페이지를 다시 디코드한다(재시도, 해상도·표시 정책 변경).
@@ -524,7 +520,7 @@ impl AraView {
         self.wt_anchor = anchor;
         self.wt_offset = offset;
         self.index = index;
-        self.pending_commit = true;
+        self.nav.restart();
         self.error = None;
         self.sync_pages(window, cx);
     }
@@ -535,14 +531,10 @@ impl AraView {
             return;
         }
         self.index = index;
-        self.pending_commit = true;
-        // 앞 장 로드를 기다리던 뒤로 넘기기는 다른 이동이 오면 버린다. 남겨 두면
-        // 다음 디코드 결과에서 한 화면 더 뒤로 간다.
-        self.pending_back = false;
+        // 앞 장 로드를 기다리던 뒤로 넘기기는 다른 이동이 오면 버린다(`Nav::start`).
         // 실패한 페이지의 에러 카드는 다음 화면이 커밋될 때까지 남긴다
         // (`commit_current`가 지운다). 여기서 지우면 그 사이 홈이 깜빡인다.
-        self.skip_budget = self.list.len();
-        self.nav_started = Instant::now();
+        self.nav.start(self.list.len());
         // 이전 화면 유지 시간이 지나면 미리보기로 바꿔 그리도록 한 번 깨운다.
         cx.spawn(async move |this, cx| {
             cx.background_executor().timer(PREVIOUS_HOLD).await;
@@ -553,7 +545,7 @@ impl AraView {
             reset_webtoon_scroll_for_navigation(
                 &mut self.wt_anchor,
                 &mut self.wt_offset,
-                &mut self.wt_pending,
+                &mut self.wt_glide,
                 index,
             );
         }
@@ -566,13 +558,13 @@ impl AraView {
     pub(super) fn navigate(&mut self, forward: bool, window: &mut Window, cx: &mut Context<Self>) {
         let total = self.list.len();
         let looped = SettingsStore::global(cx).settings.loop_navigation;
-        self.last_forward = forward;
+        self.nav.set_forward(forward);
         if !forward && self.view_mode(cx).is_dual() && self.check_previous_pages(window, cx) {
             // 앞의 두 장이 넓은 페이지인지 알아야 건너뛰지 않는다. 로드가 끝나면 이어서 넘긴다.
-            self.pending_back = true;
+            self.nav.wait_back();
             return;
         }
-        self.pending_back = false;
+        self.nav.cancel_back();
         let next = if self.view_mode(cx).is_dual() {
             layout::dual_step(self.index, total, looped, forward, &self.solo(cx))
         } else {
@@ -590,7 +582,7 @@ impl AraView {
             .into_iter()
             .flatten()
         {
-            if self.wt_dims.contains_key(&index) || self.page_failed.contains_key(&index) {
+            if self.wt_dims.contains_key(&index) || self.pages.is_failed(index) {
                 continue;
             }
             self.ensure_page(index, false, false, window, cx);
@@ -605,7 +597,7 @@ impl AraView {
         }
         let looped = SettingsStore::global(cx).settings.loop_navigation;
         let target = layout::offset_index(self.index, self.list.len(), offset, looped);
-        self.last_forward = offset >= 0;
+        self.nav.set_forward(offset >= 0);
         self.jump_to(target, window, cx);
     }
 
@@ -615,7 +607,7 @@ impl AraView {
             return;
         }
         // 점프는 기다리던 뒤로 넘기기를 대신한다. 같은 화면이라 이동하지 않아도 버린다.
-        self.pending_back = false;
+        self.nav.cancel_back();
         let target = if self.view_mode(cx).is_dual() {
             layout::pair_start(index, self.list.len(), &self.solo(cx), None)
         } else {
@@ -739,12 +731,12 @@ impl AraView {
                     || self
                         .budget_reach
                         .is_some_and(|reach| reach.blocks(self.index, budget.bytes, index))
-                    || self.pages.contains_key(&index)
-                    || self.page_failed.contains_key(&index)
+                    || self.pages.get(index).is_some()
+                    || self.pages.is_failed(index)
                 {
                     continue;
                 }
-                if self.page_loading.contains(&index) {
+                if self.pages.is_loading(index) {
                     prefetched += 1;
                     continue;
                 }
@@ -763,12 +755,12 @@ impl AraView {
     ) -> Vec<usize> {
         let stale: Vec<usize> = self
             .pages
-            .keys()
-            .copied()
+            .iter()
+            .map(|(index, _)| index)
             .filter(|index| !keep.contains(index))
             .collect();
         for index in &stale {
-            if let Some(page) = self.pages.remove(index) {
+            if let Some(page) = self.pages.evict(*index) {
                 // 단일 보기에서 표시 중인 그림은 `picture`가 같은 Arc를 들고 있다.
                 let displayed = self
                     .picture
@@ -779,7 +771,7 @@ impl AraView {
                 }
             }
         }
-        self.page_failed.retain(|index, _| keep.contains(index));
+        self.pages.retain_failed(|index| keep.contains(&index));
 
         // 항목 수와 바이트 예산이 넘으면 가장 먼 페이지부터 내려놓는다(§9.1).
         let (cache_mode, cache_max) = {
@@ -790,11 +782,11 @@ impl AraView {
         let bytes: HashMap<usize, u64> = self
             .pages
             .iter()
-            .map(|(index, page)| (*index, page.bytes()))
+            .map(|(index, page)| (index, page.bytes()))
             .collect();
         let plan = evict_plan(&bytes, self.index, protect, budget.items, budget.bytes);
         for index in &plan {
-            let Some(page) = self.pages.remove(index) else {
+            let Some(page) = self.pages.evict(*index) else {
                 continue;
             };
             let displayed = self
@@ -810,20 +802,20 @@ impl AraView {
 
     /// 페이지 캐시가 지금 들고 있는 디코드 바이트 합계.
     pub(super) fn cache_bytes(&self) -> u64 {
-        self.pages.values().map(Page::bytes).sum()
+        self.pages.iter().map(|(_, page)| page.bytes()).sum()
     }
 
     pub(super) fn current_page_is_full(&self) -> bool {
-        self.pages.get(&self.index).is_some_and(Page::is_full)
+        self.pages.ready(self.index).is_some()
     }
 
     /// 프리뷰는 화면에만 올린다. ImageInfo 기반 동작은 full 디코드가 끝날 때까지
     /// 비활성으로 두고, 늦게 끝난 프리뷰가 full 결과를 덮지 않도록 Page 상태도 유지한다.
     fn show_preview_current(&mut self, index: usize, window: &mut Window, cx: &mut Context<Self>) {
-        if index != self.index || !self.pending_commit || self.view_mode(cx) != ViewMode::Single {
+        if index != self.index || !self.nav.is_pending() || self.view_mode(cx) != ViewMode::Single {
             return;
         }
-        let Some(Page::Preview { picture, .. }) = self.pages.get(&index) else {
+        let Some(Page::Preview { picture, .. }) = self.pages.get(index) else {
             return;
         };
         let picture = picture.clone();
@@ -833,8 +825,8 @@ impl AraView {
         if let Some(previous) = self.picture.replace(picture.clone()) {
             let cached = self
                 .pages
-                .values()
-                .any(|page| Arc::ptr_eq(page.picture(), &previous));
+                .iter()
+                .any(|(_, page)| Arc::ptr_eq(page.picture(), &previous));
             if !cached {
                 Self::drop_picture(&previous, window, cx);
             }
@@ -852,7 +844,7 @@ impl AraView {
         self.close_video();
         self.drop_pixel_view(window, cx);
         self.shown = vec![index];
-        self.fit_locked = true;
+        self.fit = self.fit.lock();
         self.position = Offset::default();
         self.apply_fit(cx);
     }
@@ -869,37 +861,26 @@ impl AraView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self.pages.get(&index).is_some_and(Page::is_full)
-            || self.page_loading.contains(&index)
-            || self.page_failed.contains_key(&index)
-        {
-            return;
-        }
         if index >= self.list.len() {
             return;
         }
         if prefetch && self.hold_cloud(index, cx) {
             return;
         }
-        self.page_loading.insert(index);
-        self.decode_seq += 1;
-        self.decode_queue.push(DecodeJob {
-            index,
-            protect,
-            prefetch,
-            seq: self.decode_seq,
-        });
-        self.pump_decode(window, cx);
+        // 이미 끝났거나 대기·진행 중이거나 실패한 인덱스는 다시 넣지 않는다.
+        if self.pages.request(index, protect, prefetch) {
+            self.pump_decode(window, cx);
+        }
     }
 
     /// 자동 내려받기가 꺼져 있을 때 클라우드 전용(온디맨드) 파일을 미리 읽지 않는지.
     /// 판별값은 목록을 읽을 때 파일을 건드리지 않는 속성으로 정리된 `availability`다.
     pub(super) fn hold_cloud(&self, index: usize, cx: &App) -> bool {
-        !SettingsStore::global(cx).settings.cloud_auto_download
-            && matches!(
-                self.availability.get(index),
-                Some(FileAvailability::CloudOnly)
-            )
+        holds_cloud(
+            &self.availability,
+            index,
+            SettingsStore::global(cx).settings.cloud_auto_download,
+        )
     }
 
     /// 이 인덱스의 파일을 실제로 읽었다. 폴더 목록이 클라우드 전용으로 판별해 둔
@@ -911,44 +892,21 @@ impl AraView {
         }
     }
 
-    /// 대기 중인 full 디코드 요청 가운데 다음으로 시작할 것을 고른다. 고르는 중에
+    /// 실행 중인 full 디코드가 없으면 대기열에서 하나를 골라 시작한다. 고르는 중에
     /// 범위를 벗어난 항목과, 자동 내려받기가 꺼진 뒤에는 대기 중인 클라우드 전용
     /// 프리페치도 버린다(§9.6). 이미 시작한 디코드는 끝까지 돈다.
-    fn pick_decode_job(&mut self, cx: &App) -> Option<DecodeJob> {
-        while let Some(position) = next_decode_job(&self.decode_queue, self.index) {
-            let job = self.decode_queue.swap_remove(position);
-            if job.prefetch && self.hold_cloud(job.index, cx) {
-                self.page_loading.remove(&job.index);
-                continue;
-            }
-            if self.list.get(job.index).is_none() {
-                self.page_loading.remove(&job.index);
-                continue;
-            }
-            return Some(job);
-        }
-        None
-    }
-
-    /// 실행 중인 full 디코드가 없으면 대기열에서 하나를 골라 시작한다.
     fn pump_decode(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.decode_running {
-            return;
-        }
-        let Some(DecodeJob {
-            index,
-            protect,
-            seq,
-            ..
-        }) = self.pick_decode_job(cx)
-        else {
+        let anchor = self.index;
+        let (list, availability) = (self.list.clone(), &self.availability);
+        let auto_download = SettingsStore::global(cx).settings.cloud_auto_download;
+        let Some(job) = self.pages.start_next(anchor, |job| {
+            let held = job.prefetch && holds_cloud(availability, job.index, auto_download);
+            !held && job.index < list.len()
+        }) else {
             return;
         };
-        let Some(item) = self.list.get(index).cloned() else {
-            self.page_loading.remove(&index);
-            return;
-        };
-        self.decode_running = true;
+        let (index, protect, seq) = (job.index, job.protect, job.seq);
+        let item = list[index].clone();
         let generation = self.list_gen;
         let settings = &SettingsStore::global(cx).settings;
         let max_side = settings.max_resolution.max_side();
@@ -1016,27 +974,31 @@ impl AraView {
                     return;
                 };
                 this.update_in(cx, |this, window, cx| {
-                    let sequence_is_stale = this.pages.get(&index).is_some_and(|page| {
-                        preview_is_stale(page.is_full(), page.preview_sequence(), seq)
-                    });
                     if this.list_gen != generation
                         || this.index != index
-                        || !this.pending_commit
+                        || !this.nav.is_pending()
                         || this.view_mode(cx) != ViewMode::Single
-                        || sequence_is_stale
                     {
                         Self::drop_picture(&picture, window, cx);
                         return;
                     }
-                    // 미리보기 디코드도 파일을 실제로 읽은 결과다(§9.6).
-                    this.mark_local(index);
                     let bytes = picture::retained_bytes(&picture);
                     let preview = Page::Preview {
                         picture: picture.clone(),
                         bytes,
-                        sequence: seq,
                     };
-                    if let Some(previous) = this.pages.insert(index, preview) {
+                    // 같은 요청의 full 디코드가 아직 돌 때만 받는다. full이 먼저 왔으면
+                    // 늦은 미리보기가 full 결과를 덮지 않게 버린다.
+                    let previous = match this.pages.offer_preview(index, seq, preview) {
+                        Ok(previous) => previous,
+                        Err(_) => {
+                            Self::drop_picture(&picture, window, cx);
+                            return;
+                        }
+                    };
+                    // 미리보기 디코드도 파일을 실제로 읽은 결과다(§9.6).
+                    this.mark_local(index);
+                    if let Some(previous) = previous {
                         let displayed = this
                             .picture
                             .as_ref()
@@ -1058,33 +1020,25 @@ impl AraView {
                 if this.list_gen != generation {
                     return;
                 }
-                this.decode_running = false;
-                this.page_loading.remove(&index);
-                match result {
-                    Ok(page) => {
-                        // 표시든 미리 로드든 파일을 실제로 읽었다. 이제 local이다(§9.6).
-                        this.mark_local(index);
-                        if page.picture().width > page.picture().height
-                            && !page.is_archive_preview()
-                        {
-                            this.wide.insert(index);
-                        }
-                        this.webtoon_page_arrived(index, page.picture(), cx);
-                        if let Some(previous) = this.pages.insert(index, page) {
-                            let displayed = this
-                                .picture
-                                .as_ref()
-                                .is_some_and(|shown| Arc::ptr_eq(shown, previous.picture()));
-                            if !displayed {
-                                Self::drop_picture(previous.picture(), window, cx);
-                            }
-                        }
+                if let Ok(page) = &result {
+                    // 표시든 미리 로드든 파일을 실제로 읽었다. 이제 local이다(§9.6).
+                    this.mark_local(index);
+                    if page.picture().width > page.picture().height && !page.is_archive_preview() {
+                        this.wide.insert(index);
                     }
-                    Err(error) => {
-                        this.page_failed.insert(index, error);
+                    this.webtoon_page_arrived(index, page.picture(), cx);
+                }
+                // full 결과로 바꾸거나 실패로 기록하고, 들고 있던 미리보기를 내려놓는다.
+                if let Some(previous) = this.pages.finish(index, result) {
+                    let displayed = this
+                        .picture
+                        .as_ref()
+                        .is_some_and(|shown| Arc::ptr_eq(shown, previous.picture()));
+                    if !displayed {
+                        Self::drop_picture(previous.picture(), window, cx);
                     }
                 }
-                if this.pending_back {
+                if this.nav.awaiting_back() {
                     // 뒤로 넘기려고 기다리던 페이지가 도착했으면 이어서 넘긴다.
                     this.navigate(false, window, cx);
                 }
@@ -1100,75 +1054,67 @@ impl AraView {
     /// 바이트 예산 경계 밖의 대기 중인 미리 로드를 시작 전에 취소한다(§9.1).
     fn cancel_queued_beyond(&mut self, reach: BudgetReach, budget: u64) {
         let anchor = self.index;
-        let page_loading = &mut self.page_loading;
-        self.decode_queue.retain(|job| {
-            let beyond = job.prefetch && reach.blocks(anchor, budget, job.index);
-            if beyond {
-                page_loading.remove(&job.index);
-            }
-            !beyond
-        });
+        self.pages
+            .cancel_queued(|job| job.prefetch && reach.blocks(anchor, budget, job.index));
     }
 
     /// 범위 밖으로 밀려난 대기 요청을 시작 전에 취소한다. 이미 시작한 디코드는
     /// 끝까지 돌고 결과는 캐시 정리가 맡는다.
     fn cancel_queued_outside(&mut self, keep: &HashSet<usize>) {
-        let page_loading = &mut self.page_loading;
-        self.decode_queue.retain(|job| {
-            let wanted = keep.contains(&job.index);
-            if !wanted {
-                page_loading.remove(&job.index);
-            }
-            wanted
-        });
+        self.pages.cancel_queued(|job| !keep.contains(&job.index));
     }
 
     /// 이동한 화면의 페이지가 모두 도착했으면 화면을 바꾼다.
     fn try_commit(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if !self.pending_commit {
+        if !self.nav.is_pending() {
             return;
         }
         let screen = self.screen_at(self.index, cx);
-        if screen.iter().any(|index| self.page_loading.contains(index)) {
+        if screen.iter().any(|index| self.pages.is_loading(*index)) {
             return;
         }
-        if let Some(error) = self.page_failed.get(&self.index).cloned() {
+        if let Some(error) = self.pages.failed(self.index).cloned() {
             self.current_failed(error, window, cx);
             return;
         }
-        if !self.pages.get(&self.index).is_some_and(Page::is_full) {
+        if self.pages.ready(self.index).is_none() {
             return;
         }
-        self.pending_commit = false;
+        self.nav.commit();
         // 로드 실패 페이지는 화면에서 뺀다.
         self.shown = screen
             .into_iter()
-            .filter(|index| self.pages.contains_key(index))
+            .filter(|index| self.pages.get(*index).is_some())
             .collect();
         self.commit_current(window, cx);
     }
 
     fn current_failed(&mut self, error: AppError, window: &mut Window, cx: &mut Context<Self>) {
         let skip = SettingsStore::global(cx).settings.skip_broken_files;
-        if skip && self.skip_budget > 0 {
-            self.skip_budget -= 1;
+        if skip && self.nav.take_skip() {
             let total = self.list.len();
             let looped = SettingsStore::global(cx).settings.loop_navigation;
             // 양쪽 보기는 화면 단위로 건너뛴다. 실패한 페이지는 단독 화면이므로 짝이
             // 있던 페이지를 잃지 않고, 화면 시작이 아닌 자리로 옮겨 짝이 어긋나지도 않는다.
             let next = if self.view_mode(cx).is_dual() {
-                layout::dual_step(self.index, total, looped, self.last_forward, &self.solo(cx))
+                layout::dual_step(
+                    self.index,
+                    total,
+                    looped,
+                    self.nav.forward(),
+                    &self.solo(cx),
+                )
             } else {
-                layout::step_index(self.index, total, 1, looped, self.last_forward)
+                layout::step_index(self.index, total, 1, looped, self.nav.forward())
             };
-            if let Some(next) = next.filter(|next| !self.page_failed.contains_key(next)) {
+            if let Some(next) = next.filter(|next| !self.pages.is_failed(*next)) {
                 window.toast(Toast::warning(t("toast.load.skipped")), cx);
                 self.index = next;
                 self.sync_pages(window, cx);
                 return;
             }
         }
-        self.pending_commit = false;
+        self.nav.commit();
         // 이전 이미지를 남겨 두면 에러 카드가 가려지고 상태바가 두 파일을 섞어
         // 보여준다. 화면을 비워 재시도·홈 경로가 있는 에러 카드를 띄운다(§3.2).
         self.clear_shown(window, cx);
@@ -1176,7 +1122,7 @@ impl AraView {
             Toast::error(error.message.clone()).title(t("toast.load.imageFail")),
             cx,
         );
-        self.error = Some(error);
+        self.error = Some(ViewError::Page(error));
         cx.notify();
     }
 
@@ -1188,8 +1134,8 @@ impl AraView {
         if let Some(previous) = self.picture.take() {
             let cached = self
                 .pages
-                .values()
-                .any(|page| Arc::ptr_eq(page.picture(), &previous));
+                .iter()
+                .any(|(_, page)| Arc::ptr_eq(page.picture(), &previous));
             if !cached {
                 Self::drop_picture(&previous, window, cx);
             }
@@ -1212,7 +1158,7 @@ impl AraView {
 
     /// 현재 인덱스의 페이지를 기준 그림으로 삼고 보기 상태를 초기화한다.
     pub(super) fn commit_current(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(page) = self.pages.get(&self.index).filter(|page| page.is_full()) else {
+        let Some(page) = self.pages.ready(self.index) else {
             return;
         };
         let Some(info) = page.info().cloned() else {
@@ -1235,8 +1181,8 @@ impl AraView {
         if let Some(previous) = self.picture.replace(picture.clone()) {
             let cached = self
                 .pages
-                .values()
-                .any(|page| Arc::ptr_eq(page.picture(), &previous));
+                .iter()
+                .any(|(_, page)| Arc::ptr_eq(page.picture(), &previous));
             if !cached {
                 Self::drop_picture(&previous, window, cx);
             }
@@ -1252,7 +1198,7 @@ impl AraView {
         if let Some(info) = &self.info {
             window.set_window_title(&self.display_name(info));
         }
-        self.fit_locked = true;
+        self.fit = self.fit.lock();
         self.position = Offset::default();
         self.apply_fit(cx);
         self.save_progress(cx);
@@ -1324,7 +1270,7 @@ impl AraView {
                 this.picture = Some(picture);
                 this.frame = 0;
                 this.frame_started = Instant::now();
-                this.fit_locked = true;
+                this.fit = this.fit.lock();
                 this.apply_fit(cx);
                 cx.notify();
             })
@@ -1354,7 +1300,7 @@ impl AraView {
         SettingsStore::update(cx, |settings| {
             settings.fit_mode = crate::settings::FitMode::Auto;
         });
-        self.fit_locked = true;
+        self.fit = self.fit.lock();
         self.wt_zoom = 1.0;
         if self.orientation != Orientation::default() {
             self.reorient(Orientation::default(), window, cx);
@@ -1368,7 +1314,7 @@ impl AraView {
     pub(super) fn open_previewed_archive(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let previewing = self
             .pages
-            .get(&self.index)
+            .get(self.index)
             .is_some_and(Page::is_archive_preview);
         if let Some(path) = self.list.get(self.index).filter(|_| previewing) {
             self.open_path(path.to_string(), window, cx);
@@ -1376,61 +1322,37 @@ impl AraView {
     }
 }
 
+/// 자동 내려받기가 꺼져 있을 때 `index`가 클라우드 전용(온디맨드) 파일이라 미리 읽지 않는지.
+fn holds_cloud(availability: &[FileAvailability], index: usize, auto_download: bool) -> bool {
+    !auto_download && matches!(availability.get(index), Some(FileAvailability::CloudOnly))
+}
+
 fn reset_webtoon_scroll_for_navigation(
     anchor: &mut usize,
     offset: &mut f32,
-    pending: &mut f32,
+    glide: &mut crate::smooth::Glide,
     index: usize,
 ) {
     *anchor = index;
     *offset = 0.0;
-    // 이미 예약된 프레임이 `wt_animating`을 정리하므로 남은 이동 거리만 버린다.
-    *pending = 0.0;
+    // 이미 예약된 프레임이 스스로 끝나므로 남은 이동 거리만 버린다.
+    glide.discard();
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn job(index: usize, protect: bool, seq: u64) -> DecodeJob {
-        DecodeJob {
-            index,
-            protect,
-            prefetch: false,
-            seq,
-        }
-    }
-
-    #[::core::prelude::v1::test]
-    fn webtoon_navigation_discards_pending_smooth_scroll() {
-        let (mut anchor, mut offset, mut pending) = (2, 120.0, 350.0);
-        reset_webtoon_scroll_for_navigation(&mut anchor, &mut offset, &mut pending, 8);
-        assert_eq!((anchor, offset, pending), (8, 0.0, 0.0));
-    }
-
-    #[::core::prelude::v1::test]
-    fn decode_queue_picks_current_screen_then_nearest_then_oldest() {
-        let queue = vec![
-            job(9, false, 1),
-            job(6, false, 2),
-            job(4, false, 3),
-            job(5, true, 4),
-        ];
-        assert_eq!(next_decode_job(&queue, 5), Some(3));
-        let queue = vec![job(9, false, 1), job(6, false, 2), job(4, false, 3)];
-        // 거리가 같으면 먼저 요청한 것이 앞선다.
-        assert_eq!(next_decode_job(&queue, 5), Some(1));
-        assert_eq!(next_decode_job(&[], 5), None);
-    }
-
     /// `use gpui_kit::*`가 gpui의 `test` 매크로를 끌어오므로 빌트인 `#[test]`를
     /// 전체 경로로 고른다.
     #[::core::prelude::v1::test]
-    fn stale_previews_cannot_replace_full_or_newer_pages() {
-        assert!(!preview_is_stale(false, None, 1));
-        assert!(!preview_is_stale(false, Some(1), 2));
-        assert!(preview_is_stale(false, Some(2), 2));
-        assert!(preview_is_stale(true, None, 1));
+    fn webtoon_navigation_discards_pending_smooth_scroll() {
+        let (mut anchor, mut offset) = (2, 120.0);
+        let mut glide = crate::smooth::Glide::default();
+        glide.push(350.0, Instant::now());
+        reset_webtoon_scroll_for_navigation(&mut anchor, &mut offset, &mut glide, 8);
+        assert_eq!((anchor, offset), (8, 0.0));
+        assert_eq!(glide.step(Instant::now()), 0.0);
     }
 
     #[::core::prelude::v1::test]
@@ -1587,5 +1509,15 @@ mod tests {
             evict_plan(bytes, anchor, &protected, item_limit, byte_limit),
             expected
         );
+    }
+
+    #[::core::prelude::v1::test]
+    fn comic_metadata_is_absent_parsed_or_failed() {
+        let parsed = Comic::from_listing(Ok(Some(ComicInfo::default())));
+        assert!(parsed.info().is_some() && !parsed.failed());
+        let absent = Comic::from_listing(Ok(None));
+        assert!(absent.info().is_none() && !absent.failed());
+        let failed = Comic::from_listing(Err(AppError::not_found("bad xml")));
+        assert!(failed.info().is_none() && failed.failed());
     }
 }

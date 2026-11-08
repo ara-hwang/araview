@@ -145,7 +145,7 @@ npm run licenses
 - 업데이트: 동작 계약은 `SPEC.md` §20.1을 따른다(피드 `update-feed.json`, 공개키 `app/update-pubkey.txt`, `PLATFORM` 분기). 피드가 없으면(404) 확인 결과는 "최신"이다.
 - 업데이트 로컬 검증: `cargo run -p araview --example local_update_feed -- <setup.exe> <출력 폴더> http://127.0.0.1:8765`가 임시 키로 서명한 피드를 만듭니다. 그 폴더를 `python -m http.server 8765 --bind 127.0.0.1`로 띄우고, 디버그 빌드를 `ARAVIEW_UPDATE_FEED`(피드 주소)와 `ARAVIEW_UPDATE_PUBKEY`(`pubkey.txt` 내용)를 준 채 실행한 뒤 `action:checkUpdates`나 `action:installUpdate`를 보냅니다. 릴리스 빌드는 두 환경 변수를 읽지 않습니다.
 - 서드파티 라이선스: `npm run licenses`가 Rust 의존성을 `app/THIRD_PARTY_LICENSES.json`에 모으고, 앱이 이 파일을 컴파일 시점에 포함합니다. 같은 스크립트가 `THIRD_PARTY_LICENSES.md`의 2절 표도 다시 씁니다. 1절(네이티브 라이브러리)은 직접 고칩니다. 의존성을 바꾸면 다시 생성합니다. 허용하지 않은 라이선스와 RustSec 자문은 `cargo deny check`(설정 `deny.toml`, `cargo install cargo-deny --locked`)로 검사하며 CI와 릴리스 워크플로도 같은 검사를 합니다. 패키지에 LICENSE 파일이 없어 표준 템플릿("Copyright (c) <year> <owner>")이 나오는 크레이트는 스크립트가 경고로 알려 주며, 업스트림 LICENSE를 `licenses-extra/`에 복사하고 스크립트의 `EXTRA_LICENSES`에 추가합니다. 새 라이선스가 나오면 `about.toml`의 `accepted`와 `deny.toml`의 `allow`를 같이 고칩니다.
-- 스크롤: GPUI에는 휠 스크롤 감속이 없어 `src/smooth.rs`의 `SmoothScroll`이 홈, 설정, 정보 패널, 라이선스 창(원문과 목록), 썸네일 그리드의 휠 입력을 목표 오프셋으로 쌓아 프레임마다 따라가게 합니다. 가상 목록(그리드, 라이선스 목록, 도크)은 목록이 추적하는 핸들을 공유하고 기본 스크롤을 끈 뒤(`overflow_hidden`) 바깥에서 휠을 처리합니다. 웹툰 보기는 `src/app/viewport.rs`가 같은 방식으로 휠과 위·아래 키 스크롤을 나눠 반영합니다.
+- 스크롤: GPUI에는 휠 스크롤 감속이 없어 `src/smooth.rs`의 `SmoothScroll`이 홈, 설정, 정보 패널, 라이선스 창(원문과 목록), 썸네일 그리드의 휠 입력을 목표 오프셋으로 쌓아 프레임마다 따라가게 합니다. 가상 목록(그리드, 라이선스 목록, 도크)은 목록이 추적하는 핸들을 공유하고 기본 스크롤을 끈 뒤(`overflow_hidden`) 바깥에서 휠을 처리합니다. 웹툰 보기는 스크롤 핸들이 없어 `src/smooth.rs`의 `Glide`(남은 거리만 쌓는 상태)로 같은 감속을 쓰고, `src/app/viewport.rs`가 휠과 위·아래 키 스크롤을 프레임마다 나눠 반영합니다.
 - 알림: GPUI 알림 레이어는 다이얼로그보다 아래에 그려지므로, 다이얼로그가 열려 있으면 `src/toast.rs`가 같은 내용을 경고창으로 띄웁니다.
 - 로딩 표시: 파일을 여는 중(200ms 이상)에는 홈 위에, 그림이 아직 없을 때는 가운데에, 그림이 떠 있는 채 새 페이지나 웹툰 페이지가 늦어지면(페이지 이동은 300ms 이상) 오른쪽 위에 스피너를 보입니다.
 - UI 통합 테스트: 헤드리스 UI 테스트는 없습니다. `cargo test`는 단위 테스트만 돌립니다. 키, 휠, 드래그, 드롭, 우클릭, 다이얼로그는 개발 빌드를 띄워 제어 브리지로 확인합니다(`docs/playbooks.md`의 "Runtime check").
@@ -177,6 +177,7 @@ licenses-extra/  # 업스트림 LICENSE 사본
 - `cache.rs`의 `get_cache_stats`와 `clear_cache`는 캐시 트리만 대상으로 합니다. 사용자 원본 파일 경로를 입력받아 삭제하지 않습니다.
 - 동영상 포스터(`paint/video-<hash>.jpg`)의 해시에는 `video.rs`의 `POSTER_KEY_VERSION`이 섞입니다. 포스터 픽셀이 바뀌는 수정(회전 메타데이터·SAR 반영 등)을 하면 이 값을 올려 예전 포스터와 그 포스터를 쓰는 썸네일이 다시 만들어지게 합니다. 예전 파일은 LRU 축출로 정리됩니다.
 - `process_temp::mark_in_use`로 보호된 파일과 `*.tmp-<pid>-...` 작성 중 파일은 삭제하지 않습니다. 영구 캐시 hit은 mtime을 갱신해 LRU 순서를 유지합니다.
+- 파생 캐시 작성은 `sidecar::write_cache_atomic(dest, context, write)`으로 수행합니다. 호출자는 같은 확장자의 임시 경로에 쓰고 파일 핸들을 닫은 뒤 결과를 반환합니다. 모듈이 작성 중 보호, 발행, 오류·panic unwinding 정리를 맡습니다. 부모 폴더 생성·잠금·축출 정책은 호출자에 남고, 사용자 원본 저장에는 사용하지 않습니다.
 - 상한: 하위 캐시별(썸네일·`paint/`·`scaled/`·`clipboard/` 500MB, 아카이브별 추출 디렉터리 1GiB)은 쓸 때 누적 바이트로, 루트 전체 2GiB(`MAX_TOTAL_CACHE_BYTES`)는 시작 시와 새 아카이브 첫 열기 때 `request_total_cap_scan`으로 강제합니다. 모두 넘으면 오래된 것부터 지우며, 추출을 중단하지 않습니다(`SPEC.md` §8, §9.2).
 
 ## 픽셀 보존 표시와 축소
