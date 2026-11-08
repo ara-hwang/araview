@@ -304,14 +304,10 @@ fn write_jpeg_atomic(dest: &Path, img: &image::DynamicImage) -> Result<(), AppEr
             .map_err(|e| AppError::io("Failed to create thumbs dir", e, ErrorCode::Unknown))?;
     }
     // `.jpg` 접미사를 유지해야 `save`가 포맷을 추론할 수 있다.
-    let tmp = crate::sidecar::tmp_path_for(dest);
-    if let Err(e) = img.save(&tmp) {
-        crate::sidecar::discard_temp(&tmp);
-        return Err(AppError::unknown(format!(
-            "Failed to encode thumbnail: {e}"
-        )));
-    }
-    crate::sidecar::publish_atomic(&tmp, dest, "Failed to publish thumbnail")
+    crate::sidecar::write_cache_atomic(dest, "Failed to publish thumbnail", |tmp| {
+        img.save(tmp)
+            .map_err(|e| AppError::unknown(format!("Failed to encode thumbnail: {e}")))
+    })
 }
 
 #[cfg(test)]

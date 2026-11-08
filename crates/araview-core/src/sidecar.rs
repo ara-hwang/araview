@@ -150,7 +150,7 @@ fn tmp_suffix() -> String {
 
 /// Temp path next to `dest` preserving its extension, for writers that infer
 /// the encoder from the file name (`image::DynamicImage::save`).
-pub fn tmp_path_for(dest: &Path) -> PathBuf {
+fn tmp_path_for(dest: &Path) -> PathBuf {
     let ext = dest.extension().and_then(|e| e.to_str()).unwrap_or("tmp");
     let stem = dest.file_stem().and_then(|s| s.to_str()).unwrap_or("tmp");
     let path = dest.with_file_name(format!("{stem}.tmp-{}.{ext}", tmp_suffix()));
@@ -158,10 +158,13 @@ pub fn tmp_path_for(dest: &Path) -> PathBuf {
     path
 }
 
-/// Remove a temp file that will not be published and clear its in-flight mark.
-pub fn discard_temp(tmp: &Path) {
-    let _ = fs::remove_file(tmp);
-    crate::process_temp::clear_inflight(tmp);
+struct PendingCacheFile(PathBuf);
+
+impl Drop for PendingCacheFile {
+    fn drop(&mut self) {
+        let _ = fs::remove_file(&self.0);
+        crate::process_temp::clear_inflight(&self.0);
+    }
 }
 
 /// Extension of [`scratch_path_for`] temp files. Not an image extension, so a
@@ -214,29 +217,31 @@ pub fn sweep_scratch_files(dir: &Path) {
     }
 }
 
-/// Rename `tmp` onto `dest`. When another thread already published `dest`,
-/// the redundant temp file is dropped and `Ok` is returned (cache content
-/// is interchangeable). Save paths with unique content must not use this;
-/// they need a strict rename instead.
-pub fn publish_atomic(tmp: &Path, dest: &Path, context: &str) -> Result<(), AppError> {
-    match fs::rename(tmp, dest) {
-        Ok(()) => {
-            crate::process_temp::clear_inflight(tmp);
-            Ok(())
-        }
+/// Write interchangeable cache content, then publish it atomically.
+/// The writer receives a unique, in-flight-protected path beside `dest` with
+/// the same extension. It must close its files before returning. Its result is
+/// returned only after publication; errors and unwinding clean up the temp file.
+/// If rename fails but `dest` exists, keep that cache file and report success.
+/// Parent creation, locking and eviction remain the caller's policy. Never use
+/// this for user saves with unique content: those need a strict rename.
+pub fn write_cache_atomic<T>(
+    dest: &Path,
+    context: &str,
+    write: impl FnOnce(&Path) -> Result<T, AppError>,
+) -> Result<T, AppError> {
+    let pending = PendingCacheFile(tmp_path_for(dest));
+    let result = write(&pending.0)?;
+    match fs::rename(&pending.0, dest) {
+        Ok(()) => Ok(result),
         Err(e) if dest.exists() => {
             // 동시 발행이 이겼거나 rename이 공유 위반으로 막힌 경우다.
             // 전자는 정상, 후자는 구 content가 남는다는 뜻이라 로그로 남긴다.
             log::warn!(
                 "[sidecar] rename failed but dest exists, keeping existing file: {context}: {e}"
             );
-            discard_temp(tmp);
-            Ok(())
+            Ok(result)
         }
-        Err(e) => {
-            discard_temp(tmp);
-            Err(AppError::unknown(format!("{context}: {e}")))
-        }
+        Err(e) => Err(AppError::unknown(format!("{context}: {e}"))),
     }
 }
 
@@ -252,19 +257,13 @@ pub fn write_rgb8_jpeg_atomic(dest: &Path, rgb: &Rgb8, quality: u8) -> Result<()
         u16::try_from(rgb.width).map_err(|_| AppError::corrupt("image too wide for JPEG"))?;
     let height =
         u16::try_from(rgb.height).map_err(|_| AppError::corrupt("image too tall for JPEG"))?;
-    let tmp = tmp_path_for(dest);
-    let result = (|| {
-        let encoder = Encoder::new_file(&tmp, quality)
+    write_cache_atomic(dest, "Failed to publish JPEG sidecar", |tmp| {
+        let encoder = Encoder::new_file(tmp, quality)
             .map_err(|e| AppError::unknown(format!("Failed to open JPEG sidecar: {e}")))?;
         encoder
             .encode(&rgb.bytes, width, height, ColorType::Rgb)
             .map_err(|e| AppError::unknown(format!("Failed to encode JPEG sidecar: {e}")))
-    })();
-    if let Err(e) = result {
-        discard_temp(&tmp);
-        return Err(e);
-    }
-    publish_atomic(&tmp, dest, "Failed to publish JPEG sidecar")
+    })
 }
 
 /// One JPEG-sidecar pipeline (HEIC/HEIF, PSD, ...). Formats differ only in how
@@ -392,5 +391,133 @@ fn resize_rgb8(rgb: Rgb8, narrow_wide: u32, narrow_high: u32) -> Rgb8 {
         width: narrow_wide,
         height: narrow_high,
         bytes: resized.into_raw(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Reusing the former temp path must not leave it hidden from cache sweeps.
+    fn assert_released(tmp: &Path) {
+        assert!(!tmp.exists());
+        fs::write(tmp, b"probe").unwrap();
+        let files = crate::process_temp::collect_files(tmp.parent().unwrap(), false).unwrap();
+        assert!(files.iter().any(|(_, _, path)| path == tmp));
+        fs::remove_file(tmp).unwrap();
+    }
+
+    #[test]
+    fn cache_write_publishes_complete_content_and_returns_writer_result() {
+        let dir = tempfile::tempdir().unwrap();
+        let dest = dir.path().join("image.jpg");
+        let mut temp = PathBuf::new();
+        let result = write_cache_atomic(&dest, "publish", |tmp| {
+            temp = tmp.to_path_buf();
+            assert_eq!(tmp.parent(), dest.parent());
+            assert_eq!(tmp.extension(), dest.extension());
+            fs::write(tmp, b"complete image").unwrap();
+            assert!(!dest.exists());
+            assert!(crate::process_temp::collect_files(dir.path(), false)
+                .unwrap()
+                .is_empty());
+            Ok(14)
+        })
+        .unwrap();
+        assert_eq!(result, 14);
+        assert_eq!(fs::read(&dest).unwrap(), b"complete image");
+        assert_released(&temp);
+    }
+
+    #[test]
+    fn cache_write_preserves_writer_error_and_existing_destination() {
+        let dir = tempfile::tempdir().unwrap();
+        let dest = dir.path().join("image.png");
+        fs::write(&dest, b"existing").unwrap();
+        let expected = AppError::too_large("writer limit");
+        let mut temp = PathBuf::new();
+        let result = write_cache_atomic(&dest, "publish", |tmp| {
+            temp = tmp.to_path_buf();
+            fs::write(tmp, b"partial").unwrap();
+            Err::<(), _>(expected.clone())
+        });
+        assert_eq!(result.unwrap_err(), expected);
+        assert_eq!(fs::read(&dest).unwrap(), b"existing");
+        assert_released(&temp);
+    }
+
+    #[test]
+    fn cache_write_cleans_up_when_writer_unwinds() {
+        let dir = tempfile::tempdir().unwrap();
+        let dest = dir.path().join("image.png");
+        let mut temp = PathBuf::new();
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _ = write_cache_atomic(&dest, "publish", |tmp| -> Result<(), AppError> {
+                temp = tmp.to_path_buf();
+                fs::write(tmp, b"partial").unwrap();
+                panic!("interrupted writer");
+            });
+        }));
+        assert!(result.is_err());
+        assert!(!dest.exists());
+        assert_released(&temp);
+    }
+
+    #[test]
+    fn cache_write_reports_publication_error_when_destination_is_absent() {
+        let dir = tempfile::tempdir().unwrap();
+        let dest = dir.path().join("image.png");
+        let mut temp = PathBuf::new();
+        let result = write_cache_atomic(&dest, "publish context", |tmp| {
+            temp = tmp.to_path_buf();
+            // No file to rename: deterministic on every supported OS.
+            Ok(())
+        });
+        let error = result.unwrap_err();
+        assert_eq!(error.code, ErrorCode::Unknown);
+        assert!(error.message.starts_with("publish context: "));
+        assert!(!dest.exists());
+        assert_released(&temp);
+    }
+
+    #[test]
+    fn cache_write_accepts_existing_destination_after_failed_rename() {
+        let dir = tempfile::tempdir().unwrap();
+        let dest = dir.path().join("image.png");
+        let mut temp = PathBuf::new();
+        let result = write_cache_atomic(&dest, "publish", |tmp| {
+            temp = tmp.to_path_buf();
+            fs::write(&dest, b"other publisher").unwrap();
+            // The temp disappeared, but another publisher supplied the cache.
+            Ok(42)
+        })
+        .unwrap();
+        assert_eq!(result, 42);
+        assert_eq!(fs::read(&dest).unwrap(), b"other publisher");
+        assert_released(&temp);
+    }
+
+    #[test]
+    fn concurrent_cache_writers_use_distinct_temp_paths() {
+        let dir = tempfile::tempdir().unwrap();
+        let dest = dir.path().join("image.jpg");
+        let barrier = std::sync::Barrier::new(2);
+        let write = || {
+            write_cache_atomic(&dest, "publish", |tmp| {
+                fs::write(tmp, b"interchangeable").unwrap();
+                barrier.wait();
+                Ok(tmp.to_path_buf())
+            })
+            .unwrap()
+        };
+        let (first, second) = std::thread::scope(|scope| {
+            let first = scope.spawn(write);
+            let second = scope.spawn(write);
+            (first.join().unwrap(), second.join().unwrap())
+        });
+        assert_ne!(first, second);
+        assert_released(&first);
+        assert_released(&second);
+        assert_eq!(fs::read(dest).unwrap(), b"interchangeable");
     }
 }

@@ -24,7 +24,7 @@ use std::sync::Arc;
 use std::sync::mpsc::Receiver;
 use std::time::Instant;
 
-use crate::smooth::SmoothScroll;
+use crate::smooth::{Glide, SmoothScroll};
 use crate::toast::{Toast, WindowToast};
 use araview_core::app_error::{AppError, ErrorCode};
 use araview_core::comic_info::ComicInfo;
@@ -123,8 +123,7 @@ pub struct AraView {
     list_root: Option<Arc<str>>,
     /// 목록 새로고침 순번. 늦게 끝난 새로고침 결과를 버린다.
     relist_seq: u64,
-    comic: Option<ComicInfo>,
-    comic_failed: bool,
+    comic: pages::Comic,
     /// 아카이브 세션 보기 모드. 열 때 자동으로 정하고, 보는 동안 직접 고르면
     /// 세션에만 바뀐다. 일반 이미지는 설정값을 그대로 쓴다(§15).
     comic_mode: Option<ViewMode>,
@@ -134,31 +133,22 @@ pub struct AraView {
     /// 열기만으로 저장된 위치를 덮지 않도록 진행 상황을 저장하지 않는다.
     progress_held: bool,
 
-    pages: HashMap<usize, pages::Page>,
-    page_loading: HashSet<usize>,
-    /// 아직 시작하지 않은 full 디코드 요청. 한 번에 하나만 돌리고 우선순위로 고른다(§9.1).
-    decode_queue: Vec<pages::DecodeJob>,
-    /// full 디코드가 실행 중인지.
-    decode_running: bool,
+    /// 인덱스별 디코드 상태(대기·디코드 중·완료·실패)와 대기열. full 디코드는 한 번에
+    /// 하나만 돌리고 우선순위로 고른다(§9.1).
+    pages: pages::PageSlots<pages::Page>,
     /// 바이트 예산 때문에 내려놓은 경계. 그보다 먼 페이지는 다시 미리 로드하지 않는다(§9.1).
     budget_reach: Option<pages::BudgetReach>,
-    /// 요청 순서를 매기는 번호.
-    decode_seq: u64,
-    page_failed: HashMap<usize, AppError>,
-    /// 가로가 더 긴 페이지. 로드하면서 알게 된다.
+    /// 가로가 더 긴 페이지. 로드하면서 알게 되고, 페이지를 내려놓아도 남긴다.
     wide: HashSet<usize>,
     /// 지금 화면에 올라가 있는 인덱스.
     shown: Vec<usize>,
-    /// 이동한 화면이 아직 올라가지 않았는지.
-    pending_commit: bool,
-    last_forward: bool,
-    skip_budget: usize,
-    /// 마지막 이동을 시작한 시각. 이전 화면을 얼마나 붙잡았는지 잰다.
-    nav_started: Instant,
+    /// 화면 이동 상태: 커밋 대기, 뒤로 넘기기 대기, 이동 시작 시각과 방향.
+    nav: pages::Nav,
     open_seq: u64,
-    opening: bool,
-    opening_started: Instant,
-    error: Option<AppError>,
+    /// 파일 열기를 시작한 시각. 값이 있으면 목록을 읽는 중이다.
+    opening: Option<Instant>,
+    /// 에러 카드에 보일 열기 실패 또는 페이지 실패.
+    error: Option<pages::ViewError>,
 
     /// 기준 그림과 그 정보(단일 보기의 표시 대상, 정보 패널·파일 작업의 대상).
     info: Option<ImageInfo>,
@@ -168,13 +158,8 @@ pub struct AraView {
     orient_seq: u64,
     zoom: f32,
     position: Offset,
-    /// 맞춤 잠금. 수동 줌을 하면 풀려 리사이즈해도 줌을 유지한다.
-    fit_locked: bool,
-    /// 읽기 영역 크기를 아직 재지 못해 맞춤 배율이 확정되지 않은 상태다.
-    /// 캔버스가 크기를 재면 `apply_fit`으로 바로 확정한다. 재기 전에 그리면
-    /// 100% 기본 배율로 잠깐 실제 크기가 표시되는 문제가 있었으므로, 이 동안에는
-    /// 그림을 비둔다.
-    fit_pending: bool,
+    /// 맞춤 상태(크기 대기 / 맞춤 고정 / 수동 줌). 수동 줌을 하면 리사이즈해도 줌을 유지한다.
+    fit: viewport::Fit,
     /// 읽기 영역의 창 좌표 경계. 캔버스 prepaint가 갱신한다.
     viewport: Rc<Cell<Bounds<Pixels>>>,
     drag: Option<DragState>,
@@ -194,25 +179,21 @@ pub struct AraView {
     video_audio_stream: Option<AudioStream>,
     video_frame_pts: Option<u64>,
     video_clock_ms: u64,
-    /// 뒤로 넘기기 전에 도착할 자리의 페이지 크기를 확인하는 중인지.
-    pending_back: bool,
     pixel_view: Option<viewport::PixelView>,
 
     /// 웹툰 스크롤 위치: 화면 맨 위에 걸친 페이지와 그 안에서 내려간 거리.
     wt_anchor: usize,
     wt_offset: f32,
-    /// 부드러운 스크롤이 아직 반영하지 못한 남은 거리(px).
-    wt_pending: f32,
-    wt_animating: bool,
-    wt_frame: Instant,
+    /// 부드러운 스크롤이 아직 반영하지 못한 남은 거리와 프레임 예약 상태.
+    wt_glide: Glide,
     wt_zoom: f32,
     wt_fit_width: bool,
     wt_dims: HashMap<usize, (u32, u32)>,
 
     thumbs: HashMap<Arc<str>, ThumbState>,
     thumbs_pending: HashSet<Arc<str>>,
+    /// 썸네일 그리드. 닫아도 필터 입력과 스크롤 상태를 남겨 둔다(`GridState::open`).
     grid: Option<grid::GridState>,
-    grid_open: bool,
     /// 우클릭한 지점의 페이지(표지 지정 대상).
     context_page: Option<usize>,
 
@@ -227,9 +208,8 @@ pub struct AraView {
     info_seq: u64,
     /// 글자 인식 작업, 마지막 강조 결과, 강조 표시와 글자 선택(SPEC §11.5).
     ocr: ocr::OcrState,
-    update_checking: bool,
-    /// 이번 실행에서 수동 확인이 끝났는지. 끝났으면 시작 시 자동 확인을 건너뛴다(SPEC §20.1).
-    update_checked: bool,
+    /// 업데이트 확인·다운로드 상태(SPEC §20.1).
+    update_status: update::UpdateStatus,
     peek_top: bool,
     peek_bottom: bool,
     high_contrast: bool,
@@ -273,29 +253,19 @@ impl AraView {
             list_gen: 0,
             index: 0,
             archive: None,
-            comic: None,
-            comic_failed: false,
+            comic: pages::Comic::Absent,
             comic_mode: None,
             list_root: None,
             relist_seq: 0,
             archive_identity: None,
             progress_held: false,
-            pages: HashMap::new(),
-            page_loading: HashSet::new(),
-            decode_queue: Vec::new(),
-            decode_running: false,
+            pages: pages::PageSlots::default(),
             budget_reach: None,
-            decode_seq: 0,
-            page_failed: HashMap::new(),
             wide: HashSet::new(),
             shown: Vec::new(),
-            pending_commit: false,
-            last_forward: true,
-            skip_budget: 0,
-            nav_started: Instant::now(),
+            nav: pages::Nav::default(),
             open_seq: 0,
-            opening: false,
-            opening_started: Instant::now(),
+            opening: None,
             error: None,
             info: None,
             picture: None,
@@ -304,8 +274,7 @@ impl AraView {
             orient_seq: 0,
             zoom: 1.0,
             position: Offset::default(),
-            fit_locked: true,
-            fit_pending: true,
+            fit: viewport::Fit::Pending,
             viewport: Rc::new(Cell::new(Bounds::default())),
             drag: None,
             playing: false,
@@ -320,20 +289,16 @@ impl AraView {
             video_audio_stream: None,
             video_frame_pts: None,
             video_clock_ms: 0,
-            pending_back: false,
             pixel_view: None,
             wt_anchor: 0,
             wt_offset: 0.0,
-            wt_pending: 0.0,
-            wt_animating: false,
-            wt_frame: Instant::now(),
+            wt_glide: Glide::default(),
             wt_zoom: 1.0,
             wt_fit_width: false,
             wt_dims: HashMap::new(),
             thumbs: HashMap::new(),
             thumbs_pending: HashSet::new(),
             grid: None,
-            grid_open: false,
             context_page: None,
             info_open: false,
             home_scroll: SmoothScroll::default(),
@@ -344,8 +309,7 @@ impl AraView {
             info_data: info_panel::InfoData::default(),
             info_seq: 0,
             ocr: Default::default(),
-            update_checking: false,
-            update_checked: false,
+            update_status: Default::default(),
             peek_top: false,
             peek_bottom: false,
             high_contrast: crate::platform::high_contrast(),
@@ -462,7 +426,7 @@ impl AraView {
     /// 헤더 버튼과 `1/2/3` 단축키: 맞춤 모드를 기억하고 바로 적용한다.
     fn set_fit_mode(&mut self, mode: FitMode, cx: &mut Context<Self>) {
         SettingsStore::update(cx, |settings| settings.fit_mode = mode);
-        self.fit_locked = true;
+        self.fit = self.fit.lock();
         self.apply_fit(cx);
         cx.notify();
     }
@@ -694,8 +658,8 @@ impl AraView {
         )
     }
 
-    fn render_error(&self, error: &AppError, cx: &mut Context<Self>) -> impl IntoElement {
-        let kind = match error.code {
+    fn render_error(&self, error: pages::ViewError, cx: &mut Context<Self>) -> impl IntoElement {
+        let kind = match error.error().code {
             ErrorCode::NotFound => "notFound",
             ErrorCode::Permission => "permission",
             ErrorCode::Unsupported => "unsupported",
@@ -721,7 +685,14 @@ impl AraView {
                         Button::new("error-retry")
                             .primary()
                             .label(t("viewer.error.retry"))
-                            .on_click(cx.listener(|this, _, window, cx| this.reload(window, cx))),
+                            .on_click(cx.listener(move |this, _, window, cx| match &error {
+                                // 열기 실패는 같은 경로를 다시 연다. 목록이 비어 있으면
+                                // 다시 디코드할 페이지가 없어 아무 일도 일어나지 않았다.
+                                pages::ViewError::Open { path, .. } => {
+                                    this.open_path(path.clone(), window, cx)
+                                }
+                                pages::ViewError::Page(_) => this.reload(window, cx),
+                            })),
                     )
                     .child(
                         Button::new("error-home")
@@ -892,7 +863,9 @@ impl AraView {
                                         cx,
                                     )
                                     .disabled(!single)
-                                    .selected(self.fit_locked && fit_mode == FitMode::Width),
+                                    .selected(
+                                        self.fit.follows_window() && fit_mode == FitMode::Width,
+                                    ),
                                 )
                                 .child(
                                     Self::icon_button(
@@ -903,7 +876,9 @@ impl AraView {
                                         cx,
                                     )
                                     .disabled(!single)
-                                    .selected(self.fit_locked && fit_mode == FitMode::Height),
+                                    .selected(
+                                        self.fit.follows_window() && fit_mode == FitMode::Height,
+                                    ),
                                 )
                                 .child(
                                     Self::icon_button(
@@ -914,7 +889,9 @@ impl AraView {
                                         cx,
                                     )
                                     .disabled(!single)
-                                    .selected(self.fit_locked && fit_mode == FitMode::Screen),
+                                    .selected(
+                                        self.fit.follows_window() && fit_mode == FitMode::Screen,
+                                    ),
                                 ),
                         )
                     })
@@ -1164,7 +1141,7 @@ impl AraView {
     // ----- 입력 -----
 
     fn on_key(&mut self, event: &KeyDownEvent, window: &mut Window, cx: &mut Context<Self>) {
-        if self.grid_open {
+        if self.grid_open() {
             self.on_grid_key(event, window, cx);
             return;
         }
@@ -1250,7 +1227,7 @@ impl Render for AraView {
             .map(|info| self.render_status(&info, cx).into_any_element());
         let panel =
             (reading && self.info_open).then(|| self.render_info_panel(cx).into_any_element());
-        let grid = self.grid_open.then(|| self.render_grid(window, cx));
+        let grid = self.grid_open().then(|| self.render_grid(window, cx));
 
         let body: AnyElement = if reading {
             let view = cx.entity();
@@ -1288,7 +1265,7 @@ impl Render for AraView {
             div()
                 .flex_1()
                 .min_h_0()
-                .child(self.render_error(&error, cx))
+                .child(self.render_error(error, cx))
                 .into_any_element()
         } else {
             div()
