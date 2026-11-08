@@ -168,14 +168,15 @@ pub fn ensure_scaled_sidecar_with_mode(
         if has_alpha || is_pixel_art {
             // JPEG는 픽셀 경계에 다시 아티팩트를 만들 수 있으므로 픽셀 보존 모드는
             // 알파 여부와 무관하게 lossless PNG sidecar로 보존한다.
-            let tmp = crate::sidecar::tmp_path_for(&png_dest);
-            if let Err(e) = scaled.save_with_format(&tmp, image::ImageFormat::Png) {
-                crate::sidecar::discard_temp(&tmp);
-                return Err(AppError::unknown(format!(
-                    "Failed to encode scaled PNG: {e}"
-                )));
-            }
-            crate::sidecar::publish_atomic(&tmp, &png_dest, "Failed to publish scaled sidecar")?;
+            crate::sidecar::write_cache_atomic(
+                &png_dest,
+                "Failed to publish scaled sidecar",
+                |tmp| {
+                    scaled
+                        .save_with_format(tmp, image::ImageFormat::Png)
+                        .map_err(|e| AppError::unknown(format!("Failed to encode scaled PNG: {e}")))
+                },
+            )?;
             // Best effort: eviction failures must not fail image delivery.
             crate::process_temp::note_published(&png_dest, MAX_SCALED_BYTES);
             Ok(png_dest.clone())

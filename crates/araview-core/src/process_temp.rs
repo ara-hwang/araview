@@ -36,7 +36,7 @@ struct ActiveCacheRoot {
 static ACTIVE_CACHE_ROOT: LazyLock<Mutex<Option<ActiveCacheRoot>>> =
     LazyLock::new(|| Mutex::new(None));
 
-/// Paths currently being published by `sidecar::tmp_path_for`.
+/// Paths currently being published by `sidecar::write_cache_atomic`.
 ///
 /// This is an exact set rather than a filename-shape match: archive entry names
 /// are attacker-controlled and could otherwise be crafted to look like one of
@@ -304,7 +304,7 @@ fn remove_stale_temp_files(root: &Path) {
     }
 }
 
-/// Detect the exact temp filename shape emitted by `sidecar::tmp_path_for`:
+/// Detect the exact temp filename shape emitted by `sidecar::write_cache_atomic`:
 /// `<stem>.tmp-<pid>-ThreadId<n>-<counter>.<ext>`. Used only to clean up
 /// leftovers at startup; runtime eviction uses the exact in-flight set.
 pub(crate) fn matches_temp_shape(path: &Path) -> bool {

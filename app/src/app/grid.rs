@@ -27,6 +27,8 @@ pub(super) struct GridState {
     smooth: SmoothScroll,
     /// 필터된 목록 안에서의 키보드 선택 위치.
     selected: usize,
+    /// 오버레이가 열려 있는지. 닫아도 상태(필터, 스크롤)는 남겨 다시 열 때 쓴다.
+    open: bool,
     _subscription: Subscription,
 }
 
@@ -35,15 +37,27 @@ fn file_label(item: &str) -> &str {
 }
 
 impl AraView {
+    /// 썸네일 그리드가 열려 있는지.
+    pub(super) fn grid_open(&self) -> bool {
+        self.grid.as_ref().is_some_and(|grid| grid.open)
+    }
+
+    /// 그리드를 닫는다. 상태는 다음에 열 때 쓰도록 남긴다.
+    pub(super) fn hide_grid(&mut self) {
+        if let Some(grid) = &mut self.grid {
+            grid.open = false;
+        }
+    }
+
     pub(super) fn toggle_grid(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.grid_open {
+        if self.grid_open() {
             self.close_grid(window, cx);
             return;
         }
         if self.list.len() < 2 {
             return;
         }
-        let grid = match self.grid.take() {
+        let mut grid = match self.grid.take() {
             Some(grid) => grid,
             None => {
                 let filter =
@@ -70,6 +84,7 @@ impl AraView {
                     scroll,
                     smooth,
                     selected: 0,
+                    open: false,
                     _subscription: subscription,
                 }
             }
@@ -77,8 +92,8 @@ impl AraView {
         grid.filter
             .update(cx, |state, cx| state.set_value("", window, cx));
         grid.focus.focus(window, cx);
+        grid.open = true;
         self.grid = Some(grid);
-        self.grid_open = true;
         // 열 때 현재 이미지를 선택하고 가운데 둔다.
         let columns = self.grid_columns(window);
         if let Some(grid) = &mut self.grid {
@@ -91,7 +106,7 @@ impl AraView {
     }
 
     pub(super) fn close_grid(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.grid_open = false;
+        self.hide_grid();
         self.focus.focus(window, cx);
         cx.notify();
     }
