@@ -533,7 +533,7 @@ impl AraView {
         let line_fill = cx.theme().warning.opacity(0.4);
         // 테마 색은 어두운 테마에서 거의 흰색이라 글자를 가린다. 웹의 선택색처럼 푸른색으로 고정한다.
         let picked_fill = hsla(212.0 / 360.0, 0.9, 0.55, 0.45);
-        let picked = self.ocr_select.map(|(a, b)| (a.min(b), a.max(b)));
+        let picked = self.ocr.selection().map(|(a, b)| (a.min(b), a.max(b)));
         let place = |b: Bounds<Pixels>| {
             div()
                 .absolute()
@@ -740,14 +740,14 @@ impl AraView {
         cx: &mut Context<Self>,
     ) {
         self.bump_overlay();
-        if self.ocr_drag.is_some() {
+        if self.ocr.dragging() {
             if event.pressed_button == Some(MouseButton::Left) {
                 if let Some(glyph) = self.ocr_glyph_at(event.position, cx) {
                     self.ocr_extend(glyph, event.position, cx);
                 }
                 return;
             }
-            self.ocr_drag = None;
+            self.ocr.end_drag();
         }
         let webtoon = self.view_mode(cx) == ViewMode::Webtoon;
         if event.pressed_button != Some(MouseButton::Left) {
@@ -2123,14 +2123,14 @@ impl AraView {
                 MouseButton::Left,
                 cx.listener(|this, _, _, _| {
                     this.drag = None;
-                    this.ocr_drag = None;
+                    this.ocr.end_drag();
                 }),
             )
             .on_mouse_up_out(
                 MouseButton::Left,
                 cx.listener(|this, _, _, _| {
                     this.drag = None;
-                    this.ocr_drag = None;
+                    this.ocr.end_drag();
                 }),
             )
             .on_scroll(cx.listener(Self::on_wheel))

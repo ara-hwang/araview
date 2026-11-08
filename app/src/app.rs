@@ -206,16 +206,8 @@ pub struct AraView {
     dock_followed: std::cell::Cell<Option<(usize, usize, bool, bool)>>,
     info_data: info_panel::InfoData,
     info_seq: u64,
-    /// 글자 인식 중인 이미지의 렌더 경로. 값이 있으면 인식이 진행 중이다.
-    ocr_job: Option<String>,
-    /// 가장 최근에 인식한 글자 결과. 같은 이미지를 다시 켤 때 재사용한다.
-    ocr_highlight: Option<ocr::Highlight>,
-    /// 글자 강조를 켠 이미지의 렌더 경로. 지금 보는 이미지와 같을 때만 강조를 보인다.
-    ocr_shown: Option<String>,
-    /// 선택한 글자 범위(시작, 끝). 둘 다 `ocr_highlight`의 글자 번호다.
-    ocr_select: Option<(usize, usize)>,
-    /// 드래그 선택을 시작한 글자 번호와 누른 위치.
-    ocr_drag: Option<(usize, Point<Pixels>)>,
+    /// 글자 인식 작업, 마지막 강조 결과, 강조 표시와 글자 선택(SPEC §11.5).
+    ocr: ocr::OcrState,
     /// 업데이트 확인·다운로드 상태(SPEC §20.1).
     update_status: update::UpdateStatus,
     peek_top: bool,
@@ -316,11 +308,7 @@ impl AraView {
             dock_followed: std::cell::Cell::new(None),
             info_data: info_panel::InfoData::default(),
             info_seq: 0,
-            ocr_job: None,
-            ocr_highlight: None,
-            ocr_shown: None,
-            ocr_select: None,
-            ocr_drag: None,
+            ocr: Default::default(),
             update_status: Default::default(),
             peek_top: false,
             peek_bottom: false,
