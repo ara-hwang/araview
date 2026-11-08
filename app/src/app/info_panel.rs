@@ -349,11 +349,11 @@ impl AraView {
                                 self.archive
                                     .as_ref()
                                     .filter(|_| show_comic)
-                                    .and(self.comic.as_ref()),
+                                    .and(self.comic.info()),
                                 |panel, comic| panel.child(self.render_comic(comic, cx)),
                             )
                             .when(
-                                self.archive.is_some() && show_comic && self.comic_failed,
+                                self.archive.is_some() && show_comic && self.comic.failed(),
                                 |panel| {
                                     panel.child(section(
                                         t("comic.section"),

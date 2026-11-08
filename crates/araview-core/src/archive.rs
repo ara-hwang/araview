@@ -264,26 +264,18 @@ fn write_extracted(out_path: &Path, reader: &mut impl Read) -> Result<(), AppErr
     }
     // 직접 쓰면 동시 로더가 부분 파일을 읽을 수 있어 temp+rename으로 발행한다.
     // 엔트리를 한 번에 메모리에 올리지 않고 스트리밍해 병렬 워커의 피크를 줄인다.
-    let tmp = crate::sidecar::tmp_path_for(out_path);
     let mut limited = reader.take(MAX_ENTRY_BYTES + 1);
-    let result = (|| -> Result<u64, AppError> {
-        let mut file = fs::File::create(&tmp)
-            .map_err(|e| AppError::io("Failed to write temp file", e, ErrorCode::Unknown))?;
-        let written = std::io::copy(&mut limited, &mut file)
-            .map_err(|e| AppError::io("Failed to write temp file", e, ErrorCode::Unknown))?;
-        if written > MAX_ENTRY_BYTES {
-            return Err(AppError::too_large("Archive entry too large"));
-        }
-        Ok(written)
-    })();
-    let written = match result {
-        Ok(written) => written,
-        Err(e) => {
-            crate::sidecar::discard_temp(&tmp);
-            return Err(e);
-        }
-    };
-    crate::sidecar::publish_atomic(&tmp, out_path, "Failed to publish temp file")?;
+    let written =
+        crate::sidecar::write_cache_atomic(out_path, "Failed to publish temp file", |tmp| {
+            let mut file = fs::File::create(tmp)
+                .map_err(|e| AppError::io("Failed to write temp file", e, ErrorCode::Unknown))?;
+            let written = std::io::copy(&mut limited, &mut file)
+                .map_err(|e| AppError::io("Failed to write temp file", e, ErrorCode::Unknown))?;
+            if written > MAX_ENTRY_BYTES {
+                return Err(AppError::too_large("Archive entry too large"));
+            }
+            Ok(written)
+        })?;
     crate::process_temp::touch_cache_file(out_path);
     // 엔트리마다 디렉터리를 다시 훑지 않도록 누적 바이트로 상한을 추적한다.
     if let Some(dir) = out_path.parent() {

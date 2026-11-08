@@ -77,6 +77,15 @@ struct DownloadProgress {
 }
 
 impl DownloadProgress {
+    /// 다운로드를 취소한다. 배경 스레드는 다음 조각을 읽기 전에 이 표시를 보고 멈춘다.
+    fn cancel(&self) {
+        self.cancelled.store(true, Ordering::Relaxed);
+    }
+
+    fn is_cancelled(&self) -> bool {
+        self.cancelled.load(Ordering::Relaxed)
+    }
+
     /// 받은 비율(0~100). 전체 크기를 모르면 None이다.
     fn percent(&self) -> Option<f32> {
         let total = self.total.load(Ordering::Relaxed);
@@ -100,6 +109,89 @@ impl DownloadProgress {
             ),
             None => t_with("dialog.update.downloadedBytes", &[("size", &received)]),
         }
+    }
+}
+
+/// 업데이트 작업의 현재 단계. 한 번에 하나만 돈다(중복 확인과 다운로드는 무시한다).
+#[derive(Default)]
+enum UpdateState {
+    /// 아무 작업도 없다.
+    #[default]
+    Idle,
+    /// 피드를 확인하는 중. `auto`는 시작 시 자동 확인인지(실패와 최신을 알리지 않는다).
+    Checking { auto: bool },
+    /// 설치 프로그램을 받는 중. 진행 대화상자와 배경 작업이 같은 진행 상태를 본다.
+    Downloading(Arc<DownloadProgress>),
+}
+
+/// 업데이트 확인과 다운로드의 상태(SPEC §20.1). `AraView`가 하나를 들고, 전이는 이 타입의
+/// 메서드로만 한다.
+#[derive(Default)]
+pub(super) struct UpdateStatus {
+    state: UpdateState,
+    /// 이번 실행에서 수동 확인이 성공적으로 끝났는지. 끝났으면 시작 시 자동 확인을 건너뛴다.
+    checked: bool,
+}
+
+impl UpdateStatus {
+    /// 확인이나 다운로드가 진행 중인지. 설정 화면은 이 동안 확인 버튼 대신 로딩을 보인다.
+    pub(super) fn is_busy(&self) -> bool {
+        !matches!(self.state, UpdateState::Idle)
+    }
+
+    /// 확인을 시작한다. 다른 작업이 진행 중이면(중복 확인), 또는 자동 확인인데 이번 실행에서
+    /// 수동 확인이 이미 끝났으면 시작하지 않고 false를 돌려준다.
+    fn begin_check(&mut self, auto: bool) -> bool {
+        if self.is_busy() || (auto && self.checked) {
+            return false;
+        }
+        self.state = UpdateState::Checking { auto };
+        true
+    }
+
+    /// 확인이 끝났다. 수동 확인이 성공했으면 아직 기다리는 자동 확인을 건너뛰게 표시한다.
+    fn finish_check(&mut self, succeeded: bool) {
+        let UpdateState::Checking { auto } = self.state else {
+            return;
+        };
+        self.state = UpdateState::Idle;
+        if !auto && succeeded {
+            self.checked = true;
+        }
+    }
+
+    /// 다운로드를 시작한다. 다른 작업이 진행 중이면 None이다.
+    fn begin_download(&mut self) -> Option<Arc<DownloadProgress>> {
+        if self.is_busy() {
+            return None;
+        }
+        let progress = Arc::new(DownloadProgress::default());
+        self.state = UpdateState::Downloading(progress.clone());
+        Some(progress)
+    }
+
+    /// `progress`가 지금 진행 중인 다운로드인지.
+    fn is_downloading(&self, progress: &Arc<DownloadProgress>) -> bool {
+        matches!(&self.state, UpdateState::Downloading(current) if Arc::ptr_eq(current, progress))
+    }
+
+    /// 진행 중인 다운로드를 취소한다. 배경 작업이 끝나기를 기다리지 않고 바로 다음 확인과
+    /// 다운로드를 받을 수 있게 한다. 늦게 끝난 결과는 `finish_download`가 버린다.
+    fn cancel_download(&mut self, progress: &Arc<DownloadProgress>) {
+        progress.cancel();
+        if self.is_downloading(progress) {
+            self.state = UpdateState::Idle;
+        }
+    }
+
+    /// 다운로드 작업이 끝났다. 결과를 써도 되면(취소되지 않은 지금의 다운로드) true이고,
+    /// 취소된 늦은 결과면 상태를 건드리지 않고 false다. 그 사이 시작한 다른 작업을 지키기 위해서다.
+    fn finish_download(&mut self, progress: &Arc<DownloadProgress>) -> bool {
+        if progress.is_cancelled() || !self.is_downloading(progress) {
+            return false;
+        }
+        self.state = UpdateState::Idle;
+        true
     }
 }
 
@@ -312,7 +404,7 @@ fn read_with_progress(
     let mut bytes = Vec::new();
     let mut chunk = vec![0; DOWNLOAD_CHUNK];
     loop {
-        if progress.cancelled.load(Ordering::Relaxed) {
+        if progress.is_cancelled() {
             return Ok(None);
         }
         let read = match reader.read(&mut chunk) {
@@ -388,11 +480,10 @@ fn discard_cancelled_download(result: &Result<Option<PathBuf>, String>) {
 impl AraView {
     /// 수동 업데이트 확인. 설정에서 자동 확인을 끄더라도 버튼과 팔레트는 항상 동작한다.
     pub(super) fn check_updates(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.update_checking {
+        if !self.update_status.begin_check(false) {
             // 중복 확인은 무시한다.
             return;
         }
-        self.update_checking = true;
         let channel = SettingsStore::global(cx)
             .settings
             .effective_update_channel();
@@ -400,12 +491,10 @@ impl AraView {
         cx.spawn_in(window, async move |this, cx| {
             let result = task.await;
             this.update_in(cx, |this, window, cx| {
-                this.update_checking = false;
-                // 이번 실행에서 이미 확인했으므로 아직 기다리는 시작 시 자동 확인은 건너뛴다.
-                // 그러지 않으면 5초 안에 끝난 수동 확인의 대화상자 위에 같은 대화상자가 또 뜬다.
-                if result.is_ok() {
-                    this.update_checked = true;
-                }
+                // 성공했으면 이번 실행에서 이미 확인했으므로 아직 기다리는 시작 시 자동 확인은
+                // 건너뛴다. 그러지 않으면 5초 안에 끝난 수동 확인의 대화상자 위에 같은 대화상자가
+                // 또 뜬다.
+                this.update_status.finish_check(result.is_ok());
                 // 열린 설정 대화상자가 있으면 확인 버튼을 원래대로 되돌린다.
                 window.refresh();
                 match result {
@@ -435,12 +524,10 @@ impl AraView {
             let channel = this
                 .update_in(cx, |this, _, cx| {
                     if !SettingsStore::global(cx).settings.auto_check_updates
-                        || this.update_checking
-                        || this.update_checked
+                        || !this.update_status.begin_check(true)
                     {
                         return None;
                     }
-                    this.update_checking = true;
                     Some(
                         SettingsStore::global(cx)
                             .settings
@@ -456,7 +543,7 @@ impl AraView {
                 .background_spawn(async move { fetch_latest(channel) })
                 .await;
             this.update_in(cx, |this, window, cx| {
-                this.update_checking = false;
+                this.update_status.finish_check(result.is_ok());
                 // 자동 확인 중 설정을 열었다면 확인 버튼을 원래대로 되돌린다.
                 window.refresh();
                 match result {
@@ -603,12 +690,16 @@ impl AraView {
                             .outline()
                             .label(t("dialog.cancel"))
                             .on_click(move |_, window, cx| {
-                                cancel.cancelled.store(true, Ordering::Relaxed);
+                                // 앱 상태를 못 읽어도(창이 닫히는 중) 배경 작업은 멈추게 먼저 표시한다.
+                                cancel.cancel();
                                 window.close_dialog(cx);
                                 // 응답이 멈춘 다운로드는 기한(10분)까지 끝나지 않는다. 끝나기를
                                 // 기다리지 않고 바로 다음 확인과 다운로드를 받을 수 있게 한다.
                                 // 늦게 끝난 결과는 `download_update`가 버린다.
-                                view.update(cx, |this, _| this.update_checking = false).ok();
+                                view.update(cx, |this, _| {
+                                    this.update_status.cancel_download(&cancel)
+                                })
+                                .ok();
                             }),
                     ),
                 )
@@ -624,7 +715,7 @@ impl AraView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self.update_checking {
+        if self.update_status.is_busy() {
             return;
         }
         let public_key = match release_public_key() {
@@ -634,9 +725,10 @@ impl AraView {
                 return;
             }
         };
-        self.update_checking = true;
+        let Some(progress) = self.update_status.begin_download() else {
+            return;
+        };
         let signature = asset.signature.clone();
-        let progress = Arc::new(DownloadProgress::default());
         Self::show_download(progress.clone(), version, window, cx);
         // 받은 양은 배경 스레드가 기록하므로, 대화상자는 일정 간격으로 다시 그린다.
         let refresh = cx.spawn_in(window, {
@@ -645,9 +737,7 @@ impl AraView {
                 loop {
                     cx.background_executor().timer(PROGRESS_TICK).await;
                     // 취소하면 대화상자가 없으니 다시 그릴 것도 없다.
-                    if progress.cancelled.load(Ordering::Relaxed)
-                        || cx.update(|window, _| window.refresh()).is_err()
-                    {
+                    if progress.is_cancelled() || cx.update(|window, _| window.refresh()).is_err() {
                         break;
                     }
                 }
@@ -663,12 +753,15 @@ impl AraView {
             drop(refresh);
             // 취소 버튼이 이미 대화상자를 닫고 확인 상태를 풀었다. 그 뒤에 시작한 확인이나
             // 다운로드가 있을 수 있으니 상태와 대화상자를 건드리지 않고 결과만 버린다.
-            if progress.cancelled.load(Ordering::Relaxed) {
+            if progress.is_cancelled() {
                 discard_cancelled_download(&result);
                 return;
             }
             this.update_in(cx, |this, window, cx| {
-                this.update_checking = false;
+                if !this.update_status.finish_download(&progress) {
+                    discard_cancelled_download(&result);
+                    return;
+                }
                 window.close_dialog(cx);
                 let launched = result.and_then(|installer| {
                     let installer = installer.ok_or("download was cancelled")?;
@@ -907,5 +1000,89 @@ mod cancel_tests {
         discard_cancelled_download(&Err("network".to_owned()));
         let dir = tempfile::tempdir().expect("임시 폴더");
         discard_cancelled_download(&Ok(Some(dir.path().join("missing.exe"))));
+    }
+}
+
+#[cfg(test)]
+mod state_tests {
+    use super::UpdateStatus;
+
+    /// 확인 중에는 다른 확인도, 다운로드도 시작하지 않는다(중복 확인 무시).
+    #[test]
+    fn a_running_check_blocks_other_work() {
+        let mut status = UpdateStatus::default();
+        assert!(!status.is_busy());
+        assert!(status.begin_check(true));
+        assert!(status.is_busy());
+        assert!(!status.begin_check(false));
+        assert!(!status.begin_check(true));
+        assert!(status.begin_download().is_none());
+        status.finish_check(false);
+        assert!(!status.is_busy());
+    }
+
+    /// 성공한 수동 확인 뒤에는 시작 시 자동 확인을 건너뛰지만, 수동 확인은 다시 할 수 있다.
+    #[test]
+    fn a_finished_manual_check_skips_the_auto_check() {
+        let mut status = UpdateStatus::default();
+        assert!(status.begin_check(false));
+        status.finish_check(true);
+        assert!(!status.begin_check(true));
+        assert!(!status.is_busy());
+        assert!(status.begin_check(false));
+    }
+
+    /// 실패한 수동 확인이나 자동 확인은 자동 확인을 막지 않는다.
+    #[test]
+    fn failed_or_automatic_checks_do_not_mark_checked() {
+        let mut status = UpdateStatus::default();
+        assert!(status.begin_check(false));
+        status.finish_check(false);
+        assert!(status.begin_check(true));
+        status.finish_check(true);
+        assert!(status.begin_check(true));
+    }
+
+    /// 다운로드 중에는 확인과 다른 다운로드를 받지 않고, 끝나면 결과를 쓴다.
+    #[test]
+    fn a_download_runs_alone_and_finishes() {
+        let mut status = UpdateStatus::default();
+        let progress = status.begin_download().expect("다운로드 시작");
+        assert!(status.is_busy());
+        assert!(!status.begin_check(false));
+        assert!(status.begin_download().is_none());
+        assert!(status.finish_download(&progress));
+        assert!(!status.is_busy());
+    }
+
+    /// 취소하면 바로 다음 작업을 받고, 늦게 끝난 결과는 버리며 그 사이 시작한 작업을 건드리지
+    /// 않는다.
+    #[test]
+    fn a_cancelled_download_frees_the_state_and_drops_its_late_result() {
+        let mut status = UpdateStatus::default();
+        let first = status.begin_download().expect("첫 다운로드");
+        status.cancel_download(&first);
+        assert!(first.is_cancelled());
+        assert!(!status.is_busy());
+
+        let second = status.begin_download().expect("취소 뒤 바로 다시 다운로드");
+        assert!(!status.finish_download(&first));
+        assert!(status.is_busy(), "늦은 결과가 새 다운로드를 끝내면 안 된다");
+        assert!(status.finish_download(&second));
+        assert!(!status.is_busy());
+    }
+
+    /// 취소 뒤에 시작한 확인도 늦은 다운로드 결과가 끝내지 않는다.
+    #[test]
+    fn a_late_download_result_leaves_a_new_check_alone() {
+        let mut status = UpdateStatus::default();
+        let progress = status.begin_download().expect("다운로드 시작");
+        status.cancel_download(&progress);
+        assert!(status.begin_check(false));
+        assert!(!status.finish_download(&progress));
+        assert!(status.is_busy());
+        // 이미 끝난 다운로드를 다시 취소해도 진행 중인 확인은 그대로다.
+        status.cancel_download(&progress);
+        assert!(status.is_busy());
     }
 }
