@@ -478,10 +478,11 @@ impl AraView {
                     }),
                 })
             }),
-            "opening": self.opening,
+            "opening": self.opening.is_some(),
             "pagesLoaded": self.pages.len(),
             "webtoon": { "anchor": self.wt_anchor, "offset": self.wt_offset },
-            "error": self.error.clone(),
+            "error": self.error.as_ref().map(|error| error.error().clone()),
+            "errorKind": self.error.as_ref().map(|error| error.kind()),
         })
     }
 }
