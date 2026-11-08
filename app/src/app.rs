@@ -24,7 +24,7 @@ use std::sync::Arc;
 use std::sync::mpsc::Receiver;
 use std::time::Instant;
 
-use crate::smooth::SmoothScroll;
+use crate::smooth::{Glide, SmoothScroll};
 use crate::toast::{Toast, WindowToast};
 use araview_core::app_error::{AppError, ErrorCode};
 use araview_core::comic_info::ComicInfo;
@@ -167,13 +167,8 @@ pub struct AraView {
     orient_seq: u64,
     zoom: f32,
     position: Offset,
-    /// 맞춤 잠금. 수동 줌을 하면 풀려 리사이즈해도 줌을 유지한다.
-    fit_locked: bool,
-    /// 읽기 영역 크기를 아직 재지 못해 맞춤 배율이 확정되지 않은 상태다.
-    /// 캔버스가 크기를 재면 `apply_fit`으로 바로 확정한다. 재기 전에 그리면
-    /// 100% 기본 배율로 잠깐 실제 크기가 표시되는 문제가 있었으므로, 이 동안에는
-    /// 그림을 비둔다.
-    fit_pending: bool,
+    /// 맞춤 상태(크기 대기 / 맞춤 고정 / 수동 줌). 수동 줌을 하면 리사이즈해도 줌을 유지한다.
+    fit: viewport::Fit,
     /// 읽기 영역의 창 좌표 경계. 캔버스 prepaint가 갱신한다.
     viewport: Rc<Cell<Bounds<Pixels>>>,
     drag: Option<DragState>,
@@ -200,10 +195,8 @@ pub struct AraView {
     /// 웹툰 스크롤 위치: 화면 맨 위에 걸친 페이지와 그 안에서 내려간 거리.
     wt_anchor: usize,
     wt_offset: f32,
-    /// 부드러운 스크롤이 아직 반영하지 못한 남은 거리(px).
-    wt_pending: f32,
-    wt_animating: bool,
-    wt_frame: Instant,
+    /// 부드러운 스크롤이 아직 반영하지 못한 남은 거리와 프레임 예약 상태.
+    wt_glide: Glide,
     wt_zoom: f32,
     wt_fit_width: bool,
     wt_dims: HashMap<usize, (u32, u32)>,
@@ -310,8 +303,7 @@ impl AraView {
             orient_seq: 0,
             zoom: 1.0,
             position: Offset::default(),
-            fit_locked: true,
-            fit_pending: true,
+            fit: viewport::Fit::Pending,
             viewport: Rc::new(Cell::new(Bounds::default())),
             drag: None,
             playing: false,
@@ -330,9 +322,7 @@ impl AraView {
             pixel_view: None,
             wt_anchor: 0,
             wt_offset: 0.0,
-            wt_pending: 0.0,
-            wt_animating: false,
-            wt_frame: Instant::now(),
+            wt_glide: Glide::default(),
             wt_zoom: 1.0,
             wt_fit_width: false,
             wt_dims: HashMap::new(),
@@ -471,7 +461,7 @@ impl AraView {
     /// 헤더 버튼과 `1/2/3` 단축키: 맞춤 모드를 기억하고 바로 적용한다.
     fn set_fit_mode(&mut self, mode: FitMode, cx: &mut Context<Self>) {
         SettingsStore::update(cx, |settings| settings.fit_mode = mode);
-        self.fit_locked = true;
+        self.fit = self.fit.lock();
         self.apply_fit(cx);
         cx.notify();
     }
@@ -901,7 +891,9 @@ impl AraView {
                                         cx,
                                     )
                                     .disabled(!single)
-                                    .selected(self.fit_locked && fit_mode == FitMode::Width),
+                                    .selected(
+                                        self.fit.follows_window() && fit_mode == FitMode::Width,
+                                    ),
                                 )
                                 .child(
                                     Self::icon_button(
@@ -912,7 +904,9 @@ impl AraView {
                                         cx,
                                     )
                                     .disabled(!single)
-                                    .selected(self.fit_locked && fit_mode == FitMode::Height),
+                                    .selected(
+                                        self.fit.follows_window() && fit_mode == FitMode::Height,
+                                    ),
                                 )
                                 .child(
                                     Self::icon_button(
@@ -923,7 +917,9 @@ impl AraView {
                                         cx,
                                     )
                                     .disabled(!single)
-                                    .selected(self.fit_locked && fit_mode == FitMode::Screen),
+                                    .selected(
+                                        self.fit.follows_window() && fit_mode == FitMode::Screen,
+                                    ),
                                 ),
                         )
                     })

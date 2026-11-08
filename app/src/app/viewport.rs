@@ -38,8 +38,51 @@ const WT_UNKNOWN_WIDTH: f32 = 720.0;
 const WT_MIN_WIDTH: f32 = 64.0;
 /// 웹툰 `↑/↓` 1회 스크롤량(px).
 pub(super) const WT_KEY_SCROLL: f32 = 120.0;
-/// 웹툰 스크롤이 목표 위치로 수렴하는 감속 시간 상수(초).
-const WT_SMOOTH_TIME: f32 = 0.08;
+
+/// 단일 보기의 맞춤 상태. 시작값은 `Pending`이다.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum Fit {
+    /// 맞춤을 따르지만 읽기 영역 크기를 아직 재지 못해 맞춤 배율이 확정되지 않았다.
+    /// 캔버스가 크기를 재면 `apply_fit`으로 바로 확정한다. 재기 전에 그리면 100% 기본
+    /// 배율로 잠깐 실제 크기가 표시되는 문제가 있었으므로, 이 동안에는 그림을 비둔다.
+    Pending,
+    /// 맞춤 고정. 창 크기가 바뀌면 다시 맞춘다.
+    Locked,
+    /// 수동 줌. 창 크기가 바뀌어도 배율을 유지한다.
+    Manual,
+}
+
+impl Fit {
+    /// 맞춤(헤더의 맞춤 버튼 선택 표시, 창 크기 변경 시 다시 맞춤)을 따르는지.
+    pub fn follows_window(self) -> bool {
+        self != Self::Manual
+    }
+
+    /// 맞춤 고정으로 돌아간다(새 그림, 회전, 맞춤 모드 선택). 크기를 아직 재지
+    /// 못했으면 그대로 기다린다.
+    pub fn lock(self) -> Self {
+        match self {
+            Self::Pending => Self::Pending,
+            Self::Locked | Self::Manual => Self::Locked,
+        }
+    }
+
+    /// 맞춤 배율을 정했다. 수동 줌은 그대로 둔다.
+    fn measured(self) -> Self {
+        match self {
+            Self::Pending | Self::Locked => Self::Locked,
+            Self::Manual => Self::Manual,
+        }
+    }
+
+    /// 읽기 영역을 재기 전이라 맞춤 배율을 정하지 못했다. 수동 줌은 그대로 둔다.
+    fn unmeasured(self) -> Self {
+        match self {
+            Self::Pending | Self::Locked => Self::Pending,
+            Self::Manual => Self::Manual,
+        }
+    }
+}
 
 /// 동영상 전송 컨트롤 상태. 타임라인·음량 슬라이더와 구독을 함께 들고 다닌다.
 pub(super) struct VideoControls {
@@ -243,7 +286,7 @@ impl AraView {
         if self.view_mode(cx) != ViewMode::Single {
             // 양쪽 보기의 배율은 화면 맞춤 대비 상대값이다.
             self.zoom = 1.0;
-            self.fit_pending = false;
+            self.fit = self.fit.measured();
             return;
         }
         let Some(image) = self.image_size() else {
@@ -254,12 +297,12 @@ impl AraView {
             // 캔버스가 읽기 영역을 아직 재기 전은 맞춤 배율을 정할 수 없다.
             // 기본 배율(100%)로 그리면 실제 크기가 한순간 보이므로, 크기를
             // 재면 바로 적용하도록 기다린다.
-            self.fit_pending = true;
+            self.fit = self.fit.unmeasured();
             return;
         }
         let mode = SettingsStore::global(cx).settings.fit_mode;
         self.zoom = zoom_for_fit(mode, container, image);
-        self.fit_pending = false;
+        self.fit = self.fit.measured();
     }
 
     pub(super) fn zoom_by(&mut self, factor: f32, anchor: Option<Offset>, cx: &mut Context<Self>) {
@@ -320,7 +363,7 @@ impl AraView {
                     anchor.unwrap_or_default(),
                 );
                 self.zoom = next;
-                self.fit_locked = false;
+                self.fit = Fit::Manual;
                 cx.notify();
             }
         }
@@ -382,7 +425,7 @@ impl AraView {
     pub(super) fn viewport_resized(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         match self.view_mode(cx) {
             ViewMode::Webtoon => self.webtoon_sync(window, cx),
-            ViewMode::Single if self.fit_locked || self.fit_pending => self.apply_fit(cx),
+            ViewMode::Single if self.fit.follows_window() => self.apply_fit(cx),
             _ => {
                 if let Some(extent) = self.pan_extent(cx) {
                     self.position = clamp_position(
@@ -1403,10 +1446,7 @@ impl AraView {
         if dy == 0.0 || self.list.is_empty() {
             return;
         }
-        self.wt_pending += dy;
-        if !self.wt_animating {
-            self.wt_animating = true;
-            self.wt_frame = Instant::now();
+        if self.wt_glide.push(dy, Instant::now()) {
             self.webtoon_next_frame(window, cx);
         }
     }
@@ -1419,28 +1459,12 @@ impl AraView {
     }
 
     fn webtoon_smooth_frame(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let now = Instant::now();
-        let dt = now
-            .duration_since(std::mem::replace(&mut self.wt_frame, now))
-            .as_secs_f32()
-            .min(0.05);
-        let mut step = self.wt_pending * (1.0 - (-dt / WT_SMOOTH_TIME).exp());
-        // 거의 다 왔으면 남은 거리를 한 번에 반영하고 끝낸다.
-        let settled = self.wt_pending.abs() < 1.0;
-        if settled {
-            step = self.wt_pending;
-        }
-        self.wt_pending -= step;
+        let step = self.wt_glide.step(Instant::now());
         let before = (self.wt_anchor, self.wt_offset);
         self.webtoon_scroll(step, window, cx);
         // 끝에 닿아 더 움직이지 못하면 남은 거리를 버린다.
-        if (self.wt_anchor, self.wt_offset) == before {
-            self.wt_pending = 0.0;
-        }
-        if settled || self.wt_pending == 0.0 {
-            self.wt_pending = 0.0;
-            self.wt_animating = false;
-        } else {
+        let moved = (self.wt_anchor, self.wt_offset) != before;
+        if self.wt_glide.end_frame(moved) {
             self.webtoon_next_frame(window, cx);
         }
     }
@@ -2245,9 +2269,29 @@ impl AraView {
 #[cfg(test)]
 mod tests {
     use super::{
-        OVERLAY_HIDE_AFTER, TileGrid, format_frame_counter, overlay_visible, video_frame_position,
+        Fit, OVERLAY_HIDE_AFTER, TileGrid, format_frame_counter, overlay_visible,
+        video_frame_position,
     };
     use std::time::Duration;
+
+    #[test]
+    fn fit_waits_for_the_viewport_then_locks_until_manual_zoom() {
+        // 처음에는 크기를 재기 전이고, 맞춤을 따른다.
+        let fit = Fit::Pending;
+        assert!(fit.follows_window());
+        assert_eq!(fit.lock(), Fit::Pending);
+        assert_eq!(fit.unmeasured(), Fit::Pending);
+        let fit = fit.measured();
+        assert_eq!(fit, Fit::Locked);
+        // 읽기 영역을 다시 재지 못하면 크기 대기로 돌아간다.
+        assert_eq!(fit.unmeasured(), Fit::Pending);
+        // 수동 줌은 리사이즈·맞춤 계산에 풀리지 않고, 맞춤 고정으로만 돌아간다.
+        let manual = Fit::Manual;
+        assert!(!manual.follows_window());
+        assert_eq!(manual.measured(), Fit::Manual);
+        assert_eq!(manual.unmeasured(), Fit::Manual);
+        assert_eq!(manual.lock(), Fit::Locked);
+    }
 
     #[test]
     fn tile_grid_finds_a_single_wide_animation_tile() {

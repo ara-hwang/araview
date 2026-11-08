@@ -437,7 +437,7 @@ impl AraView {
             "comicFailed": self.comic.failed(),
             "viewMode": view_mode,
             "zoom": self.zoom,
-            "fitLocked": self.fit_locked,
+            "fitLocked": self.fit.follows_window(),
             "position": { "x": self.position.x, "y": self.position.y },
             "scaleFactor": window.scale_factor(),
             "viewport": {
