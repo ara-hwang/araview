@@ -10,6 +10,7 @@ use std::time::Instant;
 
 use crate::toast::{Toast, WindowToast, push_timed_notification};
 use araview_core::app_error::AppError;
+use araview_core::comic_info::ComicInfo;
 use araview_core::file_availability::FileAvailability;
 use araview_core::file_identity::FileIdentity;
 use araview_core::image::{ImageInfo, is_archive_file};
@@ -232,6 +233,37 @@ impl BudgetReach {
     }
 }
 
+/// 아카이브의 ComicInfo.xml 상태(SPEC §8, §10).
+#[derive(Debug)]
+pub(super) enum Comic {
+    /// 아카이브가 아니거나 메타데이터가 없다.
+    Absent,
+    Parsed(Box<ComicInfo>),
+    /// 파싱에 실패했다. 정보 패널에 에러 문구만 남기고 표지 판정은 기본값을 쓴다.
+    Failed,
+}
+
+impl Comic {
+    pub(super) fn from_listing(result: Result<Option<ComicInfo>, AppError>) -> Self {
+        match result {
+            Ok(Some(comic)) => Self::Parsed(Box::new(comic)),
+            Ok(None) => Self::Absent,
+            Err(_) => Self::Failed,
+        }
+    }
+
+    pub(super) fn info(&self) -> Option<&ComicInfo> {
+        match self {
+            Self::Parsed(comic) => Some(comic.as_ref()),
+            Self::Absent | Self::Failed => None,
+        }
+    }
+
+    pub(super) fn failed(&self) -> bool {
+        matches!(self, Self::Failed)
+    }
+}
+
 impl AraView {
     /// 화면에 적용되는 보기 모드. 아카이브는 세션 모드(`comic_mode`), 일반
     /// 이미지는 설정값을 쓴다.
@@ -247,7 +279,7 @@ impl AraView {
     /// 표지 배치. 폴더 목록에는 ComicInfo를 적용하지 않는다.
     pub(super) fn cover(&self, cx: &App) -> CoverLayout {
         let default_alone = SettingsStore::global(cx).settings.show_cover_alone;
-        let comic = self.archive.as_ref().and(self.comic.as_ref());
+        let comic = self.archive.as_ref().and(self.comic.info());
         layout::cover_layout(comic, self.list.len(), default_alone)
     }
 
@@ -390,8 +422,7 @@ impl AraView {
         self.archive = listing.archive;
         self.list_root = listing.root;
         self.archive_identity = listing.identity;
-        self.comic_failed = listing.comic.is_err();
-        self.comic = listing.comic.ok().flatten();
+        self.comic = Comic::from_listing(listing.comic);
         let settings = &SettingsStore::global(cx).settings;
         self.progress_held = self.archive.is_some() && !settings.resume_reading;
         // 아카이브 세션 보기 모드를 새로 정한다. 목록이 바뀔 때마다 내려놓으므로
@@ -401,7 +432,7 @@ impl AraView {
             layout::comic_view_mode(
                 settings.view_mode,
                 settings.comic_auto_dual_view,
-                self.comic.as_ref(),
+                self.comic.info(),
             )
         });
         let mut index = listing.index;
@@ -497,13 +528,12 @@ impl AraView {
         self.archive = None;
         self.list_root = None;
         self.archive_identity = None;
-        self.comic = None;
-        self.comic_failed = false;
+        self.comic = Comic::Absent;
         self.comic_mode = None;
         self.index = 0;
         self.thumbs.clear();
         self.thumbs_pending.clear();
-        self.grid_open = false;
+        self.hide_grid();
         window.set_window_title(&t("app.title"));
         cx.notify();
     }
@@ -1587,5 +1617,15 @@ mod tests {
             evict_plan(bytes, anchor, &protected, item_limit, byte_limit),
             expected
         );
+    }
+
+    #[::core::prelude::v1::test]
+    fn comic_metadata_is_absent_parsed_or_failed() {
+        let parsed = Comic::from_listing(Ok(Some(ComicInfo::default())));
+        assert!(parsed.info().is_some() && !parsed.failed());
+        let absent = Comic::from_listing(Ok(None));
+        assert!(absent.info().is_none() && !absent.failed());
+        let failed = Comic::from_listing(Err(AppError::not_found("bad xml")));
+        assert!(failed.info().is_none() && failed.failed());
     }
 }
