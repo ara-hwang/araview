@@ -66,7 +66,7 @@ dependencies and other-OS targets are excluded.
 | ashpd | 0.13.13 | MIT |
 | async-broadcast | 0.7.2 | MIT OR Apache-2.0 |
 | async-channel | 2.5.0 | Apache-2.0 OR MIT |
-| async-executor | 1.14.0 | Apache-2.0 OR MIT |
+| async-executor | 1.14.1 | Apache-2.0 OR MIT |
 | async-fs | 2.2.0 | Apache-2.0 OR MIT |
 | async-io | 2.6.0 | Apache-2.0 OR MIT |
 | async-lock | 3.4.2 | Apache-2.0 OR MIT |
@@ -329,7 +329,7 @@ dependencies and other-OS targets are excluded.
 | jxl-render | 0.12.4 | MIT OR Apache-2.0 |
 | jxl-threadpool | 1.0.0 | MIT OR Apache-2.0 |
 | jxl-vardct | 0.11.1 | MIT OR Apache-2.0 |
-| kamadak-exif | 0.6.1 | BSD-2-Clause |
+| kamadak-exif | 0.6.2 | BSD-2-Clause |
 | khronos_api | 3.1.0 | Apache-2.0 |
 | khronos-egl | 6.0.0 | MIT OR Apache-2.0 |
 | kurbo | 0.11.3 | Apache-2.0 OR MIT |
@@ -351,14 +351,14 @@ dependencies and other-OS targets are excluded.
 | litemap | 0.8.3 | Unicode-3.0 |
 | litrs | 1.0.1 | MIT OR Apache-2.0 |
 | lock_api | 0.4.14 | MIT OR Apache-2.0 |
-| log | 0.4.34 | MIT OR Apache-2.0 |
+| log | 0.4.35 | MIT OR Apache-2.0 |
 | lsp-types | 0.97.0 | MIT |
 | lyon | 1.0.19 | MIT OR Apache-2.0 |
 | lyon_algorithms | 1.0.22 | MIT OR Apache-2.0 |
 | lyon_geom | 1.0.20 | MIT OR Apache-2.0 |
 | lyon_path | 1.0.19 | MIT OR Apache-2.0 |
 | lyon_tessellation | 1.0.23 | MIT OR Apache-2.0 |
-| lzma-rust2 | 0.23.0 | Apache-2.0 |
+| lzma-rust2 | 0.25.0 | Apache-2.0 |
 | mac | 0.1.1 | MIT OR Apache-2.0 |
 | mac-notification-sys | 0.6.15 | MIT OR Apache-2.0 |
 | mach2 | 0.6.0 | BSD-2-Clause OR MIT OR Apache-2.0 |
@@ -388,7 +388,7 @@ dependencies and other-OS targets are excluded.
 | no_std_io2 | 0.9.4 | Apache-2.0 OR MIT |
 | nohash-hasher | 0.2.0 | Apache-2.0 OR MIT |
 | normpath | 1.5.2 | MIT OR Apache-2.0 |
-| notify | 8.2.1 | CC0-1.0 |
+| notify | 8.2.2 | CC0-1.0 |
 | notify-rust | 4.18.2 | MIT OR Apache-2.0 |
 | notify-types | 2.1.0 | MIT OR Apache-2.0 |
 | num | 0.4.3 | MIT OR Apache-2.0 |
@@ -563,7 +563,7 @@ dependencies and other-OS targets are excluded.
 | skrifa | 0.44.0 | MIT OR Apache-2.0 |
 | slab | 0.4.12 | MIT |
 | slotmap | 1.1.1 | Zlib |
-| smallvec | 1.16.4 | MIT OR Apache-2.0 |
+| smallvec | 1.16.5 | MIT OR Apache-2.0 |
 | smol | 2.0.2 | Apache-2.0 OR MIT |
 | smol_str | 0.3.7 | MIT OR Apache-2.0 |
 | spin | 0.9.9 | MIT |
@@ -619,7 +619,7 @@ dependencies and other-OS targets are excluded.
 | tracing | 0.1.44 | MIT |
 | tracing-attributes | 0.1.31 | MIT |
 | tracing-core | 0.1.36 | MIT |
-| trash | 5.2.9 | MIT |
+| trash | 5.3.0 | MIT |
 | triomphe | 0.1.17 | MIT OR Apache-2.0 |
 | ttf-parser | 0.25.1 | MIT OR Apache-2.0 |
 | typed-path | 0.13.0 | MIT OR Apache-2.0 |
@@ -638,8 +638,8 @@ dependencies and other-OS targets are excluded.
 | unicode-vo | 0.1.0 | MIT OR Apache-2.0 |
 | unicode-width | 0.2.2 | MIT OR Apache-2.0 |
 | untrusted | 0.9.0 | ISC |
-| ureq | 3.5.0 | MIT OR Apache-2.0 |
-| ureq-proto | 0.6.5 | MIT OR Apache-2.0 |
+| ureq | 3.5.1 | MIT OR Apache-2.0 |
+| ureq-proto | 0.7.1 | MIT OR Apache-2.0 |
 | url | 2.5.8 | MIT OR Apache-2.0 |
 | urlencoding | 2.1.3 | MIT |
 | usvg | 0.45.1 | Apache-2.0 OR MIT |
@@ -678,6 +678,7 @@ dependencies and other-OS targets are excluded.
 | which | 8.0.6 | MIT |
 | winapi | 0.3.9 | MIT OR Apache-2.0 |
 | winapi-util | 0.1.11 | Unlicense OR MIT |
+| windows | 0.57.0 | MIT OR Apache-2.0 |
 | windows | 0.58.0 | MIT OR Apache-2.0 |
 | windows | 0.62.2 | MIT OR Apache-2.0 |
 | windows_x86_64_gnu | 0.48.5 | MIT OR Apache-2.0 |
@@ -685,16 +686,20 @@ dependencies and other-OS targets are excluded.
 | windows_x86_64_msvc | 0.48.5 | MIT OR Apache-2.0 |
 | windows_x86_64_msvc | 0.52.6 | MIT OR Apache-2.0 |
 | windows-collections | 0.3.2 | MIT OR Apache-2.0 |
+| windows-core | 0.57.0 | MIT OR Apache-2.0 |
 | windows-core | 0.58.0 | MIT OR Apache-2.0 |
 | windows-core | 0.62.2 | MIT OR Apache-2.0 |
 | windows-future | 0.3.2 | MIT OR Apache-2.0 |
+| windows-implement | 0.57.0 | MIT OR Apache-2.0 |
 | windows-implement | 0.58.0 | MIT OR Apache-2.0 |
 | windows-implement | 0.60.2 | MIT OR Apache-2.0 |
+| windows-interface | 0.57.0 | MIT OR Apache-2.0 |
 | windows-interface | 0.58.0 | MIT OR Apache-2.0 |
 | windows-interface | 0.59.3 | MIT OR Apache-2.0 |
 | windows-link | 0.2.1 | MIT OR Apache-2.0 |
 | windows-numerics | 0.3.1 | MIT OR Apache-2.0 |
 | windows-registry | 0.6.1 | MIT OR Apache-2.0 |
+| windows-result | 0.1.2 | MIT OR Apache-2.0 |
 | windows-result | 0.2.0 | MIT OR Apache-2.0 |
 | windows-result | 0.4.1 | MIT OR Apache-2.0 |
 | windows-strings | 0.1.0 | MIT OR Apache-2.0 |
@@ -743,7 +748,7 @@ dependencies and other-OS targets are excluded.
 | zerotrie | 0.2.5 | Unicode-3.0 |
 | zerovec | 0.11.9 | Unicode-3.0 |
 | zerovec-derive | 0.11.7 | Unicode-3.0 |
-| zip | 9.1.3 | MIT |
+| zip | 9.5.0 | MIT |
 | zlib-rs | 0.6.8 | Zlib |
 | zmij | 1.0.23 | MIT |
 | zopfli | 0.8.4 | Apache-2.0 |
