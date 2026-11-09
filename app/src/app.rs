@@ -1237,7 +1237,7 @@ impl Render for AraView {
                 .children(panel)
                 .into_any_element()
         } else if let Some(error) = self.error.clone() {
-            div()
+            v_flex()
                 .flex_1()
                 .min_h_0()
                 .child(self.render_error(error, cx))
