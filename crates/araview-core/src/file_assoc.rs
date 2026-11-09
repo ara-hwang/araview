@@ -5,7 +5,7 @@ use std::ptr;
 use std::sync::{LazyLock, Mutex};
 
 use serde::Serialize;
-use winreg::enums::{HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE};
+use winreg::enums::{HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, KEY_SET_VALUE};
 use winreg::{RegKey, HKEY};
 
 use crate::app_error::AppError;
@@ -27,6 +27,9 @@ const CAPABILITIES_PATH: &str = if IS_DEV_BUILD {
     r"Software\AraView\Capabilities"
 };
 const PROG_ID_SUFFIX: &str = if IS_DEV_BUILD { ".dev" } else { "" };
+/// Video extensions registered by older AraView versions. Remove only the app's
+/// own Open With entries when refreshing the current channel's registration.
+const REMOVED_VIDEO_EXTENSIONS: &[&str] = &["mp4", "mov", "webm", "mkv", "avi"];
 
 #[derive(Serialize, Debug, Clone, PartialEq, Eq)]
 pub struct FileAssociation {
@@ -108,13 +111,14 @@ pub fn is_our_prog_id(prog_id: &str) -> bool {
     {
         return true;
     }
-    // 설치 관리자가 등록한 "AraView.png" 형태의 ProgID 호환(릴리스 빌드 한정).
+    // 설치 관리자가 등록한 "AraView.png" 형태의 지원 확장자 ProgID 호환(릴리스 빌드 한정).
     if IS_DEV_BUILD {
         return false;
     }
-    let installer_prefix = format!("{APP_NAME}.");
     prog_id.eq_ignore_ascii_case(APP_NAME)
-        || starts_with_ignore_ascii_case(prog_id, &installer_prefix)
+        || SUPPORTED_EXTENSIONS
+            .iter()
+            .any(|ext| prog_id.eq_ignore_ascii_case(&format!("{APP_NAME}.{ext}")))
 }
 
 pub fn extract_exe_from_command(command: &str) -> Option<String> {
@@ -175,6 +179,7 @@ fn ensure_application_registration(exe: &Path) -> Result<(), AppError> {
     {
         return Ok(());
     }
+    cleanup_removed_video_associations(exe)?;
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
     let (capabilities, _) = hkcu.create_subkey(CAPABILITIES_PATH).map_err(reg_err)?;
     capabilities
@@ -212,6 +217,61 @@ fn ensure_application_registration(exe: &Path) -> Result<(), AppError> {
         *guard = Some(exe.to_path_buf());
     }
     Ok(())
+}
+
+/// Older versions advertised video files in Windows. Remove only values that
+/// this app wrote, and keep a ProgID key if it is still a user's chosen default.
+fn cleanup_removed_video_associations(exe: &Path) -> Result<(), AppError> {
+    let capability_associations = format!(r"{CAPABILITIES_PATH}\FileAssociations");
+    for ext in REMOVED_VIDEO_EXTENSIONS {
+        let prog_id = prog_id_for(ext);
+        remove_user_value(&capability_associations, &format!(".{ext}"))?;
+        remove_user_value(
+            &format!(r"{}\OpenWithProgids", classes_ext_path(ext)),
+            &prog_id,
+        )?;
+        remove_user_value(&file_exts_open_with_path(ext), &prog_id)?;
+
+        let still_selected = [
+            read_user_choice_latest(ext),
+            read_user_choice(ext),
+            read_classes_default(HKEY_CURRENT_USER, ext),
+            read_classes_default(HKEY_LOCAL_MACHINE, ext),
+        ]
+        .into_iter()
+        .flatten()
+        .any(|current| current.eq_ignore_ascii_case(&prog_id));
+        let command_is_ours = read_prog_id_command(HKEY_CURRENT_USER, &prog_id)
+            .and_then(|command| extract_exe_from_command(&command))
+            .is_some_and(|command_exe| paths_equal(&command_exe, exe));
+        if !still_selected && command_is_ours {
+            remove_user_subkey(&format!(r"Software\Classes\{prog_id}"))?;
+        }
+    }
+    Ok(())
+}
+
+fn remove_user_value(key_path: &str, value: &str) -> Result<(), AppError> {
+    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+    let key = match hkcu.open_subkey_with_flags(key_path, KEY_SET_VALUE) {
+        Ok(key) => key,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(reg_err(error)),
+    };
+    match key.delete_value(value) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(reg_err(error)),
+    }
+}
+
+fn remove_user_subkey(key_path: &str) -> Result<(), AppError> {
+    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+    match hkcu.delete_subkey_all(key_path) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(reg_err(error)),
+    }
 }
 
 fn register_open_with(ext: &str) -> Result<(), AppError> {
@@ -340,11 +400,6 @@ fn normalize_exe_for_compare(value: &str) -> String {
         .trim_matches('"')
         .replace('/', "\\")
         .to_lowercase()
-}
-
-fn starts_with_ignore_ascii_case(value: &str, prefix: &str) -> bool {
-    value.len() >= prefix.len()
-        && value.as_bytes()[..prefix.len()].eq_ignore_ascii_case(prefix.as_bytes())
 }
 
 fn reg_err(error: impl std::fmt::Display) -> AppError {

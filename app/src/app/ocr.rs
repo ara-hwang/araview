@@ -233,34 +233,253 @@ fn orient_rect(rect: OcrRect, orientation: Orientation) -> OcrRect {
     }
 }
 
-impl AraView {
-    /// 지금 보는 이미지에 글자 강조가 켜져 있는지.
-    pub(super) fn ocr_visible(&self) -> bool {
-        match (&self.ocr_shown, &self.info) {
-            (Some(shown), Some(info)) => *shown == info.file_path,
-            _ => false,
+/// 고른 글자와 진행 중인 드래그. 강조가 보이는 동안만 있다.
+#[derive(Default)]
+struct Selection {
+    /// 고른 글자 범위(시작, 끝). 둘 다 인식 결과의 글자 번호다.
+    range: Option<(usize, usize)>,
+    /// 드래그 선택을 시작한 글자 번호와 누른 위치.
+    drag: Option<(usize, Point<Pixels>)>,
+}
+
+/// 글자 강조의 표시 단계. 경로는 강조를 켠 이미지의 렌더 경로다.
+#[derive(Default)]
+enum OcrDisplay {
+    /// 꺼져 있다.
+    #[default]
+    Off,
+    /// 이 이미지의 강조를 켜려고 인식을 요청했다. 결과가 오기 전이라 그릴 것은 없지만 헤더
+    /// 버튼은 켜진 모양이고, 다시 누르면 끈다. 인식에 실패하면 꺼진다.
+    Requested(String),
+    /// 이 이미지 위에 인식 결과를 그린다. 지금 보는 이미지가 다르면 그리지 않는다.
+    Shown { path: String, selection: Selection },
+}
+
+impl OcrDisplay {
+    fn path(&self) -> Option<&str> {
+        match self {
+            Self::Off => None,
+            Self::Requested(path) | Self::Shown { path, .. } => Some(path),
+        }
+    }
+}
+
+/// 글자 인식(복사, 강조)과 강조 위 글자 선택의 상태(SPEC §11.5). `AraView`가 하나를 들고,
+/// 전이는 이 타입의 메서드로만 한다.
+#[derive(Default)]
+pub(super) struct OcrState {
+    /// 인식 중인 이미지의 렌더 경로. 복사와 강조가 함께 쓰며 인식은 한 번에 하나만 돈다.
+    job: Option<String>,
+    /// 가장 최근에 강조용으로 인식한 결과. 같은 이미지를 다시 켤 때 재사용한다.
+    result: Option<Highlight>,
+    display: OcrDisplay,
+}
+
+impl OcrState {
+    /// `path`의 강조가 켜져 있는지(결과를 기다리는 중도 포함). 헤더 버튼의 눌린 모양이다.
+    fn is_on(&self, path: &str) -> bool {
+        self.display.path() == Some(path)
+    }
+
+    /// `path` 위에 그릴 인식 결과. 결과를 기다리는 중이거나 다른 이미지면 없다.
+    fn shown(&self, path: &str) -> Option<&Highlight> {
+        match &self.display {
+            OcrDisplay::Shown { path: shown, .. } if shown == path => self
+                .result
+                .as_ref()
+                .filter(|highlight| highlight.path() == path),
+            _ => None,
         }
     }
 
-    /// 지금 보는 이미지의 인식 결과. 강조가 꺼져 있거나 다른 이미지면 없다.
+    fn selection_state(&self) -> Option<&Selection> {
+        match &self.display {
+            OcrDisplay::Shown { selection, .. } => Some(selection),
+            _ => None,
+        }
+    }
+
+    fn selection_state_mut(&mut self) -> Option<&mut Selection> {
+        match &mut self.display {
+            OcrDisplay::Shown { selection, .. } => Some(selection),
+            _ => None,
+        }
+    }
+
+    /// 고른 글자 범위(시작, 끝).
+    pub(super) fn selection(&self) -> Option<(usize, usize)> {
+        self.selection_state()?.range
+    }
+
+    pub(super) fn has_selection(&self) -> bool {
+        self.selection().is_some()
+    }
+
+    /// 글자를 누른 채 끌고 있는지.
+    pub(super) fn dragging(&self) -> bool {
+        self.selection_state()
+            .is_some_and(|selection| selection.drag.is_some())
+    }
+
+    /// 드래그를 끝낸다. 고른 글자는 남는다.
+    pub(super) fn end_drag(&mut self) {
+        if let Some(selection) = self.selection_state_mut() {
+            selection.drag = None;
+        }
+    }
+
+    /// 선택과 드래그를 푼다. 고른 글자가 있었으면 true(다시 그려야 한다).
+    fn clear_selection(&mut self) -> bool {
+        let Some(selection) = self.selection_state_mut() else {
+            return false;
+        };
+        selection.drag = None;
+        selection.range.take().is_some()
+    }
+
+    /// 강조를 끈다. 선택도 함께 사라진다. 진행 중인 인식과 마지막 결과는 그대로 둔다.
+    pub(super) fn hide(&mut self) {
+        self.display = OcrDisplay::Off;
+    }
+
+    /// `path`의 결과가 이미 있으면 다시 인식하지 않고 바로 보인다.
+    fn show_cached(&mut self, path: &str) -> bool {
+        if self
+            .result
+            .as_ref()
+            .is_none_or(|highlight| highlight.path() != path)
+        {
+            return false;
+        }
+        self.display = OcrDisplay::Shown {
+            path: path.to_owned(),
+            selection: Selection::default(),
+        };
+        true
+    }
+
+    /// `path`의 강조를 켜려고 인식을 시작했다.
+    fn request(&mut self, path: String) {
+        self.display = OcrDisplay::Requested(path);
+    }
+
+    fn job_running(&self) -> bool {
+        self.job.is_some()
+    }
+
+    /// 인식을 시작한다. 이미 하나가 돌고 있으면 false다.
+    fn begin_job(&mut self, path: String) -> bool {
+        if self.job.is_some() {
+            return false;
+        }
+        self.job = Some(path);
+        true
+    }
+
+    fn finish_job(&mut self) {
+        self.job = None;
+    }
+
+    /// 강조용 인식이 글자를 찾았다. 결과를 기억하고, 그 이미지의 강조를 요청해 둔 상태면 보인다.
+    fn recognized(&mut self, highlight: Highlight) {
+        let path = highlight.path().to_owned();
+        self.result = Some(highlight);
+        if matches!(&self.display, OcrDisplay::Requested(requested) if *requested == path) {
+            self.display = OcrDisplay::Shown {
+                path,
+                selection: Selection::default(),
+            };
+        } else if let Some(selection) = self.selection_state_mut() {
+            *selection = Selection::default();
+        }
+    }
+
+    /// 강조용 인식이 실패했거나 글자가 없다. 켜려던 강조를 되돌린다.
+    fn request_failed(&mut self, path: &str) {
+        if matches!(&self.display, OcrDisplay::Requested(requested) if requested == path) {
+            self.display = OcrDisplay::Off;
+        }
+    }
+
+    /// 인식하는 사이 다른 이미지로 넘어가 결과를 버렸다. 그 이미지의 강조는 끈다.
+    fn abandon(&mut self, path: &str) {
+        if self.is_on(path) {
+            self.display = OcrDisplay::Off;
+        }
+    }
+
+    /// 글자를 눌렀다. 한 번은 드래그의 시작, 두 번은 `word`, 세 번은 `line`을 고른다.
+    fn press(
+        &mut self,
+        glyph: usize,
+        clicks: usize,
+        position: Point<Pixels>,
+        word: Option<(usize, usize)>,
+        line: Option<(usize, usize)>,
+    ) {
+        let Some(selection) = self.selection_state_mut() else {
+            return;
+        };
+        *selection = match clicks {
+            0 | 1 => Selection {
+                range: None,
+                drag: Some((glyph, position)),
+            },
+            2 => Selection {
+                range: word,
+                drag: None,
+            },
+            _ => Selection {
+                range: line,
+                drag: None,
+            },
+        };
+    }
+
+    /// 드래그 중인 선택의 끝을 글자 `glyph`로 옮긴다. 선택이 바뀌었으면 true다.
+    fn extend(&mut self, glyph: usize, position: Point<Pixels>) -> bool {
+        let Some(selection) = self.selection_state_mut() else {
+            return false;
+        };
+        let Some((anchor, from)) = selection.drag else {
+            return false;
+        };
+        // 글자 하나 위에서 끌어도 그 글자가 골라지게 하되, 클릭 중의 손떨림은 거른다.
+        let moved =
+            f32::from(position.x - from.x).hypot(f32::from(position.y - from.y)) >= DRAG_SLOP;
+        let next =
+            (anchor != glyph || moved || selection.range.is_some()).then_some((anchor, glyph));
+        if next == selection.range {
+            return false;
+        }
+        selection.range = next;
+        true
+    }
+}
+
+impl AraView {
+    /// 지금 보는 이미지에 글자 강조가 켜져 있는지(결과를 기다리는 중도 포함).
+    pub(super) fn ocr_visible(&self) -> bool {
+        self.info
+            .as_ref()
+            .is_some_and(|info| self.ocr.is_on(&info.file_path))
+    }
+
+    /// 지금 보는 이미지의 인식 결과. 강조가 꺼져 있거나, 결과를 기다리는 중이거나, 다른
+    /// 이미지면 없다.
     pub(super) fn ocr_current(&self) -> Option<&Highlight> {
-        let info = self.info.as_ref()?;
-        self.ocr_visible()
-            .then_some(())
-            .and(self.ocr_highlight.as_ref())
-            .filter(|highlight| highlight.path() == info.file_path)
+        self.ocr.shown(&self.info.as_ref()?.file_path)
     }
 
     /// 선택한 글자. 선택이 없으면 `None`.
     pub(super) fn ocr_selected_text(&self) -> Option<String> {
-        let (anchor, head) = self.ocr_select?;
+        let (anchor, head) = self.ocr.selection()?;
         let text = self.ocr_current()?.text(anchor, head);
         (!text.is_empty()).then_some(text)
     }
 
     pub(super) fn clear_ocr_selection(&mut self, cx: &mut Context<Self>) {
-        self.ocr_drag = None;
-        if self.ocr_select.take().is_some() {
+        if self.ocr.clear_selection() {
             cx.notify();
         }
     }
@@ -269,8 +488,7 @@ impl AraView {
     /// 다시 쓴다.
     pub(super) fn toggle_text_highlight(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self.ocr_visible() {
-            self.ocr_shown = None;
-            self.clear_ocr_selection(cx);
+            self.ocr.hide();
             cx.notify();
             return;
         }
@@ -282,22 +500,15 @@ impl AraView {
             window.toast(Toast::warning(t("toast.ocr.empty")), cx);
             return;
         };
-        self.ocr_select = None;
-        if self
-            .ocr_highlight
-            .as_ref()
-            .is_some_and(|highlight| highlight.path() == path)
-        {
-            self.ocr_shown = Some(path);
+        if self.ocr.show_cached(&path) {
             cx.notify();
             return;
         }
-        let busy = self.ocr_job.is_some();
-        self.ocr_shown = Some(path);
-        self.recognize_text(OcrOutcome::Highlight, window, cx);
-        // 시작하지 못했다(미지원, 다른 인식 진행 중)면 켜진 것으로 두지 않는다.
-        if busy || self.ocr_job.is_none() {
-            self.ocr_shown = None;
+        if self.start_recognition(OcrOutcome::Highlight, window, cx) {
+            self.ocr.request(path);
+        } else {
+            // 시작하지 못했다(미지원, 다른 인식 진행 중)면 켜진 것으로 두지 않는다.
+            self.ocr.hide();
         }
         cx.notify();
     }
@@ -318,20 +529,7 @@ impl AraView {
         else {
             return;
         };
-        match clicks {
-            0 | 1 => {
-                self.ocr_drag = Some((glyph, position));
-                self.ocr_select = None;
-            }
-            2 => {
-                self.ocr_drag = None;
-                self.ocr_select = word;
-            }
-            _ => {
-                self.ocr_drag = None;
-                self.ocr_select = line;
-            }
-        }
+        self.ocr.press(glyph, clicks, position, word, line);
         cx.notify();
     }
 
@@ -342,16 +540,7 @@ impl AraView {
         position: Point<Pixels>,
         cx: &mut Context<Self>,
     ) {
-        let Some((anchor, from)) = self.ocr_drag else {
-            return;
-        };
-        // 글자 하나 위에서 끌어도 그 글자가 골라지게 하되, 클릭 중의 손떨림은 거른다.
-        let moved =
-            f32::from(position.x - from.x).hypot(f32::from(position.y - from.y)) >= DRAG_SLOP;
-        let next =
-            (anchor != glyph || moved || self.ocr_select.is_some()).then_some((anchor, glyph));
-        if next != self.ocr_select {
-            self.ocr_select = next;
+        if self.ocr.extend(glyph, position) {
             cx.notify();
         }
     }
@@ -363,25 +552,36 @@ impl AraView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.start_recognition(outcome, window, cx);
+    }
+
+    /// 인식을 시작한다. 시작하지 못하면(미지원, 그릴 이미지 없음, 다른 인식 진행 중) 이유를
+    /// 토스트로 알리고 false다.
+    fn start_recognition(
+        &mut self,
+        outcome: OcrOutcome,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> bool {
         if !platform::OCR_SUPPORTED {
             window.toast(Toast::warning(t("toast.ocr.unsupported")), cx);
-            return;
+            return false;
         }
         if !self.current_page_is_full() {
             window.toast(Toast::warning(t("toast.ocr.empty")), cx);
-            return;
+            return false;
         }
         let Some(info) = &self.info else {
             window.toast(Toast::warning(t("toast.ocr.empty")), cx);
-            return;
+            return false;
         };
-        if self.ocr_job.is_some() {
+        if self.ocr.job_running() {
             window.toast(Toast::info(t("toast.ocr.busy")), cx);
-            return;
+            return false;
         }
         // 화면이 디코드하는 경로를 쓴다. HEIC, PSD 같은 포맷도 sidecar로 읽을 수 있다.
         let render_path = info.file_path.clone();
-        self.ocr_job = Some(render_path.clone());
+        self.ocr.begin_job(render_path.clone());
         let path = PathBuf::from(&render_path);
         let task = cx.background_spawn(async move {
             ops::recognize_text_blocking(&SystemOcr, &path, &OcrLanguage::Auto)
@@ -389,7 +589,7 @@ impl AraView {
         cx.spawn_in(window, async move |this, cx| {
             let result = task.await;
             this.update_in(cx, |this, window, cx| {
-                this.ocr_job = None;
+                this.ocr.finish_job();
                 // 인식하는 사이 다른 이미지로 넘어갔으면 결과를 버린다.
                 let still_current = this
                     .info
@@ -397,13 +597,14 @@ impl AraView {
                     .is_some_and(|info| info.file_path == render_path);
                 if still_current {
                     this.finish_recognition(outcome, &render_path, result, window, cx);
-                } else if this.ocr_shown.as_deref() == Some(render_path.as_str()) {
-                    this.ocr_shown = None;
+                } else {
+                    this.ocr.abandon(&render_path);
                 }
             })
             .ok();
         })
         .detach();
+        true
     }
 
     fn finish_recognition(
@@ -418,7 +619,7 @@ impl AraView {
         if matches!(outcome, OcrOutcome::Highlight)
             && !result.as_ref().is_ok_and(|result| !result.is_empty())
         {
-            self.ocr_shown = None;
+            self.ocr.request_failed(render_path);
             cx.notify();
         }
         match result {
@@ -434,9 +635,8 @@ impl AraView {
                         window.toast(Toast::success(message), cx);
                     }
                     OcrOutcome::Highlight => {
-                        self.ocr_highlight = Some(Highlight::new(render_path.to_owned(), &result));
-                        self.ocr_select = None;
-                        self.ocr_drag = None;
+                        self.ocr
+                            .recognized(Highlight::new(render_path.to_owned(), &result));
                         let message = t_with("toast.ocr.highlighted", &[("count", &count)]);
                         window.toast(Toast::success(message), cx);
                         cx.notify();
@@ -459,7 +659,9 @@ mod tests {
     // `super::*`는 gpui의 `test` 매크로까지 끌어와 `#[test]`를 가린다.
     use araview_core::ocr::{OcrLine, OcrResult, OcrWord};
 
-    use super::{Highlight, OcrRect, Orientation, orient_rect};
+    use gpui_kit::{point, px};
+
+    use super::{Highlight, OcrRect, OcrState, Orientation, orient_rect};
 
     const RECT: OcrRect = OcrRect {
         x: 0.1,
@@ -614,5 +816,143 @@ mod tests {
         assert!((last.x + last.width - 0.2).abs() < 1e-6, "{last:?}");
         // 좁은 글자(l)가 넓은 글자(H)보다 좁다.
         assert!(rects[2].width < rects[0].width);
+    }
+
+    fn highlight_for(path: &str) -> Highlight {
+        let result = OcrResult {
+            lines: vec![OcrLine {
+                text: "Hello big world".to_owned(),
+                rect: RECT,
+                words: vec![word("Hello", 0.1), word("big", 0.3), word("world", 0.5)],
+                language: "en-US".to_owned(),
+            }],
+            width: 100,
+            height: 100,
+        };
+        Highlight::new(path.to_owned(), &result)
+    }
+
+    /// 강조를 요청한 동안은 켜진 것으로 보이지만 그릴 결과가 없고, 결과가 오면 그린다.
+    #[test]
+    fn a_requested_highlight_is_on_but_draws_nothing_until_recognized() {
+        let mut state = OcrState::default();
+        assert!(!state.is_on("a.png"));
+        assert!(state.begin_job("a.png".to_owned()));
+        state.request("a.png".to_owned());
+        assert!(state.is_on("a.png"));
+        assert!(state.shown("a.png").is_none());
+        assert!(!state.is_on("b.png"));
+
+        state.finish_job();
+        state.recognized(highlight_for("a.png"));
+        assert!(state.is_on("a.png"));
+        assert!(state.shown("a.png").is_some());
+        assert!(state.shown("b.png").is_none());
+    }
+
+    /// 인식이 실패하거나 글자가 없으면 요청한 강조는 꺼진다.
+    #[test]
+    fn a_failed_request_turns_the_highlight_off() {
+        let mut state = OcrState::default();
+        state.request("a.png".to_owned());
+        state.request_failed("a.png");
+        assert!(!state.is_on("a.png"));
+    }
+
+    /// 결과를 기다리는 중에 끄면, 늦게 온 결과는 기억만 하고 보이지 않는다.
+    #[test]
+    fn a_result_after_turning_off_is_kept_but_not_shown() {
+        let mut state = OcrState::default();
+        state.request("a.png".to_owned());
+        state.hide();
+        state.recognized(highlight_for("a.png"));
+        assert!(!state.is_on("a.png"));
+        // 다시 켜면 인식 없이 결과를 다시 쓴다.
+        assert!(state.show_cached("a.png"));
+        assert!(state.shown("a.png").is_some());
+        assert!(!state.show_cached("b.png"));
+    }
+
+    /// 다른 이미지로 넘어가 결과를 버리면 그 이미지의 강조만 꺼진다.
+    #[test]
+    fn abandoning_a_job_only_turns_off_its_own_image() {
+        let mut state = OcrState::default();
+        state.request("a.png".to_owned());
+        state.abandon("b.png");
+        assert!(state.is_on("a.png"));
+        state.abandon("a.png");
+        assert!(!state.is_on("a.png"));
+    }
+
+    /// 인식은 한 번에 하나만 돈다.
+    #[test]
+    fn only_one_job_runs_at_a_time() {
+        let mut state = OcrState::default();
+        assert!(state.begin_job("a.png".to_owned()));
+        assert!(state.job_running());
+        assert!(!state.begin_job("b.png".to_owned()));
+        state.finish_job();
+        assert!(!state.job_running());
+        assert!(state.begin_job("b.png".to_owned()));
+    }
+
+    /// 선택은 강조가 보일 때만 생기고, 강조를 끄면 함께 사라진다.
+    #[test]
+    fn selection_lives_only_while_shown() {
+        let mut state = OcrState::default();
+        state.request("a.png".to_owned());
+        state.press(0, 2, point(px(0.), px(0.)), Some((0, 4)), Some((0, 12)));
+        assert_eq!(state.selection(), None);
+
+        state.recognized(highlight_for("a.png"));
+        state.press(6, 2, point(px(0.), px(0.)), Some((5, 7)), Some((0, 12)));
+        assert_eq!(state.selection(), Some((5, 7)));
+        state.press(6, 3, point(px(0.), px(0.)), Some((5, 7)), Some((0, 12)));
+        assert_eq!(state.selection(), Some((0, 12)));
+        assert!(state.has_selection());
+
+        state.hide();
+        assert!(!state.has_selection());
+        assert!(state.show_cached("a.png"));
+        assert!(!state.has_selection(), "다시 켜면 선택 없이 시작한다");
+    }
+
+    /// 한 번 누르면 드래그가 시작되고, 손떨림은 거르며, 끌면 범위가 생긴다.
+    #[test]
+    fn dragging_selects_from_the_pressed_glyph() {
+        let mut state = OcrState::default();
+        state.request("a.png".to_owned());
+        state.recognized(highlight_for("a.png"));
+        state.press(1, 1, point(px(10.), px(10.)), Some((0, 4)), Some((0, 12)));
+        assert!(state.dragging());
+        assert_eq!(state.selection(), None);
+        // 같은 글자 위에서 조금 움직이면 아직 선택이 아니다.
+        assert!(!state.extend(1, point(px(11.), px(10.))));
+        assert_eq!(state.selection(), None);
+        // 같은 글자라도 충분히 끌면 그 글자를 고른다.
+        assert!(state.extend(1, point(px(20.), px(10.))));
+        assert_eq!(state.selection(), Some((1, 1)));
+        assert!(state.extend(3, point(px(30.), px(10.))));
+        assert_eq!(state.selection(), Some((1, 3)));
+        assert!(!state.extend(3, point(px(31.), px(10.))));
+
+        state.end_drag();
+        assert!(!state.dragging());
+        assert_eq!(state.selection(), Some((1, 3)));
+        assert!(!state.extend(5, point(px(40.), px(10.))));
+        assert!(state.clear_selection());
+        assert!(!state.clear_selection());
+    }
+
+    /// 새 결과가 오면 남아 있던 선택은 풀린다.
+    #[test]
+    fn a_new_result_clears_the_selection() {
+        let mut state = OcrState::default();
+        state.request("a.png".to_owned());
+        state.recognized(highlight_for("a.png"));
+        state.press(6, 2, point(px(0.), px(0.)), Some((5, 7)), Some((0, 12)));
+        state.recognized(highlight_for("a.png"));
+        assert_eq!(state.selection(), None);
+        assert!(state.shown("a.png").is_some());
     }
 }

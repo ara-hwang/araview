@@ -1,5 +1,7 @@
 //! 휴지통 이동과 이름 변경(SPEC §11.1, §11.2).
 
+use std::cell::Cell;
+use std::rc::Rc;
 use std::sync::Arc;
 
 use crate::toast::{Toast, WindowToast};
@@ -98,7 +100,12 @@ impl AraView {
             return;
         }
         let next = removed.min(items.len() - 1);
-        self.replace_list(items, next, window, cx);
+        // 지운 항목 자리를 클라우드 전용 판별값에서도 같이 빼서 새 목록과 맞춘다(§9.6).
+        let mut availability = std::mem::take(&mut self.availability);
+        if availability.len() == items.len() + 1 {
+            availability.remove(removed);
+        }
+        self.replace_list(items, availability, next, window, cx);
     }
 
     pub(super) fn open_rename_dialog(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -113,15 +120,20 @@ impl AraView {
         let old_path = info.source_path.clone();
         let input = cx.new(|cx| InputState::new(window, cx).default_value(info.file_name.clone()));
         let entity = cx.entity();
+        // Enter와 확인 버튼이 같은 이름 변경을 두 번 보내지 않게 한다. 첫 요청이 성공해
+        // 원래 파일이 없어진 뒤 두 번째가 돌면 "File not found" 실패가 하나 더 뜬다.
+        // 다이얼로그마다 새로 만들고, 요청이 끝나면(실패 포함) 다시 받는다.
+        let busy = Rc::new(Cell::new(false));
         // Enter로도 제출한다. 다이얼로그가 닫히면 입력 엔티티와 함께 구독도 사라진다.
         let submit_on_enter = {
             let entity = entity.clone();
             let old_path = old_path.clone();
+            let busy = busy.clone();
             window.subscribe(&input, cx, move |input, event: &InputEvent, window, cx| {
                 if matches!(event, InputEvent::PressEnter { .. }) {
                     let name = input.read(cx).value().to_string();
                     entity.update(cx, |this, cx| {
-                        this.rename(old_path.clone(), name, window, cx);
+                        this.rename(old_path.clone(), name, busy.clone(), window, cx);
                     });
                 }
             })
@@ -132,6 +144,7 @@ impl AraView {
             let entity = entity.clone();
             let input = input.clone();
             let old_path = old_path.clone();
+            let busy = busy.clone();
             centered(dialog)
                 .title(t("dialog.rename.title"))
                 .child(
@@ -158,7 +171,13 @@ impl AraView {
                                 .on_click(move |_, window, cx| {
                                     let name = input.read(cx).value().to_string();
                                     entity.update(cx, |this, cx| {
-                                        this.rename(old_path.clone(), name, window, cx);
+                                        this.rename(
+                                            old_path.clone(),
+                                            name,
+                                            busy.clone(),
+                                            window,
+                                            cx,
+                                        );
                                     });
                                 }),
                         ),
@@ -172,13 +191,19 @@ impl AraView {
         &mut self,
         old_path: String,
         name: String,
+        busy: Rc<Cell<bool>>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        // 앞선 요청이 아직 돌고 있으면 무시한다(다이얼로그에서 Enter와 버튼을 연달아).
+        if busy.get() {
+            return;
+        }
         if name.trim().is_empty() {
             window.toast(Toast::warning(t("toast.rename.blank")), cx);
             return;
         }
+        busy.set(true);
         let settings = &SettingsStore::global(cx).settings;
         let max_side = settings.max_resolution.max_side();
         let mode =
@@ -189,6 +214,7 @@ impl AraView {
         });
         cx.spawn_in(window, async move |this, cx| {
             let result: Result<_, AppError> = task.await;
+            busy.set(false);
             this.update_in(cx, |this, window, cx| match result {
                 Ok(info) => {
                     window.close_dialog(cx);
@@ -207,7 +233,7 @@ impl AraView {
                     // 표시 경로가 원본 자체였다면 이름과 함께 바뀌었으므로 정보만 교체한다.
                     // 페이지 캐시도 바꿔야 다른 장에 다녀와도 옛 경로로 돌아가지 않는다.
                     if let Some(page_info) = renamed
-                        .and_then(|index| this.pages.get_mut(&index))
+                        .and_then(|index| this.pages.ready_mut(index))
                         .and_then(|page| page.info_mut())
                     {
                         *page_info = info.clone();

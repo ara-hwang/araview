@@ -161,7 +161,7 @@
       "autoTitle": "시작 시 자동 확인",
       "autoDesc": "시작할 때 새 버전을 자동으로 확인합니다. 새 버전이 있을 때만 알립니다.",
       "channelTitle": "업데이트 채널",
-      "channelDesc": "안정 채널은 정식 릴리스만, 베타 채널은 베타 릴리스까지 확인합니다.",
+      "channelDesc": "안정 채널은 정식 릴리스만, 베타 채널은 정식과 베타 릴리스 중 더 새 버전을 확인합니다.",
       "channelStable": "안정",
       "channelBeta": "베타",
       "current": "현재 버전 {{version}}",
@@ -219,9 +219,7 @@
       "comicAutoDual": "만화 아카이브를 열면 자동으로 양쪽 보기 (ComicInfo의 읽기 방향 적용)",
       "coverAlone": "양쪽 보기에서 표지 단독 표시",
       "wideAlone": "양쪽 보기에서 넓은 페이지(가로 스캔) 단독 표시",
-      "showComicInfo": "정보 패널에 만화 정보(ComicInfo.xml) 표시",
-      "videoAutoplay": "동영상을 열면 자동 재생",
-      "showVideoInfo": "정보 패널에 동영상 정보 표시"
+      "showComicInfo": "정보 패널에 만화 정보(ComicInfo.xml) 표시"
     },
     "dock": {
       "title": "이미지 목록 도크",
@@ -270,12 +268,18 @@
     },
     "cache": {
       "title": "이미지 미리 로드",
-      "desc": "이미지 미리 로드 범위와 페이지 캐시의 항목·바이트 상한",
+      "desc": "이미지 미리 로드 범위와 페이지 캐시 상한",
       "off": "끄기 (현재 이미지만)",
-      "nearby": "인접 (이전/다음 미리 로드, 캐시 512 MB)",
-      "extended": "확장 (최대 ±3 미리 로드, 캐시 1 GB)",
-      "gb1": "페이지 캐시 1 GB (최대 ±2 미리 로드)",
-      "gb2": "페이지 캐시 2 GB (최대 ±3 미리 로드)"
+      "nearby": "인접 (이전/다음 미리 로드)",
+      "extended": "확장 (최대 ±3 미리 로드)",
+      "folder": "같은 폴더 모두 (전체)"
+    },
+    "cacheMax": {
+      "title": "캐시 최대 크기",
+      "desc": "페이지 캐시에 남길 디코드 결과의 바이트 상한",
+      "512mb": "512 MB",
+      "1gb": "1 GB",
+      "2gb": "2 GB"
     },
     "cacheStorage": {
       "title": "캐시 보관",
@@ -286,6 +290,10 @@
       "toggle": "영구 캐시 사용 전환",
       "pendingTitle": "다음 실행부터 적용됩니다",
       "pendingDesc": "현재 실행의 캐시는 그대로 유지되며 저장 방식은 다음 실행에 변경됩니다."
+    },
+    "cloud": {
+      "title": "클라우드 파일 자동 내려받기",
+      "desc": "클라우드에만 있는 파일(OneDrive 온디맨드 등)도 썸네일과 옆 페이지를 미리 내려받습니다. 끄면 실제로 화면에 들어온 파일만 내려받습니다."
     },
     "cacheManagement": {
       "title": "캐시 관리",
@@ -357,7 +365,6 @@
   },
   "home": {
     "drop": "여기에 놓아 열기",
-    "emptyDesc": "파일을 끌어다 놓거나 파일 열기로 여세요.",
     "openFile": "파일 열기",
     "recent": "최근 파일 {{count}}",
     "clearAll": "전체 지우기",
@@ -475,18 +482,6 @@
     "summary": "줄거리",
     "loadFail": "만화 정보를 읽지 못했습니다."
   },
-  "video": {
-    "section": "동영상 정보",
-    "title": "동영상",
-    "mime": "형식",
-    "codec": "코덱",
-    "audio": "오디오",
-    "dimensions": "치수",
-    "duration": "길이",
-    "fps": "초당 프레임",
-    "yes": "있음",
-    "no": "없음"
-  },
   "histogram": {
     "title": "히스토그램",
     "unavailable": "이 형식은 히스토그램을 계산할 수 없습니다.",
@@ -558,11 +553,6 @@
     "gifPause": "일시정지",
     "gifPrevFrame": "이전 애니메이션 프레임",
     "gifNextFrame": "다음 애니메이션 프레임",
-    "videoSeekBack": "10초 뒤로",
-    "videoSeekFwd": "10초 앞으로",
-    "videoSpeedDown": "재생 속도 내리기",
-    "videoSpeedUp": "재생 속도 올리기",
-    "videoMute": "음소거 토글",
     "toggleFullscreen": "전체화면 토글",
     "toggleAlwaysOnTop": "맨 위에 두기 토글",
     "copyImage": "이미지 복사",
@@ -750,7 +740,7 @@
     }
   },
   "picker": {
-    "images": "이미지·동영상"
+    "images": "이미지"
   },
   "ext": {
     "png": "PNG 이미지",
@@ -801,12 +791,7 @@
     "pgm": "PGM 이미지",
     "pbm": "PBM 이미지",
     "cbz": "만화 아카이브",
-    "zip": "ZIP 아카이브",
-    "mp4": "MP4 동영상",
-    "mov": "MOV 동영상",
-    "webm": "WebM 동영상",
-    "mkv": "MKV 동영상",
-    "avi": "AVI 동영상"
+    "zip": "ZIP 아카이브"
   },
   "platform": {
     "macos": {

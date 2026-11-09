@@ -27,9 +27,9 @@ use super::{AraView, format_bytes};
 use crate::i18n::{Language, t, t_with};
 use crate::keys;
 use crate::settings::{
-    CacheMode, CacheStorageMode, DockPosition, DockThumbSize, ImageScalingMode, MaxResolution,
-    MouseAction, Settings, SettingsStore, SortKey, ThemeChoice, UpdateChannel, ViewMode,
-    ViewerBackground, WheelAction, WheelMode, default_shortcuts,
+    CacheMax, CacheMode, CacheStorageMode, DockPosition, DockThumbSize, ImageScalingMode,
+    MaxResolution, MouseAction, Settings, SettingsStore, SortKey, ThemeChoice, UpdateChannel,
+    ViewMode, ViewerBackground, WheelAction, WheelMode, default_shortcuts,
 };
 use crate::smooth::SmoothScroll;
 
@@ -43,7 +43,8 @@ pub(super) enum Effect {
     Relist,
     /// 페이지를 다시 디코드한다(해상도·표시 정책).
     Reload,
-    /// 보기 모드나 양쪽 배치가 바뀌었다.
+    /// 양쪽 배치 설정(표지·넓은 페이지 단독)이 바뀌었다. 보기 모드 고르기는
+    /// `set_view_mode`를 곧바로 부르므로 여기를 거치지 않는다.
     Layout,
     AlwaysOnTop,
 }
@@ -67,6 +68,9 @@ impl Drop for NestedGuard {
     }
 }
 
+/// 선택값을 설정이 아니라 뷰어에 바로 적용하는 동작(아카이브 세션 보기 모드).
+type ViewPick<T> = fn(&mut AraView, T, &mut Window, &mut Context<AraView>);
+
 /// 선택형 설정 묶음. `options` 순서가 드롭다운 순서이며 인덱스로 값을 되찾는다.
 struct ChoiceDef<'a, T> {
     current: T,
@@ -74,6 +78,9 @@ struct ChoiceDef<'a, T> {
     get: fn(&Settings) -> T,
     set: fn(&mut Settings, T),
     effect: Effect,
+    /// 설정을 고치는 대신 뷰어에 바로 적용한다. 보기 모드 전용으로, 아카이브를
+    /// 보는 동안에는 설정값 대신 세션 보기 모드에만 반영한다(§15).
+    view_pick: Option<ViewPick<T>>,
 }
 
 pub(super) struct SettingsPanel {
@@ -186,6 +193,7 @@ impl SettingsPanel {
     /// 여러 값 중 하나를 고르는 드롭다운(gpui-kit `Select`). 같은 라벨 타입을
     /// 쓰므로 모든 설정이 `SharedString` 델리게이트를 공유하고, 인덱스로 값을
     /// 되찾는다. 현재값이 후보에 없으면(휠 묶음 어긋남) 비어 보인다.
+    /// `view_pick`이 있으면 설정을 고치지 않고 그 동작으로 적용한다.
     fn select<T: Copy + PartialEq + 'static>(
         &mut self,
         id: &'static str,
@@ -232,6 +240,7 @@ impl SettingsPanel {
         let get = def.get;
         let set = def.set;
         let effect = def.effect;
+        let view_pick = def.view_pick;
         let sub = cx.subscribe_in(
             &state,
             window,
@@ -243,6 +252,16 @@ impl SettingsPanel {
                 let Some(&value) = values.get(selected.row) else {
                     return;
                 };
+                if let Some(pick) = view_pick {
+                    // 설정 수정이 아니라 뷰어에 적용한다(아카이브 세션 보기 모드).
+                    // 고른 모드가 이미 현재 모드면 `set_view_mode`가 아무것도 하지 않는다.
+                    let Some(view) = this.view.upgrade() else {
+                        return;
+                    };
+                    view.update(cx, |view, cx| pick(view, value, window, cx));
+                    cx.notify();
+                    return;
+                }
                 if get(&SettingsStore::global(cx).settings) == value {
                     return;
                 }
@@ -399,6 +418,7 @@ impl SettingsPanel {
                         get: |settings: &Settings| settings.language,
                         set: |settings, value| settings.language = value,
                         effect: Effect::Language,
+                        view_pick: None,
                     },
                     window,
                     cx,
@@ -423,6 +443,7 @@ impl SettingsPanel {
                         get: |settings: &Settings| settings.loop_navigation,
                         set: |settings, value| settings.loop_navigation = value,
                         effect: Effect::Redraw,
+                        view_pick: None,
                     },
                     window,
                     cx,
@@ -444,6 +465,7 @@ impl SettingsPanel {
                         get: |settings: &Settings| settings.skip_broken_files,
                         set: |settings, value| settings.skip_broken_files = value,
                         effect: Effect::Redraw,
+                        view_pick: None,
                     },
                     window,
                     cx,
@@ -465,6 +487,7 @@ impl SettingsPanel {
                         get: |settings: &Settings| settings.auto_open_last_file,
                         set: |settings, value| settings.auto_open_last_file = value,
                         effect: Effect::Redraw,
+                        view_pick: None,
                     },
                     window,
                     cx,
@@ -483,6 +506,7 @@ impl SettingsPanel {
                         get: |settings: &Settings| settings.record_recent_files,
                         set: |settings, value| settings.record_recent_files = value,
                         effect: Effect::Redraw,
+                        view_pick: None,
                     },
                     window,
                     cx,
@@ -534,14 +558,16 @@ impl SettingsPanel {
                     "update-channel",
                     t("settings.update.channelTitle"),
                     ChoiceDef {
-                        current: s.update_channel,
+                        current: s.effective_update_channel(),
                         options: &[
                             ("settings.update.channelStable", UpdateChannel::Stable),
                             ("settings.update.channelBeta", UpdateChannel::Beta),
                         ],
-                        get: |settings: &Settings| settings.update_channel,
-                        set: |settings, value| settings.update_channel = value,
+                        get: |settings: &Settings| settings.effective_update_channel(),
+                        // 고른 경우에만 저장된다(SPEC §20.1).
+                        set: |settings, value| settings.update_channel = Some(value),
                         effect: Effect::Redraw,
+                        view_pick: None,
                     },
                     window,
                     cx,
@@ -556,7 +582,7 @@ impl SettingsPanel {
                 )),
                 if self
                     .view
-                    .read_with(cx, |view, _| view.update_checking)
+                    .read_with(cx, |view, _| view.update_status.is_busy())
                     .unwrap_or(false)
                 {
                     // 새 버전 확인 응답을 기다리는 동안 버튼 대신 로딩 표시를 둔다.
@@ -614,6 +640,13 @@ impl SettingsPanel {
 
     fn view_tab(&mut self, window: &mut Window, cx: &mut Context<Self>) -> Div {
         let s = SettingsStore::global(cx).settings.clone();
+        // 아카이브 세션에서는 설정값과 화면의 모드가 다를 수 있으므로 화면에
+        // 적용된 모드를 현재값으로 보인다. 뷰어가 없으면 설정값을 쓴다.
+        let view_mode_current = self
+            .view
+            .upgrade()
+            .map(|view| view.read(cx).view_mode(cx))
+            .unwrap_or(s.view_mode);
         let bg_plain = t("settings.bg.title");
         let bg_title = self.with_shortcut(bg_plain.clone(), "cycleBackground", cx);
         v_flex()
@@ -625,7 +658,7 @@ impl SettingsPanel {
                     "view-mode",
                     t("settings.view.title"),
                     ChoiceDef {
-                        current: s.view_mode,
+                        current: view_mode_current,
                         options: &[
                             ("settings.view.single", ViewMode::Single),
                             ("settings.view.ltr", ViewMode::LeftToRight),
@@ -635,6 +668,7 @@ impl SettingsPanel {
                         get: |settings: &Settings| settings.view_mode,
                         set: |settings, value| settings.view_mode = value,
                         effect: Effect::Layout,
+                        view_pick: Some(AraView::set_view_mode),
                     },
                     window,
                     cx,
@@ -660,6 +694,7 @@ impl SettingsPanel {
                         get: |settings: &Settings| settings.image_scaling_mode,
                         set: |settings, value| settings.image_scaling_mode = value,
                         effect: Effect::Reload,
+                        view_pick: None,
                     },
                     window,
                     cx,
@@ -685,6 +720,7 @@ impl SettingsPanel {
                             }
                         },
                         effect: Effect::Redraw,
+                        view_pick: None,
                     },
                     window,
                     cx,
@@ -774,20 +810,6 @@ impl SettingsPanel {
                         |settings, value| settings.show_comic_info = value,
                         Effect::Redraw,
                     ),
-                    (
-                        "video-autoplay",
-                        "settings.reading.videoAutoplay",
-                        s.video_autoplay,
-                        |settings, value| settings.video_autoplay = value,
-                        Effect::Redraw,
-                    ),
-                    (
-                        "show-video-info",
-                        "settings.reading.showVideoInfo",
-                        s.show_video_info,
-                        |settings, value| settings.show_video_info = value,
-                        Effect::Redraw,
-                    ),
                 ]
                 .into_iter()
                 .map(|(id, key, checked, set, effect)| {
@@ -825,6 +847,7 @@ impl SettingsPanel {
                         get: |settings: &Settings| settings.dock_position,
                         set: |settings, value| settings.dock_position = value,
                         effect: Effect::Redraw,
+                        view_pick: None,
                     },
                     window,
                     cx,
@@ -847,6 +870,7 @@ impl SettingsPanel {
                         get: |settings: &Settings| settings.dock_thumb_size,
                         set: |settings, value| settings.dock_thumb_size = value,
                         effect: Effect::Redraw,
+                        view_pick: None,
                     },
                     window,
                     cx,
@@ -894,6 +918,7 @@ impl SettingsPanel {
                         get: |settings: &Settings| settings.viewer_background,
                         set: |settings, value| settings.viewer_background = value,
                         effect: Effect::Redraw,
+                        view_pick: None,
                     },
                     window,
                     cx,
@@ -947,6 +972,7 @@ impl SettingsPanel {
                         get: |settings: &Settings| settings.sort_key,
                         set: |settings, value| settings.sort_key = value,
                         effect: Effect::Relist,
+                        view_pick: None,
                     },
                     window,
                     cx,
@@ -968,6 +994,7 @@ impl SettingsPanel {
                         get: |settings: &Settings| settings.sort_descending,
                         set: |settings, value| settings.sort_descending = value,
                         effect: Effect::Relist,
+                        view_pick: None,
                     },
                     window,
                     cx,
@@ -1250,12 +1277,35 @@ impl SettingsPanel {
                             ("settings.cache.off", CacheMode::Off),
                             ("settings.cache.nearby", CacheMode::Nearby),
                             ("settings.cache.extended", CacheMode::Extended),
-                            ("settings.cache.gb1", CacheMode::Memory1Gb),
-                            ("settings.cache.gb2", CacheMode::Memory2Gb),
+                            ("settings.cache.folder", CacheMode::Folder),
                         ],
                         get: |settings: &Settings| settings.cache_mode,
                         set: |settings, value| settings.cache_mode = value,
                         effect: Effect::Redraw,
+                        view_pick: None,
+                    },
+                    window,
+                    cx,
+                ),
+                cx,
+            ))
+            .child(setting_row(
+                t("settings.cacheMax.title"),
+                Some(t("settings.cacheMax.desc")),
+                self.select(
+                    "cache-max",
+                    t("settings.cacheMax.title"),
+                    ChoiceDef {
+                        current: s.cache_max,
+                        options: &[
+                            ("settings.cacheMax.512mb", CacheMax::Mb512),
+                            ("settings.cacheMax.1gb", CacheMax::Gb1),
+                            ("settings.cacheMax.2gb", CacheMax::Gb2),
+                        ],
+                        get: |settings: &Settings| settings.cache_max,
+                        set: |settings, value| settings.cache_max = value,
+                        effect: Effect::Redraw,
+                        view_pick: None,
                     },
                     window,
                     cx,
@@ -1285,6 +1335,18 @@ impl SettingsPanel {
                 cx,
             ))
             .child(setting_row(
+                t("settings.cloud.title"),
+                Some(t("settings.cloud.desc")),
+                self.toggle(
+                    "cloud-auto-download",
+                    s.cloud_auto_download,
+                    |settings, value| settings.cloud_auto_download = value,
+                    Effect::Redraw,
+                    cx,
+                ),
+                cx,
+            ))
+            .child(setting_row(
                 t("settings.resolution.title"),
                 Some(t("settings.resolution.desc")),
                 self.select(
@@ -1300,6 +1362,7 @@ impl SettingsPanel {
                         get: |settings: &Settings| settings.max_resolution,
                         set: |settings, value| settings.max_resolution = value,
                         effect: Effect::Reload,
+                        view_pick: None,
                     },
                     window,
                     cx,
@@ -1611,6 +1674,7 @@ impl SettingsPanel {
                                     get,
                                     set,
                                     effect: Effect::Redraw,
+                                    view_pick: None,
                                 },
                                 window,
                                 cx,
@@ -1633,6 +1697,7 @@ impl SettingsPanel {
                             as fn(&Settings) -> MouseAction,
                         set: |settings, value| settings.mouse.left_drag = value,
                         effect: Effect::Redraw,
+                        view_pick: None,
                     },
                     window,
                     cx,
@@ -1652,6 +1717,7 @@ impl SettingsPanel {
                             as fn(&Settings) -> MouseAction,
                         set: |settings, value| settings.mouse.middle_click = value,
                         effect: Effect::Redraw,
+                        view_pick: None,
                     },
                     window,
                     cx,
@@ -1671,6 +1737,7 @@ impl SettingsPanel {
                             as fn(&Settings) -> MouseAction,
                         set: |settings, value| settings.mouse.double_click = value,
                         effect: Effect::Redraw,
+                        view_pick: None,
                     },
                     window,
                     cx,
@@ -1691,6 +1758,7 @@ impl SettingsPanel {
                             as fn(&Settings) -> MouseAction,
                         set: |settings, value| settings.mouse.right_click = value,
                         effect: Effect::Redraw,
+                        view_pick: None,
                     },
                     window,
                     cx,

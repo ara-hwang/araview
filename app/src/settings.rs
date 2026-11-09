@@ -16,6 +16,7 @@ pub const RECENT_FILES_LIMIT: usize = 20;
 pub const ARCHIVE_PROGRESS_LIMIT: usize = 100;
 pub const PALETTE_MRU_LIMIT: usize = 5;
 
+/// 이미지 미리 로드 전략(SPEC §9.1). 페이지 캐시의 바이트 상한은 `CacheMax`가 따로 정한다.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CacheMode {
     #[serde(rename = "off")]
@@ -25,10 +26,45 @@ pub enum CacheMode {
     Nearby,
     #[serde(rename = "extended")]
     Extended,
+    /// 현재 목록 전체를 가까운 순으로 미리 로드한다.
+    #[serde(rename = "folder")]
+    Folder,
+    /// 예전 값. 불러올 때 `Folder` + 1GB로 옮긴다.
     #[serde(rename = "memory-1gb")]
     Memory1Gb,
+    /// 예전 값. 불러올 때 `Folder` + 2GB로 옮긴다.
     #[serde(rename = "memory-2gb")]
     Memory2Gb,
+}
+
+impl CacheMode {
+    /// 현재 목록 전체를 프리페치하는 모드인지.
+    pub fn covers_folder(self) -> bool {
+        matches!(self, Self::Folder | Self::Memory1Gb | Self::Memory2Gb)
+    }
+}
+
+/// 페이지 캐시 바이트 상한(SPEC §9.1). 미리 로드 전략과 따로 고른다.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CacheMax {
+    #[serde(rename = "512mb")]
+    Mb512,
+    #[default]
+    #[serde(rename = "1gb")]
+    Gb1,
+    #[serde(rename = "2gb")]
+    Gb2,
+}
+
+impl CacheMax {
+    pub fn bytes(self) -> u64 {
+        const MB: u64 = 1024 * 1024;
+        match self {
+            Self::Mb512 => 512 * MB,
+            Self::Gb1 => 1024 * MB,
+            Self::Gb2 => 2 * 1024 * MB,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -119,12 +155,30 @@ impl ViewerBackground {
 }
 
 /// 업데이트 확인 채널. 안정 채널은 정식 릴리스만, 베타 채널은 프리릴리스까지 본다.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum UpdateChannel {
-    #[default]
     Stable,
     Beta,
+}
+
+impl UpdateChannel {
+    /// 실행 중인 빌드 버전에 맞는 기본 채널. 프리릴리스(`2.7.0-beta.3`처럼 `-`가 붙은
+    /// 버전)는 베타 채널에서, 정식 릴리스는 안정 채널에서 시작한다(SPEC §13, §20.1).
+    pub fn for_version(version: &str) -> Self {
+        if version.contains('-') {
+            Self::Beta
+        } else {
+            Self::Stable
+        }
+    }
+}
+
+impl Default for UpdateChannel {
+    /// 설정 파일에 채널이 없을 때 쓰는 값. 베타 빌드를 처음 실행해도 베타 피드를 본다.
+    fn default() -> Self {
+        Self::for_version(env!("CARGO_PKG_VERSION"))
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -352,14 +406,9 @@ pub const DEFAULT_SHORTCUTS: &[(&str, &str)] = &[
     ("jumpFirst", "Home"),
     ("jumpLast", "End"),
     ("toggleGrid", "G"),
-    ("toggleGifPlayback", "P"),
+    ("toggleGifPlayback", "Space"),
     ("gifPrevFrame", ","),
     ("gifNextFrame", "."),
-    ("videoSeekBack", "J"),
-    ("videoSeekFwd", "L"),
-    ("videoSpeedDown", "["),
-    ("videoSpeedUp", "]"),
-    ("videoMute", "M"),
 ];
 
 pub type ShortcutMap = BTreeMap<String, String>;
@@ -397,7 +446,12 @@ pub struct Settings {
     pub language: Language,
     pub loop_navigation: bool,
     pub cache_mode: CacheMode,
+    /// 페이지 캐시 바이트 상한. 미리 로드 전략과 따로 고른다(SPEC §9.1).
+    pub cache_max: CacheMax,
     pub cache_storage_mode: CacheStorageMode,
+    /// 켜면 클라우드 전용(온디맨드) 파일도 썸네일·옆 페이지를 미리 내려받는다.
+    /// 끄면(기본) 실제로 화면에 들어온 파일만 내려받는다(SPEC §9.6).
+    pub cloud_auto_download: bool,
     pub max_resolution: MaxResolution,
     pub image_scaling_mode: ImageScalingMode,
     pub view_mode: ViewMode,
@@ -411,7 +465,11 @@ pub struct Settings {
     pub trash_without_confirm: bool,
     #[serde(default = "default_auto_check_updates")]
     pub auto_check_updates: bool,
-    pub update_channel: UpdateChannel,
+    /// 사용자가 설정 화면에서 고른 업데이트 채널. 고르지 않았으면 `None`이고 실행 중인
+    /// 빌드 버전을 따른다(`effective_update_channel`, SPEC §13, §20.1). 고른 경우에만
+    /// 저장해야 빌드를 바꿔 설치해도 기본값이 그 빌드를 따른다.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub update_channel: Option<UpdateChannel>,
     pub viewer_background: ViewerBackground,
     #[serde(rename = "autoHideUI")]
     pub auto_hide_ui: bool,
@@ -432,10 +490,6 @@ pub struct Settings {
     pub dock_thumb_size: DockThumbSize,
     pub dock_show_name: bool,
     pub dock_show_index: bool,
-    pub video_autoplay: bool,
-    /// 0~100. 실제 출력에는 `/100`으로 넘긴다.
-    pub video_volume: f64,
-    pub show_video_info: bool,
     pub shortcuts: ShortcutMap,
     pub wheel: WheelMap,
     pub mouse: MouseMap,
@@ -447,7 +501,9 @@ impl Default for Settings {
             language: Language::Ko,
             loop_navigation: false,
             cache_mode: CacheMode::Nearby,
+            cache_max: CacheMax::Gb1,
             cache_storage_mode: CacheStorageMode::Persistent,
+            cloud_auto_download: false,
             max_resolution: MaxResolution::Original,
             image_scaling_mode: ImageScalingMode::Auto,
             view_mode: ViewMode::Single,
@@ -459,7 +515,7 @@ impl Default for Settings {
             record_recent_files: true,
             trash_without_confirm: false,
             auto_check_updates: true,
-            update_channel: UpdateChannel::Stable,
+            update_channel: None,
             viewer_background: ViewerBackground::Theme,
             auto_hide_ui: false,
             menu_bar_hidden: false,
@@ -479,9 +535,6 @@ impl Default for Settings {
             dock_thumb_size: DockThumbSize::S,
             dock_show_name: false,
             dock_show_index: false,
-            video_autoplay: true,
-            video_volume: 80.0,
-            show_video_info: true,
             shortcuts: default_shortcuts(),
             wheel: WheelMap::default(),
             mouse: MouseMap::default(),
@@ -490,7 +543,24 @@ impl Default for Settings {
 }
 
 impl Settings {
+    /// 업데이트 확인에 쓸 채널. 사용자가 고른 채널이 없으면 빌드 버전을 따른다.
+    pub fn effective_update_channel(&self) -> UpdateChannel {
+        self.update_channel.unwrap_or_default()
+    }
+
     fn sanitized(mut self) -> Self {
+        // 예전 `memory-*` 캐시 모드는 폴더 전체 전략과 바이트 상한으로 나눠 옮긴다(SPEC §9.1).
+        match self.cache_mode {
+            CacheMode::Memory1Gb => {
+                self.cache_mode = CacheMode::Folder;
+                self.cache_max = CacheMax::Gb1;
+            }
+            CacheMode::Memory2Gb => {
+                self.cache_mode = CacheMode::Folder;
+                self.cache_max = CacheMax::Gb2;
+            }
+            _ => {}
+        }
         self.shortcuts = sanitize_shortcuts(std::mem::take(&mut self.shortcuts));
         // 왼쪽 드래그는 pan 또는 none만 허용한다(SPEC §14.3).
         if !matches!(self.mouse.left_drag, MouseAction::Pan | MouseAction::None) {
@@ -601,11 +671,12 @@ impl SettingsStore {
     /// 필드 단위로 손상된 값만 기본값으로 되돌린다.
     pub fn load(dir: Option<PathBuf>) -> Self {
         let path = dir.map(|dir| dir.join("settings.json"));
-        let file = path
+        let mut file = path
             .as_ref()
             .and_then(|path| std::fs::read(path).ok())
             .and_then(|bytes| serde_json::from_slice::<StoreFile>(&bytes).ok())
             .unwrap_or_default();
+        migrate_update_channel(&mut file.settings);
         let has_language = file.settings.get("language").is_some();
         let mut settings = restore_settings(file.settings).sanitized();
         if !has_language {
@@ -731,7 +802,7 @@ impl SettingsStore {
             return;
         };
         let file = StoreFile {
-            settings: serde_json::to_value(&self.settings).unwrap_or_default(),
+            settings: settings_to_value(&self.settings),
             recent_files: self.recent_files.clone(),
             archive_progress: self.archive_progress.clone(),
             theme: serde_json::to_value(self.theme).unwrap_or_default(),
@@ -755,6 +826,41 @@ impl SettingsStore {
     }
 }
 
+/// `updateChannel`이 사용자가 고른 값임을 표시하는 `settings.json` 키. 이 표시가 없는
+/// 옛 파일은 예전 저장 방식(설정 전체를 저장해 채널이 항상 기록됨) 때문에 고르지 않은
+/// 기본값까지 들어 있을 수 있다.
+const UPDATE_CHANNEL_CHOSEN_KEY: &str = "updateChannelChosen";
+
+/// 옛 `settings.json`의 업데이트 채널을 한 번 옮긴다(SPEC §20.1). 표시 없이 저장된
+/// `stable`은 예전 기본값이 자동으로 기록된 것일 수 있으므로 지우고 빌드 기본값을 따르게
+/// 한다(정식 빌드는 그대로 `stable`, 베타 빌드는 `beta`). 예전 기본값이 될 수 없던
+/// `beta`는 사용자가 고른 값으로 남긴다. 표시가 있으면 고른 값 그대로다.
+fn migrate_update_channel(saved: &mut serde_json::Value) {
+    let serde_json::Value::Object(map) = saved else {
+        return;
+    };
+    let chosen = map
+        .remove(UPDATE_CHANNEL_CHOSEN_KEY)
+        .is_some_and(|value| value == serde_json::Value::Bool(true));
+    if !chosen && map.get("updateChannel").and_then(|value| value.as_str()) == Some("stable") {
+        map.remove("updateChannel");
+    }
+}
+
+/// 저장할 설정 JSON. 고른 업데이트 채널이 있으면 고른 값이라는 표시를 함께 남긴다.
+fn settings_to_value(settings: &Settings) -> serde_json::Value {
+    let mut value = serde_json::to_value(settings).unwrap_or_default();
+    if settings.update_channel.is_some()
+        && let serde_json::Value::Object(map) = &mut value
+    {
+        map.insert(
+            UPDATE_CHANNEL_CHOSEN_KEY.to_owned(),
+            serde_json::Value::Bool(true),
+        );
+    }
+    value
+}
+
 /// 저장된 객체에서 읽을 수 있는 필드만 살리고 나머지는 기본값으로 둔다.
 fn restore_settings(saved: serde_json::Value) -> Settings {
     if let Ok(settings) = serde_json::from_value::<Settings>(saved.clone()) {
@@ -768,13 +874,15 @@ fn restore_settings(saved: serde_json::Value) -> Settings {
         _ => return Settings::default(),
     };
     for (key, value) in saved {
-        let Some(slot) = merged.get_mut(&key) else {
-            continue;
-        };
-        let previous = std::mem::replace(slot, value);
+        // 기본값에서 생략되는 선택 키(`updateChannel`)도 살린다. 모르는 키는 역직렬화가
+        // 무시하므로 넣어도 해가 없다.
+        let previous = merged.insert(key.clone(), value);
         let candidate = serde_json::Value::Object(merged.clone());
         if serde_json::from_value::<Settings>(candidate).is_err() {
-            merged.insert(key, previous);
+            match previous {
+                Some(previous) => merged.insert(key, previous),
+                None => merged.remove(&key),
+            };
         }
     }
     serde_json::from_value(serde_json::Value::Object(merged)).unwrap_or_default()
@@ -788,6 +896,75 @@ mod tests {
     #[test]
     fn trash_confirmation_is_kept_by_default() {
         assert!(!Settings::default().trash_without_confirm);
+    }
+
+    #[test]
+    fn removed_video_settings_and_shortcuts_are_ignored() {
+        let restored = restore_settings(serde_json::json!({
+            "videoAutoplay": false,
+            "videoVolume": 25.0,
+            "showVideoInfo": false,
+            "shortcuts": {
+                "videoSeekBack": "J",
+                "videoSeekFwd": "L",
+                "videoSpeedDown": "[",
+                "videoSpeedUp": "]",
+                "videoMute": "M",
+                "toggleGifPlayback": "Space"
+            }
+        }))
+        .sanitized();
+
+        for id in [
+            "videoSeekBack",
+            "videoSeekFwd",
+            "videoSpeedDown",
+            "videoSpeedUp",
+            "videoMute",
+        ] {
+            assert!(!restored.shortcuts.contains_key(id), "{id}");
+        }
+        assert_eq!(
+            restored
+                .shortcuts
+                .get("toggleGifPlayback")
+                .map(String::as_str),
+            Some("Space")
+        );
+        let saved = settings_to_value(&restored);
+        for key in ["videoAutoplay", "videoVolume", "showVideoInfo"] {
+            assert!(saved.get(key).is_none(), "{key}");
+        }
+    }
+
+    /// 페이지 캐시 상한은 1GB가 기본이고 전략과 따로 저장된다(SPEC §9.1, §13).
+    #[test]
+    fn cache_mode_and_max_are_saved_separately() {
+        let settings = Settings {
+            cache_mode: CacheMode::Folder,
+            cache_max: CacheMax::Mb512,
+            ..Settings::default()
+        };
+        let saved = serde_json::to_value(&settings).expect("설정 직렬화");
+        assert_eq!(saved["cacheMode"], serde_json::json!("folder"));
+        assert_eq!(saved["cacheMax"], serde_json::json!("512mb"));
+        let restored: Settings = serde_json::from_value(saved).expect("설정 복원");
+        assert_eq!(restored.cache_mode, CacheMode::Folder);
+        assert_eq!(restored.cache_max, CacheMax::Mb512);
+    }
+
+    /// 예전 memory 캐시 모드는 폴더 전체 전략과 바이트 상한으로 나눠 옮긴다(SPEC §9.1).
+    #[test]
+    fn legacy_memory_cache_modes_move_to_folder_and_max() {
+        let restored =
+            restore_settings(serde_json::json!({ "cacheMode": "memory-1gb" })).sanitized();
+        assert_eq!(restored.cache_mode, CacheMode::Folder);
+        assert_eq!(restored.cache_max, CacheMax::Gb1);
+
+        let restored =
+            restore_settings(serde_json::json!({ "cacheMode": "memory-2gb" })).sanitized();
+        assert_eq!(restored.cache_mode, CacheMode::Folder);
+        assert_eq!(restored.cache_max, CacheMax::Gb2);
     }
 
     /// 설정 파일의 키 이름은 camelCase로 저장된다(SPEC §13, `npm run docs:check`).
@@ -836,30 +1013,121 @@ mod tests {
         assert!(restored.auto_check_updates);
     }
 
-    /// 업데이트 채널은 안정 채널이 기본이다(SPEC §13, §20.1).
+    /// 업데이트 채널 기본값은 빌드 버전을 따른다: 정식 릴리스는 안정, 프리릴리스는 베타(SPEC §13, §20.1).
     #[test]
-    fn update_channel_defaults_to_stable() {
-        assert_eq!(Settings::default().update_channel, UpdateChannel::Stable);
+    fn update_channel_default_follows_the_build_version() {
+        assert_eq!(UpdateChannel::for_version("2.7.0"), UpdateChannel::Stable);
+        assert_eq!(
+            UpdateChannel::for_version("2.7.0-beta.45"),
+            UpdateChannel::Beta
+        );
+        assert_eq!(Settings::default().update_channel, None);
+        assert_eq!(
+            Settings::default().effective_update_channel(),
+            UpdateChannel::for_version(env!("CARGO_PKG_VERSION"))
+        );
     }
 
-    /// 설정 파일의 키 이름은 camelCase로 저장된다(SPEC §13, `npm run docs:check`).
+    /// 베타 빌드를 처음 실행하면(설정 파일 없음, 또는 채널 키 없음) 베타 피드를 본다.
     #[test]
-    fn update_channel_round_trips() {
-        let settings = Settings {
-            update_channel: UpdateChannel::Beta,
-            ..Settings::default()
-        };
-        let saved = serde_json::to_value(&settings).expect("설정 직렬화");
-        assert_eq!(saved["updateChannel"], serde_json::json!("beta"));
-        let restored: Settings = serde_json::from_value(saved).expect("설정 복원");
-        assert_eq!(restored.update_channel, UpdateChannel::Beta);
+    fn a_missing_update_channel_uses_the_build_default() {
+        let restored = restore_settings(serde_json::json!({ "language": "en" }));
+        assert_eq!(restored.update_channel, None);
+        assert_eq!(
+            restored.effective_update_channel(),
+            UpdateChannel::default()
+        );
+        let parsed: Settings = serde_json::from_value(serde_json::json!({})).expect("빈 설정 복원");
+        assert_eq!(parsed.update_channel, None);
     }
 
-    /// 알 수 없는 채널 값은 기본값으로 되돌린다.
+    /// 고르지 않은 채널은 저장하지 않는다. 그래야 다른 빌드를 설치해도 기본값이 따라간다.
     #[test]
-    fn an_unknown_update_channel_falls_back_to_stable() {
+    fn an_unchosen_update_channel_is_not_saved() {
+        let saved = settings_to_value(&Settings::default());
+        assert!(saved.get("updateChannel").is_none());
+        assert!(saved.get(UPDATE_CHANNEL_CHOSEN_KEY).is_none());
+    }
+
+    /// 고른 채널은 camelCase 키와 고른 값 표시로 저장되고, 다음 실행에서 그대로 유지된다.
+    #[test]
+    fn a_chosen_update_channel_round_trips() {
+        for channel in [UpdateChannel::Stable, UpdateChannel::Beta] {
+            let settings = Settings {
+                update_channel: Some(channel),
+                ..Settings::default()
+            };
+            let mut saved = settings_to_value(&settings);
+            assert_eq!(
+                saved["updateChannel"],
+                serde_json::to_value(channel).unwrap()
+            );
+            assert_eq!(saved[UPDATE_CHANNEL_CHOSEN_KEY], serde_json::json!(true));
+            migrate_update_channel(&mut saved);
+            let restored = restore_settings(saved);
+            assert_eq!(restored.update_channel, Some(channel));
+            assert_eq!(restored.effective_update_channel(), channel);
+        }
+    }
+
+    /// 고른 값 표시 없이 `stable`이 박힌 옛 파일(빌드 기본값이 생기기 전에 저장된 파일)은
+    /// 빌드 기본값을 따른다. 베타 빌드에서는 베타 채널이 된다.
+    #[test]
+    fn a_legacy_stable_channel_follows_the_build_default() {
+        let mut saved = serde_json::json!({ "language": "en", "updateChannel": "stable" });
+        migrate_update_channel(&mut saved);
+        let restored = restore_settings(saved);
+        assert_eq!(restored.update_channel, None);
+        assert_eq!(
+            restored.effective_update_channel(),
+            UpdateChannel::for_version(env!("CARGO_PKG_VERSION"))
+        );
+        // 옛 기본값이 될 수 없던 `beta`는 사용자가 고른 값으로 남는다.
+        let mut saved = serde_json::json!({ "updateChannel": "beta" });
+        migrate_update_channel(&mut saved);
+        assert_eq!(
+            restore_settings(saved).update_channel,
+            Some(UpdateChannel::Beta)
+        );
+    }
+
+    /// 다른 키가 깨져 필드 단위 복원을 거쳐도 고른 채널은 남는다.
+    #[test]
+    fn a_chosen_update_channel_survives_a_broken_neighbour() {
+        let restored = restore_settings(serde_json::json!({
+            "updateChannel": "stable",
+            "cacheMode": "nonsense",
+        }));
+        assert_eq!(restored.update_channel, Some(UpdateChannel::Stable));
+        assert_eq!(restored.cache_mode, Settings::default().cache_mode);
+    }
+
+    /// 알 수 없는 채널 값은 빌드 기본값으로 되돌린다.
+    #[test]
+    fn an_unknown_update_channel_falls_back_to_the_build_default() {
         let restored = restore_settings(serde_json::json!({ "updateChannel": "nightly" }));
-        assert_eq!(restored.update_channel, UpdateChannel::Stable);
+        assert_eq!(restored.update_channel, None);
+    }
+
+    /// 저장소 전체 흐름: 빈 설정으로 시작해 저장해도 채널이 기록되지 않고, 고른 뒤
+    /// 저장하면 기록되어 다시 읽어도 유지된다.
+    #[test]
+    fn the_store_saves_the_channel_only_after_a_choice() {
+        let dir = tempfile::tempdir().expect("임시 폴더");
+        let mut store = SettingsStore::load(Some(dir.path().to_path_buf()));
+        store.save();
+        let file: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(dir.path().join("settings.json")).unwrap())
+                .unwrap();
+        assert!(file["settings"].get("updateChannel").is_none());
+
+        store.settings.update_channel = Some(UpdateChannel::Stable);
+        store.save();
+        let reloaded = SettingsStore::load(Some(dir.path().to_path_buf()));
+        assert_eq!(
+            reloaded.settings.update_channel,
+            Some(UpdateChannel::Stable)
+        );
     }
 
     /// identity 없는 옛 `settings.json` 기록은 그대로 로드되고 한 번만
@@ -903,6 +1171,23 @@ mod tests {
         // identity 직렬화 키는 camelCase다.
         let saved = serde_json::to_value(&progress).expect("기록 직렬화");
         assert_eq!(saved["identity"]["modifiedNanos"], serde_json::json!(42));
+    }
+
+    /// 재생/정지는 `Space`가 기본이고(SPEC §14.1), 기본 단축키끼리 겹치지 않는다.
+    #[test]
+    fn playback_defaults_to_space_without_conflicts() {
+        let shortcuts = default_shortcuts();
+        assert_eq!(
+            shortcuts.get("toggleGifPlayback").map(String::as_str),
+            Some("Space")
+        );
+        assert!(crate::keys::is_valid_spec("Space"));
+        for (action, spec) in &shortcuts {
+            assert!(
+                crate::keys::conflict(&shortcuts, action, spec).is_none(),
+                "{action}의 {spec}가 다른 동작과 겹친다"
+            );
+        }
     }
 
     /// 일반 휠 위/아래가 한 쌍을 이루면 묶음 동작을 알아보고, 따로 놀면 없다(SPEC §14.2).

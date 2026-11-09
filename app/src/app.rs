@@ -24,7 +24,7 @@ use std::sync::Arc;
 use std::sync::mpsc::Receiver;
 use std::time::Instant;
 
-use crate::smooth::SmoothScroll;
+use crate::smooth::{Glide, SmoothScroll};
 use crate::toast::{Toast, WindowToast};
 use araview_core::app_error::{AppError, ErrorCode};
 use araview_core::comic_info::ComicInfo;
@@ -32,8 +32,6 @@ use araview_core::file_availability::FileAvailability;
 use araview_core::file_identity::FileIdentity;
 use araview_core::image::{ImageInfo, is_archive_file};
 use araview_core::ops::{self, DirListOptions, DirSortKey};
-use araview_core::video_audio::AudioStream;
-use araview_core::video_player::VideoPlayer;
 use gpui_kit::component::button::{Button, ButtonVariants as _};
 use gpui_kit::component::empty::{
     Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyMediaVariant, EmptyTitle,
@@ -42,8 +40,8 @@ use gpui_kit::component::menu::ContextMenuExt as _;
 use gpui_kit::component::spinner::Spinner;
 use gpui_kit::component::tag::Tag;
 use gpui_kit::component::{
-    ActiveTheme as _, Icon, Selectable as _, Sizable as _, TitleBar, VirtualListScrollHandle,
-    WindowExt as _, h_flex, v_flex,
+    ActiveTheme as _, Disableable as _, Icon, Selectable as _, Sizable as _, TitleBar,
+    VirtualListScrollHandle, WindowExt as _, h_flex, v_flex,
 };
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
@@ -101,6 +99,8 @@ struct Listing {
     /// 열 때 캡처한 파일 identity(SPEC §8). 이어보기 기록 저장에 함께 쓴다.
     identity: Option<FileIdentity>,
     availability: Vec<FileAvailability>,
+    /// 폴더 목록을 만든 기준 경로(처음 연 파일, 부모 폴더 기준). 아카이브는 `None`.
+    root: Option<Arc<str>>,
     /// 아카이브의 ComicInfo.xml. 파싱 실패는 로드를 막지 않고 패널에 에러로만 남긴다.
     comic: Result<Option<ComicInfo>, AppError>,
 }
@@ -115,9 +115,15 @@ pub struct AraView {
     /// 현재 화면의 시작 인덱스.
     index: usize,
     archive: Option<Arc<str>>,
-    comic: Option<ComicInfo>,
-    comic_failed: bool,
-    /// 아카이브를 열 때 자동으로 정한 보기 모드. 직접 고르면 해제된다.
+    /// 폴더 목록을 만든 기준 경로. 정렬·하위 폴더 설정이 바뀌면 이 경로로 목록을
+    /// 다시 읽는다(§5.2). 보던 파일로 다시 열면 하위 폴더 파일에서는 목록이 그
+    /// 폴더로 좁아진다.
+    list_root: Option<Arc<str>>,
+    /// 목록 새로고침 순번. 늦게 끝난 새로고침 결과를 버린다.
+    relist_seq: u64,
+    comic: pages::Comic,
+    /// 아카이브 세션 보기 모드. 열 때 자동으로 정하고, 보는 동안 직접 고르면
+    /// 세션에만 바뀐다. 일반 이미지는 설정값을 그대로 쓴다(§15).
     comic_mode: Option<ViewMode>,
     /// 열 때 캡처한 아카이브 파일 identity. 이어보기 기록에 함께 저장한다(§8).
     archive_identity: Option<FileIdentity>,
@@ -125,29 +131,22 @@ pub struct AraView {
     /// 열기만으로 저장된 위치를 덮지 않도록 진행 상황을 저장하지 않는다.
     progress_held: bool,
 
-    pages: HashMap<usize, pages::Page>,
-    page_loading: HashSet<usize>,
-    /// 아직 시작하지 않은 full 디코드 요청. 한 번에 하나만 돌리고 우선순위로 고른다(§9.1).
-    decode_queue: Vec<pages::DecodeJob>,
-    /// full 디코드가 실행 중인지.
-    decode_running: bool,
-    /// 요청 순서를 매기는 번호.
-    decode_seq: u64,
-    page_failed: HashMap<usize, AppError>,
-    /// 가로가 더 긴 페이지. 로드하면서 알게 된다.
+    /// 인덱스별 디코드 상태(대기·디코드 중·완료·실패)와 대기열. full 디코드는 한 번에
+    /// 하나만 돌리고 우선순위로 고른다(§9.1).
+    pages: pages::PageSlots<pages::Page>,
+    /// 바이트 예산 때문에 내려놓은 경계. 그보다 먼 페이지는 다시 미리 로드하지 않는다(§9.1).
+    budget_reach: Option<pages::BudgetReach>,
+    /// 가로가 더 긴 페이지. 로드하면서 알게 되고, 페이지를 내려놓아도 남긴다.
     wide: HashSet<usize>,
     /// 지금 화면에 올라가 있는 인덱스.
     shown: Vec<usize>,
-    /// 이동한 화면이 아직 올라가지 않았는지.
-    pending_commit: bool,
-    last_forward: bool,
-    skip_budget: usize,
-    /// 마지막 이동을 시작한 시각. 이전 화면을 얼마나 붙잡았는지 잰다.
-    nav_started: Instant,
+    /// 화면 이동 상태: 커밋 대기, 뒤로 넘기기 대기, 이동 시작 시각과 방향.
+    nav: pages::Nav,
     open_seq: u64,
-    opening: bool,
-    opening_started: Instant,
-    error: Option<AppError>,
+    /// 파일 열기를 시작한 시각. 값이 있으면 목록을 읽는 중이다.
+    opening: Option<Instant>,
+    /// 에러 카드에 보일 열기 실패 또는 페이지 실패.
+    error: Option<pages::ViewError>,
 
     /// 기준 그림과 그 정보(단일 보기의 표시 대상, 정보 패널·파일 작업의 대상).
     info: Option<ImageInfo>,
@@ -157,42 +156,33 @@ pub struct AraView {
     orient_seq: u64,
     zoom: f32,
     position: Offset,
-    /// 맞춤 잠금. 수동 줌을 하면 풀려 리사이즈해도 줌을 유지한다.
-    fit_locked: bool,
+    /// 맞춤 상태(크기 대기 / 맞춤 고정 / 수동 줌). 수동 줌을 하면 리사이즈해도 줌을 유지한다.
+    fit: viewport::Fit,
     /// 읽기 영역의 창 좌표 경계. 캔버스 prepaint가 갱신한다.
     viewport: Rc<Cell<Bounds<Pixels>>>,
     drag: Option<DragState>,
-    playing: bool,
-    frame: usize,
-    frame_started: Instant,
-    /// 끝까지 재생한 횟수. 유한 반복 애니메이션을 마지막 회차에서 멈추는 데 쓴다.
-    loops_done: u32,
-    /// 동영상 재생기. 단일 보기의 동영상 페이지에서만 열린다(§7.6).
-    video: Option<VideoPlayer>,
-    video_seq: u64,
-    video_controls: Option<viewport::VideoControls>,
-    video_audio_stream: Option<AudioStream>,
-    video_frame_pts: Option<u64>,
-    video_clock_ms: u64,
-    /// 뒤로 넘기기 전에 도착할 자리의 페이지 크기를 확인하는 중인지.
-    pending_back: bool,
+    /// 애니메이션(GIF/APNG 등) 재생 상태: 현재 프레임, 재생 여부와 프레임 시작 시각, 반복 횟수.
+    anim: viewport::AnimPlayback,
+    /// 애니메이션(GIF/APNG 등) 프레임 진행 슬라이더.
+    anim_timeline: Option<viewport::AnimTimeline>,
+    /// 마지막 마우스·키보드 조작 시각. 재생 중 하단 컨트롤 자동 숨김에 쓴다.
+    overlay_active: Instant,
+
     pixel_view: Option<viewport::PixelView>,
 
     /// 웹툰 스크롤 위치: 화면 맨 위에 걸친 페이지와 그 안에서 내려간 거리.
     wt_anchor: usize,
     wt_offset: f32,
-    /// 부드러운 스크롤이 아직 반영하지 못한 남은 거리(px).
-    wt_pending: f32,
-    wt_animating: bool,
-    wt_frame: Instant,
+    /// 부드러운 스크롤이 아직 반영하지 못한 남은 거리와 프레임 예약 상태.
+    wt_glide: Glide,
     wt_zoom: f32,
     wt_fit_width: bool,
     wt_dims: HashMap<usize, (u32, u32)>,
 
     thumbs: HashMap<Arc<str>, ThumbState>,
     thumbs_pending: HashSet<Arc<str>>,
+    /// 썸네일 그리드. 닫아도 필터 입력과 스크롤 상태를 남겨 둔다(`GridState::open`).
     grid: Option<grid::GridState>,
-    grid_open: bool,
     /// 우클릭한 지점의 페이지(표지 지정 대상).
     context_page: Option<usize>,
 
@@ -205,17 +195,10 @@ pub struct AraView {
     dock_followed: std::cell::Cell<Option<(usize, usize, bool, bool)>>,
     info_data: info_panel::InfoData,
     info_seq: u64,
-    /// 글자 인식 중인 이미지의 렌더 경로. 값이 있으면 인식이 진행 중이다.
-    ocr_job: Option<String>,
-    /// 가장 최근에 인식한 글자 결과. 같은 이미지를 다시 켤 때 재사용한다.
-    ocr_highlight: Option<ocr::Highlight>,
-    /// 글자 강조를 켠 이미지의 렌더 경로. 지금 보는 이미지와 같을 때만 강조를 보인다.
-    ocr_shown: Option<String>,
-    /// 선택한 글자 범위(시작, 끝). 둘 다 `ocr_highlight`의 글자 번호다.
-    ocr_select: Option<(usize, usize)>,
-    /// 드래그 선택을 시작한 글자 번호와 누른 위치.
-    ocr_drag: Option<(usize, Point<Pixels>)>,
-    update_checking: bool,
+    /// 글자 인식 작업, 마지막 강조 결과, 강조 표시와 글자 선택(SPEC §11.5).
+    ocr: ocr::OcrState,
+    /// 업데이트 확인·다운로드 상태(SPEC §20.1).
+    update_status: update::UpdateStatus,
     peek_top: bool,
     peek_bottom: bool,
     high_contrast: bool,
@@ -259,26 +242,19 @@ impl AraView {
             list_gen: 0,
             index: 0,
             archive: None,
-            comic: None,
-            comic_failed: false,
+            comic: pages::Comic::Absent,
             comic_mode: None,
+            list_root: None,
+            relist_seq: 0,
             archive_identity: None,
             progress_held: false,
-            pages: HashMap::new(),
-            page_loading: HashSet::new(),
-            decode_queue: Vec::new(),
-            decode_running: false,
-            decode_seq: 0,
-            page_failed: HashMap::new(),
+            pages: pages::PageSlots::default(),
+            budget_reach: None,
             wide: HashSet::new(),
             shown: Vec::new(),
-            pending_commit: false,
-            last_forward: true,
-            skip_budget: 0,
-            nav_started: Instant::now(),
+            nav: pages::Nav::default(),
             open_seq: 0,
-            opening: false,
-            opening_started: Instant::now(),
+            opening: None,
             error: None,
             info: None,
             picture: None,
@@ -287,33 +263,23 @@ impl AraView {
             orient_seq: 0,
             zoom: 1.0,
             position: Offset::default(),
-            fit_locked: true,
+            fit: viewport::Fit::Pending,
             viewport: Rc::new(Cell::new(Bounds::default())),
             drag: None,
-            playing: false,
-            frame: 0,
-            frame_started: Instant::now(),
-            loops_done: 0,
-            video: None,
-            video_seq: 0,
-            video_controls: None,
-            video_audio_stream: None,
-            video_frame_pts: None,
-            video_clock_ms: 0,
-            pending_back: false,
+            anim: viewport::AnimPlayback::default(),
+            anim_timeline: None,
+            overlay_active: Instant::now(),
+
             pixel_view: None,
             wt_anchor: 0,
             wt_offset: 0.0,
-            wt_pending: 0.0,
-            wt_animating: false,
-            wt_frame: Instant::now(),
+            wt_glide: Glide::default(),
             wt_zoom: 1.0,
             wt_fit_width: false,
             wt_dims: HashMap::new(),
             thumbs: HashMap::new(),
             thumbs_pending: HashSet::new(),
             grid: None,
-            grid_open: false,
             context_page: None,
             info_open: false,
             home_scroll: SmoothScroll::default(),
@@ -323,12 +289,8 @@ impl AraView {
             dock_followed: std::cell::Cell::new(None),
             info_data: info_panel::InfoData::default(),
             info_seq: 0,
-            ocr_job: None,
-            ocr_highlight: None,
-            ocr_shown: None,
-            ocr_select: None,
-            ocr_drag: None,
-            update_checking: false,
+            ocr: Default::default(),
+            update_status: Default::default(),
             peek_top: false,
             peek_bottom: false,
             high_contrast: crate::platform::high_contrast(),
@@ -362,7 +324,7 @@ impl AraView {
         this
     }
 
-    /// 이미지·동영상 필터가 걸린 파일 선택 창을 연다. GPUI의 경로 선택 창에는 형식 필터가
+    /// 이미지 필터가 걸린 파일 선택 창을 연다. GPUI의 경로 선택 창에는 형식 필터가
     /// 없어 네이티브 대화상자를 직접 쓴다.
     fn prompt_open(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let dialog = rfd::AsyncFileDialog::new()
@@ -445,7 +407,7 @@ impl AraView {
     /// 헤더 버튼과 `1/2/3` 단축키: 맞춤 모드를 기억하고 바로 적용한다.
     fn set_fit_mode(&mut self, mode: FitMode, cx: &mut Context<Self>) {
         SettingsStore::update(cx, |settings| settings.fit_mode = mode);
-        self.fit_locked = true;
+        self.fit = self.fit.lock();
         self.apply_fit(cx);
         cx.notify();
     }
@@ -541,27 +503,17 @@ impl AraView {
                 .gap_4()
                 .p_6()
                 .child(
-                    Empty::new()
-                        .header(
-                            EmptyHeader::new()
-                                .media(
-                                    EmptyMedia::new()
-                                        .with_variant(EmptyMediaVariant::Icon)
-                                        .child(Icon::new(Ph::Image)),
-                                )
-                                .title(EmptyTitle::new().child(t("home.emptyDesc"))),
-                        )
-                        .content(
-                            EmptyContent::new().child(
-                                Button::new("home-open")
-                                    .primary()
-                                    .icon(Ph::FolderOpen)
-                                    .label(t("home.openFile"))
-                                    .on_click(cx.listener(|this, _, window, cx| {
-                                        this.prompt_open(window, cx)
-                                    })),
-                            ),
+                    Empty::new().content(
+                        EmptyContent::new().child(
+                            Button::new("home-open")
+                                .primary()
+                                .icon(Ph::FolderOpen)
+                                .label(t("home.openFile"))
+                                .on_click(
+                                    cx.listener(|this, _, window, cx| this.prompt_open(window, cx)),
+                                ),
                         ),
+                    ),
                 )
                 .when(!recent.is_empty(), |home| {
                     home.child(
@@ -687,8 +639,8 @@ impl AraView {
         )
     }
 
-    fn render_error(&self, error: &AppError, cx: &mut Context<Self>) -> impl IntoElement {
-        let kind = match error.code {
+    fn render_error(&self, error: pages::ViewError, cx: &mut Context<Self>) -> impl IntoElement {
+        let kind = match error.error().code {
             ErrorCode::NotFound => "notFound",
             ErrorCode::Permission => "permission",
             ErrorCode::Unsupported => "unsupported",
@@ -714,7 +666,14 @@ impl AraView {
                         Button::new("error-retry")
                             .primary()
                             .label(t("viewer.error.retry"))
-                            .on_click(cx.listener(|this, _, window, cx| this.reload(window, cx))),
+                            .on_click(cx.listener(move |this, _, window, cx| match &error {
+                                // 열기 실패는 같은 경로를 다시 연다. 목록이 비어 있으면
+                                // 다시 디코드할 페이지가 없어 아무 일도 일어나지 않았다.
+                                pages::ViewError::Open { path, .. } => {
+                                    this.open_path(path.clone(), window, cx)
+                                }
+                                pages::ViewError::Page(_) => this.reload(window, cx),
+                            })),
                     )
                     .child(
                         Button::new("error-home")
@@ -800,9 +759,12 @@ impl AraView {
         // Below the compact toolbar's natural width, hide secondary groups in order;
         // keep the left/right menus and native caption controls outside the shrinkable area.
         let show_zoom_controls = width >= HEADER_FIT_CONTROLS_MIN_WIDTH;
-        let show_fit_controls = single && show_zoom_controls;
+        // 양쪽 보기의 배율은 화면 맞춤 대비 상대값이라 맞춤과 회전/반전은 화면을 바꾸는
+        // 기능을 하지 않는다. 그래도 버튼을 숨기면 모드를 바꿀 때 다른 버튼이 옮겨 가므로
+        // 보이는 채로 두고 비활성화만 한다.
+        let show_fit_controls = show_zoom_controls;
         let show_view_modes = width >= HEADER_VIEW_MODES_MIN_WIDTH;
-        let show_transform_controls = single && width >= HEADER_TRANSFORM_CONTROLS_MIN_WIDTH;
+        let show_transform_controls = width >= HEADER_TRANSFORM_CONTROLS_MIN_WIDTH;
         // 창 드래그 가능 표시 그립(Tauri 시절 DotsNine 자리). 빈 div라
         // 타이틀바 드래그 영역에 포함돼 그립을 잡고 창을 옮길 수 있다.
         let grip_dot = cx.theme().muted_foreground;
@@ -881,7 +843,10 @@ impl AraView {
                                         "fitWidth",
                                         cx,
                                     )
-                                    .selected(self.fit_locked && fit_mode == FitMode::Width),
+                                    .disabled(!single)
+                                    .selected(
+                                        self.fit.follows_window() && fit_mode == FitMode::Width,
+                                    ),
                                 )
                                 .child(
                                     Self::icon_button(
@@ -891,7 +856,10 @@ impl AraView {
                                         "fitHeight",
                                         cx,
                                     )
-                                    .selected(self.fit_locked && fit_mode == FitMode::Height),
+                                    .disabled(!single)
+                                    .selected(
+                                        self.fit.follows_window() && fit_mode == FitMode::Height,
+                                    ),
                                 )
                                 .child(
                                     Self::icon_button(
@@ -901,7 +869,10 @@ impl AraView {
                                         "fitScreen",
                                         cx,
                                     )
-                                    .selected(self.fit_locked && fit_mode == FitMode::Screen),
+                                    .disabled(!single)
+                                    .selected(
+                                        self.fit.follows_window() && fit_mode == FitMode::Screen,
+                                    ),
                                 ),
                         )
                     })
@@ -1002,6 +973,7 @@ impl AraView {
                                         "rotateCCW",
                                         cx,
                                     )
+                                    .disabled(!single)
                                     .when(extra_labels, |button| {
                                         button.label(t("header.rotateCcw"))
                                     }),
@@ -1014,6 +986,7 @@ impl AraView {
                                         "rotateCW",
                                         cx,
                                     )
+                                    .disabled(!single)
                                     .when(extra_labels, |button| {
                                         button.label(t("header.rotateCw"))
                                     }),
@@ -1026,6 +999,7 @@ impl AraView {
                                         "flipH",
                                         cx,
                                     )
+                                    .disabled(!single)
                                     .when(extra_labels, |button| button.label(t("header.flipH")))
                                     .selected(self.orientation.flip_h),
                                 )
@@ -1037,6 +1011,7 @@ impl AraView {
                                         "flipV",
                                         cx,
                                     )
+                                    .disabled(!single)
                                     .when(extra_labels, |button| button.label(t("header.flipV")))
                                     .selected(self.orientation.flip_v),
                                 ),
@@ -1056,8 +1031,15 @@ impl AraView {
                                     )
                                     .selected(self.ocr_visible()),
                                 )
-                            })
-                            .child(
+                            }),
+                    )
+                })
+                .child(div().flex_1().min_w_0())
+                .child(
+                    group()
+                        .debug_selector(|| "header-right-menu".to_owned())
+                        .when(has_image, |row| {
+                            row.child(
                                 Self::icon_button(
                                     "info",
                                     Ph::Info,
@@ -1066,13 +1048,8 @@ impl AraView {
                                     cx,
                                 )
                                 .selected(self.info_open),
-                            ),
-                    )
-                })
-                .child(div().flex_1().min_w_0())
-                .child(
-                    group()
-                        .debug_selector(|| "header-right-menu".to_owned())
+                            )
+                        })
                         .child(Self::icon_button(
                             "palette",
                             Ph::MagnifyingGlass,
@@ -1145,7 +1122,7 @@ impl AraView {
     // ----- 입력 -----
 
     fn on_key(&mut self, event: &KeyDownEvent, window: &mut Window, cx: &mut Context<Self>) {
-        if self.grid_open {
+        if self.grid_open() {
             self.on_grid_key(event, window, cx);
             return;
         }
@@ -1186,10 +1163,6 @@ impl AraView {
 impl Render for AraView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.advance_animation(window);
-        self.advance_video(window, cx);
-        if !self.has_video(cx) {
-            self.close_video();
-        }
         // 매 프레임 `Settings` 전체(BTreeMap 44쌍 포함)를 클론하지 않고 렌더에
         // 쓰는 `Copy` 필드만 복사한다.
         let (auto_hide_ui, menu_bar_hidden, dock_position, dock_visible, context_menu) = {
@@ -1207,12 +1180,10 @@ impl Render for AraView {
         let hide_all = reading && auto_hide_ui;
         let hide_header = reading && (menu_bar_hidden || auto_hide_ui);
         let animated = self.has_animation(cx);
-        let video = self.has_video(cx);
         // 애니메이션 컨트롤이 하단 독으로 이동했으므로, 애니메이션 이미지에서는
-        // 목록이 하나뿐이어도 독을 보여 컨트롤을 노출한다. 동영상도 같다.
-        let show_dock = reading
-            && (self.list.len() > 1 || animated || video)
-            && (!hide_all || self.peek_bottom);
+        // 목록이 하나뿐이어도 독을 보여 컨트롤을 노출한다.
+        let show_dock =
+            reading && (self.list.len() > 1 || animated) && (!hide_all || self.peek_bottom);
         let show_status = reading && (!hide_all || self.peek_bottom);
 
         let header = (!hide_header || self.peek_top)
@@ -1231,7 +1202,7 @@ impl Render for AraView {
             .map(|info| self.render_status(&info, cx).into_any_element());
         let panel =
             (reading && self.info_open).then(|| self.render_info_panel(cx).into_any_element());
-        let grid = self.grid_open.then(|| self.render_grid(window, cx));
+        let grid = self.grid_open().then(|| self.render_grid(window, cx));
 
         let body: AnyElement = if reading {
             let view = cx.entity();
@@ -1269,7 +1240,7 @@ impl Render for AraView {
             div()
                 .flex_1()
                 .min_h_0()
-                .child(self.render_error(&error, cx))
+                .child(self.render_error(error, cx))
                 .into_any_element()
         } else {
             div()

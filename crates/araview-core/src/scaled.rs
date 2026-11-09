@@ -108,6 +108,7 @@ pub fn ensure_scaled_sidecar_with_mode(
     let mut identity_extra = max_side.to_le_bytes().to_vec();
     identity_extra.push(mode.cache_discriminator());
     identity_extra.extend_from_slice(PIXEL_ART_FILTER_REVISION);
+    identity_extra.extend_from_slice(crate::orientation::cache_scope_tag(source));
     let identity = crate::sidecar::file_identity_hash(source, &identity_extra)?;
     let dir = scaled_dir()?;
     let jpeg_dest = dir.join(format!("{identity:016x}.jpg"));
@@ -150,10 +151,14 @@ pub fn ensure_scaled_sidecar_with_mode(
         let img = reader
             .decode()
             .map_err(|e| AppError::image_error("Failed to decode image", e))?;
-        // JPEG EXIF orientation을 픽셀에 반영한다. sidecar JPEG에는 EXIF가
-        // 없으므로 WebView는 회전을 적용하지 않고, 반환 치수도 이 기준과 맞춘다.
-        let img =
-            crate::orientation::apply_to_image(img, crate::orientation::read_orientation(source));
+        // JPEG/TIFF EXIF orientation을 픽셀에 반영한다. sidecar에는 EXIF가 없으므로
+        // 표시는 회전을 다시 적용하지 않고, 반환 치수도 이 기준과 맞춘다. 원본 보기가
+        // 회전하지 않는 PNG/WebP의 태그는 무시해야 상한을 켰을 때만 돌아가지 않는다.
+        let img = if crate::orientation::applies_to(source) {
+            crate::orientation::apply_to_image(img, crate::orientation::read_orientation(source))
+        } else {
+            img
+        };
         let has_alpha = img.color().has_alpha();
         // 축소(sidecar 생성)는 표시 정책과 무관하게 항상 보간 필터를 쓴다.
         // Nearest 축소는 스크린톤 같은 주기 패턴을 계단·무아레로 깨뜨린다.
@@ -163,14 +168,15 @@ pub fn ensure_scaled_sidecar_with_mode(
         if has_alpha || is_pixel_art {
             // JPEG는 픽셀 경계에 다시 아티팩트를 만들 수 있으므로 픽셀 보존 모드는
             // 알파 여부와 무관하게 lossless PNG sidecar로 보존한다.
-            let tmp = crate::sidecar::tmp_path_for(&png_dest);
-            if let Err(e) = scaled.save_with_format(&tmp, image::ImageFormat::Png) {
-                crate::sidecar::discard_temp(&tmp);
-                return Err(AppError::unknown(format!(
-                    "Failed to encode scaled PNG: {e}"
-                )));
-            }
-            crate::sidecar::publish_atomic(&tmp, &png_dest, "Failed to publish scaled sidecar")?;
+            crate::sidecar::write_cache_atomic(
+                &png_dest,
+                "Failed to publish scaled sidecar",
+                |tmp| {
+                    scaled
+                        .save_with_format(tmp, image::ImageFormat::Png)
+                        .map_err(|e| AppError::unknown(format!("Failed to encode scaled PNG: {e}")))
+                },
+            )?;
             // Best effort: eviction failures must not fail image delivery.
             crate::process_temp::note_published(&png_dest, MAX_SCALED_BYTES);
             Ok(png_dest.clone())
@@ -233,4 +239,33 @@ fn scaled_dir() -> Result<PathBuf, AppError> {
     fs::create_dir_all(&dir)
         .map_err(|e| AppError::io("Failed to create scaled dir", e, ErrorCode::Unknown))?;
     Ok(dir)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::orientation::test_images::{write_jpeg, write_png};
+
+    /// 해상도 상한 사본도 표시와 같은 기준으로만 회전한다(PNG 태그는 무시).
+    #[test]
+    fn png_orientation_tag_does_not_rotate_the_scaled_copy() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("wide.png");
+        write_png(&path, 1200, 600, 6);
+
+        let scaled = ensure_scaled_sidecar(&path, 512).unwrap().unwrap();
+
+        assert_eq!((scaled.width, scaled.height), (512, 256));
+    }
+
+    #[test]
+    fn jpeg_orientation_tag_rotates_the_scaled_copy() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("wide.jpg");
+        write_jpeg(&path, 1200, 600, 6);
+
+        let scaled = ensure_scaled_sidecar(&path, 512).unwrap().unwrap();
+
+        assert_eq!((scaled.width, scaled.height), (256, 512));
+    }
 }

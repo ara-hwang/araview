@@ -45,6 +45,7 @@ pub mod file_assoc {
 }
 pub mod file_availability;
 pub mod file_identity;
+mod fs_move;
 pub mod heif;
 pub mod image;
 pub mod image_info;
@@ -97,6 +98,3 @@ pub mod thumb_shell {
 }
 pub mod thumbnail;
 pub mod transcode;
-pub mod video;
-pub mod video_audio;
-pub mod video_player;

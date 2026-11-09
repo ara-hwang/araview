@@ -433,11 +433,11 @@ impl AraView {
             // 페이지 캐시 지표(§9.1). 예산 정리와 프리페치를 에이전트가 확인하게 한다.
             "pagesCount": self.pages.len(),
             "pagesBytes": self.cache_bytes(),
-            "comic": self.comic.is_some(),
-            "comicFailed": self.comic_failed,
+            "comic": self.comic.info().is_some(),
+            "comicFailed": self.comic.failed(),
             "viewMode": view_mode,
             "zoom": self.zoom,
-            "fitLocked": self.fit_locked,
+            "fitLocked": self.fit.follows_window(),
             "position": { "x": self.position.x, "y": self.position.y },
             "scaleFactor": window.scale_factor(),
             "viewport": {
@@ -451,36 +451,17 @@ impl AraView {
                 "height": f32::from(window.viewport_size().height),
             },
             "infoOpen": self.info_open,
-            "gridOpen": self.grid_open,
+            "gridOpen": self.grid_open(),
             "dialogOpen": window.has_active_dialog(cx),
             "fullscreen": window.is_fullscreen(),
-            "playing": self.playing,
-            "frame": self.frame,
-            "loopsDone": self.loops_done,
-            "video": self.video.as_ref().map(|player| {
-                let (ur_local, ur_queue) = player.audio_last_underrun();
-                json!({
-                    "position": player.position_ms(),
-                    "playing": player.is_playing(),
-                    "seeking": player.is_seeking(),
-                    "speed": player.speed(),
-                    "muted": player.is_muted(),
-                    "audio": player.audio_active(),
-                    "audioUnderruns": player.audio_underruns(),
-                    "audioUnderrunLocal": ur_local,
-                    "audioUnderrunQueue": ur_queue,
-                    "width": player.info().width,
-                    "height": player.info().height,
-                    "presentedPts": self.video_frame_pts,
-                    "presentedSize": self.picture.as_ref().map(|picture| {
-                        json!({ "width": picture.width, "height": picture.height })
-                    }),
-                })
-            }),
-            "opening": self.opening,
+            "playing": self.anim.is_playing(),
+            "frame": self.anim.frame(),
+            "loopsDone": self.anim.loops_done(),
+            "opening": self.opening.is_some(),
             "pagesLoaded": self.pages.len(),
             "webtoon": { "anchor": self.wt_anchor, "offset": self.wt_offset },
-            "error": self.error.clone(),
+            "error": self.error.as_ref().map(|error| error.error().clone()),
+            "errorKind": self.error.as_ref().map(|error| error.kind()),
         })
     }
 }

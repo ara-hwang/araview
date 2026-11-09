@@ -64,12 +64,9 @@ pub fn export_clipboard_png(source: &Path) -> Result<ClipboardPng, AppError> {
             return Ok(dest.clone());
         }
         let decoded = decode_for_clipboard(source)?;
-        let tmp = crate::sidecar::tmp_path_for(&dest);
-        if let Err(e) = write_png(&tmp, decoded) {
-            crate::sidecar::discard_temp(&tmp);
-            return Err(e);
-        }
-        crate::sidecar::publish_atomic(&tmp, &dest, "Failed to publish clipboard PNG")?;
+        crate::sidecar::write_cache_atomic(&dest, "Failed to publish clipboard PNG", |tmp| {
+            write_png(tmp, decoded)
+        })?;
         // Best effort: eviction failures must not fail the copy.
         crate::process_temp::note_published(&dest, MAX_CLIPBOARD_BYTES);
         Ok(dest.clone())

@@ -77,6 +77,14 @@ jobs:
     needs: verify
     runs-on: windows-latest
     timeout-minutes: 90
+    env:
+      # sccache는 컴파일 결과를 캐시 백엔드(GitHub Actions 캐시)에 모으므로 다음
+      # 버전 빌드가 이전 태그 빌드의 산출물로 크게 단축된다. 백엔드는 잡 단위 env로
+      # SCCACHE_GHA_ENABLED를 켜고, 컴파일을 거치는 모든 스텝에 RUSTC_WRAPPER를 둔다.
+      # 캐시 용량은 세 OS가 나눠 쓰므로 6GB로 묶는다(저장소 전체 한도 10GB 안에 rust/vcpkg 트리 캐시 ~4GB와 함께 둔다).
+      SCCACHE_GHA_ENABLED: "true"
+      SCCACHE_CACHE_SIZE: "6G"
+      RUSTC_WRAPPER: sccache
 
     steps:
       # 릴리스 노트가 이전 태그 이후 커밋 목록을 쓰므로 전체 히스토리가 필요하다.
@@ -90,10 +98,12 @@ jobs:
         with:
           node-version: 24
 
+      # 잡 단위 env(SCCACHE_GHA_ENABLED, RUSTC_WRAPPER)로 sccache를 켠다.
       - name: Setup Rust and native dependencies
         uses: ./.github/actions/setup-rust-native
         with:
-          cache-key: release
+          cache-key: rust-windows-latest
+          rust-cache-save-if: "false"
           sccache: "true"
 
       - name: Resolve version
@@ -116,8 +126,6 @@ jobs:
           if (-not (Test-Path "${env:ProgramFiles(x86)}\NSIS\makensis.exe")) { Write-Error "makensis를 찾지 못했다"; exit 1 }
 
       - name: Build installer
-        env:
-          RUSTC_WRAPPER: sccache
         run: pwsh -NoProfile -File scripts/Build-Installer.ps1
 
       # 릴리스 노트: 이전 태그 이후 커밋 목록으로 본문을 만든다.
@@ -216,6 +224,11 @@ jobs:
     needs: verify
     runs-on: ubuntu-latest
     timeout-minutes: 90
+    # Windows와 같은 이유로 sccache를 켠다(용량 한도도 동일하다).
+    env:
+      SCCACHE_GHA_ENABLED: "true"
+      SCCACHE_CACHE_SIZE: "6G"
+      RUSTC_WRAPPER: sccache
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -223,7 +236,9 @@ jobs:
       - name: Setup Rust and native dependencies
         uses: ./.github/actions/setup-rust-native
         with:
-          cache-key: release-ubuntu-latest
+          cache-key: rust-ubuntu-latest
+          rust-cache-save-if: "false"
+          sccache: "true"
 
       - name: Build Linux package
         run: scripts/package-linux.sh
@@ -240,6 +255,11 @@ jobs:
     needs: verify
     runs-on: macos-latest
     timeout-minutes: 90
+    # Windows와 같은 이유로 sccache를 켠다(용량 한도도 동일하다).
+    env:
+      SCCACHE_GHA_ENABLED: "true"
+      SCCACHE_CACHE_SIZE: "6G"
+      RUSTC_WRAPPER: sccache
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -247,7 +267,9 @@ jobs:
       - name: Setup Rust and native dependencies
         uses: ./.github/actions/setup-rust-native
         with:
-          cache-key: release-macos-latest
+          cache-key: rust-macos-latest
+          rust-cache-save-if: "false"
+          sccache: "true"
 
       - name: Build macOS package
         run: scripts/package-macos.sh
@@ -261,6 +283,11 @@ jobs:
 
   release:
     needs: [build-windows, build-linux, build-macos]
+    # 빌드는 병렬로, 베타 게시와 피드의 읽기/비교/쓰기는 하나씩 처리한다.
+    concurrency:
+      group: ${{ contains(github.ref_name, '-beta.') && 'beta-publication' || format('publication-{0}', github.ref) }}
+      queue: max
+      cancel-in-progress: false
     permissions:
       contents: write
       # `gh run download`가 같은 실행의 아티팩트를 읽는 데 필요하다.
@@ -269,6 +296,13 @@ jobs:
     timeout-minutes: 15
 
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+
       # 같은 실행에서 올린 세 OS의 아티팩트를 받아 한 폴더로 모은다.
       - name: Download artifacts
         env:
@@ -328,18 +362,7 @@ jobs:
         if: github.ref_type == 'tag' && contains(github.ref_name, '-beta.')
         env:
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
-        run: |
-          if ! gh release view beta --repo "${{ github.repository }}" >/dev/null 2>&1; then
-            gh release create beta \
-              --repo "${{ github.repository }}" \
-              --target main \
-              --prerelease \
-              --title "AraView beta feed" \
-              --notes "베타 채널 업데이트 피드"
-          fi
-          gh release upload beta dist/update-feed-beta.json \
-            --clobber \
-            --repo "${{ github.repository }}"
+        run: node scripts/publish-beta-feed.mjs
 
       # 수동 실행(시험)에서는 릴리스 대신 산출물을 아티팩트로 남긴다.
       - name: Upload dry-run artifacts

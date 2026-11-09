@@ -161,7 +161,7 @@
       "autoTitle": "Check automatically on startup",
       "autoDesc": "Checks for new versions on startup. Only notifies when a new version is available.",
       "channelTitle": "Update channel",
-      "channelDesc": "Stable checks regular releases only; Beta also checks beta releases.",
+      "channelDesc": "Stable checks regular releases only; Beta checks both regular and beta releases and offers the newer one.",
       "channelStable": "Stable",
       "channelBeta": "Beta",
       "current": "Current version {{version}}",
@@ -219,9 +219,7 @@
       "comicAutoDual": "Open comic archives in dual view automatically (follows ComicInfo reading direction)",
       "coverAlone": "Show cover alone in dual view",
       "wideAlone": "Show wide pages (landscape scans) alone in dual view",
-      "showComicInfo": "Show comic metadata (ComicInfo.xml) in the info panel",
-      "videoAutoplay": "Auto-play videos on open",
-      "showVideoInfo": "Show video info in the info panel"
+      "showComicInfo": "Show comic metadata (ComicInfo.xml) in the info panel"
     },
     "dock": {
       "title": "Image list dock",
@@ -270,12 +268,18 @@
     },
     "cache": {
       "title": "Image preloading",
-      "desc": "Image preload range and page cache item/byte limits",
+      "desc": "Image preload range and page cache byte limit",
       "off": "Off (current image only)",
-      "nearby": "Nearby (preload prev/next, 512 MB cache)",
-      "extended": "Extended (preload up to ±3, 1 GB cache)",
-      "gb1": "Page cache 1 GB (preload up to ±2)",
-      "gb2": "Page cache 2 GB (preload up to ±3)"
+      "nearby": "Nearby (preload prev/next)",
+      "extended": "Extended (preload up to ±3)",
+      "folder": "Whole folder (all images)"
+    },
+    "cacheMax": {
+      "title": "Maximum cache size",
+      "desc": "Byte limit for decoded images kept in the page cache",
+      "512mb": "512 MB",
+      "1gb": "1 GB",
+      "2gb": "2 GB"
     },
     "cacheStorage": {
       "title": "Cache retention",
@@ -286,6 +290,10 @@
       "toggle": "Toggle persistent cache",
       "pendingTitle": "Applies on the next run",
       "pendingDesc": "The current cache stays unchanged until the storage mode changes on the next run."
+    },
+    "cloud": {
+      "title": "Auto-download cloud files",
+      "desc": "Also prefetch thumbnails and neighboring pages for files that exist only in the cloud (OneDrive Files On-Demand, etc.). Off: only download a file when it is actually shown."
     },
     "cacheManagement": {
       "title": "Cache management",
@@ -357,7 +365,6 @@
   },
   "home": {
     "drop": "Drop here to open",
-    "emptyDesc": "Drop files here or use Open File.",
     "openFile": "Open File",
     "recent": "Recent files {{count}}",
     "clearAll": "Clear all",
@@ -475,18 +482,6 @@
     "summary": "Summary",
     "loadFail": "Could not read comic metadata."
   },
-  "video": {
-    "section": "Video",
-    "title": "Video",
-    "mime": "Format",
-    "codec": "Codec",
-    "audio": "Audio",
-    "dimensions": "Dimensions",
-    "duration": "Duration",
-    "fps": "Frames per second",
-    "yes": "Yes",
-    "no": "No"
-  },
   "histogram": {
     "title": "Histogram",
     "unavailable": "Histogram is not available for this format.",
@@ -558,11 +553,6 @@
     "gifPause": "Pause",
     "gifPrevFrame": "Previous Animation Frame",
     "gifNextFrame": "Next Animation Frame",
-    "videoSeekBack": "Back 10 Seconds",
-    "videoSeekFwd": "Forward 10 Seconds",
-    "videoSpeedDown": "Decrease Playback Speed",
-    "videoSpeedUp": "Increase Playback Speed",
-    "videoMute": "Toggle Mute",
     "toggleFullscreen": "Toggle Fullscreen",
     "toggleAlwaysOnTop": "Toggle Always on Top",
     "copyImage": "Copy Image",
@@ -750,7 +740,7 @@
     }
   },
   "picker": {
-    "images": "Images and videos"
+    "images": "Images"
   },
   "ext": {
     "png": "PNG image",
@@ -801,12 +791,7 @@
     "pgm": "PGM image",
     "pbm": "PBM image",
     "cbz": "Comic archive",
-    "zip": "ZIP archive",
-    "mp4": "MP4 video",
-    "mov": "MOV video",
-    "webm": "WebM video",
-    "mkv": "MKV video",
-    "avi": "AVI video"
+    "zip": "ZIP archive"
   },
   "platform": {
     "macos": {

@@ -67,9 +67,15 @@ fn files_exist(images: &[crate::dir_cache::ImageEntry]) -> Vec<bool> {
 /// 대소문자만 다른 철자로 들어와도 현재 파일을 찾는다. 목록은 호출자가 준
 /// 부모 경로로 스캔되므로 보통 첫 비교에서 끝난다. 폴백에서 경로마다
 /// canonicalize를 돌리면 수천 장 폴더에서 syscall 폭주가 나므로 하지 않는다.
+/// 대소문자 폴백은 기본 볼륨이 대소문자를 무시하는 Windows와 macOS에서만 한다.
+/// Linux에서 `a.jpg`와 `A.jpg`는 별개의 파일이라, 현재 파일이 목록에 없을 때
+/// 이름이 비슷한 다른 파일을 고르면 안 된다.
 fn index_of_current<S: AsRef<str>>(paths: &[S], current: &Path) -> Option<usize> {
     if let Some(pos) = paths.iter().position(|p| Path::new(p.as_ref()) == current) {
         return Some(pos);
+    }
+    if !cfg!(any(windows, target_os = "macos")) {
+        return None;
     }
     let lowered = current.to_string_lossy().to_lowercase();
     paths
@@ -133,4 +139,71 @@ pub fn resolve_dropped_path_impl(path: &str) -> Result<String, AppError> {
     }
 
     Err(AppError::unsupported("Unsupported path type"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn directory_listing_and_drop_keep_animated_images_but_exclude_video() {
+        let dir = tempfile::tempdir().expect("임시 디렉터리");
+        let image_extensions = ["gif", "apng", "webp", "avif", "jxl"];
+        let video_extensions = ["mp4", "mov", "webm", "mkv", "avi"];
+        for ext in image_extensions.into_iter().chain(video_extensions) {
+            let path = dir.path().join(format!("sample.{ext}"));
+            fs::write(path, b"").expect("테스트 파일 쓰기");
+        }
+
+        let current = dir.path().join("sample.gif");
+        let current = current.to_str().expect("UTF-8 경로");
+        let listing = get_directory_images_impl(current, None).expect("폴더 목록");
+        let listed_extensions: Vec<_> = listing
+            .images
+            .iter()
+            .map(|path| {
+                Path::new(path.as_ref())
+                    .extension()
+                    .and_then(|ext| ext.to_str())
+                    .expect("파일 확장자")
+            })
+            .collect();
+        for ext in image_extensions {
+            assert!(listed_extensions.contains(&ext), "{ext}");
+        }
+        for ext in video_extensions {
+            assert!(!listed_extensions.contains(&ext), "{ext}");
+        }
+
+        let dropped = resolve_dropped_path_impl(dir.path().to_str().expect("UTF-8 디렉터리 경로"))
+            .expect("애니메이션 이미지가 있는 폴더 드롭");
+        assert!(image_extensions.contains(
+            &Path::new(&dropped)
+                .extension()
+                .and_then(|ext| ext.to_str())
+                .expect("드롭된 파일 확장자")
+        ));
+    }
+
+    #[test]
+    fn exact_match_wins() {
+        let paths = ["/d/A.jpg", "/d/a.jpg"];
+        assert_eq!(index_of_current(&paths, Path::new("/d/a.jpg")), Some(1));
+    }
+
+    /// 대소문자 구분 플랫폼에서 목록에 없는 현재 파일은 이름이 대소문자만 다른
+    /// 다른 파일로 대체하지 않는다.
+    #[cfg(not(any(windows, target_os = "macos")))]
+    #[test]
+    fn case_fallback_is_off_on_case_sensitive_platforms() {
+        let paths = ["/d/A.jpg", "/d/b.jpg"];
+        assert_eq!(index_of_current(&paths, Path::new("/d/a.jpg")), None);
+    }
+
+    #[cfg(any(windows, target_os = "macos"))]
+    #[test]
+    fn case_fallback_finds_the_file_on_case_insensitive_platforms() {
+        let paths = ["/d/A.jpg", "/d/b.jpg"];
+        assert_eq!(index_of_current(&paths, Path::new("/d/a.jpg")), Some(0));
+    }
 }

@@ -1,11 +1,15 @@
 //! 동작 실행, 컨텍스트 메뉴, 명령 팔레트, 표지 지정(SPEC §8, §14).
 
+use crate::smooth::SmoothScroll;
 use crate::toast::{Toast, WindowToast};
 use gpui_kit::component::command::{Command, CommandGroup, CommandItem, CommandState};
 use gpui_kit::component::menu::{PopupMenu, PopupMenuItem};
 use gpui_kit::component::{ActiveTheme as _, WindowExt as _, v_flex};
 use gpui_kit::*;
 
+use std::path::Path;
+
+use araview_core::file_identity::FileIdentity;
 use araview_core::ops;
 
 use super::AraView;
@@ -82,11 +86,6 @@ const PALETTE_GROUPS: &[(&str, &[&str])] = &[
             "toggleGifPlayback",
             "gifPrevFrame",
             "gifNextFrame",
-            "videoSeekBack",
-            "videoSeekFwd",
-            "videoSpeedDown",
-            "videoSpeedUp",
-            "videoMute",
         ],
     ),
     (
@@ -102,6 +101,24 @@ const PALETTE_GROUPS: &[(&str, &[&str])] = &[
     ("palette.group.system", &[OPEN_SETTINGS, CHECK_UPDATES]),
 ];
 
+/// 양쪽 보기에서 실행하지 않는 명령. 두 장 보기의 배율은 화면 맞춤 대비 상대값이라
+/// 맞춤과 회전/반전이 화면을 바꾸지 않는다. 헤더 버튼이 비활성인 것과 같게
+/// 단축키·우클릭 메뉴·명령 팔레트로도 실행하지 않는다(SPEC §7.5). 맞춤은 실행하면
+/// 단일 보기에도 쓰이는 `fitMode` 설정을 바꾼다.
+const SINGLE_VIEW_COMMANDS: &[&str] = &[
+    "fitWidth",
+    "fitHeight",
+    "fitScreen",
+    "rotateCW",
+    "rotateCCW",
+    "flipH",
+    "flipV",
+];
+
+fn single_view_only(id: &str) -> bool {
+    SINGLE_VIEW_COMMANDS.contains(&id)
+}
+
 fn command_label_key(id: &str) -> &'static str {
     match id {
         OPEN_SETTINGS => "palette.settings",
@@ -115,6 +132,11 @@ fn command_label_key(id: &str) -> &'static str {
 impl AraView {
     /// 동작 ID를 실행한다. 단축키, 컨텍스트 메뉴, 명령 팔레트가 모두 여기로 온다.
     pub(super) fn run_action(&mut self, id: &str, window: &mut Window, cx: &mut Context<Self>) {
+        // 키보드·버튼 조작이면 숨겨진 재생 컨트롤을 다시 보여 준다.
+        self.bump_overlay();
+        if single_view_only(id) && self.view_mode(cx).is_dual() {
+            return;
+        }
         let webtoon = self.view_mode(cx) == ViewMode::Webtoon;
         match id {
             "navigatePrev" => self.navigate(false, window, cx),
@@ -163,11 +185,6 @@ impl AraView {
             "toggleGifPlayback" => self.toggle_playback(cx),
             "gifPrevFrame" => self.step_frame(-1, cx),
             "gifNextFrame" => self.step_frame(1, cx),
-            "videoSeekBack" => self.video_seek_by(-10_000, cx),
-            "videoSeekFwd" => self.video_seek_by(10_000, cx),
-            "videoSpeedDown" => self.video_step_speed(-1, cx),
-            "videoSpeedUp" => self.video_step_speed(1, cx),
-            "videoMute" => self.toggle_video_mute(cx),
             OPEN_SETTINGS => self.open_settings(window, cx),
             CHECK_UPDATES => self.check_updates(window, cx),
             TOGGLE_DOCK => {
@@ -199,13 +216,9 @@ impl AraView {
             }
             "navigatePrev" | "navigateNext" | "jumpPrev10" | "jumpNext10" | "jumpFirst"
             | "jumpLast" | "toggleGrid" | TOGGLE_DOCK => self.list.len() > 1,
-            "toggleGifPlayback" | "gifPrevFrame" | "gifNextFrame" => {
-                self.has_animation(cx) || self.has_video(cx)
-            }
-            "videoSeekBack" | "videoSeekFwd" | "videoSpeedDown" | "videoSpeedUp" | "videoMute" => {
-                self.has_video(cx)
-            }
+            "toggleGifPlayback" | "gifPrevFrame" | "gifNextFrame" => self.has_animation(cx),
             TOGGLE_COVER => has_image && self.archive.is_some(),
+            id if single_view_only(id) => has_image && !self.view_mode(cx).is_dual(),
             _ => has_image,
         }
     }
@@ -217,12 +230,13 @@ impl AraView {
         window: &mut Window,
         cx: &mut Context<PopupMenu>,
     ) -> PopupMenu {
+        let dual = view.read(cx).view_mode(cx).is_dual();
         let item = |id: &'static str, window: &mut Window| {
-            PopupMenuItem::new(t(command_label_key(id))).on_click(
-                window.listener_for(view, move |this, _, window, cx| {
+            PopupMenuItem::new(t(command_label_key(id)))
+                .disabled(dual && single_view_only(id))
+                .on_click(window.listener_for(view, move |this, _, window, cx| {
                     this.run_action(id, window, cx)
-                }),
-            )
+                }))
         };
         let mut menu = menu
             .item(item("openFile", window))
@@ -337,8 +351,12 @@ impl AraView {
             .filter_map(|page| u32::try_from(page).ok())
             .collect();
         let generation = self.list_gen;
-        let task =
-            cx.background_spawn(async move { ops::set_comic_cover_pages_impl(&archive, &next) });
+        let task = cx.background_spawn(async move {
+            // 표지 지정은 CBZ를 다시 써서 크기와 수정 시각이 바뀐다. 이어보기 기록이
+            // 다음에 열 때도 맞도록 새 identity를 함께 읽는다(SPEC §8).
+            ops::set_comic_cover_pages_impl(&archive, &next)
+                .map(|comic| (comic, FileIdentity::capture(Path::new(&*archive))))
+        });
         cx.spawn_in(window, async move |this, cx| {
             let result = task.await;
             this.update_in(cx, |this, window, cx| {
@@ -346,9 +364,11 @@ impl AraView {
                     return;
                 }
                 match result {
-                    Ok(comic) => {
-                        this.comic = Some(comic);
-                        this.comic_failed = false;
+                    Ok((comic, identity)) => {
+                        this.comic = super::pages::Comic::Parsed(Box::new(comic));
+                        // 옛 identity로 진도를 저장하면 다시 열 때 이어보기와 홈의
+                        // 진도 표시가 사라진다.
+                        this.archive_identity = identity;
                         let key = if was_cover {
                             "toast.cover.unset"
                         } else {
@@ -357,6 +377,7 @@ impl AraView {
                         window.toast(Toast::success(t(key)), cx);
                         // 배치가 바뀌었으므로 그 페이지의 쌍 시작으로 다시 맞춘다.
                         this.index = index;
+                        this.save_progress(cx);
                         this.view_mode_changed(window, cx);
                     }
                     Err(error) => {
@@ -400,6 +421,11 @@ impl AraView {
         }
         let shortcuts = SettingsStore::global(cx).settings.shortcuts.clone();
         let state = cx.new(|cx| CommandState::new(window, cx));
+        // 목록은 자체 휠 스크롤을 끄고(`wheel_handoff`) 같은 핸들을 바깥
+        // SmoothScroll이 감속시킨다. 키보드 이동·검색 초기화 같은 즉시 이동과는
+        // `on_scroll_to_item`에서 먼저 감속을 멈춰 겹치지 않게 한다.
+        let smooth =
+            SmoothScroll::from_handle(state.read(cx).scroll_handle().base_handle().clone());
         let view = cx.entity();
         let search = state.clone();
         // 배경 누름 판정은 팔레트가 사는 동안 유지해야 한다(다이얼로그 빌더는 다시 돈다).
@@ -410,15 +436,24 @@ impl AraView {
             let shortcuts = shortcuts.clone();
             let view = view.clone();
             let backdrop = backdrop.clone();
+            let smooth = smooth.clone();
             centered(dialog)
                 .close_button(false)
                 .p_0()
                 .content(move |content, _, _| {
                     let confirm_groups = groups.clone();
                     let view = view.clone();
+                    let smooth = smooth.clone();
                     let mut command = Command::new(&state)
                         .bordered(false)
-                        .placeholder(t("palette.search"));
+                        .placeholder(t("palette.search"))
+                        // 휠은 바깥 SmoothScroll이 감속시키고 목록 자체의 기본
+                        // 스크롤은 꺼 둔다.
+                        .wheel_handoff(true)
+                        .on_scroll_to_item({
+                            let smooth = smooth.clone();
+                            move |_, _| smooth.cancel()
+                        });
                     for (label, ids) in &groups {
                         let mut group = CommandGroup::new().label(t(label));
                         for id in ids {
@@ -453,6 +488,10 @@ impl AraView {
                     let release_backdrop = backdrop.clone();
                     content.child(
                         div()
+                            .id("palette-scroller")
+                            // 휠은 바깥 SmoothScroll이 처리한다(`wheel_handoff`로
+                            // 목록 자체의 세로 기본 스크롤은 꺼 둔다).
+                            .on_scroll(smooth.wheel_handler(false))
                             .on_mouse_down_out({
                                 let close_palette = close_palette.clone();
                                 move |event, window, cx| {

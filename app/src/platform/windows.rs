@@ -45,6 +45,8 @@ unsafe extern "system" {
     ) -> Handle;
     fn ConnectNamedPipe(pipe: Handle, overlapped: *mut core::ffi::c_void) -> i32;
     fn DisconnectNamedPipe(pipe: Handle) -> i32;
+    fn WaitNamedPipeW(name: *const u16, timeout: u32) -> i32;
+    fn CloseHandle(handle: Handle) -> i32;
     fn ReadFile(
         file: Handle,
         buffer: *mut u8,
@@ -62,6 +64,14 @@ const SWP_NOACTIVATE: u32 = 0x0010;
 const ERROR_ALREADY_EXISTS: u32 = 183;
 const ERROR_PIPE_CONNECTED: u32 = 535;
 const ERROR_INVALID_PARAMETER: u32 = 87;
+const ERROR_FILE_NOT_FOUND: i32 = 2;
+const ERROR_PIPE_BUSY: i32 = 231;
+/// 클라이언트가 서버의 `ConnectNamedPipe` 전에 이미 쓰고 닫았다. 버퍼의 내용은 읽을 수 있다.
+const ERROR_NO_DATA: u32 = 232;
+/// 두 번째 실행이 기존 인스턴스에 닿으려고 기다리는 최대 시간. 첫 인스턴스가 막 시작해
+/// 아직 파이프를 만들지 않았거나, 탐색기에서 여러 파일을 한꺼번에 열어 인스턴스가 모두
+/// 바쁠 때 새 창을 띄우지 않고 기다린다.
+const FORWARD_WAIT: std::time::Duration = std::time::Duration::from_secs(3);
 /// 개발 전용 제어 파이프에서만 쓴다.
 #[cfg(debug_assertions)]
 const PIPE_ACCESS_DUPLEX: u32 = 0x0000_0003;
@@ -75,16 +85,30 @@ fn wide(text: &str) -> Vec<u16> {
     text.encode_utf16().chain(std::iter::once(0)).collect()
 }
 
-/// `PIPE_REJECT_REMOTE_CLIENTS`는 일부 Windows 빌드에서 `ERROR_INVALID_PARAMETER`로
-/// 거부된다. 지원되면 원격 접속을 막고, 아니면 파이프 선점 방지 플래그만 유지한다.
-fn create_pipe(name: &[u16], open_mode: u32, out_buffer: u32, in_buffer: u32) -> Handle {
-    let create = |mode: u32| {
+/// 파이프 인스턴스를 하나 만든다. `first`면 같은 이름의 파이프를 다른 프로세스가 먼저
+/// 만들었을 때 실패해 선점을 막는다(`FILE_FLAG_FIRST_PIPE_INSTANCE`). 그 뒤 인스턴스는
+/// 같은 프로세스가 추가로 만드는 것이라 이 플래그를 쓰지 않는다.
+/// `PIPE_REJECT_REMOTE_CLIENTS`는 파이프 모드 플래그다. 지원하지 않는 Windows가
+/// `ERROR_INVALID_PARAMETER`로 거부하면 원격 차단 없이 다시 만든다.
+fn create_pipe(
+    name: &[u16],
+    open_mode: u32,
+    out_buffer: u32,
+    in_buffer: u32,
+    first: bool,
+) -> Handle {
+    let open_mode = if first {
+        open_mode | FILE_FLAG_FIRST_PIPE_INSTANCE
+    } else {
+        open_mode
+    };
+    let create = |pipe_mode: u32| {
         // SAFETY: NUL로 끝나는 이름과 상수 인자만 넘긴다.
         unsafe {
             CreateNamedPipeW(
                 name.as_ptr(),
-                mode,
-                0,
+                open_mode,
+                pipe_mode,
                 PIPE_UNLIMITED_INSTANCES,
                 out_buffer,
                 in_buffer,
@@ -93,7 +117,7 @@ fn create_pipe(name: &[u16], open_mode: u32, out_buffer: u32, in_buffer: u32) ->
             )
         }
     };
-    let pipe = create(open_mode | PIPE_REJECT_REMOTE_CLIENTS | FILE_FLAG_FIRST_PIPE_INSTANCE);
+    let pipe = create(PIPE_REJECT_REMOTE_CLIENTS);
     if pipe != INVALID_HANDLE
         || unsafe {
             // SAFETY: 직전 CreateNamedPipeW 실패 이유를 읽는 부작용 없는 호출이다.
@@ -102,7 +126,7 @@ fn create_pipe(name: &[u16], open_mode: u32, out_buffer: u32, in_buffer: u32) ->
     {
         return pipe;
     }
-    create(open_mode | FILE_FLAG_FIRST_PIPE_INSTANCE)
+    create(0)
 }
 
 /// 창의 HWND 값. 얻지 못하면 0이다.
@@ -341,7 +365,7 @@ pub fn control_channel(identifier: &str) -> Control {
 fn serve_control(name: &str, requests: Sender<String>, replies: Receiver<String>) {
     const REPLY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
     let name = wide(name);
-    let pipe = create_pipe(&name, PIPE_ACCESS_DUPLEX, 4096, 4096);
+    let pipe = create_pipe(&name, PIPE_ACCESS_DUPLEX, 4096, 4096, true);
     if pipe == INVALID_HANDLE {
         log::warn!("[control] failed to create the control pipe");
         return;
@@ -447,13 +471,7 @@ pub fn single_instance(identifier: &str, path: Option<&str>) -> Instance {
         GetLastError() == ERROR_ALREADY_EXISTS
     };
     if already_running {
-        let forwarded = std::fs::OpenOptions::new()
-            .write(true)
-            .open(&pipe_name)
-            .and_then(|mut pipe| {
-                std::io::Write::write_all(&mut pipe, path.unwrap_or_default().as_bytes())
-            });
-        if forwarded.is_ok() {
+        if forward_to_running(&pipe_name, path.unwrap_or_default().as_bytes()) {
             return Instance::Forwarded;
         }
         // 기존 인스턴스가 받지 못하면(시작 중이거나 종료 중) 독립 창으로 연다.
@@ -467,9 +485,49 @@ pub fn single_instance(identifier: &str, path: Option<&str>) -> Instance {
     Instance::Primary(receiver)
 }
 
+/// 실행 중인 인스턴스의 파이프로 경로를 보낸다. 인스턴스가 모두 바쁘면
+/// (`ERROR_PIPE_BUSY`) `WaitNamedPipeW`로 빈 인스턴스를 기다리고, 파이프가 아직 없으면
+/// (`ERROR_FILE_NOT_FOUND`, 첫 인스턴스가 막 시작함) 잠깐 쉬었다 다시 연다.
+/// `FORWARD_WAIT` 안에 닿지 못하면 `false`다.
+fn forward_to_running(pipe_name: &str, payload: &[u8]) -> bool {
+    let wide_name = wide(pipe_name);
+    let deadline = std::time::Instant::now() + FORWARD_WAIT;
+    loop {
+        match std::fs::OpenOptions::new().write(true).open(pipe_name) {
+            Ok(mut pipe) => return std::io::Write::write_all(&mut pipe, payload).is_ok(),
+            Err(error) => {
+                let now = std::time::Instant::now();
+                if now >= deadline {
+                    log::warn!("[instance] gave up reaching the running instance: {error}");
+                    return false;
+                }
+                let left = deadline - now;
+                match error.raw_os_error() {
+                    Some(ERROR_PIPE_BUSY) => {
+                        let wait_ms = left.as_millis().clamp(1, 500) as u32;
+                        // SAFETY: NUL로 끝나는 파이프 이름과 시간 제한(ms)만 넘긴다.
+                        unsafe { WaitNamedPipeW(wide_name.as_ptr(), wait_ms) };
+                    }
+                    Some(ERROR_FILE_NOT_FOUND) => {
+                        std::thread::sleep(left.min(std::time::Duration::from_millis(50)));
+                    }
+                    _ => {
+                        log::warn!("[instance] could not open the instance pipe: {error}");
+                        return false;
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// 단일 인스턴스 파이프 서버. 연결을 받자마자 다음 인스턴스를 만들어 두므로, 탐색기에서
+/// 여러 파일을 Enter로 열거나 연속으로 더블클릭해 두 번째 실행이 한꺼번에 와도 각자 빈
+/// 인스턴스에 연결한다. 인스턴스 하나를 재사용하면 첫 연결을 읽는 동안 다른 클라이언트가
+/// `ERROR_PIPE_BUSY`로 실패해 새 창을 띄웠다.
 fn serve_pipe(name: &str, sender: Sender<String>) {
     let name = wide(name);
-    let pipe = create_pipe(&name, PIPE_ACCESS_INBOUND, 0, 4096);
+    let mut pipe = create_pipe(&name, PIPE_ACCESS_INBOUND, 0, 4096, true);
     if pipe == INVALID_HANDLE {
         log::warn!("[instance] failed to create the instance pipe");
         return;
@@ -478,37 +536,101 @@ fn serve_pipe(name: &str, sender: Sender<String>) {
         // SAFETY: 위에서 만든 유효한 파이프 핸들이다. 동기 호출이라 overlapped는 null이다.
         let connected = unsafe {
             ConnectNamedPipe(pipe, core::ptr::null_mut()) != 0
-                || GetLastError() == ERROR_PIPE_CONNECTED
+                || matches!(GetLastError(), ERROR_PIPE_CONNECTED | ERROR_NO_DATA)
         };
         if !connected {
-            return;
+            // SAFETY: 실패한 연결을 정리하고 같은 인스턴스로 다시 기다린다.
+            unsafe { DisconnectNamedPipe(pipe) };
+            std::thread::sleep(std::time::Duration::from_millis(50));
+            continue;
         }
-        let mut message = Vec::new();
-        let mut chunk = [0u8; 4096];
-        loop {
-            let mut read = 0u32;
-            // SAFETY: 버퍼 포인터와 길이가 일치하고 `read`는 유효한 출력 위치다.
-            let ok = unsafe {
-                ReadFile(
-                    pipe,
-                    chunk.as_mut_ptr(),
-                    chunk.len() as u32,
-                    &mut read,
-                    core::ptr::null_mut(),
-                ) != 0
-            };
-            if !ok || read == 0 || message.len() > MAX_MESSAGE {
-                break;
-            }
-            message.extend_from_slice(&chunk[..read as usize]);
-        }
-        // SAFETY: 연결을 끊어 다음 클라이언트를 받을 수 있게 한다.
+        // 읽기 전에 다음 인스턴스를 만들어 동시에 온 클라이언트가 바로 연결하게 한다.
+        let next = create_pipe(&name, PIPE_ACCESS_INBOUND, 0, 4096, false);
+        let message = read_instance_message(pipe);
+        // SAFETY: 연결을 끊는다. 다음 인스턴스가 있으면 이 핸들은 닫고, 없으면 재사용한다.
         unsafe { DisconnectNamedPipe(pipe) };
+        if next != INVALID_HANDLE {
+            // SAFETY: 더 쓰지 않는 이 인스턴스의 핸들을 닫는다.
+            unsafe { CloseHandle(pipe) };
+            pipe = next;
+        } else {
+            log::warn!("[instance] failed to create the next pipe instance; reusing this one");
+        }
         if sender
             .send(String::from_utf8_lossy(&message).into_owned())
             .is_err()
         {
             return;
         }
+    }
+}
+
+/// 연결된 인스턴스에서 클라이언트가 닫을 때까지 읽는다(최대 `MAX_MESSAGE`).
+fn read_instance_message(pipe: Handle) -> Vec<u8> {
+    let mut message = Vec::new();
+    let mut chunk = [0u8; 4096];
+    loop {
+        let mut read = 0u32;
+        // SAFETY: 버퍼 포인터와 길이가 일치하고 `read`는 유효한 출력 위치다.
+        let ok = unsafe {
+            ReadFile(
+                pipe,
+                chunk.as_mut_ptr(),
+                chunk.len() as u32,
+                &mut read,
+                core::ptr::null_mut(),
+            ) != 0
+        };
+        if !ok || read == 0 || message.len() > MAX_MESSAGE {
+            break;
+        }
+        message.extend_from_slice(&chunk[..read as usize]);
+    }
+    message
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn concurrent_second_instances_all_reach_the_running_one() {
+        // 탐색기에서 여러 파일을 한꺼번에 열면 두 번째 실행이 동시에 여럿 온다. 인스턴스를
+        // 하나만 두면 첫 연결을 읽는 동안 나머지가 `ERROR_PIPE_BUSY`로 실패해 새 창을 띄웠다.
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|elapsed| elapsed.as_nanos())
+            .unwrap_or_default();
+        let name = format!(r"\\.\pipe\araview-test-{}-{nonce}", std::process::id());
+        let (sender, receiver) = channel();
+        let server_name = name.clone();
+        // 클라이언트가 먼저 출발해도 파이프가 생길 때까지 기다리는지 함께 본다.
+        let clients: Vec<_> = (0..8)
+            .map(|index| {
+                let name = name.clone();
+                std::thread::spawn(move || {
+                    forward_to_running(&name, format!("file-{index}.png").as_bytes())
+                })
+            })
+            .collect();
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        std::thread::spawn(move || serve_pipe(&server_name, sender));
+        for client in clients {
+            assert!(
+                client.join().unwrap(),
+                "a second instance could not reach the first"
+            );
+        }
+        let mut received: Vec<String> = (0..8)
+            .map(|_| {
+                receiver
+                    .recv_timeout(std::time::Duration::from_secs(5))
+                    .unwrap()
+            })
+            .collect();
+        received.sort();
+        let mut expected: Vec<String> = (0..8).map(|index| format!("file-{index}.png")).collect();
+        expected.sort();
+        assert_eq!(received, expected);
     }
 }

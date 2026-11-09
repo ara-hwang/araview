@@ -20,32 +20,26 @@
 
 모든 OS에서 HEIC/HEIF/AVIF를 쓰려면 `libheif` 1.21 이상이 필요합니다. `vcpkg.json`은 `libheif`의 `default-features`를 끄고(`hevc` 인코더 `x265` 제외) `aom`만 켭니다. HEVC 디코더 `libde265`는 하드 의존성이라 항상 들어갑니다. 버전은 baseline의 1.21.2와 1.23.1이 모두 Windows에서 DLL 로드 시 초기화 실패(`0xC0000142`)를 일으켜 `cargo test`가 실행조차 되지 않으므로, `overrides`로 1.23.2를 고정합니다(`libheif-rs 3.0`의 sys 바인딩도 1.23 기준). `aom` feature는 AVIF(AV1) 디코드용이며, 없으면 AVIF 표시와 썸네일, 히스토그램이 실패합니다. 움직이는 AVIF를 디코드하려면 1.21 이상이 필요합니다(`libheif-rs`의 `v1_21` feature). 앱은 HEIC/AVIF를 인코드하지 않습니다.
 
-동영상(mp4/mov/webm/mkv/avi)은 FFmpeg 8.x가 필요합니다. `rsmpeg`의 `ffmpeg8` feature와 메이저가 맞아야 컴파일되므로, 저장소 루트의 `vcpkg.json` 매니페스트가 `builtin-baseline`으로 FFmpeg 8.0.1(vcpkg 2026-03-23)을 고정합니다. `rsmpeg 0.18`이 FFmpeg 8.0 헤더 기준이라 8.1(구조체 필드 개명)에서는 컴파일되지 않으므로, 8.0.x를 유지합니다. classic 명령(`vcpkg install ffmpeg...`)은 pin을 무시하고 최신(9.x, 미지원)을 가져오므로 쓰지 않습니다. FFmpeg feature는 LGPL 호환 기본값 + AV1 디코드용 `dav1d`만 켭니다(GPL 계열 `gpl`/`x264`/`x265` 미포함). 시스템 FFmpeg(배포판 패키지)는 메이저가 다르면 빌드가 깨지므로 개발·CI 모두 vcpkg 제공 FFmpeg를 씁니다.
-
 ### Windows
 
-[vcpkg](https://vcpkg.io/) 매니페스트로 네이티브 의존성(`libheif`, FFmpeg)을 설치합니다. 저장소 루트에서 실행해야 `vcpkg.json`이 적용됩니다.
+[vcpkg](https://vcpkg.io/) 매니페스트로 네이티브 의존성(`libheif`)을 설치합니다. 저장소 루트에서 실행해야 `vcpkg.json`이 적용됩니다.
 
 ```powershell
 cd <araview>
 vcpkg install --triplet x64-windows --x-install-root="<vcpkg root>/installed"
 $env:VCPKG_ROOT = "<vcpkg root>"
-$env:FFMPEG_LIBS_DIR = "<vcpkg root>\installed\x64-windows\lib"
 $env:Path += ";$env:VCPKG_ROOT\installed\x64-windows\bin"
 ```
 
 `--x-install-root`는 pin은 그대로 두고 설치 위치만 vcpkg 루트로 옮긴다.
 `app/build.rs`와 pkg-config 설정이 그 위치를 보기 때문이다(그냥 `vcpkg install`만
-하면 저장소 아래 `vcpkg_installed/`에 깔려 빌드가 찾지 못한다). Windows에서
-`FFMPEG_LIBS_DIR`는 rsmpeg의 prebuilt 바인딩(`FFMPEG_BINDING_PATH`,
-`.cargo/config.toml` 고정)과 짝을 이룬다. 바인딩을 로컬 생성하지 않으므로
-Windows에서는 libclang이 필요 없다.
+하면 저장소 아래 `vcpkg_installed/`에 깔려 빌드가 찾지 못한다).
 
-앱은 `libheif`와 FFmpeg를 동적 링크합니다. `app/build.rs`가 `VCPKG_ROOT`(또는 `VCPKG_INSTALLATION_ROOT`) 아래 `installed/x64-windows/bin`에서 `heif.dll`, `libde265.dll`, `aom.dll`, `avcodec-62.dll`, `avformat-62.dll`, `avutil-60.dll`, `avfilter-11.dll`, `avdevice-62.dll`, `swscale-9.dll`, `swresample-6.dll`, `dav1d.dll`을 실행 파일 옆(`target/<profile>/`)으로 복사하고, vcpkg의 `libheif`, `libde265`, `aom`, `ffmpeg`, `dav1d` `copyright`를 같은 위치의 `licenses/`로 모읍니다. 설치 프로그램은 이 파일들을 그대로 동봉합니다. CI에서는 `VCPKGRS_DYNAMIC=1`과 `PKG_CONFIG_PATH`를 함께 둡니다(워크플로 참조). FFmpeg 메이저가 바뀌면 DLL 이름(SONAME)도 바뀌므로 `app/build.rs`와 `scripts/Build-Installer.ps1`을 함께 고칩니다.
+앱은 `libheif`를 동적 링크합니다. `app/build.rs`가 `VCPKG_ROOT`(또는 `VCPKG_INSTALLATION_ROOT`) 아래 `installed/x64-windows/bin`에서 `heif.dll`, `libde265.dll`, `aom.dll`을 실행 파일 옆(`target/<profile>/`)으로 복사하고, vcpkg의 `libheif`, `libde265`, `aom` `copyright`를 같은 위치의 `licenses/`로 모읍니다. 설치 프로그램은 이 파일들을 그대로 동봉합니다. CI에서는 `VCPKGRS_DYNAMIC=1`과 `PKG_CONFIG_PATH`를 함께 둡니다(워크플로 참조). `aom.dll`은 AVIF 이미지 디코드에 필요합니다.
 
 ### macOS
 
-Xcode 명령줄 도구와 `pkg-config`가 필요합니다. 네이티브 의존성은 Windows와 같은 vcpkg 매니페스트로 설치합니다(Homebrew의 `libheif`/FFmpeg는 메이저가 맞지 않으면 빌드가 깨집니다).
+Xcode 명령줄 도구와 `pkg-config`가 필요합니다. 네이티브 의존성은 Windows와 같은 vcpkg 매니페스트로 설치합니다.
 
 ```bash
 brew install pkgconf
@@ -58,14 +52,14 @@ export PKG_CONFIG_ALL_STATIC=1
 cargo run -p araview -- ~/Pictures/image.png
 ```
 
-배포 묶음은 vcpkg 정적 빌드(`arm64-osx`, Intel은 `x64-osx`)로 `libheif`와 FFmpeg를 실행 파일에 넣어 dylib를 동봉하지 않습니다. CI의 `.github/actions/setup-rust-native`가 이 환경(`VCPKG_ROOT`, `PKG_CONFIG_PATH`, `PKG_CONFIG_ALL_STATIC=1`)을 만듭니다. Windows는 여기에 `FFMPEG_LIBS_DIR`가 더해집니다.
+배포 묶음은 vcpkg 정적 빌드(`arm64-osx`, Intel은 `x64-osx`)로 `libheif`를 실행 파일에 넣어 dylib를 동봉하지 않습니다. CI의 `.github/actions/setup-rust-native`가 이 환경(`VCPKG_ROOT`, `PKG_CONFIG_PATH`, `PKG_CONFIG_ALL_STATIC=1`)을 만듭니다.
 
 ### Linux
 
-GPUI의 X11/Wayland 연동에 필요한 개발 패키지를 설치합니다(Debian/Ubuntu 기준). 배포판의 `libheif`/FFmpeg 패키지는 쓰지 않습니다(메이저가 맞지 않으면 `rsmpeg` 빌드가 깨집니다). 네이티브 의존성은 macOS와 같은 vcpkg 매니페스트 정적 빌드(`x64-linux`)를 씁니다.
+GPUI의 X11/Wayland 연동에 필요한 개발 패키지를 설치합니다(Debian/Ubuntu 기준). 네이티브 의존성은 macOS와 같은 vcpkg 매니페스트 정적 빌드(`x64-linux`)를 씁니다.
 
 ```bash
-sudo apt-get install pkg-config cmake nasm clang libclang-dev libasound2-dev \
+sudo apt-get install pkg-config cmake nasm clang libclang-dev \
   libxkbcommon-dev libxkbcommon-x11-dev libxcb1-dev libxcb-xkb-dev libx11-xcb-dev \
   libwayland-dev libfontconfig-dev libfreetype-dev
 cd <araview>
@@ -75,7 +69,7 @@ export PKG_CONFIG_PATH="<vcpkg root>/installed/x64-linux/lib/pkgconfig"
 export PKG_CONFIG_ALL_STATIC=1
 ```
 
-실행에는 X11 또는 Wayland 세션, Vulkan 드라이버, `libxkbcommon`, `libasound2`(동영상 오디오 출력용)가 필요합니다. 파일 열기 대화상자는 `xdg-desktop-portal`을 씁니다. 디스플레이가 없는 환경에서는 `Xvfb`와 소프트웨어 Vulkan(`mesa-vulkan-drivers`)으로 실제 창을 띄워 확인할 수 있습니다.
+실행에는 X11 또는 Wayland 세션, Vulkan 드라이버, `libxkbcommon`이 필요합니다. 파일 열기 대화상자는 `xdg-desktop-portal`을 씁니다. 디스플레이가 없는 환경에서는 `Xvfb`와 소프트웨어 Vulkan(`mesa-vulkan-drivers`)으로 실제 창을 띄워 확인할 수 있습니다.
 
 ## 시작하기
 
@@ -145,7 +139,7 @@ npm run licenses
 - 업데이트: 동작 계약은 `SPEC.md` §20.1을 따른다(피드 `update-feed.json`, 공개키 `app/update-pubkey.txt`, `PLATFORM` 분기). 피드가 없으면(404) 확인 결과는 "최신"이다.
 - 업데이트 로컬 검증: `cargo run -p araview --example local_update_feed -- <setup.exe> <출력 폴더> http://127.0.0.1:8765`가 임시 키로 서명한 피드를 만듭니다. 그 폴더를 `python -m http.server 8765 --bind 127.0.0.1`로 띄우고, 디버그 빌드를 `ARAVIEW_UPDATE_FEED`(피드 주소)와 `ARAVIEW_UPDATE_PUBKEY`(`pubkey.txt` 내용)를 준 채 실행한 뒤 `action:checkUpdates`나 `action:installUpdate`를 보냅니다. 릴리스 빌드는 두 환경 변수를 읽지 않습니다.
 - 서드파티 라이선스: `npm run licenses`가 Rust 의존성을 `app/THIRD_PARTY_LICENSES.json`에 모으고, 앱이 이 파일을 컴파일 시점에 포함합니다. 같은 스크립트가 `THIRD_PARTY_LICENSES.md`의 2절 표도 다시 씁니다. 1절(네이티브 라이브러리)은 직접 고칩니다. 의존성을 바꾸면 다시 생성합니다. 허용하지 않은 라이선스와 RustSec 자문은 `cargo deny check`(설정 `deny.toml`, `cargo install cargo-deny --locked`)로 검사하며 CI와 릴리스 워크플로도 같은 검사를 합니다. 패키지에 LICENSE 파일이 없어 표준 템플릿("Copyright (c) <year> <owner>")이 나오는 크레이트는 스크립트가 경고로 알려 주며, 업스트림 LICENSE를 `licenses-extra/`에 복사하고 스크립트의 `EXTRA_LICENSES`에 추가합니다. 새 라이선스가 나오면 `about.toml`의 `accepted`와 `deny.toml`의 `allow`를 같이 고칩니다.
-- 스크롤: GPUI에는 휠 스크롤 감속이 없어 `src/smooth.rs`의 `SmoothScroll`이 홈, 설정, 정보 패널, 라이선스 창(원문과 목록), 썸네일 그리드의 휠 입력을 목표 오프셋으로 쌓아 프레임마다 따라가게 합니다. 가상 목록(그리드, 라이선스 목록, 도크)은 목록이 추적하는 핸들을 공유하고 기본 스크롤을 끈 뒤(`overflow_hidden`) 바깥에서 휠을 처리합니다. 웹툰 보기는 `src/app/viewport.rs`가 같은 방식으로 휠과 위·아래 키 스크롤을 나눠 반영합니다.
+- 스크롤: GPUI에는 휠 스크롤 감속이 없어 `src/smooth.rs`의 `SmoothScroll`이 홈, 설정, 정보 패널, 라이선스 창(원문과 목록), 썸네일 그리드의 휠 입력을 목표 오프셋으로 쌓아 프레임마다 따라가게 합니다. 가상 목록(그리드, 라이선스 목록, 도크)은 목록이 추적하는 핸들을 공유하고 기본 스크롤을 끈 뒤(`overflow_hidden`) 바깥에서 휠을 처리합니다. 웹툰 보기는 스크롤 핸들이 없어 `src/smooth.rs`의 `Glide`(남은 거리만 쌓는 상태)로 같은 감속을 쓰고, `src/app/viewport.rs`가 휠과 위·아래 키 스크롤을 프레임마다 나눠 반영합니다.
 - 알림: GPUI 알림 레이어는 다이얼로그보다 아래에 그려지므로, 다이얼로그가 열려 있으면 `src/toast.rs`가 같은 내용을 경고창으로 띄웁니다.
 - 로딩 표시: 파일을 여는 중(200ms 이상)에는 홈 위에, 그림이 아직 없을 때는 가운데에, 그림이 떠 있는 채 새 페이지나 웹툰 페이지가 늦어지면(페이지 이동은 300ms 이상) 오른쪽 위에 스피너를 보입니다.
 - UI 통합 테스트: 헤드리스 UI 테스트는 없습니다. `cargo test`는 단위 테스트만 돌립니다. 키, 휠, 드래그, 드롭, 우클릭, 다이얼로그는 개발 빌드를 띄워 제어 브리지로 확인합니다(`docs/playbooks.md`의 "Runtime check").
@@ -165,7 +159,7 @@ app/  # 표현 계층. 상세는 코드 읽기
   src/  # layout, picture, geometry, settings, smooth, toast, keys, dialog, i18n, assets, platform/, build.rs
   locales/ update-pubkey.txt THIRD_PARTY_LICENSES.json(생성물) installer/ packaging/ resources/
 scripts/  # check-docs/release/licenses(.mjs), package-*.sh, Build-Installer.ps1, araview-drive/mcp(.ps1)
-vendor/  # [patch.crates-io] 포크(HDR 실험용 gpui-pre-windows)
+vendor/  # [patch.crates-io] 포크(HDR 실험용 gpui-pre-windows, 명령 팔레트 스크롤용 gpui-component)
 licenses-extra/  # 업스트림 LICENSE 사본
 ```
 
@@ -176,6 +170,8 @@ licenses-extra/  # 업스트림 LICENSE 사본
 - `temporary` 모드는 사용자 앱 캐시 디렉터리의 `session-v1/` 아래 프로세스별 `TempDir`를 사용합니다. 정상 종료 이벤트와 다음 시작 시 이전 세션 루트를 정리합니다. 모드 설정 변경은 다음 실행부터 적용되며, 영구 캐시를 끄면 다음 시작 때 이전 버전 루트를 정리합니다.
 - `cache.rs`의 `get_cache_stats`와 `clear_cache`는 캐시 트리만 대상으로 합니다. 사용자 원본 파일 경로를 입력받아 삭제하지 않습니다.
 - `process_temp::mark_in_use`로 보호된 파일과 `*.tmp-<pid>-...` 작성 중 파일은 삭제하지 않습니다. 영구 캐시 hit은 mtime을 갱신해 LRU 순서를 유지합니다.
+- 파생 캐시 작성은 `sidecar::write_cache_atomic(dest, context, write)`으로 수행합니다. 호출자는 같은 확장자의 임시 경로에 쓰고 파일 핸들을 닫은 뒤 결과를 반환합니다. 모듈이 작성 중 보호, 발행, 오류·panic unwinding 정리를 맡습니다. 부모 폴더 생성·잠금·축출 정책은 호출자에 남고, 사용자 원본 저장에는 사용하지 않습니다.
+- 상한: 하위 캐시별(썸네일·`paint/`·`scaled/`·`clipboard/` 500MB, 아카이브별 추출 디렉터리 1GiB)은 쓸 때 누적 바이트로, 루트 전체 2GiB(`MAX_TOTAL_CACHE_BYTES`)는 시작 시와 새 아카이브 첫 열기 때 `request_total_cap_scan`으로 강제합니다. 모두 넘으면 오래된 것부터 지우며, 추출을 중단하지 않습니다(`SPEC.md` §8, §9.2).
 
 ## 픽셀 보존 표시와 축소
 

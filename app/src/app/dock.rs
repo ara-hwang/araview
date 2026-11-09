@@ -42,18 +42,35 @@ fn file_label(item: &str) -> String {
 
 impl AraView {
     /// 썸네일을 요청한다. 이미 받았거나 요청 중인 항목은 건너뛰고, 8개 청크로
-    /// 나눠 보내 끝난 청크부터 그린다.
+    /// 나눠 보내 끝난 청크부터 그린다. 클라우드 전용(온디맨드) 항목은 자동
+    /// 내려받기가 꺼져 있으면 대신 구름 아이콘만 남긴다(SPEC §9.6).
     pub(super) fn request_thumbs_for(
         &mut self,
         indices: impl IntoIterator<Item = usize>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        let allow_cloud = SettingsStore::global(cx).settings.cloud_auto_download;
+        self.send_thumb_requests(indices, allow_cloud, window, cx);
+    }
+
+    /// 썸네일 요청 본문(`allow_cloud`는 클라우드 전용 파일도 읽을지 여부).
+    fn send_thumb_requests(
+        &mut self,
+        indices: impl IntoIterator<Item = usize>,
+        allow_cloud: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let wanted: Vec<Arc<str>> = indices
             .into_iter()
-            .filter_map(|index| self.list.get(index))
-            .filter(|item| !self.thumbs.contains_key(*item) && !self.thumbs_pending.contains(*item))
-            .cloned()
+            .filter_map(|index| self.list.get(index).map(|item| (index, item)))
+            .filter(|(index, item)| {
+                (allow_cloud || self.availability.get(*index) != Some(&FileAvailability::CloudOnly))
+                    && !self.thumbs.contains_key(*item)
+                    && !self.thumbs_pending.contains(*item)
+            })
+            .map(|(_, item)| item.clone())
             .collect();
         for chunk in wanted.chunks(THUMB_CHUNK) {
             let chunk = chunk.to_vec();
@@ -124,7 +141,8 @@ impl AraView {
         self.request_thumbs_for(range, window, cx);
     }
 
-    /// 실패한 썸네일을 다시 요청한다.
+    /// 실패한 썸네일을 다시 요청한다. 실패 배지를 누른 직접 요청이라 클라우드
+    /// 전용 파일도 다시 만든다(§9.6).
     pub(super) fn retry_thumb(
         &mut self,
         index: usize,
@@ -133,7 +151,7 @@ impl AraView {
     ) {
         if let Some(item) = self.list.get(index).cloned() {
             self.thumbs.remove(&item);
-            self.request_thumbs_for([index], window, cx);
+            self.send_thumb_requests([index], true, window, cx);
         }
     }
 

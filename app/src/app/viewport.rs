@@ -2,7 +2,6 @@
 //! (SPEC §6, §7, §18).
 
 use std::collections::HashSet;
-use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -20,11 +19,10 @@ use crate::geometry::{
     self, MAX_ZOOM, MAX_ZOOM_VECTOR, Offset, Size2, ZOOM_STEP, clamp_position, position_bounds,
     zoom_about, zoom_for_fit,
 };
-use crate::toast::{Toast, WindowToast};
 use araview_core::ocr::OcrRect;
-use araview_core::video_player::SPEEDS;
 
 use crate::i18n::{t, t_with};
+use crate::layout;
 use crate::picture::Picture;
 use crate::platform;
 use crate::settings::{
@@ -37,21 +35,173 @@ const WT_UNKNOWN_WIDTH: f32 = 720.0;
 const WT_MIN_WIDTH: f32 = 64.0;
 /// 웹툰 `↑/↓` 1회 스크롤량(px).
 pub(super) const WT_KEY_SCROLL: f32 = 120.0;
-/// 웹툰 스크롤이 목표 위치로 수렴하는 감속 시간 상수(초).
-const WT_SMOOTH_TIME: f32 = 0.08;
 
-/// 동영상 전송 컨트롤 상태. 타임라인·음량 슬라이더와 구독을 함께 들고 다닌다.
-pub(super) struct VideoControls {
-    timeline: Entity<SliderState>,
-    volume: Entity<SliderState>,
-    _timeline_sub: Subscription,
-    _volume_sub: Subscription,
+/// 단일 보기의 맞춤 상태. 시작값은 `Pending`이다.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum Fit {
+    /// 맞춤을 따르지만 읽기 영역 크기를 아직 재지 못해 맞춤 배율이 확정되지 않았다.
+    /// 캔버스가 크기를 재면 `apply_fit`으로 바로 확정한다. 재기 전에 그리면 100% 기본
+    /// 배율로 잠깐 실제 크기가 표시되는 문제가 있었으므로, 이 동안에는 그림을 비둔다.
+    Pending,
+    /// 맞춤 고정. 창 크기가 바뀌면 다시 맞춘다.
+    Locked,
+    /// 수동 줌. 창 크기가 바뀌어도 배율을 유지한다.
+    Manual,
 }
 
-/// `mm:ss` 표시.
-fn format_time(ms: u64) -> String {
-    let total = ms / 1000;
-    format!("{}:{:02}", total / 60, total % 60)
+impl Fit {
+    /// 맞춤(헤더의 맞춤 버튼 선택 표시, 창 크기 변경 시 다시 맞춤)을 따르는지.
+    pub fn follows_window(self) -> bool {
+        self != Self::Manual
+    }
+
+    /// 맞춤 고정으로 돌아간다(새 그림, 회전, 맞춤 모드 선택). 크기를 아직 재지
+    /// 못했으면 그대로 기다린다.
+    pub fn lock(self) -> Self {
+        match self {
+            Self::Pending => Self::Pending,
+            Self::Locked | Self::Manual => Self::Locked,
+        }
+    }
+
+    /// 맞춤 배율을 정했다. 수동 줌은 그대로 둔다.
+    fn measured(self) -> Self {
+        match self {
+            Self::Pending | Self::Locked => Self::Locked,
+            Self::Manual => Self::Manual,
+        }
+    }
+
+    /// 읽기 영역을 재기 전이라 맞춤 배율을 정하지 못했다. 수동 줌은 그대로 둔다.
+    fn unmeasured(self) -> Self {
+        match self {
+            Self::Pending | Self::Locked => Self::Pending,
+            Self::Manual => Self::Manual,
+        }
+    }
+}
+
+/// 애니메이션(GIF/APNG 등) 재생 상태. 프레임 시작 시각은 재생 중에만 있으므로
+/// 정지 상태에서 낡은 시작 시각이 남는 조합이 없다.
+#[derive(Debug, Clone, Default)]
+pub(super) struct AnimPlayback {
+    /// 보이는 프레임 번호.
+    frame: usize,
+    /// 재생 중이면 현재 프레임을 보이기 시작한 시각, 정지면 `None`.
+    frame_started: Option<Instant>,
+    /// 끝까지 재생한 횟수. 유한 반복 애니메이션을 마지막 회차에서 멈추는 데 쓴다.
+    /// 끝까지 재생해 멈춘 뒤에도 남는다(진단 상태에 보인다).
+    loops_done: u32,
+}
+
+impl AnimPlayback {
+    pub(super) fn is_playing(&self) -> bool {
+        self.frame_started.is_some()
+    }
+
+    pub(super) fn frame(&self) -> usize {
+        self.frame
+    }
+
+    pub(super) fn loops_done(&self) -> u32 {
+        self.loops_done
+    }
+
+    /// 새 그림을 기준으로 처음부터 시작한다. `play`면 재생, 아니면 첫 프레임에서 정지.
+    pub(super) fn restart(&mut self, play: bool, now: Instant) {
+        self.frame = 0;
+        self.loops_done = 0;
+        self.frame_started = play.then_some(now);
+    }
+
+    /// 정지하고 첫 프레임으로 돌린다. 반복 횟수는 그대로 둔다.
+    pub(super) fn stop_at_first_frame(&mut self) {
+        self.frame = 0;
+        self.frame_started = None;
+    }
+
+    /// 재생/정지를 바꾼다. 반복 횟수를 새로 센다. 재생으로 바뀌면 현재 프레임부터
+    /// 지연 시간을 다시 센다.
+    pub(super) fn toggle(&mut self, now: Instant) {
+        self.loops_done = 0;
+        self.frame_started = if self.is_playing() { None } else { Some(now) };
+    }
+
+    /// 정지하고 `delta`만큼 프레임을 옮긴다(앞뒤 끝에서 감김).
+    pub(super) fn step(&mut self, delta: isize, count: usize) {
+        if count == 0 {
+            return;
+        }
+        self.frame_started = None;
+        self.frame = (self.frame as isize + delta).rem_euclid(count as isize) as usize;
+    }
+
+    /// 지정한 프레임으로 옮긴다. 재생 중이면 그 프레임부터 지연 시간을 다시 센다.
+    pub(super) fn jump_to(&mut self, frame: usize, now: Instant) {
+        self.frame = frame;
+        if self.is_playing() {
+            self.frame_started = Some(now);
+        }
+    }
+
+    /// 같은 애니메이션을 다시 불러온 뒤(회전 등) 첫 프레임으로 돌린다. 재생 상태는 유지한다.
+    pub(super) fn rewind(&mut self, now: Instant) {
+        self.jump_to(0, now);
+    }
+
+    /// 경과 시간에 맞춰 프레임을 넘긴다. 계속 재생하면 `true`(다음 프레임을 예약),
+    /// 정지 중이거나 유한 반복의 마지막 회차 마지막 프레임에서 멈췄으면 `false`다.
+    pub(super) fn advance(
+        &mut self,
+        delays_ms: &[u32],
+        loop_count: Option<u32>,
+        now: Instant,
+    ) -> bool {
+        let Some(mut started) = self.frame_started else {
+            return false;
+        };
+        let count = delays_ms.len();
+        if count == 0 {
+            return false;
+        }
+        let mut elapsed = now.saturating_duration_since(started).as_millis() as u64;
+        let mut playing = true;
+        loop {
+            let delay = u64::from(delays_ms[self.frame % count]);
+            if elapsed < delay {
+                break;
+            }
+            if self.frame + 1 == count {
+                self.loops_done += 1;
+                // 유한 반복은 마지막 회차의 마지막 프레임에서 멈춘다.
+                if loop_count.is_some_and(|loops| self.loops_done >= loops) {
+                    playing = false;
+                    break;
+                }
+            }
+            elapsed -= delay;
+            self.frame = (self.frame + 1) % count;
+            started += Duration::from_millis(delay);
+        }
+        self.frame_started = playing.then_some(started);
+        playing
+    }
+}
+
+/// 애니메이션 프레임 진행 슬라이더. 프레임 수가 바뀌면 다시 만든다.
+pub(super) struct AnimTimeline {
+    frames: usize,
+    slider: Entity<SliderState>,
+    _sub: Subscription,
+}
+
+/// 재생 중 조작이 없으면 하단 컨트롤을 숨기기까지의 시간.
+const OVERLAY_HIDE_AFTER: Duration = Duration::from_secs(3);
+
+/// 하단 재생 컨트롤을 보일지. 정지 중에는 항상 보이고, 재생 중에는 마지막
+/// 조작 뒤 `OVERLAY_HIDE_AFTER`가 지나면 숨겨 화면을 가리지 않는다.
+fn overlay_visible(playing: bool, idle: Duration) -> bool {
+    !playing || idle < OVERLAY_HIDE_AFTER
 }
 
 /// 프레임 카운터가 표시하는 자릿수(4자리). 이보다 큰 값은 앞자리를 줄임표로
@@ -59,13 +209,6 @@ fn format_time(ms: u64) -> String {
 const FRAME_COUNTER_MODULUS: u64 = 10_000;
 /// 앞자리 생략 표시(공백 또는 `…`)를 포함한 슬롯 폭(px).
 const FRAME_COUNTER_WIDTH: f32 = 100.0;
-
-/// 이 폭 미만에서는 동영상 컨트롤에서 부가 조작(속도·음량·음소거)을 접는다.
-const VIDEO_BAR_COMPACT_BELOW: f32 = 720.0;
-
-/// 동영상 읽기 값의 고정 폭(px). 값이 바뀌어도 컨트롤 폭이 흔들리지 않게 한다.
-const VIDEO_TIME_WIDTH: f32 = 100.0;
-const VIDEO_SPEED_WIDTH: f32 = 40.0;
 
 /// 프레임 카운터. 4자리까지는 그대로 보여주고, 그보다 큰 값은 앞자리를
 /// 줄임표로 대체해 항상 같은 폭(11자)을 차지하게 한다.
@@ -80,14 +223,6 @@ fn format_frame_counter(current: u64, total: u64) -> String {
     } else {
         format!(" {current:04}/ {total:04}")
     }
-}
-
-/// 동영상 재생 위치의 1부터 세는 프레임 번호와 전체 프레임 수. 애니메이션
-/// 카운터와 같은 기준이다: 첫 프레임은 1이고, 프레임 구간 안에서는 번호가 바뀌지 않는다.
-fn video_frame_position(pos_ms: u64, duration_ms: u64, fps: f64) -> (u64, u64) {
-    let total = ((duration_ms as f64 * fps / 1000.0).round() as u64).max(1);
-    let current = (pos_ms as f64 * fps / 1000.0).floor() as u64 + 1;
-    (current.min(total), total)
 }
 
 /// 읽기 값의 숫자 폭을 고정한다(DESIGN "Readout").
@@ -137,6 +272,61 @@ struct PixelKey {
     scale: u32,
 }
 
+/// 레벨의 타일을 실제 좌표로 찾는 격자. 정지 이미지는 `TILE_SIDE` 격자로 나뉘지만
+/// 애니메이션은 타일 하나(한 변 최대 16384px)라, 한 변 크기를 가정하지 않고 각 타일의
+/// 시작 좌표로 열과 행을 나눈다.
+struct TileGrid {
+    /// 열 시작 x(오름차순).
+    xs: Vec<u32>,
+    /// 행 시작 y(오름차순).
+    ys: Vec<u32>,
+    /// 행 우선 칸마다 그 칸을 덮는 타일 번호.
+    cells: Vec<Option<usize>>,
+}
+
+impl TileGrid {
+    fn new(origins: &[(u32, u32)]) -> Self {
+        let mut xs: Vec<u32> = origins.iter().map(|(x, _)| *x).collect();
+        let mut ys: Vec<u32> = origins.iter().map(|(_, y)| *y).collect();
+        xs.sort_unstable();
+        xs.dedup();
+        ys.sort_unstable();
+        ys.dedup();
+        let mut cells = vec![None; xs.len() * ys.len()];
+        for (tile, (x, y)) in origins.iter().enumerate() {
+            let column = xs.partition_point(|start| start < x);
+            let row = ys.partition_point(|start| start < y);
+            cells[row * xs.len() + column] = Some(tile);
+        }
+        Self { xs, ys, cells }
+    }
+
+    /// `x`가 속한 열과 그 열 안의 x.
+    fn column(&self, x: u32) -> (usize, u32) {
+        let column = self
+            .xs
+            .partition_point(|start| *start <= x)
+            .saturating_sub(1);
+        (column, x - self.xs[column])
+    }
+
+    /// `y`가 속한 행과 그 행 안의 y.
+    fn row(&self, y: u32) -> (usize, u32) {
+        let row = self
+            .ys
+            .partition_point(|start| *start <= y)
+            .saturating_sub(1);
+        (row, y - self.ys[row])
+    }
+
+    fn tile(&self, column: usize, row: usize) -> Option<usize> {
+        self.cells
+            .get(row * self.xs.len() + column)
+            .copied()
+            .flatten()
+    }
+}
+
 /// 글자 강조의 (줄 사각형, 글자 사각형) 목록.
 type OcrBoxes = (Vec<Bounds<Pixels>>, Vec<Bounds<Pixels>>);
 
@@ -171,13 +361,23 @@ impl AraView {
         if self.view_mode(cx) != ViewMode::Single {
             // 양쪽 보기의 배율은 화면 맞춤 대비 상대값이다.
             self.zoom = 1.0;
+            self.fit = self.fit.measured();
             return;
         }
         let Some(image) = self.image_size() else {
             return;
         };
+        let container = self.container();
+        if container.is_empty() {
+            // 캔버스가 읽기 영역을 아직 재기 전은 맞춤 배율을 정할 수 없다.
+            // 기본 배율(100%)로 그리면 실제 크기가 한순간 보이므로, 크기를
+            // 재면 바로 적용하도록 기다린다.
+            self.fit = self.fit.unmeasured();
+            return;
+        }
         let mode = SettingsStore::global(cx).settings.fit_mode;
-        self.zoom = zoom_for_fit(mode, self.container(), image);
+        self.zoom = zoom_for_fit(mode, container, image);
+        self.fit = self.fit.measured();
     }
 
     pub(super) fn zoom_by(&mut self, factor: f32, anchor: Option<Offset>, cx: &mut Context<Self>) {
@@ -212,6 +412,9 @@ impl AraView {
                     return;
                 };
                 let container = self.container();
+                if container.is_empty() {
+                    return;
+                }
                 let max = if self
                     .picture
                     .as_ref()
@@ -235,7 +438,7 @@ impl AraView {
                     anchor.unwrap_or_default(),
                 );
                 self.zoom = next;
-                self.fit_locked = false;
+                self.fit = Fit::Manual;
                 cx.notify();
             }
         }
@@ -297,7 +500,7 @@ impl AraView {
     pub(super) fn viewport_resized(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         match self.view_mode(cx) {
             ViewMode::Webtoon => self.webtoon_sync(window, cx),
-            ViewMode::Single if self.fit_locked => self.apply_fit(cx),
+            ViewMode::Single if self.fit.follows_window() => self.apply_fit(cx),
             _ => {
                 if let Some(extent) = self.pan_extent(cx) {
                     self.position = clamp_position(
@@ -312,9 +515,14 @@ impl AraView {
     }
 
     /// 한 장 보기에서 그림이 놓인 사각형(읽기 영역 왼쪽 위 기준).
+    /// 읽기 영역을 아직 재기 전에는 `None`으로 그리지 않는다. 빈 컨테이너
+    /// 기준 사각형은 기본 배율(100%)의 실제 크기로 그려지기 때문이다.
     fn single_dest(&self) -> Option<Bounds<Pixels>> {
         let picture = self.picture.as_ref()?;
         let container = self.container();
+        if container.is_empty() {
+            return None;
+        }
         let (dw, dh) = (
             picture.width as f32 * self.zoom,
             picture.height as f32 * self.zoom,
@@ -400,7 +608,7 @@ impl AraView {
         let line_fill = cx.theme().warning.opacity(0.4);
         // 테마 색은 어두운 테마에서 거의 흰색이라 글자를 가린다. 웹의 선택색처럼 푸른색으로 고정한다.
         let picked_fill = hsla(212.0 / 360.0, 0.9, 0.55, 0.45);
-        let picked = self.ocr_select.map(|(a, b)| (a.min(b), a.max(b)));
+        let picked = self.ocr.selection().map(|(a, b)| (a.min(b), a.max(b)));
         let place = |b: Bounds<Pixels>| {
             div()
                 .absolute()
@@ -544,6 +752,7 @@ impl AraView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.bump_overlay();
         self.focus.focus(window, cx);
         // 글자 위를 누르면 선택을 시작하고, 이미지 이동이나 더블클릭 동작은 하지 않는다.
         if event.button == MouseButton::Left
@@ -605,14 +814,15 @@ impl AraView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self.ocr_drag.is_some() {
+        self.bump_overlay();
+        if self.ocr.dragging() {
             if event.pressed_button == Some(MouseButton::Left) {
                 if let Some(glyph) = self.ocr_glyph_at(event.position, cx) {
                     self.ocr_extend(glyph, event.position, cx);
                 }
                 return;
             }
-            self.ocr_drag = None;
+            self.ocr.end_drag();
         }
         let webtoon = self.view_mode(cx) == ViewMode::Webtoon;
         if event.pressed_button != Some(MouseButton::Left) {
@@ -658,455 +868,35 @@ impl AraView {
         let Some(picture) = &self.picture else {
             return;
         };
-        if !self.playing || !picture.is_animated() {
+        if !self.anim.is_playing() || !picture.is_animated() {
             return;
         }
-        let mut elapsed = self.frame_started.elapsed().as_millis() as u64;
-        let count = picture.frame_count();
-        loop {
-            let delay = u64::from(picture.delays_ms[self.frame % count]);
-            if elapsed < delay {
-                break;
-            }
-            if self.frame + 1 == count {
-                self.loops_done += 1;
-                // 유한 반복은 마지막 회차의 마지막 프레임에서 멈춘다.
-                if picture
-                    .loop_count
-                    .is_some_and(|loops| self.loops_done >= loops)
-                {
-                    self.playing = false;
-                    return;
-                }
-            }
-            elapsed -= delay;
-            self.frame = (self.frame + 1) % count;
-            self.frame_started += Duration::from_millis(delay);
+        if self
+            .anim
+            .advance(&picture.delays_ms, picture.loop_count, Instant::now())
+        {
+            window.request_animation_frame();
         }
-        window.request_animation_frame();
     }
 
     pub(super) fn toggle_playback(&mut self, cx: &mut Context<Self>) {
-        if let Some(player) = &self.video {
-            if player.is_playing() {
-                player.pause();
-            } else {
-                player.play(player.speed());
-            }
-            cx.notify();
-        } else if self.has_animation(cx) {
-            self.playing = !self.playing;
-            self.loops_done = 0;
-            self.frame_started = Instant::now();
-            cx.notify();
+        if !self.has_animation(cx) {
+            return;
         }
+        self.anim.toggle(Instant::now());
+        cx.notify();
     }
 
     pub(super) fn step_frame(&mut self, delta: isize, cx: &mut Context<Self>) {
-        if self.video.is_some() {
-            if let Some(player) = &self.video {
-                player.step(delta.clamp(-1, 1) as i32);
-            }
-            cx.notify();
-            return;
-        }
         if !self.has_animation(cx) {
             return;
         }
         let Some(picture) = &self.picture else {
             return;
         };
-        let count = picture.frame_count() as isize;
-        self.playing = false;
-        self.frame = (self.frame as isize + delta).rem_euclid(count) as usize;
+        let count = picture.frame_count();
+        self.anim.step(delta, count);
         cx.notify();
-    }
-
-    /// 단일 보기에서 재생 중인 동영상이 있는지.
-    pub(super) fn has_video(&self, cx: &App) -> bool {
-        self.view_mode(cx) == ViewMode::Single
-            && self
-                .info
-                .as_ref()
-                .is_some_and(|info| info.mime_type.starts_with("video/"))
-    }
-
-    /// 현재 페이지가 동영상이면 재생기를 연다. 실패하면 토스트만 띄우고
-    /// 포스터 정지 화면에 머문다.
-    pub(super) fn open_video(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.close_video();
-        let Some(info) = self.info.clone() else {
-            return;
-        };
-        self.video_seq += 1;
-        let seq = self.video_seq;
-        let source = info.source_path.clone();
-        let open_source = source.clone();
-        let (video_volume, video_autoplay) = {
-            let settings = &SettingsStore::global(cx).settings;
-            (settings.video_volume, settings.video_autoplay)
-        };
-        let task = cx.background_spawn(async move {
-            araview_core::video_player::VideoPlayer::open(Path::new(&open_source))
-        });
-        cx.spawn_in(window, async move |this, cx| {
-            let result = task.await;
-            this.update_in(cx, |this, window, cx| {
-                if this.video_seq != seq {
-                    return;
-                }
-                // 그 사이 다른 페이지로 옮겼으면 버린다.
-                let current = this
-                    .info
-                    .as_ref()
-                    .is_some_and(|info| info.source_path == source);
-                if !current {
-                    return;
-                }
-                match result {
-                    Ok(player) => {
-                        player.set_volume(video_volume as f32 / 100.0);
-                        let duration = player.info().duration_ms as f32;
-                        let timeline = cx.new(|_| {
-                            SliderState::new()
-                                .min(0.0)
-                                .max(duration.max(1.0))
-                                .step(1000.0)
-                        });
-                        let timeline_sub = cx.subscribe_in(
-                            &timeline,
-                            window,
-                            |this, _, event: &SliderEvent, _, cx| {
-                                if let Some(player) = &this.video {
-                                    player.seek(slider_ms(event));
-                                }
-                                cx.notify();
-                            },
-                        );
-                        let volume = cx.new(|_| {
-                            SliderState::new()
-                                .min(0.0)
-                                .max(100.0)
-                                .step(1.0)
-                                .default_value(video_volume as f32)
-                        });
-                        let volume_sub = cx.subscribe_in(
-                            &volume,
-                            window,
-                            |this, _, event: &SliderEvent, _, cx| {
-                                let value = slider_ms(event) as f32;
-                                if let Some(player) = &this.video {
-                                    player.set_volume(value / 100.0);
-                                }
-                                if matches!(event, SliderEvent::Release(_)) {
-                                    SettingsStore::update(cx, |settings| {
-                                        settings.video_volume = value as f64;
-                                    });
-                                }
-                                cx.notify();
-                            },
-                        );
-                        this.video_controls = Some(VideoControls {
-                            timeline,
-                            volume,
-                            _timeline_sub: timeline_sub,
-                            _volume_sub: volume_sub,
-                        });
-                        let autoplay = video_autoplay && !crate::platform::reduced_motion();
-                        if autoplay {
-                            player.play(1.0);
-                        }
-                        this.video = Some(player);
-                        // 출력 스트림은 오디오 전용 스레드가 연다(Windows에서 기본 장치
-                        // 핸들의 클라이언트 활성화가 실패하면 같은 엔드포인트를 특정 장치로
-                        // 다시 시도한다). 실패하면 이유를 남기고 영상만 재생한다.
-                        let stream = this.video.as_ref().and_then(|player| {
-                            match player.attach_audio_output() {
-                                Ok(stream) => Some(stream),
-                                Err(error) => {
-                                    log::warn!("video audio unavailable: {error:?}");
-                                    None
-                                }
-                            }
-                        });
-                        match stream {
-                            Some(stream) => {
-                                this.video_audio_stream = Some(stream);
-                            }
-                            None => {
-                                if let Some(player) = &mut this.video {
-                                    player.disable_audio();
-                                }
-                            }
-                        }
-                        this.video_frame_pts = None;
-                        this.video_clock_ms = 0;
-                        // 프레임 예약은 렌더 단계의 `advance_video`가 맡는다.
-                        // 여기서 `request_animation_frame`을 부르면 paint/prepaint
-                        // 단계가 아니라 패닉한다(GPUI 제약).
-                        cx.notify();
-                    }
-                    Err(error) => {
-                        log::warn!("open_video failed: {error:?}");
-                        window.toast(
-                            Toast::error(error.message.clone()).title(t("toast.load.imageFail")),
-                            cx,
-                        );
-                        this.video = None;
-                        this.video_controls = None;
-                    }
-                }
-            })
-            .ok();
-        })
-        .detach();
-    }
-
-    pub(super) fn close_video(&mut self) {
-        self.video.take();
-        self.video_controls.take();
-        self.video_audio_stream.take();
-        self.video_frame_pts = None;
-        self.video_clock_ms = 0;
-    }
-
-    /// 재생 중이면 현재 위치의 프레임을 화면에 올리고 다음 프레임을 예약한다.
-    /// 정지 상태에서는 탐색·스텝 뒤에 화면이 따라잡을 때까지만 틱한다.
-    pub(super) fn advance_video(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let (pos, playing, seeking, frame, error) = match &self.video {
-            Some(player) => (
-                player.position_ms(),
-                player.is_playing(),
-                player.is_seeking(),
-                player.poll_frame().ok().flatten(),
-                player.has_error(),
-            ),
-            None => return,
-        };
-        if let Some(error) = error {
-            window.toast(Toast::error(error).title(t("toast.load.imageFail")), cx);
-            self.close_video();
-            cx.notify();
-            return;
-        }
-        let mut presented = false;
-        if let Some(frame) = frame {
-            let pts = frame.pts_ms;
-            if self.video_frame_pts != Some(pts) {
-                self.present_video_frame(frame, window, cx);
-                self.video_frame_pts = Some(pts);
-                presented = true;
-            }
-        }
-        if playing || seeking || pos != self.video_clock_ms {
-            self.video_clock_ms = pos;
-            window.request_animation_frame();
-        } else if presented {
-            cx.notify();
-        }
-        if let Some(controls) = &self.video_controls {
-            let value = SliderValue::Single(pos as f32);
-            // 값이 같으면 슬라이더를 갱신하지 않는다. `set_value`가 항상
-            // notify하므로 그대로 두면 정지 상태에서 렌더가 끝없이 반복된다.
-            if controls.timeline.read(cx).value() != value {
-                controls.timeline.update(cx, |state, cx| {
-                    state.set_value(value, window, cx);
-                });
-            }
-        }
-    }
-
-    /// 디코드 프레임을 표시용 그림으로 올려 현재 그림과 바꾼다.
-    fn present_video_frame(
-        &mut self,
-        frame: araview_core::video_player::VideoFrame,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        let Some(picture) = crate::picture::from_video_frame(
-            frame.width,
-            frame.height,
-            frame.bgra,
-            self.orientation,
-        ) else {
-            return;
-        };
-        let picture = Arc::new(picture);
-        let refit = self.picture.as_ref().is_none_or(|current| {
-            current.width != picture.width || current.height != picture.height
-        });
-        if let Some(old) = self.picture.replace(picture) {
-            Self::drop_picture(&old, window, cx);
-        }
-        if refit {
-            self.apply_fit(cx);
-        }
-    }
-
-    pub(super) fn video_seek_by(&mut self, delta_ms: i64, cx: &mut Context<Self>) {
-        let Some(player) = &self.video else {
-            return;
-        };
-        let pos = player.position_ms() as i64 + delta_ms;
-        player.seek(pos.max(0) as u64);
-        // 프레임 예약은 렌더 단계의 `advance_video`가 맡는다.
-        cx.notify();
-    }
-
-    pub(super) fn video_step_speed(&mut self, direction: i32, cx: &mut Context<Self>) {
-        let Some(player) = &self.video else {
-            return;
-        };
-        let current = player.speed();
-        let mut index = SPEEDS
-            .iter()
-            .position(|speed| (speed - current).abs() < f32::EPSILON)
-            .unwrap_or(2);
-        index = index
-            .saturating_add_signed(direction as isize)
-            .min(SPEEDS.len() - 1);
-        let speed = SPEEDS[index];
-        if player.is_playing() {
-            player.play(speed);
-        } else {
-            player.set_speed(speed);
-        }
-        cx.notify();
-    }
-
-    /// 배속 버튼: 최대 배속 다음에는 가장 느린 배속으로 돌아간다.
-    fn video_cycle_speed(&mut self, cx: &mut Context<Self>) {
-        let at_max = self
-            .video
-            .as_ref()
-            .is_some_and(|player| player.speed() >= SPEEDS[SPEEDS.len() - 1]);
-        if at_max {
-            self.video_step_speed(-(SPEEDS.len() as i32), cx);
-        } else {
-            self.video_step_speed(1, cx);
-        }
-    }
-
-    pub(super) fn toggle_video_mute(&mut self, cx: &mut Context<Self>) {
-        if let Some(player) = &self.video {
-            player.set_muted(!player.is_muted());
-            cx.notify();
-        }
-    }
-
-    /// 동영상 전송 컨트롤(하단 독). 애니메이션 오버레이와 같은 자리다.
-    pub(super) fn render_video_overlay(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
-        let Some(player) = &self.video else {
-            return div().into_any_element();
-        };
-        let Some(controls) = &self.video_controls else {
-            return div().into_any_element();
-        };
-        let info = player.info();
-        let pos = player.position_ms();
-        let duration = info.duration_ms;
-        let speed = player.speed();
-        let frame_text = info.fps.filter(|fps| *fps > 0.0).map(|fps| {
-            let (current, total) = video_frame_position(pos, duration, fps);
-            format_frame_counter(current, total)
-        });
-        let compact = f32::from(self.viewport.get().size.width) < VIDEO_BAR_COMPACT_BELOW;
-        h_flex()
-            .w_full()
-            .gap_2()
-            .px_2()
-            .py_1()
-            .rounded_md()
-            .border_1()
-            .border_color(cx.theme().border)
-            .bg(cx.theme().popover.opacity(0.75))
-            .text_xs()
-            .on_mouse_down(
-                MouseButton::Left,
-                cx.listener(|_this, _event, _window, cx| {
-                    cx.stop_propagation();
-                }),
-            )
-            .debug_selector(|| "dock-video-controls".to_owned())
-            .child(
-                Button::new("video-back")
-                    .ghost()
-                    .xsmall()
-                    .icon(Ph::CaretLeft)
-                    .tooltip(t("menu.videoSeekBack"))
-                    .on_click(cx.listener(|this, _, window, cx| {
-                        this.run_action("videoSeekBack", window, cx)
-                    })),
-            )
-            .child(
-                Button::new("video-play")
-                    .ghost()
-                    .xsmall()
-                    .icon(if player.is_playing() {
-                        Ph::Pause
-                    } else {
-                        Ph::Play
-                    })
-                    .tooltip(t(if player.is_playing() {
-                        "menu.gifPause"
-                    } else {
-                        "menu.gifPlay"
-                    }))
-                    .on_click(cx.listener(|this, _, window, cx| {
-                        this.run_action("toggleGifPlayback", window, cx)
-                    })),
-            )
-            .child(
-                Button::new("video-fwd")
-                    .ghost()
-                    .xsmall()
-                    .icon(Ph::CaretRight)
-                    .tooltip(t("menu.videoSeekFwd"))
-                    .on_click(cx.listener(|this, _, window, cx| {
-                        this.run_action("videoSeekFwd", window, cx)
-                    })),
-            )
-            .child(
-                div()
-                    .flex_1()
-                    .min_w(px(120.))
-                    .child(Slider::new(&controls.timeline).horizontal()),
-            )
-            .child(
-                div()
-                    .w(px(VIDEO_TIME_WIDTH))
-                    .text_right()
-                    .whitespace_nowrap()
-                    .font_features(tabular_figures())
-                    .child(format!("{} / {}", format_time(pos), format_time(duration))),
-            )
-            .child(
-                div()
-                    .w(px(FRAME_COUNTER_WIDTH))
-                    .text_right()
-                    .whitespace_nowrap()
-                    .font_features(tabular_figures())
-                    .when_some(frame_text, |slot, text| slot.child(text)),
-            )
-            .when(!compact, |row| {
-                row.child(
-                    Button::new("video-speed")
-                        .ghost()
-                        .xsmall()
-                        .w(px(VIDEO_SPEED_WIDTH))
-                        .label(format!("{speed}×"))
-                        .tooltip(t("menu.videoSpeedUp"))
-                        .on_click(cx.listener(|this, _, _, cx| this.video_cycle_speed(cx))),
-                )
-            })
-            .when(!compact, |row| {
-                row.child(
-                    div()
-                        .w(px(80.))
-                        .child(Slider::new(&controls.volume).horizontal()),
-                )
-            })
-            .into_any_element()
     }
 
     // ----- 양쪽 보기 배치 -----
@@ -1118,7 +908,7 @@ impl AraView {
             .iter()
             .filter_map(|index| {
                 self.pages
-                    .get(index)
+                    .get(*index)
                     .map(|page| (*index, page.picture().clone()))
             })
             .collect();
@@ -1212,7 +1002,7 @@ impl AraView {
         let avail = self.container().w.max(WT_MIN_WIDTH);
         let known = self
             .pages
-            .get(&index)
+            .get(index)
             .map(|page| (page.picture().width, page.picture().height))
             .or_else(|| self.wt_dims.get(&index).copied());
         let (natural_w, aspect) = match known {
@@ -1294,10 +1084,7 @@ impl AraView {
         if dy == 0.0 || self.list.is_empty() {
             return;
         }
-        self.wt_pending += dy;
-        if !self.wt_animating {
-            self.wt_animating = true;
-            self.wt_frame = Instant::now();
+        if self.wt_glide.push(dy, Instant::now()) {
             self.webtoon_next_frame(window, cx);
         }
     }
@@ -1310,28 +1097,12 @@ impl AraView {
     }
 
     fn webtoon_smooth_frame(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let now = Instant::now();
-        let dt = now
-            .duration_since(std::mem::replace(&mut self.wt_frame, now))
-            .as_secs_f32()
-            .min(0.05);
-        let mut step = self.wt_pending * (1.0 - (-dt / WT_SMOOTH_TIME).exp());
-        // 거의 다 왔으면 남은 거리를 한 번에 반영하고 끝낸다.
-        let settled = self.wt_pending.abs() < 1.0;
-        if settled {
-            step = self.wt_pending;
-        }
-        self.wt_pending -= step;
+        let step = self.wt_glide.step(Instant::now());
         let before = (self.wt_anchor, self.wt_offset);
         self.webtoon_scroll(step, window, cx);
         // 끝에 닿아 더 움직이지 못하면 남은 거리를 버린다.
-        if (self.wt_anchor, self.wt_offset) == before {
-            self.wt_pending = 0.0;
-        }
-        if settled || self.wt_pending == 0.0 {
-            self.wt_pending = 0.0;
-            self.wt_animating = false;
-        } else {
+        let moved = (self.wt_anchor, self.wt_offset) != before;
+        if self.wt_glide.end_frame(moved) {
             self.webtoon_next_frame(window, cx);
         }
     }
@@ -1383,14 +1154,15 @@ impl AraView {
         self.webtoon_normalize();
         let viewport_h = self.container().h.max(1.0);
 
-        // 위아래 2화면 안은 로드하고, 4화면 밖은 내려놓는다.
+        // 위아래 2화면 안은 로드하고, 4화면 밖은 내려놓는다. 스크롤로 곧바로
+        // 보게 될 페이지도 지금 화면에 속한다: 설정과 관계없이 내려받는다(SPEC §9.6).
         let near: Vec<usize> = self
             .webtoon_span(viewport_h * 2.0, viewport_h * 2.0)
             .into_iter()
             .map(|(index, _)| index)
             .collect();
         for index in &near {
-            self.ensure_page(*index, true, window, cx);
+            self.ensure_page(*index, true, false, window, cx);
         }
         let keep: HashSet<usize> = self
             .webtoon_span(viewport_h * 4.0, viewport_h * 4.0)
@@ -1408,10 +1180,10 @@ impl AraView {
             .find(|(_, bounds)| bounds.bottom() >= middle)
             .map(|(index, _)| index)
             .unwrap_or(self.wt_anchor);
-        let changed = center != self.index || self.pending_commit;
+        let changed = center != self.index || self.nav.is_pending();
         self.index = center;
         self.shown = vec![center];
-        let Some(page) = self.pages.get(&center) else {
+        let Some(page) = self.pages.get(center) else {
             return;
         };
         if !page.is_full() {
@@ -1422,7 +1194,7 @@ impl AraView {
             .as_ref()
             .is_none_or(|picture| !Arc::ptr_eq(picture, page.picture()));
         if changed || stale {
-            self.pending_commit = false;
+            self.nav.commit();
             self.error = None;
             self.picture = Some(page.picture().clone());
             self.info = page.info().cloned();
@@ -1480,7 +1252,8 @@ impl AraView {
             return None;
         }
         let frame = self
-            .frame
+            .anim
+            .frame()
             .min(level.tiles[0].image.frame_count().saturating_sub(1));
         let key = PixelKey {
             picture: Arc::as_ptr(&picture) as usize,
@@ -1497,35 +1270,50 @@ impl AraView {
         {
             return Some((cached.image.clone(), cached.rect));
         }
-        // 원본은 타일 격자(행 우선)로 나뉘어 있을 수 있어, 출력 픽셀마다 타일을 찾아 읽는다.
-        let tile_side = crate::picture::TILE_SIDE as usize;
-        let (src_w, src_h) = (level.width as usize, level.height as usize);
-        let tile_columns = src_w.div_ceil(tile_side);
+        // 원본은 타일로 나뉘어 있을 수 있어, 출력 픽셀마다 타일을 실제 좌표로 찾아
+        // 읽는다. 정지 이미지는 8192px 격자, 애니메이션은 큰 타일 한 장이다.
+        let (src_w, src_h) = (level.width, level.height);
+        if src_w == 0 || src_h == 0 || picture.width == 0 || picture.height == 0 {
+            return None;
+        }
+        let origins: Vec<(u32, u32)> = level.tiles.iter().map(|tile| (tile.x, tile.y)).collect();
+        let grid = TileGrid::new(&origins);
         let sources: Vec<(&[u8], usize)> = level
             .tiles
             .iter()
             .map(|tile| Some((tile.image.as_bytes(frame)?, tile.w as usize)))
             .collect::<Option<_>>()?;
-        let step = 1.0 / (self.zoom * scale_factor);
-        let start_x = f32::from(visible.origin.x - dest.origin.x) / self.zoom;
-        let start_y = f32::from(visible.origin.y - dest.origin.y) / self.zoom;
+        // 배율과 위치는 원본(`Picture`) 크기 기준이다. 아틀라스 한계로 줄여 둔
+        // 애니메이션은 레벨이 더 작으므로 그 비율로 좌표를 옮긴다.
+        let ratio_x = src_w as f32 / picture.width as f32;
+        let ratio_y = src_h as f32 / picture.height as f32;
+        let step_x = ratio_x / (self.zoom * scale_factor);
+        let step_y = ratio_y / (self.zoom * scale_factor);
+        let start_x = f32::from(visible.origin.x - dest.origin.x) / self.zoom * ratio_x;
+        let start_y = f32::from(visible.origin.y - dest.origin.y) / self.zoom * ratio_y;
         // 열마다 (타일 열, 타일 안 바이트 오프셋)을 미리 구한다.
         let columns: Vec<(usize, usize)> = (0..width)
             .map(|x| {
-                let src_x = ((start_x + (x as f32 + 0.5) * step) as usize).min(src_w - 1);
-                (src_x / tile_side, (src_x % tile_side) * 4)
+                let src_x = ((start_x + (x as f32 + 0.5) * step_x) as u32).min(src_w - 1);
+                let (column, local_x) = grid.column(src_x);
+                (column, local_x as usize * 4)
             })
             .collect();
         let mut buffer = vec![0u8; width as usize * height as usize * 4];
         for (y, row) in buffer.chunks_exact_mut(width as usize * 4).enumerate() {
-            let src_y = ((start_y + (y as f32 + 0.5) * step) as usize).min(src_h - 1);
-            let (tile_row, local_y) = (src_y / tile_side, src_y % tile_side);
+            let src_y = ((start_y + (y as f32 + 0.5) * step_y) as u32).min(src_h - 1);
+            let (tile_row, local_y) = grid.row(src_y);
             for (pixel, (tile_column, offset)) in
                 row.as_chunks_mut::<4>().0.iter_mut().zip(&columns)
             {
-                let (bytes, tile_w) = sources[tile_row * tile_columns + tile_column];
-                let at = local_y * tile_w * 4 + offset;
-                pixel.copy_from_slice(&bytes[at..at + 4]);
+                let Some(tile) = grid.tile(*tile_column, tile_row) else {
+                    continue;
+                };
+                let (bytes, tile_w) = sources[tile];
+                let at = local_y as usize * tile_w * 4 + offset;
+                if let Some(source) = bytes.get(at..at + 4) {
+                    pixel.copy_from_slice(source);
+                }
             }
         }
         // 원본이 이미 BGRA라 채널을 바꾸지 않고 그대로 옮긴다.
@@ -1549,6 +1337,64 @@ impl AraView {
     }
 
     // ----- 렌더 -----
+
+    /// 조작이 있었음을 기록해 숨겨진 재생 컨트롤을 다시 보이게 한다.
+    pub(super) fn bump_overlay(&mut self) {
+        self.overlay_active = Instant::now();
+    }
+
+    /// 애니메이션 프레임 슬라이더를 현재 그림에 맞춰 만들고 위치를 동기화한다.
+    fn sync_anim_timeline(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let frames = if self.has_animation(cx) {
+            self.picture
+                .as_ref()
+                .map_or(0, |picture| picture.frame_count())
+        } else {
+            0
+        };
+        if frames < 2 {
+            self.anim_timeline = None;
+            return;
+        }
+        if self
+            .anim_timeline
+            .as_ref()
+            .is_none_or(|timeline| timeline.frames != frames)
+        {
+            let slider = cx.new(|_| {
+                SliderState::new()
+                    .min(0.0)
+                    .max((frames - 1) as f32)
+                    .step(1.0)
+            });
+            let sub = cx.subscribe_in(
+                &slider,
+                window,
+                move |this, _, event: &SliderEvent, _, cx| {
+                    // 재생 중이면 끌어 놓은 프레임부터 지연 시간을 다시 센다.
+                    this.anim
+                        .jump_to((slider_ms(event) as usize).min(frames - 1), Instant::now());
+                    this.bump_overlay();
+                    cx.notify();
+                },
+            );
+            self.anim_timeline = Some(AnimTimeline {
+                frames,
+                slider,
+                _sub: sub,
+            });
+            self.bump_overlay();
+        }
+        if let Some(timeline) = &self.anim_timeline {
+            let value = SliderValue::Single(self.anim.frame() as f32);
+            // 값이 같으면 갱신하지 않는다. `set_value`가 항상 notify하기 때문이다.
+            if timeline.slider.read(cx).value() != value {
+                timeline.slider.update(cx, |state, cx| {
+                    state.set_value(value, window, cx);
+                });
+            }
+        }
+    }
 
     /// 애니메이션 재생 제어를 뷰포트 우하단에 떠 있는 반투명 패널로 그린다.
     pub(super) fn render_animation_overlay(
@@ -1592,8 +1438,12 @@ impl AraView {
                 Button::new("gif-play")
                     .ghost()
                     .xsmall()
-                    .icon(if self.playing { Ph::Pause } else { Ph::Play })
-                    .tooltip(t(if self.playing {
+                    .icon(if self.anim.is_playing() {
+                        Ph::Pause
+                    } else {
+                        Ph::Play
+                    })
+                    .tooltip(t(if self.anim.is_playing() {
                         "menu.gifPause"
                     } else {
                         "menu.gifPlay"
@@ -1612,28 +1462,41 @@ impl AraView {
                         this.run_action("gifNextFrame", window, cx)
                     })),
             )
-            .child(div().flex_1())
+            .child(match &self.anim_timeline {
+                Some(timeline) => div()
+                    .flex_1()
+                    .min_w(px(120.))
+                    .child(Slider::new(&timeline.slider).horizontal())
+                    .into_any_element(),
+                None => div().flex_1().into_any_element(),
+            })
             .child(
                 div()
                     .w(px(counter_width))
                     .text_right()
                     .whitespace_nowrap()
                     .font_features(tabular_figures())
-                    .child(format_frame_counter((self.frame + 1) as u64, frames as u64)),
+                    .child(format_frame_counter(
+                        (self.anim.frame() + 1) as u64,
+                        frames as u64,
+                    )),
             )
     }
 
     /// 읽기 영역 좌우 가장자리의 이전/다음 버튼. 우→좌 양쪽 보기는 읽는 방향대로
     /// 왼쪽이 다음이다.
     fn nav_arrow(&self, left: bool, cx: &mut Context<Self>) -> impl IntoElement + use<> {
-        let forward = left == (self.view_mode(cx) == ViewMode::RightToLeft);
+        let mode = self.view_mode(cx);
+        let forward = left == (mode == ViewMode::RightToLeft);
         let looped = SettingsStore::global(cx).settings.loop_navigation;
-        let enabled = looped
-            || if forward {
-                self.index + 1 < self.list.len()
-            } else {
-                self.index > 0
-            };
+        // 누르면 실제로 움직이는지로 판정한다. 양쪽 보기의 마지막 화면은 시작 인덱스가
+        // 끝이 아니어도 다음 화면이 없다(SPEC §3.2).
+        let total = self.list.len();
+        let enabled = if mode.is_dual() {
+            layout::dual_step(self.index, total, looped, forward, &self.solo(cx)).is_some()
+        } else {
+            layout::step_index(self.index, total, 1, looped, forward).is_some()
+        };
         let (id, icon, label) = match (left, forward) {
             (true, false) => ("nav-left", Ph::CaretLeft, "viewer.nav.prev"),
             (true, true) => ("nav-left", Ph::CaretLeft, "viewer.nav.next"),
@@ -1668,6 +1531,8 @@ impl AraView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> impl IntoElement + use<> {
+        self.sync_anim_timeline(window, cx);
+        let idle = self.overlay_active.elapsed();
         // 매 프레임 `Settings` 전체를 클론하지 않고 렌더에 쓰는 `Copy` 필드만 복사한다.
         let (background, webtoon_page_boundaries, webtoon_show_progress, webtoon_thumbnail_jump) = {
             let settings = &SettingsStore::global(cx).settings;
@@ -1707,7 +1572,7 @@ impl AraView {
                     items.push(PaintItem {
                         picture,
                         rect: dest,
-                        frame: self.frame,
+                        frame: self.anim.frame(),
                     });
                 }
             }
@@ -1729,7 +1594,7 @@ impl AraView {
                     if webtoon_page_boundaries && index > 0 {
                         boundaries.push(bounds.top());
                     }
-                    match self.pages.get(&index) {
+                    match self.pages.get(index) {
                         Some(page) => items.push(PaintItem {
                             picture: page.picture().clone(),
                             rect: bounds,
@@ -1837,21 +1702,16 @@ impl AraView {
         )
         .size_full();
 
-        let waiting = self.picture.is_none() && (self.opening || self.pending_commit);
+        let waiting = self.picture.is_none() && (self.opening.is_some() || self.nav.is_pending());
         // 이미 그림이 떠 있을 때는 새 페이지나 파일이 늦어질 때만 모서리에 작게 알린다.
         let busy = !waiting
             && (self.opening_visible()
-                || (self.pending_commit
-                    && self.nav_started.elapsed() >= super::pages::PREVIOUS_HOLD)
-                || (mode == ViewMode::Webtoon && !self.page_loading.is_empty()));
+                || self.nav.held_longer_than(super::pages::PREVIOUS_HOLD)
+                || (mode == ViewMode::Webtoon && self.pages.any_loading()));
         // 디코드가 길어지면 이미 받아 둔 썸네일을 저해상 미리보기로 먼저 깐다.
         let preview_thumb = (mode == ViewMode::Single
-            && self.pending_commit
-            && self.nav_started.elapsed() >= super::pages::PREVIOUS_HOLD
-            && self
-                .pages
-                .get(&self.index)
-                .is_none_or(|page| page.is_full()))
+            && self.nav.held_longer_than(super::pages::PREVIOUS_HOLD)
+            && self.pages.get(self.index).is_none_or(|page| page.is_full()))
         .then(|| self.list.get(self.index))
         .flatten()
         .and_then(|item| match self.thumbs.get(item) {
@@ -1859,7 +1719,7 @@ impl AraView {
             _ => None,
         });
         let preview = (mode != ViewMode::Webtoon)
-            .then(|| self.pages.get(&self.index))
+            .then(|| self.pages.get(self.index))
             .flatten()
             .filter(|page| page.is_archive_preview() && self.shown.contains(&self.index))
             .and_then(|_| self.list.get(self.index))
@@ -1905,14 +1765,14 @@ impl AraView {
                 MouseButton::Left,
                 cx.listener(|this, _, _, _| {
                     this.drag = None;
-                    this.ocr_drag = None;
+                    this.ocr.end_drag();
                 }),
             )
             .on_mouse_up_out(
                 MouseButton::Left,
                 cx.listener(|this, _, _, _| {
                     this.drag = None;
-                    this.ocr_drag = None;
+                    this.ocr.end_drag();
                 }),
             )
             .on_scroll(cx.listener(Self::on_wheel))
@@ -2014,41 +1874,165 @@ impl AraView {
                 area.child(self.nav_arrow(true, cx))
                     .child(self.nav_arrow(false, cx))
             })
-            .when(self.has_animation(cx), |area| {
-                area.child(
-                    div()
-                        .absolute()
-                        .bottom_3()
-                        .left_3()
-                        .right_3()
-                        .child(self.render_animation_overlay(cx)),
-                )
-            })
-            .when(self.has_video(cx), |area| {
-                area.child(
-                    div()
-                        .absolute()
-                        .bottom_3()
-                        .left_3()
-                        .right_3()
-                        .child(self.render_video_overlay(cx)),
-                )
-            })
+            .when(
+                self.has_animation(cx) && overlay_visible(self.anim.is_playing(), idle),
+                |area| {
+                    area.child(
+                        div()
+                            .absolute()
+                            .bottom_3()
+                            .left_3()
+                            .right_3()
+                            .child(self.render_animation_overlay(cx)),
+                    )
+                },
+            )
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{format_frame_counter, video_frame_position};
+    use super::{
+        AnimPlayback, Fit, OVERLAY_HIDE_AFTER, TileGrid, format_frame_counter, overlay_visible,
+    };
+    use std::time::{Duration, Instant};
 
     #[test]
-    fn video_frame_position_counts_from_one() {
-        // 10fps, 12초: 120프레임.
-        assert_eq!(video_frame_position(0, 12_000, 10.0), (1, 120));
-        // 첫 프레임 구간(0..100ms) 안에서는 번호가 그대로다.
-        assert_eq!(video_frame_position(99, 12_000, 10.0), (1, 120));
-        assert_eq!(video_frame_position(100, 12_000, 10.0), (2, 120));
-        assert_eq!(video_frame_position(12_000, 12_000, 10.0), (120, 120));
+    fn anim_playback_starts_paused_and_toggles() {
+        let t0 = Instant::now();
+        let mut anim = AnimPlayback::default();
+        assert!(!anim.is_playing());
+        assert_eq!((anim.frame(), anim.loops_done()), (0, 0));
+        // 정지 중에는 시간이 지나도 넘기지 않는다.
+        assert!(!anim.advance(&[100, 100], None, t0 + Duration::from_secs(5)));
+        assert_eq!(anim.frame(), 0);
+
+        anim.toggle(t0);
+        assert!(anim.is_playing());
+        assert!(anim.advance(&[100, 100], None, t0 + Duration::from_millis(150)));
+        assert_eq!(anim.frame(), 1);
+        anim.toggle(t0);
+        assert!(!anim.is_playing());
+        assert_eq!(anim.frame(), 1, "정지는 현재 프레임에 머문다");
+    }
+
+    #[test]
+    fn anim_playback_carries_leftover_time_and_loops_forever() {
+        let t0 = Instant::now();
+        let mut anim = AnimPlayback::default();
+        anim.restart(true, t0);
+        // 100ms 프레임 3개, 무한 반복. 1050ms면 10프레임을 지나 1번 프레임이다.
+        assert!(anim.advance(&[100, 100, 100], None, t0 + Duration::from_millis(1_050)));
+        assert_eq!(anim.frame(), 1);
+        assert_eq!(anim.loops_done(), 3);
+        // 남은 50ms는 이어서 센다. 50ms 더 지나면 다음 프레임이다.
+        assert!(anim.advance(&[100, 100, 100], None, t0 + Duration::from_millis(1_100)));
+        assert_eq!(anim.frame(), 2);
+    }
+
+    #[test]
+    fn anim_playback_stops_on_the_last_frame_of_finite_loops() {
+        let t0 = Instant::now();
+        let mut anim = AnimPlayback::default();
+        anim.restart(true, t0);
+        // 2회 반복: 마지막 회차의 마지막 프레임에서 멈추고 더는 예약하지 않는다.
+        assert!(!anim.advance(&[100, 100], Some(2), t0 + Duration::from_secs(10)));
+        assert!(!anim.is_playing());
+        assert_eq!(anim.frame(), 1);
+        assert_eq!(anim.loops_done(), 2);
+        // 끝난 뒤 다시 재생하면 반복 횟수를 새로 센다.
+        anim.toggle(t0);
+        assert!(anim.is_playing());
+        assert_eq!(anim.loops_done(), 0);
+    }
+
+    #[test]
+    fn anim_playback_step_jump_and_reset() {
+        let t0 = Instant::now();
+        let mut anim = AnimPlayback::default();
+        anim.restart(true, t0);
+        // 스텝은 정지시키고 앞뒤 끝에서 감긴다.
+        anim.step(-1, 4);
+        assert!(!anim.is_playing());
+        assert_eq!(anim.frame(), 3);
+        anim.step(2, 4);
+        assert_eq!(anim.frame(), 1);
+        // 정지 중 이동은 재생을 시작하지 않는다.
+        anim.jump_to(2, t0);
+        assert!(!anim.is_playing());
+        assert_eq!(anim.frame(), 2);
+        // 재생 중 이동은 그 프레임부터 지연 시간을 다시 센다.
+        anim.toggle(t0);
+        let t1 = t0 + Duration::from_millis(500);
+        anim.jump_to(0, t1);
+        assert!(anim.advance(&[100, 100, 100], None, t1 + Duration::from_millis(50)));
+        assert_eq!(anim.frame(), 0);
+        anim.rewind(t1);
+        assert!(anim.is_playing());
+        assert_eq!(anim.frame(), 0);
+        // 페이지를 닫으면 정지하고 첫 프레임으로 가지만 반복 횟수는 남는다.
+        let _ = anim.advance(&[100, 100, 100], None, t1 + Duration::from_millis(350));
+        assert_eq!(anim.loops_done(), 1);
+        anim.stop_at_first_frame();
+        assert!(!anim.is_playing());
+        assert_eq!((anim.frame(), anim.loops_done()), (0, 1));
+        // 새 그림은 반복 횟수까지 처음부터, 자동 재생이 꺼져 있으면 정지로 시작한다.
+        anim.restart(false, t1);
+        assert!(!anim.is_playing());
+        assert_eq!((anim.frame(), anim.loops_done()), (0, 0));
+    }
+
+    #[test]
+    fn fit_waits_for_the_viewport_then_locks_until_manual_zoom() {
+        // 처음에는 크기를 재기 전이고, 맞춤을 따른다.
+        let fit = Fit::Pending;
+        assert!(fit.follows_window());
+        assert_eq!(fit.lock(), Fit::Pending);
+        assert_eq!(fit.unmeasured(), Fit::Pending);
+        let fit = fit.measured();
+        assert_eq!(fit, Fit::Locked);
+        // 읽기 영역을 다시 재지 못하면 크기 대기로 돌아간다.
+        assert_eq!(fit.unmeasured(), Fit::Pending);
+        // 수동 줌은 리사이즈·맞춤 계산에 풀리지 않고, 맞춤 고정으로만 돌아간다.
+        let manual = Fit::Manual;
+        assert!(!manual.follows_window());
+        assert_eq!(manual.measured(), Fit::Manual);
+        assert_eq!(manual.unmeasured(), Fit::Manual);
+        assert_eq!(manual.lock(), Fit::Locked);
+    }
+
+    #[test]
+    fn tile_grid_finds_a_single_wide_animation_tile() {
+        // 애니메이션은 9000px 넘는 프레임도 타일 하나다. 8192px 격자로 가정하면
+        // 없는 두 번째 타일을 찾아 패닉했다.
+        let grid = TileGrid::new(&[(0, 0)]);
+        assert_eq!(grid.column(8999), (0, 8999));
+        assert_eq!(grid.row(99), (0, 99));
+        assert_eq!(grid.tile(0, 0), Some(0));
+    }
+
+    #[test]
+    fn tile_grid_maps_a_tiled_still_image() {
+        // 정지 이미지 10000x9000은 8192px 격자 2x2 타일(행 우선)이다.
+        let grid = TileGrid::new(&[(0, 0), (8192, 0), (0, 8192), (8192, 8192)]);
+        assert_eq!(grid.column(8191), (0, 8191));
+        assert_eq!(grid.column(8192), (1, 0));
+        assert_eq!(grid.row(8500), (1, 308));
+        assert_eq!(grid.tile(1, 1), Some(3));
+        assert_eq!(grid.tile(1, 0), Some(1));
+    }
+
+    #[test]
+    fn overlay_hides_only_while_playing_and_idle() {
+        let long = OVERLAY_HIDE_AFTER + Duration::from_millis(1);
+        assert!(overlay_visible(true, Duration::ZERO));
+        assert!(overlay_visible(
+            true,
+            OVERLAY_HIDE_AFTER - Duration::from_millis(1)
+        ));
+        assert!(!overlay_visible(true, long));
+        // 정지 중에는 조작이 없어도 계속 보인다.
+        assert!(overlay_visible(false, long));
     }
 
     #[test]

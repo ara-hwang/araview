@@ -77,6 +77,15 @@ struct DownloadProgress {
 }
 
 impl DownloadProgress {
+    /// 다운로드를 취소한다. 배경 스레드는 다음 조각을 읽기 전에 이 표시를 보고 멈춘다.
+    fn cancel(&self) {
+        self.cancelled.store(true, Ordering::Relaxed);
+    }
+
+    fn is_cancelled(&self) -> bool {
+        self.cancelled.load(Ordering::Relaxed)
+    }
+
     /// 받은 비율(0~100). 전체 크기를 모르면 None이다.
     fn percent(&self) -> Option<f32> {
         let total = self.total.load(Ordering::Relaxed);
@@ -100,6 +109,89 @@ impl DownloadProgress {
             ),
             None => t_with("dialog.update.downloadedBytes", &[("size", &received)]),
         }
+    }
+}
+
+/// 업데이트 작업의 현재 단계. 한 번에 하나만 돈다(중복 확인과 다운로드는 무시한다).
+#[derive(Default)]
+enum UpdateState {
+    /// 아무 작업도 없다.
+    #[default]
+    Idle,
+    /// 피드를 확인하는 중. `auto`는 시작 시 자동 확인인지(실패와 최신을 알리지 않는다).
+    Checking { auto: bool },
+    /// 설치 프로그램을 받는 중. 진행 대화상자와 배경 작업이 같은 진행 상태를 본다.
+    Downloading(Arc<DownloadProgress>),
+}
+
+/// 업데이트 확인과 다운로드의 상태(SPEC §20.1). `AraView`가 하나를 들고, 전이는 이 타입의
+/// 메서드로만 한다.
+#[derive(Default)]
+pub(super) struct UpdateStatus {
+    state: UpdateState,
+    /// 이번 실행에서 수동 확인이 성공적으로 끝났는지. 끝났으면 시작 시 자동 확인을 건너뛴다.
+    checked: bool,
+}
+
+impl UpdateStatus {
+    /// 확인이나 다운로드가 진행 중인지. 설정 화면은 이 동안 확인 버튼 대신 로딩을 보인다.
+    pub(super) fn is_busy(&self) -> bool {
+        !matches!(self.state, UpdateState::Idle)
+    }
+
+    /// 확인을 시작한다. 다른 작업이 진행 중이면(중복 확인), 또는 자동 확인인데 이번 실행에서
+    /// 수동 확인이 이미 끝났으면 시작하지 않고 false를 돌려준다.
+    fn begin_check(&mut self, auto: bool) -> bool {
+        if self.is_busy() || (auto && self.checked) {
+            return false;
+        }
+        self.state = UpdateState::Checking { auto };
+        true
+    }
+
+    /// 확인이 끝났다. 수동 확인이 성공했으면 아직 기다리는 자동 확인을 건너뛰게 표시한다.
+    fn finish_check(&mut self, succeeded: bool) {
+        let UpdateState::Checking { auto } = self.state else {
+            return;
+        };
+        self.state = UpdateState::Idle;
+        if !auto && succeeded {
+            self.checked = true;
+        }
+    }
+
+    /// 다운로드를 시작한다. 다른 작업이 진행 중이면 None이다.
+    fn begin_download(&mut self) -> Option<Arc<DownloadProgress>> {
+        if self.is_busy() {
+            return None;
+        }
+        let progress = Arc::new(DownloadProgress::default());
+        self.state = UpdateState::Downloading(progress.clone());
+        Some(progress)
+    }
+
+    /// `progress`가 지금 진행 중인 다운로드인지.
+    fn is_downloading(&self, progress: &Arc<DownloadProgress>) -> bool {
+        matches!(&self.state, UpdateState::Downloading(current) if Arc::ptr_eq(current, progress))
+    }
+
+    /// 진행 중인 다운로드를 취소한다. 배경 작업이 끝나기를 기다리지 않고 바로 다음 확인과
+    /// 다운로드를 받을 수 있게 한다. 늦게 끝난 결과는 `finish_download`가 버린다.
+    fn cancel_download(&mut self, progress: &Arc<DownloadProgress>) {
+        progress.cancel();
+        if self.is_downloading(progress) {
+            self.state = UpdateState::Idle;
+        }
+    }
+
+    /// 다운로드 작업이 끝났다. 결과를 써도 되면(취소되지 않은 지금의 다운로드) true이고,
+    /// 취소된 늦은 결과면 상태를 건드리지 않고 false다. 그 사이 시작한 다른 작업을 지키기 위해서다.
+    fn finish_download(&mut self, progress: &Arc<DownloadProgress>) -> bool {
+        if progress.is_cancelled() || !self.is_downloading(progress) {
+            return false;
+        }
+        self.state = UpdateState::Idle;
+        true
     }
 }
 
@@ -194,18 +286,77 @@ fn verify_signature(bytes: &[u8], signature: &str, public_key: &str) -> Result<(
         .map_err(|error| error.to_string())
 }
 
-/// 확인할 피드 주소. 디버그 빌드는 로컬 검증용으로 환경 변수로 바꿀 수 있다.
-fn feed_url(channel: UpdateChannel) -> String {
+/// 채널이 읽을 피드 주소. 베타 채널은 롤링 베타 피드와 안정 피드를 함께 읽는다. 베타 피드에는
+/// 베타 버전만 올라가므로, 안정 피드도 보지 않으면 `release` 브랜치에서 낸 정식 핫픽스를
+/// 받지 못한다. 디버그 빌드는 로컬 검증용으로 환경 변수 하나로 바꿀 수 있다.
+fn feed_urls(channel: UpdateChannel) -> Vec<String> {
     if cfg!(debug_assertions)
         && let Ok(url) = std::env::var("ARAVIEW_UPDATE_FEED")
     {
-        return url;
+        return vec![url];
     }
     match channel {
-        UpdateChannel::Stable => UPDATE_FEED_STABLE,
-        UpdateChannel::Beta => UPDATE_FEED_BETA,
+        UpdateChannel::Stable => vec![UPDATE_FEED_STABLE],
+        UpdateChannel::Beta => vec![UPDATE_FEED_BETA, UPDATE_FEED_STABLE],
     }
-    .to_owned()
+    .into_iter()
+    .map(str::to_owned)
+    .collect()
+}
+
+/// 피드 결과 중 가장 높은 버전을 고른다. 하나라도 읽었으면 그 결과를 쓰고(실패한 피드는
+/// 로그에만 남긴다), 모두 실패했을 때만 첫 오류를 돌려준다.
+fn newest_feed(
+    results: Vec<Result<Option<UpdateFeed>, String>>,
+) -> Result<Option<UpdateFeed>, String> {
+    let mut newest: Option<UpdateFeed> = None;
+    let mut first_error = None;
+    let mut any_read = false;
+    for result in results {
+        match result {
+            Ok(feed) => {
+                any_read = true;
+                let Some(feed) = feed else {
+                    continue;
+                };
+                let replace = newest.as_ref().is_none_or(|current| {
+                    parse_version(&current.version).is_none()
+                        || is_newer(&feed.version, &current.version)
+                });
+                if replace {
+                    newest = Some(feed);
+                }
+            }
+            Err(error) => {
+                log::warn!("[update] feed check failed: {error}");
+                first_error.get_or_insert(error);
+            }
+        }
+    }
+    match first_error {
+        Some(error) if !any_read => Err(error),
+        _ => Ok(newest),
+    }
+}
+
+/// 채널의 피드를 모두 읽어(동시에) 가장 높은 버전을 돌려준다.
+fn fetch_latest(channel: UpdateChannel) -> Result<Option<UpdateFeed>, String> {
+    let urls = feed_urls(channel);
+    let results = std::thread::scope(|scope| {
+        let handles: Vec<_> = urls
+            .iter()
+            .map(|url| scope.spawn(move || fetch_feed(url)))
+            .collect();
+        handles
+            .into_iter()
+            .map(|handle| {
+                handle
+                    .join()
+                    .unwrap_or_else(|_| Err("update check panicked".to_owned()))
+            })
+            .collect()
+    });
+    newest_feed(results)
 }
 
 fn release_public_key() -> Result<String, String> {
@@ -253,7 +404,7 @@ fn read_with_progress(
     let mut bytes = Vec::new();
     let mut chunk = vec![0; DOWNLOAD_CHUNK];
     loop {
-        if progress.cancelled.load(Ordering::Relaxed) {
+        if progress.is_cancelled() {
             return Ok(None);
         }
         let read = match reader.read(&mut chunk) {
@@ -313,20 +464,37 @@ fn download_installer(
     Ok(Some(path))
 }
 
+/// 취소된 다운로드의 결과를 버린다. 다 받아 서명까지 확인한 뒤에 취소됐으면 임시 폴더에 남은
+/// 설치 프로그램을 지운다(SPEC §20.1 "취소하면 받던 내용을 버린다").
+fn discard_cancelled_download(result: &Result<Option<PathBuf>, String>) {
+    if let Ok(Some(installer)) = result
+        && let Err(error) = std::fs::remove_file(installer)
+    {
+        log::warn!(
+            "[update] failed to remove cancelled installer {}: {error}",
+            installer.display()
+        );
+    }
+}
+
 impl AraView {
     /// 수동 업데이트 확인. 설정에서 자동 확인을 끄더라도 버튼과 팔레트는 항상 동작한다.
     pub(super) fn check_updates(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.update_checking {
+        if !self.update_status.begin_check(false) {
             // 중복 확인은 무시한다.
             return;
         }
-        self.update_checking = true;
-        let channel = SettingsStore::global(cx).settings.update_channel;
-        let task = cx.background_spawn(async move { fetch_feed(&feed_url(channel)) });
+        let channel = SettingsStore::global(cx)
+            .settings
+            .effective_update_channel();
+        let task = cx.background_spawn(async move { fetch_latest(channel) });
         cx.spawn_in(window, async move |this, cx| {
             let result = task.await;
             this.update_in(cx, |this, window, cx| {
-                this.update_checking = false;
+                // 성공했으면 이번 실행에서 이미 확인했으므로 아직 기다리는 시작 시 자동 확인은
+                // 건너뛴다. 그러지 않으면 5초 안에 끝난 수동 확인의 대화상자 위에 같은 대화상자가
+                // 또 뜬다.
+                this.update_status.finish_check(result.is_ok());
                 // 열린 설정 대화상자가 있으면 확인 버튼을 원래대로 되돌린다.
                 window.refresh();
                 match result {
@@ -346,6 +514,7 @@ impl AraView {
 
     /// 시작 시 1회 자동 확인. 설정이 켜져 있을 때만 창이 자리 잡은 뒤 조용히 확인하고,
     /// 새 버전이 있을 때만 대화상자를 띄운다. 최신이거나 실패하면 알리지 않는다.
+    /// 그 전에 수동 확인이 끝났으면 다시 확인하지 않는다.
     pub(super) fn maybe_auto_check_updates(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if !SettingsStore::global(cx).settings.auto_check_updates {
             return;
@@ -355,12 +524,15 @@ impl AraView {
             let channel = this
                 .update_in(cx, |this, _, cx| {
                     if !SettingsStore::global(cx).settings.auto_check_updates
-                        || this.update_checking
+                        || !this.update_status.begin_check(true)
                     {
                         return None;
                     }
-                    this.update_checking = true;
-                    Some(SettingsStore::global(cx).settings.update_channel)
+                    Some(
+                        SettingsStore::global(cx)
+                            .settings
+                            .effective_update_channel(),
+                    )
                 })
                 .ok()
                 .flatten();
@@ -368,10 +540,10 @@ impl AraView {
                 return;
             };
             let result = cx
-                .background_spawn(async move { fetch_feed(&feed_url(channel)) })
+                .background_spawn(async move { fetch_latest(channel) })
                 .await;
             this.update_in(cx, |this, window, cx| {
-                this.update_checking = false;
+                this.update_status.finish_check(result.is_ok());
                 // 자동 확인 중 설정을 열었다면 확인 버튼을 원래대로 되돌린다.
                 window.refresh();
                 match result {
@@ -478,9 +650,11 @@ impl AraView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        let view = cx.entity().downgrade();
         window.open_dialog(cx, move |dialog, _window, cx| {
             let percent = progress.percent();
             let cancel = progress.clone();
+            let view = view.clone();
             centered(dialog)
                 .close_button(false)
                 .keyboard(false)
@@ -516,8 +690,16 @@ impl AraView {
                             .outline()
                             .label(t("dialog.cancel"))
                             .on_click(move |_, window, cx| {
-                                cancel.cancelled.store(true, Ordering::Relaxed);
+                                // 앱 상태를 못 읽어도(창이 닫히는 중) 배경 작업은 멈추게 먼저 표시한다.
+                                cancel.cancel();
                                 window.close_dialog(cx);
+                                // 응답이 멈춘 다운로드는 기한(10분)까지 끝나지 않는다. 끝나기를
+                                // 기다리지 않고 바로 다음 확인과 다운로드를 받을 수 있게 한다.
+                                // 늦게 끝난 결과는 `download_update`가 버린다.
+                                view.update(cx, |this, _| {
+                                    this.update_status.cancel_download(&cancel)
+                                })
+                                .ok();
                             }),
                     ),
                 )
@@ -533,7 +715,7 @@ impl AraView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self.update_checking {
+        if self.update_status.is_busy() {
             return;
         }
         let public_key = match release_public_key() {
@@ -543,16 +725,21 @@ impl AraView {
                 return;
             }
         };
-        self.update_checking = true;
+        let Some(progress) = self.update_status.begin_download() else {
+            return;
+        };
         let signature = asset.signature.clone();
-        let progress = Arc::new(DownloadProgress::default());
         Self::show_download(progress.clone(), version, window, cx);
         // 받은 양은 배경 스레드가 기록하므로, 대화상자는 일정 간격으로 다시 그린다.
-        let refresh = cx.spawn_in(window, async move |_, cx| {
-            loop {
-                cx.background_executor().timer(PROGRESS_TICK).await;
-                if cx.update(|window, _| window.refresh()).is_err() {
-                    break;
+        let refresh = cx.spawn_in(window, {
+            let progress = progress.clone();
+            async move |_, cx| {
+                loop {
+                    cx.background_executor().timer(PROGRESS_TICK).await;
+                    // 취소하면 대화상자가 없으니 다시 그릴 것도 없다.
+                    if progress.is_cancelled() || cx.update(|window, _| window.refresh()).is_err() {
+                        break;
+                    }
                 }
             }
         });
@@ -564,10 +751,15 @@ impl AraView {
         cx.spawn_in(window, async move |this, cx| {
             let result = task.await;
             drop(refresh);
+            // 취소 버튼이 이미 대화상자를 닫고 확인 상태를 풀었다. 그 뒤에 시작한 확인이나
+            // 다운로드가 있을 수 있으니 상태와 대화상자를 건드리지 않고 결과만 버린다.
+            if progress.is_cancelled() {
+                discard_cancelled_download(&result);
+                return;
+            }
             this.update_in(cx, |this, window, cx| {
-                this.update_checking = false;
-                // 취소 버튼은 대화상자를 직접 닫았다. 그때는 아래 다이얼로그를 건드리지 않는다.
-                if progress.cancelled.load(Ordering::Relaxed) {
+                if !this.update_status.finish_download(&progress) {
+                    discard_cancelled_download(&result);
                     return;
                 }
                 window.close_dialog(cx);
@@ -611,8 +803,10 @@ impl AraView {
     /// 대화상자 없이 최신 버전을 바로 내려받아 설치를 시작한다. 디버그 빌드의
     /// 런타임 검증 통로(`action:installUpdate`)에서만 쓴다.
     pub(super) fn install_latest_update(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let channel = SettingsStore::global(cx).settings.update_channel;
-        let task = cx.background_spawn(async move { fetch_feed(&feed_url(channel)) });
+        let channel = SettingsStore::global(cx)
+            .settings
+            .effective_update_channel();
+        let task = cx.background_spawn(async move { fetch_latest(channel) });
         cx.spawn_in(window, async move |this, cx| {
             let feed = task.await.ok().flatten()?;
             let asset = PLATFORM
@@ -633,9 +827,85 @@ impl AraView {
 mod tests {
     // `super::*`는 gpui의 `test` 매크로까지 끌어와 `#[test]`를 가린다.
     use super::{
-        DOWNLOAD_CHUNK, DownloadProgress, Ordering, compare_versions, is_allowed_asset_url,
-        is_newer, parse_version, read_with_progress,
+        DOWNLOAD_CHUNK, DownloadProgress, Ordering, UpdateChannel, UpdateFeed, compare_versions,
+        feed_urls, is_allowed_asset_url, is_newer, newest_feed, parse_version, read_with_progress,
     };
+
+    fn feed(version: &str) -> UpdateFeed {
+        UpdateFeed {
+            version: version.to_owned(),
+            notes: String::new(),
+            platforms: Default::default(),
+        }
+    }
+
+    fn picked(results: Vec<Result<Option<UpdateFeed>, String>>) -> Result<Option<String>, String> {
+        newest_feed(results).map(|feed| feed.map(|feed| feed.version))
+    }
+
+    /// 베타 채널은 베타 피드와 안정 피드를 모두 읽는다(SPEC §20.1).
+    #[test]
+    fn the_beta_channel_reads_both_feeds() {
+        if std::env::var("ARAVIEW_UPDATE_FEED").is_ok() {
+            return;
+        }
+        assert_eq!(feed_urls(UpdateChannel::Stable).len(), 1);
+        let beta = feed_urls(UpdateChannel::Beta);
+        assert_eq!(beta.len(), 2);
+        assert!(
+            beta.iter()
+                .any(|url| url.ends_with("/update-feed-beta.json"))
+        );
+        assert!(
+            beta.iter()
+                .any(|url| url.ends_with("/latest/download/update-feed.json"))
+        );
+    }
+
+    /// 정식 핫픽스가 베타 피드보다 높으면 정식을, 아니면 베타를 고른다.
+    #[test]
+    fn the_newest_feed_wins() {
+        assert_eq!(
+            picked(vec![
+                Ok(Some(feed("2.7.0-beta.46"))),
+                Ok(Some(feed("2.7.1")))
+            ]),
+            Ok(Some("2.7.1".to_owned()))
+        );
+        assert_eq!(
+            picked(vec![
+                Ok(Some(feed("2.8.0-beta.2"))),
+                Ok(Some(feed("2.7.1")))
+            ]),
+            Ok(Some("2.8.0-beta.2".to_owned()))
+        );
+        assert_eq!(
+            picked(vec![Ok(Some(feed("garbage"))), Ok(Some(feed("2.7.1")))]),
+            Ok(Some("2.7.1".to_owned()))
+        );
+        assert_eq!(picked(vec![Ok(None), Ok(None)]), Ok(None));
+    }
+
+    /// 한쪽 피드가 실패해도 다른 쪽 결과를 쓰고, 모두 실패했을 때만 오류다.
+    #[test]
+    fn one_failed_feed_does_not_hide_the_other() {
+        assert_eq!(
+            picked(vec![Err("beta down".to_owned()), Ok(Some(feed("2.7.1")))]),
+            Ok(Some("2.7.1".to_owned()))
+        );
+        assert_eq!(
+            picked(vec![
+                Ok(Some(feed("2.8.0-beta.1"))),
+                Err("stable down".to_owned())
+            ]),
+            Ok(Some("2.8.0-beta.1".to_owned()))
+        );
+        assert_eq!(picked(vec![Ok(None), Err("down".to_owned())]), Ok(None));
+        assert_eq!(
+            picked(vec![Err("first".to_owned()), Err("second".to_owned())]),
+            Err("first".to_owned())
+        );
+    }
 
     #[test]
     fn asset_urls_must_be_https() {
@@ -706,5 +976,113 @@ mod tests {
         assert_eq!(parse_version("2.7.0-beta."), None);
         assert!(!is_newer("not-a-version", "2.6.1"));
         assert!(!is_newer("2.6.1", "not-a-version"));
+    }
+}
+
+#[cfg(test)]
+mod cancel_tests {
+    use super::discard_cancelled_download;
+
+    /// 다 받은 뒤 취소된 설치 프로그램은 임시 폴더에 남지 않는다.
+    #[test]
+    fn a_cancelled_finished_download_is_removed() {
+        let dir = tempfile::tempdir().expect("임시 폴더");
+        let installer = dir.path().join("araview-update-test.exe");
+        std::fs::write(&installer, b"installer").unwrap();
+        discard_cancelled_download(&Ok(Some(installer.clone())));
+        assert!(!installer.exists());
+    }
+
+    /// 도중에 멈춘 취소나 실패는 지울 파일이 없고, 이미 없는 파일도 문제없이 넘어간다.
+    #[test]
+    fn other_cancelled_results_leave_nothing_to_remove() {
+        discard_cancelled_download(&Ok(None));
+        discard_cancelled_download(&Err("network".to_owned()));
+        let dir = tempfile::tempdir().expect("임시 폴더");
+        discard_cancelled_download(&Ok(Some(dir.path().join("missing.exe"))));
+    }
+}
+
+#[cfg(test)]
+mod state_tests {
+    use super::UpdateStatus;
+
+    /// 확인 중에는 다른 확인도, 다운로드도 시작하지 않는다(중복 확인 무시).
+    #[test]
+    fn a_running_check_blocks_other_work() {
+        let mut status = UpdateStatus::default();
+        assert!(!status.is_busy());
+        assert!(status.begin_check(true));
+        assert!(status.is_busy());
+        assert!(!status.begin_check(false));
+        assert!(!status.begin_check(true));
+        assert!(status.begin_download().is_none());
+        status.finish_check(false);
+        assert!(!status.is_busy());
+    }
+
+    /// 성공한 수동 확인 뒤에는 시작 시 자동 확인을 건너뛰지만, 수동 확인은 다시 할 수 있다.
+    #[test]
+    fn a_finished_manual_check_skips_the_auto_check() {
+        let mut status = UpdateStatus::default();
+        assert!(status.begin_check(false));
+        status.finish_check(true);
+        assert!(!status.begin_check(true));
+        assert!(!status.is_busy());
+        assert!(status.begin_check(false));
+    }
+
+    /// 실패한 수동 확인이나 자동 확인은 자동 확인을 막지 않는다.
+    #[test]
+    fn failed_or_automatic_checks_do_not_mark_checked() {
+        let mut status = UpdateStatus::default();
+        assert!(status.begin_check(false));
+        status.finish_check(false);
+        assert!(status.begin_check(true));
+        status.finish_check(true);
+        assert!(status.begin_check(true));
+    }
+
+    /// 다운로드 중에는 확인과 다른 다운로드를 받지 않고, 끝나면 결과를 쓴다.
+    #[test]
+    fn a_download_runs_alone_and_finishes() {
+        let mut status = UpdateStatus::default();
+        let progress = status.begin_download().expect("다운로드 시작");
+        assert!(status.is_busy());
+        assert!(!status.begin_check(false));
+        assert!(status.begin_download().is_none());
+        assert!(status.finish_download(&progress));
+        assert!(!status.is_busy());
+    }
+
+    /// 취소하면 바로 다음 작업을 받고, 늦게 끝난 결과는 버리며 그 사이 시작한 작업을 건드리지
+    /// 않는다.
+    #[test]
+    fn a_cancelled_download_frees_the_state_and_drops_its_late_result() {
+        let mut status = UpdateStatus::default();
+        let first = status.begin_download().expect("첫 다운로드");
+        status.cancel_download(&first);
+        assert!(first.is_cancelled());
+        assert!(!status.is_busy());
+
+        let second = status.begin_download().expect("취소 뒤 바로 다시 다운로드");
+        assert!(!status.finish_download(&first));
+        assert!(status.is_busy(), "늦은 결과가 새 다운로드를 끝내면 안 된다");
+        assert!(status.finish_download(&second));
+        assert!(!status.is_busy());
+    }
+
+    /// 취소 뒤에 시작한 확인도 늦은 다운로드 결과가 끝내지 않는다.
+    #[test]
+    fn a_late_download_result_leaves_a_new_check_alone() {
+        let mut status = UpdateStatus::default();
+        let progress = status.begin_download().expect("다운로드 시작");
+        status.cancel_download(&progress);
+        assert!(status.begin_check(false));
+        assert!(!status.finish_download(&progress));
+        assert!(status.is_busy());
+        // 이미 끝난 다운로드를 다시 취소해도 진행 중인 확인은 그대로다.
+        status.cancel_download(&progress);
+        assert!(status.is_busy());
     }
 }

@@ -17,17 +17,47 @@ pub struct ArchiveEntries {
     pub all: Arc<Vec<String>>,
 }
 
-/// 엔트리 전체 경로를 해시한 prefix로 임시 추출 경로를 고유화한다.
-/// 하위 폴더가 다른 동명 엔트리(a/001.jpg, b/001.jpg)가 같은 basename으로
-/// 겹쳐 서로를 덮어쓰는 문제를 막는다. 이웃 선추출이 병렬로 돌 때 필수.
-/// 해시는 영속 파일명에 쓰이므로 안정 해시(FNV-1a)를 사용한다.
+/// 엔트리 전체 경로의 해시로 임시 추출 경로를 정한다. 하위 폴더가 다른 동명
+/// 엔트리(a/001.jpg, b/001.jpg)가 서로를 덮어쓰지 않고, 이웃 선추출이 병렬로
+/// 돌아도 겹치지 않는다. 해시는 영속 파일명에 쓰이므로 안정 해시(FNV-1a)다.
+///
+/// 파일명에는 엔트리 이름을 넣지 않는다. ZIP 엔트리 이름은 아무 문자나 담을 수
+/// 있어, Windows에서 금지된 문자(`: ? * " < > |`)나 긴 이름이 그대로 들어가면
+/// 추출이 실패하고, `:`는 NTFS 대체 데이터 스트림이 되어 빈 파일만 남는다.
+/// 디코더가 확장자로 포맷을 고르므로 정제한 소문자 확장자만 붙인다.
 fn extraction_out_path(temp_dir: &Path, entry_name: &str) -> PathBuf {
-    let file_name = Path::new(entry_name)
-        .file_name()
-        .and_then(|n| n.to_str())
-        .unwrap_or("image");
     let hash = crate::sidecar::entry_name_hash(entry_name);
-    temp_dir.join(format!("{hash:016x}_{file_name}"))
+    match extraction_extension(entry_name) {
+        Some(ext) => temp_dir.join(format!("{hash:016x}.{ext}")),
+        None => temp_dir.join(format!("{hash:016x}")),
+    }
+}
+
+/// 엔트리 basename의 확장자를 소문자 ASCII 영숫자로만 돌려준다. 그 밖의 문자가
+/// 섞였거나 비정상적으로 길면 `None`이다(지원 이미지 확장자는 모두 짧은 ASCII다).
+fn extraction_extension(entry_name: &str) -> Option<String> {
+    const MAX_EXTENSION_LEN: usize = 16;
+    let base = entry_name.rsplit(['/', '\\']).next().unwrap_or(entry_name);
+    let (stem, ext) = base.rsplit_once('.')?;
+    if stem.is_empty()
+        || ext.is_empty()
+        || ext.len() > MAX_EXTENSION_LEN
+        || !ext.bytes().all(|b| b.is_ascii_alphanumeric())
+    {
+        return None;
+    }
+    Some(ext.to_ascii_lowercase())
+}
+
+/// 숨김 엔트리인지. 앞의 `./`는 경로의 일부가 아니므로 떼고 본다(`./001.jpg`
+/// 형식으로 만든 CBZ가 전부 숨김으로 걸러져 "No images found"가 되던 문제).
+/// macOS 리소스 포크 폴더 `__MACOSX` 아래이거나, 경로 구성요소 중 하나가 `.`으로
+/// 시작하면(`.DS_Store`, `folder/.hidden.jpg`, `.thumbs/001.jpg`) 숨김이다.
+/// `__cover.jpg`처럼 밑줄로 시작하는 보통 파일은 숨김이 아니다.
+fn is_hidden_entry(name: &str) -> bool {
+    name.split(['/', '\\'])
+        .filter(|part| !part.is_empty() && *part != ".")
+        .any(|part| part == "__MACOSX" || (part.starts_with('.') && part != ".."))
 }
 
 /// 단일 엔트리 압축 해제 상한 (zipbomb 가드). 초과 시 에러로 중단한다.
@@ -234,26 +264,18 @@ fn write_extracted(out_path: &Path, reader: &mut impl Read) -> Result<(), AppErr
     }
     // 직접 쓰면 동시 로더가 부분 파일을 읽을 수 있어 temp+rename으로 발행한다.
     // 엔트리를 한 번에 메모리에 올리지 않고 스트리밍해 병렬 워커의 피크를 줄인다.
-    let tmp = crate::sidecar::tmp_path_for(out_path);
     let mut limited = reader.take(MAX_ENTRY_BYTES + 1);
-    let result = (|| -> Result<u64, AppError> {
-        let mut file = fs::File::create(&tmp)
-            .map_err(|e| AppError::io("Failed to write temp file", e, ErrorCode::Unknown))?;
-        let written = std::io::copy(&mut limited, &mut file)
-            .map_err(|e| AppError::io("Failed to write temp file", e, ErrorCode::Unknown))?;
-        if written > MAX_ENTRY_BYTES {
-            return Err(AppError::too_large("Archive entry too large"));
-        }
-        Ok(written)
-    })();
-    let written = match result {
-        Ok(written) => written,
-        Err(e) => {
-            crate::sidecar::discard_temp(&tmp);
-            return Err(e);
-        }
-    };
-    crate::sidecar::publish_atomic(&tmp, out_path, "Failed to publish temp file")?;
+    let written =
+        crate::sidecar::write_cache_atomic(out_path, "Failed to publish temp file", |tmp| {
+            let mut file = fs::File::create(tmp)
+                .map_err(|e| AppError::io("Failed to write temp file", e, ErrorCode::Unknown))?;
+            let written = std::io::copy(&mut limited, &mut file)
+                .map_err(|e| AppError::io("Failed to write temp file", e, ErrorCode::Unknown))?;
+            if written > MAX_ENTRY_BYTES {
+                return Err(AppError::too_large("Archive entry too large"));
+            }
+            Ok(written)
+        })?;
     crate::process_temp::touch_cache_file(out_path);
     // 엔트리마다 디렉터리를 다시 훑지 않도록 누적 바이트로 상한을 추적한다.
     if let Some(dir) = out_path.parent() {
@@ -315,12 +337,7 @@ fn collect_zip_entries(archive_path: &Path) -> Result<ArchiveEntries, AppError> 
         }
 
         // 디렉토리 스킵, 숨김 파일(__MACOSX 등) 스킵
-        if entry.is_dir()
-            || name.ends_with('/')
-            || name.ends_with('\\')
-            || name.starts_with("__")
-            || name.starts_with('.')
-        {
+        if entry.is_dir() || name.ends_with('/') || name.ends_with('\\') || is_hidden_entry(&name) {
             continue;
         }
         all.push(name);
@@ -455,4 +472,124 @@ pub fn prefetch_archive_images(
     .into_iter()
     .filter(|extracted| *extracted)
     .count()
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io::{Cursor, Write};
+
+    use super::*;
+
+    fn zip_with(names: &[&str]) -> Vec<u8> {
+        let mut writer = zip::ZipWriter::new(Cursor::new(Vec::new()));
+        for name in names {
+            writer
+                .start_file(
+                    *name,
+                    zip::write::SimpleFileOptions::default()
+                        .compression_method(zip::CompressionMethod::Stored),
+                )
+                .unwrap();
+            writer.write_all(name.as_bytes()).unwrap();
+        }
+        writer.finish().unwrap().into_inner()
+    }
+
+    #[test]
+    fn hidden_entries_are_judged_by_path_components() {
+        assert!(!is_hidden_entry("./001.jpg"));
+        assert!(!is_hidden_entry("././chapter/002.jpg"));
+        assert!(!is_hidden_entry("__cover.jpg"));
+        assert!(!is_hidden_entry("chapter/__cover.jpg"));
+        assert!(is_hidden_entry(".DS_Store"));
+        assert!(is_hidden_entry("./.hidden.jpg"));
+        assert!(is_hidden_entry("folder/.hidden.jpg"));
+        assert!(is_hidden_entry(".thumbs/001.jpg"));
+        assert!(is_hidden_entry("__MACOSX/._001.jpg"));
+        assert!(is_hidden_entry("chapter/__MACOSX/001.jpg"));
+        assert!(is_hidden_entry("folder\\.hidden.jpg"));
+    }
+
+    /// `./` 접두 엔트리로 만든 CBZ도 모든 페이지가 보이고, 그 이름으로 추출된다.
+    #[test]
+    fn dot_slash_entries_are_listed_and_extracted() {
+        let dir = tempfile::tempdir().unwrap();
+        let archive = dir.path().join("book.cbz");
+        fs::write(
+            &archive,
+            zip_with(&[
+                "./001.jpg",
+                "./002.jpg",
+                "./__cover.jpg",
+                "./sub/.hidden.jpg",
+                "__MACOSX/./._001.jpg",
+            ]),
+        )
+        .unwrap();
+
+        let entries = list_archive_entries(&archive).unwrap();
+        // 기호와 숫자의 앞뒤는 플랫폼 정렬 규칙을 따르므로(Windows는 로캘 정렬
+        // 키로 `_`가 숫자보다 앞선다) 순서가 아니라 목록에 든 엔트리를 본다.
+        let mut images = entries.images.to_vec();
+        images.sort();
+        assert_eq!(images, ["./001.jpg", "./002.jpg", "./__cover.jpg"]);
+
+        let out = dir.path().join("out");
+        let extracted = extract_archive_image(&archive, "./002.jpg", &out).unwrap();
+        assert_eq!(fs::read(extracted).unwrap(), b"./002.jpg");
+    }
+
+    /// 추출 파일명에는 엔트리 이름이 들어가지 않는다. Windows 금지 문자와 긴
+    /// 이름도 해시 + 정제한 확장자로만 저장된다.
+    #[test]
+    fn extraction_names_carry_only_a_hash_and_a_safe_extension() {
+        let temp = Path::new("cache");
+        let name_of = |entry: &str| {
+            extraction_out_path(temp, entry)
+                .file_name()
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .to_owned()
+        };
+        let long = format!("{}.PNG", "a".repeat(300));
+        for entry in [
+            "chapter: one/page?<1>*.JPG",
+            "a\"b|c.webp",
+            long.as_str(),
+            "x/001.jpg",
+        ] {
+            let name = name_of(entry);
+            let (hash, ext) = name.split_once('.').unwrap();
+            assert_eq!(hash.len(), 16, "{entry}");
+            assert!(hash.bytes().all(|b| b.is_ascii_hexdigit()), "{entry}");
+            assert!(
+                ext.bytes()
+                    .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit()),
+                "{entry}"
+            );
+        }
+        assert!(name_of("chapter: one/page?<1>*.JPG").ends_with(".jpg"));
+        assert!(name_of(&long).ends_with(".png"));
+        // 하위 폴더만 다른 동명 엔트리는 다른 파일이 된다.
+        assert_ne!(name_of("a/001.jpg"), name_of("b/001.jpg"));
+        // 확장자가 비정상이면 붙이지 않는다.
+        assert_eq!(name_of("page.j:pg").len(), 16);
+        assert_eq!(name_of(".jpg").len(), 16);
+    }
+
+    /// 금지 문자가 든 엔트리도 추출된다(Linux에서는 원래도 됐지만 파일명 형식을 고정한다).
+    #[test]
+    fn entries_with_reserved_characters_extract() {
+        let dir = tempfile::tempdir().unwrap();
+        let archive = dir.path().join("book.cbz");
+        let entry = "vol: 1/page?<1>*|\".jpg";
+        fs::write(&archive, zip_with(&[entry])).unwrap();
+
+        let out = dir.path().join("out");
+        let extracted = extract_archive_image(&archive, entry, &out).unwrap();
+
+        assert_eq!(fs::read(&extracted).unwrap(), entry.as_bytes());
+        assert_eq!(extracted.extension().unwrap(), "jpg");
+    }
 }

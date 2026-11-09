@@ -11,18 +11,28 @@
 //! reliably reflect nested changes, so without an active watcher they are
 //! always rescanned (previous behavior).
 //!
-//! Cache keys use the canonicalized directory path (lowercased on Windows)
-//! so `C:\Pics` and `c:\pics\` share one entry. Eviction is LRU by last
+//! Cache keys use the canonicalized directory path (lowercased on Windows only)
+//! so `C:\Pics` and `c:\pics\` share one entry. Linux and case-sensitive macOS
+//! volumes keep `Comics/` and `comics/` apart; macOS `realpath` already returns
+//! the on-disk spelling on case-insensitive volumes, so folding is not needed
+//! there to share an entry. Eviction is LRU by last
 //! access, and watcher slots are trimmed together with evicted entries.
 //! Canonicalization stays internal: the listing itself is scanned from the
 //! caller's own path, because `fs::canonicalize` returns extended-length
 //! paths (`\\?\D:\...`) that the shell and the UI cannot use. Releasing a
 //! watcher slot also drops the listings that depended on it, so a cached
 //! recursive listing is never served for an unwatched directory.
+//!
+//! A scan is registered while it runs. Watcher events that arrive during the
+//! scan mark it dirty, and a dirty scan is returned to its caller but not
+//! cached: the event could not invalidate a cache entry that did not exist yet,
+//! so caching the scan would keep a file added mid-scan out of the listing
+//! until some later change.
 
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, LazyLock, Mutex};
 use std::time::{Duration, Instant, SystemTime};
 
@@ -64,17 +74,78 @@ static WATCHED_DIRS: LazyLock<Mutex<HashMap<PathBuf, (Instant, bool)>>> =
 static WATCHER: LazyLock<Mutex<Option<notify::RecommendedWatcher>>> =
     LazyLock::new(|| Mutex::new(None));
 
+/// 진행 중인 스캔: 등록 번호 -> (감시 키, 스캔 중 이벤트가 왔는지).
+static SCANS: LazyLock<Mutex<HashMap<u64, (String, bool)>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
+static NEXT_SCAN: AtomicU64 = AtomicU64::new(0);
+
+/// 스캔 하나의 등록. 놓으면 등록이 풀린다.
+struct ScanGuard(u64);
+
+impl ScanGuard {
+    fn begin(canonical_parent: &Path) -> Self {
+        let id = NEXT_SCAN.fetch_add(1, Ordering::Relaxed);
+        if let Ok(mut scans) = SCANS.lock() {
+            scans.insert(id, (parent_key(canonical_parent), false));
+        }
+        Self(id)
+    }
+
+    /// 스캔 중 이 폴더에 대한 이벤트가 왔으면(또는 상태를 알 수 없으면) `true`.
+    fn is_dirty(&self) -> bool {
+        SCANS
+            .lock()
+            .map(|scans| scans.get(&self.0).is_none_or(|(_, dirty)| *dirty))
+            .unwrap_or(true)
+    }
+}
+
+impl Drop for ScanGuard {
+    fn drop(&mut self) {
+        if let Ok(mut scans) = SCANS.lock() {
+            scans.remove(&self.0);
+        }
+    }
+}
+
+/// 진행 중인 스캔 중 `candidates`에 걸리는 것을 더럽힌다. 이벤트 유실처럼 범위를
+/// 모를 때는 `None`으로 전부 더럽힌다.
+fn mark_scans_dirty(candidates: Option<&[String]>) {
+    let Ok(mut scans) = SCANS.lock() else {
+        return;
+    };
+    for (key, dirty) in scans.values_mut() {
+        if candidates.is_none_or(|candidates| candidates.iter().any(|c| c.starts_with(&*key))) {
+            *dirty = true;
+        }
+    }
+}
+
+/// Case folding for cache keys and event matching. Only Windows folds: its
+/// volumes are case-insensitive by default. Folding on case-sensitive volumes
+/// (Linux, case-sensitive APFS) would merge `Comics/` and `comics/` listings.
+fn fold_case(path: String) -> String {
+    #[cfg(windows)]
+    {
+        path.to_lowercase()
+    }
+    #[cfg(not(windows))]
+    {
+        path
+    }
+}
+
 /// Canonicalize for identity. Falls back to the raw path when the directory
 /// vanished between the caller check and here.
 fn normalize_parent(parent: &Path) -> PathBuf {
     fs::canonicalize(parent).unwrap_or_else(|_| parent.to_path_buf())
 }
 
-/// Lowercased canonical string with trailing separator, for prefix matching
+/// Case-folded (Windows) canonical string with trailing separator, for prefix matching
 /// (`C:\foo` must not match `C:\foobar`). Rust `Path::starts_with` is
 /// case-sensitive even on Windows, so string comparison is used.
 fn parent_key(canonical: &Path) -> String {
-    with_trailing_sep(canonical.to_string_lossy().to_lowercase())
+    with_trailing_sep(fold_case(canonical.to_string_lossy().into_owned()))
 }
 
 fn with_trailing_sep(mut key: String) -> String {
@@ -94,7 +165,7 @@ pub(crate) fn cache_key(canonical: &Path, opts: &DirListOptions) -> String {
     };
     format!(
         "{}|{}|{}|{}",
-        canonical.to_string_lossy().to_lowercase(),
+        fold_case(canonical.to_string_lossy().into_owned()),
         sort,
         opts.descending,
         opts.recursive
@@ -133,12 +204,16 @@ pub(crate) fn get_sorted_images_with_source(
                 }
             }
         }
+        // 워처를 스캔 전에 걸어 스캔 중 변경도 이벤트로 잡는다. 이벤트가 오면 이
+        // 스캔은 저장하지 않는다(모듈 설명). mtime 검증만으로는 해상도가 거친
+        // 파일시스템에서 스캔과 같은 틱의 변경을 놓친다.
+        ensure_watched(&canonical, false);
+        let scan = ScanGuard::begin(&canonical);
         let mut images = Vec::new();
         collect_images(parent, false, &mut images)?;
         sort_images(&mut images, opts);
-        ensure_watched(&canonical, false);
         let images = Arc::new(images);
-        insert_cache(canonical, opts, current, Arc::clone(&images));
+        cache_scan(&scan, canonical, opts, current, &images);
         Ok((images, ListingSource::Scanned))
     } else {
         let key = cache_key(&canonical, opts);
@@ -155,14 +230,42 @@ pub(crate) fn get_sorted_images_with_source(
                 }
             }
         }
+        let scan = ScanGuard::begin(&canonical);
         let mut images = Vec::new();
         collect_images(parent, true, &mut images)?;
         sort_images(&mut images, opts);
         let images = Arc::new(images);
         if watched {
-            insert_cache(canonical, opts, None, Arc::clone(&images));
+            cache_scan(&scan, canonical, opts, None, &images);
         }
         Ok((images, ListingSource::Scanned))
+    }
+}
+
+/// 스캔 결과를 저장한다. 스캔 중 이벤트가 왔으면 저장하지 않는다. 확인과 저장
+/// 사이에 온 이벤트는 저장 뒤 다시 확인해 방금 넣은 목록을 지운다(그 뒤의
+/// 이벤트는 캐시 항목을 직접 지운다).
+fn cache_scan(
+    scan: &ScanGuard,
+    canonical_parent: PathBuf,
+    opts: &DirListOptions,
+    dir_mtime: Option<SystemTime>,
+    images: &Arc<Vec<ImageEntry>>,
+) {
+    if scan.is_dirty() {
+        return;
+    }
+    let key = cache_key(&canonical_parent, opts);
+    insert_cache(canonical_parent, opts, dir_mtime, Arc::clone(images));
+    if scan.is_dirty() {
+        if let Ok(mut cache) = DIR_CACHE.lock() {
+            if cache
+                .get(&key)
+                .is_some_and(|entry| Arc::ptr_eq(&entry.images, images))
+            {
+                cache.remove(&key);
+            }
+        }
     }
 }
 
@@ -258,6 +361,7 @@ fn ensure_watched(canonical_parent: &Path, recursive: bool) -> bool {
                     // 이벤트가 유실됐을 수 있다. 재귀 목록은 mtime 검증 없이
                     // 워처만 신뢰하므로, 유실을 그대로 두면 캐시가 세션 내내
                     // stale해진다. 보수적으로 전체를 지우고 재스캔에 맡긴다.
+                    mark_scans_dirty(None);
                     if let Ok(mut cache) = DIR_CACHE.lock() {
                         cache.clear();
                     }
@@ -374,7 +478,7 @@ fn canonical_event_parent(parent: &Path) -> Option<String> {
         }
     }
     let canonical = fs::canonicalize(parent).ok()?;
-    let key = with_trailing_sep(canonical.to_string_lossy().to_lowercase());
+    let key = with_trailing_sep(fold_case(canonical.to_string_lossy().into_owned()));
     *last = Some((parent.to_path_buf(), Instant::now(), key.clone()));
     Some(key)
 }
@@ -386,18 +490,24 @@ fn invalidate_for_path(path: &Path) {
     // 감시 중인 디렉터리 자신에 대한 이벤트(삭제·이름 변경)까지 잡힌다.
     // 무효화할 목록이 없으면 경로 해석(syscall)도 필요 없다. 대량 변경은 첫
     // 이벤트가 목록을 비운 뒤 나머지가 여기서 끝난다.
-    if DIR_CACHE.lock().is_ok_and(|cache| cache.is_empty()) {
+    let nothing_to_invalidate = DIR_CACHE.lock().is_ok_and(|cache| cache.is_empty())
+        && SCANS.lock().is_ok_and(|scans| scans.is_empty());
+    if nothing_to_invalidate {
         return;
     }
-    let mut candidates = vec![with_trailing_sep(path.to_string_lossy().to_lowercase())];
+    let mut candidates = vec![with_trailing_sep(fold_case(
+        path.to_string_lossy().into_owned(),
+    ))];
     if let Ok(canonical) = fs::canonicalize(path) {
-        candidates.push(with_trailing_sep(
-            canonical.to_string_lossy().to_lowercase(),
-        ));
+        candidates.push(with_trailing_sep(fold_case(
+            canonical.to_string_lossy().into_owned(),
+        )));
     }
     if let Some(parent) = path.parent().and_then(canonical_event_parent) {
         candidates.push(parent);
     }
+    // 스캔 중이던 목록은 아직 캐시에 없어 아래에서 지울 수 없다. 저장하지 않게 표시한다.
+    mark_scans_dirty(Some(&candidates));
     // Watcher-callback thread: touch DIR_CACHE only, never WATCHER.
     let Ok(mut cache) = DIR_CACHE.lock() else {
         return;
@@ -513,5 +623,102 @@ fn sort_images(images: &mut [ImageEntry], opts: &DirListOptions) {
     }
     if opts.descending {
         images.reverse();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // 쓰는 테스트(`folders_differing_only_in_case_keep_separate_listings`)가
+    // Windows에서는 빠지므로 같은 조건으로 둔다.
+    #[cfg(not(windows))]
+    fn names(images: &[ImageEntry]) -> Vec<String> {
+        images
+            .iter()
+            .map(|e| {
+                Path::new(&*e.path)
+                    .file_name()
+                    .unwrap()
+                    .to_string_lossy()
+                    .into_owned()
+            })
+            .collect()
+    }
+
+    /// 스캔 중 그 폴더에 대한 이벤트가 오면 스캔 결과를 저장하지 않는다. 저장하면
+    /// 스캔 뒤에 생긴 파일이 다음 변경 전까지 목록에서 빠진다.
+    #[test]
+    fn events_during_a_scan_keep_it_out_of_the_cache() {
+        let dir = tempfile::tempdir().unwrap();
+        let canonical = normalize_parent(dir.path());
+        let opts = DirListOptions {
+            recursive: true,
+            ..Default::default()
+        };
+
+        let scan = ScanGuard::begin(&canonical);
+        assert!(!scan.is_dirty());
+        // 다른 폴더의 이벤트는 이 스캔과 무관하다.
+        let other = tempfile::tempdir().unwrap();
+        invalidate_for_path(&other.path().join("x.jpg"));
+        assert!(!scan.is_dirty());
+
+        invalidate_for_path(&canonical.join("sub").join("added.jpg"));
+        assert!(scan.is_dirty());
+        cache_scan(&scan, canonical.clone(), &opts, None, &Arc::new(Vec::new()));
+        assert!(!DIR_CACHE
+            .lock()
+            .unwrap()
+            .contains_key(&cache_key(&canonical, &opts)));
+    }
+
+    #[test]
+    fn a_clean_scan_is_cached() {
+        let dir = tempfile::tempdir().unwrap();
+        let canonical = normalize_parent(dir.path());
+        let opts = DirListOptions {
+            recursive: true,
+            ..Default::default()
+        };
+
+        let scan = ScanGuard::begin(&canonical);
+        cache_scan(&scan, canonical.clone(), &opts, None, &Arc::new(Vec::new()));
+
+        assert!(DIR_CACHE
+            .lock()
+            .unwrap()
+            .contains_key(&cache_key(&canonical, &opts)));
+        drop_cached_listings(&canonical);
+    }
+
+    /// 대소문자 구분 볼륨에서 `Comics/`와 `comics/`는 다른 폴더다. 한쪽 목록이
+    /// 다른 쪽 요청에 돌아오면 안 된다.
+    #[cfg(not(windows))]
+    #[test]
+    fn folders_differing_only_in_case_keep_separate_listings() {
+        let root = tempfile::tempdir().unwrap();
+        let upper = root.path().join("Comics");
+        let lower = root.path().join("comics");
+        fs::create_dir(&upper).unwrap();
+        if fs::create_dir(&lower).is_err() {
+            // 대소문자 무시 볼륨(macOS 기본)에서는 재현할 수 없다.
+            return;
+        }
+        fs::write(upper.join("upper.png"), b"").unwrap();
+        fs::write(lower.join("lower.png"), b"").unwrap();
+        let opts = DirListOptions::default();
+
+        let (first, _) = get_sorted_images_with_source(&upper, &opts).unwrap();
+        let (second, _) = get_sorted_images_with_source(&lower, &opts).unwrap();
+
+        assert_eq!(names(&first), ["upper.png"]);
+        assert_eq!(names(&second), ["lower.png"]);
+        assert_ne!(
+            cache_key(&normalize_parent(&upper), &opts),
+            cache_key(&normalize_parent(&lower), &opts)
+        );
+        drop_cached_listings(&normalize_parent(&upper));
+        drop_cached_listings(&normalize_parent(&lower));
     }
 }

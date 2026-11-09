@@ -45,19 +45,6 @@ pub fn cached_thumbnail(source: &Path) -> Option<ThumbnailInfo> {
     if !source.is_file() {
         return None;
     }
-    // 동영상은 포스터 캐시만 본다. 디코더 없이 원본을 건드리지 않는다.
-    if crate::image::is_video_file(source) {
-        for &max_side in PREVIEW_THUMB_CANDIDATES {
-            if let Some((path, width, height)) = crate::video::cached_poster(source, max_side) {
-                return Some(ThumbnailInfo {
-                    file_path: path.to_string_lossy().to_string(),
-                    width,
-                    height,
-                });
-            }
-        }
-        return None;
-    }
     let decoder = crate::transcode::decoder_for(source);
     for &max_side in PREVIEW_THUMB_CANDIDATES {
         let path = if let Some(decoder) = decoder {
@@ -83,15 +70,6 @@ pub fn cached_thumbnail(source: &Path) -> Option<ThumbnailInfo> {
 pub fn generate_thumbnail(source: &Path, max_side: u32) -> Result<ThumbnailInfo, AppError> {
     if !source.is_file() {
         return Err(AppError::not_found("File not found"));
-    }
-    // 동영상은 포스터 파이프라인을 쓴다. 원본 로드 시도로 손상 판정하지 않는다.
-    if crate::image::is_video_file(source) {
-        let (poster, width, height) = crate::video::ensure_poster(source, max_side)?;
-        return Ok(ThumbnailInfo {
-            file_path: poster.to_string_lossy().to_string(),
-            width,
-            height,
-        });
     }
     let max_side = max_side.clamp(32, 1024);
     if let Some(decoder) = crate::transcode::decoder_for(source) {
@@ -131,10 +109,16 @@ pub fn generate_thumbnail(source: &Path, max_side: u32) -> Result<ThumbnailInfo,
                             .map_err(|e| AppError::image_error("Failed to decode image", e))?,
                     },
                 };
-                let img = crate::orientation::apply_to_image(
-                    img,
-                    crate::orientation::read_orientation(source),
-                );
+                // 표시와 같은 기준(JPEG/TIFF)으로만 회전한다. PNG/WebP의 태그를
+                // 반영하면 썸네일만 돌아가 원본 보기와 어긋난다.
+                let img = if crate::orientation::applies_to(source) {
+                    crate::orientation::apply_to_image(
+                        img,
+                        crate::orientation::read_orientation(source),
+                    )
+                } else {
+                    img
+                };
                 img.thumbnail(max_side, max_side)
             };
             write_jpeg_atomic(&dest, &thumb)?;
@@ -286,7 +270,9 @@ fn thumbs_dir() -> Result<PathBuf, AppError> {
 }
 
 fn thumb_path(source: &Path, max_side: u32) -> Result<PathBuf, AppError> {
-    let hash = crate::sidecar::file_identity_hash(source, &max_side.to_le_bytes())?;
+    let mut extra = max_side.to_le_bytes().to_vec();
+    extra.extend_from_slice(crate::orientation::cache_scope_tag(source));
+    let hash = crate::sidecar::file_identity_hash(source, &extra)?;
     Ok(thumbs_dir()?.join(format!("{hash:016x}.jpg")))
 }
 
@@ -296,12 +282,50 @@ fn write_jpeg_atomic(dest: &Path, img: &image::DynamicImage) -> Result<(), AppEr
             .map_err(|e| AppError::io("Failed to create thumbs dir", e, ErrorCode::Unknown))?;
     }
     // `.jpg` 접미사를 유지해야 `save`가 포맷을 추론할 수 있다.
-    let tmp = crate::sidecar::tmp_path_for(dest);
-    if let Err(e) = img.save(&tmp) {
-        crate::sidecar::discard_temp(&tmp);
-        return Err(AppError::unknown(format!(
-            "Failed to encode thumbnail: {e}"
-        )));
+    crate::sidecar::write_cache_atomic(dest, "Failed to publish thumbnail", |tmp| {
+        img.save(tmp)
+            .map_err(|e| AppError::unknown(format!("Failed to encode thumbnail: {e}")))
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::orientation::test_images::{write_jpeg, write_png};
+
+    /// 원본 보기는 PNG의 EXIF Orientation을 적용하지 않으므로 썸네일도 돌리지 않는다.
+    #[test]
+    fn png_orientation_tag_does_not_rotate_the_thumbnail() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("wide.png");
+        write_png(&path, 80, 40, 6);
+        assert_eq!(crate::orientation::read_orientation(&path), 6);
+
+        let thumb = generate_thumbnail(&path, 64).unwrap();
+
+        assert!(
+            thumb.width > thumb.height,
+            "{}x{}",
+            thumb.width,
+            thumb.height
+        );
     }
-    crate::sidecar::publish_atomic(&tmp, dest, "Failed to publish thumbnail")
+
+    /// JPEG는 표시와 같이 Orientation을 반영한다.
+    #[test]
+    fn jpeg_orientation_tag_rotates_the_thumbnail() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("wide.jpg");
+        write_jpeg(&path, 80, 40, 6);
+        assert_eq!(crate::orientation::read_orientation(&path), 6);
+
+        let thumb = generate_thumbnail(&path, 64).unwrap();
+
+        assert!(
+            thumb.height > thumb.width,
+            "{}x{}",
+            thumb.width,
+            thumb.height
+        );
+    }
 }
