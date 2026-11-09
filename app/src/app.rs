@@ -78,6 +78,9 @@ const HEADER_BUTTON_GAP: f32 = 4.0;
 const PEEK_EDGE: f32 = 6.0;
 const PEEK_TOP_KEEP: f32 = 48.0;
 const PEEK_BOTTOM_KEEP: f32 = 150.0;
+/// 홈 최근 목록 카드의 가로 폭(논리 px). 560px 목록에서 카드 두 장과 다음 카드
+/// 일부가 보여 스크롤할 거리를 암시한다.
+const RECENT_CARD_WIDTH: f32 = 240.0;
 
 enum ThumbState {
     Ready(PathBuf),
@@ -188,6 +191,8 @@ pub struct AraView {
 
     info_open: bool,
     home_scroll: SmoothScroll,
+    /// 홈 최근 목록(가로 스크롤)의 감속 스크롤.
+    home_recent_scroll: SmoothScroll,
     info_scroll: SmoothScroll,
     /// 이미지 목록(도크) 스크롤과, 마지막으로 따라간 (현재 인덱스, 목록 길이).
     dock_virtual: VirtualListScrollHandle,
@@ -283,6 +288,7 @@ impl AraView {
             context_page: None,
             info_open: false,
             home_scroll: SmoothScroll::default(),
+            home_recent_scroll: SmoothScroll::default(),
             info_scroll: SmoothScroll::default(),
             dock_virtual,
             dock_scroll,
@@ -490,7 +496,6 @@ impl AraView {
         } else {
             Vec::new()
         };
-        let muted = cx.theme().muted_foreground;
         // 최근 파일이 많아 창보다 커져도 잘리지 않게 스크롤 영역 안에 둔다.
         // 내용이 작을 때는 가운데에 놓인다.
         self.home_scroll.area(
@@ -502,16 +507,21 @@ impl AraView {
                 .justify_center()
                 .gap_4()
                 .p_6()
+                // Empty는 기본으로 flex_1이라 남은 세로 공간을 다 차지해 최근
+                // 목록을 창 아래로 민다. 늘어나지 않게 감싸 버튼 카드와 목록이
+                // 함께 가운데에 놓이게 한다.
                 .child(
-                    Empty::new().content(
-                        EmptyContent::new().child(
-                            Button::new("home-open")
-                                .primary()
-                                .icon(Ph::FolderOpen)
-                                .label(t("home.openFile"))
-                                .on_click(
-                                    cx.listener(|this, _, window, cx| this.prompt_open(window, cx)),
-                                ),
+                    v_flex().items_center().child(
+                        Empty::new().content(
+                            EmptyContent::new().child(
+                                Button::new("home-open")
+                                    .primary()
+                                    .icon(Ph::FolderOpen)
+                                    .label(t("home.openFile"))
+                                    .on_click(cx.listener(|this, _, window, cx| {
+                                        this.prompt_open(window, cx)
+                                    })),
+                            ),
                         ),
                     ),
                 )
@@ -542,101 +552,124 @@ impl AraView {
                                             })),
                                     ),
                             )
-                            .children(recent.into_iter().enumerate().map(|(ix, path)| {
-                                let file = Path::new(&path);
-                                let name = file
-                                    .file_name()
-                                    .map(|name| name.to_string_lossy().into_owned())
-                                    .unwrap_or_else(|| path.clone());
-                                let parent = file
-                                    .parent()
-                                    .map(|dir| dir.to_string_lossy().into_owned())
-                                    .unwrap_or_default();
-                                let icon = if is_archive_file(file) {
-                                    Ph::FileArchive
-                                } else {
-                                    Ph::FileImage
-                                };
-                                // 아카이브는 읽기 진도를 함께 보여준다. 경로만 같다고
-                                // 믿지 않아 identity가 지금 파일과 다르면(§8) 진도를
-                                // 숨긴다(§12).
-                                let progress = SettingsStore::global(cx)
-                                    .archive_progress(&path)
-                                    .filter(|progress| {
-                                        progress.matches_identity(FileIdentity::capture(file))
-                                    })
-                                    .map(|progress| {
-                                        t_with(
-                                            "home.card.progress",
-                                            &[
-                                                ("index", &(progress.index + 1)),
-                                                ("total", &progress.total),
-                                            ],
-                                        )
-                                    });
-                                let removed = path.clone();
-                                h_flex()
-                                    .w_full()
-                                    .gap_1()
-                                    .items_center()
-                                    .child(
-                                        h_flex()
-                                            .id(("recent", ix))
-                                            .flex_1()
-                                            .min_w_0()
-                                            .gap_3()
-                                            .px_2()
-                                            .py_1()
-                                            .rounded_md()
-                                            .cursor_pointer()
-                                            .hover(|style| style.bg(cx.theme().muted))
-                                            .child(Icon::new(icon).text_color(muted))
-                                            .child(
-                                                v_flex()
-                                                    .flex_1()
-                                                    .min_w_0()
-                                                    .child(
-                                                        div()
-                                                            .text_sm()
-                                                            .overflow_hidden()
-                                                            .text_ellipsis()
-                                                            .whitespace_nowrap()
-                                                            .child(name),
-                                                    )
-                                                    .when_some(progress, |column, text| {
-                                                        column.child(
-                                                            Tag::secondary().small().child(text),
-                                                        )
-                                                    })
-                                                    .child(
-                                                        div()
-                                                            .text_xs()
-                                                            .text_color(muted)
-                                                            .overflow_hidden()
-                                                            .text_ellipsis()
-                                                            .whitespace_nowrap()
-                                                            .child(parent),
-                                                    ),
-                                            )
-                                            .on_click(cx.listener(move |this, _, window, cx| {
-                                                this.open_path(path.clone(), window, cx)
-                                            })),
-                                    )
-                                    .child(
-                                        Button::new(("recent-remove", ix))
-                                            .ghost()
-                                            .xsmall()
-                                            .icon(Ph::X)
-                                            .tooltip(t("home.card.remove"))
-                                            .on_click(cx.listener(move |_, _, _, cx| {
-                                                SettingsStore::remove_recent(cx, &removed);
-                                                cx.notify();
-                                            })),
-                                    )
-                            })),
+                            // 최근 목록은 가로 카드 줄이다. 카드가 넘치면
+                            // 가로로 스크롤하며, 세로 휠도 가로 이동으로 받는다.
+                            .child(
+                                self.home_recent_scroll.h_area(
+                                    "home-recent",
+                                    h_flex().gap_2().py_1().children(
+                                        recent
+                                            .into_iter()
+                                            .enumerate()
+                                            .map(|(ix, path)| self.recent_card(ix, &path, cx)),
+                                    ),
+                                ),
+                            ),
                     )
                 }),
         )
+    }
+
+    /// 홈 최근 목록의 카드 한 장. 파일명·상위 폴더·(아카이브면) 읽기 진도를 담는다.
+    /// 파일명과 폴더는 한 줄에만 놓고 전체 경로는 툴팁으로 내준다(DESIGN.md). 삭제
+    /// 버튼은 열기 영역과 형제로 둔다. 버튼은 눌림이 바깥 카드로 번지지 않게 막지
+    /// 않으므로(gpui-kit Button), 카드에 `on_click`을 걸면 X를 눌러도 파일이 열린다.
+    fn recent_card(&self, ix: usize, path: &str, cx: &mut Context<Self>) -> Stateful<Div> {
+        let file = Path::new(path);
+        let name = file
+            .file_name()
+            .map(|name| name.to_string_lossy().into_owned())
+            .unwrap_or_else(|| path.to_owned());
+        let parent = file
+            .parent()
+            .map(|dir| dir.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        let icon = if is_archive_file(file) {
+            Ph::FileArchive
+        } else {
+            Ph::FileImage
+        };
+        // 아카이브는 읽기 진도를 함께 보여준다. 경로만 같다고
+        // 믿지 않아 identity가 지금 파일과 다르면(§8) 진도를
+        // 숨긴다(§12).
+        let progress = SettingsStore::global(cx)
+            .archive_progress(path)
+            .filter(|progress| progress.matches_identity(FileIdentity::capture(file)))
+            .map(|progress| {
+                t_with(
+                    "home.card.progress",
+                    &[("index", &(progress.index + 1)), ("total", &progress.total)],
+                )
+            });
+        let muted = cx.theme().muted_foreground;
+        let opened = path.to_owned();
+        let removed = path.to_owned();
+        let full = path.to_owned();
+        h_flex()
+            .id(("recent", ix))
+            .flex_none()
+            .w(px(RECENT_CARD_WIDTH))
+            .items_start()
+            .gap_1()
+            .px_2()
+            .py_2()
+            .rounded_md()
+            .hover(|style| style.bg(cx.theme().muted))
+            .tooltip(move |window, cx| {
+                gpui_kit::component::tooltip::Tooltip::new(full.clone()).build(window, cx)
+            })
+            .child(
+                // 파일명·폴더·진도를 여는 영역. 삭제 버튼과 형제다.
+                v_flex()
+                    .id(("recent-open", ix))
+                    .flex_1()
+                    .min_w_0()
+                    .gap_1()
+                    .cursor_pointer()
+                    .child(
+                        h_flex()
+                            .items_center()
+                            .gap_2()
+                            .child(Icon::new(icon).flex_none().text_color(muted))
+                            .child(
+                                div()
+                                    .flex_1()
+                                    .min_w_0()
+                                    .text_sm()
+                                    .overflow_hidden()
+                                    .text_ellipsis()
+                                    .whitespace_nowrap()
+                                    .child(name),
+                            ),
+                    )
+                    .child(
+                        div()
+                            .w_full()
+                            .text_xs()
+                            .text_color(muted)
+                            .overflow_hidden()
+                            .text_ellipsis()
+                            .whitespace_nowrap()
+                            .child(parent),
+                    )
+                    .when_some(progress, |column, text| {
+                        column.child(Tag::secondary().small().child(text))
+                    })
+                    .on_click(cx.listener(move |this, _, window, cx| {
+                        this.open_path(opened.clone(), window, cx)
+                    })),
+            )
+            .child(
+                Button::new(("recent-remove", ix))
+                    .ghost()
+                    .xsmall()
+                    .icon(Ph::X)
+                    .tooltip(t("home.card.remove"))
+                    .on_click(cx.listener(move |_, _, _, cx| {
+                        SettingsStore::remove_recent(cx, &removed);
+                        cx.notify();
+                    })),
+            )
     }
 
     fn render_error(&self, error: pages::ViewError, cx: &mut Context<Self>) -> impl IntoElement {

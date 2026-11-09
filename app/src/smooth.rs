@@ -198,6 +198,31 @@ impl SmoothScroll {
             .vertical_scrollbar(&self.handle)
     }
 
+    /// `content`를 가로 스크롤 영역으로 감싼다. `area`의 가로판이며, 세로 휠도
+    /// 가로 이동으로 받는다. 세로 크기는 내용을 따라가고 가로는 바깥 요소를 채운다.
+    pub fn h_area<E>(&self, id: impl Into<ElementId>, content: E) -> Stateful<Div>
+    where
+        E: Styled + IntoElement,
+    {
+        let id = id.into();
+        let wheel = self.wheel_handler(true);
+        let area = div()
+            .id((id.clone(), "area"))
+            .w_full()
+            .flex()
+            .flex_row()
+            .overflow_x_hidden()
+            .track_scroll(&self.handle)
+            .on_scroll(wheel)
+            .child(content.flex_none().w_auto().min_w_full());
+        div()
+            .id(id)
+            .w_full()
+            .relative()
+            .child(area)
+            .horizontal_scrollbar(&self.handle)
+    }
+
     fn on_wheel(&self, event: &ScrollEvent, horizontal: bool, window: &mut Window) {
         let pixels = event.delta.pixel_delta(window.line_height());
         // 가로 영역은 세로 휠(일반 마우스)도 가로 이동으로 받는다.
