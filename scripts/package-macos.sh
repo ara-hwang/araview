@@ -39,10 +39,16 @@ done
 iconutil -c icns "$iconset" -o "$bundle/Contents/Resources/AraView.icns"
 
 # 앱의 라이선스 창은 실행 파일 옆 `licenses/`를 읽는다.
-if compgen -G "$release/licenses/*" >/dev/null; then
-  mkdir -p "$bundle/Contents/MacOS/licenses"
-  cp "$release"/licenses/* "$bundle/Contents/MacOS/licenses/"
-else
+copied_licenses=false
+for license in libheif-copyright.txt libde265-copyright.txt aom-copyright.txt; do
+  source="$release/licenses/$license"
+  if [[ -f "$source" ]]; then
+    mkdir -p "$bundle/Contents/MacOS/licenses"
+    cp "$source" "$bundle/Contents/MacOS/licenses/"
+    copied_licenses=true
+  fi
+done
+if [[ "$copied_licenses" != true ]]; then
   echo "경고: 네이티브 라이브러리 저작권 문서가 없습니다($release/licenses)." >&2
 fi
 

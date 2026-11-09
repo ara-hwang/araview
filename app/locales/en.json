@@ -219,9 +219,7 @@
       "comicAutoDual": "Open comic archives in dual view automatically (follows ComicInfo reading direction)",
       "coverAlone": "Show cover alone in dual view",
       "wideAlone": "Show wide pages (landscape scans) alone in dual view",
-      "showComicInfo": "Show comic metadata (ComicInfo.xml) in the info panel",
-      "videoAutoplay": "Auto-play videos on open",
-      "showVideoInfo": "Show video info in the info panel"
+      "showComicInfo": "Show comic metadata (ComicInfo.xml) in the info panel"
     },
     "dock": {
       "title": "Image list dock",
@@ -484,18 +482,6 @@
     "summary": "Summary",
     "loadFail": "Could not read comic metadata."
   },
-  "video": {
-    "section": "Video",
-    "title": "Video",
-    "mime": "Format",
-    "codec": "Codec",
-    "audio": "Audio",
-    "dimensions": "Dimensions",
-    "duration": "Duration",
-    "fps": "Frames per second",
-    "yes": "Yes",
-    "no": "No"
-  },
   "histogram": {
     "title": "Histogram",
     "unavailable": "Histogram is not available for this format.",
@@ -567,11 +553,6 @@
     "gifPause": "Pause",
     "gifPrevFrame": "Previous Animation Frame",
     "gifNextFrame": "Next Animation Frame",
-    "videoSeekBack": "Back 10 Seconds",
-    "videoSeekFwd": "Forward 10 Seconds",
-    "videoSpeedDown": "Decrease Playback Speed",
-    "videoSpeedUp": "Increase Playback Speed",
-    "videoMute": "Toggle Mute",
     "toggleFullscreen": "Toggle Fullscreen",
     "toggleAlwaysOnTop": "Toggle Always on Top",
     "copyImage": "Copy Image",
@@ -759,7 +740,7 @@
     }
   },
   "picker": {
-    "images": "Images and videos"
+    "images": "Images"
   },
   "ext": {
     "png": "PNG image",
@@ -810,12 +791,7 @@
     "pgm": "PGM image",
     "pbm": "PBM image",
     "cbz": "Comic archive",
-    "zip": "ZIP archive",
-    "mp4": "MP4 video",
-    "mov": "MOV video",
-    "webm": "WebM video",
-    "mkv": "MKV video",
-    "avi": "AVI video"
+    "zip": "ZIP archive"
   },
   "platform": {
     "macos": {

@@ -3,7 +3,7 @@
 .SYNOPSIS
   AraView 릴리스 빌드와 NSIS 설치 프로그램을 만든다.
 .DESCRIPTION
-  앱과 PSD 썸네일 DLL을 릴리스로 빌드하고, 실행 파일, libheif 런타임 DLL, 썸네일 DLL,
+  앱과 PSD 썸네일 DLL을 릴리스로 빌드하고, 실행 파일, 이미지 코덱 런타임 DLL, 썸네일 DLL,
   라이선스 자료를 스테이징 폴더에 모은 뒤 makensis로 설치 프로그램을 만든다.
   서명과 업로드는 하지 않는다.
 .PARAMETER SkipBuild
@@ -57,9 +57,9 @@ if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
 New-Item -ItemType Directory -Path $stage | Out-Null
 Copy-Item $exe $stage
 
-# 네이티브 런타임 DLL은 빌드 스크립트가 실행 파일 옆에 복사해 둔다. 없으면 앱이 시작되지 않는다.
-# (libheif 3종 + FFmpeg 8 영상 7종 + dav1d. FFmpeg 메이저가 바뀌면 DLL 이름도 바뀐다.)
-foreach ($dll in "heif.dll", "libde265.dll", "aom.dll", "avcodec-62.dll", "avformat-62.dll", "avutil-60.dll", "avfilter-11.dll", "avdevice-62.dll", "swscale-9.dll", "swresample-6.dll", "dav1d.dll") {
+# 네이티브 이미지 코덱 런타임 DLL은 빌드 스크립트가 실행 파일 옆에 복사해 둔다.
+# 없으면 앱이 시작되지 않는다.
+foreach ($dll in "heif.dll", "libde265.dll", "aom.dll") {
   $source = Join-Path $release $dll
   if (-not (Test-Path $source)) { throw "런타임 DLL이 없습니다: $source (VCPKG_ROOT 확인)" }
   Copy-Item $source $stage
@@ -72,9 +72,13 @@ $resources = New-Item -ItemType Directory -Path (Join-Path $stage "resources")
 Copy-Item $thumb $resources
 
 # 패키지별 라이선스 데이터는 실행 파일에 들어 있다. 여기서는 vcpkg 네이티브
-# 라이브러리(libheif, libde265, aom, FFmpeg, dav1d)의 저작권 문서만 함께 넣는다(빌드 스크립트가 모은다).
+# 이미지 라이브러리(libheif, libde265, aom)의 저작권 문서만 함께 넣는다(빌드 스크립트가 모은다).
 $licenses = Join-Path $release "licenses"
-$documents = @(Get-ChildItem $licenses -Filter "*-copyright.txt" -ErrorAction SilentlyContinue)
+$documents = @()
+foreach ($name in "libheif-copyright.txt", "libde265-copyright.txt", "aom-copyright.txt") {
+  $document = Join-Path $licenses $name
+  if (Test-Path $document) { $documents += Get-Item $document }
+}
 if ($documents.Count -gt 0) {
   $target = New-Item -ItemType Directory -Path (Join-Path $stage "licenses")
   $documents | Copy-Item -Destination $target

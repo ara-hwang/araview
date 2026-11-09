@@ -49,6 +49,12 @@ mod tests {
                 "Info.plist에 `{extension}`이 없다"
             );
         }
+        for extension in ["mp4", "mov", "webm", "mkv", "avi"] {
+            assert!(
+                !plist.contains(&format!("<string>{extension}</string>")),
+                "Info.plist에 제거된 비디오 확장자 `{extension}`이 남아 있다"
+            );
+        }
     }
 
     #[test]
@@ -59,5 +65,9 @@ mod tests {
         for mime in ["image/png", "image/jpeg", "application/vnd.comicbook+zip"] {
             assert!(desktop.contains(mime), "{mime}");
         }
+        assert!(
+            !desktop.contains("video/"),
+            "desktop MIME 목록에 비디오가 남아 있다"
+        );
     }
 }

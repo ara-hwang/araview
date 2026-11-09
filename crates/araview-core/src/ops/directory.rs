@@ -146,6 +146,46 @@ mod tests {
     use super::*;
 
     #[test]
+    fn directory_listing_and_drop_keep_animated_images_but_exclude_video() {
+        let dir = tempfile::tempdir().expect("임시 디렉터리");
+        let image_extensions = ["gif", "apng", "webp", "avif", "jxl"];
+        let video_extensions = ["mp4", "mov", "webm", "mkv", "avi"];
+        for ext in image_extensions.into_iter().chain(video_extensions) {
+            let path = dir.path().join(format!("sample.{ext}"));
+            fs::write(path, b"").expect("테스트 파일 쓰기");
+        }
+
+        let current = dir.path().join("sample.gif");
+        let current = current.to_str().expect("UTF-8 경로");
+        let listing = get_directory_images_impl(current, None).expect("폴더 목록");
+        let listed_extensions: Vec<_> = listing
+            .images
+            .iter()
+            .map(|path| {
+                Path::new(path.as_ref())
+                    .extension()
+                    .and_then(|ext| ext.to_str())
+                    .expect("파일 확장자")
+            })
+            .collect();
+        for ext in image_extensions {
+            assert!(listed_extensions.contains(&ext), "{ext}");
+        }
+        for ext in video_extensions {
+            assert!(!listed_extensions.contains(&ext), "{ext}");
+        }
+
+        let dropped = resolve_dropped_path_impl(dir.path().to_str().expect("UTF-8 디렉터리 경로"))
+            .expect("애니메이션 이미지가 있는 폴더 드롭");
+        assert!(image_extensions.contains(
+            &Path::new(&dropped)
+                .extension()
+                .and_then(|ext| ext.to_str())
+                .expect("드롭된 파일 확장자")
+        ));
+    }
+
+    #[test]
     fn exact_match_wins() {
         let paths = ["/d/A.jpg", "/d/a.jpg"];
         assert_eq!(index_of_current(&paths, Path::new("/d/a.jpg")), Some(1));

@@ -20,32 +20,26 @@
 
 모든 OS에서 HEIC/HEIF/AVIF를 쓰려면 `libheif` 1.21 이상이 필요합니다. `vcpkg.json`은 `libheif`의 `default-features`를 끄고(`hevc` 인코더 `x265` 제외) `aom`만 켭니다. HEVC 디코더 `libde265`는 하드 의존성이라 항상 들어갑니다. 버전은 baseline의 1.21.2와 1.23.1이 모두 Windows에서 DLL 로드 시 초기화 실패(`0xC0000142`)를 일으켜 `cargo test`가 실행조차 되지 않으므로, `overrides`로 1.23.2를 고정합니다(`libheif-rs 3.0`의 sys 바인딩도 1.23 기준). `aom` feature는 AVIF(AV1) 디코드용이며, 없으면 AVIF 표시와 썸네일, 히스토그램이 실패합니다. 움직이는 AVIF를 디코드하려면 1.21 이상이 필요합니다(`libheif-rs`의 `v1_21` feature). 앱은 HEIC/AVIF를 인코드하지 않습니다.
 
-동영상(mp4/mov/webm/mkv/avi)은 FFmpeg 8.x가 필요합니다. `rsmpeg`의 `ffmpeg8` feature와 메이저가 맞아야 컴파일되므로, 저장소 루트의 `vcpkg.json` 매니페스트가 `builtin-baseline`으로 FFmpeg 8.0.1(vcpkg 2026-03-23)을 고정합니다. `rsmpeg 0.18`이 FFmpeg 8.0 헤더 기준이라 8.1(구조체 필드 개명)에서는 컴파일되지 않으므로, 8.0.x를 유지합니다. classic 명령(`vcpkg install ffmpeg...`)은 pin을 무시하고 최신(9.x, 미지원)을 가져오므로 쓰지 않습니다. FFmpeg feature는 LGPL 호환 기본값 + AV1 디코드용 `dav1d`만 켭니다(GPL 계열 `gpl`/`x264`/`x265` 미포함). 시스템 FFmpeg(배포판 패키지)는 메이저가 다르면 빌드가 깨지므로 개발·CI 모두 vcpkg 제공 FFmpeg를 씁니다.
-
 ### Windows
 
-[vcpkg](https://vcpkg.io/) 매니페스트로 네이티브 의존성(`libheif`, FFmpeg)을 설치합니다. 저장소 루트에서 실행해야 `vcpkg.json`이 적용됩니다.
+[vcpkg](https://vcpkg.io/) 매니페스트로 네이티브 의존성(`libheif`)을 설치합니다. 저장소 루트에서 실행해야 `vcpkg.json`이 적용됩니다.
 
 ```powershell
 cd <araview>
 vcpkg install --triplet x64-windows --x-install-root="<vcpkg root>/installed"
 $env:VCPKG_ROOT = "<vcpkg root>"
-$env:FFMPEG_LIBS_DIR = "<vcpkg root>\installed\x64-windows\lib"
 $env:Path += ";$env:VCPKG_ROOT\installed\x64-windows\bin"
 ```
 
 `--x-install-root`는 pin은 그대로 두고 설치 위치만 vcpkg 루트로 옮긴다.
 `app/build.rs`와 pkg-config 설정이 그 위치를 보기 때문이다(그냥 `vcpkg install`만
-하면 저장소 아래 `vcpkg_installed/`에 깔려 빌드가 찾지 못한다). Windows에서
-`FFMPEG_LIBS_DIR`는 rsmpeg의 prebuilt 바인딩(`FFMPEG_BINDING_PATH`,
-`.cargo/config.toml` 고정)과 짝을 이룬다. 바인딩을 로컬 생성하지 않으므로
-Windows에서는 libclang이 필요 없다.
+하면 저장소 아래 `vcpkg_installed/`에 깔려 빌드가 찾지 못한다).
 
-앱은 `libheif`와 FFmpeg를 동적 링크합니다. `app/build.rs`가 `VCPKG_ROOT`(또는 `VCPKG_INSTALLATION_ROOT`) 아래 `installed/x64-windows/bin`에서 `heif.dll`, `libde265.dll`, `aom.dll`, `avcodec-62.dll`, `avformat-62.dll`, `avutil-60.dll`, `avfilter-11.dll`, `avdevice-62.dll`, `swscale-9.dll`, `swresample-6.dll`, `dav1d.dll`을 실행 파일 옆(`target/<profile>/`)으로 복사하고, vcpkg의 `libheif`, `libde265`, `aom`, `ffmpeg`, `dav1d` `copyright`를 같은 위치의 `licenses/`로 모읍니다. 설치 프로그램은 이 파일들을 그대로 동봉합니다. CI에서는 `VCPKGRS_DYNAMIC=1`과 `PKG_CONFIG_PATH`를 함께 둡니다(워크플로 참조). FFmpeg 메이저가 바뀌면 DLL 이름(SONAME)도 바뀌므로 `app/build.rs`와 `scripts/Build-Installer.ps1`을 함께 고칩니다.
+앱은 `libheif`를 동적 링크합니다. `app/build.rs`가 `VCPKG_ROOT`(또는 `VCPKG_INSTALLATION_ROOT`) 아래 `installed/x64-windows/bin`에서 `heif.dll`, `libde265.dll`, `aom.dll`을 실행 파일 옆(`target/<profile>/`)으로 복사하고, vcpkg의 `libheif`, `libde265`, `aom` `copyright`를 같은 위치의 `licenses/`로 모읍니다. 설치 프로그램은 이 파일들을 그대로 동봉합니다. CI에서는 `VCPKGRS_DYNAMIC=1`과 `PKG_CONFIG_PATH`를 함께 둡니다(워크플로 참조). `aom.dll`은 AVIF 이미지 디코드에 필요합니다.
 
 ### macOS
 
-Xcode 명령줄 도구와 `pkg-config`가 필요합니다. 네이티브 의존성은 Windows와 같은 vcpkg 매니페스트로 설치합니다(Homebrew의 `libheif`/FFmpeg는 메이저가 맞지 않으면 빌드가 깨집니다).
+Xcode 명령줄 도구와 `pkg-config`가 필요합니다. 네이티브 의존성은 Windows와 같은 vcpkg 매니페스트로 설치합니다.
 
 ```bash
 brew install pkgconf
@@ -58,14 +52,14 @@ export PKG_CONFIG_ALL_STATIC=1
 cargo run -p araview -- ~/Pictures/image.png
 ```
 
-배포 묶음은 vcpkg 정적 빌드(`arm64-osx`, Intel은 `x64-osx`)로 `libheif`와 FFmpeg를 실행 파일에 넣어 dylib를 동봉하지 않습니다. CI의 `.github/actions/setup-rust-native`가 이 환경(`VCPKG_ROOT`, `PKG_CONFIG_PATH`, `PKG_CONFIG_ALL_STATIC=1`)을 만듭니다. Windows는 여기에 `FFMPEG_LIBS_DIR`가 더해집니다.
+배포 묶음은 vcpkg 정적 빌드(`arm64-osx`, Intel은 `x64-osx`)로 `libheif`를 실행 파일에 넣어 dylib를 동봉하지 않습니다. CI의 `.github/actions/setup-rust-native`가 이 환경(`VCPKG_ROOT`, `PKG_CONFIG_PATH`, `PKG_CONFIG_ALL_STATIC=1`)을 만듭니다.
 
 ### Linux
 
-GPUI의 X11/Wayland 연동에 필요한 개발 패키지를 설치합니다(Debian/Ubuntu 기준). 배포판의 `libheif`/FFmpeg 패키지는 쓰지 않습니다(메이저가 맞지 않으면 `rsmpeg` 빌드가 깨집니다). 네이티브 의존성은 macOS와 같은 vcpkg 매니페스트 정적 빌드(`x64-linux`)를 씁니다.
+GPUI의 X11/Wayland 연동에 필요한 개발 패키지를 설치합니다(Debian/Ubuntu 기준). 네이티브 의존성은 macOS와 같은 vcpkg 매니페스트 정적 빌드(`x64-linux`)를 씁니다.
 
 ```bash
-sudo apt-get install pkg-config cmake nasm clang libclang-dev libasound2-dev \
+sudo apt-get install pkg-config cmake nasm clang libclang-dev \
   libxkbcommon-dev libxkbcommon-x11-dev libxcb1-dev libxcb-xkb-dev libx11-xcb-dev \
   libwayland-dev libfontconfig-dev libfreetype-dev
 cd <araview>
@@ -75,7 +69,7 @@ export PKG_CONFIG_PATH="<vcpkg root>/installed/x64-linux/lib/pkgconfig"
 export PKG_CONFIG_ALL_STATIC=1
 ```
 
-실행에는 X11 또는 Wayland 세션, Vulkan 드라이버, `libxkbcommon`, `libasound2`(동영상 오디오 출력용)가 필요합니다. 파일 열기 대화상자는 `xdg-desktop-portal`을 씁니다. 디스플레이가 없는 환경에서는 `Xvfb`와 소프트웨어 Vulkan(`mesa-vulkan-drivers`)으로 실제 창을 띄워 확인할 수 있습니다.
+실행에는 X11 또는 Wayland 세션, Vulkan 드라이버, `libxkbcommon`이 필요합니다. 파일 열기 대화상자는 `xdg-desktop-portal`을 씁니다. 디스플레이가 없는 환경에서는 `Xvfb`와 소프트웨어 Vulkan(`mesa-vulkan-drivers`)으로 실제 창을 띄워 확인할 수 있습니다.
 
 ## 시작하기
 
@@ -175,7 +169,6 @@ licenses-extra/  # 업스트림 LICENSE 사본
 - 영구 모드는 캐시 폴더(위 표)의 `<식별자>/cache-v2/`를 사용합니다. 식별자는 설치 빌드가 `com.araview.viewer`, 디버그 빌드가 `com.araview.viewer.dev`라 개발 빌드는 별도 루트를 씁니다.
 - `temporary` 모드는 사용자 앱 캐시 디렉터리의 `session-v1/` 아래 프로세스별 `TempDir`를 사용합니다. 정상 종료 이벤트와 다음 시작 시 이전 세션 루트를 정리합니다. 모드 설정 변경은 다음 실행부터 적용되며, 영구 캐시를 끄면 다음 시작 때 이전 버전 루트를 정리합니다.
 - `cache.rs`의 `get_cache_stats`와 `clear_cache`는 캐시 트리만 대상으로 합니다. 사용자 원본 파일 경로를 입력받아 삭제하지 않습니다.
-- 동영상 포스터(`paint/video-<hash>.jpg`)의 해시에는 `video.rs`의 `POSTER_KEY_VERSION`이 섞입니다. 포스터 픽셀이 바뀌는 수정(회전 메타데이터·SAR 반영 등)을 하면 이 값을 올려 예전 포스터와 그 포스터를 쓰는 썸네일이 다시 만들어지게 합니다. 예전 파일은 LRU 축출로 정리됩니다.
 - `process_temp::mark_in_use`로 보호된 파일과 `*.tmp-<pid>-...` 작성 중 파일은 삭제하지 않습니다. 영구 캐시 hit은 mtime을 갱신해 LRU 순서를 유지합니다.
 - 파생 캐시 작성은 `sidecar::write_cache_atomic(dest, context, write)`으로 수행합니다. 호출자는 같은 확장자의 임시 경로에 쓰고 파일 핸들을 닫은 뒤 결과를 반환합니다. 모듈이 작성 중 보호, 발행, 오류·panic unwinding 정리를 맡습니다. 부모 폴더 생성·잠금·축출 정책은 호출자에 남고, 사용자 원본 저장에는 사용하지 않습니다.
 - 상한: 하위 캐시별(썸네일·`paint/`·`scaled/`·`clipboard/` 500MB, 아카이브별 추출 디렉터리 1GiB)은 쓸 때 누적 바이트로, 루트 전체 2GiB(`MAX_TOTAL_CACHE_BYTES`)는 시작 시와 새 아카이브 첫 열기 때 `request_total_cap_scan`으로 강제합니다. 모두 넘으면 오래된 것부터 지우며, 추출을 중단하지 않습니다(`SPEC.md` §8, §9.2).

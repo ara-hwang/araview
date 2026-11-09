@@ -457,28 +457,6 @@ impl AraView {
             "playing": self.anim.is_playing(),
             "frame": self.anim.frame(),
             "loopsDone": self.anim.loops_done(),
-            "video": self.video.as_ref().map(|video| {
-                let player = video.player();
-                let (ur_local, ur_queue) = player.audio_last_underrun();
-                json!({
-                    "position": player.position_ms(),
-                    "duration": player.duration_ms(),
-                    "playing": player.is_playing(),
-                    "seeking": player.is_seeking(),
-                    "speed": player.speed(),
-                    "muted": player.is_muted(),
-                    "audio": player.audio_active(),
-                    "audioUnderruns": player.audio_underruns(),
-                    "audioUnderrunLocal": ur_local,
-                    "audioUnderrunQueue": ur_queue,
-                    "width": player.info().width,
-                    "height": player.info().height,
-                    "presentedPts": video.frame_pts(),
-                    "presentedSize": self.picture.as_ref().map(|picture| {
-                        json!({ "width": picture.width, "height": picture.height })
-                    }),
-                })
-            }),
             "opening": self.opening.is_some(),
             "pagesLoaded": self.pages.len(),
             "webtoon": { "anchor": self.wt_anchor, "offset": self.wt_offset },

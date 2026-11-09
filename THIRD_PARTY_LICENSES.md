@@ -17,20 +17,15 @@ unmodified crates.io source.
 
 LGPL-2.1: `rawler` (section 2) is statically linked. The application is open
 source under EUPL-1.2 and builds from the published repository, which satisfies
-the relinking requirement of LGPL-2.1 section 6(a). FFmpeg 8.0 (section 1) is
-dynamically linked on Windows and statically linked from the pinned vcpkg
-source (`vcpkg.json` builtin-baseline) on macOS/Linux; the same published-repo
-rebuild applies.
+the relinking requirement of LGPL-2.1 section 6(a).
 
 ## 1. Dynamically linked native libraries (shipped as separate DLLs)
 
 | Library | License (upstream) | Shipped files | Note |
 | ------- | ------------------ | ------------- | ---- |
-| libheif 1.23.1 (vcpkg libheif, default-features off + aom; `overrides`로 baseline의 1.21.2 대신 고정. 1.21.2의 Windows DLL이 로드 시 초기화 실패를 일으킨다) | GNU LGPL | heif.dll | stays dynamically linked, never static |
+| libheif 1.23.2 (vcpkg libheif, default-features off + aom; `overrides`로 baseline의 1.21.2 대신 고정. 1.21.2의 Windows DLL이 로드 시 초기화 실패를 일으킨다) | GNU LGPL | heif.dll | stays dynamically linked, never static |
 | libde265 | GNU LGPL | libde265.dll | HEVC decode only, x265 excluded |
 | aom | BSD-2-Clause + AOM patent license | aom.dll | AV1 decode for AVIF thumbnails/histogram |
-| FFmpeg 8.0.1 (vcpkg ffmpeg, LGPL defaults + dav1d) | GNU LGPL | avcodec-62.dll, avformat-62.dll, avutil-60.dll, avfilter-11.dll, avdevice-62.dll, swscale-9.dll, swresample-6.dll | video demux/decode only, never static; GPL features (x264/x265) excluded. SONAMEs follow the FFmpeg major; a major bump renames the DLLs |
-| dav1d | BSD-2-Clause | dav1d.dll | AV1 decode for video |
 
 ## 2. Rust dependencies (Windows x64 closure from cargo-about)
 
@@ -55,8 +50,6 @@ dependencies and other-OS targets are excluded.
 | alloc-no-stdlib | 2.0.4 | BSD-3-Clause |
 | alloc-stdlib | 0.2.4 | BSD-3-Clause |
 | allocator-api2 | 0.2.21 | MIT OR Apache-2.0 |
-| alsa | 0.11.0 | Apache-2.0 OR MIT |
-| alsa-sys | 0.4.0 | MIT |
 | annotate-snippets | 0.12.17 | MIT OR Apache-2.0 |
 | anstream | 1.0.0 | MIT OR Apache-2.0 |
 | anstyle | 1.0.14 | MIT OR Apache-2.0 |
@@ -87,13 +80,11 @@ dependencies and other-OS targets are excluded.
 | atspi | 0.29.0 | Apache-2.0 OR MIT |
 | atspi-common | 0.13.0 | Apache-2.0 OR MIT |
 | atspi-proxies | 0.13.0 | Apache-2.0 OR MIT |
-| audio_thread_priority | 0.35.1 | MPL-2.0 |
 | autocfg | 1.5.1 | Apache-2.0 OR MIT |
 | backtrace | 0.3.76 | MIT OR Apache-2.0 |
 | base62 | 2.2.6 | MIT |
 | base64 | 0.22.1 | MIT OR Apache-2.0 |
 | base64 | 0.23.1 | MIT OR Apache-2.0 |
-| bindgen | 0.71.1 | BSD-3-Clause |
 | bit_field | 0.10.3 | Apache-2.0 OR MIT |
 | bit-set | 0.10.0 | Apache-2.0 OR MIT |
 | bit-vec | 0.9.1 | Apache-2.0 OR MIT |
@@ -105,8 +96,6 @@ dependencies and other-OS targets are excluded.
 | block-padding | 0.3.3 | MIT OR Apache-2.0 |
 | block2 | 0.6.2 | MIT |
 | blocking | 1.7.0 | Apache-2.0 OR MIT |
-| bon | 3.10.3 | MIT OR Apache-2.0 |
-| bon-macros | 3.10.3 | MIT OR Apache-2.0 |
 | brotli-decompressor | 5.0.3 | BSD-3-Clause OR MIT |
 | bstr | 1.13.1 | MIT OR Apache-2.0 |
 | bumpalo | 3.20.3 | MIT OR Apache-2.0 |
@@ -118,18 +107,15 @@ dependencies and other-OS targets are excluded.
 | bzip2 | 0.6.1 | MIT OR Apache-2.0 |
 | calloop | 0.14.5 | MIT |
 | calloop-wayland-source | 0.4.1 | MIT |
-| camino | 1.2.6 | MIT OR Apache-2.0 |
 | cbc | 0.1.2 | MIT OR Apache-2.0 |
 | cbindgen | 0.28.0 | MPL-2.0 |
 | cc | 1.10.0 | MIT OR Apache-2.0 |
-| cexpr | 0.6.0 | Apache-2.0 OR MIT |
 | cfg_aliases | 0.2.2 | MIT |
 | cfg-expr | 0.20.10 | MIT OR Apache-2.0 |
 | cfg-if | 1.0.5 | MIT OR Apache-2.0 |
 | chrono | 0.4.45 | MIT OR Apache-2.0 |
 | cipher | 0.4.4 | MIT OR Apache-2.0 |
 | cipher | 0.5.2 | MIT OR Apache-2.0 |
-| clang-sys | 1.9.1 | Apache-2.0 |
 | cmov | 0.5.4 | Apache-2.0 OR MIT |
 | codespan-reporting | 0.13.1 | Apache-2.0 |
 | color_quant | 1.1.0 | MIT |
@@ -147,9 +133,7 @@ dependencies and other-OS targets are excluded.
 | core-graphics | 0.24.0 | MIT OR Apache-2.0 |
 | core-graphics-types | 0.2.0 | MIT OR Apache-2.0 |
 | core-text | 21.0.0 | MIT OR Apache-2.0 |
-| coreaudio-rs | 0.14.2 | MIT OR Apache-2.0 |
 | cosmic-text | 0.19.0 | MIT OR Apache-2.0 |
-| cpal | 0.18.2 | Apache-2.0 |
 | cpubits | 0.1.1 | MIT OR Apache-2.0 |
 | cpufeatures | 0.2.17 | MIT OR Apache-2.0 |
 | cpufeatures | 0.3.1 | MIT OR Apache-2.0 |
@@ -162,11 +146,7 @@ dependencies and other-OS targets are excluded.
 | crypto-common | 0.2.2 | MIT OR Apache-2.0 |
 | ctor | 1.0.13 | Apache-2.0 OR MIT |
 | ctutils | 0.4.5 | Apache-2.0 OR MIT |
-| darling | 0.24.1 | MIT |
-| darling_core | 0.24.1 | MIT |
-| darling_macro | 0.24.1 | MIT |
 | dary_heap | 0.3.9 | MIT OR Apache-2.0 |
-| dasp_sample | 0.11.0 | MIT OR Apache-2.0 |
 | data-url | 0.3.2 | MIT OR Apache-2.0 |
 | deflate64 | 0.1.12 | MIT |
 | deranged | 0.5.9 | MIT OR Apache-2.0 |
@@ -228,7 +208,6 @@ dependencies and other-OS targets are excluded.
 | form_urlencoded | 1.2.2 | MIT OR Apache-2.0 |
 | four-cc | 0.4.0 | MIT OR Apache-2.0 |
 | freetype-sys | 0.20.1 | MIT |
-| fsevent-sys | 4.1.0 | MIT |
 | futf | 0.1.5 | MIT  OR  Apache-2.0 |
 | futures | 0.3.34 | MIT OR Apache-2.0 |
 | futures-channel | 0.3.34 | MIT OR Apache-2.0 |
@@ -310,7 +289,6 @@ dependencies and other-OS targets are excluded.
 | icu_provider | 2.4.0 | Unicode-3.0 |
 | icu_segmenter | 2.4.0 | Unicode-3.0 |
 | icu_segmenter_data | 2.4.0 | Unicode-3.0 |
-| ident_case | 1.0.1 | MIT OR Apache-2.0 |
 | idna | 1.1.0 | MIT OR Apache-2.0 |
 | idna_adapter | 1.2.2 | Apache-2.0 OR MIT |
 | ignore | 0.4.33 | Unlicense OR MIT |
@@ -383,7 +361,6 @@ dependencies and other-OS targets are excluded.
 | lzma-rust2 | 0.23.0 | Apache-2.0 |
 | mac | 0.1.1 | MIT OR Apache-2.0 |
 | mac-notification-sys | 0.6.15 | MIT OR Apache-2.0 |
-| mach2 | 0.4.3 | BSD-2-Clause OR MIT OR Apache-2.0 |
 | mach2 | 0.6.0 | BSD-2-Clause OR MIT OR Apache-2.0 |
 | markdown | 1.0.0 | MIT |
 | markup5ever | 0.12.1 | MIT OR Apache-2.0 |
@@ -395,7 +372,6 @@ dependencies and other-OS targets are excluded.
 | memoffset | 0.9.1 | MIT |
 | mime | 0.3.17 | MIT OR Apache-2.0 |
 | mime_guess | 2.0.5 | MIT |
-| minimal-lexical | 0.2.1 | MIT OR Apache-2.0 |
 | minisign-verify | 0.3.0 | MIT |
 | miniz_oxide | 0.8.9 | MIT OR Zlib OR Apache-2.0 |
 | miniz_oxide | 0.9.1 | MIT OR Zlib OR Apache-2.0 |
@@ -411,9 +387,8 @@ dependencies and other-OS targets are excluded.
 | nix | 0.31.3 | MIT |
 | no_std_io2 | 0.9.4 | Apache-2.0 OR MIT |
 | nohash-hasher | 0.2.0 | Apache-2.0 OR MIT |
-| nom | 7.1.3 | MIT |
 | normpath | 1.5.2 | MIT OR Apache-2.0 |
-| notify | 8.2.0 | CC0-1.0 |
+| notify | 8.2.1 | CC0-1.0 |
 | notify-rust | 4.18.2 | MIT OR Apache-2.0 |
 | notify-types | 2.1.0 | MIT OR Apache-2.0 |
 | num | 0.4.3 | MIT OR Apache-2.0 |
@@ -433,14 +408,12 @@ dependencies and other-OS targets are excluded.
 | objc2 | 0.6.5 | MIT |
 | objc2-app-kit | 0.2.2 | MIT |
 | objc2-app-kit | 0.3.2 | Zlib OR Apache-2.0 OR MIT |
-| objc2-audio-toolbox | 0.3.2 | Zlib OR Apache-2.0 OR MIT |
 | objc2-cloud-kit | 0.3.2 | Zlib OR Apache-2.0 OR MIT |
-| objc2-core-audio | 0.3.2 | Zlib OR Apache-2.0 OR MIT |
-| objc2-core-audio-types | 0.3.2 | Zlib OR Apache-2.0 OR MIT |
 | objc2-core-data | 0.3.2 | Zlib OR Apache-2.0 OR MIT |
 | objc2-core-foundation | 0.3.2 | Zlib OR Apache-2.0 OR MIT |
 | objc2-core-graphics | 0.3.2 | Zlib OR Apache-2.0 OR MIT |
 | objc2-core-image | 0.3.2 | Zlib OR Apache-2.0 OR MIT |
+| objc2-core-services | 0.3.2 | Zlib OR Apache-2.0 OR MIT |
 | objc2-core-text | 0.3.2 | Zlib OR Apache-2.0 OR MIT |
 | objc2-core-video | 0.3.2 | Zlib OR Apache-2.0 OR MIT |
 | objc2-encode | 4.1.0 | MIT |
@@ -493,8 +466,6 @@ dependencies and other-OS targets are excluded.
 | ppv-lite86 | 0.2.21 | MIT OR Apache-2.0 |
 | precomputed-hash | 0.1.1 | MIT |
 | presser | 0.3.1 | MIT OR Apache-2.0 |
-| prettyplease | 0.2.37 | MIT OR Apache-2.0 |
-| prettyplease | 0.3.0 | MIT OR Apache-2.0 |
 | proc-macro-crate | 3.5.0 | MIT OR Apache-2.0 |
 | proc-macro2 | 1.0.107 | MIT OR Apache-2.0 |
 | profiling | 1.0.18 | MIT OR Apache-2.0 |
@@ -540,7 +511,6 @@ dependencies and other-OS targets are excluded.
 | ropey | 2.0.0-beta.1 | MIT OR Apache-2.0 |
 | roxmltree | 0.20.0 | MIT OR Apache-2.0 |
 | roxmltree | 0.21.2 | MIT OR Apache-2.0 |
-| rsmpeg | 0.18.0+ffmpeg.8.0 | MIT |
 | rust-embed | 8.13.0 | MIT |
 | rust-embed-impl | 8.13.0 | MIT |
 | rust-embed-utils | 8.13.0 | MIT |
@@ -556,7 +526,6 @@ dependencies and other-OS targets are excluded.
 | rustls-pki-types | 1.15.1 | MIT OR Apache-2.0 |
 | rustls-webpki | 0.103.16 | ISC |
 | rustversion | 1.0.23 | MIT OR Apache-2.0 |
-| rusty_ffmpeg | 0.16.7+ffmpeg.8 | MIT |
 | rustybuzz | 0.20.1 | MIT |
 | ryu | 1.0.23 | Apache-2.0 OR BSL-1.0 |
 | same-file | 1.0.6 | Unlicense OR MIT |
@@ -583,7 +552,6 @@ dependencies and other-OS targets are excluded.
 | sha2 | 0.10.9 | MIT OR Apache-2.0 |
 | sha2 | 0.11.1 | MIT OR Apache-2.0 |
 | shellexpand | 3.1.2 | MIT OR Apache-2.0 |
-| shlex | 1.3.0 | MIT OR Apache-2.0 |
 | shlex | 2.0.1 | MIT OR Apache-2.0 |
 | signal-hook-registry | 1.4.8 | MIT OR Apache-2.0 |
 | simd-adler32 | 0.3.10 | MIT |
@@ -607,7 +575,6 @@ dependencies and other-OS targets are excluded.
 | strict-num | 0.1.1 | MIT |
 | string_cache | 0.8.9 | MIT OR Apache-2.0 |
 | string_cache_codegen | 0.5.4 | MIT OR Apache-2.0 |
-| strsim | 0.11.1 | MIT |
 | strum | 0.28.0 | MIT |
 | strum_macros | 0.28.0 | MIT |
 | subtle | 2.6.1 | BSD-3-Clause |
@@ -715,10 +682,8 @@ dependencies and other-OS targets are excluded.
 | windows | 0.62.2 | MIT OR Apache-2.0 |
 | windows_x86_64_gnu | 0.48.5 | MIT OR Apache-2.0 |
 | windows_x86_64_gnu | 0.52.6 | MIT OR Apache-2.0 |
-| windows_x86_64_gnu | 0.53.1 | MIT OR Apache-2.0 |
 | windows_x86_64_msvc | 0.48.5 | MIT OR Apache-2.0 |
 | windows_x86_64_msvc | 0.52.6 | MIT OR Apache-2.0 |
-| windows_x86_64_msvc | 0.53.1 | MIT OR Apache-2.0 |
 | windows-collections | 0.3.2 | MIT OR Apache-2.0 |
 | windows-core | 0.58.0 | MIT OR Apache-2.0 |
 | windows-core | 0.62.2 | MIT OR Apache-2.0 |
@@ -735,11 +700,9 @@ dependencies and other-OS targets are excluded.
 | windows-strings | 0.1.0 | MIT OR Apache-2.0 |
 | windows-strings | 0.5.1 | MIT OR Apache-2.0 |
 | windows-sys | 0.48.0 | MIT OR Apache-2.0 |
-| windows-sys | 0.60.2 | MIT OR Apache-2.0 |
 | windows-sys | 0.61.2 | MIT OR Apache-2.0 |
 | windows-targets | 0.48.5 | MIT OR Apache-2.0 |
 | windows-targets | 0.52.6 | MIT OR Apache-2.0 |
-| windows-targets | 0.53.5 | MIT OR Apache-2.0 |
 | windows-threading | 0.2.1 | MIT OR Apache-2.0 |
 | windows-version | 0.1.7 | MIT OR Apache-2.0 |
 | winnow | 0.7.15 | MIT |
@@ -780,7 +743,7 @@ dependencies and other-OS targets are excluded.
 | zerotrie | 0.2.5 | Unicode-3.0 |
 | zerovec | 0.11.9 | Unicode-3.0 |
 | zerovec-derive | 0.11.7 | Unicode-3.0 |
-| zip | 9.1.0 | MIT |
+| zip | 9.1.3 | MIT |
 | zlib-rs | 0.6.8 | Zlib |
 | zmij | 1.0.23 | MIT |
 | zopfli | 0.8.4 | Apache-2.0 |

@@ -30,10 +30,16 @@ install -m 644 "$app/packaging/linux/com.araview.viewer.desktop" "$stage/share/a
 install -m 644 "$app/resources/icon.png" "$stage/share/icons/hicolor/512x512/apps/com.araview.viewer.png"
 install -m 755 "$app/packaging/linux/install.sh" "$stage/install.sh"
 # 앱의 라이선스 창은 실행 파일 옆 `licenses/`를 읽는다.
-if compgen -G "$release/licenses/*" >/dev/null; then
-  mkdir -p "$stage/bin/licenses"
-  cp "$release"/licenses/* "$stage/bin/licenses/"
-else
+copied_licenses=false
+for license in libheif-copyright.txt libde265-copyright.txt aom-copyright.txt; do
+  source="$release/licenses/$license"
+  if [[ -f "$source" ]]; then
+    mkdir -p "$stage/bin/licenses"
+    cp "$source" "$stage/bin/licenses/"
+    copied_licenses=true
+  fi
+done
+if [[ "$copied_licenses" != true ]]; then
   echo "경고: 네이티브 라이브러리 저작권 문서가 없습니다($release/licenses)." >&2
 fi
 install -m 644 "$root/LICENSE" "$stage/LICENSE"
