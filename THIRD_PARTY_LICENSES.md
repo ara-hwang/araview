@@ -234,29 +234,29 @@ dependencies and other-OS targets are excluded.
 | glow | 0.17.0 | MIT OR Apache-2.0 OR Zlib |
 | glutin_wgl_sys | 0.6.1 | Apache-2.0 |
 | gpu-allocator | 0.28.0 | MIT OR Apache-2.0 |
-| gpui-base | 0.9.0 | Apache-2.0 |
-| gpui-component | 0.9.0 | Apache-2.0 |
-| gpui-component-macros | 0.9.0 | Apache-2.0 |
-| gpui-kit | 0.9.0 | Apache-2.0 |
-| gpui-kit-assets | 0.9.0 | Apache-2.0 |
-| gpui-pre | 0.3.11 | Apache-2.0 |
-| gpui-pre-apple | 0.3.11 | Apache-2.0 |
-| gpui-pre-collections | 0.3.11 | Apache-2.0 |
-| gpui-pre-derive-refineable | 0.3.11 | Apache-2.0 |
-| gpui-pre-http-client | 0.3.11 | Apache-2.0 |
-| gpui-pre-linux | 0.3.11 | Apache-2.0 |
-| gpui-pre-macos | 0.3.11 | Apache-2.0 |
-| gpui-pre-macros | 0.3.11 | Apache-2.0 |
-| gpui-pre-platform | 0.3.11 | Apache-2.0 |
-| gpui-pre-refineable | 0.3.11 | Apache-2.0 |
-| gpui-pre-scheduler | 0.3.11 | Apache-2.0 |
-| gpui-pre-shared-string | 0.3.11 | Apache-2.0 |
-| gpui-pre-sum-tree | 0.3.11 | Apache-2.0 |
-| gpui-pre-util | 0.3.11 | Apache-2.0 |
-| gpui-pre-wgpu | 0.3.11 | Apache-2.0 |
-| gpui-pre-windows | 0.3.11 | Apache-2.0 |
-| gpui-pre-ztracing | 0.3.11 | Apache-2.0 |
-| gpui-pre-ztracing-macro | 0.3.11 | Apache-2.0 |
+| gpui-base | 0.9.1 | Apache-2.0 |
+| gpui-component | 0.9.1 | Apache-2.0 |
+| gpui-component-macros | 0.9.1 | Apache-2.0 |
+| gpui-kit | 0.9.1 | Apache-2.0 |
+| gpui-kit-assets | 0.9.1 | Apache-2.0 |
+| gpui-pre | 0.3.12 | Apache-2.0 |
+| gpui-pre-apple | 0.3.12 | Apache-2.0 |
+| gpui-pre-collections | 0.3.12 | Apache-2.0 |
+| gpui-pre-derive-refineable | 0.3.12 | Apache-2.0 |
+| gpui-pre-http-client | 0.3.12 | Apache-2.0 |
+| gpui-pre-linux | 0.3.12 | Apache-2.0 |
+| gpui-pre-macos | 0.3.12 | Apache-2.0 |
+| gpui-pre-macros | 0.3.12 | Apache-2.0 |
+| gpui-pre-platform | 0.3.12 | Apache-2.0 |
+| gpui-pre-refineable | 0.3.12 | Apache-2.0 |
+| gpui-pre-scheduler | 0.3.12 | Apache-2.0 |
+| gpui-pre-shared-string | 0.3.12 | Apache-2.0 |
+| gpui-pre-sum-tree | 0.3.12 | Apache-2.0 |
+| gpui-pre-util | 0.3.12 | Apache-2.0 |
+| gpui-pre-wgpu | 0.3.12 | Apache-2.0 |
+| gpui-pre-windows | 0.3.12 | Apache-2.0 |
+| gpui-pre-ztracing | 0.3.12 | Apache-2.0 |
+| gpui-pre-ztracing-macro | 0.3.12 | Apache-2.0 |
 | granit-parser | 1.3.0 | MIT OR Apache-2.0 |
 | half | 2.7.1 | MIT OR Apache-2.0 |
 | harfrust | 0.5.2 | MIT |
@@ -678,7 +678,6 @@ dependencies and other-OS targets are excluded.
 | which | 8.0.6 | MIT |
 | winapi | 0.3.9 | MIT OR Apache-2.0 |
 | winapi-util | 0.1.11 | Unlicense OR MIT |
-| windows | 0.57.0 | MIT OR Apache-2.0 |
 | windows | 0.58.0 | MIT OR Apache-2.0 |
 | windows | 0.62.2 | MIT OR Apache-2.0 |
 | windows_x86_64_gnu | 0.48.5 | MIT OR Apache-2.0 |
@@ -686,20 +685,16 @@ dependencies and other-OS targets are excluded.
 | windows_x86_64_msvc | 0.48.5 | MIT OR Apache-2.0 |
 | windows_x86_64_msvc | 0.52.6 | MIT OR Apache-2.0 |
 | windows-collections | 0.3.2 | MIT OR Apache-2.0 |
-| windows-core | 0.57.0 | MIT OR Apache-2.0 |
 | windows-core | 0.58.0 | MIT OR Apache-2.0 |
 | windows-core | 0.62.2 | MIT OR Apache-2.0 |
 | windows-future | 0.3.2 | MIT OR Apache-2.0 |
-| windows-implement | 0.57.0 | MIT OR Apache-2.0 |
 | windows-implement | 0.58.0 | MIT OR Apache-2.0 |
 | windows-implement | 0.60.2 | MIT OR Apache-2.0 |
-| windows-interface | 0.57.0 | MIT OR Apache-2.0 |
 | windows-interface | 0.58.0 | MIT OR Apache-2.0 |
 | windows-interface | 0.59.3 | MIT OR Apache-2.0 |
 | windows-link | 0.2.1 | MIT OR Apache-2.0 |
 | windows-numerics | 0.3.1 | MIT OR Apache-2.0 |
 | windows-registry | 0.6.1 | MIT OR Apache-2.0 |
-| windows-result | 0.1.2 | MIT OR Apache-2.0 |
 | windows-result | 0.2.0 | MIT OR Apache-2.0 |
 | windows-result | 0.4.1 | MIT OR Apache-2.0 |
 | windows-strings | 0.1.0 | MIT OR Apache-2.0 |
