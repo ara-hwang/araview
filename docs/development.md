@@ -63,11 +63,15 @@ sudo apt-get install pkg-config cmake nasm clang libclang-dev \
   libxkbcommon-dev libxkbcommon-x11-dev libxcb1-dev libxcb-xkb-dev libx11-xcb-dev \
   libwayland-dev libfontconfig-dev libfreetype-dev
 cd <araview>
-vcpkg install --triplet x64-linux --x-install-root="<vcpkg root>/installed"
 export VCPKG_ROOT="<vcpkg root>"
-export PKG_CONFIG_PATH="<vcpkg root>/installed/x64-linux/lib/pkgconfig"
-export PKG_CONFIG_ALL_STATIC=1
+bash scripts/setup-linux-native.sh
+source target/linux-native-env.sh
+pkg-config --modversion libheif
 ```
+
+vcpkg를 먼저 설치해야 합니다. 스크립트는 `VCPKG_ROOT`, `VCPKG_INSTALLATION_ROOT`, `~/vcpkg` 순으로 설치 위치를 찾고, 저장소 매니페스트에 고정된 libheif와 HEIC/AVIF 디코더를 설치합니다. vcpkg가 얕은 복제이면 `git fetch --unshallow origin`으로 버전 이력을 복원합니다. 이력이 없으면 고정 버전의 git tree를 읽지 못해 `failed to unpack tree object`로 실패할 수 있습니다.
+
+`libheif`를 찾지 못하는 Cargo 오류는 먼저 `source target/linux-native-env.sh`를 실행한 뒤 다시 확인합니다. 프로필에 환경 변수가 있어도 비로그인 셸에는 적용되지 않을 수 있습니다. 생성된 환경 파일은 Git에서 제외되는 `target/`에 있으며, 새 터미널에서 다시 source합니다. `cargo clean`으로 지웠다면 준비 스크립트를 다시 실행합니다.
 
 실행에는 X11 또는 Wayland 세션, Vulkan 드라이버, `libxkbcommon`이 필요합니다. 파일 열기 대화상자는 `xdg-desktop-portal`을 씁니다. 디스플레이가 없는 환경에서는 `Xvfb`와 소프트웨어 Vulkan(`mesa-vulkan-drivers`)으로 실제 창을 띄워 확인할 수 있습니다.
 
