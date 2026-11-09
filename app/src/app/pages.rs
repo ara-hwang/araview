@@ -838,7 +838,6 @@ impl AraView {
         self.info_seq += 1;
         self.info_data = Default::default();
         self.ocr.hide();
-        self.close_video();
         self.drop_pixel_view(window, cx);
         self.shown = vec![index];
         self.fit = self.fit.lock();
@@ -1145,7 +1144,6 @@ impl AraView {
         self.info_seq += 1;
         self.info_data = Default::default();
         self.ocr.hide();
-        self.close_video();
         self.drop_pixel_view(window, cx);
         window.set_window_title(&t("app.title"));
     }
@@ -1184,11 +1182,6 @@ impl AraView {
             self.picture = Some(picture);
         }
         self.info = Some(info);
-        if self.has_video(cx) {
-            self.open_video(window, cx);
-        } else {
-            self.close_video();
-        }
         if let Some(info) = &self.info {
             window.set_window_title(&self.display_name(info));
         }
@@ -1228,19 +1221,6 @@ impl AraView {
         let Some(info) = &self.info else {
             return;
         };
-        // 동영상은 다음 프레임부터 새 방향을 적용한다. 정지 상태에서는 다음
-        // 프레임이 오지 않으므로 현재 위치를 다시 열어 방향을 즉시 반영한다.
-        if self.has_video(cx) {
-            self.orientation = orientation;
-            self.orient_seq += 1;
-            if let Some(player) = self.video_player()
-                && !player.is_playing()
-            {
-                player.seek(player.position_ms());
-            }
-            cx.notify();
-            return;
-        }
         self.orientation = orientation;
         self.orient_seq += 1;
         let seq = self.orient_seq;

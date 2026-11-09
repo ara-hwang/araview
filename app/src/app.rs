@@ -163,11 +163,6 @@ pub struct AraView {
     drag: Option<DragState>,
     /// 애니메이션(GIF/APNG 등) 재생 상태: 현재 프레임, 재생 여부와 프레임 시작 시각, 반복 횟수.
     anim: viewport::AnimPlayback,
-    /// 동영상 재생 세션. 단일 보기의 동영상 페이지에서만 열린다(§7.6).
-    /// 재생기·컨트롤·오디오 출력·표시 상태가 함께 생기고 함께 사라진다.
-    video: Option<viewport::VideoSession>,
-    /// 동영상 열기 세대. 세션보다 오래 살아 늦게 도착한 열기 결과를 버린다.
-    video_seq: u64,
     /// 애니메이션(GIF/APNG 등) 프레임 진행 슬라이더.
     anim_timeline: Option<viewport::AnimTimeline>,
     /// 마지막 마우스·키보드 조작 시각. 재생 중 하단 컨트롤 자동 숨김에 쓴다.
@@ -272,8 +267,6 @@ impl AraView {
             viewport: Rc::new(Cell::new(Bounds::default())),
             drag: None,
             anim: viewport::AnimPlayback::default(),
-            video: None,
-            video_seq: 0,
             anim_timeline: None,
             overlay_active: Instant::now(),
 
@@ -331,7 +324,7 @@ impl AraView {
         this
     }
 
-    /// 이미지·동영상 필터가 걸린 파일 선택 창을 연다. GPUI의 경로 선택 창에는 형식 필터가
+    /// 이미지 필터가 걸린 파일 선택 창을 연다. GPUI의 경로 선택 창에는 형식 필터가
     /// 없어 네이티브 대화상자를 직접 쓴다.
     fn prompt_open(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let dialog = rfd::AsyncFileDialog::new()
@@ -1170,10 +1163,6 @@ impl AraView {
 impl Render for AraView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.advance_animation(window);
-        self.advance_video(window, cx);
-        if !self.has_video(cx) {
-            self.close_video();
-        }
         // 매 프레임 `Settings` 전체(BTreeMap 44쌍 포함)를 클론하지 않고 렌더에
         // 쓰는 `Copy` 필드만 복사한다.
         let (auto_hide_ui, menu_bar_hidden, dock_position, dock_visible, context_menu) = {
@@ -1191,12 +1180,10 @@ impl Render for AraView {
         let hide_all = reading && auto_hide_ui;
         let hide_header = reading && (menu_bar_hidden || auto_hide_ui);
         let animated = self.has_animation(cx);
-        let video = self.has_video(cx);
         // 애니메이션 컨트롤이 하단 독으로 이동했으므로, 애니메이션 이미지에서는
-        // 목록이 하나뿐이어도 독을 보여 컨트롤을 노출한다. 동영상도 같다.
-        let show_dock = reading
-            && (self.list.len() > 1 || animated || video)
-            && (!hide_all || self.peek_bottom);
+        // 목록이 하나뿐이어도 독을 보여 컨트롤을 노출한다.
+        let show_dock =
+            reading && (self.list.len() > 1 || animated) && (!hide_all || self.peek_bottom);
         let show_status = reading && (!hide_all || self.peek_bottom);
 
         let header = (!hide_header || self.peek_top)

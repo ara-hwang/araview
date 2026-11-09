@@ -86,11 +86,6 @@ const PALETTE_GROUPS: &[(&str, &[&str])] = &[
             "toggleGifPlayback",
             "gifPrevFrame",
             "gifNextFrame",
-            "videoSeekBack",
-            "videoSeekFwd",
-            "videoSpeedDown",
-            "videoSpeedUp",
-            "videoMute",
         ],
     ),
     (
@@ -190,11 +185,6 @@ impl AraView {
             "toggleGifPlayback" => self.toggle_playback(cx),
             "gifPrevFrame" => self.step_frame(-1, cx),
             "gifNextFrame" => self.step_frame(1, cx),
-            "videoSeekBack" => self.video_seek_by(-10_000, cx),
-            "videoSeekFwd" => self.video_seek_by(10_000, cx),
-            "videoSpeedDown" => self.video_step_speed(-1, cx),
-            "videoSpeedUp" => self.video_step_speed(1, cx),
-            "videoMute" => self.toggle_video_mute(cx),
             OPEN_SETTINGS => self.open_settings(window, cx),
             CHECK_UPDATES => self.check_updates(window, cx),
             TOGGLE_DOCK => {
@@ -226,12 +216,7 @@ impl AraView {
             }
             "navigatePrev" | "navigateNext" | "jumpPrev10" | "jumpNext10" | "jumpFirst"
             | "jumpLast" | "toggleGrid" | TOGGLE_DOCK => self.list.len() > 1,
-            "toggleGifPlayback" | "gifPrevFrame" | "gifNextFrame" => {
-                self.has_animation(cx) || self.has_video(cx)
-            }
-            "videoSeekBack" | "videoSeekFwd" | "videoSpeedDown" | "videoSpeedUp" | "videoMute" => {
-                self.has_video(cx)
-            }
+            "toggleGifPlayback" | "gifPrevFrame" | "gifNextFrame" => self.has_animation(cx),
             TOGGLE_COVER => has_image && self.archive.is_some(),
             id if single_view_only(id) => has_image && !self.view_mode(cx).is_dual(),
             _ => has_image,

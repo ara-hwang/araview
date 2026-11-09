@@ -18,10 +18,6 @@
       "name": "libheif",
       "default-features": false,
       "features": ["aom"]
-    },
-    {
-      "name": "ffmpeg",
-      "features": ["dav1d"]
     }
   ]
 }

@@ -1,5 +1,5 @@
 name: Setup Rust and native dependencies
-description: Rust 툴체인, 캐시, 시스템 라이브러리, vcpkg 매니페스트 의존성(libheif, FFmpeg)을 한 번에 준비한다(Windows, Linux, macOS).
+description: Rust 툴체인, 캐시, 시스템 라이브러리, vcpkg 매니페스트 의존성(libheif)을 한 번에 준비한다(Windows, Linux, macOS).
 
 inputs:
   cache-key:
@@ -42,7 +42,7 @@ runs:
       run: |
         sudo apt-get update
         sudo apt-get install -y --no-install-recommends \
-          pkg-config cmake nasm clang libclang-dev libasound2-dev \
+          pkg-config cmake nasm clang libclang-dev \
           libxkbcommon-dev libxkbcommon-x11-dev libxcb1-dev libxcb-xkb-dev libx11-xcb-dev \
           libwayland-dev libfontconfig-dev libfreetype-dev
 
@@ -94,7 +94,7 @@ runs:
     # 캐시 키는 vcpkg.json 전체가 아니라 설치 결과에 영향을 주는 부분
     # (dependencies, overrides, builtin-baseline)만 본다. name과 version-string은
     # 릴리스마다 바뀌지만 설치 패키지는 그대라, 전체 파일을 키에 넣으면 버전을 올리는
-    # 베타 릴리스와 Cargo.lock을 바꾸는 dependabot PR마다 캐시가 깨져 libheif·FFmpeg를
+    # 베타 릴리스와 Cargo.lock을 바꾸는 dependabot PR마다 캐시가 깨져 libheif를
     # 소스 빌드로 인해 잡당 최대 40분을 잃었다.
     - name: vcpkg dependency hash (Windows)
       id: vcpkg-hash-win
@@ -147,10 +147,6 @@ runs:
         root="${{ steps.vcpkg-unix.outputs.root }}"
         "$root/vcpkg" install --triplet "${{ steps.vcpkg-unix.outputs.triplet }}" --x-install-root="$root/installed"
 
-    # Windows는 `FFMPEG_LIBS_DIR`로 prebuilt 바인딩(`FFMPEG_BINDING_PATH`,
-    # `.cargo/config.toml` 고정)과 링크 경로를 함께 준다. Linux와 macOS는 pkg-config를
-    # 써서 dav1d 같은 전이 정적 의존성까지 링크한다. `FFMPEG_LIBS_DIR`를 주면
-    # rusty_ffmpeg이 FFmpeg 라이브러리만 링크해 dav1d 심볼이 빠진다.
     - name: Configure vcpkg environment (Windows)
       if: runner.os == 'Windows'
       shell: pwsh
@@ -158,7 +154,6 @@ runs:
         echo "VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT" | Out-File -FilePath $env:GITHUB_ENV -Append
         echo "VCPKGRS_DYNAMIC=1" | Out-File -FilePath $env:GITHUB_ENV -Append
         echo "PKG_CONFIG_PATH=$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\lib\pkgconfig" | Out-File -FilePath $env:GITHUB_ENV -Append
-        echo "FFMPEG_LIBS_DIR=$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\lib" | Out-File -FilePath $env:GITHUB_ENV -Append
         echo "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
 
     # 정적 라이브러리라 pkg-config가 `--static`으로 의존 라이브러리까지 풀어야 한다.

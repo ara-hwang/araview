@@ -409,11 +409,6 @@ pub const DEFAULT_SHORTCUTS: &[(&str, &str)] = &[
     ("toggleGifPlayback", "Space"),
     ("gifPrevFrame", ","),
     ("gifNextFrame", "."),
-    ("videoSeekBack", "J"),
-    ("videoSeekFwd", "L"),
-    ("videoSpeedDown", "["),
-    ("videoSpeedUp", "]"),
-    ("videoMute", "M"),
 ];
 
 pub type ShortcutMap = BTreeMap<String, String>;
@@ -495,10 +490,6 @@ pub struct Settings {
     pub dock_thumb_size: DockThumbSize,
     pub dock_show_name: bool,
     pub dock_show_index: bool,
-    pub video_autoplay: bool,
-    /// 0~100. 실제 출력에는 `/100`으로 넘긴다.
-    pub video_volume: f64,
-    pub show_video_info: bool,
     pub shortcuts: ShortcutMap,
     pub wheel: WheelMap,
     pub mouse: MouseMap,
@@ -544,9 +535,6 @@ impl Default for Settings {
             dock_thumb_size: DockThumbSize::S,
             dock_show_name: false,
             dock_show_index: false,
-            video_autoplay: true,
-            video_volume: 80.0,
-            show_video_info: true,
             shortcuts: default_shortcuts(),
             wheel: WheelMap::default(),
             mouse: MouseMap::default(),
@@ -908,6 +896,45 @@ mod tests {
     #[test]
     fn trash_confirmation_is_kept_by_default() {
         assert!(!Settings::default().trash_without_confirm);
+    }
+
+    #[test]
+    fn removed_video_settings_and_shortcuts_are_ignored() {
+        let restored = restore_settings(serde_json::json!({
+            "videoAutoplay": false,
+            "videoVolume": 25.0,
+            "showVideoInfo": false,
+            "shortcuts": {
+                "videoSeekBack": "J",
+                "videoSeekFwd": "L",
+                "videoSpeedDown": "[",
+                "videoSpeedUp": "]",
+                "videoMute": "M",
+                "toggleGifPlayback": "Space"
+            }
+        }))
+        .sanitized();
+
+        for id in [
+            "videoSeekBack",
+            "videoSeekFwd",
+            "videoSpeedDown",
+            "videoSpeedUp",
+            "videoMute",
+        ] {
+            assert!(!restored.shortcuts.contains_key(id), "{id}");
+        }
+        assert_eq!(
+            restored
+                .shortcuts
+                .get("toggleGifPlayback")
+                .map(String::as_str),
+            Some("Space")
+        );
+        let saved = settings_to_value(&restored);
+        for key in ["videoAutoplay", "videoVolume", "showVideoInfo"] {
+            assert!(saved.get(key).is_none(), "{key}");
+        }
     }
 
     /// 페이지 캐시 상한은 1GB가 기본이고 전략과 따로 저장된다(SPEC §9.1, §13).

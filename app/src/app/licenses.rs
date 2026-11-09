@@ -24,6 +24,11 @@ const LICENSE_DATA: &str = include_str!("../../THIRD_PARTY_LICENSES.json");
 const ROW_HEIGHT: f32 = 52.;
 const LIST_WIDTH: f32 = 288.;
 const BODY_HEIGHT: f32 = 520.;
+const NATIVE_LICENSE_DOCUMENTS: &[&str] = &[
+    "libheif-copyright.txt",
+    "libde265-copyright.txt",
+    "aom-copyright.txt",
+];
 
 /// 동봉된 라이선스 문서 폴더. 실행 파일 옆 `licenses/`다(`build.rs`가 빌드 폴더에 모아 둔다).
 fn licenses_dir() -> PathBuf {
@@ -33,7 +38,7 @@ fn licenses_dir() -> PathBuf {
         .unwrap_or_default()
 }
 
-/// libheif 등 네이티브 라이브러리의 라이선스 원문(패키지 데이터 JSON은 제외).
+/// 현재 이미지 네이티브 라이브러리의 라이선스 원문(패키지 데이터 JSON은 제외).
 fn bundled_documents() -> Vec<(String, String)> {
     let Ok(entries) = std::fs::read_dir(licenses_dir()) else {
         return Vec::new();
@@ -42,7 +47,7 @@ fn bundled_documents() -> Vec<(String, String)> {
         .flatten()
         .filter_map(|entry| {
             let name = entry.file_name().to_string_lossy().into_owned();
-            let is_document = name.ends_with("-copyright.txt");
+            let is_document = is_native_license_document(&name);
             let content = is_document
                 .then(|| std::fs::read(entry.path()).ok())
                 .flatten()?;
@@ -51,6 +56,10 @@ fn bundled_documents() -> Vec<(String, String)> {
         .collect();
     documents.sort();
     documents
+}
+
+fn is_native_license_document(name: &str) -> bool {
+    NATIVE_LICENSE_DOCUMENTS.contains(&name)
 }
 
 #[derive(Clone)]
@@ -423,5 +432,17 @@ impl AraView {
             .ok();
         })
         .detach();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_native_license_document;
+
+    #[test]
+    fn only_current_image_codec_licenses_are_bundled() {
+        assert!(is_native_license_document("aom-copyright.txt"));
+        assert!(!is_native_license_document("ffmpeg-copyright.txt"));
+        assert!(!is_native_license_document("dav1d-copyright.txt"));
     }
 }

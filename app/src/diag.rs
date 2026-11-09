@@ -9,24 +9,12 @@ use std::path::{Path, PathBuf};
 use crate::logging;
 use crate::settings::SettingsStore;
 
-/// Windows 배포본이 실행 파일 옆에 두는 코덱 DLL(`scripts/Build-Installer.ps1`).
+/// Windows 배포본이 실행 파일 옆에 두는 이미지 코덱 DLL(`scripts/Build-Installer.ps1`).
 #[cfg(windows)]
-const CODEC_DLLS: &[&str] = &[
-    "heif.dll",
-    "libde265.dll",
-    "aom.dll",
-    "avcodec-62.dll",
-    "avformat-62.dll",
-    "avutil-60.dll",
-    "avfilter-11.dll",
-    "avdevice-62.dll",
-    "swscale-9.dll",
-    "swresample-6.dll",
-    "dav1d.dll",
-];
+const IMAGE_CODEC_DLLS: &[&str] = &["heif.dll", "libde265.dll", "aom.dll"];
 /// 다른 OS는 코덱을 실행 파일에 정적으로 넣어 검사할 파일이 없다.
 #[cfg(not(windows))]
-const CODEC_DLLS: &[&str] = &[];
+const IMAGE_CODEC_DLLS: &[&str] = &[];
 
 /// 복사할 진단 정보 본문.
 pub(crate) fn collect(store: &SettingsStore) -> String {
@@ -50,10 +38,9 @@ pub(crate) fn collect(store: &SettingsStore) -> String {
             settings.max_resolution
         ),
         format!(
-            "Codec libraries: {}",
-            codec_summary(exe_dir().as_deref(), CODEC_DLLS)
+            "Image codec libraries: {}",
+            codec_summary(exe_dir().as_deref(), IMAGE_CODEC_DLLS)
         ),
-        format!("Audio output: {}", audio_line()),
         format!("Cache: {}", cache_line(store)),
         format!("Log: {}", log_line()),
     ];
@@ -188,11 +175,6 @@ fn codec_summary(install_dir: Option<&Path>, dlls: &[&str]) -> String {
             missing.join(", ")
         )
     }
-}
-
-/// 현재 연 동영상 오디오 출력 설정. 아직 열지 않았으면 그렇게 적는다.
-fn audio_line() -> String {
-    araview_core::video_audio::last_output().unwrap_or_else(|| "not opened".to_owned())
 }
 
 /// 캐시 폴더와 보관 모드.
