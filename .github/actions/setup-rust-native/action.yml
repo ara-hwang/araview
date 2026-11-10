@@ -94,7 +94,7 @@ runs:
     # 캐시 키는 vcpkg.json 전체가 아니라 설치 결과에 영향을 주는 부분
     # (dependencies, overrides, builtin-baseline)만 본다. name과 version-string은
     # 릴리스마다 바뀌지만 설치 패키지는 그대라, 전체 파일을 키에 넣으면 버전을 올리는
-    # 베타 릴리스와 Cargo.lock을 바꾸는 dependabot PR마다 캐시가 깨져 libheif를
+    # 릴리스와 Cargo.lock을 바꾸는 dependabot PR마다 캐시가 깨져 libheif를
     # 소스 빌드로 인해 잡당 최대 40분을 잃었다.
     - name: vcpkg dependency hash (Windows)
       id: vcpkg-hash-win

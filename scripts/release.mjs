@@ -2,19 +2,15 @@
 /**
  * 릴리스 시작 스크립트: 버전 올리기, 커밋, 태그, 푸시를 한 번에 한다.
  *
- *   npm run release -- beta            main에서 다음 베타 (2.7.0-beta.1 -> 2.7.0-beta.2,
- *                                      v2.7.0 정식 태그가 이미 있으면 2.8.0-beta.1)
- *   npm run release -- 2.7.0-beta.1    main에서 정확한 베타 버전
- *   npm run release -- patch           release에서 안정 patch (minor|major 동일, 현재가
- *                                      베타면 2.7.0-beta.N -> 2.7.0)
- *   npm run release -- 2.7.0           release에서 정확한 안정 버전(현재가 베타여도 됨)
- *   npm run release -- beta --dry-run  파일과 git을 건드리지 않고 계획만 출력
- *   npm run release -- beta --yes      확인 질문 생략
+ *   npm run release -- patch            main에서 다음 patch (minor|major 동일)
+ *   npm run release -- 2.7.0            main에서 정확한 버전
+ *   npm run release -- patch --dry-run  파일과 git을 건드리지 않고 계획만 출력
+ *   npm run release -- patch --yes      확인 질문 생략
  *
- * main은 베타 채널, release는 안정 채널이다. 태그(vX.Y.Z 또는
- * vX.Y.Z-beta.N)가 푸시되면 .github/workflows/release.yml이 검증, 설치 프로그램
- * 빌드와 서명, 릴리스 생성을 이어받는다. 이 스크립트는 빌드나 릴리스를 직접 하지
- * 않는다. 의존성 없이 Node 표준 라이브러리만 쓴다.
+ * 릴리스는 main 한 곳에서 낸다. 태그(vX.Y.Z)가 푸시되면
+ * .github/workflows/release.yml이 검증, 설치 프로그램 빌드와 서명, 릴리스 생성을
+ * 이어받는다. 이 스크립트는 빌드나 릴리스를 직접 하지 않는다. 의존성 없이 Node
+ * 표준 라이브러리만 쓴다.
  */
 import { execFileSync, spawnSync } from "node:child_process"
 import { readFileSync, writeFileSync } from "node:fs"
@@ -24,7 +20,7 @@ import { fileURLToPath, pathToFileURL } from "node:url"
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 const STABLE = /^\d+\.\d+\.\d+$/
-const BETA = /^(\d+)\.(\d+)\.(\d+)-beta\.(\d+)$/
+const PRERELEASE = /^(\d+)\.(\d+)\.(\d+)-beta\.(\d+)$/
 
 /** 사전 검사 실패. 메인 흐름이 잡아 `중단: ...`으로 알리고 exit 1로 끝낸다. */
 class ReleaseError extends Error {}
@@ -105,39 +101,21 @@ function bumpStable(version, request) {
 /**
  * 다음 버전을 계산한다. `stableTags`는 저장소의 태그 목록(정식이 아닌 태그는 무시)이다.
  *
- * - 베타 `beta`: 현재가 `X.Y.Z-beta.N`이고 `X.Y.Z` 이상인 정식 태그가 아직 없으면 `N+1`.
- *   정식 태그가 이미 있으면(예: release에서 2.7.0을 낸 뒤의 main) 그 다음 minor의 `beta.1`이다.
- *   `2.7.0-beta.47`은 세미버전상 `2.7.0`보다 낮아 정식 사용자에게 보이지 않기 때문이다.
- * - 베타 정확한 버전: 같은 `X.Y.Z` 이상의 정식 태그가 있으면 거부한다(같은 이유).
- * - 안정 `patch|minor|major`: 현재가 정식이면 그대로 올린다. 현재가 베타(main을 release에
- *   병합한 직후)면 접미사를 뗀 `X.Y.Z`를 기준으로 하되, 세미버전 관례대로 아직 정식으로
- *   내지 않은 `X.Y.Z`는 건너뛰지 않는다(patch는 `X.Y.Z`, `Z`가 0이면 minor도 `X.Y.Z`,
- *   `Y.Z`가 0이면 major도 `X.Y.Z`). 그 `X.Y.Z` 이상의 정식 태그가 이미 있으면 그 태그에서 올린다.
- * - 안정 정확한 버전: `X.Y.Z` 형식이면 된다. 현재보다 커야 한다는 검사는 호출한 쪽이 한다.
+ * 베타 채널을 없애기 전에 낸 `X.Y.Z-beta.N`이 버전 파일에 남아 있을 수 있으므로 현재
+ * 버전의 프리릴리스 접미사는 받아들인다. 이때 접미사를 뗀 `X.Y.Z`를 기준으로 하되,
+ * 세미버전 관례대로 아직 정식으로 내지 않은 `X.Y.Z`는 건너뛰지 않는다(patch는 `X.Y.Z`,
+ * `Z`가 0이면 minor도 `X.Y.Z`, `Y.Z`가 0이면 major도 `X.Y.Z`). 그 `X.Y.Z` 이상의 정식
+ * 태그가 이미 있으면 그 태그에서 올린다.
+ *
+ * `patch|minor|major`는 현재 버전이 정식이면 그대로 올린다. 정확한 버전은 `X.Y.Z`
+ * 형식이면 되고, 현재보다 커야 한다는 검사는 호출한 쪽이 한다.
  */
-export function nextVersion(current, request, channel, stableTags = []) {
+export function nextVersion(current, request, stableTags = []) {
   const latest = latestStable(stableTags)
   const released = (core) => latest !== null && compareVersions(latest, core) >= 0
-  const beta = BETA.exec(current)
+  const beta = PRERELEASE.exec(current)
   if (!beta && !STABLE.test(current)) fail(`현재 버전을 해석하지 못했다: ${current}`)
   const core = beta ? `${beta[1]}.${beta[2]}.${beta[3]}` : current
-
-  if (channel === "beta") {
-    if (request === "beta") {
-      if (beta && !released(core)) return `${core}-beta.${Number(beta[4]) + 1}`
-      // 안정 버전에서 시작하거나 이 X.Y.Z가 이미 정식으로 나갔으면 다음 minor의 beta.1이다.
-      const base = latest !== null && compareVersions(latest, core) > 0 ? latest : core
-      const [major, minor] = base.split(".").map(Number)
-      return `${major}.${minor + 1}.0-beta.1`
-    }
-    const match = BETA.exec(request ?? "")
-    if (!match) fail(`베타 채널 버전은 X.Y.Z-beta.N 형식이어야 한다: ${request}`)
-    const requestCore = `${match[1]}.${match[2]}.${match[3]}`
-    if (released(requestCore)) {
-      fail(`정식 ${latest}가 이미 있어 ${request}는 정식 사용자에게 더 낮은 버전이다. 다음 minor의 베타를 쓴다.`)
-    }
-    return request
-  }
 
   if (request === "patch" || request === "minor" || request === "major") {
     if (!beta) return bumpStable(current, request)
@@ -148,7 +126,7 @@ export function nextVersion(current, request, channel, stableTags = []) {
     if (request === "major" && minor === 0 && patch === 0) return core
     return bumpStable(core, request)
   }
-  if (!STABLE.test(request ?? "")) fail(`안정 채널 버전은 X.Y.Z 형식이어야 한다: ${request}`)
+  if (!STABLE.test(request ?? "")) fail(`버전은 X.Y.Z 또는 patch|minor|major 여야 한다: ${request}`)
   return request
 }
 
@@ -188,10 +166,8 @@ async function main() {
   const target = args.find((a) => !a.startsWith("--"))
 
   const branch = git("rev-parse", "--abbrev-ref", "HEAD")
-  let channel
-  if (branch === "main") channel = "beta"
-  else if (branch === "release") channel = "stable"
-  else fail("main(베타) 또는 release(안정) 브랜치에서만 릴리스한다.")
+  if (branch !== "main") fail("main 브랜치에서만 릴리스한다.")
+  if (!target) fail("릴리스할 버전을 지정한다: patch, minor, major 또는 X.Y.Z")
 
   const files = readVersions()
   const versions = new Set(files.map((f) => f.version))
@@ -199,12 +175,12 @@ async function main() {
     fail(`버전 파일이 서로 다르다: ${files.map((f) => `${f.path}=${f.version}`).join(", ")}`)
   }
   const current = files[0].version
-  if (!STABLE.test(current) && !BETA.test(current)) {
-    fail(`현재 버전은 X.Y.Z 또는 X.Y.Z-beta.N 이어야 한다: ${current}`)
+  if (!STABLE.test(current) && !PRERELEASE.test(current)) {
+    fail(`현재 버전은 X.Y.Z 이어야 한다(옛 베타 빌드는 X.Y.Z-beta.N 허용): ${current}`)
   }
   // 다음 버전은 이미 나간 정식 태그에 따라 달라지므로 태그를 먼저 받아 둔다.
   git("fetch", "--quiet", "--tags", "origin")
-  const next = nextVersion(current, target, channel, git("tag", "--list", "v*").split("\n"))
+  const next = nextVersion(current, target, git("tag", "--list", "v*").split("\n"))
   const tag = `v${next}`
 
   // 사전 검사. 하나라도 어긋나면 파일을 쓰기 전에 멈춘다.
@@ -224,7 +200,7 @@ async function main() {
   const [ahead] = git("rev-list", "--left-right", "--count", `HEAD...origin/${branch}`)
     .split(/\s+/)
     .map(Number)
-  console.log(`채널: ${channel === "beta" ? "베타" : "안정"} (${branch})`)
+  console.log(`브랜치: ${branch}`)
   console.log(`버전: ${current} -> ${next} (태그 ${tag})`)
   for (const file of files) console.log(`  ${file.path}`)
   if (ahead > 0) console.log(`참고: 아직 푸시하지 않은 커밋 ${ahead}개가 함께 올라간다.`)
@@ -237,7 +213,7 @@ async function main() {
   if (!yes) {
     const rl = createInterface({ input: process.stdin, output: process.stdout })
     const answer = await rl.question(
-      `${tag} 태그를 푸시하면 ${channel === "beta" ? "공개 베타" : "공개"} 릴리스가 시작된다. 진행할까? (y/N) `
+      `${tag} 태그를 푸시하면 공개 릴리스가 시작된다. 진행할까? (y/N) `
     )
     rl.close()
     if (answer.trim().toLowerCase() !== "y") fail("취소했다.")

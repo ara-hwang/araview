@@ -1,6 +1,6 @@
 name: CI
 
-# 문서 정합성은 PR과 main(베타)·release(안정) 푸시에서 자동으로 돈다.
+# 문서 정합성은 PR과 main 푸시에서 자동으로 돈다.
 # Rust는 두 단계다. 전체 검증(rust 잡: fmt, clippy, deny와 rust-test 잡: cargo test를
 # 두 조각으로 나눠 각 OS에서 두 머신에 실어 병렬로 돈다)은 비용이 커서 Actions 탭
 # 수동 실행(workflow_dispatch)과 릴리스(release.yml이 workflow_call로 호출)에서만
@@ -18,7 +18,7 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [main, release]
+    branches: [main]
   workflow_dispatch:
   workflow_call:
 
@@ -60,8 +60,8 @@ jobs:
       - name: Docs consistency
         run: node scripts/check-docs.mjs
 
-      - name: Release automation regression tests
-        run: node --test scripts/release-automation.test.mjs
+      - name: Release version regression tests
+        run: node --test scripts/release-version.test.mjs
 
   # docs 잡이 스킵 조건을 판정하는 데 필요한 output을 두 개로 나눠 낸다: rust와 docs.
   # 스크립트는 비교 대상을 못 찾으면(새 브랜치의 0 커밋, 강제 푸시 등) 안전하게
@@ -104,7 +104,7 @@ jobs:
   # 풀 검증(rust 잡)보다 훨씬 싼 검사. cargo check 대신 clippy를 돌려 OS별 cfg에서만
   # 생기는 경고(-D warnings)를 PR에서 잡는다. clippy는 check와 같은 산출물을 쓰므로
   # 비용 차이는 작다. Windows에서는 core·thumb 테스트도 돌린다: Windows 전용 정렬·경로
-  # 동작이 릴리스 검증에서야 드러나 베타 릴리스가 연달아 실패한 적이 있다(2026-11).
+  # 동작이 릴리스 검증에서야 드러나 릴리스가 연달아 실패한 적이 있다(2026-11).
   # app 조각 테스트는 gpui 재컴파일 비용이 커서 여전히 릴리스 검증에만 둔다.
   rust-check:
     needs: changes
