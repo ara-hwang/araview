@@ -127,14 +127,17 @@ jobs:
           # git 한글 커밋 메시지가 깨지지 않게 stdout을 UTF-8로 디코드한다.
           [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
           $tag = "${{ steps.version.outputs.tag }}"
-          $prev = git describe --tags --abbrev=0 "$tag^" 2>$null
-          if ($LASTEXITCODE -ne 0) { $prev = "" }
-          if ([string]::IsNullOrWhiteSpace($prev)) {
-            $range = $tag
-            $compare = ""
-          } else {
+          # 직전 릴리스는 같은 계보의 정식 태그(vX.Y.Z)만 고른다. 프리릴리스 태그를 기준으로 잡으면
+          # 다른 계보의 커밋이 섞여 노트가 어긋난다(v2.8.2 노트가 v2.9.0-beta.5 기준으로 만들어짐).
+          $stableTags = @(git tag --list --merged "$tag^" --sort=-v:refname "v[0-9]*.[0-9]*.[0-9]*" |
+            Where-Object { $_ -match '^v\d+\.\d+\.\d+$' })
+          if ($stableTags.Count -gt 0) {
+            $prev = $stableTags[0]
             $range = "$prev..$tag"
             $compare = "$prev...$tag"
+          } else {
+            $range = $tag
+            $compare = ""
           }
           # 커밋 제목의 접두사로 분류한다. feat는 새 기능, fix는 수정, refactor와 perf는 개선,
           # 느낌표가 붙은 것(feat!: 등)은 변경이다. docs, chore, ci, build, test, style,
