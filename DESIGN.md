@@ -220,7 +220,7 @@ Toolbar buttons with a quiet, tactile press (1px downward shift on active, excep
 
 - **Thumbnail grid:** full reading-well overlay (`z-40`), viewport-virtualized, filename filter, `Enter` to jump, `Esc`/`G` to close. Viewer shortcuts are suspended while it is open.
 - **Command palette (`Ctrl+K`):** grouped commands (`file → navigate → view → display → system`), token AND matching, English aliases searchable in Korean UI.
-- **Peek overlay:** hidden-menu-bar mode reveals the header over the reading well on top-edge hover; it closes on focus loss, never on `Esc` (`Esc` is reserved for closing the image).
+- **Peek overlay:** hidden-menu-bar mode hides the header together with app-drawn caption controls. Hovering anywhere across the top 24 logical px reveals both over the reading well; they stay visible within the top 48 logical px and close beyond that band or on window focus loss, never on `Esc` (`Esc` is reserved for closing the image). Returning home or disabling hiding clears the peek state. OS-drawn macOS traffic lights and Linux server decorations remain OS-owned.
 - **Dialogs:** the scrim covers the whole window at 20% black (`DIALOG_DIM_HEX`, `dialog.rs::centered`); background click does not close (palette and settings handle `BackdropClick` press/release themselves, the rest close only via `Esc`/buttons). While a dialog is open the caption buttons do not respond (`occlude()`, SPEC §17); no invisible shield may cover them beyond the dialog host.
 - **Toasts:** bottom-right stack (`z-100`), popover surface with floating shadow, destructive icon for failures. A toast never carries a failed load alone; the error card owns that.
 

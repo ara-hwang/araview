@@ -74,9 +74,10 @@ const HEADER_TRANSFORM_CONTROLS_MIN_WIDTH: f32 = 1010.0;
 const HEADER_HEIGHT: f32 = 40.0;
 /// 그룹 안 도구 버튼 사이의 간격(논리 px). 그룹과 그룹 사이는 이보다 넓은 `gap_2`다.
 const HEADER_BUTTON_GAP: f32 = 4.0;
-/// 숨긴 크롬을 다시 보여주는 가장자리 영역(px).
-const PEEK_EDGE: f32 = 6.0;
-const PEEK_TOP_KEEP: f32 = 48.0;
+/// 숨긴 상단바는 창 가장자리를 정밀하게 겨냥하지 않아도 다시 열 수 있다(논리 px).
+const PEEK_TOP_EDGE: f32 = 24.0;
+const PEEK_BOTTOM_EDGE: f32 = 6.0;
+const PEEK_TOP_KEEP: f32 = HEADER_HEIGHT + 8.0;
 const PEEK_BOTTOM_KEEP: f32 = 150.0;
 /// 홈 최근 목록 카드의 가로 폭(논리 px). 560px 목록에서 카드 두 장과 다음 카드
 /// 일부가 보여 스크롤할 거리를 암시한다.
@@ -307,8 +308,15 @@ impl AraView {
         }
         cx.observe_window_bounds(window, |this, window, cx| this.remember_window(window, cx))
             .detach();
-        cx.observe_window_activation(window, |this, window, cx| this.recheck_contrast(window, cx))
-            .detach();
+        cx.observe_window_activation(window, |this, window, cx| {
+            if !window.is_window_active() && (this.peek_top || this.peek_bottom) {
+                this.peek_top = false;
+                this.peek_bottom = false;
+                cx.notify();
+            }
+            this.recheck_contrast(window, cx);
+        })
+        .detach();
         window.on_window_should_close(cx, |_, cx| {
             SettingsStore::flush(cx);
             true
@@ -1183,8 +1191,19 @@ impl AraView {
     ) {
         let height = f32::from(window.viewport_size().height);
         let y = f32::from(event.position.y);
-        let top = y < PEEK_EDGE || (self.peek_top && y < PEEK_TOP_KEEP);
-        let bottom = y > height - PEEK_EDGE || (self.peek_bottom && y > height - PEEK_BOTTOM_KEEP);
+        let settings = &SettingsStore::global(cx).settings;
+        let reading = self.picture.is_some() || !self.shown.is_empty();
+        let top = reading
+            && (settings.menu_bar_hidden || settings.auto_hide_ui)
+            && peek_at_edge(y, self.peek_top, PEEK_TOP_EDGE, PEEK_TOP_KEEP);
+        let bottom = reading
+            && settings.auto_hide_ui
+            && peek_at_edge(
+                height - y,
+                self.peek_bottom,
+                PEEK_BOTTOM_EDGE,
+                PEEK_BOTTOM_KEEP,
+            );
         if top != self.peek_top || bottom != self.peek_bottom {
             self.peek_top = top;
             self.peek_bottom = bottom;
@@ -1212,6 +1231,9 @@ impl Render for AraView {
         // 크롬 숨김은 이미지를 보고 있을 때만 적용한다. 홈에서는 항상 보인다.
         let hide_all = reading && auto_hide_ui;
         let hide_header = reading && (menu_bar_hidden || auto_hide_ui);
+        // 숨김을 끄거나 홈으로 돌아온 뒤에는 이전 호버 상태를 재사용하지 않는다.
+        self.peek_top &= hide_header;
+        self.peek_bottom &= hide_all;
         let animated = self.has_animation(cx);
         // 애니메이션 컨트롤이 하단 독으로 이동했으므로, 애니메이션 이미지에서는
         // 목록이 하나뿐이어도 독을 보여 컨트롤을 노출한다.
@@ -1296,17 +1318,6 @@ impl Render for AraView {
                 .into_any_element()
         };
 
-        // 상단바를 숨긴 동안에도 창 캡션 버튼은 우측 상단에 남긴다. macOS는 신호등을
-        // OS가 그리고, 서버 장식 Linux는 창 관리자가 그리므로 겹쳐 그리지 않는다.
-        let caption_controls_needed = hide_header
-            && !self.peek_top
-            && !cfg!(target_os = "macos")
-            && (!cfg!(target_os = "linux")
-                || matches!(
-                    window.window_decorations(),
-                    gpui_kit::Decorations::Client { .. }
-                ));
-
         v_flex()
             .id("araview-root")
             .relative()
@@ -1334,20 +1345,6 @@ impl Render for AraView {
                     .children(grid),
             )
             .children(status)
-            // 상단바를 숨긴 동안에도 창 캡션 버튼은 우측 상단에 남긴다.
-            .children(caption_controls_needed.then(|| {
-                div()
-                    .absolute()
-                    .top_0()
-                    .right_0()
-                    .child(
-                        TitleBar::new()
-                            .h(px(HEADER_HEIGHT))
-                            .bg(transparent_black())
-                            .border_color(transparent_black()),
-                    )
-                    .into_any_element()
-            }))
             // peek 중인 헤더는 읽기 영역 위로 겹쳐 내려온다.
             .children(peek_header.map(|header| {
                 div()
@@ -1360,6 +1357,10 @@ impl Render for AraView {
                     .child(header)
             }))
     }
+}
+
+fn peek_at_edge(distance: f32, open: bool, trigger: f32, keep: f32) -> bool {
+    distance >= 0.0 && distance < if open { keep } else { trigger }
 }
 
 /// 작은 스피너와 문구로 된 로딩 표시.
@@ -1410,6 +1411,67 @@ fn paint_checker(window: &mut Window, area: Bounds<Pixels>, base: Hsla, alt: Hsl
             );
             let quad = Bounds::new(origin, size(cell, cell)).intersect(&area);
             window.paint_quad(fill(quad, alt));
+        }
+    }
+}
+
+#[cfg(test)]
+mod peek_tests {
+    use super::{
+        HEADER_HEIGHT, PEEK_BOTTOM_EDGE, PEEK_BOTTOM_KEEP, PEEK_TOP_EDGE, PEEK_TOP_KEEP,
+        peek_at_edge,
+    };
+
+    #[test]
+    fn top_peek_opens_across_the_expanded_band() {
+        for y in [0.0, 6.0, 12.0, 20.0, 23.9] {
+            assert!(peek_at_edge(y, false, PEEK_TOP_EDGE, PEEK_TOP_KEEP));
+        }
+        assert!(!peek_at_edge(24.0, false, PEEK_TOP_EDGE, PEEK_TOP_KEEP));
+    }
+
+    #[test]
+    fn top_peek_stays_open_over_the_header_and_closes_beyond_it() {
+        for y in [24.0, HEADER_HEIGHT - 1.0, HEADER_HEIGHT + 7.0] {
+            assert!(peek_at_edge(y, true, PEEK_TOP_EDGE, PEEK_TOP_KEEP));
+        }
+        assert!(!peek_at_edge(48.0, true, PEEK_TOP_EDGE, PEEK_TOP_KEEP));
+        assert!(!peek_at_edge(40.0, false, PEEK_TOP_EDGE, PEEK_TOP_KEEP));
+    }
+
+    #[test]
+    fn bottom_peek_keeps_its_existing_trigger_and_hold_band() {
+        assert!(peek_at_edge(5.0, false, PEEK_BOTTOM_EDGE, PEEK_BOTTOM_KEEP));
+        assert!(!peek_at_edge(
+            6.0,
+            false,
+            PEEK_BOTTOM_EDGE,
+            PEEK_BOTTOM_KEEP
+        ));
+        assert!(peek_at_edge(
+            149.0,
+            true,
+            PEEK_BOTTOM_EDGE,
+            PEEK_BOTTOM_KEEP
+        ));
+        assert!(!peek_at_edge(
+            150.0,
+            true,
+            PEEK_BOTTOM_EDGE,
+            PEEK_BOTTOM_KEEP
+        ));
+    }
+
+    #[test]
+    fn pointer_outside_the_window_does_not_keep_peek_open() {
+        for open in [false, true] {
+            assert!(!peek_at_edge(-1.0, open, PEEK_TOP_EDGE, PEEK_TOP_KEEP));
+            assert!(!peek_at_edge(
+                -1.0,
+                open,
+                PEEK_BOTTOM_EDGE,
+                PEEK_BOTTOM_KEEP
+            ));
         }
     }
 }
