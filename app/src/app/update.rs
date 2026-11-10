@@ -21,20 +21,17 @@ use gpui_kit::*;
 use super::AraView;
 use crate::dialog::centered;
 use crate::i18n::{t, t_with};
-use crate::settings::{SettingsStore, UpdateChannel};
+use crate::settings::SettingsStore;
 
 /// 확인 요청은 30초, 다운로드 요청은 10분이 전체 기한이다.
 const CHECK_TIMEOUT: Duration = Duration::from_secs(30);
 const DOWNLOAD_TIMEOUT: Duration = Duration::from_secs(600);
 /// 시작 후 자동 확인까지 기다리는 시간. 창과 첫 화면이 자리 잡은 뒤 조용히 확인한다.
 const AUTO_CHECK_DELAY: Duration = Duration::from_secs(5);
-/// 안정 채널 피드. `releases/latest`는 프리릴리스를 제외하므로 베타 릴리스가 있어도
-/// 정식 릴리스만 가리킨다.
-const UPDATE_FEED_STABLE: &str =
+/// 업데이트 피드. 최신 정식 릴리스의 자산을 가리킨다. `releases/latest`는
+/// 프리릴리스를 제외하므로 정식 릴리스만 안내한다.
+const UPDATE_FEED: &str =
     "https://github.com/ara-hwang/araview/releases/latest/download/update-feed.json";
-/// 베타 채널 피드. 베타 릴리스마다 롤링 `beta` 릴리스의 이 자산을 덮어쓴다.
-const UPDATE_FEED_BETA: &str =
-    "https://github.com/ara-hwang/araview/releases/download/beta/update-feed-beta.json";
 const RELEASE_PAGE: &str = "https://github.com/ara-hwang/araview/releases";
 /// 앱 안에서 내려받아 설치할 수 있는 플랫폼 키. 설치 프로그램 실행은 Windows만 지원하므로
 /// macOS와 Linux는 업데이트 확인 후 릴리스 페이지로 안내한다.
@@ -286,77 +283,19 @@ fn verify_signature(bytes: &[u8], signature: &str, public_key: &str) -> Result<(
         .map_err(|error| error.to_string())
 }
 
-/// 채널이 읽을 피드 주소. 베타 채널은 롤링 베타 피드와 안정 피드를 함께 읽는다. 베타 피드에는
-/// 베타 버전만 올라가므로, 안정 피드도 보지 않으면 `release` 브랜치에서 낸 정식 핫픽스를
-/// 받지 못한다. 디버그 빌드는 로컬 검증용으로 환경 변수 하나로 바꿀 수 있다.
-fn feed_urls(channel: UpdateChannel) -> Vec<String> {
+/// 피드 주소. 디버그 빌드는 로컬 검증용으로 환경 변수 하나로 바꿀 수 있다.
+fn feed_url() -> String {
     if cfg!(debug_assertions)
         && let Ok(url) = std::env::var("ARAVIEW_UPDATE_FEED")
     {
-        return vec![url];
+        return url;
     }
-    match channel {
-        UpdateChannel::Stable => vec![UPDATE_FEED_STABLE],
-        UpdateChannel::Beta => vec![UPDATE_FEED_BETA, UPDATE_FEED_STABLE],
-    }
-    .into_iter()
-    .map(str::to_owned)
-    .collect()
+    UPDATE_FEED.to_owned()
 }
 
-/// 피드 결과 중 가장 높은 버전을 고른다. 하나라도 읽었으면 그 결과를 쓰고(실패한 피드는
-/// 로그에만 남긴다), 모두 실패했을 때만 첫 오류를 돌려준다.
-fn newest_feed(
-    results: Vec<Result<Option<UpdateFeed>, String>>,
-) -> Result<Option<UpdateFeed>, String> {
-    let mut newest: Option<UpdateFeed> = None;
-    let mut first_error = None;
-    let mut any_read = false;
-    for result in results {
-        match result {
-            Ok(feed) => {
-                any_read = true;
-                let Some(feed) = feed else {
-                    continue;
-                };
-                let replace = newest.as_ref().is_none_or(|current| {
-                    parse_version(&current.version).is_none()
-                        || is_newer(&feed.version, &current.version)
-                });
-                if replace {
-                    newest = Some(feed);
-                }
-            }
-            Err(error) => {
-                log::warn!("[update] feed check failed: {error}");
-                first_error.get_or_insert(error);
-            }
-        }
-    }
-    match first_error {
-        Some(error) if !any_read => Err(error),
-        _ => Ok(newest),
-    }
-}
-
-/// 채널의 피드를 모두 읽어(동시에) 가장 높은 버전을 돌려준다.
-fn fetch_latest(channel: UpdateChannel) -> Result<Option<UpdateFeed>, String> {
-    let urls = feed_urls(channel);
-    let results = std::thread::scope(|scope| {
-        let handles: Vec<_> = urls
-            .iter()
-            .map(|url| scope.spawn(move || fetch_feed(url)))
-            .collect();
-        handles
-            .into_iter()
-            .map(|handle| {
-                handle
-                    .join()
-                    .unwrap_or_else(|_| Err("update check panicked".to_owned()))
-            })
-            .collect()
-    });
-    newest_feed(results)
+/// 피드를 읽어 최신 릴리스 정보를 돌려준다. 피드가 없으면(404) `None`이다.
+fn fetch_latest() -> Result<Option<UpdateFeed>, String> {
+    fetch_feed(&feed_url())
 }
 
 fn release_public_key() -> Result<String, String> {
@@ -484,10 +423,7 @@ impl AraView {
             // 중복 확인은 무시한다.
             return;
         }
-        let channel = SettingsStore::global(cx)
-            .settings
-            .effective_update_channel();
-        let task = cx.background_spawn(async move { fetch_latest(channel) });
+        let task = cx.background_spawn(async move { fetch_latest() });
         cx.spawn_in(window, async move |this, cx| {
             let result = task.await;
             this.update_in(cx, |this, window, cx| {
@@ -521,27 +457,16 @@ impl AraView {
         }
         cx.spawn_in(window, async move |this, cx| {
             cx.background_executor().timer(AUTO_CHECK_DELAY).await;
-            let channel = this
+            let started = this
                 .update_in(cx, |this, _, cx| {
-                    if !SettingsStore::global(cx).settings.auto_check_updates
-                        || !this.update_status.begin_check(true)
-                    {
-                        return None;
-                    }
-                    Some(
-                        SettingsStore::global(cx)
-                            .settings
-                            .effective_update_channel(),
-                    )
+                    SettingsStore::global(cx).settings.auto_check_updates
+                        && this.update_status.begin_check(true)
                 })
-                .ok()
-                .flatten();
-            let Some(channel) = channel else {
+                .unwrap_or(false);
+            if !started {
                 return;
-            };
-            let result = cx
-                .background_spawn(async move { fetch_latest(channel) })
-                .await;
+            }
+            let result = cx.background_spawn(async move { fetch_latest() }).await;
             this.update_in(cx, |this, window, cx| {
                 this.update_status.finish_check(result.is_ok());
                 // 자동 확인 중 설정을 열었다면 확인 버튼을 원래대로 되돌린다.
@@ -803,10 +728,7 @@ impl AraView {
     /// 대화상자 없이 최신 버전을 바로 내려받아 설치를 시작한다. 디버그 빌드의
     /// 런타임 검증 통로(`action:installUpdate`)에서만 쓴다.
     pub(super) fn install_latest_update(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let channel = SettingsStore::global(cx)
-            .settings
-            .effective_update_channel();
-        let task = cx.background_spawn(async move { fetch_latest(channel) });
+        let task = cx.background_spawn(async move { fetch_latest() });
         cx.spawn_in(window, async move |this, cx| {
             let feed = task.await.ok().flatten()?;
             let asset = PLATFORM
@@ -827,84 +749,18 @@ impl AraView {
 mod tests {
     // `super::*`는 gpui의 `test` 매크로까지 끌어와 `#[test]`를 가린다.
     use super::{
-        DOWNLOAD_CHUNK, DownloadProgress, Ordering, UpdateChannel, UpdateFeed, compare_versions,
-        feed_urls, is_allowed_asset_url, is_newer, newest_feed, parse_version, read_with_progress,
+        DOWNLOAD_CHUNK, DownloadProgress, Ordering, UPDATE_FEED, compare_versions, feed_url,
+        is_allowed_asset_url, is_newer, parse_version, read_with_progress,
     };
 
-    fn feed(version: &str) -> UpdateFeed {
-        UpdateFeed {
-            version: version.to_owned(),
-            notes: String::new(),
-            platforms: Default::default(),
-        }
-    }
-
-    fn picked(results: Vec<Result<Option<UpdateFeed>, String>>) -> Result<Option<String>, String> {
-        newest_feed(results).map(|feed| feed.map(|feed| feed.version))
-    }
-
-    /// 베타 채널은 베타 피드와 안정 피드를 모두 읽는다(SPEC §20.1).
+    /// 피드 주소는 최신 정식 릴리스의 자산을 가리킨다(SPEC §20.1).
     #[test]
-    fn the_beta_channel_reads_both_feeds() {
+    fn the_feed_points_at_the_latest_release() {
         if std::env::var("ARAVIEW_UPDATE_FEED").is_ok() {
             return;
         }
-        assert_eq!(feed_urls(UpdateChannel::Stable).len(), 1);
-        let beta = feed_urls(UpdateChannel::Beta);
-        assert_eq!(beta.len(), 2);
-        assert!(
-            beta.iter()
-                .any(|url| url.ends_with("/update-feed-beta.json"))
-        );
-        assert!(
-            beta.iter()
-                .any(|url| url.ends_with("/latest/download/update-feed.json"))
-        );
-    }
-
-    /// 정식 핫픽스가 베타 피드보다 높으면 정식을, 아니면 베타를 고른다.
-    #[test]
-    fn the_newest_feed_wins() {
-        assert_eq!(
-            picked(vec![
-                Ok(Some(feed("2.7.0-beta.46"))),
-                Ok(Some(feed("2.7.1")))
-            ]),
-            Ok(Some("2.7.1".to_owned()))
-        );
-        assert_eq!(
-            picked(vec![
-                Ok(Some(feed("2.8.0-beta.2"))),
-                Ok(Some(feed("2.7.1")))
-            ]),
-            Ok(Some("2.8.0-beta.2".to_owned()))
-        );
-        assert_eq!(
-            picked(vec![Ok(Some(feed("garbage"))), Ok(Some(feed("2.7.1")))]),
-            Ok(Some("2.7.1".to_owned()))
-        );
-        assert_eq!(picked(vec![Ok(None), Ok(None)]), Ok(None));
-    }
-
-    /// 한쪽 피드가 실패해도 다른 쪽 결과를 쓰고, 모두 실패했을 때만 오류다.
-    #[test]
-    fn one_failed_feed_does_not_hide_the_other() {
-        assert_eq!(
-            picked(vec![Err("beta down".to_owned()), Ok(Some(feed("2.7.1")))]),
-            Ok(Some("2.7.1".to_owned()))
-        );
-        assert_eq!(
-            picked(vec![
-                Ok(Some(feed("2.8.0-beta.1"))),
-                Err("stable down".to_owned())
-            ]),
-            Ok(Some("2.8.0-beta.1".to_owned()))
-        );
-        assert_eq!(picked(vec![Ok(None), Err("down".to_owned())]), Ok(None));
-        assert_eq!(
-            picked(vec![Err("first".to_owned()), Err("second".to_owned())]),
-            Err("first".to_owned())
-        );
+        assert_eq!(feed_url(), UPDATE_FEED);
+        assert!(feed_url().ends_with("/releases/latest/download/update-feed.json"));
     }
 
     #[test]
@@ -950,8 +806,9 @@ mod tests {
         assert!(!is_newer("2.5.9", "2.6.0"));
     }
 
+    /// 베타 시절 버전이 설치된 사용자도 정식 릴리스로 올라갈 수 있게 프리릴리스 순서를 지킨다.
     #[test]
-    fn beta_releases_compare_in_order() {
+    fn prerelease_versions_compare_in_order() {
         assert!(is_newer("2.7.0-beta.2", "2.7.0-beta.1"));
         assert!(is_newer("2.7.0-beta.10", "2.7.0-beta.9"));
         assert!(!is_newer("2.7.0-beta.1", "2.7.0-beta.1"));
