@@ -28,8 +28,8 @@ use crate::i18n::{Language, t, t_with};
 use crate::keys;
 use crate::settings::{
     CacheMax, CacheMode, CacheStorageMode, DockPosition, DockThumbSize, ImageScalingMode,
-    MaxResolution, MouseAction, Settings, SettingsStore, SortKey, ThemeChoice, UpdateChannel,
-    ViewMode, ViewerBackground, WheelAction, WheelMode, default_shortcuts,
+    MaxResolution, MouseAction, Settings, SettingsStore, SortKey, ThemeChoice, ViewMode,
+    ViewerBackground, WheelAction, WheelMode, default_shortcuts,
 };
 use crate::smooth::SmoothScroll;
 
@@ -547,29 +547,6 @@ impl SettingsPanel {
                     s.auto_check_updates,
                     |settings, value| settings.auto_check_updates = value,
                     Effect::Redraw,
-                    cx,
-                ),
-                cx,
-            ))
-            .child(setting_row(
-                t("settings.update.channelTitle"),
-                Some(t("settings.update.channelDesc")),
-                self.select(
-                    "update-channel",
-                    t("settings.update.channelTitle"),
-                    ChoiceDef {
-                        current: s.effective_update_channel(),
-                        options: &[
-                            ("settings.update.channelStable", UpdateChannel::Stable),
-                            ("settings.update.channelBeta", UpdateChannel::Beta),
-                        ],
-                        get: |settings: &Settings| settings.effective_update_channel(),
-                        // 고른 경우에만 저장된다(SPEC §20.1).
-                        set: |settings, value| settings.update_channel = Some(value),
-                        effect: Effect::Redraw,
-                        view_pick: None,
-                    },
-                    window,
                     cx,
                 ),
                 cx,
