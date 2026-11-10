@@ -180,11 +180,26 @@ async function main() {
   }
   // 다음 버전은 이미 나간 정식 태그에 따라 달라지므로 태그를 먼저 받아 둔다.
   git("fetch", "--quiet", "--tags", "origin")
-  const next = nextVersion(current, target, git("tag", "--list", "v*").split("\n"))
+  const tags = git("tag", "--list", "v*").split("\n")
+  const next = nextVersion(current, target, tags)
   const tag = `v${next}`
 
-  // 사전 검사. 하나라도 어긋나면 파일을 쓰기 전에 멈춘다.
-  if (compareVersions(next, current) <= 0) fail(`새 버전 ${next}는 현재 ${current}보다 커야 한다.`)
+  // 사전 검사. 하나라도 어긋나면 파일을 쓰기 전에 멈춘다. patch|minor|major는 현재 버전보다
+  // 커야 하고, 정확한 버전은 최신 정식 태그보다 크면 된다. 베타 채널을 없애면서 현재 버전보다
+  // 낮은 정식 버전으로 내려야 했던 이동(2.9.0-beta.5 -> 2.8.2)을 위해 정확한 버전만 기준을
+  // 최신 정식 태그로 둔다. 내려가는 경우는 계획에 한 줄 남긴다.
+  const exact = !["patch", "minor", "major"].includes(target)
+  const latest = latestStable(tags)
+  if (exact) {
+    if (latest !== null && compareVersions(next, latest) <= 0) {
+      fail(`새 버전 ${next}는 최신 정식 ${latest}보다 커야 한다.`)
+    }
+    if (compareVersions(next, current) <= 0) {
+      console.log(`참고: 현재 버전 ${current}보다 낮은 ${next}로 내린다.`)
+    }
+  } else if (compareVersions(next, current) <= 0) {
+    fail(`새 버전 ${next}는 현재 ${current}보다 커야 한다.`)
+  }
   if (git("status", "--porcelain")) fail("작업 트리에 커밋하지 않은 변경이 있다. 먼저 정리한다.")
   if (!gitQuiet("rev-parse", "--verify", `origin/${branch}`)) {
     fail(`원격에 ${branch} 브랜치가 없다. 먼저 푸시한다.`)
