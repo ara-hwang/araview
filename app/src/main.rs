@@ -47,37 +47,19 @@ fn env_dir(variable: &str) -> Option<PathBuf> {
         .map(PathBuf::from)
 }
 
-fn home_dir() -> Option<PathBuf> {
-    env_dir("HOME")
-}
-
 /// 앱 전용 하위 폴더를 붙인다.
 fn app_dir(base: Option<PathBuf>) -> Option<PathBuf> {
     base.map(|base| base.join(IDENTIFIER))
 }
 
-/// 설정 폴더. Windows는 `%APPDATA%`, macOS는 `~/Library/Application Support`,
-/// 그 밖의 유닉스는 `$XDG_CONFIG_HOME`(없으면 `~/.config`) 아래다.
+/// 설정 폴더. `%APPDATA%` 아래 앱 전용 하위 폴더다.
 fn config_dir() -> Option<PathBuf> {
-    if cfg!(windows) {
-        app_dir(env_dir("APPDATA"))
-    } else if cfg!(target_os = "macos") {
-        app_dir(home_dir().map(|home| home.join("Library/Application Support")))
-    } else {
-        app_dir(env_dir("XDG_CONFIG_HOME").or_else(|| home_dir().map(|home| home.join(".config"))))
-    }
+    app_dir(env_dir("APPDATA"))
 }
 
-/// 캐시 폴더. Windows는 `%LOCALAPPDATA%`, macOS는 `~/Library/Caches`,
-/// 그 밖의 유닉스는 `$XDG_CACHE_HOME`(없으면 `~/.cache`) 아래다.
+/// 캐시 폴더. `%LOCALAPPDATA%` 아래 앱 전용 하위 폴더다.
 pub(crate) fn cache_dir() -> Option<PathBuf> {
-    if cfg!(windows) {
-        app_dir(env_dir("LOCALAPPDATA"))
-    } else if cfg!(target_os = "macos") {
-        app_dir(home_dir().map(|home| home.join("Library/Caches")))
-    } else {
-        app_dir(env_dir("XDG_CACHE_HOME").or_else(|| home_dir().map(|home| home.join(".cache"))))
-    }
+    app_dir(env_dir("LOCALAPPDATA"))
 }
 
 fn init_cache(mode: CacheStorageMode) {
@@ -143,9 +125,6 @@ fn main() {
     platform::prepare_hdr_output(std::env::var_os("ARAVIEW_HDR_OUTPUT").is_some_and(|v| v == "1"));
 
     let application = gpui_kit::application().with_assets(assets::AppAssets);
-    // Finder 등 운영체제가 실행 중인 앱에 파일 열기를 요청하는 경로(macOS의 `open-document`).
-    #[cfg(unix)]
-    application.on_open_urls(|urls| platform::open_urls(&urls));
     application.run(move |cx| {
         gpui_kit::init(cx);
         let saved_window = store.window;
@@ -161,8 +140,6 @@ fn main() {
         let options = WindowOptions {
             window_bounds: Some(bounds),
             window_min_size: Some(size(px(MIN_SIZE.0), px(MIN_SIZE.1))),
-            // Wayland와 X11이 `.desktop` 파일과 창을 이 값으로 짝짓는다(아이콘, 작업 표시줄 묶기).
-            app_id: Some(IDENTIFIER.to_owned()),
             ..TitleBar::window_options()
         };
         gpui_kit::open_window(options, cx, |window, cx| {

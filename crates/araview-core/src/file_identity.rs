@@ -107,15 +107,6 @@ pub(crate) fn same_file(a: &Path, b: &Path) -> io::Result<bool> {
     Ok(file_id_of(a)? == b_id)
 }
 
-#[cfg(unix)]
-fn file_id_of(path: &Path) -> io::Result<[u64; 3]> {
-    use std::os::unix::fs::MetadataExt;
-
-    let metadata = fs::metadata(path)?;
-    Ok([metadata.dev(), metadata.ino(), 0])
-}
-
-#[cfg(windows)]
 fn file_id_of(path: &Path) -> io::Result<[u64; 3]> {
     use std::os::windows::fs::OpenOptionsExt;
 
@@ -130,24 +121,6 @@ fn file_id_of(path: &Path) -> io::Result<[u64; 3]> {
     platform_file_identity(&file, &metadata).map(|(id, _)| id)
 }
 
-#[cfg(not(any(unix, windows)))]
-fn file_id_of(_path: &Path) -> io::Result<[u64; 3]> {
-    Err(io::Error::new(
-        io::ErrorKind::Unsupported,
-        "file identity is unsupported on this platform",
-    ))
-}
-
-#[cfg(unix)]
-fn platform_file_identity(_file: &File, metadata: &Metadata) -> io::Result<([u64; 3], i128)> {
-    use std::os::unix::fs::MetadataExt;
-
-    let change_time =
-        i128::from(metadata.ctime()) * 1_000_000_000 + i128::from(metadata.ctime_nsec());
-    Ok(([metadata.dev(), metadata.ino(), 0], change_time))
-}
-
-#[cfg(windows)]
 fn platform_file_identity(file: &File, _metadata: &Metadata) -> io::Result<([u64; 3], i128)> {
     use std::{
         ffi::c_void,
@@ -228,14 +201,6 @@ fn platform_file_identity(file: &File, _metadata: &Metadata) -> io::Result<([u64
     Ok((file_id, change_time))
 }
 
-#[cfg(not(any(unix, windows)))]
-fn platform_file_identity(_file: &File, _metadata: &Metadata) -> io::Result<([u64; 3], i128)> {
-    Err(io::Error::new(
-        io::ErrorKind::Unsupported,
-        "archive cache identity is unsupported on this platform",
-    ))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -281,8 +246,8 @@ mod tests {
         assert!(!same_file(&a, &dir.path().join("missing.bin")).unwrap());
     }
 
-    /// On a case-insensitive volume (macOS and Windows defaults) the two
-    /// spellings resolve to one file; on a case-sensitive one they are two.
+    /// On a case-insensitive volume (the Windows default) the two spellings
+    /// resolve to one file; on a case-sensitive one they are two.
     #[test]
     fn same_file_tells_case_aliases_from_distinct_files() {
         let dir = tempfile::tempdir().unwrap();

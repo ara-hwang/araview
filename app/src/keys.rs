@@ -81,10 +81,8 @@ const KEY_NAMES: &[(&str, &str)] = &[
 /// 조합(`Meta`, `Tab`, §14.3)이면 `None`이다.
 pub fn spec_from_keystroke(keystroke: &Keystroke) -> Option<String> {
     let modifiers = keystroke.modifiers;
-    // macOS에서는 Cmd를 Ctrl 자리에 쓴다(`Ctrl+O`는 Cmd+O로도 눌린다). 그 밖의 OS에서
-    // 플랫폼 키(Windows 키, Super)는 쓰지 않는다.
-    let command = cfg!(target_os = "macos") && modifiers.platform;
-    if (modifiers.platform && !command) || modifiers.function {
+    // 플랫폼 키(Windows 키)와 기능 키는 단축키로 쓰지 않는다(§14.3).
+    if modifiers.platform || modifiers.function {
         return None;
     }
     let key = keystroke.key.as_str();
@@ -100,7 +98,7 @@ pub fn spec_from_keystroke(keystroke: &Keystroke) -> Option<String> {
         None => return None,
     };
     let mut spec = String::new();
-    if modifiers.control || command {
+    if modifiers.control {
         spec.push_str("Ctrl+");
     }
     if modifiers.shift {
@@ -203,13 +201,7 @@ pub fn keystroke_for_spec(spec: &str) -> Option<Keystroke> {
 
 /// 이 빌드가 따르는 키보드 규약의 OS. `Keystroke::parse_with_os`가 요구한다.
 fn host_os() -> OperatingSystem {
-    if cfg!(target_os = "macos") {
-        OperatingSystem::Mac
-    } else if cfg!(target_os = "windows") {
-        OperatingSystem::Windows
-    } else {
-        OperatingSystem::Linux
-    }
+    OperatingSystem::Windows
 }
 
 /// 설정 표기를 `Kbd` 표시 요소로 바꾼다. 파싱할 수 없으면 `None`이다.

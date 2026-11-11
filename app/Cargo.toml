@@ -1,7 +1,7 @@
 [package]
 name = "araview"
 version = "2.8.3"
-description = "Desktop image viewer (GPUI Kit) for Windows, macOS and Linux"
+description = "Desktop image viewer (GPUI Kit) for Windows"
 authors = ["Ara"]
 license = "EUPL-1.2"
 edition = "2024"
@@ -42,13 +42,6 @@ windows = { version = "0.62", features = [
     "Storage_Streams",
     "Win32_System_WinRT",
 ] }
-
-[target.'cfg(unix)'.dependencies]
-libc = "0.2"
-
-# Linux의 파일 선택 창은 xdg-desktop-portal을 쓴다(백엔드를 고르지 않으면 빌드가 실패한다).
-[target.'cfg(target_os = "linux")'.dependencies]
-rfd = { version = "0.17", default-features = false, features = ["xdg-portal", "wayland"] }
 
 [dev-dependencies]
 tempfile = "3"

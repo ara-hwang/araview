@@ -1,7 +1,7 @@
 name: Release
 
-# `vX.Y.Z` 태그를 푸시하면 검증, 세 OS 빌드(Windows 설치 프로그램과 서명,
-# Linux tar.gz, macOS dmg), GitHub 릴리스 생성까지 자동으로 돈다.
+# `vX.Y.Z` 태그를 푸시하면 검증, Windows 빌드(설치 프로그램과 서명), GitHub 릴리스
+# 생성까지 자동으로 돈다.
 #   npm run release -- 2.0.1     (main에서 릴리스)
 # 태그는 버전을 올린 커밋(app/Cargo.toml, Cargo.lock 2곳 일치)에 붙여야 하며,
 # 어긋나면 첫 단계에서 실패한다. 실패하면 Actions에서 재실행하거나 태그를 지우고 다시
@@ -10,7 +10,7 @@ name: Release
 # 그대로 두었다. 키 형식은 minisign이다).
 #
 # Actions 탭에서 수동 실행(workflow_dispatch)하면 릴리스를 만들지 않고 같은 과정을 끝까지
-# 돌려 설치 프로그램, 서명, 피드, Linux·macOS 패키지를 아티팩트로만 남긴다. 태그를 달기 전에 파이프라인을
+# 돌려 설치 프로그램, 서명, 피드를 아티팩트로만 남긴다. 태그를 달기 전에 파이프라인을
 # 시험할 때 쓴다.
 on:
   push:
@@ -77,7 +77,7 @@ jobs:
       # sccache는 컴파일 결과를 캐시 백엔드(GitHub Actions 캐시)에 모으므로 다음
       # 버전 빌드가 이전 태그 빌드의 산출물로 크게 단축된다. 백엔드는 잡 단위 env로
       # SCCACHE_GHA_ENABLED를 켜고, 컴파일을 거치는 모든 스텝에 RUSTC_WRAPPER를 둔다.
-      # 캐시 용량은 세 OS가 나눠 쓰므로 6GB로 묶는다(저장소 전체 한도 10GB 안에 rust/vcpkg 트리 캐시 ~4GB와 함께 둔다).
+      # 캐시 용량은 저장소 전체 한도(10GB) 안에 rust/vcpkg 트리 캐시와 함께 6GB로 묶는다.
       SCCACHE_GHA_ENABLED: "true"
       SCCACHE_CACHE_SIZE: "6G"
       RUSTC_WRAPPER: sccache
@@ -98,7 +98,7 @@ jobs:
       - name: Setup Rust and native dependencies
         uses: ./.github/actions/setup-rust-native
         with:
-          cache-key: rust-windows-latest
+          cache-key: rust-windows
           rust-cache-save-if: "false"
           sccache: "true"
 
@@ -197,7 +197,7 @@ jobs:
           # 2.5.0 이하 설치본은 옛 이름 `latest-gpui.json`을 확인하므로 같은 내용을 한 벌 더 올린다.
           Copy-Item update-feed.json latest-gpui.json
 
-      # 릴리스 생성은 세 OS 빌드가 모두 끝난 뒤 `release` 잡이 한 번에 한다.
+      # 릴리스 생성은 빌드 잡이 끝난 뒤 `release` 잡이 한다.
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -211,71 +211,9 @@ jobs:
             feed-notes.md
           retention-days: 7
 
-  # Linux 묶음(tar.gz). 업데이트 피드에는 넣지 않으며 릴리스 자산으로만 올린다.
-  build-linux:
-    needs: verify
-    runs-on: ubuntu-latest
-    timeout-minutes: 90
-    # Windows와 같은 이유로 sccache를 켠다(용량 한도도 동일하다).
-    env:
-      SCCACHE_GHA_ENABLED: "true"
-      SCCACHE_CACHE_SIZE: "6G"
-      RUSTC_WRAPPER: sccache
-
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Setup Rust and native dependencies
-        uses: ./.github/actions/setup-rust-native
-        with:
-          cache-key: rust-ubuntu-latest
-          rust-cache-save-if: "false"
-          sccache: "true"
-
-      - name: Build Linux package
-        run: scripts/package-linux.sh
-
-      - name: Upload Linux artifacts
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: release-linux
-          path: target/AraView-*-linux-*.tar.gz
-          retention-days: 7
-
-  # macOS 디스크 이미지(.dmg). ad-hoc 서명만 붙이고 공증하지 않는다.
-  build-macos:
-    needs: verify
-    runs-on: macos-latest
-    timeout-minutes: 90
-    # Windows와 같은 이유로 sccache를 켠다(용량 한도도 동일하다).
-    env:
-      SCCACHE_GHA_ENABLED: "true"
-      SCCACHE_CACHE_SIZE: "6G"
-      RUSTC_WRAPPER: sccache
-
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Setup Rust and native dependencies
-        uses: ./.github/actions/setup-rust-native
-        with:
-          cache-key: rust-macos-latest
-          rust-cache-save-if: "false"
-          sccache: "true"
-
-      - name: Build macOS package
-        run: scripts/package-macos.sh
-
-      - name: Upload macOS artifacts
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: release-macos
-          path: target/AraView-*-macos-*.dmg
-          retention-days: 7
-
   release:
-    needs: [build-windows, build-linux, build-macos]
-    # 빌드는 병렬로, 게시와 피드 쓰기는 하나씩 처리한다.
+    needs: [build-windows]
+    # 게시와 피드 쓰기는 하나씩 처리한다.
     concurrency:
       group: ${{ format('publication-{0}', github.ref) }}
       queue: max
@@ -295,7 +233,7 @@ jobs:
         with:
           node-version: 24
 
-      # 같은 실행에서 올린 세 OS의 아티팩트를 받아 한 폴더로 모은다.
+      # 같은 실행에서 올린 아티팩트를 받아 한 폴더로 모은다.
       - name: Download artifacts
         env:
           GH_TOKEN: ${{ github.token }}
@@ -304,13 +242,9 @@ jobs:
           mkdir dist
           find raw -type f -exec cp {} dist/ \;
 
-      - name: List assets and write checksums
+      - name: List assets
         working-directory: dist
-        run: |
-          # 업데이트 피드는 Windows 설치 프로그램만 서명해 가리킨다. 나머지는 체크섬으로 확인한다.
-          ls -R .
-          sha256sum AraView-*-linux-*.tar.gz AraView-*-macos-*.dmg > SHA256SUMS.txt
-          cat SHA256SUMS.txt
+        run: ls -R .
 
       # 1.x(Tauri) 설치본은 `releases/latest/download/latest.json`을 확인한다. 2.x가 Latest인 동안 이 파일이 없으면
       # 업데이트 확인이 404가 되므로, 마지막 1.x(1.2.3)의 피드를 그대로 올려 1.2.3까지만 안내하고 2.x로 자동 갱신되지 않게 한다.
@@ -330,9 +264,6 @@ jobs:
           assets=(
             dist/AraView-*-setup.exe
             dist/update-feed.json
-            dist/AraView-*-linux-*.tar.gz
-            dist/AraView-*-macos-*.dmg
-            dist/SHA256SUMS.txt
             dist/latest-gpui.json
             legacy/.github/legacy-feed/latest.json
           )
