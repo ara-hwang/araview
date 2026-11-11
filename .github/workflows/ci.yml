@@ -2,14 +2,13 @@ name: CI
 
 # 문서 정합성은 PR과 main 푸시에서 자동으로 돈다.
 # Rust는 두 단계다. 전체 검증(rust 잡: fmt, clippy, deny와 rust-test 잡: cargo test를
-# 두 조각으로 나눠 각 OS에서 두 머신에 실어 병렬로 돈다)은 비용이 커서 Actions 탭
-# 수동 실행(workflow_dispatch)과 릴리스(release.yml이 workflow_call로 호출)에서만
-# 돈다. 대신 Rust 쪽 파일이 바뀐 PR과 브랜치 푸시에서는 가벼운 rust-check 잡(세 OS
-# clippy -D warnings, Windows에서는 araview-core·araview-thumb 테스트까지)이 돌아
-# 의존성 업데이트나 OS 전용 경고·테스트가 빌드를 깨는 것을 병합 전에 잡는다. 브랜치 푸시에서도
-# rust-check를 돌리는 이유는 캐시다. PR은 자기 ref와 기본 브랜치의 캐시만 복원할 수
-# 있어서, main이 캐시를 저장해 두지 않으면 모든 PR이 빈 캐시로 시작한다.
-# cache-key는 검증·rust-check·릴리스 빌드가 같은 이름(rust-<os>)을 쓴다. 같은 키를
+# 두 조각으로 나눠 병렬로 돈다)은 비용이 커서 Actions 탭 수동 실행(workflow_dispatch)과
+# 릴리스(release.yml이 workflow_call로 호출)에서만 돈다. 대신 Rust 쪽 파일이 바뀐 PR과
+# 브랜치 푸시에서는 가벼운 rust-check 잡(clippy -D warnings, araview-core·araview-thumb
+# 테스트까지)이 돌아 의존성 업데이트나 전용 경고·테스트가 빌드를 깨는 것을 병합 전에 잡는다.
+# 브랜치 푸시에서도 rust-check를 돌리는 이유는 캐시다. PR은 자기 ref와 기본 브랜치의 캐시만
+# 복원할 수 있어서, main이 캐시를 저장해 두지 않으면 모든 PR이 빈 캐시로 시작한다.
+# cache-key는 검증·rust-check·릴리스 빌드가 같은 이름(rust-windows)을 쓴다. 같은 키를
 # 쓰는 잡들은 서로의 캐시를 복원하므로 릴리스 빌드가 그 방금 끝난 검증 산출물을 그대로
 # 받는다. 저장은 중복 방지를 위해 core+thumb test 조각 하나만 맡는다: 같은 키로 여러
 # 잡이 저장 경쟁을 하면 조각마다 산출물이 다른 트리가 남는다. check 산출물만 있는
@@ -101,20 +100,15 @@ jobs:
             echo "docs=false" >> "$GITHUB_OUTPUT"
           fi
 
-  # 풀 검증(rust 잡)보다 훨씬 싼 검사. cargo check 대신 clippy를 돌려 OS별 cfg에서만
+  # 풀 검증(rust 잡)보다 훨씬 싼 검사. cargo check 대신 clippy를 돌려 cfg에서만
   # 생기는 경고(-D warnings)를 PR에서 잡는다. clippy는 check와 같은 산출물을 쓰므로
-  # 비용 차이는 작다. Windows에서는 core·thumb 테스트도 돌린다: Windows 전용 정렬·경로
-  # 동작이 릴리스 검증에서야 드러나 릴리스가 연달아 실패한 적이 있다(2026-11).
+  # 비용 차이는 작다. core·thumb 테스트도 돌린다: Windows 전용 정렬·경로 동작이
+  # 릴리스 검증에서야 드러나 릴리스가 연달아 실패한 적이 있다(2026-11).
   # app 조각 테스트는 gpui 재컴파일 비용이 커서 여전히 릴리스 검증에만 둔다.
   rust-check:
     needs: changes
     if: needs.changes.outputs.rust == 'true'
-    # 지원하는 세 OS 모두에서 컴파일되는지 본다. 한 OS가 깨져도 나머지 결과는 끝까지 본다.
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [windows-latest, ubuntu-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
+    runs-on: windows-latest
     timeout-minutes: 45
 
     steps:
@@ -123,27 +117,21 @@ jobs:
       - name: Setup Rust and native dependencies
         uses: ./.github/actions/setup-rust-native
         with:
-          cache-key: rust-${{ matrix.os }}
+          cache-key: rust-windows
           rust-cache-save-if: "false"
 
       - name: Cargo clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
 
       - name: Cargo test (araview-core, araview-thumb)
-        if: matrix.os == 'windows-latest'
         run: cargo test -p araview-core -p araview-thumb
 
-  # 검사 잡은 fmt와 clippy·cargo-deny만 돌린다. fmt는 플랫폼과 무관해 Linux에서
-  # 한 번이면 충분하다.
+  # 검사 잡은 fmt와 clippy·cargo-deny만 돌린다.
   rust:
     # PR과 main 푸시에서는 건너뛴다. workflow_call에서는 event_name이 호출자(태그 푸시)
     # 것이라 ref_type으로 릴리스 호출을 구분한다.
     if: github.event_name == 'workflow_dispatch' || github.ref_type == 'tag'
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [windows-latest, ubuntu-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
+    runs-on: windows-latest
     timeout-minutes: 45
     permissions:
       contents: read
@@ -154,11 +142,10 @@ jobs:
       - name: Setup Rust and native dependencies
         uses: ./.github/actions/setup-rust-native
         with:
-          cache-key: rust-${{ matrix.os }}
+          cache-key: rust-windows
           rust-cache-save-if: "false"
 
       - name: Cargo fmt
-        if: matrix.os == 'ubuntu-latest'
         run: cargo fmt --all --check
 
       - name: Cargo clippy
@@ -167,18 +154,16 @@ jobs:
       # RustSec 자문(취약점·unsound), 허용 목록 밖의 라이선스(GPL 등), 알 수 없는
       # 레지스트리/git 소스가 들어오면 실패한다. 설정: deny.toml.
       - name: Install cargo-deny
-        if: matrix.os == 'windows-latest'
         uses: taiki-e/install-action@3a3daafd3b7f23b8f65d9f5ba2db203fb59b79e2 # v2
         with:
           tool: cargo-deny@0.20.2
 
       - name: Rust advisory, license and source check
-        if: matrix.os == 'windows-latest'
         run: cargo deny check
 
   # cargo test의 소요가 검증 잡의 절반 이상이라 크레이트 단위로 나눠 병렬로 돌린다.
   # 조각 합이 이전 `cargo test --workspace`와 같다(아래 -p 합집합 = 워크스페이스 멤버).
-  # 조각마다 별도 키 공간(rust-<os>, rust-app-<os>)을 쓴다. app/ 은 gpui를 dev로
+  # 조각마다 별도 키 공간(rust-windows, rust-app-windows)을 쓴다. app/ 은 gpui를 dev로
   # 다시 컴파일하는 시간이 검증의 긴 몫이라, core쪽 캐시만 복원하면 app 조각이
   # 매번 그 컴파일을 반복해 검증의 병목이 되었다.
   rust-test:
@@ -186,11 +171,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, ubuntu-latest, macos-latest]
         shard:
           - core+thumb
           - app
-    runs-on: ${{ matrix.os }}
+    runs-on: windows-latest
     timeout-minutes: 45
     permissions:
       contents: read
@@ -201,8 +185,8 @@ jobs:
       - name: Setup Rust and native dependencies
         uses: ./.github/actions/setup-rust-native
         with:
-          # app 조각만 자기 키 공간을 쓴다: core+thumb는 rust-<os>, app는 rust-app-<os>.
-          cache-key: ${{ matrix.shard == 'app' && format('rust-app-{0}', matrix.os) || format('rust-{0}', matrix.os) }}
+          # app 조각만 자기 키 공간을 쓴다: core+thumb는 rust-windows, app는 rust-app-windows.
+          cache-key: ${{ matrix.shard == 'app' && 'rust-app-windows' || 'rust-windows' }}
 
       - name: Cargo test (araview-core, araview-thumb)
         if: matrix.shard == 'core+thumb'

@@ -132,12 +132,6 @@ fn push_fallback_key(part: &str, out: &mut Vec<u8>) {
     out.push(0);
 }
 
-#[cfg(not(windows))]
-fn push_sort_key(part: &str, _wide: &mut Vec<u16>, out: &mut Vec<u8>) {
-    push_fallback_key(part, out);
-}
-
-#[cfg(windows)]
 fn push_sort_key(part: &str, wide: &mut Vec<u16>, out: &mut Vec<u8>) {
     use std::ptr::{null, null_mut};
 
@@ -206,20 +200,15 @@ fn push_sort_key(part: &str, wide: &mut Vec<u16>, out: &mut Vec<u8>) {
     push_fallback_key(part, out);
 }
 
-#[cfg(windows)]
 const LCMAP_SORTKEY: u32 = 0x0000_0400;
-#[cfg(windows)]
 const SORT_DIGITSASNUMBERS: u32 = 0x0000_0008;
-#[cfg(windows)]
 const NORM_IGNORECASE: u32 = 0x0000_0001;
-#[cfg(windows)]
 const SORT_KEY_FLAGS: u32 = LCMAP_SORTKEY | SORT_DIGITSASNUMBERS | NORM_IGNORECASE;
 
 // 시그니처를 바꿀 때는 MSDN의 원본 선언과 대조할 것(`file_assoc.rs` 참고).
 //   LCMapStringEx(LPCWSTR, DWORD, LPCWSTR, int, LPWSTR, int,
 //                 LPNLSVERSIONINFO, LPVOID, LPARAM) -> int
 // 로캘 이름 NULL은 LOCALE_NAME_USER_DEFAULT다.
-#[cfg(windows)]
 #[link(name = "kernel32")]
 extern "system" {
     fn LCMapStringEx(

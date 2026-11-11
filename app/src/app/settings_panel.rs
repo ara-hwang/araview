@@ -107,8 +107,6 @@ pub(super) const TABS: &[&str] = &[
     "settings.tabs.list",
     "settings.tabs.performance",
     "settings.tabs.shortcuts",
-    // 확장자 연결과 PSD 썸네일은 Windows 셸 연동이라 다른 OS에서는 탭을 두지 않는다.
-    #[cfg(windows)]
     "settings.tabs.extensions",
 ];
 

@@ -578,7 +578,7 @@ mod tests {
         assert_eq!(name_of(".jpg").len(), 16);
     }
 
-    /// 금지 문자가 든 엔트리도 추출된다(Linux에서는 원래도 됐지만 파일명 형식을 고정한다).
+    /// 금지 문자가 든 엔트리도 추출되고 파일명 형식을 고정한다.
     #[test]
     fn entries_with_reserved_characters_extract() {
         let dir = tempfile::tempdir().unwrap();

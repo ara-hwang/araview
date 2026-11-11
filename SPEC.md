@@ -12,7 +12,7 @@
 
 ## 1. 개요
 
-- Windows 11 x64를 정식 지원하고 macOS, Linux x64는 실험적으로 지원하는 오프라인 데스크톱 이미지/코믹 뷰어. OS별 구현은 `app/src/platform/`와 `cfg`로 분리하고, 아래에서 OS를 밝히지 않은 동작은 세 OS 공통이다. 로컬 파일만 다루며 라이브러리 가져오기, 계정, 네트워크를 쓰지 않는다(업데이트 확인 제외).
+- Windows 11 x64만 지원하는 오프라인 데스크톱 이미지/코믹 뷰어. OS별 구현은 `app/src/platform/`(Win32)에 둔다. 로컬 파일만 다루며 라이브러리 가져오기, 계정, 네트워크를 쓰지 않는다(업데이트 확인 제외).
 - 창은 프레임리스이며 커스텀 타이틀바/툴바(`app/src/app.rs`의 헤더)를 쓴다. 헤더 버튼 묶음은 창 드래그 영역과 겹치지 않도록 마우스를 막아 클릭이 캡션 드래그로 처리되지 않게 한다. Windows 11에서는 최대화 버튼 호버로 OS Snap Layouts 플라이아웃이 뜬다(§20).
 - 열린 다이얼로그는 창 전체를 20% 검정으로 덮는다(어두운 정도는 테마 `overlay` 토큰이고 `apply_theme`가 라이트·다크 모두 같은 세기로 맞춘다). 배경 클릭으로는 닫지 않고(`dialog::centered`의 `overlay_closable(false)`) 명령 팔레트와 설정만 영역 밖 클릭으로 닫으며(설정 위에 확인 다이얼로그가 떠 있으면 닫지 않는다) `Esc`·버튼으로 닫는다. 이 닫기는 누름이 아니라 뗌에서 정해지고(`dialog::BackdropClick`), 누른 자리에서 거의 움직이지 않았고 그 사이 창도 움직이지 않았을 때만 클릭으로 본다: 배경 누름은 곧바로 창 이동 드래그의 시작일 수 있다. 배경이 캡션 판정이라 Windows가 이동 루프를 돌리면 그 뗌이 gpui로 오지 않으므로, 실제 창에서는 물리 왼쪽 버튼 상태로 뗌을 알아낸다(`dialog::watch_backdrop_click`). 키보드 포커스는 다이얼로그 안에 갇힌다. 배경이 창 전체에 `WindowControlArea::Drag` 히트 영역을 깔아 다이얼로그가 열려 있는 동안 Windows는 창 전체를 캡션으로 판정한다: 타이틀바 컨트롤(최소화/최대화/닫기)은 동작하지 않는다(gpui-kit 다이얼로그 호스트의 `occlude()`가 OS 히트테스트용 마우스 좌표 수집을 차단하기 때문이며, 앱 코드로는 고칠 수 없다. 라이브러리 벤더 패치가 필요). 대신 배경을 잡아 끌면 창이 움직이는데, 그 움직임이 위의 클릭 판정에서 드래그로 잡히므로 배경을 끌어 창을 옮긴 뒤에는 팔레트와 설정이 닫히지 않는다(배경 클릭은 gpui가 클라이언트 입력으로도 전달되어 닫힌다). 다이얼로그는 알림 레이어 위에 그려지므로, 열려 있는 동안의 결과 알림은 경고창으로 보여준다(`app/src/toast.rs`). 다이얼로그와 명령 팔레트는 화면 가운데에 배치한다(`Dialog::centered`와 `AlertDialog::centered`가 실제 높이로 맞추며, 설정 제목 줄 클릭 판정만 추정 상단을 쓴다. `app/src/dialog.rs`).
 - 기술 스택과 플러그인 목록은 `docs/development.md`를 따른다.
@@ -111,7 +111,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 - 이미지 표시 설정은 `auto | smooth | pixelated`를 제공한다. `auto`는 표시 배율이 2x 이상이면 `pixelated`를(확대 시 원본 픽셀 표시), 그 외에는 `smooth`를 사용한다. 이미지 내용을 분석하는 픽셀 아트 자동 감지는 없다. 수동 모드는 배율 기반 전환보다 우선한다.
 - 픽셀 보존 표시는 GPU의 선형 보간 대신, 보이는 영역만 CPU에서 최근접 확대한 래스터를 그려 원본 픽셀을 그대로 보여준다(`app/src/app/viewport.rs`의 픽셀 뷰). 원본은 타일의 실제 좌표로 읽으므로 8192px 격자로 나뉜 정지 이미지와, 한 장으로 둔 큰 애니메이션(한 변 8192px 초과, 아틀라스 한계 16384px를 넘어 줄인 프레임 포함)이 모두 같은 좌표로 그려진다. 양쪽/웹툰의 각 이미지는 같은 설정을 공유하되 판정은 이미지별이다.
 - `autoHideUI`가 true일 때만 읽기 중 크롬(상단바, 이미지 목록 도크, 상태바)을 숨기고 읽기 영역을 확장한다. 도크 상태(스크롤 위치, 로드한 썸네일)는 유지된다.
-- `menuBarHidden`이 true이면 상단바와 앱이 그리는 최소화·최대화·닫기 버튼을 함께 숨기고, 창 전체 폭의 상단 24 논리 px 호버 영역에서 peek 오버레이로 함께 표시한다(`autoHideUI`로 숨길 때도 동일). 헤더 숨기기 버튼과 보기 설정 스위치로 토글한다. peek 시에는 읽기 영역 위로 겹쳐 내려오며 상단 48 논리 px 안에서는 유지하고, 그 영역을 벗어나거나 창 포커스 이탈 시에는 즉시 닫힌다. 홈으로 돌아오거나 숨김을 끄면 이전 peek 상태는 초기화한다. OS가 그리는 macOS 신호등과 Linux 서버 장식은 변경하지 않는다. 모션 토큰과 timing은 `DESIGN.md`를 따른다. `Esc`로는 닫히지 않는다(뷰어의 이미지 닫기와 충돌 방지).
+- `menuBarHidden`이 true이면 상단바와 앱이 그리는 최소화·최대화·닫기 버튼을 함께 숨기고, 창 전체 폭의 상단 24 논리 px 호버 영역에서 peek 오버레이로 함께 표시한다(`autoHideUI`로 숨길 때도 동일). 헤더 숨기기 버튼과 보기 설정 스위치로 토글한다. peek 시에는 읽기 영역 위로 겹쳐 내려오며 상단 48 논리 px 안에서는 유지하고, 그 영역을 벗어나거나 창 포커스 이탈 시에는 즉시 닫힌다. 홈으로 돌아오거나 숨김을 끄면 이전 peek 상태는 초기화한다. 모션 토큰과 timing은 `DESIGN.md`를 따른다. `Esc`로는 닫히지 않는다(뷰어의 이미지 닫기와 충돌 방지).
 - `menuBarHidden`은 이미지를 보고 있을 때만 적용한다. 이미지 없이 빈 화면(홈)에서는 설정값을 유지한 채 상단바를 항상 표시한다(열기/드래그 동선 유지). `autoHideUI`와 동일한 조건을 쓴다.
 - 로드 실패 시 에러 카드에 재시도/홈 복구 경로를 제공한다. 실패한 적은 토스트로 알린다. 파일·폴더·아카이브를 열지 못한 에러 카드의 재시도는 같은 경로를 다시 열고, 페이지 디코드에 실패한 에러 카드의 재시도는 그 위치를 다시 디코드한다.
 
@@ -143,9 +143,9 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 
 ### 4.3 OS 파일 연결 실행
 
-- Windows와 Linux는 CLI 인자(`args[1]`)로 파일 경로를 넘긴다(Linux는 `.desktop`의 `Exec=... %F`). macOS는 Finder가 열기 이벤트(`open-document`, GPUI `on_open_urls`)로 파일 URL을 넘기고, 앱은 이를 첫 인스턴스의 수신 채널로 보낸다(`platform::open_urls`).
+- CLI 인자(`args[1]`)로 파일 경로를 넘긴다.
 - 시작 인자로 받은 경로는 창이 준비되면 한 번 연다(`app/src/main.rs`, `open_path`).
-- 두 번째 실행은 첫 인자를 기존 창에 넘기고 종료한다. Windows는 명명된 파이프(`\\.\pipe\<식별자>`), Linux와 macOS는 유닉스 도메인 소켓(`$XDG_RUNTIME_DIR` 또는 임시 폴더의 `<식별자>.sock`, 경로가 100바이트를 넘으면 `/tmp/araview-<uid>-<해시>.sock`, 권한 0600)이다. 소켓 파일이 남아 있어도 연결에 실패하면 새로 만든다. 기존 창은 받은 경로를 바로 연다(`app/src/app/system.rs`). Windows 파이프 서버는 연결을 받자마자 다음 파이프 인스턴스를 만들어 두므로, 탐색기에서 여러 파일을 한꺼번에 Enter로 열거나 연속으로 더블클릭해 두 번째 실행이 동시에 여럿 와도 모두 기존 창으로 간다. 두 번째 실행은 인스턴스가 모두 바쁘면(`ERROR_PIPE_BUSY`) `WaitNamedPipeW`로, 파이프가 아직 없으면(첫 실행이 막 시작함) 짧게 쉬며 최대 3초 동안 다시 연결하고, 그래도 닿지 못할 때만 새 창으로 연다. 파이프는 원격 클라이언트를 받지 않는다(`PIPE_REJECT_REMOTE_CLIENTS`, 지원하지 않는 Windows에서는 생략).
+- 두 번째 실행은 첫 인자를 기존 창에 넘기고 종료한다. 명명된 파이프(`\\.\pipe\<식별자>`)를 쓴다. 기존 창은 받은 경로를 바로 연다(`app/src/app/system.rs`). 파이프 서버는 연결을 받자마자 다음 파이프 인스턴스를 만들어 두므로, 탐색기에서 여러 파일을 한꺼번에 Enter로 열거나 연속으로 더블클릭해 두 번째 실행이 동시에 여럿 와도 모두 기존 창으로 간다. 두 번째 실행은 인스턴스가 모두 바쁘면(`ERROR_PIPE_BUSY`) `WaitNamedPipeW`로, 파이프가 아직 없으면(첫 실행이 막 시작함) 짧게 쉬며 최대 3초 동안 다시 연결하고, 그래도 닿지 못할 때만 새 창으로 연다. 파이프는 원격 클라이언트를 받지 않는다(`PIPE_REJECT_REMOTE_CLIENTS`, 지원하지 않는 Windows에서는 생략).
 - 연결 프로그램으로 실행하든 두 번째 실행이든 같은 `open_path` 흐름을 탄다.
 
 ## 5. 디렉토리 목록과 탐색
@@ -155,11 +155,11 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 ### 5.1 `get_directory_images`
 
 - 입력: `file_path`, `options?: DirListOptions`(`sortKey: name | date | size`, `descending`, `recursive`).
-- 부모 폴더 기준으로 정렬 목록을 만들고, `current_index`는 요청 경로의 위치(없으면 0)이다. 철자가 정확히 같은 항목이 없을 때 대소문자만 다른 항목으로 찾는 폴백은 Windows와 macOS에서만 한다. Linux에서 대소문자만 다른 이름은 다른 파일이다.
-- 이름순은 탐색기와 같은 자연 정렬이다(`crates/araview-core/src/natural_sort.rs`): 숫자 구간은 값으로 비교해 `2.jpg`가 `10.jpg`보다 앞이고, 대소문자는 무시한다. 기호와 비ASCII 문자는 Windows에서 사용자 로캘 규칙(`LCMapStringEx`)을, 다른 OS에서는 소문자 UTF-8 코드포인트 순서를 따른다(한글은 가나다순). 경로는 폴더 단위로 나눠 비교한다. `date`/`size` 정렬의 동률과 아카이브 엔트리 순서에도 같은 규칙을 쓴다.
+- 부모 폴더 기준으로 정렬 목록을 만들고, `current_index`는 요청 경로의 위치(없으면 0)이다. 철자가 정확히 같은 항목이 없을 때 대소문자만 다른 항목으로 찾는 폴백을 한다(기본 볼륨은 대소문자를 무시한다).
+- 이름순은 탐색기와 같은 자연 정렬이다(`crates/araview-core/src/natural_sort.rs`): 숫자 구간은 값으로 비교해 `2.jpg`가 `10.jpg`보다 앞이고, 대소문자는 무시한다. 기호와 비ASCII 문자는 사용자 로캘 규칙(`LCMapStringEx`)을 따른다(한글은 가나다순). 경로는 폴더 단위로 나눠 비교한다. `date`/`size` 정렬의 동률과 아카이브 엔트리 순서에도 같은 규칙을 쓴다.
 - 재귀가 켜지면 하위 폴더 이미지를 포함한다. 재귀 목록이 캐시에서 올 때만 항목별 존재를 다시 확인해(256개 이상은 병렬) 워처 이벤트가 오기 전에 지워진 파일을 뺀다. 방금 스캔한 목록은 다시 확인하지 않는다.
-- 디렉토리 목록은 캐시되며 상한이 있다. 캐시 키는 canonical 폴더 경로이고 Windows에서만 대소문자를 무시한다(Linux와 대소문자 구분 볼륨에서 `Comics/`와 `comics/`는 다른 목록이다). 스캔하는 동안 그 폴더에 워처 이벤트가 오면 스캔 결과는 돌려주되 캐시하지 않아, 스캔 중 추가된 파일이 다음 변경 전까지 빠지지 않는다.
-- 응답 `availability`는 `images`와 같은 순서의 `local` | `cloud_only` | `unknown` 배열이다. Windows Files On-Demand placeholder는 `cloud_only`로 표시한다(다른 OS는 판별하지 않고 항상 `unknown`). 아카이브 목록은 빈 배열이다. 클라우드 전용 파일을 자동으로 다루는 규칙은 9.6절이다.
+- 디렉토리 목록은 캐시되며 상한이 있다. 캐시 키는 canonical 폴더 경로이고 대소문자를 무시한다. 스캔하는 동안 그 폴더에 워처 이벤트가 오면 스캔 결과는 돌려주되 캐시하지 않아, 스캔 중 추가된 파일이 다음 변경 전까지 빠지지 않는다.
+- 응답 `availability`는 `images`와 같은 순서의 `local` | `cloud_only` | `unknown` 배열이다. Windows Files On-Demand placeholder는 `cloud_only`로 표시한다. 아카이브 목록은 빈 배열이다. 클라우드 전용 파일을 자동으로 다루는 규칙은 9.6절이다.
 
 ### 5.2 목록 새로고침
 
@@ -325,7 +325,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 ### 9.2 저장 방식
 
 - `cacheStorageMode`는 `temporary | persistent`이며 기본값은 `persistent`다.
-- `persistent`는 OS 캐시 폴더(Windows `%LOCALAPPDATA%`, macOS `~/Library/Caches`, 그 밖은 `$XDG_CACHE_HOME` 또는 `~/.cache`) 아래 `<식별자>/cache-v2/`를 사용하며 앱 재실행 뒤에도 썸네일, sidecar, 축소본, 아카이브 추출물을 재사용한다.
+- `persistent`는 OS 캐시 폴더(Windows `%LOCALAPPDATA%`) 아래 `<식별자>/cache-v2/`를 사용하며 앱 재실행 뒤에도 썸네일, sidecar, 축소본, 아카이브 추출물을 재사용한다.
 - `temporary`는 사용자 앱 캐시 디렉터리의 버전된 `session-v1/` 아래 프로세스별 `TempDir`를 사용한다. 정상 종료 이벤트와 다음 시작 시 이전 세션 루트를 정리해 종료·충돌 후에도 임시 파일을 남기지 않는다. 저장 방식 변경은 다음 실행부터 적용된다.
 - 영구 캐시는 OS가 지울 수 있는 best-effort 데이터다. 원본이나 렌더 결과의 진실 원본은 아니다.
 - 설치 빌드(`com.araview.viewer`)와 개발 빌드(`com.araview.viewer.dev`)는 식별자가 달라 캐시 루트가 분리된다.
@@ -434,8 +434,8 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
   - 끝이 공백/마침표면 거부.
   - Windows 예약어(`CON`, `PRN`, `AUX`, `NUL`, `COM1`-`COM9`, `LPT1`-`LPT9`) 거부(확장자 앞부분 기준, 대소문자 무시).
 - 이동 전 지원 확장자 검사, 중복 이름이면 `already_exists`.
-- 이동은 다른 파일을 덮어쓰지 않는 OS 호출(Linux `renameat2(RENAME_NOREPLACE)`, macOS `renamex_np(RENAME_EXCL)`, Windows `MoveFileExW`에서 `MOVEFILE_REPLACE_EXISTING` 없이)로 한다. 중복 판정과 이동이 한 번에 일어나므로 그사이 같은 이름의 파일이 생겨도 지우지 않고 `already_exists`로 거부한다. 파일시스템이 이 호출을 지원하지 않으면 하드 링크 후 원래 이름 삭제로, 그것도 안 되면 존재 확인 후 이동으로 내려간다(마지막 단계만 확인과 이동 사이의 틈이 남는다).
-- 이름이 그대로면 이동을 생략한다. 대소문자만 바꾸는 이름은 두 경로의 OS 파일 ID가 같을 때(대소문자 무시 볼륨)만 같은 파일로 보고, 같은 폴더의 임시 이름(`.<원래 이름>.araview-rename-<pid>-<n>`)을 거쳐 두 번 옮긴다. 대소문자 구분 볼륨(Linux·macOS 대소문자 구분 볼륨, Windows 대소문자 구분 폴더)에 그 이름의 다른 파일이 있으면 중복이다.
+- 이동은 다른 파일을 덮어쓰지 않는 OS 호출(Windows `MoveFileExW`에서 `MOVEFILE_REPLACE_EXISTING` 없이)로 한다. 중복 판정과 이동이 한 번에 일어나므로 그사이 같은 이름의 파일이 생겨도 지우지 않고 `already_exists`로 거부한다.
+- 이름이 그대로면 이동을 생략한다. 대소문자만 바꾸는 이름은 두 경로의 OS 파일 ID가 같을 때(대소문자 무시 볼륨)만 같은 파일로 보고, 같은 폴더의 임시 이름(`.<원래 이름>.araview-rename-<pid>-<n>`)을 거쳐 두 번 옮긴다. 대소문자 구분 볼륨(Windows 대소문자 구분 폴더)에 그 이름의 다른 파일이 있으면 중복이다.
 - 이동 뒤 새 이름으로 읽지 못하면 같은 방식(덮어쓰지 않음)으로 이름을 되돌리고 실패를 반환한다.
 - 다이얼로그는 이름 변경 요청이 끝날 때까지(성공·실패 모두) 다음 제출을 받지 않는다. `Enter`와 확인 버튼을 연달아 눌러도 한 번만 바꾸며, 이미 바뀐 원래 이름으로 두 번째 요청이 가서 "File not found" 실패가 뜨지 않는다.
 - 성공 시 디렉토리 목록과 최근 파일 경로를 교체한다.
@@ -453,7 +453,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 ### 11.4 경로/외부 열기
 
 - `Ctrl+Shift+C`: 유효 경로를 텍스트로 복사한다.
-- `Ctrl+Shift+E`: 파일 관리자(Windows 탐색기, macOS Finder, Linux 기본 파일 관리자)에 표시한다.
+- `Ctrl+Shift+E`: Windows 탐색기에 표시한다.
 - `Ctrl+Shift+O`: 기본 앱으로 연다.
 
 ### 11.5 글자 인식 `Ctrl+Shift+T`, 강조 `Ctrl+Shift+H` (Windows 전용)
@@ -475,7 +475,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 
 진실: `app/src/settings.rs`.
 
-`settings.json` 키(설정 폴더 `<식별자>/settings.json`. Windows `%APPDATA%`, macOS `~/Library/Application Support`, 그 밖은 `$XDG_CONFIG_HOME` 또는 `~/.config` 아래):
+`settings.json` 키(설정 폴더 `<식별자>/settings.json`. Windows `%APPDATA%` 아래):
 
 | 키                | 내용                                                    | 상한     |
 | ----------------- | ------------------------------------------------------- | -------- |
@@ -596,7 +596,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 
 ### 14.3 커스텀 규칙
 
-- 허용 수식키는 `Ctrl/Shift/Alt`이며 `Meta`와 `Tab`은 쓸 수 없다. macOS에서는 Cmd를 `Ctrl`로 취급한다(Cmd+O와 Ctrl+O가 같은 `Ctrl+O`로 기록·매칭된다).
+- 허용 수식키는 `Ctrl/Shift/Alt`이며 `Meta`와 `Tab`은 쓸 수 없다.
 - `+` 키는 단독으로 `+`, 수식키와 함께는 `Ctrl++`처럼 표기한다.
 - 빈 값은 바인딩 해제로 취급하고, 중복 바인딩은 검출한다.
 - 왼쪽 드래그는 `pan` 또는 `none`만 허용한다.
@@ -744,31 +744,28 @@ UI 분류 5종:
 진실: `app/src/i18n.rs`, `app/locales/ko.json`, `app/locales/en.json`.
 
 - 지원 언어: `ko`, `en`.
-- 시스템 감지: 로캘 이름이 `ko`로 시작하면 `ko`, 아니면 `en`. 로캘은 Windows는 사용자 로캘 이름(환경 변수 `LC_ALL`/`LANG`이 있으면 그것을 먼저), macOS는 `AppleLanguages`의 첫 항목(없으면 환경 변수), Linux는 `LC_ALL`, `LC_MESSAGES`, `LANG` 순이다.
-- OS별 문구: `locales/*.json`의 `platform.<windows|macos|linux>` 아래 같은 키가 해당 OS에서 기본 문구를 덮어쓴다(예: 탐색기 보기 → Finder, 파일 관리자).
+- 시스템 감지: 로캘 이름이 `ko`로 시작하면 `ko`, 아니면 `en`. 로캘은 환경 변수 `LC_ALL`/`LANG`이 있으면 그것을 먼저 보고, 없으면 Windows 사용자 로캘 이름(`GetUserDefaultLocaleName`)을 따른다.
 - 폴백: `ko`.
 - 설정 변경 즉시 적용된다.
 
 ## 20. 윈도우/배포
 
-진실: `app/installer/araview.nsi`, `scripts/Build-Installer.ps1`, `scripts/package-linux.sh`, `scripts/package-macos.sh`, `app/packaging/`, `app/src/platform/`, `app/src/app/update.rs`, `docs/releasing.md`, `.github/workflows/release.yml`, `.github/workflows/ci.yml`.
+진실: `app/installer/araview.nsi`, `scripts/Build-Installer.ps1`, `app/src/platform/`, `app/src/app/update.rs`, `docs/releasing.md`, `.github/workflows/release.yml`, `.github/workflows/ci.yml`.
 
 - 창: 제목 기본값 `AraView`(이미지가 열리면 파일명, 아니면 앱 이름), 1024x768, 최소 500x400, 프레임리스. 최소 너비 500은 Windows 11 Snap Layouts의 모든 배치에 창이 들어가기 위한 상한이다(Microsoft 권장 ≤500epx).
-- OS별 창 틀: 타이틀바는 gpui-kit이 그린다. Windows와 클라이언트 장식 Linux(Wayland 등)는 오른쪽에 최소화/최대화/닫기 버튼 3개(34px씩)를 두고 헤더 보조 그룹을 그 앞에서 접는다. 서버 장식 Linux(합성기 없는 X11)는 창 관리자가 틀을 그려 오른쪽 버튼이 없고, macOS는 왼쪽 신호등 버튼 자리(80px 패딩)를 둔다. 창 이동은 Windows가 마우스 처리를 끝낸 뒤 포스트하는 `WM_SYSCOMMAND`(`SC_MOVE | HTCAPTION`)이고, 그 밖은 `Window::start_window_move`다. 처리 안에서 `SendMessage`로 이동 루프에 들어가면 그 루프가 앱 상태를 빌린 채로 돌아 애니메이션이 그려지지 않는다. 캡션 드래그도 같은 이동 루프이며, 루프 중 이동 메시지에서 프레임을 다시 그린다.
-- 항상 위는 Windows(`SetWindowPos`)에서만 지원한다. 다른 OS에서는 헤더 버튼, 설정 행, 명령 팔레트 항목을 숨기고(`platform::ALWAYS_ON_TOP_SUPPORTED`) 시작할 때도 적용하지 않는다.
+- 창 틀: 타이틀바는 gpui-kit이 그린다. 오른쪽에 최소화/최대화/닫기 버튼 3개(34px씩)를 두고 헤더 보조 그룹을 그 앞에서 접는다. 창 이동은 마우스 처리를 끝낸 뒤 포스트하는 `WM_SYSCOMMAND`(`SC_MOVE | HTCAPTION`)다. 처리 안에서 `SendMessage`로 이동 루프에 들어가면 그 루프가 앱 상태를 빌린 채로 돌아 애니메이션이 그려지지 않는다. 캡션 드래그도 같은 이동 루프이며, 루프 중 이동 메시지에서 프레임을 다시 그린다.
+- 항상 위는 Windows(`SetWindowPos`)로 지원한다(`platform::ALWAYS_ON_TOP_SUPPORTED`).
 - 창 위치와 크기를 `settings.json`의 `window`에 저장하고 다음 실행에 복원한다.
 - 읽기 영역 드래그는 팬·스크롤 여유가 없을 때 창 이동이 된다(§7.2).
 - Windows 11 Snap Layouts: gpui-kit 타이틀바의 최대화 버튼은 창 컨트롤 영역(`WindowControlArea::Max`)으로 등록돼 있어 Windows가 `HTMAXBUTTON`으로 처리한다. 앱이 따로 오버레이를 두지 않는다. 헤더의 일반 버튼은 `.occlude()`로 묶어 캡션 드래그 영역으로 취급되지 않게 한다. 최소 폭 500 논리 px에서 좌우 메뉴와 캡션 버튼을 보존하도록 헤더의 보조 그룹은 폭에 따라 단계적으로 접고 버튼 그룹은 줄어들지 않는다.
 - 설치 프로그램: NSIS 하나만 만든다(`pwsh scripts/Build-Installer.ps1`, 결과물 `target/AraView-<버전>-setup.exe`). 1.x(Tauri) 설치본과 같은 정체성(설치 폴더 `%LOCALAPPDATA%\AraView`, 실행 파일 `araview.exe`, 제거 항목 `AraView`, 시작 메뉴 바로가기)을 써서 같은 자리에 덮어쓴다. 설치 중 앱이 실행 중이면 종료를 요청한다.
 - 릴리스 파이프라인: 릴리스는 `main` 한 곳에서 낸다. `npm run release -- patch|minor|major|<X.Y.Z>`(`scripts/release.mjs`)가 `main`에서 `vX.Y.Z` 태그를 만들고, 스크립트가 `app/Cargo.toml`과 `Cargo.lock`, `vcpkg.json`의 버전을 올려 커밋한 뒤 `main`과 태그를 함께 푸시한다. 버전 파일에 베타 채널 시절의 `X.Y.Z-beta.N`이 남아 있어도 정식 버전을 계산한다(규칙은 `docs/releasing.md`). 태그 푸시를 `.github/workflows/release.yml`이 받아 태그와 버전 파일의 일치, 서명 키 Secrets를 확인한 뒤 검증(cargo fmt/test/clippy, 보안 감사, 라이선스 검사), 설치 프로그램 빌드, 서명, 업데이트 피드 생성, 원본 저장소 `ara-hwang/araview` 릴리스 생성까지 자동으로 수행한다. 릴리스는 Latest가 되는 정식 릴리스와 `update-feed.json`, `latest-gpui.json`을 만든다. `ci.yml`이 검증을 담당하고 릴리스가 이를 재사용한다. 권한과 절차 상세는 `docs/releasing.md`를 따른다.
-- Linux 배포: `scripts/package-linux.sh`가 `target/AraView-<버전>-linux-<arch>.tar.gz`를 만든다(`bin/araview`, `bin/licenses/`, `share/applications/com.araview.viewer.desktop`, 아이콘, `install.sh`). `install.sh`는 `~/.local`(또는 `PREFIX`)에 관리자 권한 없이 설치하고 `--uninstall`로 제거한다. `.desktop`의 `MimeType`이 지원 형식을 선언하고 `StartupWMClass`와 창 `app_id`가 식별자 `com.araview.viewer`다. libheif는 vcpkg 정적 링크다. 실행에는 X11 또는 Wayland, Vulkan, `libxkbcommon`이 필요하다.
-- macOS 배포: `scripts/package-macos.sh`가 `AraView.app`(`Info.plist`의 `CFBundleDocumentTypes`가 지원 확장자를 `Viewer`/`Alternate`로 선언, `AraView.icns`)을 만들고 ad-hoc 서명해 `target/AraView-<버전>-macos-<arch>.dmg`로 묶는다. 공증하지 않으므로 첫 실행은 우클릭 > 열기다. CI는 Apple silicon(arm64)만 빌드한다.
-- 파일 연결(Windows): 연결은 OS 확인 없이 바꿀 수 없다. macOS와 Linux는 설정에 연결 UI가 없고(탭 자체가 없다) 번들·`.desktop` 선언이 "다음으로 열기" 목록을 채운다. 연결 대상은 §2의 47종 이미지와 `cbz`, `zip`이며 별도 목록을 두지 않는다.
-- HEIC/HEIF는 vcpkg `libheif[core,aom]`(1.21 이상, AVIF 시퀀스 디코드에 필요) + `libde265`(HEVC), `aom`(AV1, AVIF 표시/썸네일/히스토그램)만 사용한다. Windows는 동적 링크(DLL 동봉), Linux와 macOS 배포는 정적 링크다. 설치와 DLL 복사는 `docs/development.md`를 따른다.
+- 파일 연결(Windows): 연결은 OS 확인 없이 바꿀 수 없다. 연결 대상은 §2의 47종 이미지와 `cbz`, `zip`이며 별도 목록을 두지 않는다.
+- HEIC/HEIF는 vcpkg `libheif[core,aom]`(1.21 이상, AVIF 시퀀스 디코드에 필요) + `libde265`(HEVC), `aom`(AV1, AVIF 표시/썸네일/히스토그램)만 사용한다. 동적 링크(DLL 동봉)다. 설치와 DLL 복사는 `docs/development.md`를 따른다.
 
 ### 20.1 자동 업데이트
 
-시작 시 1회 자동 확인과 수동 확인을 제공한다. 주기적 백그라운드 폴링은 없다(오프라인 우선). 자동 확인은 설정 일반 탭의 `시작 시 자동 확인`(기본 켜짐)이 켜져 있을 때만 시작 약 5초 뒤 조용히 1회 수행하고, 새 버전이 있을 때만 대화상자를 띄운다. 최신이거나 실패하면 알리지 않는다(실패는 로그에만 남긴다). 앱 안 설치는 Windows만 지원한다. macOS와 Linux는 새 버전이 있으면 안내 대화상자에 `GitHub 릴리스 페이지` 버튼만 두고(다운로드 버튼 없음, 피드에 해당 플랫폼 항목이 없다) 새 파일을 직접 받게 한다.
+시작 시 1회 자동 확인과 수동 확인을 제공한다. 주기적 백그라운드 폴링은 없다(오프라인 우선). 자동 확인은 설정 일반 탭의 `시작 시 자동 확인`(기본 켜짐)이 켜져 있을 때만 시작 약 5초 뒤 조용히 1회 수행하고, 새 버전이 있을 때만 대화상자를 띄운다. 최신이거나 실패하면 알리지 않는다(실패는 로그에만 남긴다). 앱 안 설치를 지원한다.
 
 - 진입점: 시작 시 자동 확인(`autoCheckUpdates`가 true일 때), 설정 일반 탭의 `새 버전 확인` 버튼, 명령 팔레트의 `업데이트 확인`.
 - 흐름: 업데이트 확인 → 없으면 최신 안내(자동 확인은 조용히 넘어감), 있으면 대화상자에서 다운로드를 시작한다. 내려받은 설치 프로그램은 서명을 앱에 내장한 공개키로 확인한 뒤에만 실행하고, 실행하면 앱이 종료된다. 설치와 새 버전 재실행은 NSIS가 담당하므로 수동 재시작 UI는 없다. 다운로드하는 동안에는 진행 대화상자를 띄워 진행 막대와 받은 크기/전체 크기(%)를 보여 준다. 서버가 전체 크기를 알려 주지 않으면 막대는 불확정 표시가 되고 받은 크기만 보인다. 이 대화상자는 `취소` 버튼으로만 닫히며(`Esc`와 닫기 버튼 없음) 취소하면 받던 내용을 버린다. 취소는 응답이 멈춘 요청이 끝나기를 기다리지 않고 바로 다음 확인과 다운로드를 받을 수 있게 하며, 늦게 끝난 결과는 무시하고 이미 다 받은 설치 프로그램은 임시 폴더에서 지운다. 다운로드 실패는 알림으로 알린다. 중복 확인은 무시한다(자동 확인 중 수동 확인을 누르면 수동 확인이 무시되고, 반대로 자동 확인은 수동 확인이 끝나기 전에 시작하지 않는다). 자동 확인 전에 수동 확인이 이미 끝났으면 자동 확인은 하지 않는다.
@@ -779,7 +776,7 @@ UI 분류 5종:
 
 ### 20.2 PSD 탐색기 썸네일 (IThumbnailProvider)
 
-Windows 전용이다(macOS와 Linux에서는 `araview-thumb`가 빈 크레이트이고 설정 탭도 없다). Windows 파일 탐색기에서 `.psd` 축소판을 표시한다. 미리보기 창(`Alt+P`)은 범위 밖이며 썸네일만 제공한다.
+Windows 전용이다. Windows 파일 탐색기에서 `.psd` 축소판을 표시한다. 미리보기 창(`Alt+P`)은 범위 밖이며 썸네일만 제공한다.
 
 - 설정 UI(확장자 탭 하단)에서 켜고 끌 수 있다. DLL이 없으면 등록을 거부하고 안내한다. 적용 뒤 탐색기 재시작/썸네일 캐시 정리가 필요할 수 있다.
 - 등록은 HKCU라 관리자 권한이 필요 없다. PSB는 거부하고 탐색기가 기본 아이콘으로 폴백한다.

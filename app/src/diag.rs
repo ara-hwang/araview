@@ -10,11 +10,7 @@ use crate::logging;
 use crate::settings::SettingsStore;
 
 /// Windows 배포본이 실행 파일 옆에 두는 이미지 코덱 DLL(`scripts/Build-Installer.ps1`).
-#[cfg(windows)]
 const IMAGE_CODEC_DLLS: &[&str] = &["heif.dll", "libde265.dll", "aom.dll"];
-/// 다른 OS는 코덱을 실행 파일에 정적으로 넣어 검사할 파일이 없다.
-#[cfg(not(windows))]
-const IMAGE_CODEC_DLLS: &[&str] = &[];
 
 /// 복사할 진단 정보 본문.
 pub(crate) fn collect(store: &SettingsStore) -> String {
@@ -39,7 +35,7 @@ pub(crate) fn collect(store: &SettingsStore) -> String {
         ),
         format!(
             "Image codec libraries: {}",
-            codec_summary(exe_dir().as_deref(), IMAGE_CODEC_DLLS)
+            codec_summary(exe_dir().as_deref())
         ),
         format!("Cache: {}", cache_line(store)),
         format!("Log: {}", log_line()),
@@ -67,79 +63,14 @@ fn exe_dir() -> Option<PathBuf> {
 }
 
 fn os_line() -> String {
-    platform_os_version().unwrap_or_else(|| {
-        format!(
-            "{} (version unknown)",
-            if cfg!(windows) { "Windows" } else { "Unix" }
-        )
-    })
+    platform_os_version().unwrap_or_else(|| "Windows (version unknown)".to_owned())
 }
 
-#[cfg(windows)]
 fn platform_os_version() -> Option<String> {
     crate::platform::os_version()
 }
 
-/// 유닉스는 배포판 파일(`/etc/os-release`)을 먼저, 없으면 macOS의 plist를 읽는다.
-#[cfg(unix)]
-fn platform_os_version() -> Option<String> {
-    if let Some(name) = std::fs::read_to_string("/etc/os-release")
-        .ok()
-        .and_then(|text| os_release_pretty_name(&text))
-    {
-        let kernel = std::fs::read_to_string("/proc/sys/kernel/osrelease")
-            .ok()
-            .map(|text| text.trim().to_owned())
-            .filter(|text| !text.is_empty());
-        return Some(match kernel {
-            Some(kernel) => format!("{name} (kernel {kernel})"),
-            None => name,
-        });
-    }
-    std::fs::read_to_string("/System/Library/CoreServices/SystemVersion.plist")
-        .ok()
-        .and_then(|text| plist_version(&text))
-        .map(|version| format!("macOS {version}"))
-}
-
-/// `/etc/os-release`의 `PRETTY_NAME`, 없으면 `NAME`.
-/// Windows는 배포판 파일도 plist도 읽지 않으므로 컴파일 대상에서 뺀다.
-#[cfg(any(unix, test))]
-fn os_release_pretty_name(text: &str) -> Option<String> {
-    ["PRETTY_NAME", "NAME"].iter().find_map(|wanted| {
-        text.lines()
-            .filter_map(|line| line.split_once('='))
-            .find(|(key, _)| key.trim() == *wanted)
-            .map(|(_, value)| unquote(value.trim()).to_owned())
-            .filter(|value| !value.is_empty())
-    })
-}
-
-/// 따옴표로 감싼 값을 벗긴다(`/etc/os-release` 형식).
-#[cfg(any(unix, test))]
-fn unquote(value: &str) -> &str {
-    for quote in ['"', '\''] {
-        if let Some(inner) = value
-            .strip_prefix(quote)
-            .and_then(|value| value.strip_suffix(quote))
-        {
-            return inner;
-        }
-    }
-    value
-}
-
-/// `SystemVersion.plist`의 `ProductVersion` 값.
-#[cfg(any(unix, test))]
-fn plist_version(text: &str) -> Option<String> {
-    let (_, after_key) = text.split_once("<key>ProductVersion</key>")?;
-    let (_, after_open) = after_key.split_once("<string>")?;
-    let (value, _) = after_open.split_once("</string>")?;
-    Some(value.trim().to_owned()).filter(|value| !value.is_empty())
-}
-
 /// Windows 빌드 번호로 표시 이름을 정한다. Windows 11은 빌드 22000부터다.
-#[cfg(any(windows, test))]
 pub(crate) fn describe_windows_version(major: u32, minor: u32, build: u32) -> String {
     let name = match (major, minor) {
         (10, _) if build >= 22_000 => "Windows 11",
@@ -153,10 +84,8 @@ pub(crate) fn describe_windows_version(major: u32, minor: u32, build: u32) -> St
 }
 
 /// 실행 파일 옆 코덱 라이브러리 상태.
-fn codec_summary(install_dir: Option<&Path>, dlls: &[&str]) -> String {
-    if dlls.is_empty() {
-        return "statically linked".to_owned();
-    }
+fn codec_summary(install_dir: Option<&Path>) -> String {
+    let dlls = IMAGE_CODEC_DLLS;
     let total = dlls.len();
     let Some(dir) = install_dir else {
         return "install folder unknown".to_owned();
@@ -218,8 +147,7 @@ fn mask_home(text: &str, home: Option<&str>) -> String {
 }
 
 fn home_dir() -> Option<String> {
-    let variable = if cfg!(windows) { "USERPROFILE" } else { "HOME" };
-    std::env::var(variable)
+    std::env::var("USERPROFILE")
         .ok()
         .filter(|value| !value.is_empty())
 }
@@ -243,27 +171,6 @@ mod tests {
     }
 
     #[test]
-    fn os_release_prefers_pretty_name() {
-        let text = "NAME=\"Ubuntu\"\nPRETTY_NAME=\"Ubuntu 24.04.1 LTS\"\nVERSION_ID=\"24.04\"\n";
-        assert_eq!(
-            os_release_pretty_name(text).as_deref(),
-            Some("Ubuntu 24.04.1 LTS")
-        );
-        assert_eq!(
-            os_release_pretty_name("NAME=Arch\n").as_deref(),
-            Some("Arch")
-        );
-        assert_eq!(os_release_pretty_name("VERSION_ID=1\n"), None);
-    }
-
-    #[test]
-    fn plist_version_reads_product_version() {
-        let text = "<dict>\n  <key>ProductVersion</key>\n  <string>15.1</string>\n</dict>\n";
-        assert_eq!(plist_version(text).as_deref(), Some("15.1"));
-        assert_eq!(plist_version("<dict></dict>"), None);
-    }
-
-    #[test]
     fn windows_versions_follow_the_build_number() {
         assert_eq!(
             describe_windows_version(10, 0, 22_631),
@@ -284,15 +191,10 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         fs::write(dir.path().join("heif.dll"), b"x").unwrap();
         assert_eq!(
-            codec_summary(Some(dir.path()), &["heif.dll", "aom.dll"]),
-            "1/2 present, missing aom.dll"
+            codec_summary(Some(dir.path())),
+            "1/3 present, missing libde265.dll, aom.dll"
         );
-        assert_eq!(
-            codec_summary(Some(dir.path()), &["heif.dll"]),
-            "1/1 present"
-        );
-        assert_eq!(codec_summary(Some(dir.path()), &[]), "statically linked");
-        assert_eq!(codec_summary(None, &["heif.dll"]), "install folder unknown");
+        assert_eq!(codec_summary(None), "install folder unknown");
     }
 
     #[test]

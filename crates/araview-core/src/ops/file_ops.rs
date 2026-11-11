@@ -70,8 +70,8 @@ pub fn rename_file_impl_with_mode(
 
 /// 같은 폴더 안에서 `old`를 `new`로 옮기되 다른 파일은 덮어쓰지 않는다.
 ///
-/// 대소문자만 다른 이름은 볼륨에 따라 같은 파일(대소문자 무시)이거나 별개의
-/// 파일(Linux·macOS 대소문자 구분 볼륨, Windows 대소문자 구분 폴더)이다. 이름으로
+/// 대소문자만 다른 이름은 볼륨에 따라 같은 파일(대소문자 무시 볼륨)이거나 별개의
+/// 파일(대소문자 구분 폴더)이다. 이름으로
 /// 추측하지 않고 두 경로의 OS 파일 ID가 같을 때만 같은 파일로 보고 임시 이름을
 /// 거쳐 바꾼다. 별개의 파일이면 일반 이름 변경처럼 `AlreadyExists`로 거부된다.
 fn rename_no_replace(old: &Path, new: &Path) -> std::io::Result<()> {
@@ -160,7 +160,7 @@ mod tests {
         std::fs::write(&lower, b"lower").unwrap();
         std::fs::write(&upper, b"upper").unwrap();
         if std::fs::read(&lower).unwrap() != b"lower" {
-            // 대소문자 무시 볼륨(macOS·Windows 기본)에서는 재현할 수 없다.
+            // 대소문자 무시 볼륨(Windows 기본)에서는 재현할 수 없다.
             return;
         }
 

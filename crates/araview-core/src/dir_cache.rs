@@ -11,11 +11,9 @@
 //! reliably reflect nested changes, so without an active watcher they are
 //! always rescanned (previous behavior).
 //!
-//! Cache keys use the canonicalized directory path (lowercased on Windows only)
-//! so `C:\Pics` and `c:\pics\` share one entry. Linux and case-sensitive macOS
-//! volumes keep `Comics/` and `comics/` apart; macOS `realpath` already returns
-//! the on-disk spelling on case-insensitive volumes, so folding is not needed
-//! there to share an entry. Eviction is LRU by last
+//! Cache keys use the canonicalized directory path (lowercased) so
+//! `C:\Pics` and `c:\pics\` share one entry — Windows volumes ignore case by
+//! default. Eviction is LRU by last
 //! access, and watcher slots are trimmed together with evicted entries.
 //! Canonicalization stays internal: the listing itself is scanned from the
 //! caller's own path, because `fs::canonicalize` returns extended-length
@@ -121,18 +119,11 @@ fn mark_scans_dirty(candidates: Option<&[String]>) {
     }
 }
 
-/// Case folding for cache keys and event matching. Only Windows folds: its
-/// volumes are case-insensitive by default. Folding on case-sensitive volumes
-/// (Linux, case-sensitive APFS) would merge `Comics/` and `comics/` listings.
+/// Windows 볼륨은 기본적으로 대소문자를 무시하므로 캐시 키와 이벤트 매칭에서
+/// 대소문자를 접는다. 접지 않으면 `Comics/`와 `comics/` 요청이 서로의 목록을
+/// 건드릴 수 있다.
 fn fold_case(path: String) -> String {
-    #[cfg(windows)]
-    {
-        path.to_lowercase()
-    }
-    #[cfg(not(windows))]
-    {
-        path
-    }
+    path.to_lowercase()
 }
 
 /// Canonicalize for identity. Falls back to the raw path when the directory
@@ -590,17 +581,12 @@ fn is_reparse_point(entry: &fs::DirEntry) -> bool {
     if entry.file_type().map(|t| t.is_symlink()).unwrap_or(false) {
         return true;
     }
-    #[cfg(windows)]
-    {
-        use std::os::windows::fs::MetadataExt;
-        const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x400;
-        entry
-            .metadata()
-            .map(|m| m.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0)
-            .unwrap_or(false)
-    }
-    #[cfg(not(windows))]
-    false
+    use std::os::windows::fs::MetadataExt;
+    const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x400;
+    entry
+        .metadata()
+        .map(|m| m.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0)
+        .unwrap_or(false)
 }
 
 fn sort_images(images: &mut [ImageEntry], opts: &DirListOptions) {
@@ -629,22 +615,6 @@ fn sort_images(images: &mut [ImageEntry], opts: &DirListOptions) {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    // 쓰는 테스트(`folders_differing_only_in_case_keep_separate_listings`)가
-    // Windows에서는 빠지므로 같은 조건으로 둔다.
-    #[cfg(not(windows))]
-    fn names(images: &[ImageEntry]) -> Vec<String> {
-        images
-            .iter()
-            .map(|e| {
-                Path::new(&*e.path)
-                    .file_name()
-                    .unwrap()
-                    .to_string_lossy()
-                    .into_owned()
-            })
-            .collect()
-    }
 
     /// 스캔 중 그 폴더에 대한 이벤트가 오면 스캔 결과를 저장하지 않는다. 저장하면
     /// 스캔 뒤에 생긴 파일이 다음 변경 전까지 목록에서 빠진다.
@@ -690,35 +660,5 @@ mod tests {
             .unwrap()
             .contains_key(&cache_key(&canonical, &opts)));
         drop_cached_listings(&canonical);
-    }
-
-    /// 대소문자 구분 볼륨에서 `Comics/`와 `comics/`는 다른 폴더다. 한쪽 목록이
-    /// 다른 쪽 요청에 돌아오면 안 된다.
-    #[cfg(not(windows))]
-    #[test]
-    fn folders_differing_only_in_case_keep_separate_listings() {
-        let root = tempfile::tempdir().unwrap();
-        let upper = root.path().join("Comics");
-        let lower = root.path().join("comics");
-        fs::create_dir(&upper).unwrap();
-        if fs::create_dir(&lower).is_err() {
-            // 대소문자 무시 볼륨(macOS 기본)에서는 재현할 수 없다.
-            return;
-        }
-        fs::write(upper.join("upper.png"), b"").unwrap();
-        fs::write(lower.join("lower.png"), b"").unwrap();
-        let opts = DirListOptions::default();
-
-        let (first, _) = get_sorted_images_with_source(&upper, &opts).unwrap();
-        let (second, _) = get_sorted_images_with_source(&lower, &opts).unwrap();
-
-        assert_eq!(names(&first), ["upper.png"]);
-        assert_eq!(names(&second), ["lower.png"]);
-        assert_ne!(
-            cache_key(&normalize_parent(&upper), &opts),
-            cache_key(&normalize_parent(&lower), &opts)
-        );
-        drop_cached_listings(&normalize_parent(&upper));
-        drop_cached_listings(&normalize_parent(&lower));
     }
 }

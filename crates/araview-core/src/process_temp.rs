@@ -343,7 +343,7 @@ const TOUCH_MIN_INTERVAL: std::time::Duration = std::time::Duration::from_secs(6
 
 /// Best-effort LRU touch for persistent cache hits: sets the modification time
 /// to now. Setting the same length (`set_len`) is not enough, because Windows
-/// and macOS may treat an unchanged length as a no-op and keep the old time,
+/// may treat an unchanged length as a no-op and keep the old time,
 /// which turns LRU eviction into FIFO.
 pub(crate) fn touch_cache_file(path: &Path) {
     let Ok(metadata) = fs::metadata(path) else {

@@ -2,28 +2,26 @@
 
 <img width="1600" height="1000" alt="viewer-light" src="https://github.com/user-attachments/assets/b000c143-89f8-4459-8588-9c2cb840a988" />
 
-Rust와 [GPUI Kit](https://github.com/longbridge/gpui-kit)으로 만든 Windows, macOS, Linux 데스크톱 이미지 뷰어
+Rust와 [GPUI Kit](https://github.com/longbridge/gpui-kit)으로 만든 Windows 데스크톱 이미지 뷰어
 
 - 일반 이미지 포맷과 만화 아카이브 포맷 지원 (`ComicInfo.xml` 포함)
 - 양쪽 보기, 웹툰 보기 모드 등 지원
 
 ## 요구 사항
 
-- Windows 11 (x64): 정식 지원
-- macOS 11 이상, Linux x64(X11/Wayland): 실험적 지원(빌드는 확인하지만 실제 동작은 충분히 검증하지 않음)
-- Rust stable(`rust-toolchain.toml`), `libheif` 1.21 이상(Windows는 vcpkg의 `libheif[libde265,aom]:x64-windows`), Node.js `>= 24`(릴리스·문서 검사 스크립트용)
-- OS별 준비와 배포 묶음(Windows 설치 프로그램, macOS dmg, Linux tar.gz)은 `docs/development.md` 참고.
+- Windows 11 (x64)
+- Rust stable(`rust-toolchain.toml`), `libheif` 1.21 이상(vcpkg의 `libheif[libde265,aom]:x64-windows`), Node.js `>= 24`(릴리스·문서 검사 스크립트용)
+- 환경 준비와 배포 묶음(Windows 설치 프로그램)은 `docs/development.md` 참고.
 
 ## 로컬 개발
 
 ```bash
 git clone https://github.com/ara-hwang/araview.git
 cd araview
-cargo run -p araview -- "C:/path/to/image.png"   # macOS, Linux는 ~/Pictures/image.png 같은 경로
+cargo run -p araview -- "C:/path/to/image.png"
 ```
 
-Windows는 `VCPKG_ROOT`가 vcpkg 설치 위치를 가리켜야 함.
-macOS와 Linux는 `pkg-config`가 `libheif`를 찾아야 함.
+`VCPKG_ROOT`가 vcpkg 설치 위치를 가리켜야 함.
 
 자세한 환경은 `docs/development.md`를 확인.
 

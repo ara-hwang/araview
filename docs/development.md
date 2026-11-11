@@ -6,19 +6,19 @@
 
 - **앱**: Rust, [GPUI Kit](https://github.com/longbridge/gpui-kit) 0.8(`app`)
 - **공용 코어**: `crates/araview-core`(디코드, 아카이브, 캐시, 썸네일, 파일 작업)
-- **PSD 탐색기 썸네일**: `crates/araview-thumb`(COM DLL, Windows 전용. 다른 OS에서는 빈 크레이트로 빌드됩니다)
-- **배포 묶음**: Windows는 NSIS 설치 프로그램(`app/installer/araview.nsi`), Linux는 tar.gz(`scripts/package-linux.sh`), macOS는 dmg(`scripts/package-macos.sh`)
-- 지원 OS: Windows 11 x64(정식), macOS(Apple silicon 기준)와 Linux x64(X11/Wayland)는 실험적입니다(CI 빌드만 확인). 창 틀은 GPUI Kit의 타이틀바가 OS별로 그립니다.
+- **PSD 탐색기 썸네일**: `crates/araview-thumb`(COM DLL, Windows 전용)
+- **배포 묶음**: Windows NSIS 설치 프로그램(`app/installer/araview.nsi`)
+- 지원 OS: Windows 11 x64. 창 틀은 GPUI Kit의 타이틀바가 그립니다.
 - 루트 `Cargo.toml`이 세 크레이트를 한 워크스페이스로 묶고 `Cargo.lock`도 하나입니다.
 
 ## 요구 사항
 
-- **OS**: Windows 11 (x64), macOS 11 이상(실험적), Linux x64(실험적)
+- **OS**: Windows 11 (x64)
 - **Rust**: stable (`rust-toolchain.toml` 채널, 최소 버전은 `app/Cargo.toml`의 `rust-version = "1.97"`)
 - **Node.js**: `>= 24` (`release`, `docs:check`, `licenses` 스크립트용. 의존성 설치는 없습니다)
 - **NSIS**: Windows 설치 프로그램을 만들 때만 필요합니다(`makensis`가 PATH에 있거나 `Program Files (x86)\NSIS`에 있어야 합니다)
 
-모든 OS에서 HEIC/HEIF/AVIF를 쓰려면 `libheif` 1.21 이상이 필요합니다. `vcpkg.json`은 `libheif`의 `default-features`를 끄고(`hevc` 인코더 `x265` 제외) `aom`만 켭니다. HEVC 디코더 `libde265`는 하드 의존성이라 항상 들어갑니다. 버전은 baseline의 1.21.2와 1.23.1이 모두 Windows에서 DLL 로드 시 초기화 실패(`0xC0000142`)를 일으켜 `cargo test`가 실행조차 되지 않으므로, `overrides`로 1.23.2를 고정합니다(`libheif-rs 3.0`의 sys 바인딩도 1.23 기준). `aom` feature는 AVIF(AV1) 디코드용이며, 없으면 AVIF 표시와 썸네일, 히스토그램이 실패합니다. 움직이는 AVIF를 디코드하려면 1.21 이상이 필요합니다(`libheif-rs`의 `v1_21` feature). 앱은 HEIC/AVIF를 인코드하지 않습니다.
+HEIC/HEIF/AVIF를 쓰려면 `libheif` 1.21 이상이 필요합니다. `vcpkg.json`은 `libheif`의 `default-features`를 끄고(`hevc` 인코더 `x265` 제외) `aom`만 켭니다. HEVC 디코더 `libde265`는 하드 의존성이라 항상 들어갑니다. 버전은 baseline의 1.21.2와 1.23.1이 모두 Windows에서 DLL 로드 시 초기화 실패(`0xC0000142`)를 일으켜 `cargo test`가 실행조차 되지 않으므로, `overrides`로 1.23.2를 고정합니다(`libheif-rs 3.0`의 sys 바인딩도 1.23 기준). `aom` feature는 AVIF(AV1) 디코드용이며, 없으면 AVIF 표시와 썸네일, 히스토그램이 실패합니다. 움직이는 AVIF를 디코드하려면 1.21 이상이 필요합니다(`libheif-rs`의 `v1_21` feature). 앱은 HEIC/AVIF를 인코드하지 않습니다.
 
 ### Windows
 
@@ -37,44 +37,6 @@ $env:Path += ";$env:VCPKG_ROOT\installed\x64-windows\bin"
 
 앱은 `libheif`를 동적 링크합니다. `app/build.rs`가 `VCPKG_ROOT`(또는 `VCPKG_INSTALLATION_ROOT`) 아래 `installed/x64-windows/bin`에서 `heif.dll`, `libde265.dll`, `aom.dll`을 실행 파일 옆(`target/<profile>/`)으로 복사하고, vcpkg의 `libheif`, `libde265`, `aom` `copyright`를 같은 위치의 `licenses/`로 모읍니다. 설치 프로그램은 이 파일들을 그대로 동봉합니다. CI에서는 `VCPKGRS_DYNAMIC=1`과 `PKG_CONFIG_PATH`를 함께 둡니다(워크플로 참조). `aom.dll`은 AVIF 이미지 디코드에 필요합니다.
 
-### macOS
-
-Xcode 명령줄 도구와 `pkg-config`가 필요합니다. 네이티브 의존성은 Windows와 같은 vcpkg 매니페스트로 설치합니다.
-
-```bash
-brew install pkgconf
-# vcpkg가 없으면 https://vcpkg.io/ 절차로 설치
-cd <araview>
-vcpkg install --triplet arm64-osx --x-install-root="<vcpkg root>/installed"  # Intel은 x64-osx
-export VCPKG_ROOT="<vcpkg root>"
-export PKG_CONFIG_PATH="<vcpkg root>/installed/arm64-osx/lib/pkgconfig"  # Intel은 x64-osx
-export PKG_CONFIG_ALL_STATIC=1
-cargo run -p araview -- ~/Pictures/image.png
-```
-
-배포 묶음은 vcpkg 정적 빌드(`arm64-osx`, Intel은 `x64-osx`)로 `libheif`를 실행 파일에 넣어 dylib를 동봉하지 않습니다. CI의 `.github/actions/setup-rust-native`가 이 환경(`VCPKG_ROOT`, `PKG_CONFIG_PATH`, `PKG_CONFIG_ALL_STATIC=1`)을 만듭니다.
-
-### Linux
-
-GPUI의 X11/Wayland 연동에 필요한 개발 패키지를 설치합니다(Debian/Ubuntu 기준). 네이티브 의존성은 macOS와 같은 vcpkg 매니페스트 정적 빌드(`x64-linux`)를 씁니다.
-
-```bash
-sudo apt-get install pkg-config cmake nasm clang libclang-dev \
-  libxkbcommon-dev libxkbcommon-x11-dev libxcb1-dev libxcb-xkb-dev libx11-xcb-dev \
-  libwayland-dev libfontconfig-dev libfreetype-dev
-cd <araview>
-export VCPKG_ROOT="<vcpkg root>"
-bash scripts/setup-linux-native.sh
-source target/linux-native-env.sh
-pkg-config --modversion libheif
-```
-
-vcpkg를 먼저 설치해야 합니다. 스크립트는 `VCPKG_ROOT`, `VCPKG_INSTALLATION_ROOT`, `~/vcpkg` 순으로 설치 위치를 찾고, 저장소 매니페스트에 고정된 libheif와 HEIC/AVIF 디코더를 설치합니다. vcpkg가 얕은 복제이면 `git fetch --unshallow origin`으로 버전 이력을 복원합니다. 이력이 없으면 고정 버전의 git tree를 읽지 못해 `failed to unpack tree object`로 실패할 수 있습니다.
-
-`libheif`를 찾지 못하는 Cargo 오류는 먼저 `source target/linux-native-env.sh`를 실행한 뒤 다시 확인합니다. 프로필에 환경 변수가 있어도 비로그인 셸에는 적용되지 않을 수 있습니다. 생성된 환경 파일은 Git에서 제외되는 `target/`에 있으며, 새 터미널에서 다시 source합니다. `cargo clean`으로 지웠다면 준비 스크립트를 다시 실행합니다.
-
-실행에는 X11 또는 Wayland 세션, Vulkan 드라이버, `libxkbcommon`이 필요합니다. 파일 열기 대화상자는 `xdg-desktop-portal`을 씁니다. 디스플레이가 없는 환경에서는 `Xvfb`와 소프트웨어 Vulkan(`mesa-vulkan-drivers`)으로 실제 창을 띄워 확인할 수 있습니다.
-
 ## 시작하기
 
 ```bash
@@ -83,15 +45,14 @@ cd araview
 cargo run -p araview -- "C:/path/to/image.png"
 ```
 
-개발(디버그) 빌드는 식별자 `com.araview.viewer.dev`를 씁니다. 설치본(`com.araview.viewer`)과 동시에 실행할 수 있고, 설정과 캐시도 따로 저장됩니다. 저장 위치는 OS별로 다릅니다.
+개발(디버그) 빌드는 식별자 `com.araview.viewer.dev`를 씁니다. 설치본(`com.araview.viewer`)과 동시에 실행할 수 있고, 설정과 캐시도 따로 저장됩니다.
 
-| OS      | 설정(`settings.json`)                        | 캐시                               |
-| ------- | -------------------------------------------- | ---------------------------------- |
-| Windows | `%APPDATA%\<식별자>\`                        | `%LOCALAPPDATA%\<식별자>\`         |
-| macOS   | `~/Library/Application Support/<식별자>/`    | `~/Library/Caches/<식별자>/`       |
-| Linux   | `$XDG_CONFIG_HOME`(없으면 `~/.config`)`/<식별자>/` | `$XDG_CACHE_HOME`(없으면 `~/.cache`)`/<식별자>/` |
+| 저장   | 위치                             |
+| ------ | -------------------------------- |
+| 설정   | `%APPDATA%\<식별자>\`            |
+| 캐시   | `%LOCALAPPDATA%\<식별자>\`       |
 
-Windows 개발 빌드는 확장자 연결이 설치 버전과 섞이지 않도록 `AraView (Dev)` 이름으로 등록됩니다. 기본 앱 목록에서 `AraView`(설치 버전)와 구분해 선택하세요. 확장자 연결 설정과 PSD 탐색기 썸네일은 Windows에만 있습니다. macOS는 앱 번들의 문서 형식 선언(`Info.plist`), Linux는 `.desktop` 파일의 `MimeType`이 "다음으로 열기" 목록을 채웁니다.
+Windows 개발 빌드는 확장자 연결이 설치 버전과 섞이지 않도록 `AraView (Dev)` 이름으로 등록됩니다. 기본 앱 목록에서 `AraView`(설치 버전)와 구분해 선택하세요. 확장자 연결 설정과 PSD 탐색기 썸네일은 Windows 셸 연동입니다.
 
 ## 스크립트
 
@@ -104,8 +65,7 @@ cargo fmt --all --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 
-# 실행 중인 창 조작(개발 빌드 전용, docs/playbooks.md "Runtime check"). 드라이버 스크립트는 Windows 전용이다.
-# macOS와 Linux는 제어 소켓에 한 줄 JSON을 보낸다(playbooks.md의 "Runtime check on macOS and Linux")
+# 실행 중인 창 조작(개발 빌드 전용, docs/playbooks.md "Runtime check")
 pwsh scripts/araview-drive.ps1 launch -Path samples/sample.jpg
 pwsh scripts/araview-drive.ps1 selftest
 pwsh scripts/araview-drive.ps1 hittest  # Windows가 판정하는 캡션 영역 읽기(커서를 옮기지 않음)
@@ -113,8 +73,6 @@ pwsh scripts/araview-mcp.ps1   # 같은 도구를 MCP 서버(stdio)로
 
 # 배포 묶음(릴리스 빌드 + 패키징). 서명과 업로드는 하지 않는다
 pwsh scripts/Build-Installer.ps1     # Windows: NSIS 설치 프로그램
-scripts/package-linux.sh             # Linux: target/AraView-<버전>-linux-<arch>.tar.gz
-scripts/package-macos.sh             # macOS: target/AraView-<버전>-macos-<arch>.dmg
 
 # 릴리스 시작 (버전 올리기, 커밋, 태그, 푸시)
 npm run release -- <X.Y.Z|patch|minor|major>   # main
@@ -132,13 +90,13 @@ npm run licenses
 - 렌더링: `araview-core`의 `display.rs`가 디코드한 RGBA 프레임을 GPU 타일로 그립니다. 큰 정지 JPEG/PNG는 `preview.rs`에서 축소 디코드/행 샘플링을 먼저 시도하고, ICC·인터레이스·애니메이션·알파 등 비지원 입력과 TIFF는 기존 full 디코드로 폴백합니다. GPUI 텍스처는 한 변 16384px 제한과 밉맵 없는 선형 보간뿐이라, 큰 이미지는 타일로 나누고 축소 단계를 CPU에서 만듭니다. 픽셀 보존 표시는 보이는 영역만 최근접 확대한 래스터로 그립니다.
 - 단축키: GPUI 키맵 대신 뷰어 루트의 키 입력에서 설정 맵을 직접 찾습니다(`src/keys.rs`).
 - 파일 열기 대화상자: GPUI의 경로 선택 창에는 형식 필터가 없어 `rfd`의 네이티브 대화상자를 씁니다.
-- 고대비: Windows 대비 테마 여부를 시작할 때, 테마를 바꿀 때, 창이 다시 활성화될 때 읽어 글자·테두리 대비를 올립니다(다른 OS는 항상 꺼짐). 모션 최소화는 Windows "애니메이션 효과", macOS "동작 줄이기", GNOME `enable-animations`를 따릅니다(`src/platform/`).
-- 플랫폼 계층: `app/src/platform/mod.rs`가 공개 함수 집합을 정의하고 `windows.rs`(Win32 직접 호출), `unix.rs`(Linux와 macOS)가 구현합니다. 항상 위(`ALWAYS_ON_TOP_SUPPORTED`)는 Windows에서만 켜지고, 다른 OS에서는 헤더 버튼, 설정 행, 명령 팔레트 항목이 숨겨집니다. 문구 중 OS마다 다른 것(탐색기/Finder/파일 관리자)은 `locales/*.json`의 `platform.<windows|macos|linux>` 아래에 같은 키로 덮어씁니다.
-- 단축키: macOS에서는 Cmd를 Ctrl 자리에 씁니다(`Ctrl+O`는 Cmd+O로도 눌립니다). Windows와 Linux의 Win/Super 키는 쓰지 않습니다.
+- 고대비: Windows 대비 테마 여부를 시작할 때, 테마를 바꿀 때, 창이 다시 활성화될 때 읽어 글자·테두리 대비를 올립니다. 모션 최소화는 Windows "애니메이션 효과" 설정을 따릅니다(`src/platform/`).
+- 플랫폼 계층: `app/src/platform/mod.rs`가 공개 함수 집합을 정의하고 `windows.rs`(Win32 직접 호출)가 구현합니다. 항상 위(`ALWAYS_ON_TOP_SUPPORTED`)가 켜져 있어 헤더 버튼, 설정 행, 명령 팔레트 항목이 항상 노출됩니다.
+- 단축키: Win/Super 키는 쓰지 않습니다(§14.3).
 - 설정은 `<설정 폴더>/<식별자>/settings.json`에 저장합니다(위 표). `settings`/`recentFiles`/`archiveProgress` 모양은 1.x(Tauri)와 같고 `theme`, `window`(창 위치·크기) 키가 더 있습니다. 그래서 1.x 설치본 위에 설치하면 설정과 최근 파일을 이어받습니다.
-- 단일 인스턴스: 두 번째 실행은 첫 인자를 기존 창에 넘기고 종료합니다. Windows는 명명된 파이프(`\\.\pipe\<식별자>`), Linux와 macOS는 유닉스 도메인 소켓(`$XDG_RUNTIME_DIR` 또는 임시 폴더의 `<식별자>.sock`, 경로가 100바이트를 넘으면 `/tmp/araview-<uid>-<해시>.sock`)입니다. macOS에서 Finder로 파일을 열면 `open-document` 이벤트가 같은 경로로 전달됩니다.
+- 단일 인스턴스: 두 번째 실행은 첫 인자를 기존 창에 넘기고 종료합니다. Windows는 명명된 파이프(`\\.\pipe\<식별자>`)를 씁니다.
 - 런타임 확인: 디버그 빌드는 실행 중인 창에 `araview action:<동작 ID>`(Windows는 `araview.exe`)로 동작을 실행시킬 수 있습니다(`src/app/menu.rs`의 `run_action`, 단축키 동작 ID와 `openSettings`, `viewLtr` 등). 릴리스 빌드에는 이 통로가 없습니다.
-- 제어 브리지(개발 빌드 전용): 디버그 빌드는 `\\.\pipe\<식별자>-control`(Linux와 macOS는 유닉스 소켓 `<식별자>-control.sock`)을 열고 한 줄 JSON 요청에 한 줄 JSON 응답을 돌려줍니다(`src/app/bridge.rs`, 통로는 `src/platform/`). 입력은 창 메시지가 아니라 GPUI 입력 경로(`Window::dispatch_event`, `Window::dispatch_keystroke`)로 들어가므로 수식키 조합(ctrl-휠, ctrl-shift-c)과 파일 드롭이 그대로 살고 사용자의 마우스·키보드를 건드리지 않습니다. 상태(열린 파일, 인덱스, 보기 모드, 배율, 위치, 읽기 영역, 패널, 전체화면, 에러)를 함께 돌려줍니다. `scripts/araview-drive.ps1`(CLI), `scripts/araview-mcp.ps1`(MCP 서버), `scripts/AraViewControl.psm1`(캡처와 통로 클라이언트)이 이 통로를 씁니다. 릴리스 빌드에는 이 통로가 없습니다(The control channel is compiled out of release builds).
+- 제어 브리지(개발 빌드 전용): 디버그 빌드는 `\\.\pipe\<식별자>-control`을 열고 한 줄 JSON 요청에 한 줄 JSON 응답을 돌려줍니다(`src/app/bridge.rs`, 통로는 `src/platform/`). 입력은 창 메시지가 아니라 GPUI 입력 경로(`Window::dispatch_event`, `Window::dispatch_keystroke`)로 들어가므로 수식키 조합(ctrl-휠, ctrl-shift-c)과 파일 드롭이 그대로 살고 사용자의 마우스·키보드를 건드리지 않습니다. 상태(열린 파일, 인덱스, 보기 모드, 배율, 위치, 읽기 영역, 패널, 전체화면, 에러)를 함께 돌려줍니다. `scripts/araview-drive.ps1`(CLI), `scripts/araview-mcp.ps1`(MCP 서버), `scripts/AraViewControl.psm1`(캡처와 통로 클라이언트)이 이 통로를 씁니다. 릴리스 빌드에는 이 통로가 없습니다(The control channel is compiled out of release builds).
 - 업데이트: 동작 계약은 `SPEC.md` §20.1을 따른다(피드 `update-feed.json`, 공개키 `app/update-pubkey.txt`, `PLATFORM` 분기). 피드가 없으면(404) 확인 결과는 "최신"이다.
 - 업데이트 로컬 검증: `cargo run -p araview --example local_update_feed -- <setup.exe> <출력 폴더> http://127.0.0.1:8765`가 임시 키로 서명한 피드를 만듭니다. 그 폴더를 `python -m http.server 8765 --bind 127.0.0.1`로 띄우고, 디버그 빌드를 `ARAVIEW_UPDATE_FEED`(피드 주소)와 `ARAVIEW_UPDATE_PUBKEY`(`pubkey.txt` 내용)를 준 채 실행한 뒤 `action:checkUpdates`나 `action:installUpdate`를 보냅니다. 릴리스 빌드는 두 환경 변수를 읽지 않습니다.
 - 서드파티 라이선스: `npm run licenses`가 Rust 의존성을 `app/THIRD_PARTY_LICENSES.json`에 모으고, 앱이 이 파일을 컴파일 시점에 포함합니다. 같은 스크립트가 `THIRD_PARTY_LICENSES.md`의 2절 표도 다시 씁니다. 1절(네이티브 라이브러리)은 직접 고칩니다. 의존성을 바꾸면 다시 생성합니다. 허용하지 않은 라이선스와 RustSec 자문은 `cargo deny check`(설정 `deny.toml`, `cargo install cargo-deny --locked`)로 검사하며 CI와 릴리스 워크플로도 같은 검사를 합니다. 패키지에 LICENSE 파일이 없어 표준 템플릿("Copyright (c) <year> <owner>")이 나오는 크레이트는 스크립트가 경고로 알려 주며, 업스트림 LICENSE를 `licenses-extra/`에 복사하고 스크립트의 `EXTRA_LICENSES`에 추가합니다. 새 라이선스가 나오면 `about.toml`의 `accepted`와 `deny.toml`의 `allow`를 같이 고칩니다.
@@ -160,8 +118,8 @@ crates/araview-core/src/  # UI 비의존 코어. 경계: app=표현, ops/**=동�
 app/  # 표현 계층. 상세는 코드 읽기
   src/app/  # 화면: pages, viewport, dock, grid, menu, info_panel, file_ops, ocr, settings_panel, system, update, licenses, bridge
   src/  # layout, picture, geometry, settings, smooth, toast, keys, dialog, i18n, assets, platform/, build.rs
-  locales/ update-pubkey.txt THIRD_PARTY_LICENSES.json(생성물) installer/ packaging/ resources/
-scripts/  # check-docs/release/licenses(.mjs), package-*.sh, Build-Installer.ps1, araview-drive/mcp(.ps1)
+  locales/ update-pubkey.txt THIRD_PARTY_LICENSES.json(생성물) installer/ resources/
+scripts/  # check-docs/release/licenses(.mjs), Build-Installer.ps1, araview-drive/mcp(.ps1)
 vendor/  # [patch.crates-io] 포크(HDR 실험용 gpui-pre-windows, 명령 팔레트 스크롤용 gpui-component)
 licenses-extra/  # 업스트림 LICENSE 사본
 ```

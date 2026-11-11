@@ -67,15 +67,10 @@ fn files_exist(images: &[crate::dir_cache::ImageEntry]) -> Vec<bool> {
 /// 대소문자만 다른 철자로 들어와도 현재 파일을 찾는다. 목록은 호출자가 준
 /// 부모 경로로 스캔되므로 보통 첫 비교에서 끝난다. 폴백에서 경로마다
 /// canonicalize를 돌리면 수천 장 폴더에서 syscall 폭주가 나므로 하지 않는다.
-/// 대소문자 폴백은 기본 볼륨이 대소문자를 무시하는 Windows와 macOS에서만 한다.
-/// Linux에서 `a.jpg`와 `A.jpg`는 별개의 파일이라, 현재 파일이 목록에 없을 때
-/// 이름이 비슷한 다른 파일을 고르면 안 된다.
+/// 기본 볼륨이 대소문자를 무시하므로 대소문자 폴백을 한다.
 fn index_of_current<S: AsRef<str>>(paths: &[S], current: &Path) -> Option<usize> {
     if let Some(pos) = paths.iter().position(|p| Path::new(p.as_ref()) == current) {
         return Some(pos);
-    }
-    if !cfg!(any(windows, target_os = "macos")) {
-        return None;
     }
     let lowered = current.to_string_lossy().to_lowercase();
     paths
@@ -191,18 +186,9 @@ mod tests {
         assert_eq!(index_of_current(&paths, Path::new("/d/a.jpg")), Some(1));
     }
 
-    /// 대소문자 구분 플랫폼에서 목록에 없는 현재 파일은 이름이 대소문자만 다른
-    /// 다른 파일로 대체하지 않는다.
-    #[cfg(not(any(windows, target_os = "macos")))]
+    /// 대소문자 무시 볼륨에서는 이름이 대소문자만 다른 파일로 대체한다.
     #[test]
-    fn case_fallback_is_off_on_case_sensitive_platforms() {
-        let paths = ["/d/A.jpg", "/d/b.jpg"];
-        assert_eq!(index_of_current(&paths, Path::new("/d/a.jpg")), None);
-    }
-
-    #[cfg(any(windows, target_os = "macos"))]
-    #[test]
-    fn case_fallback_finds_the_file_on_case_insensitive_platforms() {
+    fn case_fallback_finds_the_file_on_case_insensitive_volumes() {
         let paths = ["/d/A.jpg", "/d/b.jpg"];
         assert_eq!(index_of_current(&paths, Path::new("/d/a.jpg")), Some(0));
     }

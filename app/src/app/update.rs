@@ -33,13 +33,9 @@ const AUTO_CHECK_DELAY: Duration = Duration::from_secs(5);
 const UPDATE_FEED: &str =
     "https://github.com/ara-hwang/araview/releases/latest/download/update-feed.json";
 const RELEASE_PAGE: &str = "https://github.com/ara-hwang/araview/releases";
-/// 앱 안에서 내려받아 설치할 수 있는 플랫폼 키. 설치 프로그램 실행은 Windows만 지원하므로
-/// macOS와 Linux는 업데이트 확인 후 릴리스 페이지로 안내한다.
-const PLATFORM: Option<&str> = if cfg!(windows) {
-    Some("windows-x86_64")
-} else {
-    None
-};
+/// 앱 안에서 내려받아 설치할 플랫폼 키. 피드에 이 항목이 없으면 대화상자는
+/// 릴리스 페이지 버튼만 두고 새 파일을 직접 받게 한다.
+const PLATFORM: &str = "windows-x86_64";
 /// 설치 프로그램 크기 상한. 넘으면 받지 않는다.
 const MAX_INSTALLER_BYTES: u64 = 512 * 1024 * 1024;
 /// 본문을 읽는 조각 크기. 조각마다 받은 양을 기록하고 취소를 확인한다.
@@ -488,9 +484,7 @@ impl AraView {
 
     fn show_update(&mut self, feed: UpdateFeed, window: &mut Window, cx: &mut Context<Self>) {
         let view = cx.entity();
-        let asset = PLATFORM
-            .and_then(|platform| feed.platforms.get(platform))
-            .cloned();
+        let asset = feed.platforms.get(PLATFORM).cloned();
         let version = feed.version;
         let notes = feed.notes;
         let notes_scroll = SmoothScroll::default();
@@ -731,9 +725,7 @@ impl AraView {
         let task = cx.background_spawn(async move { fetch_latest() });
         cx.spawn_in(window, async move |this, cx| {
             let feed = task.await.ok().flatten()?;
-            let asset = PLATFORM
-                .and_then(|platform| feed.platforms.get(platform))
-                .cloned()?;
+            let asset = feed.platforms.get(PLATFORM).cloned()?;
             this.update_in(cx, |this, window, cx| {
                 if is_newer(&feed.version, env!("CARGO_PKG_VERSION")) {
                     this.download_update(asset, feed.version, window, cx);

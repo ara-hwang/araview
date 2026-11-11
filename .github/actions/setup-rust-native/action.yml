@@ -1,5 +1,5 @@
 name: Setup Rust and native dependencies
-description: Rust 툴체인, 캐시, 시스템 라이브러리, vcpkg 매니페스트 의존성(libheif)을 한 번에 준비한다(Windows, Linux, macOS).
+description: Rust 툴체인, 캐시, sccache, vcpkg 매니페스트 의존성(libheif)을 한 번에 준비한다(Windows).
 
 inputs:
   cache-key:
@@ -34,71 +34,24 @@ runs:
         shared-key: ${{ inputs.cache-key }}
         save-if: ${{ inputs.rust-cache-save-if }}
 
-    # Linux는 GPUI의 X11/Wayland 연동과 libheif 바인딩 생성에 필요한 개발 패키지를 설치한다.
-    # 실행 시 Vulkan/Wayland 라이브러리는 동적으로 로드되므로 빌드에는 필요 없다.
-    - name: Install Linux system libraries
-      if: runner.os == 'Linux'
-      shell: bash
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y --no-install-recommends \
-          pkg-config cmake nasm clang libclang-dev \
-          libxkbcommon-dev libxkbcommon-x11-dev libxcb1-dev libxcb-xkb-dev libx11-xcb-dev \
-          libwayland-dev libfontconfig-dev libfreetype-dev
-
-    - name: Install macOS build tools
-      if: runner.os == 'macOS'
-      shell: bash
-      run: |
-        command -v pkg-config >/dev/null || brew install pkgconf
-        # aom(vcpkg)이 nasm을 요구한다. vcpkg의 자동 획득이 실패하는 러너가 있어 직접 설치한다.
-        command -v nasm >/dev/null || brew install nasm
-
     # VCPKG_INSTALLATION_ROOT는 러너가 프로세스 환경에만 넣어 주는 값이라 `env` 컨텍스트에
     # 없다. `${{ env.VCPKG_INSTALLATION_ROOT }}`를 경로에 쓰면 빈 문자열이 되어 캐시가
     # 저장도 복원도 되지 않으므로(libheif를 매번 8분씩 소스 빌드), 스텝 출력으로 넘긴다.
-    # Windows는 동적 링크(x64-windows)라 DLL을 동봉하고, Linux와 macOS는 정적 링크
-    # (x64-linux, arm64-osx, x64-osx)라 실행 파일 하나에 libheif가 들어간다.
-    - name: Locate vcpkg (Windows)
-      id: vcpkg-win
-      if: runner.os == 'Windows'
+    # Windows는 동적 링크(x64-windows)라 DLL을 동봉한다.
+    - name: Locate vcpkg
+      id: vcpkg
       shell: pwsh
       run: |
         "root=$env:VCPKG_INSTALLATION_ROOT" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
         "triplet=x64-windows" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-
-    - name: Locate vcpkg (Linux, macOS)
-      id: vcpkg-unix
-      if: runner.os != 'Windows'
-      shell: bash
-      run: |
-        case "${{ runner.os }}-${{ runner.arch }}" in
-          Linux-X64) triplet=x64-linux ;;
-          Linux-ARM64) triplet=arm64-linux ;;
-          macOS-ARM64) triplet=arm64-osx ;;
-          macOS-X64) triplet=x64-osx ;;
-          *) echo "지원하지 않는 러너: ${{ runner.os }}-${{ runner.arch }}" >&2; exit 1 ;;
-        esac
-        root="${VCPKG_INSTALLATION_ROOT:-}"
-        if [ -z "$root" ] || [ ! -d "$root" ]; then
-          # 러너에 vcpkg가 없으면(macOS 이미지 등) 직접 받아 빌드한다.
-          root="$HOME/vcpkg"
-          if [ ! -x "$root/vcpkg" ]; then
-            git clone --depth 1 https://github.com/microsoft/vcpkg "$root"
-            "$root/bootstrap-vcpkg.sh" -disableMetrics
-          fi
-        fi
-        echo "root=$root" >> "$GITHUB_OUTPUT"
-        echo "triplet=$triplet" >> "$GITHUB_OUTPUT"
 
     # 캐시 키는 vcpkg.json 전체가 아니라 설치 결과에 영향을 주는 부분
     # (dependencies, overrides, builtin-baseline)만 본다. name과 version-string은
     # 릴리스마다 바뀌지만 설치 패키지는 그대라, 전체 파일을 키에 넣으면 버전을 올리는
     # 릴리스와 Cargo.lock을 바꾸는 dependabot PR마다 캐시가 깨져 libheif를
     # 소스 빌드로 인해 잡당 최대 40분을 잃었다.
-    - name: vcpkg dependency hash (Windows)
-      id: vcpkg-hash-win
-      if: runner.os == 'Windows'
+    - name: vcpkg dependency hash
+      id: vcpkg-hash
       shell: pwsh
       run: |
         $manifest = Get-Content vcpkg.json -Raw | ConvertFrom-Json
@@ -107,14 +60,6 @@ runs:
         $hash = [System.BitConverter]::ToString($sha.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($canonical))).Replace("-", "").ToLowerInvariant()
         "hash=$hash" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
-    - name: vcpkg dependency hash (Linux, macOS)
-      id: vcpkg-hash-unix
-      if: runner.os != 'Windows'
-      shell: bash
-      run: |
-        hash=$(jq -S '[.dependencies, .overrides, ."builtin-baseline"]' vcpkg.json | sha256sum | cut -d' ' -f1)
-        echo "hash=$hash" >> "$GITHUB_OUTPUT"
-
     # installed만 저장한다. vcpkg는 이 디렉터리의 상태(status)만 보고 이미 설치된
     # 패키지를 건너뛰며, packages와 buildtrees는 수백 MB 이상의 중간 산출물이라
     # 캐시 용량(저장소 전체 10GB)만 잡아먹는다.
@@ -122,50 +67,28 @@ runs:
       id: vcpkg-cache
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
-        path: ${{ (steps.vcpkg-win.outputs.root || steps.vcpkg-unix.outputs.root) }}/installed
+        path: ${{ steps.vcpkg.outputs.root }}/installed
         # v3: 키가 의존성 해시만 본다. 매니페스트 의존성을 바꾸는 경우처럼 같은 키가
         # 이미 저장돼 있으면 저장이 건너뛰어지므로, 새 키 대신 키 접두사(v3)를 올려
         # 이전 캐시를 무효화해야 한다.
-        key: vcpkg-deps-v3-${{ (steps.vcpkg-win.outputs.triplet || steps.vcpkg-unix.outputs.triplet) }}-${{ (steps.vcpkg-hash-win.outputs.hash || steps.vcpkg-hash-unix.outputs.hash) }}
+        key: vcpkg-deps-v3-${{ steps.vcpkg.outputs.triplet }}-${{ steps.vcpkg-hash.outputs.hash }}
         restore-keys: |
-          vcpkg-deps-v3-${{ (steps.vcpkg-win.outputs.triplet || steps.vcpkg-unix.outputs.triplet) }}-
-          vcpkg-deps-v2-${{ (steps.vcpkg-win.outputs.triplet || steps.vcpkg-unix.outputs.triplet) }}-
+          vcpkg-deps-v3-${{ steps.vcpkg.outputs.triplet }}-
+          vcpkg-deps-v2-${{ steps.vcpkg.outputs.triplet }}-
 
     # 매니페스트 모드(`vcpkg.json`)라 의존성과 버전 pin이 저장소에 있다.
     # classic 명령(`vcpkg install libheif...`)은 pin을 무시하므로 쓰지 않는다.
     # `--x-install-root`는 pin을 그대로 두고 설치 위치만 vcpkg 루트로 옮긴다.
     # 빌드 스크립트와 pkg-config가 그 위치(`installed/<triplet>`)를 보기 때문이다.
-    - name: Install vcpkg dependencies (Windows)
-      if: runner.os == 'Windows' && steps.vcpkg-cache.outputs.cache-hit != 'true'
+    - name: Install vcpkg dependencies
+      if: steps.vcpkg-cache.outputs.cache-hit != 'true'
       shell: pwsh
       run: vcpkg install --triplet x64-windows --x-install-root="$env:VCPKG_INSTALLATION_ROOT/installed"
 
-    - name: Install vcpkg dependencies (Linux, macOS)
-      if: runner.os != 'Windows' && steps.vcpkg-cache.outputs.cache-hit != 'true'
-      shell: bash
-      run: |
-        root="${{ steps.vcpkg-unix.outputs.root }}"
-        "$root/vcpkg" install --triplet "${{ steps.vcpkg-unix.outputs.triplet }}" --x-install-root="$root/installed"
-
-    - name: Configure vcpkg environment (Windows)
-      if: runner.os == 'Windows'
+    - name: Configure vcpkg environment
       shell: pwsh
       run: |
         echo "VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT" | Out-File -FilePath $env:GITHUB_ENV -Append
         echo "VCPKGRS_DYNAMIC=1" | Out-File -FilePath $env:GITHUB_ENV -Append
         echo "PKG_CONFIG_PATH=$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\lib\pkgconfig" | Out-File -FilePath $env:GITHUB_ENV -Append
         echo "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
-
-    # 정적 라이브러리라 pkg-config가 `--static`으로 의존 라이브러리까지 풀어야 한다.
-    - name: Configure vcpkg environment (Linux, macOS)
-      if: runner.os != 'Windows'
-      shell: bash
-      run: |
-        root="${{ steps.vcpkg-unix.outputs.root }}"
-        triplet="${{ steps.vcpkg-unix.outputs.triplet }}"
-        {
-          echo "VCPKG_ROOT=$root"
-          echo "VCPKG_DEFAULT_TRIPLET=$triplet"
-          echo "PKG_CONFIG_PATH=$root/installed/$triplet/lib/pkgconfig"
-          echo "PKG_CONFIG_ALL_STATIC=1"
-        } >> "$GITHUB_ENV"
