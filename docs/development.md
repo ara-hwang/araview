@@ -54,6 +54,18 @@ cargo run -p araview -- "C:/path/to/image.png"
 
 Windows 개발 빌드는 확장자 연결이 설치 버전과 섞이지 않도록 `AraView (Dev)` 이름으로 등록됩니다. 기본 앱 목록에서 `AraView`(설치 버전)와 구분해 선택하세요. 확장자 연결 설정과 PSD 탐색기 썸네일은 Windows 셸 연동입니다.
 
+### 개발 빌드 속도
+
+루트 `Cargo.toml`의 `[profile.dev.package]`는 워크스페이스 밖 의존성(`"*"`, `vendor/` 포크 포함)의 디버그 정보를 `debug = 1`로 줄입니다. 줄 번호와 스택 추적은 유지하지만 의존성 내부의 지역 변수와 타입 디버깅 정보는 생략합니다. `app`, `araview-core`, `araview-thumb`는 전체 디버그 정보를 그대로 유지합니다. 이 설정은 dev를 상속하는 test에도 적용되며, 기존 GPUI·이미지 처리 의존성의 최적화 수준과 release 설정은 바꾸지 않습니다.
+
+의존성 내부까지 전체 디버깅이 필요하면 설정 파일을 바꾸지 않고 다음처럼 한 번만 빌드합니다. 프로필이 달라진 의존성은 다시 컴파일됩니다.
+
+```powershell
+cargo build -p araview --config 'profile.dev.package."*".debug=2'
+```
+
+병목을 다시 측정할 때는 `cargo build -p araview --locked --timings`로 `target/cargo-timings/` 보고서를 봅니다. 변경 없는 빌드(캐시 확인), 앱만 다시 빌드, 의존성까지 다시 빌드는 구분해서 비교합니다. 이 설정의 근거는 의존성이 준비된 상태에서 `cargo rustc -p gpui-component --lib --locked --timings -- -C debuginfo=2 -C metadata=araview_build_bench`와 `debuginfo=1`을 비교한 Windows 측정입니다. 각각 37.10초와 25.28초였으며, 이는 해당 크레이트의 측정이지 앱 전체 빌드의 단축률은 아닙니다.
+
 ## 스크립트
 
 ```bash

@@ -8,6 +8,9 @@ lto = "fat"
 
 # GPUI는 디버그 빌드에서 느려지는 부분이 많아 핵심 크레이트만 최적화한다.
 [profile.dev.package]
+# 의존성은 줄 번호/스택 추적만 남겨 컴파일과 PDB 생성을 줄인다.
+# 워크스페이스의 app/core/thumb는 이 와일드카드에서 제외되어 전체 디버그 정보를 유지한다.
+"*" = { debug = 1 }
 gpui-pre = { opt-level = 3 }
 gpui-pre-platform = { opt-level = 3 }
 gpui-pre-macros = { opt-level = 3 }
