@@ -314,7 +314,13 @@ impl AraView {
                 this.peek_bottom = false;
                 cx.notify();
             }
-            this.recheck_contrast(window, cx);
+            this.system_appearance_changed(window, cx);
+        })
+        .detach();
+        // OS 밝기(라이트·다크)가 실행 중에 바뀌면 테마 설정이 '시스템'일 때
+        // 즉시 따라간다(SPEC §3.3). Windows는 시스템 테마가 바뀌면 창에 바로 알려 준다.
+        cx.observe_window_appearance(window, |this, window, cx| {
+            this.system_appearance_changed(window, cx)
         })
         .detach();
         window.on_window_should_close(cx, |_, cx| {

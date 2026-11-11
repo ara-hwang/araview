@@ -159,15 +159,27 @@ impl AraView {
         .detach();
     }
 
-    /// 실행 중에 OS 대비 설정이 바뀌었으면 테마를 다시 적용한다. 설정 앱에서 바꾸고
-    /// 돌아오는 창 활성화 시점에 확인한다.
-    pub(super) fn recheck_contrast(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    /// 실행 중에 OS 밝기·대비가 바뀌었으면 테마를 다시 적용한다. 테마 설정이
+    /// '시스템'이면 Windows가 창에 알려 주는 OS 밝기 변화(라이트·다크)를 곧바로
+    /// 따라간다(창 활성화와 무관, SPEC §3.3). 대비 설정이 바뀌었으면 어떤 테마든
+    /// 대비를 다시 올린다. 알림을 놓친 경우를 대비해 창 활성화 시점에도 같은
+    /// 규칙으로 확인한다.
+    pub(super) fn system_appearance_changed(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let choice = SettingsStore::global(cx).theme;
         let now = platform::high_contrast();
-        if now != self.high_contrast {
-            self.high_contrast = now;
-            apply_theme(SettingsStore::global(cx).theme, window, cx);
-            cx.notify();
+        // '시스템'인데 테마 모드가 OS 밝기와 어긋났다는 건 변화를 놓쳤다는 뜻이다.
+        let mode_stale = choice == ThemeChoice::System
+            && Theme::global(cx).is_dark() != appearance_is_dark(window.appearance());
+        if now == self.high_contrast && !mode_stale {
+            return;
         }
+        self.high_contrast = now;
+        apply_theme(choice, window, cx);
+        cx.notify();
     }
 
     pub(super) fn cache_cleared(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -331,6 +343,15 @@ impl AraView {
             },
         );
     }
+}
+
+/// OS 밝기가 다크인지. 라이트·다크 고정 테마는 OS 밝기를 따르지 않으므로
+/// '시스템' 선택에서만 비교에 쓴다.
+fn appearance_is_dark(appearance: WindowAppearance) -> bool {
+    matches!(
+        appearance,
+        WindowAppearance::Dark | WindowAppearance::VibrantDark
+    )
 }
 
 /// 새로 읽은 목록에서 이전에 보던 원본 경로의 위치. 없으면 이전 인덱스를 범위 안으로
