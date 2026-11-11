@@ -23,7 +23,7 @@ mod state;
 use crate::geometry::Offset;
 use crate::i18n::{t, t_with};
 use crate::layout::{self, CoverLayout, Solo};
-use crate::picture::{self, Orientation, Picture};
+use crate::picture::{self, Orientation, Picture, ViewFit};
 use crate::settings::{ArchiveProgress, CacheMax, CacheMode, SettingsStore, ViewMode};
 pub(super) use state::{Nav, PageSlots, ViewError};
 
@@ -908,12 +908,23 @@ impl AraView {
         let max_side = settings.max_resolution.max_side();
         let scaling = Some(settings.image_scaling_mode.as_str().to_owned());
         let archive = self.archive.clone();
+        // 열릴 때의 화면 맞춤. 필요한 단계만 먼저 만드는 기준이다.
+        let view_fit = {
+            let container = self.container();
+            ViewFit {
+                container_w: container.w,
+                container_h: container.h,
+                scale_factor: window.scale_factor(),
+                fit_width: self.view_mode(cx) == ViewMode::Webtoon,
+            }
+        };
         let preview_task = if archive.is_none() && self.view_mode(cx) == ViewMode::Single {
             let preview_path = PathBuf::from(&*item);
             let preview_side = max_side.unwrap_or(2048).min(2048);
             Some(cx.background_spawn(async move {
-                araview_core::display::decode_preview_for_display(&preview_path, preview_side)
-                    .map(|decoded| Arc::new(picture::build(decoded, Orientation::default(), None)))
+                araview_core::display::decode_preview_for_display(&preview_path, preview_side).map(
+                    |decoded| Arc::new(picture::build(decoded, Orientation::default(), None, None)),
+                )
             }))
         } else {
             None
@@ -954,6 +965,7 @@ impl AraView {
                 Path::new(&info.file_path),
                 Path::new(&info.source_path),
                 Orientation::default(),
+                Some(view_fit),
             )?;
             let picture = Arc::new(picture);
             let bytes = picture::retained_bytes(&picture);
@@ -1023,6 +1035,14 @@ impl AraView {
                         this.wide.insert(index);
                     }
                     this.webtoon_page_arrived(index, page.picture(), cx);
+                }
+                // 화면에 필요한 단계는 만들어 뒀고, 나머지는 지금부터 천천히 채운다.
+                if let Ok(page) = &result {
+                    let picture = page.picture().clone();
+                    cx.background_spawn(async move {
+                        picture.fill_levels();
+                    })
+                    .detach();
                 }
                 // full 결과로 바꾸거나 실패로 기록하고, 들고 있던 미리보기를 내려놓는다.
                 if let Some(previous) = this.pages.finish(index, result) {
@@ -1227,7 +1247,19 @@ impl AraView {
         let generation = self.list_gen;
         let path = PathBuf::from(&info.file_path);
         let source = PathBuf::from(&info.source_path);
-        let task = cx.background_spawn(async move { picture::load(&path, &source, orientation) });
+        // 회전은 단일 보기에서만 한다. 필요한 단계만 먼저 만드는 기준이다.
+        let view_fit = {
+            let container = self.container();
+            ViewFit {
+                container_w: container.w,
+                container_h: container.h,
+                scale_factor: window.scale_factor(),
+                fit_width: false,
+            }
+        };
+        let task = cx.background_spawn(async move {
+            picture::load(&path, &source, orientation, Some(view_fit))
+        });
         cx.spawn_in(window, async move |this, cx| {
             let result = task.await;
             this.update_in(cx, |this, window, cx| {
@@ -1238,6 +1270,12 @@ impl AraView {
                     return;
                 };
                 let picture = Arc::new(picture);
+                // 화면에 필요한 단계는 만들어 뒀고, 나머지는 지금부터 천천히 채운다.
+                let chain = picture.clone();
+                cx.background_spawn(async move {
+                    chain.fill_levels();
+                })
+                .detach();
                 if let Some(previous) = this.oriented.replace(picture.clone()) {
                     Self::drop_picture(&previous, window, cx);
                 }

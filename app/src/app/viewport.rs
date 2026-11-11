@@ -23,7 +23,7 @@ use araview_core::ocr::OcrRect;
 
 use crate::i18n::{t, t_with};
 use crate::layout;
-use crate::picture::Picture;
+use crate::picture::{Picture, choose_level};
 use crate::platform;
 use crate::settings::{
     ImageScalingMode, MouseAction, SettingsStore, ViewMode, ViewerBackground, WheelAction,
@@ -1243,7 +1243,8 @@ impl AraView {
             return None;
         }
         let picture = self.picture.clone()?;
-        let level = &picture.levels[0];
+        let levels = picture.levels();
+        let level = &levels[0];
         let container = self.container();
         let visible = dest.intersect(&rect(0.0, 0.0, container.w, container.h));
         let width = (f32::from(visible.size.width) * scale_factor).round() as u32;
@@ -1651,7 +1652,8 @@ impl AraView {
                     }
                     let device_scale =
                         f32::from(dest.size.width) / item.picture.width as f32 * scale_factor;
-                    let level = item.picture.level_for(device_scale);
+                    let levels = item.picture.levels();
+                    let level = choose_level(&levels, item.picture.width, device_scale);
                     let sx = dest.size.width / level.width as f32;
                     let sy = dest.size.height / level.height as f32;
                     for tile in &level.tiles {
