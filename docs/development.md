@@ -90,7 +90,7 @@ npm run licenses
 - 렌더링: `araview-core`의 `display.rs`가 디코드한 RGBA 프레임을 GPU 타일로 그립니다. 큰 정지 JPEG/PNG는 `preview.rs`에서 축소 디코드/행 샘플링을 먼저 시도하고, ICC·인터레이스·애니메이션·알파 등 비지원 입력과 TIFF는 기존 full 디코드로 폴백합니다. GPUI 텍스처는 한 변 16384px 제한과 밉맵 없는 선형 보간뿐이라, 큰 이미지는 타일로 나누고 축소 단계를 CPU에서 만듭니다. 픽셀 보존 표시는 보이는 영역만 최근접 확대한 래스터로 그립니다.
 - 단축키: GPUI 키맵 대신 뷰어 루트의 키 입력에서 설정 맵을 직접 찾습니다(`src/keys.rs`).
 - 파일 열기 대화상자: GPUI의 경로 선택 창에는 형식 필터가 없어 `rfd`의 네이티브 대화상자를 씁니다.
-- 고대비: Windows 대비 테마 여부를 시작할 때, 테마를 바꿀 때, 창이 다시 활성화될 때 읽어 글자·테두리 대비를 올립니다. 모션 최소화는 Windows "애니메이션 효과" 설정을 따릅니다(`src/platform/`).
+- 고대비: Windows 대비 테마 여부를 시작할 때, 테마를 바꿀 때, OS 테마 변화를 받았을 때, 창이 다시 활성화될 때 읽어 글자·테두리 대비를 올립니다. 테마 설정이 '시스템'이면 OS 밝기(라이트·다크) 변화를 Windows가 창에 알려 주는 즉시 새 테마로 다시 맞춥니다(`cx.observe_window_appearance`, `system.rs`의 `system_appearance_changed`). 모션 최소화는 Windows "애니메이션 효과" 설정을 따릅니다(`src/platform/`).
 - 플랫폼 계층: `app/src/platform/mod.rs`가 공개 함수 집합을 정의하고 `windows.rs`(Win32 직접 호출)가 구현합니다. 항상 위(`ALWAYS_ON_TOP_SUPPORTED`)가 켜져 있어 헤더 버튼, 설정 행, 명령 팔레트 항목이 항상 노출됩니다.
 - 단축키: Win/Super 키는 쓰지 않습니다(§14.3).
 - 설정은 `<설정 폴더>/<식별자>/settings.json`에 저장합니다(위 표). `settings`/`recentFiles`/`archiveProgress` 모양은 1.x(Tauri)와 같고 `theme`, `window`(창 위치·크기) 키가 더 있습니다. 그래서 1.x 설치본 위에 설치하면 설정과 최근 파일을 이어받습니다.
