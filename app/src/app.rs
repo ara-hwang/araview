@@ -1177,6 +1177,10 @@ impl AraView {
             self.on_grid_key(event, window, cx);
             return;
         }
+        // 다이얼로그가 열려 있으면 뷰어 단축키를 막는다(SPEC §14.3).
+        if window.has_active_dialog(cx) {
+            return;
+        }
         // 입력에 포커스가 있으면 뷰어 단축키를 막는다.
         if window.has_focused_input(cx) {
             return;

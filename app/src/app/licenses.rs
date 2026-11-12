@@ -177,7 +177,7 @@ struct LicensesView {
 }
 
 impl LicensesView {
-    fn new(bundle: Bundle, window: &mut Window, cx: &mut Context<Self>) -> Self {
+    fn new(bundle: Bundle, cx: &mut Context<Self>) -> Self {
         let bundle = Arc::new(bundle);
         let entries: Vec<Entry> = (0..bundle.documents.len())
             .map(Entry::Document)
@@ -186,7 +186,6 @@ impl LicensesView {
         let scroll = UniformListScrollHandle::new();
         let list_smooth = SmoothScroll::from_handle(scroll.0.borrow().base_handle.clone());
         let focus = cx.focus_handle();
-        focus.focus(window, cx);
         Self {
             bundle,
             entries,
@@ -418,7 +417,7 @@ impl AraView {
                     window.toast(Toast::error(t("settings.licenses.loadFail")), cx);
                     return;
                 }
-                let view = cx.new(|cx| LicensesView::new(bundle, window, cx));
+                let view = cx.new(|cx| LicensesView::new(bundle, cx));
                 let focus = view.read(cx).focus.clone();
                 window.open_dialog(cx, move |dialog, _window, _| {
                     centered(dialog)

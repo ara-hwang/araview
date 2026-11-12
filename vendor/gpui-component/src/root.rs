@@ -309,6 +309,10 @@ impl WindowState {
             .filter(|dialog| dialog.closing)
             .map(|dialog| dialog.focus_handle.clone())
             .collect();
+        let remaining_topmost = active_dialogs
+            .iter()
+            .rposition(|dialog| !dialog.closing)
+            .map(|ix| active_dialogs[ix].focus_handle.clone());
 
         // Named so a test can assert the layer actually reached the screen. A
         // dialog that opens into a root which never renders this layer looks
@@ -323,6 +327,18 @@ impl WindowState {
                 )
                 .when(!closing_scopes.is_empty(), |layer| {
                     layer.on_prepaint(move |_, window, cx| {
+                        // AraView fork: 아래에 열린 다이얼로그가 남아 있으면 전역 탭 순환 대신
+                        // 그 호스트로 바로 포커스를 넘긴다. 탭 스톱 순환은 남은 트랩 밖(창 루트)에
+                        // 착지해 다음 Esc를 앱 단축키로 흘린다.
+                        if let Some(handle) = remaining_topmost.as_ref() {
+                            if closing_scopes
+                                .iter()
+                                .any(|scope| scope.contains_focused(window, cx))
+                            {
+                                window.focus(handle, cx);
+                            }
+                            return;
+                        }
                         // Skip every exiting scope, including when close-all
                         // leaves several old tab groups mounted at once.
                         let mut visited = Vec::new();
@@ -412,7 +428,11 @@ impl WindowState {
     /// A dialog with an exit transition stays in `active_dialogs`, marked
     /// `closing`, until [`WindowState::dialog_layer`] unmounts it once the
     /// transition ends. Without one, it is removed as before.
-    fn close_dialog_internal(&mut self, window: &mut Window, cx: &mut App) -> Option<FocusHandle> {
+    fn close_dialog_internal(
+        &mut self,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> Option<Option<FocusHandle>> {
         self.focused_input = None;
 
         let ix = self
@@ -430,7 +450,7 @@ impl WindowState {
             self.active_dialogs.remove(ix);
         }
 
-        previous_focused_handle
+        Some(previous_focused_handle)
     }
 
     fn begin_dialog_exit(dialog: &mut ActiveDialog, window: &mut Window, cx: &mut App) {
@@ -444,9 +464,34 @@ impl WindowState {
         }
     }
 
+    /// AraView fork: 닫히는 창 아래에 열린 다이얼로그가 남아 있으면 포커스를 그 트랩
+    /// 안에 유지하고, 열린 다이얼로그가 하나도 남지 않았을 때만 창 밖 포커스를 복원한다.
+    fn restore_dialog_focus(
+        &self,
+        previous_focused: Option<FocusHandle>,
+        window: &mut Window,
+        cx: &mut App,
+    ) {
+        if let Some(previous) = previous_focused {
+            window.focus(&previous, cx);
+        }
+        if let Some(ix) = self.active_dialogs.iter().rposition(|dialog| !dialog.closing) {
+            let topmost = self.active_dialogs[ix].focus_handle.clone();
+            if !topmost.contains_focused(window, cx) {
+                window.focus(&topmost, cx);
+            }
+        } else if self
+            .active_dialogs
+            .iter()
+            .any(|dialog| dialog.closing && dialog.focus_handle.contains_focused(window, cx))
+        {
+            window.blur(cx);
+        }
+    }
+
     pub fn close_dialog(&mut self, window: &mut Window, cx: &mut Context<'_, WindowState>) {
-        if let Some(handle) = self.close_dialog_internal(window, cx) {
-            window.focus(&handle, cx);
+        if let Some(previous_focused) = self.close_dialog_internal(window, cx) {
+            self.restore_dialog_focus(previous_focused, window, cx);
         }
         gpui_base::TextSelection::clear(window, cx);
         cx.notify();
@@ -457,7 +502,7 @@ impl WindowState {
         window: &mut Window,
         cx: &mut Context<'_, WindowState>,
     ) {
-        if let Some(handle) = self.close_dialog_internal(window, cx) {
+        if let Some(previous_focused) = self.close_dialog_internal(window, cx) {
             // The dialog left behind for its exit transition must not look
             // like a newly opened dialog later, so compare what stays open.
             let open_dialogs = self
@@ -467,7 +512,13 @@ impl WindowState {
                 .count();
 
             // Save for new dialogs opened during animation to maintain focus chain
-            self.pending_focus_restore = Some(handle.downgrade());
+            self.pending_focus_restore = previous_focused.as_ref().map(FocusHandle::downgrade);
+
+            // AraView fork: 아래에 열린 다이얼로그가 남아 있으면 퇴장 타이머를 기다리지
+            // 않고 즉시 그 트랩으로 포커스를 돌려 Esc·Tab이 끊기지 않게 한다.
+            if open_dialogs > 0 {
+                self.restore_dialog_focus(previous_focused.clone(), window, cx);
+            }
 
             cx.spawn_in(window, async move |this, cx| {
                 cx.background_executor().timer(*ANIMATION_DURATION).await;
@@ -478,8 +529,8 @@ impl WindowState {
                         .filter(|dialog| !dialog.closing)
                         .count();
                     // Only restore focus if no new dialogs were opened during animation
-                    if current_open_dialogs == open_dialogs {
-                        window.focus(&handle, cx);
+                    if current_open_dialogs == open_dialogs && open_dialogs == 0 {
+                        this.restore_dialog_focus(previous_focused, window, cx);
                     }
                     this.pending_focus_restore = None;
                 });
