@@ -1109,12 +1109,12 @@ function Test-AraViewControl {
   $cx = [double]$viewport.x + ([double]$viewport.width / 2)
   $cy = [double]$viewport.y + ([double]$viewport.height / 2)
   Send-AraViewMouse -Kind wheel -X $cx -Y $cy -Lines 1 -Modifiers ctrl -Logical | Out-Null
-  Start-Sleep -Milliseconds 250
+  Start-Sleep -Milliseconds 1000
   $zoomed = (Get-AraViewState).zoom
   Assert-Step '수식키 휠(ctrl-휠 확대)' ([math]::Abs($zoomed - $zoom * 1.25) -lt 0.001) "$zoom → $zoomed"
 
   Send-AraViewMouse -Kind wheel -X $cx -Y $cy -Lines -1 -Modifiers ctrl -Logical | Out-Null
-  Start-Sleep -Milliseconds 250
+  Start-Sleep -Milliseconds 1000
   $realized = (Get-AraViewState).zoom
   Assert-Step '수식키 휠(ctrl-휠 축소)' ([math]::Abs($realized - $zoom) -lt 0.001) "$zoomed → $realized"
 

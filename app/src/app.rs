@@ -159,6 +159,8 @@ pub struct AraView {
     oriented: Option<Arc<Picture>>,
     orient_seq: u64,
     zoom: f32,
+    zoom_animation: Option<viewport::ZoomAnimation>,
+    zoom_generation: u64,
     position: Offset,
     /// 맞춤 상태(크기 대기 / 맞춤 고정 / 수동 줌). 수동 줌을 하면 리사이즈해도 줌을 유지한다.
     fit: viewport::Fit,
@@ -268,6 +270,8 @@ impl AraView {
             oriented: None,
             orient_seq: 0,
             zoom: 1.0,
+            zoom_animation: None,
+            zoom_generation: 0,
             position: Offset::default(),
             fit: viewport::Fit::Pending,
             viewport: Rc::new(Cell::new(Bounds::default())),

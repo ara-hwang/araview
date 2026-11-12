@@ -36,6 +36,25 @@ const WT_MIN_WIDTH: f32 = 64.0;
 /// 웹툰 `↑/↓` 1회 스크롤량(px).
 pub(super) const WT_KEY_SCROLL: f32 = 120.0;
 
+pub(super) struct ZoomAnimation {
+    target: f32,
+    anchor: Offset,
+    mode: ViewMode,
+    index: usize,
+    list_gen: u64,
+    last_frame: Instant,
+}
+
+fn zoom_step(current: f32, target: f32, elapsed: Duration) -> f32 {
+    let fraction = 1.0 - (-elapsed.as_secs_f32().min(0.05) / 0.08).exp();
+    let next = current + (target - current) * fraction;
+    if (target - next).abs() <= target * 0.001 {
+        target
+    } else {
+        next
+    }
+}
+
 /// 단일 보기의 맞춤 상태. 시작값은 `Pending`이다.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Fit {
@@ -357,6 +376,7 @@ impl AraView {
     }
 
     pub(super) fn apply_fit(&mut self, cx: &mut Context<Self>) {
+        self.zoom_animation = None;
         self.position = Offset::default();
         if self.view_mode(cx) != ViewMode::Single {
             // 양쪽 보기의 배율은 화면 맞춤 대비 상대값이다.
@@ -380,33 +400,31 @@ impl AraView {
         self.fit = self.fit.measured();
     }
 
-    pub(super) fn zoom_by(&mut self, factor: f32, anchor: Option<Offset>, cx: &mut Context<Self>) {
-        match self.view_mode(cx) {
-            ViewMode::Webtoon => {
-                let next = (self.wt_zoom * factor).clamp(RELATIVE_ZOOM_MIN, RELATIVE_ZOOM_MAX);
-                if next != self.wt_zoom {
-                    // 페이지 높이가 같은 비율로 바뀌므로 읽던 위치도 함께 옮긴다.
-                    self.wt_offset *= next / self.wt_zoom;
-                    self.wt_zoom = next;
-                    cx.notify();
-                }
-            }
-            ViewMode::LeftToRight | ViewMode::RightToLeft => {
-                let next = (self.zoom * factor).clamp(1.0, RELATIVE_ZOOM_MAX);
-                if next != self.zoom {
-                    let spread = self.spread_size(cx);
-                    self.position = zoom_about(
-                        self.container(),
-                        spread,
-                        self.zoom,
-                        next,
-                        self.position,
-                        anchor.unwrap_or_default(),
-                    );
-                    self.zoom = next;
-                    cx.notify();
-                }
-            }
+    pub(super) fn zoom_by(
+        &mut self,
+        factor: f32,
+        anchor: Option<Offset>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let mode = self.view_mode(cx);
+        let current = if mode == ViewMode::Webtoon {
+            self.wt_zoom
+        } else {
+            self.zoom
+        };
+        let target = self
+            .zoom_animation
+            .as_ref()
+            .filter(|animation| {
+                animation.mode == mode
+                    && animation.index == self.index
+                    && animation.list_gen == self.list_gen
+            })
+            .map_or(current, |animation| animation.target);
+        let (min, max) = match mode {
+            ViewMode::Webtoon => (RELATIVE_ZOOM_MIN, RELATIVE_ZOOM_MAX),
+            ViewMode::LeftToRight | ViewMode::RightToLeft => (1.0, RELATIVE_ZOOM_MAX),
             ViewMode::Single => {
                 let Some(image) = self.image_size() else {
                     return;
@@ -424,19 +442,125 @@ impl AraView {
                 } else {
                     MAX_ZOOM
                 };
-                let min = geometry::min_zoom(container, image).min(self.zoom);
-                let next = (self.zoom * factor).clamp(min, max);
+                (geometry::min_zoom(container, image).min(target), max)
+            }
+        };
+        let next = (target * factor).clamp(min, max);
+        if next == target {
+            return;
+        }
+        if mode == ViewMode::Single {
+            self.fit = Fit::Manual;
+        }
+        let anchor = anchor.unwrap_or_default();
+        if platform::reduced_motion() {
+            self.zoom_animation = None;
+            self.apply_zoom(next, anchor, cx);
+            return;
+        }
+        let running = self.zoom_animation.is_some();
+        self.zoom_animation = Some(ZoomAnimation {
+            target: next,
+            anchor,
+            mode,
+            index: self.index,
+            list_gen: self.list_gen,
+            last_frame: self
+                .zoom_animation
+                .as_ref()
+                .map_or_else(Instant::now, |animation| animation.last_frame),
+        });
+        if !running {
+            self.zoom_generation = self.zoom_generation.wrapping_add(1);
+            self.zoom_next_frame(window, cx);
+        }
+    }
+
+    fn zoom_next_frame(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let view = cx.entity();
+        let generation = self.zoom_generation;
+        window.on_next_frame(move |window, cx| {
+            view.update(cx, |this, cx| {
+                if this.zoom_generation == generation {
+                    this.zoom_frame(window, cx);
+                }
+            });
+        });
+    }
+
+    fn zoom_frame(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(animation) = self.zoom_animation.take() else {
+            return;
+        };
+        if animation.mode != self.view_mode(cx)
+            || animation.index != self.index
+            || animation.list_gen != self.list_gen
+        {
+            return;
+        }
+        let current = if animation.mode == ViewMode::Webtoon {
+            self.wt_zoom
+        } else {
+            self.zoom
+        };
+        let now = Instant::now();
+        let next = if platform::reduced_motion() {
+            animation.target
+        } else {
+            zoom_step(
+                current,
+                animation.target,
+                now.duration_since(animation.last_frame),
+            )
+        };
+        self.apply_zoom(next, animation.anchor, cx);
+        if next != animation.target {
+            self.zoom_animation = Some(ZoomAnimation {
+                last_frame: now,
+                ..animation
+            });
+            self.zoom_next_frame(window, cx);
+        }
+    }
+
+    fn apply_zoom(&mut self, next: f32, anchor: Offset, cx: &mut Context<Self>) {
+        match self.view_mode(cx) {
+            ViewMode::Webtoon => {
+                if next != self.wt_zoom {
+                    // 페이지 높이가 같은 비율로 바뀌므로 읽던 위치도 함께 옮긴다.
+                    self.wt_offset *= next / self.wt_zoom;
+                    self.wt_zoom = next;
+                    cx.notify();
+                }
+            }
+            ViewMode::LeftToRight | ViewMode::RightToLeft => {
+                if next != self.zoom {
+                    let spread = self.spread_size(cx);
+                    self.position = zoom_about(
+                        self.container(),
+                        spread,
+                        self.zoom,
+                        next,
+                        self.position,
+                        anchor,
+                    );
+                    self.zoom = next;
+                    cx.notify();
+                }
+            }
+            ViewMode::Single => {
+                let Some(image) = self.image_size() else {
+                    return;
+                };
+                let container = self.container();
+                if container.is_empty() {
+                    return;
+                }
                 if next == self.zoom {
                     return;
                 }
-                self.position = zoom_about(
-                    container,
-                    image,
-                    self.zoom,
-                    next,
-                    self.position,
-                    anchor.unwrap_or_default(),
-                );
+                self.position =
+                    zoom_about(container, image, self.zoom, next, self.position, anchor);
                 self.zoom = next;
                 self.fit = Fit::Manual;
                 cx.notify();
@@ -670,8 +794,8 @@ impl AraView {
         match action {
             WheelAction::Prev => self.navigate(false, window, cx),
             WheelAction::Next => self.navigate(true, window, cx),
-            WheelAction::ZoomIn => self.zoom_by(ZOOM_STEP, Some(anchor), cx),
-            WheelAction::ZoomOut => self.zoom_by(1.0 / ZOOM_STEP, Some(anchor), cx),
+            WheelAction::ZoomIn => self.zoom_by(ZOOM_STEP, Some(anchor), window, cx),
+            WheelAction::ZoomOut => self.zoom_by(1.0 / ZOOM_STEP, Some(anchor), window, cx),
             WheelAction::None => {}
         }
     }
@@ -686,8 +810,8 @@ impl AraView {
         match action {
             MouseAction::Prev => self.navigate(false, window, cx),
             MouseAction::Next => self.navigate(true, window, cx),
-            MouseAction::ZoomIn => self.zoom_by(ZOOM_STEP, None, cx),
-            MouseAction::ZoomOut => self.zoom_by(1.0 / ZOOM_STEP, None, cx),
+            MouseAction::ZoomIn => self.zoom_by(ZOOM_STEP, None, window, cx),
+            MouseAction::ZoomOut => self.zoom_by(1.0 / ZOOM_STEP, None, window, cx),
             MouseAction::ToggleFullscreen => window.toggle_fullscreen(),
             // 메뉴는 읽기 영역 요소가 띄운다. 여기서는 표지 지정 대상만 기억한다.
             MouseAction::ContextMenu => self.context_page = self.page_at(position, cx),
@@ -1300,10 +1424,20 @@ impl AraView {
                 (column, local_x as usize * 4)
             })
             .collect();
-        let mut buffer = vec![0u8; width as usize * height as usize * 4];
-        for (y, row) in buffer.chunks_exact_mut(width as usize * 4).enumerate() {
+        let row_bytes = width as usize * 4;
+        let mut buffer = vec![0u8; row_bytes * height as usize];
+        let mut previous_row = None;
+        for y in 0..height as usize {
             let src_y = ((start_y + (y as f32 + 0.5) * step_y) as u32).min(src_h - 1);
+            // 확대하면 여러 출력 행이 같은 원본 행을 가리킨다. 이미 만든 행을
+            // 복사해 픽셀 단위 타일 조회를 반복하지 않는다.
+            if previous_row == Some(src_y) {
+                buffer.copy_within((y - 1) * row_bytes..y * row_bytes, y * row_bytes);
+                continue;
+            }
+            previous_row = Some(src_y);
             let (tile_row, local_y) = grid.row(src_y);
+            let row = &mut buffer[y * row_bytes..(y + 1) * row_bytes];
             for (pixel, (tile_column, offset)) in
                 row.as_chunks_mut::<4>().0.iter_mut().zip(&columns)
             {
@@ -1896,8 +2030,22 @@ impl AraView {
 mod tests {
     use super::{
         AnimPlayback, Fit, OVERLAY_HIDE_AFTER, TileGrid, format_frame_counter, overlay_visible,
+        zoom_step,
     };
     use std::time::{Duration, Instant};
+
+    #[test]
+    fn zoom_eases_toward_target_and_settles() {
+        for (start, target) in [(1.0, 2.0), (2.0, 1.0)] {
+            let mut value = start;
+            for _ in 0..100 {
+                let next = zoom_step(value, target, Duration::from_millis(16));
+                assert!((next - target).abs() <= (value - target).abs());
+                value = next;
+            }
+            assert_eq!(value, target);
+        }
+    }
 
     #[test]
     fn anim_playback_starts_paused_and_toggles() {

@@ -1308,6 +1308,7 @@ impl AraView {
 
     /// `0`: 위치·회전·반전을 초기화하고 자동 맞춤으로 돌아간다.
     pub(super) fn reset_view(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.zoom_animation = None;
         SettingsStore::update(cx, |settings| {
             settings.fit_mode = crate::settings::FitMode::Auto;
         });
