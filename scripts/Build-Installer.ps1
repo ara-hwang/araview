@@ -3,7 +3,7 @@
 .SYNOPSIS
   AraView 릴리스 빌드와 NSIS 설치 프로그램을 만든다.
 .DESCRIPTION
-  앱과 PSD 썸네일 DLL을 릴리스로 빌드하고, 실행 파일, 이미지 코덱 런타임 DLL, 썸네일 DLL,
+  앱과 탐색기 썸네일 DLL을 릴리스로 빌드하고, 실행 파일, 이미지 코덱 런타임 DLL, 썸네일 DLL,
   라이선스 자료를 스테이징 폴더에 모은 뒤 makensis로 설치 프로그램을 만든다.
   서명과 업로드는 하지 않는다.
 .PARAMETER SkipBuild
@@ -65,11 +65,15 @@ foreach ($dll in "heif.dll", "libde265.dll", "aom.dll") {
   Copy-Item $source $stage
 }
 
-# PSD 탐색기 썸네일 DLL. 1.x 설치본의 등록 경로(resources\)를 그대로 쓰도록 같은 자리에 둔다.
+# 탐색기 썸네일 DLL. 기존 등록 경로(resources\)를 유지한다.
 $thumb = Join-Path $release "araview_thumb.dll"
 if (-not (Test-Path $thumb)) { throw "썸네일 DLL이 없습니다: $thumb" }
 $resources = New-Item -ItemType Directory -Path (Join-Path $stage "resources")
 Copy-Item $thumb $resources
+# 셸 호스트의 exe는 System32에 있으므로 코덱도 썸네일 DLL 옆에 동봉한다.
+foreach ($dll in "heif.dll", "libde265.dll", "aom.dll") {
+  Copy-Item (Join-Path $release $dll) $resources
+}
 
 # 패키지별 라이선스 데이터는 실행 파일에 들어 있다. 여기서는 vcpkg 네이티브
 # 이미지 라이브러리(libheif, libde265, aom)의 저작권 문서만 함께 넣는다(빌드 스크립트가 모은다).

@@ -1,95 +1,57 @@
-# araview-thumb — PSD Explorer thumbnail provider
+# araview-thumb
 
-Windows File Explorer shows a generic icon for `.psd` files. This crate
-builds `araview_thumb.dll`, an in-process COM server implementing
-`IThumbnailProvider` (+ `IInitializeWithStream` / `IInitializeWithFile`)
-so Explorer renders real PSD thumbnails instead.
+Windows Explorer thumbnail provider for PSD, CBZ/ZIP comic archives,
+HEIC/HEIF, EXR, and the viewer's supported RAW extensions. It implements
+`IThumbnailProvider`, `IInitializeWithStream`, and `IInitializeWithFile`.
+The preview pane (`Alt+P`) is outside its scope.
 
-- Decoder: `psd` crate (pure Rust), composite pixels flattened onto white,
-  matching the app's JPEG sidecar rule (`src-tauri/src/psd_sidecar.rs`).
-- PSB (`8BPS` version 2) is rejected; Explorer falls back to the default icon.
-- Registration is per-user (`HKCU\Software\Classes`), no admin rights.
+Decoding uses `araview-core::ops::decode_shell_thumbnail`. Comic archives
+use a valid `ComicInfo.xml` `FrontCover` page, or the first image in natural
+order. HEIF, EXR, RAW and PSD use the same decoders as the viewer. Images
+keep their aspect ratio, never upscale, and flatten transparency onto white.
+PSB and corrupt files return errors so Explorer can show its default icon.
 
-## Layout
+Registration is per user, under `HKCU\Software\Classes`, without changing
+default apps. Settings and `DllRegisterServer` share the registration code
+in `araview-core::thumb_shell`. Previous user handlers are restored when
+disabling; slots now owned by another provider are left intact.
 
-| File          | Role                                                            |
-| ------------- | --------------------------------------------------------------- |
-| `src/lib.rs`  | `DllGetClassObject` / `DllCanUnloadNow` / `DllRegisterServer`   |
-| `src/com.rs`  | `IClassFactory` + `PsdThumbProvider` (stream/file init, GetThumbnail) |
-| `src/psd.rs`  | PSD byte decode, aspect-fit sizing, downscale                    |
-| `src/bitmap.rs` | RGB8 to 32bpp DIB section (`HBITMAP`)                          |
-| `src/registry.rs` | HKCU registration (CLSID, ShellEx, PerceivedType)            |
-| `araview_thumb.def` + `build.rs` | Marks the four COM exports `PRIVATE` (silences LNK4104) |
-
-## CLSIDs (never change)
-
-A published CLSID is baked into users' registries. Dev and release use
-separate IDs so the dev build never steals the installed build's
-thumbnails. The strings are duplicated in the main app
-(`src-tauri/crates/araview-core/src/thumb_shell.rs`, which avoids the `windows` dependency).
-Keep both in sync.
+Published CLSIDs must remain stable:
 
 - Release: `{FD6BD976-2DF4-4656-94F2-1D166163EC59}`
 - Dev: `{BD277595-1702-4AC5-AA7C-A67965C3D570}`
-- Shell slot: `.psd` / ProgID `ShellEx\{E357FCCD-A995-4576-B01F-234630154E96}`
+- Shell slot: extension and channel ProgID
+  `ShellEx\{E357FCCD-A995-4576-B01F-234630154E96}`
 
-## Build
-
-```powershell
-# From the repo root. Debug DLL lands in src-tauri/target/debug/
-# (next to the dev exe via the shared workspace target dir).
-cargo build -p araview-thumb --manifest-path src-tauri/Cargo.toml
-
-# Release + stage for the NSIS bundle (tauri.conf.json bundle.resources).
-pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/Build-ThumbDll.ps1
-# or: npm run build:thumb
-```
-
-`npm run dev:up` builds the debug DLL automatically before launching.
-
-## Register / unregister
-
-Preferred path is the app UI: Settings, Extensions tab,
-Explorer thumbnails section (per-user, no admin).
-
-Manual alternative (same HKCU keys):
+Build from the repository root:
 
 ```powershell
-regsvr32 .\araview_thumb.dll
-regsvr32 /u .\araview_thumb.dll
+cargo build -p araview -p araview-thumb
 ```
 
-## Verify in Explorer
+The debug DLL is next to the dev executable in `target/debug/`. Native
+codecs (`heif.dll`, `libde265.dll`, `aom.dll`) must be next to the thumbnail
+DLL as well. The installer stages them in `resources/` with the DLL.
 
-1. Build the DLL matching your channel (debug for dev, release for installed).
-2. Register from the app Settings (Explorer thumbnails, Enable).
-3. Open a folder with `samples/sample.psd` in Large icons view.
-4. If an old generic icon persists, clear the thumbnail cache once:
+Enable **Settings → Extensions → Explorer thumbnails**. Existing PSD-only
+registrations show **Apply to all supported formats**. Explorer may need
+to restart or its thumbnail cache may need clearing before changes appear.
+Manual registration uses `regsvr32 <absolute DLL>` and
+`regsvr32 /u <absolute DLL>`.
+
+Validation without registration or physical input:
 
 ```powershell
-Stop-Process -Name explorer -Force
-Remove-Item "$env:LOCALAPPDATA\Microsoft\Windows\Explorer\thumbcache_*.db" -Force
-Start-Process explorer
+cargo test --workspace
+cargo clippy --workspace --all-targets -- -D warnings
+cargo run -p araview-thumb --example probe -- D:\araview\target\debug\araview_thumb.dll D:\araview\samples
 ```
 
-## Troubleshooting
+Use absolute paths for your checkout. The probe loads the actual DLL and
+checks file and unnamed stream initialization, repeated thumbnail requests,
+size bounds, corrupt input, PSB rejection, and initialization guards.
 
-- Still the generic icon: another app may own the `.psd` ShellEx slot
-  (last writer wins), or `dllhost.exe` holds a stale DLL. Kill `dllhost`,
-  re-enable in Settings, reopen the folder.
-- `araview_thumb.dll` locked during rebuild: Explorer/`dllhost` has it
-  loaded. Close Explorer windows showing PSD files or kill `dllhost`,
-  then rebuild.
-- Windows Sandbox / high-integrity Explorer ignores HKCU COM entries.
-  Run installed (release) builds there; dev-channel thumbnails are not
-  supported in that configuration.
-- Preview pane (`Alt+P`) is not covered; this provider supplies
-  thumbnails only.
-
-## Tests
-
-```powershell
-cd src-tauri
-cargo test -p araview-thumb
-cargo clippy -p araview-thumb --all-targets -- -D warnings
-```
+A missing native codec can prevent the COM DLL from loading. Check its
+import table and packaged files. A running Explorer or surrogate can hold
+the DLL open during rebuilds. High-integrity Explorer can ignore HKCU COM
+registrations.

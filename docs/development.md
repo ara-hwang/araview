@@ -6,7 +6,7 @@
 
 - **앱**: Rust, [GPUI Kit](https://github.com/longbridge/gpui-kit) 0.8(`app`)
 - **공용 코어**: `crates/araview-core`(디코드, 아카이브, 캐시, 썸네일, 파일 작업)
-- **PSD 탐색기 썸네일**: `crates/araview-thumb`(COM DLL, Windows 전용)
+- **탐색기 썸네일**: `crates/araview-thumb`(COM DLL, Windows 전용)
 - **배포 묶음**: Windows NSIS 설치 프로그램(`app/installer/araview.nsi`)
 - 지원 OS: Windows 11 x64. 창 틀은 GPUI Kit의 타이틀바가 그립니다.
 - 루트 `Cargo.toml`이 세 크레이트를 한 워크스페이스로 묶고 `Cargo.lock`도 하나입니다.
@@ -52,7 +52,7 @@ cargo run -p araview -- "C:/path/to/image.png"
 | 설정   | `%APPDATA%\<식별자>\`            |
 | 캐시   | `%LOCALAPPDATA%\<식별자>\`       |
 
-Windows 개발 빌드는 확장자 연결이 설치 버전과 섞이지 않도록 `AraView (Dev)` 이름으로 등록됩니다. 기본 앱 목록에서 `AraView`(설치 버전)와 구분해 선택하세요. 확장자 연결 설정과 PSD 탐색기 썸네일은 Windows 셸 연동입니다.
+Windows 개발 빌드는 확장자 연결이 설치 버전과 섞이지 않도록 `AraView (Dev)` 이름으로 등록됩니다. 기본 앱 목록에서 `AraView`(설치 버전)와 구분해 선택하세요. 확장자 연결 설정과 탐색기 썸네일은 Windows 셸 연동입니다.
 
 ### 개발 빌드 속도
 
@@ -126,7 +126,7 @@ crates/araview-core/src/  # UI 비의존 코어. 경계: app=표현, ops/**=동�
   decode/  # display, image(resolve_mime), sniff, heif, psd_sidecar, raster_sidecar, raw, jxl, svg_*, transcode
   cache/  # process_temp, cache, sidecar, scaled, thumbnail, archive_index, comic_info
   meta/  # image_info, orientation, natural_sort, ocr, dir_cache, file_availability, app_error, stable_hash, clipboard_png, file_assoc
-  araview-thumb/  # PSD 탐색기 썸네일 COM DLL(Windows 전용)
+  araview-thumb/  # 탐색기 썸네일 COM DLL(Windows 전용)
 app/  # 표현 계층. 상세는 코드 읽기
   src/app/  # 화면: pages, viewport, dock, grid, menu, info_panel, file_ops, ocr, settings_panel, system, update, licenses, bridge
   src/  # layout, picture, geometry, settings, smooth, toast, keys, dialog, i18n, assets, platform/, build.rs
@@ -152,11 +152,13 @@ licenses-extra/  # 업스트림 LICENSE 사본
 - 자동 모드(`auto`)는 2x 이상 확대에서 pixelated로 렌더합니다(`AUTO_PIXELATED_ZOOM`). 보간 없이 원본 픽셀을 그대로 보여주기 위함입니다. 이미지 내용을 분석하는 픽셀 아트 감지는 없습니다.
 - 표시 해상도 상한 축소 sidecar(`crates/araview-core/src/scaled.rs`)도 표시 정책과 무관하게 항상 보간 필터(`Triangle`)를 사용합니다. 축소는 픽셀을 버리는 연산이므로 픽셀 보존 판정이 의미가 없습니다.
 
-## PSD 탐색기 썸네일 구현 메모
+## 탐색기 썸네일 구현 메모
 
-Windows 전용입니다. 사용자 동작 계약은 `SPEC.md` §20.2를 따릅니다. 아래는 개발용 구현 메모입니다.
+Windows 전용입니다. 사용자 동작 계약은 `SPEC.md` §20.2를 따릅니다.
 
-- 핸들러는 `crates/araview-thumb/`의 In-Proc COM DLL(`araview_thumb.dll`)이며 `IThumbnailProvider` + `IInitializeWithStream`/`IInitializeWithFile`을 구현합니다. PSB(`8BPS` version 2)는 거부합니다.
-- CLSID(발행 후 변경 금지): 릴리스 `{FD6BD976-2DF4-4656-94F2-1D166163EC59}`, 개발 `{BD277595-1702-4AC5-AA7C-A67965C3D570}`. `crates/araview-thumb/src/registry.rs`, `crates/araview-core/src/thumb_shell.rs`, `crates/araview-thumb/src/com.rs` 세 곳에 중복 정의되어 함께 바꿔야 합니다.
-- 등록은 전부 HKCU(`Software\Classes`)입니다: `CLSID\{CLSID}\InprocServer32`(DLL 경로 + `ThreadingModel=Apartment`), `.psd`와 채널 ProgID의 `ShellEx\{E357FCCD-A995-4576-B01F-234630154E96}` 슬롯, `.psd`의 `PerceivedType`/`Content Type` 채우기. 등록/해제 후 `SHChangeNotify`를 보냅니다.
-- DLL 전달: 워크스페이스 멤버로 함께 빌드합니다. `scripts/Build-Installer.ps1`이 릴리스 DLL을 설치 프로그램의 `resources/` 폴더에 넣습니다(1.x 설치본과 같은 위치라 기존 탐색기 등록이 그대로 유효합니다). 앱은 exe 옆, `resources/` 순으로 DLL을 찾습니다.
+- `crates/araview-thumb/`의 In-Proc COM DLL(`araview_thumb.dll`)은 `IThumbnailProvider`와 `IInitializeWithStream`/`IInitializeWithFile`을 구현합니다. PSD·CBZ/ZIP·HEIC/HEIF·EXR·지원 RAW를 `araview-core::ops::decode_shell_thumbnail`로 디코드합니다. PSB는 거부합니다.
+- CLSID(발행 후 변경 금지): 릴리스 `{FD6BD976-2DF4-4656-94F2-1D166163EC59}`, 개발 `{BD277595-1702-4AC5-AA7C-A67965C3D570}`. 문자열과 등록 구현의 정본은 `crates/araview-core/src/thumb_shell.rs`이고 DLL도 재사용합니다. `crates/araview-thumb/src/com.rs`의 GUID도 같은 값이어야 합니다.
+- 등록은 HKCU(`Software\Classes`)의 `CLSID\{CLSID}\InprocServer32`(DLL 경로, `ThreadingModel=Apartment`), 지원 확장자와 채널 ProgID의 `ShellEx\{E357FCCD-A995-4576-B01F-234630154E96}` 슬롯입니다. 이미지 확장자에만 누락된 `PerceivedType`/`Content Type`을 채웁니다. 기존 사용자별 핸들러는 슬롯의 채널별 `AraView.Previous.{CLSID}` 값에 보관하고 해제 시 복원합니다. 등록/해제 후 `SHChangeNotify`를 보냅니다.
+- 스트림은 최대 1GiB를 청크로 임시 파일에 복사합니다. `Stat` 이름에서 지원 확장자만 가져오고, 이름이 없으면 시그니처로 구분합니다. 요청마다 처음으로 되감아 반복 요청도 지원합니다. 표지 추출은 기존 엔트리 크기·경로 보호를 따르며 임시 파일은 RAII로 삭제합니다. 앱의 영구 이미지 캐시는 사용하지 않습니다.
+- `scripts/Build-Installer.ps1`은 DLL과 `heif.dll`, `libde265.dll`, `aom.dll`을 설치 프로그램의 `resources/`에 넣습니다. 기존 DLL 등록 경로를 유지하고 셸 호스트에서도 코덱을 찾게 하기 위함입니다. 앱은 exe 옆, `resources/` 순으로 DLL을 찾습니다.
+- `cargo build -p araview-thumb` 후 `cargo run -p araview-thumb --example probe -- D:\araview\target\debug\araview_thumb.dll D:\araview\samples`는 레지스트리 변경 없이 실제 DLL의 COM 진입점, 파일·무명 스트림 초기화, 반복 요청과 오류 반환을 검사합니다. 경로는 현재 체크아웃에 맞게 바꿉니다.

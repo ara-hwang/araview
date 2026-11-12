@@ -1,4 +1,4 @@
-//! Windows Explorer PSD thumbnail handler registration (app side).
+//! Windows Explorer thumbnail handler registration shared by the app and DLL.
 //!
 //! The handler itself is `araview_thumb.dll` (`crates/araview-thumb`,
 //! `IThumbnailProvider` + `IInitializeWithStream`/`IInitializeWithFile`).
@@ -27,7 +27,6 @@ pub const CLSID_RELEASE: &str = "{FD6BD976-2DF4-4656-94F2-1D166163EC59}";
 pub const CLSID_DEV: &str = "{BD277595-1702-4AC5-AA7C-A67965C3D570}";
 /// `IThumbnailProvider` Shell extension slot.
 pub const IID_THUMBNAIL: &str = "{E357FCCD-A995-4576-B01F-234630154E96}";
-const PSD_MIME: &str = "image/vnd.adobe.photoshop";
 
 /// Dev builds register a separate handler so they never steal the
 /// installed build's Explorer thumbnails.
@@ -43,9 +42,9 @@ pub fn active_clsid() -> &'static str {
 
 pub fn display_name() -> &'static str {
     if IS_DEV_BUILD {
-        "AraView (Dev) PSD Thumbnail Provider"
+        "AraView (Dev) Thumbnail Provider"
     } else {
-        "AraView PSD Thumbnail Provider"
+        "AraView Thumbnail Provider"
     }
 }
 
@@ -57,20 +56,37 @@ pub fn clsid_root_key() -> String {
     classes_path(&format!(r"CLSID\{}", active_clsid()))
 }
 
-pub fn ext_shellex_key() -> String {
-    classes_path(&format!(r".psd\ShellEx\{IID_THUMBNAIL}"))
+/// Keep the RAW/archive set tied to the viewer's supported formats.
+pub fn thumbnail_extensions() -> impl Iterator<Item = &'static str> {
+    crate::image::SUPPORTED_EXTENSIONS
+        .iter()
+        .copied()
+        .filter(|ext| {
+            matches!(*ext, "psd" | "heic" | "heif" | "exr")
+                || matches!(
+                    crate::image::get_mime_type(Path::new(&format!("file.{ext}"))),
+                    Some(
+                        crate::raw::RAW_MIME | "application/zip" | "application/vnd.comicbook+zip"
+                    )
+                )
+        })
 }
 
-pub fn prog_id_shellex_key() -> String {
+pub fn ext_shellex_key(ext: &str) -> String {
+    classes_path(&format!(r".{ext}\ShellEx\{IID_THUMBNAIL}"))
+}
+
+pub fn prog_id_shellex_key(ext: &str) -> String {
     classes_path(&format!(
         r"{}\ShellEx\{IID_THUMBNAIL}",
-        crate::file_assoc::prog_id_for("psd")
+        crate::file_assoc::prog_id_for(ext)
     ))
 }
 
 #[derive(Serialize, Debug, Clone, PartialEq, Eq)]
-pub struct PsdThumbStatus {
+pub struct ThumbStatus {
     pub registered: bool,
+    pub fully_registered: bool,
     pub clsid: String,
     pub dll_path: String,
     pub dll_exists: bool,
@@ -108,13 +124,15 @@ fn clsid_key_present() -> bool {
         .is_ok()
 }
 
-pub fn status() -> Result<PsdThumbStatus, AppError> {
+pub fn status() -> Result<ThumbStatus, AppError> {
     let dll_path = thumb_dll_path()?;
-    let registered = shellex_points_to_us(&ext_shellex_key())
-        && shellex_points_to_us(&prog_id_shellex_key())
-        && clsid_key_present();
-    Ok(PsdThumbStatus {
-        registered,
+    let slots: Vec<bool> = thumbnail_extensions()
+        .flat_map(|ext| [ext_shellex_key(ext), prog_id_shellex_key(ext)])
+        .map(|key| shellex_points_to_us(&key))
+        .collect();
+    Ok(ThumbStatus {
+        registered: slots.iter().any(|&registered| registered),
+        fully_registered: slots.iter().all(|&registered| registered) && clsid_key_present(),
         clsid: active_clsid().to_string(),
         dll_path: dll_path.to_string_lossy().to_string(),
         dll_exists: dll_path.is_file(),
@@ -142,14 +160,38 @@ fn register_clsid(dll_path: &Path) -> Result<(), AppError> {
 fn register_shellex(key_path: &str) -> Result<(), AppError> {
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
     let (key, _) = hkcu.create_subkey(key_path).map_err(reg_err)?;
+    match key.get_value::<String, _>("") {
+        Ok(current) if !current.eq_ignore_ascii_case(active_clsid()) => {
+            key.set_value(previous_value_name(), &current)
+                .map_err(reg_err)?;
+        }
+        Ok(_) => {}
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            // A removed/replaced slot must not restore a stale backup from
+            // an earlier registration when the user later disables us.
+            match key.delete_value(previous_value_name()) {
+                Ok(()) => {}
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                Err(e) => return Err(reg_err(e)),
+            }
+        }
+        Err(e) => return Err(reg_err(e)),
+    }
     key.set_value("", &active_clsid()).map_err(reg_err)?;
     Ok(())
 }
 
-/// Fill in `.psd` image hints if missing. Never touches UserChoice.
-fn ensure_psd_perceived_type() -> Result<(), AppError> {
+/// Fill in image hints if missing. Never touches UserChoice or ZIP's kind.
+fn ensure_perceived_type(ext: &str) -> Result<(), AppError> {
+    let mime = crate::image::get_mime_type(Path::new(&format!("file.{ext}")))
+        .ok_or_else(|| AppError::unsupported("Unsupported thumbnail extension"))?;
+    if !mime.starts_with("image/") {
+        return Ok(());
+    }
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
-    let (ext_key, _) = hkcu.create_subkey(classes_path(".psd")).map_err(reg_err)?;
+    let (ext_key, _) = hkcu
+        .create_subkey(classes_path(&format!(".{ext}")))
+        .map_err(reg_err)?;
     let perceived: Result<String, _> = ext_key.get_value("PerceivedType");
     if perceived.map(|v| v.is_empty()).unwrap_or(true) {
         ext_key
@@ -158,9 +200,7 @@ fn ensure_psd_perceived_type() -> Result<(), AppError> {
     }
     let content_type: Result<String, _> = ext_key.get_value("Content Type");
     if content_type.map(|v| v.is_empty()).unwrap_or(true) {
-        ext_key
-            .set_value("Content Type", &PSD_MIME)
-            .map_err(reg_err)?;
+        ext_key.set_value("Content Type", &mime).map_err(reg_err)?;
     }
     Ok(())
 }
@@ -204,33 +244,118 @@ extern "system" {
     );
 }
 
-pub fn register() -> Result<PsdThumbStatus, AppError> {
+pub fn register() -> Result<ThumbStatus, AppError> {
     let dll_path = thumb_dll_path()?;
+    register_with_dll_path(&dll_path)?;
+    status()
+}
+
+pub fn register_with_dll_path(dll_path: &Path) -> Result<(), AppError> {
     if !dll_path.is_file() {
         return Err(AppError::not_found(format!(
             "Thumbnail DLL not found at {} (build it with `cargo build -p araview-thumb`)",
             dll_path.display()
         )));
     }
-    register_clsid(&dll_path)?;
-    register_shellex(&ext_shellex_key())?;
-    register_shellex(&prog_id_shellex_key())?;
-    ensure_psd_perceived_type()?;
+    register_clsid(dll_path)?;
+    for ext in thumbnail_extensions() {
+        register_shellex(&ext_shellex_key(ext))?;
+        register_shellex(&prog_id_shellex_key(ext))?;
+        ensure_perceived_type(ext)?;
+    }
     notify_shell();
-    status()
+    Ok(())
 }
 
-pub fn unregister() -> Result<PsdThumbStatus, AppError> {
+fn previous_value_name() -> String {
+    format!("AraView.Previous.{}", active_clsid())
+}
+
+fn unregister_shellex(path: &str) -> Result<(), AppError> {
+    if !shellex_points_to_us(path) {
+        return Ok(());
+    }
+    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+    let key = hkcu
+        .open_subkey_with_flags(path, winreg::enums::KEY_ALL_ACCESS)
+        .map_err(reg_err)?;
+    match key.get_value::<String, _>(&previous_value_name()) {
+        Ok(previous) => key.set_value("", &previous).map_err(reg_err)?,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            key.delete_value("").map_err(reg_err)?
+        }
+        Err(e) => return Err(reg_err(e)),
+    }
+    let _ = key.delete_value(previous_value_name());
+    // Leave unrelated named values and subkeys intact.
+    if key.enum_values().next().is_none() && key.enum_keys().next().is_none() {
+        drop(key);
+        hkcu.delete_subkey(path).map_err(reg_err)?;
+    }
+    Ok(())
+}
+
+pub fn unregister() -> Result<ThumbStatus, AppError> {
     // 셸 슬롯은 우리 CLSID를 가리킬 때만 지운다. 등록 이후 다른 앱이 그
     // 슬롯을 덮어썼다면 AraView 해제가 그 앱의 등록까지 지워버린다.
-    if shellex_points_to_us(&ext_shellex_key()) {
-        delete_key_best_effort(&ext_shellex_key());
-    }
-    if shellex_points_to_us(&prog_id_shellex_key()) {
-        delete_key_best_effort(&prog_id_shellex_key());
+    for ext in thumbnail_extensions() {
+        unregister_shellex(&ext_shellex_key(ext))?;
+        unregister_shellex(&prog_id_shellex_key(ext))?;
     }
     // CLSID 키는 채널별로 고유한 우리 값이라 소유 확인 없이 지워도 안전하다.
     delete_key_best_effort(&clsid_root_key());
     notify_shell();
     status()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn formats_follow_supported_raw_and_archives() {
+        let extensions: Vec<_> = thumbnail_extensions().collect();
+        assert_eq!(extensions.len(), 25);
+        for ext in crate::image::SUPPORTED_EXTENSIONS {
+            let mime = crate::image::get_mime_type(Path::new(&format!("test.{ext}"))).unwrap();
+            let expected = matches!(*ext, "psd" | "heic" | "heif" | "exr")
+                || mime == crate::raw::RAW_MIME
+                || mime.starts_with("application/");
+            assert_eq!(extensions.contains(ext), expected, "{ext}");
+        }
+    }
+
+    #[test]
+    fn registration_restores_previous_and_preserves_new_owner() {
+        // These are private test keys, never Explorer's real association slots.
+        let unique = tempfile::tempdir().unwrap();
+        let path = format!(
+            r"Software\AraView-Thumbnail-Test\{}",
+            unique.path().file_name().unwrap().to_string_lossy()
+        );
+        let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+        let (key, _) = hkcu.create_subkey(&path).unwrap();
+        key.set_value("", &"{previous-provider}").unwrap();
+        key.set_value("unrelated", &"keep").unwrap();
+        register_shellex(&path).unwrap();
+        register_shellex(&path).unwrap();
+        assert!(shellex_points_to_us(&path));
+        unregister_shellex(&path).unwrap();
+        assert_eq!(
+            key.get_value::<String, _>("").unwrap(),
+            "{previous-provider}"
+        );
+        assert_eq!(key.get_value::<String, _>("unrelated").unwrap(), "keep");
+        register_shellex(&path).unwrap();
+        key.set_value("", &"{new-provider}").unwrap();
+        unregister_shellex(&path).unwrap();
+        assert_eq!(key.get_value::<String, _>("").unwrap(), "{new-provider}");
+        key.delete_value("").unwrap();
+        register_shellex(&path).unwrap();
+        unregister_shellex(&path).unwrap();
+        assert!(key.get_value::<String, _>("").is_err());
+        assert_eq!(key.get_value::<String, _>("unrelated").unwrap(), "keep");
+        drop(key);
+        hkcu.delete_subkey_all(&path).unwrap();
+    }
 }

@@ -3,7 +3,7 @@
 use crate::toast::{Toast, WindowToast};
 use araview_core::cache::{CacheCategory, CacheScope, CacheStats};
 use araview_core::file_assoc::FileAssociation;
-use araview_core::thumb_shell::PsdThumbStatus;
+use araview_core::thumb_shell::ThumbStatus;
 use gpui_kit::component::alert::Alert;
 use gpui_kit::component::button::{Button, ButtonVariant, ButtonVariants as _};
 use gpui_kit::component::group_box::{GroupBox, GroupBoxVariants as _};
@@ -93,7 +93,7 @@ pub(super) struct SettingsPanel {
     pub(super) capturing: Option<String>,
     cache: Loadable<CacheStats>,
     associations: Loadable<Vec<FileAssociation>>,
-    psd: Loadable<PsdThumbStatus>,
+    thumbnails: Loadable<ThumbStatus>,
     /// 선택형 설정의 드롭다운 상태. 라벨이 `SharedString`이라 모든 항목이 같은
     /// 델리게이트를 쓰며, 인덱스로 설정값을 되찾는다.
     selects: HashMap<&'static str, Entity<SelectState<SearchableVec<SharedString>>>>,
@@ -156,7 +156,7 @@ impl SettingsPanel {
             capturing: None,
             cache: Loadable::Idle,
             associations: Loadable::Idle,
-            psd: Loadable::Idle,
+            thumbnails: Loadable::Idle,
             selects: HashMap::new(),
             select_labels: HashMap::new(),
             select_subs: Vec::new(),
@@ -1767,7 +1767,7 @@ impl SettingsPanel {
 
     fn load_extensions(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.associations = Loadable::Loading;
-        self.psd = Loadable::Loading;
+        self.thumbnails = Loadable::Loading;
         let task = cx.background_spawn(async {
             (
                 araview_core::file_assoc::list_associations(),
@@ -1775,7 +1775,7 @@ impl SettingsPanel {
             )
         });
         cx.spawn_in(window, async move |this, cx| {
-            let (associations, psd) = task.await;
+            let (associations, thumbnails) = task.await;
             this.update_in(cx, |this, window, cx| {
                 this.associations = match associations {
                     Ok(list) => Loadable::Ready(list),
@@ -1787,7 +1787,7 @@ impl SettingsPanel {
                         Loadable::Failed
                     }
                 };
-                this.psd = match psd {
+                this.thumbnails = match thumbnails {
                     Ok(status) => Loadable::Ready(status),
                     Err(_) => Loadable::Failed,
                 };
@@ -1832,7 +1832,12 @@ impl SettingsPanel {
         .detach();
     }
 
-    fn set_psd_thumbnails(&mut self, enable: bool, window: &mut Window, cx: &mut Context<Self>) {
+    fn set_explorer_thumbnails(
+        &mut self,
+        enable: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let task = cx.background_spawn(async move {
             if enable {
                 araview_core::thumb_shell::register()
@@ -1850,7 +1855,7 @@ impl SettingsPanel {
                         "toast.thumb.doneDisabled"
                     };
                     window.toast(Toast::success(t(key)), cx);
-                    this.psd = Loadable::Ready(status);
+                    this.thumbnails = Loadable::Ready(status);
                     cx.notify();
                 }
                 Err(error) => {
@@ -1907,7 +1912,7 @@ impl SettingsPanel {
                 .child(t("settings.ext.loading"))
                 .into_any_element(),
         };
-        let psd: AnyElement = match &self.psd {
+        let thumbnails: AnyElement = match &self.thumbnails {
             Loadable::Ready(status) => {
                 let dll_exists = status.dll_exists;
                 v_flex()
@@ -1915,20 +1920,34 @@ impl SettingsPanel {
                     .child(setting_row(
                         t("settings.thumb.label"),
                         Some(t("settings.thumb.desc")),
-                        Switch::new("psd-thumb")
+                        Switch::new("explorer-thumb")
                             .checked(status.registered)
                             .disabled(!dll_exists && !status.registered)
                             .on_change(cx.listener(|this, value: &bool, window, cx| {
-                                this.set_psd_thumbnails(*value, window, cx)
+                                this.set_explorer_thumbnails(*value, window, cx)
                             })),
                         cx,
                     ))
+                    .when(
+                        status.registered && !status.fully_registered && dll_exists,
+                        |this| {
+                            this.child(
+                                Button::new("repair-explorer-thumbnails")
+                                    .small()
+                                    .outline()
+                                    .label(t("settings.thumb.applyAll"))
+                                    .on_click(cx.listener(|this, _, window, cx| {
+                                        this.set_explorer_thumbnails(true, window, cx);
+                                    })),
+                            )
+                        },
+                    )
                     .child(if dll_exists {
-                        Alert::info("psd-thumb-note", t("settings.thumb.note"))
+                        Alert::info("thumbnails-thumb-note", t("settings.thumb.note"))
                             .small()
                             .into_any_element()
                     } else {
-                        Alert::warning("psd-thumb-note", t("settings.thumb.dllMissing"))
+                        Alert::warning("thumbnails-thumb-note", t("settings.thumb.dllMissing"))
                             .small()
                             .into_any_element()
                     })
@@ -1972,7 +1991,7 @@ impl SettingsPanel {
             )
             .child(associations)
             .child(heading(t("settings.thumb.title")))
-            .child(psd)
+            .child(thumbnails)
     }
 
     pub(super) fn select_tab(&mut self, tab: usize, window: &mut Window, cx: &mut Context<Self>) {

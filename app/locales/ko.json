@@ -352,9 +352,10 @@
       "openSettings": "기본 앱 설정 열기"
     },
     "thumb": {
-      "title": "탐색기 썸네일 (PSD)",
-      "desc": "Windows 파일 탐색기에서 PSD 파일 미리보기를 표시합니다. 사용자별 등록이라 관리자 권한이 필요 없습니다.",
-      "label": "PSD 탐색기 썸네일",
+      "title": "탐색기 썸네일",
+      "desc": "Windows 파일 탐색기에서 PSD, 코믹 아카이브(CBZ/ZIP), HEIC/HEIF, EXR, RAW 파일의 축소판을 표시합니다. 관리자 권한이 필요 없습니다.",
+      "label": "탐색기 썸네일 표시",
+      "applyAll": "지원 형식 모두 적용",
       "dllMissing": "썸네일 DLL이 없습니다. 설치본에서는 함께 제공되고, 개발 환경에서는 cargo build -p araview-thumb으로 만드세요.",
       "note": "적용한 뒤에는 탐색기를 다시 시작하거나 썸네일 캐시를 지워야 반영될 수 있습니다."
     }

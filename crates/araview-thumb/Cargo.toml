@@ -1,7 +1,7 @@
 [package]
 name = "araview-thumb"
 version = "0.1.5"
-description = "AraView PSD thumbnail shell extension (IThumbnailProvider) for Windows Explorer"
+description = "AraView image and comic thumbnail shell extension for Windows Explorer"
 authors = ["you"]
 edition = "2021"
 rust-version = "1.97"
@@ -11,6 +11,8 @@ license = "MIT OR Apache-2.0"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+araview-core = { path = "../araview-core" }
+tempfile = "3"
 psd = "0.3"
 image = { version = "0.25", default-features = false }
 

@@ -12,13 +12,15 @@
 
 use std::cell::RefCell;
 use std::ffi::c_void;
-use std::path::PathBuf;
+use std::io::Write as _;
+use std::path::{Path, PathBuf};
 
 use windows::core::{implement, IUnknown, Interface, Ref, Result, BOOL, GUID, PCWSTR};
-use windows::Win32::Foundation::{CLASS_E_NOAGGREGATION, E_FAIL, E_POINTER};
+use windows::Win32::Foundation::{CLASS_E_NOAGGREGATION, E_FAIL, E_INVALIDARG, E_POINTER};
 use windows::Win32::Graphics::Gdi::HBITMAP;
 use windows::Win32::System::Com::{
-    IClassFactory, IClassFactory_Impl, IStream, STATFLAG_DEFAULT, STATSTG,
+    CoTaskMemFree, IClassFactory, IClassFactory_Impl, IStream, STATFLAG_DEFAULT, STATSTG,
+    STREAM_SEEK_SET,
 };
 use windows::Win32::UI::Shell::PropertiesSystem::{
     IInitializeWithFile, IInitializeWithFile_Impl, IInitializeWithStream,
@@ -28,7 +30,7 @@ use windows::Win32::UI::Shell::{
     IThumbnailProvider, IThumbnailProvider_Impl, WTSAT_RGB, WTS_ALPHATYPE,
 };
 
-use crate::{bitmap, psd};
+use crate::bitmap;
 
 /// Release channel CLSID. **Never change** (see `registry.rs`).
 pub const CLSID_RELEASE: GUID = GUID::from_u128(0xfd6bd976_2df4_4656_94f2_1d166163ec59);
@@ -58,19 +60,53 @@ impl InitState {
     }
 }
 
-fn read_stream_all(stream: &IStream) -> Result<Vec<u8>> {
+fn stream_file(stream: &IStream) -> Result<tempfile::NamedTempFile> {
     // SAFETY: `stream` is a live COM interface handed to us by the caller;
     // `Stat`/`Read` only touch the local out-params below. A hostile stream
     // can lie about sizes, so every length it reports is bounded before use.
     unsafe {
         let mut stat = STATSTG::default();
         stream.Stat(&mut stat, STATFLAG_DEFAULT)?;
+        let name = if stat.pwcsName.is_null() {
+            None
+        } else {
+            let name = stat.pwcsName.to_string().ok();
+            CoTaskMemFree(Some(stat.pwcsName.0.cast()));
+            name
+        };
         let size: u64 = stat.cbSize;
         if size > MAX_STREAM_BYTES {
             return Err(E_FAIL.into());
         }
-        let mut out = Vec::with_capacity(size.min(8 * 1024 * 1024) as usize);
+        stream.Seek(0, STREAM_SEEK_SET, None)?;
+        let mut head = [0u8; 32];
+        let mut filled = 0;
+        while filled < head.len() {
+            let mut read = 0;
+            stream
+                .Read(
+                    head[filled..].as_mut_ptr().cast(),
+                    (head.len() - filled) as u32,
+                    Some(&mut read),
+                )
+                .ok()?;
+            if read as usize > head.len() - filled {
+                return Err(fail());
+            }
+            if read == 0 {
+                break;
+            }
+            filled += read as usize;
+        }
+        stream.Seek(0, STREAM_SEEK_SET, None)?;
+        // Only a whitelisted suffix is retained, never the stream's path.
+        let suffix = stream_extension(name.as_deref(), &head[..filled]);
+        let mut out = tempfile::Builder::new()
+            .suffix(&format!(".{suffix}"))
+            .tempfile()
+            .map_err(|_| fail())?;
         let mut buf = vec![0u8; 65536];
+        let mut total = 0u64;
         loop {
             let mut read: u32 = 0;
             // `Read` returns `HRESULT` (S_FALSE at EOF is not an error),
@@ -83,30 +119,55 @@ fn read_stream_all(stream: &IStream) -> Result<Vec<u8>> {
             if hr.is_err() {
                 return Err(windows::core::Error::from_hresult(hr));
             }
-            // A buggy or hostile `IStream` may report more bytes than the
-            // buffer holds; clamp instead of panicking on the slice index.
-            let read = (read as usize).min(buf.len());
+            let read = read as usize;
+            if read > buf.len() {
+                return Err(fail());
+            }
             if read == 0 {
                 break;
             }
-            out.extend_from_slice(&buf[..read]);
-            if out.len() as u64 > MAX_STREAM_BYTES {
+            total += read as u64;
+            if total > MAX_STREAM_BYTES {
                 return Err(E_FAIL.into());
             }
+            out.write_all(&buf[..read]).map_err(|_| fail())?;
         }
+        out.flush().map_err(|_| fail())?;
         Ok(out)
     }
 }
 
-fn thumbnail_for_bytes(bytes: &[u8], cx: u32) -> Result<HBITMAP> {
-    let rgb =
-        psd::decode_psd_rgb8(bytes).map_err(|_| windows::core::Error::from_hresult(E_FAIL))?;
-    let (nw, nh) = psd::fit_inside(rgb.width, rgb.height, cx);
-    let rgb = if (nw, nh) == (rgb.width, rgb.height) {
-        rgb
-    } else {
-        psd::resize_rgb8(&rgb, nw, nh)
-    };
+fn fail() -> windows::core::Error {
+    windows::core::Error::from_hresult(E_FAIL)
+}
+
+fn stream_extension(name: Option<&str>, head: &[u8]) -> String {
+    if let Some(ext) = name
+        .and_then(|name| Path::new(name).extension())
+        .and_then(|ext| ext.to_str())
+    {
+        if araview_core::thumb_shell::thumbnail_extensions()
+            .any(|known| known.eq_ignore_ascii_case(ext))
+        {
+            return ext.to_ascii_lowercase();
+        }
+    }
+    if head.starts_with(b"PK") {
+        return "cbz".into();
+    }
+    match araview_core::sniff::sniff_mime(head) {
+        Some("image/vnd.adobe.photoshop") => "psd",
+        Some("image/x-exr") => "exr",
+        Some("image/heic" | "image/heif" | "image/avif") => "heic",
+        _ if head.get(4..8) == Some(b"ftyp") && head.get(8..12) != Some(b"crx ") => "heic",
+        // TIFF RAW and vendor containers are identified by the RAW decoder.
+        _ => "dng",
+    }
+    .into()
+}
+
+fn thumbnail_for_path(path: &Path, cx: u32) -> Result<HBITMAP> {
+    let rgb = araview_core::ops::decode_shell_thumbnail(path, cx).map_err(|_| fail())?;
     bitmap::from_rgb8(&rgb)
 }
 
@@ -159,10 +220,15 @@ pub struct PsdThumbProvider {
 impl IInitializeWithStream_Impl for PsdThumbProvider_Impl {
     fn Initialize(&self, pstream: Ref<'_, IStream>, _grfmode: u32) -> Result<()> {
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            *self.this.state.borrow_mut() = pstream
+            if !matches!(*self.this.state.borrow(), InitState::Empty) {
+                return Err(windows::core::Error::from_hresult(windows::core::HRESULT(
+                    0x800704df_u32 as i32,
+                )));
+            }
+            let stream = pstream
                 .cloned()
-                .map(InitState::Stream)
-                .unwrap_or(InitState::Empty);
+                .ok_or_else(|| windows::core::Error::from_hresult(E_INVALIDARG))?;
+            *self.this.state.borrow_mut() = InitState::Stream(stream);
             Ok(())
         }));
         match result {
@@ -175,6 +241,14 @@ impl IInitializeWithStream_Impl for PsdThumbProvider_Impl {
 impl IInitializeWithFile_Impl for PsdThumbProvider_Impl {
     fn Initialize(&self, pszfilepath: &PCWSTR, _grfmode: u32) -> Result<()> {
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            if !matches!(*self.this.state.borrow(), InitState::Empty) {
+                return Err(windows::core::Error::from_hresult(windows::core::HRESULT(
+                    0x800704df_u32 as i32,
+                )));
+            }
+            if pszfilepath.is_null() {
+                return Err(windows::core::Error::from_hresult(E_INVALIDARG));
+            }
             // SAFETY: per `IInitializeWithFile`, `pszfilepath` is a valid
             // NUL-terminated UTF-16 string owned by the caller for this call.
             let path = unsafe { pszfilepath.to_string() }?;
@@ -215,20 +289,25 @@ impl PsdThumbProvider_Impl {
         if phbmp.is_null() || pdwalpha.is_null() {
             return Err(E_POINTER.into());
         }
+        // SAFETY: the COM caller supplies valid output storage, checked non-null above.
+        unsafe {
+            *phbmp = HBITMAP::default();
+            *pdwalpha = WTSAT_RGB;
+        }
         let cx = cx.clamp(MIN_CX, MAX_CX);
 
         let state = self.this.state.borrow().duplicate();
-        let bytes: Vec<u8> = match &state {
-            InitState::Stream(stream) => read_stream_all(stream)?,
-            InitState::Path(path) => {
-                std::fs::read(path).map_err(|_| windows::core::Error::from_hresult(E_FAIL))?
+        let hbmp = match &state {
+            InitState::Stream(stream) => {
+                let file = stream_file(stream)?;
+                thumbnail_for_path(file.path(), cx)?
             }
+            InitState::Path(path) => thumbnail_for_path(path, cx)?,
             InitState::Empty => return Err(E_FAIL.into()),
         };
 
         // Wrong content, PSB, truncated file, oversize: fall back to
         // Explorer's default icon instead of a broken bitmap.
-        let hbmp = thumbnail_for_bytes(&bytes, cx)?;
 
         // SAFETY: both out-params were null-checked at the top of this
         // function and, per `IThumbnailProvider`, point to valid aligned

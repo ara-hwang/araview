@@ -336,8 +336,10 @@ dependencies = [
 name = "araview-thumb"
 version = "0.1.5"
 dependencies = [
+ "araview-core",
  "image",
  "psd",
+ "tempfile",
  "windows 0.62.2",
  "windows-core 0.62.2",
  "winreg",

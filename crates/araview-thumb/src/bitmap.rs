@@ -13,7 +13,7 @@ use windows::Win32::Graphics::Gdi::{
     HGDIOBJ,
 };
 
-use crate::psd::Rgb8;
+use araview_core::sidecar::Rgb8;
 
 /// Build an opaque 32bpp DIB section from RGB8 bytes.
 pub fn from_rgb8(rgb: &Rgb8) -> Result<HBITMAP> {

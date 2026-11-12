@@ -647,9 +647,10 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 | `set_file_association`                   | `extension`, `associate`                                                                       | `FileAssociation`                      |
 | `open_default_apps_settings`             | 없음                                                                                           | 없음                                   |
 | `get_license_bundle`                     | 없음                                                                                           | `LicenseBundle`(GPUI 앱은 미사용)                        |
-| `get_psd_thumbnail_status`               | 없음                                                                                           | `PsdThumbStatus`                       |
-| `register_psd_thumbnail`                 | 없음                                                                                           | `PsdThumbStatus`                       |
-| `unregister_psd_thumbnail`               | 없음                                                                                           | `PsdThumbStatus`                       |
+| `thumb_shell::status`                    | 없음                                                                                           | `ThumbStatus`                          |
+| `thumb_shell::register`                  | 없음                                                                                           | `ThumbStatus`                          |
+| `thumb_shell::unregister`                | 없음                                                                                           | `ThumbStatus`                          |
+| `decode_shell_thumbnail`                 | `source`, `maxSide`                                                                             | `Rgb8`(셸 DLL용, §20.2)                |
 | `trash_file`                             | `filePath`                                                                                     | 없음                                   |
 | `rename_file`                            | `oldPath`, `newName`, `maxSide?`, `imageScalingMode?`                                          | `ImageInfo`                            |
 | `export_clipboard_png`                   | `filePath`                                                                                     | `ClipboardPng`                         |
@@ -698,6 +699,11 @@ Rust와 TypeScript는 같은 모양을 유지한다.
 - `CacheStats`: `{ storage_mode: "temporary"|"persistent", persistent_available, total_bytes, file_count, protected_bytes, protected_file_count, total_limit_bytes, categories }`.
 - `CacheCategoryStats`: `{ key: "thumbnails"|"converted"|"scaled"|"archives"|"other", bytes, file_count, protected_bytes, protected_file_count, limit_bytes }`.
 - `CacheClearResult`: `{ removed_bytes, removed_file_count, failed_file_count, stats }`.
+
+### 16.3 탐색기 썸네일
+
+- `ThumbStatus`: `{ registered, fully_registered, clsid, dll_path, dll_exists }`. `registered`는 현재 채널 소유 슬롯이 하나 이상 있음을, `fully_registered`는 지원 확장자·채널 ProgID 전체 슬롯과 COM 클래스가 등록됐음을 뜻한다.
+- `Rgb8`: `{ width: u32, height: u32, bytes: Vec<u8> }`. `bytes`는 행 패딩 없는 RGB 8비트이며 길이는 `width × height × 3`이다. 셸은 이를 불투명 32bpp DIB로 옮긴다.
 
 ## 17. 에러 모델
 
@@ -780,11 +786,14 @@ UI 분류 5종:
 - 피드: `https://github.com/ara-hwang/araview/releases/latest/download/update-feed.json` 하나를 읽는다. `releases/latest`는 프리릴리스를 제외하므로 프리릴리스가 정식 사용자에게 노출되지 않는다. 피드가 없으면(404) 최신으로 본다. 피드 내용은 버전, 노트, 플랫폼별 URL과 서명이다. 서명 공개키는 `app/update-pubkey.txt`다. 1.x(Tauri) 앱이 보던 `latest.json`은 1.2.3 피드로 함께 올려 1.x가 2.x로 자동 갱신되지 않게 한다.
 - 키 발급, 서명 빌드, 로컬 릴리스 절차는 `docs/releasing.md`를 따른다.
 
-### 20.2 PSD 탐색기 썸네일 (IThumbnailProvider)
+### 20.2 탐색기 썸네일 (IThumbnailProvider)
 
-Windows 전용이다. Windows 파일 탐색기에서 `.psd` 축소판을 표시한다. 미리보기 창(`Alt+P`)은 범위 밖이며 썸네일만 제공한다.
+Windows 전용이다. Windows 파일 탐색기에서 PSD, CBZ/ZIP 코믹 아카이브, HEIC/HEIF, EXR, §2의 지원 RAW 확장자의 축소판을 표시한다. 미리보기 창(`Alt+P`)은 범위 밖이며 썸네일만 제공한다.
 
 - 설정 UI(확장자 탭 하단)에서 켜고 끌 수 있다. DLL이 없으면 등록을 거부하고 안내한다. 적용 뒤 탐색기 재시작/썸네일 캐시 정리가 필요할 수 있다.
+- 기존 PSD만 등록됐거나 일부 슬롯이 다른 핸들러로 바뀌었으면 `지원 형식 모두 적용`으로 전체 형식에 적용한다. 끄기는 현재 채널이 소유한 슬롯만 해제하며, 등록 전에 있던 사용자별 핸들러를 복원한다. 기본 앱 연결(`UserChoice`)은 바꾸지 않는다.
+- CBZ/ZIP은 `ComicInfo.xml`의 유효한 첫 `FrontCover` 페이지를 사용하고, 지정이 없거나 XML이 손상됐으면 숨김 파일을 제외한 자연 정렬의 첫 이미지로 폴백한다. 지원하는 이미지 형식을 표지로 사용할 수 있다.
+- HEIC/HEIF의 기본 이미지, EXR의 sRGB 8비트 변환, RAW의 내장 JPEG/rawler 폴백은 앱과 같은 디코더를 쓴다. 축소판은 종횡비를 유지하고 확대하지 않으며 투명은 흰색에 합성한다. 임시 스트림 사본과 표지 추출물은 요청 후 삭제하고, 앱의 영구 파생 이미지 캐시는 사용하지 않는다.
 - 등록은 HKCU라 관리자 권한이 필요 없다. PSB는 거부하고 탐색기가 기본 아이콘으로 폴백한다.
 - 고무결성 Explorer(Windows Sandbox 등)에서는 HKCU COM이 무시될 수 있다. 삭제 시 키가 남을 수 있으며 재설치 후 다시 켜면 복구된다.
 - CLSID, 레지스트리 슬롯, DLL 스테이징 같은 구현 상세는 `docs/development.md`를 따른다.
