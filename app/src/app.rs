@@ -575,7 +575,7 @@ impl AraView {
                             .child(
                                 self.home_recent_scroll.h_area(
                                     "home-recent",
-                                    h_flex().gap_2().py_1().children(
+                                    h_flex().gap_2().pt_1().pb(px(14.)).children(
                                         recent
                                             .into_iter()
                                             .enumerate()

@@ -28,6 +28,8 @@ const THUMB_MAX_SIDE: u32 = 256;
 const THUMB_CHUNK: usize = 8;
 const DOCK_GAP: f32 = 6.0;
 const DOCK_PADDING: f32 = 8.0;
+/// 가로 스크롤바가 썸네일·라벨을 덮지 않도록 확보하는 공간.
+const DOCK_SCROLLBAR_SPACE: f32 = 10.0;
 const LABEL_HEIGHT: f32 = 16.0;
 /// 라벨과 썸네일 사이 간격(`gap_0p5`).
 const LABEL_GAP: f32 = 2.0;
@@ -483,7 +485,10 @@ impl AraView {
         }
         .track_scroll(&self.dock_virtual)
         .p(px(DOCK_PADDING))
-        .when(horizontal, |list| list.pl(px(DOCK_PADDING + lead)))
+        .when(horizontal, |list| {
+            list.pl(px(DOCK_PADDING + lead))
+                .pb(px(DOCK_PADDING + DOCK_SCROLLBAR_SPACE))
+        })
         .when(!horizontal, |list| list.pt(px(DOCK_PADDING + lead)))
         // 휠은 바깥 SmoothScroll이 처리하고, 목록 자체의 기본 스크롤은 끈다.
         .overflow_hidden();
@@ -492,7 +497,9 @@ impl AraView {
             .relative()
             .map(|scroller| {
                 if horizontal {
-                    scroller.w_full().h(px(cross + DOCK_PADDING * 2.0))
+                    scroller
+                        .w_full()
+                        .h(px(cross + DOCK_PADDING * 2.0 + DOCK_SCROLLBAR_SPACE))
                 } else {
                     scroller.h_full().w(px(cross + DOCK_PADDING * 2.0))
                 }
