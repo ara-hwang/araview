@@ -8,7 +8,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Duration;
 
-use gpui_kit::component::dialog::Dialog;
+use gpui_kit::component::dialog::{Dialog, DialogEntrance};
 use gpui_kit::{App, Pixels, Point, Window, px};
 
 use crate::platform;
@@ -34,8 +34,14 @@ pub fn estimated_dialog_top(window: &mut Window, estimated_height: f32) -> Pixel
 /// 다이얼로그가 열려 있는 동안 Windows는 창 전체를 캡션으로 판정한다: 최소화/최대화/
 /// 닫기 버튼은 동작하지 않고(다이얼로그 호스트의 `occlude()`가 OS 히트테스트용 마우스
 /// 좌표 수집을 막는다), 배경을 잡아 끌면 창이 움직인다.
+///
+/// 등장 애니메이션은 DESIGN.md Motion대로 제자리 페이드로 고정한다. gpui-kit 기본값은
+/// 창 위에서 내려오는 슬라이드(`DialogEntrance::SlideDown`)라 여기서 갈아탄다.
 pub fn centered(dialog: Dialog) -> Dialog {
-    dialog.centered().overlay_closable(false)
+    dialog
+        .centered()
+        .overlay_closable(false)
+        .entrance(DialogEntrance::Fade)
 }
 
 /// 누른 자리에서 이만큼(창 논리 px) 넘게 떨어져 떼면 클릭이 아니라 드래그로 본다.
