@@ -37,6 +37,10 @@ cargo run -p araview -- "C:/path/to/image.png"
 - 기능/기술 명세: `SPEC.md`
 - 비주얼 시스템: `DESIGN.md`
 
+## 감사의 말
+
+이미지 처리 파이프라인 개선에 영감을 준 [yosh](https://github.com/the-database/yosh) 프로젝트에 감사드립니다.
+
 ## 라이선스
 
 EUPL-1.2
