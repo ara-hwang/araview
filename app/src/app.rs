@@ -72,11 +72,12 @@ const HEADER_VIEW_MODES_MIN_WIDTH: f32 = 840.0;
 const HEADER_TRANSFORM_CONTROLS_MIN_WIDTH: f32 = 1010.0;
 /// 타이틀바 높이(논리 px). 32px 도구 버튼 위아래로 4px씩 남아야 그룹이 눌리지 않는다.
 const HEADER_HEIGHT: f32 = 40.0;
+const STATUS_HEIGHT: f32 = 28.0;
 /// 그룹 안 도구 버튼 사이의 간격(논리 px). 그룹과 그룹 사이는 이보다 넓은 `gap_2`다.
 const HEADER_BUTTON_GAP: f32 = 4.0;
 /// 숨긴 상단바는 창 가장자리를 정밀하게 겨냥하지 않아도 다시 열 수 있다(논리 px).
 const PEEK_TOP_EDGE: f32 = 24.0;
-const PEEK_BOTTOM_EDGE: f32 = 6.0;
+const PEEK_BOTTOM_EDGE: f32 = 24.0;
 const PEEK_TOP_KEEP: f32 = HEADER_HEIGHT + 8.0;
 const PEEK_BOTTOM_KEEP: f32 = 150.0;
 /// 홈 최근 목록 카드의 가로 폭(논리 px). 560px 목록에서 카드 두 장과 다음 카드
@@ -791,7 +792,7 @@ impl AraView {
         h_flex()
             .w_full()
             .flex_none()
-            .h(px(28.))
+            .h(px(STATUS_HEIGHT))
             .px_3()
             .gap_4()
             .items_center()
@@ -1312,12 +1313,36 @@ impl Render for AraView {
             (header, None)
         };
         // 접힌 도크는 그리지 않는다. 다시 펼치는 버튼은 상태바에만 둔다.
-        let dock = (show_dock && dock_visible).then(|| self.render_dock(window, cx));
-        let status = self
-            .info
-            .clone()
-            .filter(|_| show_status)
-            .map(|info| self.render_status(&info, cx).into_any_element());
+        let dock = (show_dock && dock_visible).then(|| {
+            let dock = self.render_dock(window, cx);
+            if hide_all {
+                div()
+                    .absolute()
+                    .occlude()
+                    .map(|overlay| match dock_position {
+                        DockPosition::Top => overlay.top_0().left_0().right_0(),
+                        DockPosition::Bottom => {
+                            overlay.bottom(px(STATUS_HEIGHT)).left_0().right_0()
+                        }
+                        DockPosition::Left => overlay.top_0().bottom(px(STATUS_HEIGHT)).left_0(),
+                        DockPosition::Right => overlay.top_0().bottom(px(STATUS_HEIGHT)).right_0(),
+                    })
+                    .child(dock)
+                    .into_any_element()
+            } else {
+                dock
+            }
+        });
+        let status = self.info.clone().filter(|_| show_status).map(|info| {
+            div()
+                .flex_none()
+                .bg(cx.theme().background)
+                .when(hide_all, |status| {
+                    status.absolute().bottom_0().left_0().right_0().occlude()
+                })
+                .child(self.render_status(&info, cx))
+                .into_any_element()
+        });
         let panel =
             (reading && self.info_open).then(|| self.render_info_panel(cx).into_any_element());
         let grid = self.grid_open().then(|| self.render_grid(window, cx));
@@ -1340,18 +1365,22 @@ impl Render for AraView {
             } else {
                 viewport.into_any_element()
             };
-            // 도크는 읽기 영역 가장자리에 붙어 영역을 밀어낸다.
+            // 평소에는 도크가 영역을 밀지만, 자동 숨김 중에는 절대 배치로 겹친다.
             let reading_area = match dock_position {
-                DockPosition::Top => v_flex().children(dock).child(viewport),
+                DockPosition::Top if !hide_all => v_flex().children(dock).child(viewport),
+                DockPosition::Top => v_flex().child(viewport).children(dock),
                 DockPosition::Bottom => v_flex().child(viewport).children(dock),
-                DockPosition::Left => h_flex().items_stretch().children(dock).child(viewport),
+                DockPosition::Left if !hide_all => {
+                    h_flex().items_stretch().children(dock).child(viewport)
+                }
+                DockPosition::Left => h_flex().items_stretch().child(viewport).children(dock),
                 DockPosition::Right => h_flex().items_stretch().child(viewport).children(dock),
             };
             h_flex()
                 .flex_1()
                 .min_h_0()
                 .items_stretch()
-                .child(reading_area.flex_1().min_h_0().min_w_0())
+                .child(reading_area.relative().flex_1().min_h_0().min_w_0())
                 .children(panel)
                 .into_any_element()
         } else if let Some(error) = self.error.clone() {
@@ -1503,14 +1532,25 @@ mod peek_tests {
     }
 
     #[test]
-    fn bottom_peek_keeps_its_existing_trigger_and_hold_band() {
-        assert!(peek_at_edge(5.0, false, PEEK_BOTTOM_EDGE, PEEK_BOTTOM_KEEP));
+    fn bottom_peek_opens_across_the_expanded_band() {
+        for distance in [0.0, 5.0, 6.0, 12.0, 20.0, 23.9] {
+            assert!(peek_at_edge(
+                distance,
+                false,
+                PEEK_BOTTOM_EDGE,
+                PEEK_BOTTOM_KEEP
+            ));
+        }
         assert!(!peek_at_edge(
-            6.0,
+            24.0,
             false,
             PEEK_BOTTOM_EDGE,
             PEEK_BOTTOM_KEEP
         ));
+    }
+
+    #[test]
+    fn bottom_peek_keeps_its_existing_hold_band() {
         assert!(peek_at_edge(
             149.0,
             true,
