@@ -50,6 +50,8 @@ struct Fixtures {
     jpeg: PathBuf,
     png: PathBuf,
     tiff: PathBuf,
+    /// 무채색 샘플. 축소의 무채색 선형광 경로(`linear_resize`)를 잰다.
+    gray_jpeg: PathBuf,
 }
 
 impl Fixtures {
@@ -66,12 +68,17 @@ impl Fixtures {
         for path in [&jpeg, &png, &tiff] {
             save(path, &pixels);
         }
+        // 회색 채널은 JPEG의 Y 인코딩에서도 채널 간 차이가 작아 무채색 판정에
+        // 걸린다. 선형광 축소 경로의 비용을 색 경로와 나란히 보게 한다.
+        let gray_jpeg = dir.path().join("gray.jpg");
+        save(&gray_jpeg, &sample_gray_image(SAMPLE_W, SAMPLE_H));
         Self {
             _cache: cache,
             dir,
             jpeg,
             png,
             tiff,
+            gray_jpeg,
         }
     }
 }
@@ -100,6 +107,18 @@ fn sample_image(width: u32, height: u32) -> RgbImage {
         } else {
             image::Rgb([line, 128, shade])
         }
+    })
+}
+
+/// 회색(무채색) 샘플. 세 채널이 같은 값이라 JPEG 인코딩을 거쳐도 채널 차이가
+/// 무채색 판정 허용 오차 이내에 머문다.
+fn sample_gray_image(width: u32, height: u32) -> RgbImage {
+    RgbImage::from_fn(width, height, |x, y| {
+        let checker = ((x / 16) ^ (y / 16)) & 1;
+        let shade = ((u64::from(x) * 255) / u64::from(width.max(1))) as u8;
+        let line = ((u64::from(y) * 255) / u64::from(height.max(1))) as u8;
+        let value = if checker == 0 { shade } else { line };
+        image::Rgb([value, value, value])
     })
 }
 
@@ -143,17 +162,22 @@ fn thumbnails(c: &mut Criterion, f: &Fixtures) {
 fn scaled_sidecar(c: &mut Criterion, f: &Fixtures) {
     let mut group = c.benchmark_group("scaled_sidecar");
     group.sample_size(20);
-    group.bench_function("cold_jpeg_2048", |b| {
-        b.iter_batched(
-            || bump_mtime(&f.jpeg),
-            |()| {
-                let sidecar = araview_core::scaled::ensure_scaled_sidecar(&f.jpeg, SCALED_CAP)
-                    .expect("sidecar 실패");
-                std::hint::black_box(sidecar)
-            },
-            BatchSize::PerIteration,
-        );
-    });
+    for (name, path) in [
+        ("cold_jpeg_2048", &f.jpeg),
+        ("cold_gray_jpeg_2048", &f.gray_jpeg),
+    ] {
+        group.bench_function(name, |b| {
+            b.iter_batched(
+                || bump_mtime(path),
+                |()| {
+                    let sidecar = araview_core::scaled::ensure_scaled_sidecar(path, SCALED_CAP)
+                        .expect("sidecar 실패");
+                    std::hint::black_box(sidecar)
+                },
+                BatchSize::PerIteration,
+            );
+        });
+    }
     group.finish();
 }
 

@@ -92,6 +92,12 @@ npm run release -- <X.Y.Z|patch|minor|major>   # main
 # 문서-코드 정합성 (버전, 확장자, 설정 키, plan)
 npm run docs:check
 
+# 디코드 출력 다이제스트 (디코드·축소 경로를 리팩터링할 때 전후로 뽑아 diff한다.
+# 라인이 하나라도 다르면 출력이 바뀐 것이므로 의도한 변경인지 확인한다)
+cargo run -p araview-core --example digest -- samples > before.txt
+cargo run -p araview-core --example digest -- samples > after.txt
+diff before.txt after.txt
+
 # 서드파티 라이선스 자료 다시 만들기 (cargo-about 필요, 네트워크 사용)
 npm run licenses
 ```

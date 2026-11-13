@@ -135,8 +135,8 @@ pub struct AraView {
     /// 열기만으로 저장된 위치를 덮지 않도록 진행 상황을 저장하지 않는다.
     progress_held: bool,
 
-    /// 인덱스별 디코드 상태(대기·디코드 중·완료·실패)와 대기열. full 디코드는 한 번에
-    /// 하나만 돌리고 우선순위로 고른다(§9.1).
+    /// 인덱스별 디코드 상태(대기·디코드 중·완료·실패)와 대기열. full 디코드는
+    /// 상한까지 병렬로 돌리고 우선순위로 고른다(§9.1).
     pages: pages::PageSlots<pages::Page>,
     /// 바이트 예산 때문에 내려놓은 경계. 그보다 먼 페이지는 다시 미리 로드하지 않는다(§9.1).
     budget_reach: Option<pages::BudgetReach>,
@@ -175,6 +175,12 @@ pub struct AraView {
     overlay_active: Instant,
 
     pixel_view: Option<viewport::PixelView>,
+    /// 창의 기기 배율. 그림 사각형을 기기 픽셀에 맞출 때 쓴다(§18). 렌더마다 갱신한다.
+    device_scale: f32,
+    /// 프레임 페이싱 통계(디버그 빌드 전용). 제어 채널 벤치가 연속 동작의
+    /// 프레임 간격을 잰다(yosh의 flipbench와 같은 용도).
+    #[cfg(debug_assertions)]
+    frame_stats: FrameStats,
 
     /// 웹툰 스크롤 위치: 화면 맨 위에 걸친 페이지와 그 안에서 내려간 거리.
     wt_anchor: usize,
@@ -210,6 +216,44 @@ pub struct AraView {
     peek_top: bool,
     peek_bottom: bool,
     high_contrast: bool,
+}
+
+/// 프레임 페이싱 통계(디버그 빌드 전용). 제어 채널 벤치가 연속 동작의 프레임
+/// 간격을 재는 데 쓴다: 평균은 전체 속도, 최댓값은 히치의 상한을 보여준다.
+/// 릴리스 빌드에는 통로가 없다.
+#[derive(Clone, Copy, Default, Debug)]
+struct FrameStats {
+    /// 간격을 잰 프레임 수.
+    intervals: u64,
+    /// 간격 누적(ms).
+    total_ms: f32,
+    /// 마지막 간격(ms).
+    last_ms: f32,
+    /// 리셋 이후 최대 간격(ms).
+    max_ms: f32,
+    /// 마지막 render 시작 시각.
+    prev_start: Option<Instant>,
+}
+
+impl FrameStats {
+    /// render 시작을 기록한다. 이전 시작과의 간격이 프레임 간격이다.
+    fn record(&mut self, now: Instant) {
+        if let Some(prev) = self.prev_start {
+            let ms = (now - prev).as_secs_f32() * 1000.0;
+            self.intervals += 1;
+            self.total_ms += ms;
+            self.last_ms = ms;
+            if ms > self.max_ms {
+                self.max_ms = ms;
+            }
+        }
+        self.prev_start = Some(now);
+    }
+
+    /// 누적 통계를 지워 다음 측정을 새로 시작한다.
+    fn reset(&mut self) {
+        *self = Self::default();
+    }
 }
 
 /// 표시용 파일명에서 제어문자와 bidi 제어를 치환한다. 파일 조작에는 원본 이름을
@@ -281,6 +325,9 @@ impl AraView {
             overlay_active: Instant::now(),
 
             pixel_view: None,
+            device_scale: 1.0,
+            #[cfg(debug_assertions)]
+            frame_stats: FrameStats::default(),
             wt_anchor: 0,
             wt_offset: 0.0,
             wt_glide: Glide::default(),
@@ -1228,6 +1275,8 @@ impl AraView {
 
 impl Render for AraView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        #[cfg(debug_assertions)]
+        self.frame_stats.record(Instant::now());
         self.advance_animation(window);
         // 매 프레임 `Settings` 전체(BTreeMap 44쌍 포함)를 클론하지 않고 렌더에
         // 쓰는 `Copy` 필드만 복사한다.

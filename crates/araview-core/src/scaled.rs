@@ -25,10 +25,12 @@ pub(crate) const SCALED_SUBDIR: &str = "scaled";
 pub(crate) const MAX_SCALED_BYTES: u64 = 500 * 1024 * 1024;
 /// JPEG quality for the capped copy. Close to the HEIF paint sidecar (90).
 const JPEG_QUALITY: u8 = 88;
-/// Changing the pixel-art downscale heuristic must not reuse older scaled copies.
+/// Changing the downscale algorithm must not reuse older scaled copies.
 /// v2: 축소 sidecar는 감지 결과와 무관하게 항상 보간 필터를 쓴다(nearest 축소는
 /// 스크린톤 같은 주기 패턴을 깨뜨린다).
-const PIXEL_ART_FILTER_REVISION: &[u8] = b"pixel-art-filter-v2";
+/// v3: 무채색 이미지의 축소를 진 선형광에서 한다(`linear_resize`). 기존 캐시가
+/// 감마 공간 사본을 그대로 쓰지 않게 revision을 갱신한다.
+const PIXEL_ART_FILTER_REVISION: &[u8] = crate::linear_resize::DOWNSCALE_FILTER_REVISION;
 /// Lower bound rejects accidental 1px requests; upper bound keeps the cap a
 /// memory optimization, not a general preview downsizer.
 const MIN_MAX_SIDE: u32 = 512;
@@ -160,11 +162,26 @@ pub fn ensure_scaled_sidecar_with_mode(
             img
         };
         let has_alpha = img.color().has_alpha();
-        // 축소(sidecar 생성)는 표시 정책과 무관하게 항상 보간 필터를 쓴다.
-        // Nearest 축소는 스크린톤 같은 주기 패턴을 계단·무아레로 깨뜨린다.
         let is_pixel_art = matches!(mode, ImageScalingMode::Pixelated);
-        let filter = image::imageops::FilterType::Triangle;
-        let scaled = img.resize(max_side, max_side, filter);
+        // 목표 치수는 image 크레이트 resize와 같은 규칙(min 비율 × round)으로
+        // 정한다. 알파는 프리멀티 처리가 필요해 감마 공간 Triangle 축소를 쓰고,
+        // 알파가 없으면 표시용 공용 축소(무채색은 선형광)를 쓴다.
+        let (scaled_w, scaled_h) =
+            crate::linear_resize::fit_inside(img.width(), img.height(), max_side, max_side);
+        let scaled = if has_alpha {
+            img.resize_exact(scaled_w, scaled_h, image::imageops::FilterType::Triangle)
+        } else {
+            let rgb = Rgb8 {
+                width: img.width(),
+                height: img.height(),
+                bytes: img.into_rgb8().into_raw(),
+            };
+            let small = crate::linear_resize::resize_rgb8(rgb, scaled_w, scaled_h);
+            image::DynamicImage::ImageRgb8(
+                image::RgbImage::from_raw(scaled_w, scaled_h, small.bytes)
+                    .expect("공용 축소는 목표 치수의 RGB8 버퍼를 돌려준다"),
+            )
+        };
         if has_alpha || is_pixel_art {
             // JPEG는 픽셀 경계에 다시 아티팩트를 만들 수 있으므로 픽셀 보존 모드는
             // 알파 여부와 무관하게 lossless PNG sidecar로 보존한다.

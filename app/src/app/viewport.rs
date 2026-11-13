@@ -349,6 +349,27 @@ impl TileGrid {
 /// 글자 강조의 (줄 사각형, 글자 사각형) 목록.
 type OcrBoxes = (Vec<Bounds<Pixels>>, Vec<Bounds<Pixels>>);
 
+/// 페이지 사각형을 기기 픽셀 격자에 맞춘다. GPUI 샘플러는 밉맵 없는 선형 보간뿐이라
+/// 사각형이 반쪽 픽셀에 걸리면 1:1 배율에서도 각 행·열이 50/50 블렌딩돼 흐려진다
+/// (yosh가 페이지 넘김 경로에서 정수 배치로 막는 문제). 가장자리 둘을 각각 스냅해
+/// 크기 오차가 1기기픽셀 이하가 되게 한다. 웹툰(스크롤)은 부드러움을 위해 쓰지 않는다.
+fn snap_to_device_pixels(bounds: Bounds<Pixels>, scale: f32) -> Bounds<Pixels> {
+    if scale <= 0.0 || !scale.is_finite() {
+        return bounds;
+    }
+    let snap = |v: Pixels| Pixels::from((f32::from(v) * scale).round() / scale);
+    let x0 = snap(bounds.origin.x);
+    let y0 = snap(bounds.origin.y);
+    let x1 = snap(bounds.origin.x + bounds.size.width);
+    let y1 = snap(bounds.origin.y + bounds.size.height);
+    rect(
+        f32::from(x0),
+        f32::from(y0),
+        f32::from(x1) - f32::from(x0),
+        f32::from(y1) - f32::from(y0),
+    )
+}
+
 fn rect(x: f32, y: f32, w: f32, h: f32) -> Bounds<Pixels> {
     Bounds::new(point(px(x), px(y)), size(px(w), px(h)))
 }
@@ -651,11 +672,14 @@ impl AraView {
             picture.width as f32 * self.zoom,
             picture.height as f32 * self.zoom,
         );
-        Some(rect(
-            container.w / 2.0 + self.position.x - dw / 2.0,
-            container.h / 2.0 + self.position.y - dh / 2.0,
-            dw,
-            dh,
+        Some(snap_to_device_pixels(
+            rect(
+                container.w / 2.0 + self.position.x - dw / 2.0,
+                container.h / 2.0 + self.position.y - dh / 2.0,
+                dw,
+                dh,
+            ),
+            self.device_scale,
         ))
     }
 
@@ -1070,7 +1094,13 @@ impl AraView {
                     (_, 0) => center_x - dw,
                     _ => center_x,
                 };
-                (index, picture, rect(x, center_y - dh / 2.0, dw, dh))
+                // 가운데 이음매가 반쪽 픽셀에 걸리면 두 페이지가 서로를 흐리므로
+                // 사각형을 기기 픽셀에 맞춘다(§18).
+                (
+                    index,
+                    picture,
+                    snap_to_device_pixels(rect(x, center_y - dh / 2.0, dw, dh), self.device_scale),
+                )
             })
             .collect()
     }
@@ -1667,6 +1697,8 @@ impl AraView {
         cx: &mut Context<Self>,
     ) -> impl IntoElement + use<> {
         self.sync_anim_timeline(window, cx);
+        // 그림 사각형을 기기 픽셀에 맞추는 데 쓴다(§18).
+        self.device_scale = window.scale_factor();
         let idle = self.overlay_active.elapsed();
         // 매 프레임 `Settings` 전체를 클론하지 않고 렌더에 쓰는 `Copy` 필드만 복사한다.
         let (background, webtoon_page_boundaries, webtoon_show_progress, webtoon_thumbnail_jump) = {
@@ -2030,9 +2062,49 @@ impl AraView {
 mod tests {
     use super::{
         AnimPlayback, Fit, OVERLAY_HIDE_AFTER, TileGrid, format_frame_counter, overlay_visible,
-        zoom_step,
+        rect, snap_to_device_pixels, zoom_step,
     };
     use std::time::{Duration, Instant};
+
+    /// 1:1에 가까운 배율에서 반쪽 픽셀에 걸린 사각형이 기기 픽셀 격자로 맞는지.
+    #[test]
+    fn page_rects_snap_to_device_pixel_grid() {
+        // 배율 2에서는 0.5 논리 px가 이미 기기 픽셀 격자에 맞는다.
+        let loose = rect(1151.5, 0.5, 1537.0, 2049.0);
+        let snapped = snap_to_device_pixels(loose, 2.0);
+        assert_eq!(snapped, loose);
+        for value in [
+            f32::from(snapped.origin.x),
+            f32::from(snapped.origin.y),
+            f32::from(snapped.origin.x + snapped.size.width),
+            f32::from(snapped.origin.y + snapped.size.height),
+        ] {
+            // 논리 px가 배율로 나누어떨어져야(기기 픽셀 정수) 블렌딩이 없다.
+            assert!(
+                (value * 2.0).fract() == 0.0,
+                "기기 픽셀 격자에 벗어남: {value}"
+            );
+        }
+        // 배율 1에서는 반쪽 논리 px가 기기 픽셀에 맞춰 반올림된다.
+        assert_eq!(
+            snap_to_device_pixels(loose, 1.0),
+            rect(1152.0, 1.0, 1537.0, 2049.0)
+        );
+        // 배율 2에서도 반쪽 기기 픽셀은 격자에 맞춰 반올림된다.
+        let half_device_pixel = rect(1151.25, 0.25, 1537.0, 2049.0);
+        assert_eq!(snap_to_device_pixels(half_device_pixel, 2.0), loose);
+        // 배율이 0 이하이면 원본을 그대로 둔다.
+        assert_eq!(snap_to_device_pixels(loose, 0.0), loose);
+        assert_eq!(snap_to_device_pixels(loose, f32::NAN), loose);
+    }
+
+    #[test]
+    fn snapping_moves_by_less_than_one_device_pixel() {
+        let r = rect(10.4, 10.4, 100.2, 200.2);
+        let snapped = snap_to_device_pixels(r, 1.0);
+        assert!((f32::from(snapped.origin.x) - 10.0).abs() <= 0.5);
+        assert!((f32::from(snapped.size.width) - 100.0).abs() <= 1.0);
+    }
 
     #[test]
     fn zoom_eases_toward_target_and_settles() {

@@ -6,7 +6,7 @@
 //! 메서드로만 하게 해, 불가능한 조합(예: 대기열에 있으면서 실패, 실행 중인데 어느
 //! 인덱스인지 모름)을 타입이 막는다. gpui에 기대지 않으므로 단위 테스트로 전이를 확인한다.
 
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::time::{Duration, Instant};
 
 use araview_core::app_error::AppError;
@@ -50,12 +50,21 @@ pub(in crate::app) enum PageSlot<P> {
     Failed(AppError),
 }
 
-/// 인덱스별 디코드 상태와 대기열. full 디코드는 한 번에 하나만 돌린다(§9.1).
+/// 동시에 돌릴 수 있는 full 디코드 수. 현재 화면 요청이 먼저 시작되고 나머지
+/// 슬롯은 가까운 순을 채운다. 진행 중인 디코드는 도착 전까지 예산에 세지 않으므로
+/// 이 값이 일시적 초과의 상한이다(§9.1).
+pub(in crate::app) const DEFAULT_MAX_RUNNING: usize = 3;
+
+/// 인덱스별 디코드 상태와 대기열. full 디코드는 최대 [`DEFAULT_MAX_RUNNING`]개
+/// 까지 병렬로 돌린다(§9.1). 현재 화면(`protect`) 요청이 먼저 시작되고, 같으면
+/// 현재 위치에서 가까운 순, 그다음 요청 순이다.
 #[derive(Debug)]
 pub(in crate::app) struct PageSlots<P> {
     slots: HashMap<usize, PageSlot<P>>,
     /// 실행 중인 full 디코드의 인덱스.
-    running: Option<usize>,
+    running: BTreeSet<usize>,
+    /// 동시 실행 상한. 단일 실행 시나리오를 시험할 때만 1로 좁힌다.
+    max_running: usize,
     /// 요청 순서를 매기는 번호.
     seq: u64,
 }
@@ -64,7 +73,8 @@ impl<P> Default for PageSlots<P> {
     fn default() -> Self {
         Self {
             slots: HashMap::new(),
-            running: None,
+            running: BTreeSet::new(),
+            max_running: DEFAULT_MAX_RUNNING,
             seq: 0,
         }
     }
@@ -74,7 +84,7 @@ impl<P> PageSlots<P> {
     /// 모든 상태를 비우고 들고 있던 페이지(미리보기 포함)를 돌려준다. 실행 중인
     /// 디코드의 결과는 호출자가 목록 세대로 버린다.
     pub fn clear(&mut self) -> Vec<P> {
-        self.running = None;
+        self.running.clear();
         std::mem::take(&mut self.slots)
             .into_values()
             .filter_map(|slot| match slot {
@@ -178,14 +188,14 @@ impl<P> PageSlots<P> {
         true
     }
 
-    /// 실행 중인 디코드가 없으면 다음 요청을 골라 `Decoding`으로 옮긴다. 고르는
-    /// 중에 `keep`이 `false`인 요청은 시작하지 않고 버린다.
+    /// 동시 실행 상한에 여유가 있으면 대기열에서 다음 요청을 골라 `Decoding`으로
+    /// 옮긴다. 고르는 중에 `keep`이 `false`인 요청은 시작하지 않고 버린다.
     pub fn start_next(
         &mut self,
         anchor: usize,
         mut keep: impl FnMut(&DecodeJob) -> bool,
     ) -> Option<DecodeJob> {
-        if self.running.is_some() {
+        if self.running.len() >= self.max_running {
             return None;
         }
         loop {
@@ -201,7 +211,7 @@ impl<P> PageSlots<P> {
                     preview: None,
                 },
             );
-            self.running = Some(job.index);
+            self.running.insert(job.index);
             return Some(job);
         }
     }
@@ -228,9 +238,7 @@ impl<P> PageSlots<P> {
 
     /// 실행 중인 디코드가 끝났다. 결과를 슬롯에 넣고, 내려놓을 미리보기를 돌려준다.
     pub fn finish(&mut self, index: usize, result: Result<P, AppError>) -> Option<P> {
-        if self.running == Some(index) {
-            self.running = None;
-        }
+        self.running.remove(&index);
         let next = match result {
             Ok(page) => PageSlot::Ready(page),
             Err(error) => PageSlot::Failed(error),
@@ -436,6 +444,14 @@ mod tests {
         AppError::not_found("gone")
     }
 
+    /// 단일 실행 시나리오용. 동시 실행 상한을 1로 좁힌다.
+    fn single_slots() -> PageSlots<&'static str> {
+        PageSlots {
+            max_running: 1,
+            ..Default::default()
+        }
+    }
+
     #[test]
     fn decode_queue_picks_current_screen_then_nearest_then_oldest() {
         let queue = [
@@ -453,7 +469,7 @@ mod tests {
 
     #[test]
     fn a_slot_moves_from_queued_to_decoding_to_ready() {
-        let mut slots: PageSlots<&str> = PageSlots::default();
+        let mut slots = single_slots();
         assert!(slots.request(3, true, false));
         // 대기 중인 인덱스는 다시 넣지 않는다.
         assert!(!slots.request(3, true, false));
@@ -474,6 +490,34 @@ mod tests {
         // 끝난 페이지는 다시 요청하지 않는다.
         assert!(!slots.request(3, true, false));
         assert_eq!(slots.start_next(3, |_| true).map(|job| job.index), Some(4));
+    }
+
+    #[test]
+    fn decodes_run_in_parallel_up_to_the_limit() {
+        let mut slots: PageSlots<&str> = PageSlots::default();
+        for index in [1, 2, 3, 4] {
+            slots.request(index, false, true);
+        }
+        // 상한(3)까지 가까운 순으로 동시에 시작한다.
+        assert_eq!(slots.start_next(1, |_| true).map(|job| job.index), Some(1));
+        assert_eq!(slots.start_next(1, |_| true).map(|job| job.index), Some(2));
+        assert_eq!(slots.start_next(1, |_| true).map(|job| job.index), Some(3));
+        assert_eq!(slots.start_next(1, |_| true), None);
+        // 하나가 끝나면 남은 요청을 이어서 시작한다.
+        assert_eq!(slots.finish(1, Ok("one")), None);
+        assert_eq!(slots.start_next(1, |_| true).map(|job| job.index), Some(4));
+    }
+
+    #[test]
+    fn the_current_screen_starts_before_nearby_prefetches() {
+        let mut slots: PageSlots<&str> = PageSlots::default();
+        slots.request(5, false, true);
+        slots.request(4, true, false);
+        slots.request(2, false, true);
+        // 현재 화면이 먼저 시작되고, 나머지 슬롯은 가까운 순이다.
+        assert_eq!(slots.start_next(4, |_| true).map(|job| job.index), Some(4));
+        assert_eq!(slots.start_next(4, |_| true).map(|job| job.index), Some(5));
+        assert_eq!(slots.start_next(4, |_| true).map(|job| job.index), Some(2));
     }
 
     #[test]
