@@ -742,8 +742,29 @@ mod tests {
     // `super::*`는 gpui의 `test` 매크로까지 끌어와 `#[test]`를 가린다.
     use super::{
         DOWNLOAD_CHUNK, DownloadProgress, Ordering, UPDATE_FEED, compare_versions, feed_url,
-        is_allowed_asset_url, is_newer, parse_version, read_with_progress,
+        is_allowed_asset_url, is_newer, parse_version, read_with_progress, verify_signature,
     };
+    use base64::Engine as _;
+
+    #[test]
+    fn installer_signature_rejects_modified_bytes() {
+        let bytes = b"installer contents";
+        let keys = minisign::KeyPair::generate_unencrypted_keypair().unwrap();
+        let signature = minisign::sign(
+            Some(&keys.pk),
+            &keys.sk,
+            std::io::Cursor::new(bytes),
+            None,
+            None,
+        )
+        .unwrap();
+        let encode = |value: String| base64::engine::general_purpose::STANDARD.encode(value);
+        let signature = encode(signature.to_string());
+        let public_key = encode(keys.pk.to_box().unwrap().to_string());
+
+        assert!(verify_signature(bytes, &signature, &public_key).is_ok());
+        assert!(verify_signature(b"modified installer", &signature, &public_key).is_err());
+    }
 
     /// 피드 주소는 최신 정식 릴리스의 자산을 가리킨다(SPEC §20.1).
     #[test]
