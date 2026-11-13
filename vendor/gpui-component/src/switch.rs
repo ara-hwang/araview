@@ -1,6 +1,6 @@
 use crate::{
-    ActiveTheme, Disableable, FocusableExt, Side, Sizable, Size, StyleSized as _, StyledExt,
-    ThemeStyled as _, text::Text, tooltip::ComponentTooltip,
+    ActiveTheme, Disableable, ElementExt as _, FocusableExt, Side, Sizable, Size, StyleSized as _,
+    StyledExt, ThemeStyled as _, text::Text, tooltip::ComponentTooltip,
 };
 use gpui::{
     App, Background, ElementId, Hsla, InteractiveElement, IntoElement, ParentElement as _,
@@ -177,6 +177,8 @@ impl RenderOnce for Switch {
             .read(cx)
             .clone();
         let is_focused = focus_handle.is_focused(window);
+        let reveal_focus =
+            crate::focus_reveal::on_focus(self.id.clone(), focus_handle.clone(), window, cx);
 
         let checked_bg = self
             .color
@@ -291,6 +293,7 @@ impl RenderOnce for Switch {
                                 .bg(toggle_bg),
                         ),
                 )
+                .on_prepaint(reveal_focus)
                 .when_some(self.label, |this, label| {
                     this.child(
                         div()

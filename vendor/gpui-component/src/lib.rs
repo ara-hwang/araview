@@ -7,6 +7,7 @@ use std::sync::LazyLock;
 
 mod component_traits;
 mod element_ext;
+mod focus_reveal;
 pub mod global_state;
 mod icon;
 mod index_path;

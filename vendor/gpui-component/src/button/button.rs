@@ -1,8 +1,8 @@
 use std::{rc::Rc, time::Duration};
 
 use crate::{
-    ActiveTheme, Colorize as _, Disableable, Icon, Placement, RoleOverride, Selectable, Sizable,
-    Size, StyleSized, StyledExt,
+    ActiveTheme, Colorize as _, Disableable, ElementExt as _, Icon, Placement, RoleOverride,
+    Selectable, Sizable, Size, StyleSized, StyledExt,
     button::ButtonIcon,
     h_flex,
     select::Caret,
@@ -656,6 +656,8 @@ impl RenderOnce for Button {
                 .clone()
         });
         let is_focused = focus_handle.is_focused(window);
+        let reveal_focus =
+            crate::focus_reveal::on_focus(self.id.clone(), focus_handle.clone(), window, cx);
 
         let rounding = match self.rounded {
             ButtonRounded::Small => cx.theme().radius * 0.5,
@@ -920,6 +922,7 @@ impl RenderOnce for Button {
         .when(is_focused && self.focus_ring_enabled, |this| {
             focus_style(this, focus_line, window, cx)
         })
+        .on_prepaint(reveal_focus)
     }
 }
 

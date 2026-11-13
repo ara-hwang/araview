@@ -11,6 +11,7 @@ use std::cell::Cell;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
+use gpui_kit::component::ElementExt as _;
 use gpui_kit::component::scroll::ScrollableElement as _;
 use gpui_kit::*;
 
@@ -95,6 +96,7 @@ pub struct SmoothScroll {
     /// 지금 따라가는 축이 가로인지.
     horizontal: Rc<Cell<bool>>,
     last_frame: Rc<Cell<Instant>>,
+    generation: Rc<Cell<u64>>,
 }
 
 impl Default for SmoothScroll {
@@ -113,6 +115,7 @@ impl SmoothScroll {
             running: Rc::new(Cell::new(false)),
             horizontal: Rc::new(Cell::new(false)),
             last_frame: Rc::new(Cell::new(Instant::now())),
+            generation: Rc::new(Cell::new(0)),
         }
     }
 }
@@ -128,6 +131,17 @@ fn offset_on(offset: Point<Pixels>, horizontal: bool, value: f32) -> Point<Pixel
         point(px(value), offset.y)
     } else {
         point(offset.x, px(value))
+    }
+}
+
+/// 이미 보이는 항목은 그대로 두고, 가려진 쪽만 드러내는 최소 이동량.
+fn reveal_delta(start: Pixels, end: Pixels, visible_start: Pixels, visible_end: Pixels) -> Pixels {
+    if start < visible_start {
+        visible_start - start
+    } else if end > visible_end {
+        (visible_end - end).max(visible_start - start)
+    } else {
+        px(0.)
     }
 }
 
@@ -162,6 +176,7 @@ impl SmoothScroll {
 
     /// 맨 위로 되돌린다(탭 전환 등).
     pub fn reset(&self) {
+        self.cancel();
         self.target.set(0.);
         self.handle.set_offset(point(px(0.), px(0.)));
     }
@@ -171,6 +186,73 @@ impl SmoothScroll {
     pub fn cancel(&self) {
         let horizontal = self.horizontal.get();
         self.target.set(along(self.handle.offset(), horizontal));
+        self.running.set(false);
+        self.generation.set(self.generation.get().wrapping_add(1));
+    }
+
+    /// 자식의 포커스 요청만 받고, 중첩 영역에서는 이동 후 보이는 부분을 부모에 넘긴다.
+    fn focus_scroll(
+        &self,
+        area: Stateful<Div>,
+        content: impl IntoElement,
+        horizontal: bool,
+    ) -> Stateful<Div> {
+        let inherited = Rc::new(Cell::new(None));
+        let saved = inherited.clone();
+        let this = self.clone();
+        area.on_prepaint(move |_, window, _| saved.set(window.take_autoscroll()))
+            .child(content)
+            .on_prepaint(move |_, window, _| {
+                if let Some(mut requested) = window.take_autoscroll() {
+                    let viewport = this.handle.bounds();
+                    let delta = if horizontal {
+                        reveal_delta(
+                            requested.left(),
+                            requested.right(),
+                            viewport.left(),
+                            viewport.right(),
+                        )
+                    } else {
+                        reveal_delta(
+                            requested.top(),
+                            requested.bottom(),
+                            viewport.top(),
+                            viewport.bottom(),
+                        )
+                    };
+                    let offset = this.handle.offset();
+                    let current = along(offset, horizontal);
+                    let next = (current + f32::from(delta))
+                        .clamp(-along(this.handle.max_offset(), horizontal), 0.);
+                    // 포커스 이동은 즉시 반영하고, 예약된 휠 감속도 버린다.
+                    this.cancel();
+                    if next != current {
+                        this.handle.set_offset(offset_on(offset, horizontal, next));
+                        let moved = px(next - current);
+                        if horizontal {
+                            requested.origin.x += moved;
+                        } else {
+                            requested.origin.y += moved;
+                        }
+                        window.on_next_frame(|window, _| window.refresh());
+                    }
+                    // 이 축에서 가려진 부분을 부모가 다시 따라가지 않게 한다.
+                    if horizontal {
+                        requested = Bounds::from_corners(
+                            point(requested.left().max(viewport.left()), requested.top()),
+                            point(requested.right().min(viewport.right()), requested.bottom()),
+                        );
+                    } else {
+                        requested = Bounds::from_corners(
+                            point(requested.left(), requested.top().max(viewport.top())),
+                            point(requested.right(), requested.bottom().min(viewport.bottom())),
+                        );
+                    }
+                    window.request_autoscroll(requested);
+                } else if let Some(requested) = inherited.get() {
+                    window.request_autoscroll(requested);
+                }
+            })
     }
 
     /// `content`를 세로 스크롤 영역으로 감싼다. 반환값은 크기를 정하는 바깥 요소이며,
@@ -181,15 +263,18 @@ impl SmoothScroll {
     {
         let id = id.into();
         let wheel = self.wheel_handler(false);
-        let area = div()
-            .id((id.clone(), "area"))
-            .size_full()
-            .flex()
-            .flex_col()
-            .overflow_y_hidden()
-            .track_scroll(&self.handle)
-            .on_scroll(wheel)
-            .child(content.flex_none().h_auto().min_h_full());
+        let area = self.focus_scroll(
+            div()
+                .id((id.clone(), "area"))
+                .size_full()
+                .flex()
+                .flex_col()
+                .overflow_y_hidden()
+                .track_scroll(&self.handle)
+                .on_scroll(wheel),
+            content.flex_none().h_auto().min_h_full(),
+            false,
+        );
         div()
             .id(id)
             .size_full()
@@ -206,15 +291,18 @@ impl SmoothScroll {
     {
         let id = id.into();
         let wheel = self.wheel_handler(true);
-        let area = div()
-            .id((id.clone(), "area"))
-            .w_full()
-            .flex()
-            .flex_row()
-            .overflow_x_hidden()
-            .track_scroll(&self.handle)
-            .on_scroll(wheel)
-            .child(content.flex_none().w_auto().min_w_full());
+        let area = self.focus_scroll(
+            div()
+                .id((id.clone(), "area"))
+                .w_full()
+                .flex()
+                .flex_row()
+                .overflow_x_hidden()
+                .track_scroll(&self.handle)
+                .on_scroll(wheel),
+            content.flex_none().w_auto().min_w_full(),
+            true,
+        );
         div()
             .id(id)
             .w_full()
@@ -252,7 +340,11 @@ impl SmoothScroll {
 
     fn step(&self, window: &mut Window) {
         let this = self.clone();
+        let generation = self.generation.get();
         window.on_next_frame(move |window, _| {
+            if generation != this.generation.get() {
+                return;
+            }
             let now = Instant::now();
             let elapsed = now.duration_since(this.last_frame.replace(now));
             let offset = this.handle.offset();
@@ -279,6 +371,47 @@ mod tests {
 
     fn ms(value: u64) -> Duration {
         Duration::from_millis(value)
+    }
+
+    #[::core::prelude::v1::test]
+    fn focus_reveal_moves_only_the_hidden_edge() {
+        // 세로·가로 모두 같은 계산을 쓰며, 양 끝과 일부만 가려진 항목도 포함한다.
+        for (start, end, expected) in [
+            (120., 140., 0.),
+            (100., 200., 0.),
+            (90., 110., 10.),
+            (40., 60., 60.),
+            (190., 210., -10.),
+            (240., 260., -60.),
+            (120., 320., -20.),
+            (80., 280., 20.),
+        ] {
+            assert_eq!(
+                reveal_delta(px(start), px(end), px(100.), px(200.)),
+                px(expected),
+                "target {start}..{end}"
+            );
+        }
+    }
+
+    #[::core::prelude::v1::test]
+    fn focus_reveal_cancels_pending_wheel_frames() {
+        let scroll = SmoothScroll::default();
+        scroll.running.set(true);
+        scroll.target.set(-500.);
+        scroll.handle.set_offset(point(px(0.), px(-100.)));
+        let queued = scroll.generation.get();
+        scroll.cancel();
+        scroll.handle.set_offset(point(px(0.), px(-300.)));
+        assert!(!scroll.running.get());
+        assert_ne!(scroll.generation.get(), queued);
+        // 새 휠 감속을 시작해도 취소 전 프레임은 다시 유효해지지 않는다.
+        scroll.running.set(true);
+        assert_ne!(scroll.generation.get(), queued);
+        scroll.reset();
+        assert!(!scroll.running.get());
+        assert_eq!(scroll.handle.offset(), point(px(0.), px(0.)));
+        assert_eq!(scroll.target.get(), 0.);
     }
 
     /// `use gpui_kit::*`가 gpui의 `test` 매크로를 끌어오므로 빌트인 `#[test]`를

@@ -844,10 +844,12 @@ where
     D: SearchableListDelegate + 'static,
     <D::Item as SearchableListItem>::Value: PartialEq + Clone,
 {
-    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let disabled = self.options.disabled;
         let accessibility_label = self.options.accessibility_label.clone();
         let focus_handle = self.state.read(cx).state.focus_handle.clone();
+        let reveal_focus =
+            crate::focus_reveal::on_focus(self.id.clone(), focus_handle.clone(), window, cx);
         let empty = self.empty;
         let opts = self.options;
 
@@ -895,6 +897,7 @@ where
             })
             .size_full()
             .child(self.state)
+            .on_prepaint(reveal_focus)
     }
 }
 
