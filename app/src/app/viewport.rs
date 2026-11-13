@@ -2069,9 +2069,10 @@ mod tests {
     /// 1:1에 가까운 배율에서 반쪽 픽셀에 걸린 사각형이 기기 픽셀 격자로 맞는지.
     #[test]
     fn page_rects_snap_to_device_pixel_grid() {
-        // 배율 2의 1500px 페이지는 화면에서 반쪽(0.5 논리 px)에 걸릴 수 있다.
+        // 배율 2에서는 0.5 논리 px가 이미 기기 픽셀 격자에 맞는다.
         let loose = rect(1151.5, 0.5, 1537.0, 2049.0);
         let snapped = snap_to_device_pixels(loose, 2.0);
+        assert_eq!(snapped, loose);
         for value in [
             f32::from(snapped.origin.x),
             f32::from(snapped.origin.y),
@@ -2084,8 +2085,14 @@ mod tests {
                 "기기 픽셀 격자에 벗어남: {value}"
             );
         }
-        // 원래 사각형은 임의 배율을 유지한다(scale 1).
-        assert_eq!(snap_to_device_pixels(loose, 1.0), loose);
+        // 배율 1에서는 반쪽 논리 px가 기기 픽셀에 맞춰 반올림된다.
+        assert_eq!(
+            snap_to_device_pixels(loose, 1.0),
+            rect(1152.0, 1.0, 1537.0, 2049.0)
+        );
+        // 배율 2에서도 반쪽 기기 픽셀은 격자에 맞춰 반올림된다.
+        let half_device_pixel = rect(1151.25, 0.25, 1537.0, 2049.0);
+        assert_eq!(snap_to_device_pixels(half_device_pixel, 2.0), loose);
         // 배율이 0 이하이면 원본을 그대로 둔다.
         assert_eq!(snap_to_device_pixels(loose, 0.0), loose);
         assert_eq!(snap_to_device_pixels(loose, f32::NAN), loose);
