@@ -446,9 +446,10 @@ mod tests {
 
     /// 단일 실행 시나리오용. 동시 실행 상한을 1로 좁힌다.
     fn single_slots() -> PageSlots<&'static str> {
-        let mut slots = PageSlots::default();
-        slots.max_running = 1;
-        slots
+        PageSlots {
+            max_running: 1,
+            ..Default::default()
+        }
     }
 
     #[test]
