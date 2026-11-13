@@ -353,15 +353,15 @@ type OcrBoxes = (Vec<Bounds<Pixels>>, Vec<Bounds<Pixels>>);
 /// 사각형이 반쪽 픽셀에 걸리면 1:1 배율에서도 각 행·열이 50/50 블렌딩돼 흐려진다
 /// (yosh가 페이지 넘김 경로에서 정수 배치로 막는 문제). 가장자리 둘을 각각 스냅해
 /// 크기 오차가 1기기픽셀 이하가 되게 한다. 웹툰(스크롤)은 부드러움을 위해 쓰지 않는다.
-fn snap_to_device_pixels(rect: Bounds<Pixels>, scale: f32) -> Bounds<Pixels> {
+fn snap_to_device_pixels(bounds: Bounds<Pixels>, scale: f32) -> Bounds<Pixels> {
     if scale <= 0.0 || !scale.is_finite() {
-        return rect;
+        return bounds;
     }
     let snap = |v: Pixels| Pixels::from((f32::from(v) * scale).round() / scale);
-    let x0 = snap(rect.origin.x);
-    let y0 = snap(rect.origin.y);
-    let x1 = snap(rect.origin.x + rect.size.width);
-    let y1 = snap(rect.origin.y + rect.size.height);
+    let x0 = snap(bounds.origin.x);
+    let y0 = snap(bounds.origin.y);
+    let x1 = snap(bounds.origin.x + bounds.size.width);
+    let y1 = snap(bounds.origin.y + bounds.size.height);
     rect(
         f32::from(x0),
         f32::from(y0),
