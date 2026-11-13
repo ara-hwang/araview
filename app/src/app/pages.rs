@@ -25,6 +25,7 @@ use crate::i18n::{t, t_with};
 use crate::layout::{self, CoverLayout, Solo};
 use crate::picture::{self, Orientation, Picture, ViewFit};
 use crate::settings::{ArchiveProgress, CacheMax, CacheMode, SettingsStore, ViewMode};
+use state::DEFAULT_MAX_RUNNING;
 pub(super) use state::{Nav, PageSlots, ViewError};
 
 pub(super) enum Page {
@@ -888,10 +889,21 @@ impl AraView {
         }
     }
 
-    /// 실행 중인 full 디코드가 없으면 대기열에서 하나를 골라 시작한다. 고르는 중에
+    /// 상한까지 병렬로 full 디코드를 시작한다(§9.1). 현재 화면 요청이 먼저고,
+    /// 그 밖은 현재 위치에서 가까운 순·요청 순으로 슬롯을 채운다. 고르는 중에
     /// 범위를 벗어난 항목과, 자동 내려받기가 꺼진 뒤에는 대기 중인 클라우드 전용
     /// 프리페치도 버린다(§9.6). 이미 시작한 디코드는 끝까지 돈다.
     fn pump_decode(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        for _ in 0..DEFAULT_MAX_RUNNING {
+            if !self.spawn_next_decode(window, cx) {
+                return;
+            }
+        }
+    }
+
+    /// 대기열에서 다음 full 디코드를 하나 시작해 스폰한다. 시작할 것이 없으면
+    /// 거짓을 돌려준다.
+    fn spawn_next_decode(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
         let anchor = self.index;
         let (list, availability) = (self.list.clone(), &self.availability);
         let auto_download = SettingsStore::global(cx).settings.cloud_auto_download;
@@ -899,7 +911,7 @@ impl AraView {
             let held = job.prefetch && holds_cloud(availability, job.index, auto_download);
             !held && job.index < list.len()
         }) else {
-            return;
+            return false;
         };
         let (index, protect, seq) = (job.index, job.protect, job.seq);
         let item = list[index].clone();
@@ -1065,6 +1077,7 @@ impl AraView {
             .ok();
         })
         .detach();
+        true
     }
 
     /// 바이트 예산 경계 밖의 대기 중인 미리 로드를 시작 전에 취소한다(§9.1).
