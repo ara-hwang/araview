@@ -76,6 +76,14 @@ test("build workflow changes trigger Rust checks without including Pages-only ed
   }
 })
 
+test("actionlint uses the official binary with a digest check before extraction", () => {
+  const install = job(ci, "docs").split("- name: Install actionlint")[1].split("- name: Validate workflows")[0]
+  assert.doesNotMatch(install, /uses: taiki-e\/install-action|tool: actionlint/)
+  assert.match(install, /https:\/\/github\.com\/rhysd\/actionlint\/releases\/download\/v1\.7\.12\/actionlint_1\.7\.12_linux_amd64\.tar\.gz/)
+  assert.match(install, /8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8/)
+  assert.ok(install.indexOf("sha256sum --check") < install.indexOf("tar -xzf"))
+})
+
 test("full verification does not also run the lightweight Rust job", () => {
   const light = condition(job(ci, "rust-check"))
   for (const event of ["push", "pull_request"]) {

@@ -76,9 +76,17 @@ jobs:
         run: node --test scripts/release-version.test.mjs scripts/workflows.test.mjs
 
       - name: Install actionlint
-        uses: taiki-e/install-action@3a3daafd3b7f23b8f65d9f5ba2db203fb59b79e2 # v2
-        with:
-          tool: actionlint@1.7.12
+        # install-action supports Rust tools, not this Go binary. Pin the official
+        # release archive and verify its digest before extracting/executing it.
+        run: |
+          dir="$RUNNER_TEMP/actionlint"
+          mkdir -p "$dir"
+          curl --fail --silent --show-error --location --retry 3 \
+            https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz \
+            --output "$dir/actionlint.tar.gz"
+          echo "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  $dir/actionlint.tar.gz" | sha256sum --check
+          tar -xzf "$dir/actionlint.tar.gz" -C "$dir" actionlint
+          echo "$dir" >> "$GITHUB_PATH"
 
       - name: Validate workflows
         # GitHub supports queue: max, but actionlint 1.7.12 does not yet recognize it.
