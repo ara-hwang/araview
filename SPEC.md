@@ -362,7 +362,8 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 - 적용 대상은 `image` 크레이트가 디코드할 수 있는 래스터(PNG/JPEG/BMP/ICO/TIFF/정지 WebP)이며, EXIF Orientation은 표시와 같은 기준(JPEG/TIFF만, §18)으로 픽셀에 반영한 뒤 축소한다. PNG/WebP에 든 Orientation 태그는 원본 보기처럼 무시한다. 썸네일(9.3절)도 같은 기준이다. 알파 채널이 있으면 투명도 보존을 위해 PNG로 저장한다.
 - GIF, 움직이는 WebP, 움직이는 PNG(APNG, 확장자가 `.png`여도 `acTL` 청크로 판별), SVG, `image` 크레이트가 디코드하지 못하는 포맷(AVIF, JXL 등)은 원본 바이트를 그대로 렌더한다.
 - sidecar는 활성 캐시 루트의 `scaled/`에 캐시되며 상한(500MB)을 넘기면 오래된 것부터 상한의 90%까지 제거한다. 캐시 경로는 원본 식별 해시 + 상한 + 저장 형식(`smooth`/`pixelated`) + 축소 필터 revision 기준이라 설정이나 필터 알고리즘이 바뀌면 다른 사본을 만든다. JPEG/TIFF 확장자가 아닌 원본은 Orientation 적용 범위 구분값을 더해, PNG/WebP 태그까지 회전하던 이전 빌드의 사본을 다시 쓰지 않는다(썸네일 키도 같다).
-- sidecar 축소는 표시 정책과 무관하게 항상 보간 필터(`Triangle`)를 사용한다. Nearest 축소는 스크린톤 같은 주기 패턴을 계단·무아레로 깨뜨린다. `smooth`/`auto`는 JPEG로, `pixelated`는 lossless PNG로 저장한다(알파가 있으면 모두 PNG).
+- sidecar 축소는 표시 정책과 무관하게 항상 보간 필터(`Triangle`)를 사용한다. Nearest 축소는 스크린톤 같은 주기 패턴을 계단·무아레로 깨뜨린다.
+- 무채색 이미지(모든 픽셀의 채널 최대-최소 차이가 12/255 이하)는 진 선형광에서 축소한다(스크린톤 무아레 감소). 이때 밝기는 잉크 면적 혼합을 따르므로 감마 공간 축소와 다르고, 히스토그램은 렌더 바이트 기준이라 그 차이가 반영된다. 알파가 있으면 프리멀티 처리가 필요해 감마 공간 `Triangle` 축소를 쓴다. 축소 알고리즘 revision(`downscale-v3-linear-gray`)이 sidecar 캐시 키에 들어가므로 이전 사본이 재사용되지 않는다. `smooth`/`auto`는 JPEG로, `pixelated`는 lossless PNG로 저장한다(알파가 있으면 모두 PNG).
 - 새 상한으로 로드한 `ImageInfo.width/height`는 축소 사본 기준이고, `source_path`는 항상 원본 파일이다(11절). 히스토그램은 렌더 바이트(`file_path`), EXIF/파일 상세는 원본(`source_path`) 기준이다.
 - 해상도 상한이나 이미지 표시 정책을 바꾸면 UI는 페이지 캐시와 픽셀 보존 뷰를 비우고 현재 이미지를 새 기준으로 다시 로드한다.
 

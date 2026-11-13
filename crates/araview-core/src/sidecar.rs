@@ -281,12 +281,16 @@ pub struct SidecarSpec {
 
 impl SidecarSpec {
     pub fn paint_path(&self, source: &Path) -> Result<PathBuf, AppError> {
-        let hash = file_identity_hash(source, &[])?;
+        // 축소(무채색 선형광 경로 포함)가 sidecar 픽셀에 반영되므로 알고리즘
+        // revision을 키에 넣는다. 알고리즘이 바뀌면 이전 사본이 남지 않는다.
+        let hash = file_identity_hash(source, crate::linear_resize::DOWNSCALE_FILTER_REVISION)?;
         Ok(paint_dir()?.join(format!("{}{hash:016x}.jpg", self.paint_prefix)))
     }
 
     pub fn thumb_path(&self, source: &Path, max_side: u32) -> Result<PathBuf, AppError> {
-        let hash = file_identity_hash(source, &max_side.to_le_bytes())?;
+        let mut extra = max_side.to_le_bytes().to_vec();
+        extra.extend_from_slice(crate::linear_resize::DOWNSCALE_FILTER_REVISION);
+        let hash = file_identity_hash(source, &extra)?;
         Ok(paint_dir()?.join(format!("{}{hash:016x}.jpg", self.thumb_prefix)))
     }
 
@@ -346,10 +350,9 @@ pub fn downscale_rgb8(rgb: Rgb8, max_side: u32) -> Rgb8 {
     if rgb.width <= max_side && rgb.height <= max_side {
         return rgb;
     }
-    let scale = (f64::from(max_side) / f64::from(rgb.width.max(rgb.height))).min(1.0);
-    let narrow_wide = (f64::from(rgb.width) * scale).round() as u32;
-    let narrow_high = (f64::from(rgb.height) * scale).round() as u32;
-    resize_rgb8(rgb, narrow_wide.max(1), narrow_high.max(1))
+    let (narrow_wide, narrow_high) =
+        crate::linear_resize::fit_inside(rgb.width, rgb.height, max_side, max_side);
+    crate::linear_resize::resize_rgb8(rgb, narrow_wide, narrow_high)
 }
 
 /// Shrink panoramas to fit the JPEG u16 dimension limit.
@@ -358,40 +361,9 @@ pub fn downscale_to_fit_u16(rgb: Rgb8) -> Rgb8 {
     if rgb.width <= LIMIT && rgb.height <= LIMIT {
         return rgb;
     }
-    let scale = (f64::from(LIMIT) / f64::from(rgb.width.max(rgb.height))).min(1.0);
-    let narrow_wide = (f64::from(rgb.width) * scale).floor() as u32;
-    let narrow_high = (f64::from(rgb.height) * scale).floor() as u32;
-    resize_rgb8(rgb, narrow_wide.max(1), narrow_high.max(1))
-}
-
-/// Takes `rgb` by value and resizes through a borrowed view. A full-resolution
-/// decode is up to `MAX_DECODE_PIXELS * 3` bytes (~450MB), so the source buffer
-/// is never copied just to be handed to `imageops::resize`.
-fn resize_rgb8(rgb: Rgb8, narrow_wide: u32, narrow_high: u32) -> Rgb8 {
-    let src_w = rgb.width.max(1);
-    let src_h = rgb.height.max(1);
-    let expected = (src_w as usize)
-        .saturating_mul(src_h as usize)
-        .saturating_mul(3);
-    if rgb.bytes.len() < expected || narrow_wide == 0 || narrow_high == 0 {
-        return rgb;
-    }
-    let view: image::ImageBuffer<image::Rgb<u8>, &[u8]> =
-        match image::ImageBuffer::from_raw(src_w, src_h, rgb.bytes.as_slice()) {
-            Some(value) => value,
-            None => return rgb,
-        };
-    let resized = image::imageops::resize(
-        &view,
-        narrow_wide,
-        narrow_high,
-        image::imageops::FilterType::Triangle,
-    );
-    Rgb8 {
-        width: narrow_wide,
-        height: narrow_high,
-        bytes: resized.into_raw(),
-    }
+    let (narrow_wide, narrow_high) =
+        crate::linear_resize::fit_inside(rgb.width, rgb.height, LIMIT, LIMIT);
+    crate::linear_resize::resize_rgb8(rgb, narrow_wide, narrow_high)
 }
 
 #[cfg(test)]

@@ -17,6 +17,7 @@ pub mod heif;
 pub mod image;
 pub mod image_info;
 pub mod jxl;
+pub mod linear_resize;
 pub mod natural_sort;
 pub mod ocr;
 pub mod ops;
