@@ -128,7 +128,19 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "저장소 경로를 R: 드라이브에 연결하지 못했다" }
           try {
             Set-Location R:\
-            & scripts/Build-Installer.ps1
+            cargo build --release -p araview -p araview-thumb --no-default-features
+            if ($LASTEXITCODE -ne 0) { throw "cargo build --release 실패 (exit $LASTEXITCODE)" }
+
+            # 앱 빌드 스크립트도 DLL 복사를 시도하지만, 포장에 필요한 파일을 여기서
+            # 명시적으로 스테이징해 누락을 바로 드러낸다.
+            $codecBin = Join-Path $env:VCPKG_ROOT "installed\x64-windows\bin"
+            foreach ($dll in "heif.dll", "libde265.dll", "aom.dll") {
+              $source = Join-Path $codecBin $dll
+              if (-not (Test-Path $source)) { throw "vcpkg 런타임 DLL이 없습니다: $source" }
+              Copy-Item $source "R:\target\release"
+            }
+
+            & scripts/Build-Installer.ps1 -SkipBuild
             if ($LASTEXITCODE -ne 0) { throw "설치 프로그램 빌드 실패 (exit $LASTEXITCODE)" }
           } finally {
             Set-Location $env:GITHUB_WORKSPACE
