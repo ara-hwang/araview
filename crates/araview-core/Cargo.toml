@@ -5,7 +5,7 @@ description = "AraView image/archive/cache core shared by the desktop shells"
 authors = ["Ara"]
 license = "EUPL-1.2"
 edition = "2021"
-rust-version = "1.97"
+rust-version = "1.100"
 publish = false
 
 [dependencies]

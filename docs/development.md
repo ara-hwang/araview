@@ -14,7 +14,7 @@
 ## 요구 사항
 
 - **OS**: Windows 11 (x64)
-- **Rust**: stable (`rust-toolchain.toml` 채널, 최소 버전은 `app/Cargo.toml`의 `rust-version = "1.97"`)
+- **Rust**: stable (`rust-toolchain.toml` 채널, 최소 버전은 `app/Cargo.toml`의 `rust-version = "1.100"`)
 - **Node.js**: `>= 24` (`release`, `docs:check`, `licenses` 스크립트용. 의존성 설치는 없습니다)
 - **NSIS**: Windows 설치 프로그램을 만들 때만 필요합니다(`makensis`가 PATH에 있거나 `Program Files (x86)\NSIS`에 있어야 합니다)
 
