@@ -135,8 +135,8 @@ pub struct AraView {
     /// 열기만으로 저장된 위치를 덮지 않도록 진행 상황을 저장하지 않는다.
     progress_held: bool,
 
-    /// 인덱스별 디코드 상태(대기·디코드 중·완료·실패)와 대기열. full 디코드는 한 번에
-    /// 하나만 돌리고 우선순위로 고른다(§9.1).
+    /// 인덱스별 디코드 상태(대기·디코드 중·완료·실패)와 대기열. full 디코드는
+    /// 상한까지 병렬로 돌리고 우선순위로 고른다(§9.1).
     pages: pages::PageSlots<pages::Page>,
     /// 바이트 예산 때문에 내려놓은 경계. 그보다 먼 페이지는 다시 미리 로드하지 않는다(§9.1).
     budget_reach: Option<pages::BudgetReach>,
@@ -175,6 +175,8 @@ pub struct AraView {
     overlay_active: Instant,
 
     pixel_view: Option<viewport::PixelView>,
+    /// 창의 기기 배율. 그림 사각형을 기기 픽셀에 맞출 때 쓴다(§18). 렌더마다 갱신한다.
+    device_scale: f32,
 
     /// 웹툰 스크롤 위치: 화면 맨 위에 걸친 페이지와 그 안에서 내려간 거리.
     wt_anchor: usize,
@@ -281,6 +283,7 @@ impl AraView {
             overlay_active: Instant::now(),
 
             pixel_view: None,
+            device_scale: 1.0,
             wt_anchor: 0,
             wt_offset: 0.0,
             wt_glide: Glide::default(),
