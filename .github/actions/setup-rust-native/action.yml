@@ -13,6 +13,10 @@ inputs:
     description: sccache를 켠다.
     required: false
     default: "false"
+  rust-cache-targets:
+    description: release 빌드는 sccache를 쓰므로 false로 두어 dev/test 산출물 전송을 생략한다.
+    required: false
+    default: "true"
 
 runs:
   using: composite
@@ -33,6 +37,7 @@ runs:
         workspaces: . -> target
         shared-key: ${{ inputs.cache-key }}
         save-if: ${{ inputs.rust-cache-save-if }}
+        cache-targets: ${{ inputs.rust-cache-targets }}
 
     # VCPKG_INSTALLATION_ROOT는 러너가 프로세스 환경에만 넣어 주는 값이라 `env` 컨텍스트에
     # 없다. `${{ env.VCPKG_INSTALLATION_ROOT }}`를 경로에 쓰면 빈 문자열이 되어 캐시가

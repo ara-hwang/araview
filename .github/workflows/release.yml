@@ -61,26 +61,27 @@ jobs:
             exit 1
           }
 
-  # 검증은 ci.yml을 그대로 재사용한다. 실패하면 빌드 잡은 시작하지 않는다.
+  # 검증과 컴파일은 병렬로 돌리되 서명은 둘 다 성공한 뒤에만 한다.
   verify:
     needs: preflight
     permissions:
       contents: read
     uses: ./.github/workflows/ci.yml
+    with:
+      full-verification: true
 
-  # Windows 설치 프로그램 빌드, 서명, 업데이트 피드 생성. 릴리스는 마지막 `release` 잡이 만든다.
   build-windows:
-    needs: verify
+    needs: preflight
+    uses: ./.github/workflows/build-windows.yml
+
+  # 컴파일 잡에는 서명 키가 없다. 검증·빌드 중 하나라도 실패/스킵되면 실행하지 않는다.
+  sign-windows:
+    needs: [verify, build-windows]
     runs-on: windows-latest
-    timeout-minutes: 90
-    env:
-      # sccache는 컴파일 결과를 캐시 백엔드(GitHub Actions 캐시)에 모으므로 다음
-      # 버전 빌드가 이전 태그 빌드의 산출물로 크게 단축된다. 백엔드는 잡 단위 env로
-      # SCCACHE_GHA_ENABLED를 켜고, 컴파일을 거치는 모든 스텝에 RUSTC_WRAPPER를 둔다.
-      # 캐시 용량은 저장소 전체 한도(10GB) 안에 rust/vcpkg 트리 캐시와 함께 6GB로 묶는다.
-      SCCACHE_GHA_ENABLED: "true"
-      SCCACHE_CACHE_SIZE: "6G"
-      RUSTC_WRAPPER: sccache
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read
 
     steps:
       # 릴리스 노트가 이전 태그 이후 커밋 목록을 쓰므로 전체 히스토리가 필요하다.
@@ -94,13 +95,12 @@ jobs:
         with:
           node-version: 24
 
-      # 잡 단위 env(SCCACHE_GHA_ENABLED, RUSTC_WRAPPER)로 sccache를 켠다.
-      - name: Setup Rust and native dependencies
-        uses: ./.github/actions/setup-rust-native
-        with:
-          cache-key: rust-windows
-          rust-cache-save-if: "false"
-          sccache: "true"
+      - name: Download unsigned installer
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download "${{ github.run_id }}" --repo "${{ github.repository }}" --name unsigned-windows --dir target
+          if ($LASTEXITCODE -ne 0) { throw "서명 전 설치 프로그램 다운로드 실패" }
 
       - name: Resolve version
         id: version
@@ -110,42 +110,6 @@ jobs:
           # 수동 실행에는 태그가 없으므로 노트의 기준을 현재 커밋으로 한다.
           $tag = if ("${{ github.ref_type }}" -eq "tag") { "${{ github.ref_name }}" } else { "HEAD" }
           "tag=$tag" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
-
-      # 설치 프로그램은 NSIS(makensis)로 만든다. 러너에 기본 설치돼 있지 않으므로 먼저 받는다.
-      - name: Install NSIS
-        run: |
-          choco install nsis --no-progress -y
-          if ($LASTEXITCODE -ne 0) { Write-Error "NSIS 설치 실패"; exit 1 }
-          if (-not (Test-Path "${env:ProgramFiles(x86)}\NSIS\makensis.exe")) { Write-Error "makensis를 찾지 못했다"; exit 1 }
-
-      - name: Build installer
-        shell: pwsh
-        run: |
-          # Rust compile arguments can exceed Windows' command-line limit when Cargo
-          # emits a long list of dependency search paths. Build through a short drive
-          # so rustc/sccache receive paths that fit.
-          subst R: $env:GITHUB_WORKSPACE
-          if ($LASTEXITCODE -ne 0) { throw "저장소 경로를 R: 드라이브에 연결하지 못했다" }
-          try {
-            Set-Location R:\
-            cargo build --release -p araview -p araview-thumb --no-default-features
-            if ($LASTEXITCODE -ne 0) { throw "cargo build --release 실패 (exit $LASTEXITCODE)" }
-
-            # 앱 빌드 스크립트도 DLL 복사를 시도하지만, 포장에 필요한 파일을 여기서
-            # 명시적으로 스테이징해 누락을 바로 드러낸다.
-            $codecBin = Join-Path $env:VCPKG_ROOT "installed\x64-windows\bin"
-            foreach ($dll in "heif.dll", "libde265.dll", "aom.dll") {
-              $source = Join-Path $codecBin $dll
-              if (-not (Test-Path $source)) { throw "vcpkg 런타임 DLL이 없습니다: $source" }
-              Copy-Item $source "R:\target\release"
-            }
-
-            & scripts/Build-Installer.ps1 -SkipBuild
-            if ($LASTEXITCODE -ne 0) { throw "설치 프로그램 빌드 실패 (exit $LASTEXITCODE)" }
-          } finally {
-            Set-Location $env:GITHUB_WORKSPACE
-            subst R: /D
-          }
 
       # 릴리스 노트: 이전 태그 이후 커밋 목록으로 본문을 만든다.
       - name: Generate release notes
@@ -236,9 +200,10 @@ jobs:
             release-notes.md
             feed-notes.md
           retention-days: 7
+          if-no-files-found: error
 
   release:
-    needs: [build-windows]
+    needs: [sign-windows]
     # 게시와 피드 쓰기는 하나씩 처리한다.
     concurrency:
       group: ${{ format('publication-{0}', github.ref) }}
@@ -275,14 +240,14 @@ jobs:
       # 1.x(Tauri) 설치본은 `releases/latest/download/latest.json`을 확인한다. 2.x가 Latest인 동안 이 파일이 없으면
       # 업데이트 확인이 404가 되므로, 마지막 1.x(1.2.3)의 피드를 그대로 올려 1.2.3까지만 안내하고 2.x로 자동 갱신되지 않게 한다.
       - name: Fetch legacy 1.x feed
-        if: github.ref_type == 'tag'
+        if: github.event_name == 'push' && github.ref_type == 'tag'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           sparse-checkout: .github/legacy-feed
           path: legacy
 
       - name: Publish release
-        if: github.ref_type == 'tag'
+        if: github.event_name == 'push' && github.ref_type == 'tag'
         env:
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
@@ -301,7 +266,7 @@ jobs:
 
       # 수동 실행(시험)에서는 릴리스 대신 산출물을 아티팩트로 남긴다.
       - name: Upload dry-run artifacts
-        if: github.ref_type != 'tag'
+        if: github.event_name != 'push' || github.ref_type != 'tag'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: release-dry-run

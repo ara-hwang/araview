@@ -8,18 +8,26 @@ name: CI
 # 테스트까지)이 돌아 의존성 업데이트나 전용 경고·테스트가 빌드를 깨는 것을 병합 전에 잡는다.
 # 브랜치 푸시에서도 rust-check를 돌리는 이유는 캐시다. PR은 자기 ref와 기본 브랜치의 캐시만
 # 복원할 수 있어서, main이 캐시를 저장해 두지 않으면 모든 PR이 빈 캐시로 시작한다.
-# cache-key는 검증·rust-check·릴리스 빌드가 같은 이름(rust-windows)을 쓴다. 같은 키를
-# 쓰는 잡들은 서로의 캐시를 복원하므로 릴리스 빌드가 그 방금 끝난 검증 산출물을 그대로
-# 받는다. 저장은 중복 방지를 위해 core+thumb test 조각 하나만 맡는다: 같은 키로 여러
-# 잡이 저장 경쟁을 하면 조각마다 산출물이 다른 트리가 남는다. check 산출물만 있는
-# rust-check와 fmt·clippy 잡은 복원만 한다.
+# main 자동 검사는 rust-check가, 수동 전체 검사는 core+thumb와 app 조각이 캐시를
+# 저장한다. 두 경로는 동시에 돌지 않는다. PR과 태그는 복원만 한다.
+# 태그끼리는 캐시를 공유할 수 없으므로 release sccache도 main에서 예열한다.
 # 릴리스 검증은 이 파일을 그대로 재사용하므로 검증 항목은 여기서만 고친다.
 on:
   pull_request:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      warm-cache:
+        description: "main의 app 테스트·release 캐시 예열 (서명·게시 없음)"
+        type: boolean
+        default: false
   workflow_call:
+    inputs:
+      full-verification:
+        description: 호출자 이벤트에 의존하지 않고 전체 검증을 실행한다.
+        type: boolean
+        default: true
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -39,11 +47,16 @@ jobs:
     # check-docs.mjs는 app/Cargo.toml, Cargo.lock, image.rs, settings.rs도 읽는다.
     # 이들은 rust 변화에 잡혀 있으므로 docs 검사는 docs 조건에 rust 조건도 더한다.
     if: >-
-      github.event_name == 'workflow_call'
-      || github.event_name == 'workflow_dispatch'
-      || github.ref_type == 'tag'
-      || needs.changes.outputs.docs == 'true'
-      || needs.changes.outputs.rust == 'true'
+      ${{
+        !cancelled()
+        && (needs.changes.result == 'success' || needs.changes.result == 'skipped')
+        && (
+          inputs.full-verification
+          || github.event_name == 'workflow_dispatch'
+          || needs.changes.outputs.docs == 'true'
+          || needs.changes.outputs.rust == 'true'
+        )
+      }}
     needs: [changes]
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -60,7 +73,17 @@ jobs:
         run: node scripts/check-docs.mjs
 
       - name: Release version regression tests
-        run: node --test scripts/release-version.test.mjs
+        run: node --test scripts/release-version.test.mjs scripts/workflows.test.mjs
+
+      - name: Install actionlint
+        uses: taiki-e/install-action@3a3daafd3b7f23b8f65d9f5ba2db203fb59b79e2 # v2
+        with:
+          tool: actionlint@1.7.12
+
+      - name: Validate workflows
+        # GitHub supports queue: max, but actionlint 1.7.12 does not yet recognize it.
+        # Ignore only that known syntax gap; keep all other checks enabled.
+        run: actionlint -ignore '^unexpected key "queue" for "concurrency" section\. expected one of "cancel-in-progress", "group"$'
 
   # docs 잡이 스킵 조건을 판정하는 데 필요한 output을 두 개로 나눠 낸다: rust와 docs.
   # 스크립트는 비교 대상을 못 찾으면(새 브랜치의 0 커밋, 강제 푸시 등) 안전하게
@@ -89,7 +112,7 @@ jobs:
             echo "docs=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          if echo "$files" | grep -Eq '^(crates/|app/|vendor/|vcpkg\.json$|Cargo\.(toml|lock)$|rust-toolchain\.toml$|deny\.toml$|\.cargo/|\.github/actions/setup-rust-native/|\.github/workflows/ci\.yml$)'; then
+          if echo "$files" | grep -Eq '^(crates/|app/|vendor/|vcpkg\.json$|Cargo\.(toml|lock)$|rust-toolchain\.toml$|deny\.toml$|\.cargo/|\.github/actions/setup-rust-native/|\.github/workflows/(ci|release|build-windows)\.yml$)'; then
             echo "rust=true" >> "$GITHUB_OUTPUT"
           else
             echo "rust=false" >> "$GITHUB_OUTPUT"
@@ -107,7 +130,12 @@ jobs:
   # app 조각 테스트는 gpui 재컴파일 비용이 커서 여전히 릴리스 검증에만 둔다.
   rust-check:
     needs: changes
-    if: needs.changes.outputs.rust == 'true'
+    if: >-
+      ${{
+        !inputs.full-verification
+        && github.event_name != 'workflow_dispatch'
+        && needs.changes.outputs.rust == 'true'
+      }}
     runs-on: windows-latest
     timeout-minutes: 45
 
@@ -118,7 +146,7 @@ jobs:
         uses: ./.github/actions/setup-rust-native
         with:
           cache-key: rust-windows
-          rust-cache-save-if: "false"
+          rust-cache-save-if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
 
       - name: Cargo clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
@@ -128,9 +156,8 @@ jobs:
 
   # 검사 잡은 fmt와 clippy·cargo-deny만 돌린다.
   rust:
-    # PR과 main 푸시에서는 건너뛴다. workflow_call에서는 event_name이 호출자(태그 푸시)
-    # 것이라 ref_type으로 릴리스 호출을 구분한다.
-    if: github.event_name == 'workflow_dispatch' || github.ref_type == 'tag'
+    # workflow_call에서는 event_name이 호출자의 것이므로 명시적 입력을 쓴다.
+    if: inputs.full-verification || github.event_name == 'workflow_dispatch'
     runs-on: windows-latest
     timeout-minutes: 45
     permissions:
@@ -167,7 +194,7 @@ jobs:
   # 다시 컴파일하는 시간이 검증의 긴 몫이라, core쪽 캐시만 복원하면 app 조각이
   # 매번 그 컴파일을 반복해 검증의 병목이 되었다.
   rust-test:
-    if: github.event_name == 'workflow_dispatch' || github.ref_type == 'tag'
+    if: inputs.full-verification || github.event_name == 'workflow_dispatch'
     strategy:
       fail-fast: false
       matrix:
@@ -187,6 +214,7 @@ jobs:
         with:
           # app 조각만 자기 키 공간을 쓴다: core+thumb는 rust-windows, app는 rust-app-windows.
           cache-key: ${{ matrix.shard == 'app' && 'rust-app-windows' || 'rust-windows' }}
+          rust-cache-save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Cargo test (araview-core, araview-thumb)
         if: matrix.shard == 'core+thumb'
@@ -196,3 +224,11 @@ jobs:
         if: matrix.shard == 'app'
         # app/ 디렉터리의 크레이트 이름은 araview다.
         run: cargo test -p araview
+
+  # 수동 CI를 main에서 warm-cache=true로 실행하면 app 테스트와 release 컴파일
+  # 캐시를 채운다. 자동 PR/main 검사에 비싼 release 빌드를 추가하지 않는다.
+  warm-release-cache:
+    if: github.event_name == 'workflow_dispatch' && inputs.warm-cache && github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/build-windows.yml
+    with:
+      warm-cache: true

@@ -11,7 +11,11 @@ maintainer용 안내입니다. 사용자용 업데이트 확인 방법은 `usage
 
 ## 릴리스 시작
 
-릴리스는 `npm run release -- <버전>` 한 줄로 시작합니다. 이 명령이 버전을 올려 커밋하고 태그와 해당 브랜치를 함께 푸시하면, `.github/workflows/release.yml`이 검증, Windows 빌드(설치 프로그램과 서명), 업데이트 피드 생성, GitHub 릴리스 생성까지 자동으로 수행합니다. 공개 저장소라 GitHub 호스팅 표준 러너는 무료입니다. `.github/workflows/ci.yml`이 검증을 담당하며 릴리스 워크플로가 그대로 재사용합니다. 검증은 `rust` 잡(fmt, clippy, 보안 감사·라이선스 검사)과 `rust-test` 잡(`cargo test`를 `araview-core`+`araview-thumb`와 `app` 두 조각으로 나눠 병렬로)을 돌립니다. PR과 `main` 푸시에서는 문서 정합성 검사와 필요한 Rust 검사만 돕니다(Rust 쪽 파일이 바뀌면 `cargo clippy -- -D warnings`와 `araview-core`·`araview-thumb` 테스트, 문서와 문서 검증 스크립트가 바뀌면 문서 정합성 검사). 잡을 스킵해도 검사 항목 자체가 만들어져 나중에 이 잡들을 필수 검사로 지정해도 스킵 실행이 정상 종료합니다. 브랜치 푸시에서도 이 검사가 도는 것은 캐시 때문입니다. PR은 자기 ref와 기본 브랜치의 캐시만 복원할 수 있어서, main이 풀 검증 캐시를 저장해 두어야 PR이 빈 캐시로 시작하지 않습니다. Rust 캐시는 검증·rust-check·릴리스 빌드가 같은 키(`rust-windows`)를 공유하고, 저장은 항상 `araview-core` 테스트 조각이 맡습니다. 릴리스 빌드 프로필(release)의 컴파일 결과는 sccache가 GitHub Actions 캐시에 모으므로 다음 태그 빌드가 재사용합니다. 전체 Rust 검사는 Actions 탭에서 수동 실행하거나 릴리스 때 돕니다.
+릴리스는 `npm run release -- <버전>` 한 줄로 시작합니다. 이 명령이 버전을 올려 커밋하고 태그와 해당 브랜치를 함께 푸시하면, `.github/workflows/release.yml`이 검증과 Windows 컴파일·패키징을 병렬로 수행합니다. 둘 다 성공한 뒤 별도 잡에서 서명·업데이트 피드를 만들고 GitHub 릴리스를 게시합니다. 컴파일 잡에는 서명 키나 게시 권한을 전달하지 않습니다. 공개 저장소라 GitHub 호스팅 표준 러너는 무료입니다.
+
+`.github/workflows/ci.yml`은 문서 검사, `rust` 잡(fmt, clippy, 보안 감사·라이선스 검사), `rust-test` 잡(`araview-core`+`araview-thumb`와 `app` 두 조각)을 담당합니다. 릴리스는 `full-verification: true`로 재사용하며, 변경 감지 잡이 스킵된 태그에서도 문서 검사를 실행합니다. PR과 `main` 푸시에서는 변경 경로에 따라 문서 검사와 `rust-check`(workspace clippy, core·thumb 테스트)만 실행합니다. 수동·릴리스 전체 검증에서는 같은 경량 Rust 검사를 중복 실행하지 않습니다.
+
+Rust 캐시는 `main` 자동 실행의 `rust-check`가 `rust-windows`에 저장합니다. 수동 전체 검증에서는 core·thumb 조각이 같은 키를, app 조각이 `rust-app-windows`를 저장하며 PR·태그에서는 복원만 합니다. GitHub 캐시는 다른 태그끼리 공유되지 않으므로 release 컴파일용 sccache도 `main`에서 예열하고 태그에서는 읽기 전용으로 사용합니다. release 빌드는 dev/test target 캐시를 전송하지 않고 registry 캐시(`rust-release-windows`)와 sccache를 사용합니다. `SCCACHE_CACHE_SIZE`는 로컬 디스크 설정이라 GHA 백엔드의 전체 용량 상한으로 쓰지 않습니다.
 
 ### 릴리스 (`main`)
 
@@ -31,13 +35,13 @@ npm run release -- patch --dry-run  # 계획만 출력
 2. `app/Cargo.toml`과 `Cargo.lock`, `vcpkg.json`의 버전을 올립니다. `cargo metadata --locked`와 `npm run docs:check`로 검증하고, 실패하면 파일을 되돌립니다.
 3. `chore: 버전 X.Y.Z`로 커밋하고 태그를 만든 뒤 `main`과 태그를 한 번에(`--atomic`) 푸시합니다. 푸시 전에 확인을 묻고, `--yes`로 생략할 수 있습니다.
 
-자동화 회귀 검사는 `node --test scripts/release-version.test.mjs`로 실행합니다. 다음 버전 계산과 세미버전 비교를 검증하며, 공개 릴리스를 만들지 않습니다.
+자동화 회귀 검사는 `node --test scripts/release-version.test.mjs scripts/workflows.test.mjs`로 실행합니다. 버전 계산, 태그 문서 검사, 캐시 쓰기 범위와 서명·게시 의존성을 검증하며 공개 릴리스를 만들지 않습니다. 워크플로 YAML과 Actions 표현식은 문서 검사 잡의 `actionlint`로 검사합니다. 1.7.12가 아직 인식하지 못하는 GitHub의 기존 `queue: max` 구문 오류만 좁게 제외하고 나머지 검사는 유지합니다.
 
 ### 공통 확인
 
 - 트리거는 `v숫자.숫자.숫자` 형식의 태그 푸시입니다.
 - 첫 단계에서 태그와 `app/Cargo.toml`, `Cargo.lock`의 버전이 모두 같은지, `TAURI_SIGNING_PRIVATE_KEY` Secrets가 있는지 확인하고, 어긋나면 빌드 전에 실패합니다.
-- 릴리스 자산은 `AraView-<버전>-setup.exe`(NSIS 설치 프로그램), `update-feed.json`(업데이트 피드), `latest-gpui.json`(2.5.0 이하 설치본용 옛 이름의 같은 피드)입니다. `build-windows` 잡이 설치 프로그램, 서명, 피드를 아티팩트로 올리고, 마지막 `release` 잡이 모아서 릴리스를 한 번에 만듭니다.
+- 릴리스 자산은 `AraView-<버전>-setup.exe`(NSIS 설치 프로그램), `update-feed.json`(업데이트 피드), `latest-gpui.json`(2.5.0 이하 설치본용 옛 이름의 같은 피드)입니다. `build-windows`가 `unsigned-windows`를 올리고, 검증과 빌드가 성공한 뒤 `sign-windows`가 설치 프로그램·서명·피드를 `release-windows`로 올립니다. 마지막 `release` 잡은 서명된 아티팩트만 모아서 릴리스를 한 번에 만듭니다.
 - 릴리스 본문은 `.github/RELEASE_TEMPLATE.md`를 채워 만듭니다. `{{CHANGES}}`(직전 정식 태그 이후 커밋을 접두사로 분류한 목록. 프리릴리스 태그는 기준에서 뺍니다), `{{COMPARE}}`(비교 링크) 자리표시자를 워크플로가 치환하므로, 문구를 바꾸려면 이 파일만 고치면 됩니다. 설치 안내는 본문에 넣지 않습니다. 앱의 업데이트 대화상자에는 변경 목록만 보입니다.
 - 릴리스 노트는 커밋 제목의 접두사로 자동 분류됩니다. `feat`는 "새 기능", `fix`는 "수정", `refactor`와 `perf`는 "개선", `feat!:`처럼 느낌표가 붙은 커밋은 "변경"에 들어갑니다. `docs`, `chore`, `ci`, `build`, `test`, `style`과 머지 커밋은 제외됩니다. 제목이 그대로 노출되므로 사용자에게 읽히는 문장으로 씁니다.
 - 저장소 Secrets에 `TAURI_SIGNING_PRIVATE_KEY`와 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`를 등록해야 합니다(아래 "서명키 발급과 등록"). 이름은 예전 Tauri 시절 그대로이고 키 형식은 minisign입니다.
@@ -94,7 +98,13 @@ node scripts/bench.mjs compare crates/araview-core/benches/baselines/2.6.0.json
 
 ## 태그 없이 파이프라인 시험
 
-Actions 탭에서 Release 워크플로를 수동 실행(`workflow_dispatch`)하면 검증, Windows 빌드, 서명, 피드 생성까지 같은 과정을 돌리고 릴리스는 만들지 않습니다. 설치 프로그램, `.sig`, `update-feed.json`, `latest-gpui.json`, `feed-notes.md`, `release-notes.md`가 `release-dry-run` 아티팩트로 남습니다. 워크플로나 빌드 스크립트를 고친 뒤 태그를 달기 전에 쓰세요. 수동 실행은 태그 없는 경로를 시험합니다.
+Actions 탭에서 Release 워크플로를 수동 실행(`workflow_dispatch`)하면 검증, Windows 빌드, 서명, 피드 생성까지 같은 과정을 돌리고 릴리스는 만들지 않습니다. 수동 실행에서 태그를 선택해도 게시하지 않으며, 실제 게시는 태그 `push`에서만 허용합니다. 설치 프로그램, `.sig`, `update-feed.json`, `latest-gpui.json`, `feed-notes.md`, `release-notes.md`가 `release-dry-run` 아티팩트로 남습니다. 워크플로나 빌드 스크립트를 고친 뒤 태그를 달기 전에 쓰세요.
+
+### main 캐시 예열과 시간 측정
+
+Actions 탭에서 **CI**를 선택하고 브랜치 `main`, 입력 `warm-cache: true`로 수동 실행합니다. 전체 검증으로 app 테스트 캐시를 채우고, 릴리스와 같은 `.github/workflows/build-windows.yml` 경로로 release sccache를 채웁니다. 서명 키 없이 실행하며 서명·피드 생성·게시를 하지 않습니다. 다른 브랜치에서는 release 예열 잡을 실행하지 않습니다. 일반 PR/main 검사에는 release 컴파일을 추가하지 않습니다.
+
+캐시가 없는 실행과 같은 커밋의 두 번째 예열 실행을 구분하고, 앱만 변경한 경우·의존성이 변경된 경우도 따로 비교합니다. `Compile release binaries`, `Package installer`, 캐시 복원·저장 단계의 시간과 전체 소요·러너 사용 시간을 기록합니다. 컴파일 보고서는 `windows-build-timings` 아티팩트의 Cargo timings HTML로, sccache 적중·미적중·캐시 불가 사유는 `Show sccache statistics` 로그로 확인합니다. 캐시 예열 여부가 다르면 단축률로 직접 비교하지 않습니다. 기존 태그 캐시 삭제는 이 작업에 포함하지 않습니다.
 
 ## 업데이트 피드
 

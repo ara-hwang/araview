@@ -1,0 +1,86 @@
+name: Build Windows
+
+# 릴리스와 main 캐시 예열이 같은 경로·툴체인·컴파일 옵션을 사용한다.
+# 서명 키와 게시 권한은 이 워크플로에 전달하지 않는다.
+on:
+  workflow_call:
+    inputs:
+      warm-cache:
+        description: main에서만 공유 캐시를 저장한다.
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    env:
+      SCCACHE_GHA_ENABLED: "true"
+      SCCACHE_GHA_RW_MODE: ${{ inputs.warm-cache && github.ref == 'refs/heads/main' && 'READ_WRITE' || 'READ_ONLY' }}
+      RUSTC_WRAPPER: sccache
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Rust and native dependencies
+        uses: ./.github/actions/setup-rust-native
+        with:
+          cache-key: rust-release-windows
+          rust-cache-save-if: ${{ inputs.warm-cache && github.ref == 'refs/heads/main' }}
+          rust-cache-targets: "false"
+          sccache: "true"
+
+      - name: Install NSIS
+        run: |
+          choco install nsis --no-progress -y
+          if ($LASTEXITCODE -ne 0) { throw "NSIS 설치 실패" }
+          if (-not (Test-Path "${env:ProgramFiles(x86)}\NSIS\makensis.exe")) { throw "makensis를 찾지 못했다" }
+
+      - name: Compile release binaries
+        run: |
+          # Windows 명령줄 길이 제한을 피하고 예열·태그 빌드 경로를 일치시킨다.
+          subst R: $env:GITHUB_WORKSPACE
+          if ($LASTEXITCODE -ne 0) { throw "저장소 경로를 R: 드라이브에 연결하지 못했다" }
+          try {
+            Set-Location R:\
+            cargo build --release --locked --timings -p araview -p araview-thumb --no-default-features
+            if ($LASTEXITCODE -ne 0) { throw "cargo build --release 실패 (exit $LASTEXITCODE)" }
+          } finally {
+            Set-Location $env:GITHUB_WORKSPACE
+            subst R: /D
+          }
+
+      - name: Package installer
+        run: |
+          $codecBin = Join-Path $env:VCPKG_ROOT "installed\x64-windows\bin"
+          foreach ($dll in "heif.dll", "libde265.dll", "aom.dll") {
+            $source = Join-Path $codecBin $dll
+            if (-not (Test-Path $source)) { throw "vcpkg 런타임 DLL이 없습니다: $source" }
+            Copy-Item $source "target\release"
+          }
+          & scripts/Build-Installer.ps1 -SkipBuild
+          if ($LASTEXITCODE -ne 0) { throw "설치 프로그램 빌드 실패 (exit $LASTEXITCODE)" }
+
+      - name: Show sccache statistics
+        if: always()
+        run: sccache --show-stats
+
+      - name: Upload build timings
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: windows-build-timings
+          path: target/cargo-timings/
+          retention-days: 7
+
+      - name: Upload unsigned installer
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: unsigned-windows
+          path: target/AraView-*-setup.exe
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
