@@ -36,6 +36,8 @@ winreg = "0.56.0"
 # 벤치 하네스(이슈 #125). 기본 기능(플롯·HTML 보고서)은 쓰지 않고 JSON 측정값만
 # 남기므로 기준선 비교는 저장소 스크립트(`scripts/bench.mjs`)가 읽는다.
 criterion = { version = "0.8", default-features = false, features = ["cargo_bench_support"] }
+# `examples/digest.rs`가 디코드 출력의 픽셀 다이제스트를 계산한다. 제품 이진에는 들어가지 않는다.
+sha2 = "0.10"
 
 [[bench]]
 name = "core_ops"
