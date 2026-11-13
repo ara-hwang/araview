@@ -125,6 +125,10 @@ fn apply_control(
             view.update(cx, |this, cx| this.open_path(path, window, cx));
         }
         "wait" => {}
+        "resetFrames" => {
+            // 프레임 통계를 지워 벤치 측정을 새로 시작한다(디버그 빌드 전용).
+            view.update(cx, |this, _| this.frame_stats.reset());
+        }
         other => return Err(format!("unknown cmd {other:?}")),
     }
     Ok(())
@@ -462,6 +466,17 @@ impl AraView {
             "webtoon": { "anchor": self.wt_anchor, "offset": self.wt_offset },
             "error": self.error.as_ref().map(|error| error.error().clone()),
             "errorKind": self.error.as_ref().map(|error| error.kind()),
+            // 프레임 페이싱 통계(§14.4 벤치). 연속 동작의 히치를 에이전트가 잰다.
+            "frameStats": {
+                "intervals": self.frame_stats.intervals,
+                "lastMs": self.frame_stats.last_ms,
+                "avgMs": if self.frame_stats.intervals == 0 {
+                    0.0
+                } else {
+                    self.frame_stats.total_ms / self.frame_stats.intervals as f32
+                },
+                "maxMs": self.frame_stats.max_ms,
+            },
         })
     }
 }
