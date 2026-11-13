@@ -177,8 +177,8 @@ mod tests {
     fn grayscale_shrink_stays_gray_and_brightens_like_ink_area_mix() {
         // 25% 면적의 검은 도트 스크린톤(4px 주기). 선형광 혼합은 잉크 면적에
         // 비례한 밝기(선형 평균 0.75 → sRGB 225 근처)로 수렴한다.
-        let pattern = |x: u32, _y: u32| {
-            if x % 4 < 2 {
+        let pattern = |x: u32, y: u32| {
+            if x % 4 < 2 && y % 4 < 2 {
                 [0, 0, 0]
             } else {
                 [255, 255, 255]
@@ -207,7 +207,8 @@ mod tests {
     #[test]
     fn color_shrink_keeps_gamma_path() {
         // R만 높은 스폿이 있으면 무채색 판정을 넘기고 감마 경로를 탄다.
-        // 결과는 오버슈트가 없어 0..255 안에 머문다.
+        // 스폿 주변 혼합에 빨강이 남으므로, 모든 픽셀이 회색으로 균일해지는
+        // 선형광 경로(회색 라우팅)와 구별된다.
         let pattern = |x: u32, y: u32| {
             if (x, y) == (10, 10) {
                 [255, 0, 0]
@@ -217,11 +218,10 @@ mod tests {
         };
         let small = resize_rgb8(rgb8(512, 512, pattern), 256, 256);
         assert_eq!(small.width, 256);
-        for pixel in small.bytes.as_chunks::<3>().0 {
-            let min = pixel.iter().min().unwrap();
-            let max = pixel.iter().max().unwrap();
-            assert!(max - min <= 2, "감마 경로는 채널 관계를 대체로 유지한다");
-        }
+        assert!(
+            small.bytes.as_chunks::<3>().0.iter().any(|p| p[0] > p[1]),
+            "감마 경로는 스폿의 빨강을 지역 혼합으로 남긴다"
+        );
     }
 
     #[test]
