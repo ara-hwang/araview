@@ -353,7 +353,7 @@
     },
     "thumb": {
       "title": "탐색기 썸네일",
-      "desc": "Windows 파일 탐색기에서 PSD, 코믹 아카이브(CBZ/ZIP), HEIC/HEIF, EXR, RAW 파일의 축소판을 표시합니다. 관리자 권한이 필요 없습니다.",
+      "desc": "Windows 파일 탐색기에서 PSD, 코믹 아카이브(CBZ/ZIP), HEIC/HEIF/AVIF, EXR, RAW 파일의 축소판을 표시합니다. 관리자 권한이 필요 없습니다.",
       "label": "탐색기 썸네일 표시",
       "applyAll": "지원 형식 모두 적용",
       "dllMissing": "썸네일 DLL이 없습니다. 설치본에서는 함께 제공되고, 개발 환경에서는 cargo build -p araview-thumb으로 만드세요.",

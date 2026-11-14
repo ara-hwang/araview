@@ -163,7 +163,7 @@ licenses-extra/  # 업스트림 LICENSE 사본
 
 Windows 전용입니다. 사용자 동작 계약은 `SPEC.md` §20.2를 따릅니다.
 
-- `crates/araview-thumb/`의 In-Proc COM DLL(`araview_thumb.dll`)은 `IThumbnailProvider`와 `IInitializeWithStream`/`IInitializeWithFile`을 구현합니다. PSD·CBZ/ZIP·HEIC/HEIF·EXR·지원 RAW를 `araview-core::ops::decode_shell_thumbnail`로 디코드합니다. PSB는 거부합니다.
+- `crates/araview-thumb/`의 In-Proc COM DLL(`araview_thumb.dll`)은 `IThumbnailProvider`와 `IInitializeWithStream`/`IInitializeWithFile`을 구현합니다. PSD·CBZ/ZIP·HEIC/HEIF/AVIF·EXR·지원 RAW를 `araview-core::ops::decode_shell_thumbnail`로 디코드합니다. PSB는 거부합니다.
 - CLSID(발행 후 변경 금지): 릴리스 `{FD6BD976-2DF4-4656-94F2-1D166163EC59}`, 개발 `{BD277595-1702-4AC5-AA7C-A67965C3D570}`. 문자열과 등록 구현의 정본은 `crates/araview-core/src/thumb_shell.rs`이고 DLL도 재사용합니다. `crates/araview-thumb/src/com.rs`의 GUID도 같은 값이어야 합니다.
 - 등록은 HKCU(`Software\Classes`)의 `CLSID\{CLSID}\InprocServer32`(DLL 경로, `ThreadingModel=Apartment`), 지원 확장자와 채널 ProgID의 `ShellEx\{E357FCCD-A995-4576-B01F-234630154E96}` 슬롯입니다. 이미지 확장자에만 누락된 `PerceivedType`/`Content Type`을 채웁니다. 기존 사용자별 핸들러는 슬롯의 채널별 `AraView.Previous.{CLSID}` 값에 보관하고 해제 시 복원합니다. 등록/해제 후 `SHChangeNotify`를 보냅니다.
 - 스트림은 최대 1GiB를 청크로 임시 파일에 복사합니다. `Stat` 이름에서 지원 확장자만 가져오고, 이름이 없으면 시그니처로 구분합니다. 요청마다 처음으로 되감아 반복 요청도 지원합니다. 표지 추출은 기존 엔트리 크기·경로 보호를 따르며 임시 파일은 RAII로 삭제합니다. 앱의 영구 이미지 캐시는 사용하지 않습니다.

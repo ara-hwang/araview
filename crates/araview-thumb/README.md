@@ -1,13 +1,13 @@
 # araview-thumb
 
 Windows Explorer thumbnail provider for PSD, CBZ/ZIP comic archives,
-HEIC/HEIF, EXR, and the viewer's supported RAW extensions. It implements
+HEIC/HEIF/AVIF, EXR, and the viewer's supported RAW extensions. It implements
 `IThumbnailProvider`, `IInitializeWithStream`, and `IInitializeWithFile`.
 The preview pane (`Alt+P`) is outside its scope.
 
 Decoding uses `araview-core::ops::decode_shell_thumbnail`. Comic archives
 use a valid `ComicInfo.xml` `FrontCover` page, or the first image in natural
-order. HEIF, EXR, RAW and PSD use the same decoders as the viewer. Images
+order. HEIF/AVIF, EXR, RAW and PSD use the same decoders as the viewer. Images
 keep their aspect ratio, never upscale, and flatten transparency onto white.
 PSB and corrupt files return errors so Explorer can show its default icon.
 

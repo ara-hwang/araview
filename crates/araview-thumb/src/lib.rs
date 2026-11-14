@@ -1,7 +1,7 @@
 //! AraView image/comic thumbnail shell extension (`araview_thumb.dll`).
 //!
 //! Implements `IThumbnailProvider` (+ `IInitializeWithStream` /
-//! `IInitializeWithFile`) for PSD, CBZ/ZIP, HEIC/HEIF, EXR and RAW.
+//! `IInitializeWithFile`) for PSD, CBZ/ZIP, HEIC/HEIF/AVIF, EXR and RAW.
 //! Decoding and per-user registration are shared with `araview-core`.
 //! PSB (`8BPS` version 2) is rejected.
 //!
