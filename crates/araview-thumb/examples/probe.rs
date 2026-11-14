@@ -46,6 +46,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "sample-comicinfo.cbz",
             "sample.heic",
             "sample.heif",
+            "sample.avif",
+            "sample-animated.avif",
             "sample.exr",
             "sample.dng",
             "sample.cr3",

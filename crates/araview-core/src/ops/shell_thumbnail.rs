@@ -9,7 +9,7 @@ use image::{ImageDecoder as _, ImageReader, Limits};
 use crate::app_error::AppError;
 use crate::sidecar::{downscale_rgb8, Rgb8};
 
-/// PSD, HEIC/HEIF, EXR, RAW 및 CBZ/ZIP의 표지를 디코드한다.
+/// PSD, HEIC/HEIF/AVIF, EXR, RAW 및 CBZ/ZIP의 표지를 디코드한다.
 /// 호출자는 COM 경계에서 panic을 잡고, I/O를 UI 스레드 밖에서 수행한다.
 pub fn decode_shell_thumbnail(source: &Path, max_side: u32) -> Result<Rgb8, AppError> {
     let max_side = max_side.clamp(16, 2560);
@@ -98,6 +98,8 @@ mod tests {
             "sample.psd",
             "sample.heic",
             "sample.heif",
+            "sample.avif",
+            "sample-animated.avif",
             "sample.exr",
             "sample.dng",
             "sample.cr3",
@@ -147,7 +149,7 @@ mod tests {
     #[test]
     fn invalid_inputs_fail() {
         let temp = tempfile::tempdir().unwrap();
-        for ext in ["psd", "heic", "exr", "dng", "cbz"] {
+        for ext in ["psd", "heic", "avif", "exr", "dng", "cbz"] {
             let path = temp.path().join(format!("bad.{ext}"));
             std::fs::write(&path, b"invalid").unwrap();
             assert!(decode_shell_thumbnail(&path, 128).is_err(), "{ext}");

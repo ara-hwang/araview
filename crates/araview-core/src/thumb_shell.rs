@@ -62,7 +62,7 @@ pub fn thumbnail_extensions() -> impl Iterator<Item = &'static str> {
         .iter()
         .copied()
         .filter(|ext| {
-            matches!(*ext, "psd" | "heic" | "heif" | "exr")
+            matches!(*ext, "psd" | "heic" | "heif" | "avif" | "exr")
                 || matches!(
                     crate::image::get_mime_type(Path::new(&format!("file.{ext}"))),
                     Some(
@@ -315,10 +315,10 @@ mod tests {
     #[test]
     fn formats_follow_supported_raw_and_archives() {
         let extensions: Vec<_> = thumbnail_extensions().collect();
-        assert_eq!(extensions.len(), 25);
+        assert_eq!(extensions.len(), 26);
         for ext in crate::image::SUPPORTED_EXTENSIONS {
             let mime = crate::image::get_mime_type(Path::new(&format!("test.{ext}"))).unwrap();
-            let expected = matches!(*ext, "psd" | "heic" | "heif" | "exr")
+            let expected = matches!(*ext, "psd" | "heic" | "heif" | "avif" | "exr")
                 || mime == crate::raw::RAW_MIME
                 || mime.starts_with("application/");
             assert_eq!(extensions.contains(ext), expected, "{ext}");

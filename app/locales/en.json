@@ -353,7 +353,7 @@
     },
     "thumb": {
       "title": "Explorer thumbnails",
-      "desc": "Show thumbnails for PSD, comic archives (CBZ/ZIP), HEIC/HEIF, EXR, and RAW files in Windows File Explorer. No admin rights are needed.",
+      "desc": "Show thumbnails for PSD, comic archives (CBZ/ZIP), HEIC/HEIF/AVIF, EXR, and RAW files in Windows File Explorer. No admin rights are needed.",
       "label": "Show Explorer thumbnails",
       "applyAll": "Apply to all supported formats",
       "dllMissing": "Thumbnail DLL not found. Bundled with the installer. For development, build it with cargo build -p araview-thumb.",
