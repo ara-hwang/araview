@@ -281,6 +281,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 - 아카이브 커맨드(`get_archive_images`, `load_archive_image`, `archive_prefetch`, `get_comic_info`, `set_comic_cover_pages`, `generate_archive_thumbnail`, `generate_archive_thumbnails_batch`, `generate_archive_file_thumbnail(s)_batch`)는 모두 비동기 커맨드로 `spawn_blocking`에서 실행되어 메인 스레드를 막지 않는다. `archive_prefetch`는 fire-and-forget 성격에 맞게 조인 실패도 흡수해 `Ok(0)`을 반환한다.
 - 아카이브 source identity(엔트리 인덱스, 추출 디렉터리, ZIP 중앙 디렉터리 캐시)는 canonical 경로 + 파일 크기·mtime + OS 파일 ID·변경 시각을 쓴다. 같은 크기와 mtime이어도 다른 OS 파일 ID로 교체된 파일은 구분하며, 전체 아카이브 내용을 캐시 hit마다 해시하지 않는다. 같은 파일 ID에 내용을 덮어쓴 경우는 OS 변경 시각이 달라져야 감지되며, 파일시스템이 같은 변경 시각을 보고하면 metadata-only identity로는 감지할 수 없다. 파일 ID/변경 시각 조회에 실패하면 약한 size/mtime identity로 대체하지 않고, 해당 캐시를 재사용하지 않거나 identity가 필요한 호출에서 오류를 반환한다.
 - 엔트리 인덱스 캐시(`archive_index.rs`): 아카이브별 이미지/전체 엔트리 목록을 위 identity로 검증해 캐시한다(최대 64개 LRU). `get_archive_images`, `get_comic_info`, `generate_archive_file_thumbnail(s)_batch`가 공유해 아카이브당 전체 스캔이 1회로 수렴한다. `clear_cache` 시 함께 비워진다.
+- `get_archive_images`와 `generate_archive_file_thumbnail(s)_batch`는 전체 엔트리 목록을 그 아카이브의 추출 디렉터리에 `entries-v1.json`으로도 남긴다. 메모리 인덱스에 없으면(재시작 뒤 등) 이 파일을 읽어 중앙 디렉터리를 다시 파싱하지 않는다. 디렉터리 이름이 identity를 담으므로 교체된 아카이브는 새 디렉터리에서 다시 만든다. 읽은 목록은 스캔과 같은 상한·숨김 규칙으로 다시 거르고 현재 빌드의 정렬·이미지 판정으로 다시 정렬하며, 깨졌거나 규칙에 어긋나거나 32MiB를 넘으면 버리고 아카이브에서 다시 만든다. 목록을 만드는 사이 아카이브 identity가 바뀌었으면 파일을 남기지 않는다. 이 파일은 추출물과 같이 아카이브 캐시로 분류·삭제·축출된다. 표지 요청은 아카이브 identity를 한 번만 읽어 인덱스 검증과 추출 디렉터리 이름에 함께 쓴다. Explorer 축소판(`decode_shell_thumbnail`)은 앱 캐시를 쓰지 않으므로 메모리 인덱스만 쓴다.
 - `get_archive_images`: 내부 이미지 엔트리 목록 + `current_index: 0`. 비어 있으면 `not_found`.
 - 엔트리 목록은 디렉터리와 숨김 엔트리를 뺀다. 숨김 판정은 앞의 `./`를 떼고 경로 구성요소로 한다: `__MACOSX` 폴더 아래이거나 구성요소 하나라도 `.`으로 시작하면(`.DS_Store`, `folder/.hidden.jpg`) 숨김이다. `./001.jpg` 같은 엔트리와 `__cover.jpg`처럼 밑줄로 시작하는 파일은 보통 엔트리다. 목록과 추출에는 아카이브에 적힌 이름을 그대로 쓴다.
 - 추출 파일 이름은 엔트리 전체 경로의 안정 해시와 정제한 소문자 확장자(`<hash>.jpg`, ASCII 영숫자 16자 이하가 아니면 확장자 없음)다. 엔트리 이름은 넣지 않으므로 Windows 금지 문자(`: ? * " < > |`)나 긴 이름이 든 엔트리도 추출된다.
@@ -330,7 +331,7 @@ CBZ/ZIP 안의 `ComicInfo.xml`은 메타데이터 읽기와 표지 지정(`Front
 ### 9.2 저장 방식
 
 - `cacheStorageMode`는 `temporary | persistent`이며 기본값은 `persistent`다.
-- `persistent`는 OS 캐시 폴더(Windows `%LOCALAPPDATA%`) 아래 `<식별자>/cache-v2/`를 사용하며 앱 재실행 뒤에도 썸네일, sidecar, 축소본, 아카이브 추출물을 재사용한다.
+- `persistent`는 OS 캐시 폴더(Windows `%LOCALAPPDATA%`) 아래 `<식별자>/cache-v2/`를 사용하며 앱 재실행 뒤에도 썸네일, sidecar, 축소본, 아카이브 추출물과 엔트리 목록(§8)을 재사용한다.
 - `temporary`는 사용자 앱 캐시 디렉터리의 버전된 `session-v1/` 아래 프로세스별 `TempDir`를 사용한다. 정상 종료 이벤트와 다음 시작 시 이전 세션 루트를 정리해 종료·충돌 후에도 임시 파일을 남기지 않는다. 저장 방식 변경은 다음 실행부터 적용된다.
 - 영구 캐시는 OS가 지울 수 있는 best-effort 데이터다. 원본이나 렌더 결과의 진실 원본은 아니다.
 - 설치 빌드(`com.araview.viewer`)와 개발 빌드(`com.araview.viewer.dev`)는 식별자가 달라 캐시 루트가 분리된다.
