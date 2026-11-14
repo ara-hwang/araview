@@ -5,6 +5,7 @@ use std::path::Path;
 
 use crate::app_error::{AppError, ErrorCode};
 use crate::archive;
+use crate::archive_index::ArchiveSource;
 use crate::image::{is_archive_file, ArchiveImages, ImageInfo};
 use crate::process_temp::process_temp_dir;
 
@@ -21,8 +22,11 @@ pub fn get_archive_images_impl(path: &Path) -> Result<ArchiveImages, AppError> {
     }
 
     // 인덱스 캐시로 조회한다. 오픈 흐름에서 comic_info·표지 커맨드가
-    // 같은 스캔을 재사용하므로 아카이브당 파싱은 1회로 수렴한다.
-    let entries = crate::archive_index::get_archive_entries(path)?;
+    // 같은 스캔을 재사용하므로 아카이브당 파싱은 1회로 수렴한다. 목록은 추출
+    // 디렉터리에도 남겨 재시작 뒤에는 아카이브를 다시 파싱하지 않는다.
+    let source = ArchiveSource::open(path)?;
+    let sub_dir = archive_sub_dir_for(&source)?;
+    let entries = crate::archive_index::get_archive_entries_stored(path, &source, &sub_dir)?;
 
     if entries.images.is_empty() {
         return Err(AppError::not_found("No images found in archive"));
@@ -65,11 +69,16 @@ pub fn load_archive_image_blocking(
 }
 
 pub(crate) fn archive_sub_dir(archive_path: &Path) -> Result<std::path::PathBuf, AppError> {
+    archive_sub_dir_for(&ArchiveSource::open(archive_path)?)
+}
+
+/// [`archive_sub_dir`] for an archive whose identity the caller already read.
+pub(crate) fn archive_sub_dir_for(source: &ArchiveSource) -> Result<std::path::PathBuf, AppError> {
     let temp_dir = process_temp_dir()?;
     // 같은 경로에 교체된 아카이브가 이전 추출물을 재사용하지 않도록 canonical 경로 +
     // OS 파일 identity/change time으로 하위 디렉터리를 구분한다. 전체 압축 파일은
     // 매 페이지 해시하지 않는다.
-    let hash = crate::sidecar::archive_file_identity_hash(archive_path)?;
+    let hash = source.cache_hash();
     let sub_dir = temp_dir
         .join(crate::cache::ARCHIVES_SUBDIR)
         .join(format!("{hash:016x}"));

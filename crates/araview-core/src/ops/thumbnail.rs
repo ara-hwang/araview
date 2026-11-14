@@ -5,7 +5,8 @@ use std::path::Path;
 use crate::app_error::AppError;
 use crate::archive;
 
-use super::archive::archive_sub_dir;
+use super::archive::{archive_sub_dir, archive_sub_dir_for};
+use crate::archive_index::ArchiveSource;
 
 /// 아카이브 엔트리 썸네일 생성 코어. AppHandle 없이 테스트 가능하다.
 pub fn generate_archive_thumbnail_impl(
@@ -50,13 +51,18 @@ pub fn generate_archive_file_thumbnail_blocking(
     max_side: u32,
 ) -> Result<crate::thumbnail::ThumbnailInfo, AppError> {
     // 인덱스 캐시로 조회한다. 폴더 표지 배치는 같은 아카이브를 여러 커맨드
-    // (목록+표지)에서 건드리므로 파싱이 1회로 수렴한다.
-    let entries = crate::archive_index::get_archive_entries(archive_path)?;
+    // (목록+표지)에서 건드리므로 파싱이 1회로 수렴한다. identity는 인덱스 검증과
+    // 추출 디렉터리 이름에 함께 쓰도록 한 번만 읽는다.
+    let source = ArchiveSource::open(archive_path)?;
+    let sub_dir = archive_sub_dir_for(&source)?;
+    let entries =
+        crate::archive_index::get_archive_entries_stored(archive_path, &source, &sub_dir)?;
     let first = entries
         .images
         .first()
         .ok_or_else(|| AppError::not_found("No images in archive"))?;
-    generate_archive_thumbnail_impl(archive_path, first, max_side)
+    let extracted = archive::extract_archive_image(archive_path, first, &sub_dir)?;
+    crate::thumbnail::generate_thumbnail(&extracted, max_side)
 }
 
 /// 폴더 목록의 아카이브 표지 썸네일 일괄 처리. 항목별 성공/실패를 함께 반환한다.

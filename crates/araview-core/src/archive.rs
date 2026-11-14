@@ -73,7 +73,7 @@ const MAX_ENTRY_NAME_BYTES: usize = 4096;
 /// 아카이브별 추출 디렉터리 상한. 초과분은 가장 오래된 추출물부터 지운다.
 /// 아직 화면에 있는 추출물은 `mark_in_use`로 보호되고(FE가 이미 asset URL을
 /// 들고 있어 재추출 계기가 없다), 나머지는 다음 접근 시 다시 추출된다.
-const MAX_ARCHIVE_DIR_BYTES: u64 = 1024 * 1024 * 1024;
+pub(crate) const MAX_ARCHIVE_DIR_BYTES: u64 = 1024 * 1024 * 1024;
 
 /// 아카이브 내부의 이미지 엔트리 이름을 정렬된 순서로 반환
 pub fn list_archive_images(archive_path: &Path) -> Result<Vec<String>, AppError> {
@@ -94,6 +94,23 @@ pub fn list_archive_entries(archive_path: &Path) -> Result<ArchiveEntries, AppEr
         "cbz" | "zip" => collect_zip_entries(archive_path),
         _ => Err(AppError::unsupported("Unsupported archive format")),
     }
+}
+
+/// 디스크에 남겨 둔 전체 엔트리 목록을 다시 쓸 수 있는 형태로 되돌린다. 저장
+/// 파일은 손상되거나 바뀔 수 있으므로 스캔과 같은 상한·숨김 규칙으로 다시 보고,
+/// 정렬과 이미지 판정은 지금 빌드의 규칙으로 다시 한다. 규칙에 어긋나면 `None`이라
+/// 호출자가 아카이브를 다시 읽는다.
+pub(crate) fn entries_from_stored(names: Vec<String>) -> Option<ArchiveEntries> {
+    if names.len() > MAX_ZIP_ENTRIES {
+        return None;
+    }
+    let valid = names.iter().all(|name| {
+        !name.is_empty()
+            && name.len() <= MAX_ENTRY_NAME_BYTES
+            && !name.ends_with(['/', '\\'])
+            && !is_hidden_entry(name)
+    });
+    valid.then(|| finish_entries(names))
 }
 
 /// 수집된 전체 엔트리를 공통 뒤처리한다: 정렬 + dedup + Arc. 이미지 목록은
