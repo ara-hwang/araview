@@ -143,6 +143,7 @@ fn validate_new_file_name(name: &str) -> Result<String, AppError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
 
     fn write_png(path: &Path) {
         image::RgbImage::from_pixel(2, 2, image::Rgb([10, 20, 30]))
@@ -228,5 +229,129 @@ mod tests {
         assert!(validate_new_file_name("bad\u{202E}name.jpg").is_err());
         assert!(validate_new_file_name("bidi\u{2066}name.jpg").is_err());
         assert!(validate_new_file_name("fine-name.jpg").is_ok());
+    }
+
+    use crate::ops::test_support::*;
+
+    /// 표시 정책을 기본값으로 둔 이름 변경 래퍼.
+    fn rename(
+        old_path: &str,
+        new_name: &str,
+        max_side: Option<u32>,
+    ) -> Result<ImageInfo, AppError> {
+        rename_file_impl_with_mode(
+            old_path,
+            new_name,
+            max_side,
+            crate::scaled::ImageScalingMode::Smooth,
+        )
+    }
+
+    #[test]
+    fn rename_rejects_missing_file() {
+        let err = rename("D:\\no-such-dir\\nope.png", "new.png", None).unwrap_err();
+        assert_eq!(err.code, ErrorCode::NotFound);
+        assert_eq!(err.message, "File not found");
+    }
+
+    #[test]
+    fn rename_rejects_bad_names() {
+        let dir = unique_dir("bad");
+        let old = dir.join("a.png");
+        write_png(&old);
+        let old_str = old.to_str().unwrap().to_string();
+
+        for bad in ["", "   ", "sub/dir.png", "a<b.png", "trail."] {
+            let err = rename(&old_str, bad, None).unwrap_err();
+            assert_eq!(
+                err.code,
+                ErrorCode::InvalidInput,
+                "name {bad:?} should fail"
+            );
+            assert!(!err.message.is_empty());
+        }
+        // 실패한 검증 뒤 원본은 그대로
+        assert!(old.exists());
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn rename_rejects_unsupported_extension_before_moving() {
+        let dir = unique_dir("ext");
+        let old = dir.join("a.png");
+        write_png(&old);
+
+        let err = rename(old.to_str().unwrap(), "b.txt", None).unwrap_err();
+        assert_eq!(err.code, ErrorCode::Unsupported);
+        assert_eq!(err.message, "Unsupported image format");
+        // rename 전에 차단되므로 원본 유지
+        assert!(old.exists());
+        assert!(!dir.join("b.txt").exists());
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn rename_rejects_duplicate() {
+        let dir = unique_dir("dup");
+        let old = dir.join("a.png");
+        write_png(&old);
+        write_png(&dir.join("b.png"));
+
+        let err = rename(old.to_str().unwrap(), "b.png", None).unwrap_err();
+        assert_eq!(err.code, ErrorCode::AlreadyExists);
+        assert_eq!(err.message, "A file with that name already exists");
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn rename_success_returns_updated_info() {
+        let dir = unique_dir("ok");
+        let old = dir.join("a.png");
+        write_png(&old);
+        let size = fs::metadata(&old).unwrap().len();
+
+        let info = rename(old.to_str().unwrap(), "b.png", None).expect("rename ok");
+        assert_eq!(info.file_name, "b.png");
+        assert_eq!(info.file_size, size);
+        assert_eq!((info.width, info.height), (Some(2), Some(2)));
+        assert!(!old.exists());
+        assert!(dir.join("b.png").exists());
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn trash_file_rejects_missing_and_directories() {
+        let err = trash_file_impl("D:\\no-such-dir-commands\\nope.png").unwrap_err();
+        assert_eq!(err.code, ErrorCode::NotFound);
+
+        let dir = unique_dir("trash-dir");
+        let err = trash_file_impl(dir.to_str().unwrap()).unwrap_err();
+        assert_eq!(err.code, ErrorCode::InvalidInput);
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn validate_new_file_name_rejects_reserved_device_names() {
+        for name in ["CON", "nul", "Com1", "LPT9.txt", "aux.png"] {
+            assert!(
+                validate_new_file_name(name).is_err(),
+                "{name} should be rejected"
+            );
+        }
+        // 예약명이 부분 문자열로만 들어간 정상 이름은 허용한다.
+        assert!(validate_new_file_name("CONX.png").is_ok());
+        assert!(validate_new_file_name("my-nul.png").is_ok());
+    }
+
+    #[test]
+    fn validate_new_file_name_rejects_invalid_shapes() {
+        assert!(validate_new_file_name("").is_err());
+        assert!(validate_new_file_name("a/b.png").is_err());
+        assert!(validate_new_file_name("a?.png").is_err());
+        assert!(validate_new_file_name("name.").is_err());
+        assert_eq!(
+            validate_new_file_name("  photo.png  ").unwrap(),
+            "photo.png"
+        );
     }
 }

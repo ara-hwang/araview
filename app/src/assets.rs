@@ -150,3 +150,49 @@ impl AssetSource for AppAssets {
         Ok(paths)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn every_phosphor_icon_loads_as_svg() {
+        for icon in Ph::ALL {
+            let path = icon.path_str();
+            let bytes = AppAssets
+                .load(path)
+                .unwrap_or_else(|e| panic!("{path}: {e}"))
+                .unwrap_or_else(|| panic!("{path}: no bytes"));
+            let text = std::str::from_utf8(&bytes).unwrap_or_else(|e| panic!("{path}: {e}"));
+            assert!(
+                text.trim_start().starts_with("<svg"),
+                "{path} is not an SVG"
+            );
+        }
+    }
+
+    #[test]
+    fn listing_returns_every_icon_once() {
+        let paths = AppAssets.list("icons/phosphor/").expect("list");
+        for icon in Ph::ALL {
+            assert!(
+                paths.iter().any(|path| path.as_ref() == icon.path_str()),
+                "{} is missing from the listing",
+                icon.path_str()
+            );
+        }
+        let mut sorted = paths.clone();
+        sorted.sort();
+        sorted.dedup();
+        assert_eq!(paths, sorted);
+    }
+
+    #[test]
+    fn unknown_asset_paths_fail() {
+        assert!(
+            AppAssets
+                .load("icons/phosphor/not-a-real-icon.svg")
+                .is_err()
+        );
+    }
+}

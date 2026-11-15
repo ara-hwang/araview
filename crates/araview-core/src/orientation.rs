@@ -98,17 +98,104 @@ pub(crate) mod test_images {
     }
 
     pub(crate) fn write_jpeg(path: &Path, width: u16, height: u16, orientation: u16) {
+        write_jpeg_with_pixels(
+            path,
+            width,
+            height,
+            orientation,
+            &pixels(u32::from(width), u32::from(height)),
+        );
+    }
+
+    /// 왼쪽 절반 빨강, 오른쪽 절반 파랑인 JPEG. 회전 방향을 픽셀 값으로 확인한다.
+    pub(crate) fn write_jpeg_halves(path: &Path, width: u16, height: u16, orientation: u16) {
+        let mut rgb = Vec::with_capacity(usize::from(width) * usize::from(height) * 3);
+        for x in 0..width {
+            for _ in 0..height {
+                rgb.extend_from_slice(if x < width / 2 {
+                    &[255, 0, 0]
+                } else {
+                    &[0, 0, 255]
+                });
+            }
+        }
+        write_jpeg_with_pixels(path, width, height, orientation, &rgb);
+    }
+
+    fn write_jpeg_with_pixels(path: &Path, width: u16, height: u16, orientation: u16, rgb: &[u8]) {
         let mut encoder = jpeg_encoder::Encoder::new_file(path, 90).unwrap();
         let mut app1 = b"Exif\0\0".to_vec();
         app1.extend_from_slice(&exif_tiff(orientation));
         encoder.add_app_segment(1, app1).unwrap();
         encoder
-            .encode(
-                &pixels(u32::from(width), u32::from(height)),
-                width,
-                height,
-                jpeg_encoder::ColorType::Rgb,
-            )
+            .encode(rgb, width, height, jpeg_encoder::ColorType::Rgb)
             .unwrap();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn reads_orientation_tag_from_jpeg() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("rotated.jpg");
+        test_images::write_jpeg(&path, 2, 1, 6);
+        assert_eq!(read_orientation(&path), 6);
+    }
+
+    #[test]
+    fn missing_or_broken_exif_defaults_to_one() {
+        let dir = tempfile::tempdir().unwrap();
+        let png = dir.path().join("plain.png");
+        image::RgbImage::new(2, 2).save(&png).unwrap();
+        assert_eq!(read_orientation(&png), 1);
+        assert_eq!(read_orientation(&dir.path().join("missing.jpg")), 1);
+
+        let broken = dir.path().join("broken.jpg");
+        std::fs::write(&broken, b"not an image").unwrap();
+        assert_eq!(read_orientation(&broken), 1);
+    }
+
+    #[test]
+    fn reads_orientation_from_archive_tar_bytes() {
+        // 아카이브 엔트리 추출물은 확장자가 없을 수 있어 파일명이 아니라 내용으로 판별한다.
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("entry.jpg");
+        test_images::write_jpeg(&source, 2, 1, 8);
+        let bytes = std::fs::read(&source).unwrap();
+        let extracted = dir.path().join("extracted-no-ext");
+        std::fs::write(&extracted, bytes).unwrap();
+        assert_eq!(read_orientation(&extracted), 8);
+    }
+
+    #[test]
+    fn swaps_axes_only_for_rotated_orientations() {
+        for orientation in 1..=8u8 {
+            assert_eq!(swaps_axes(orientation), (5..=8).contains(&orientation));
+        }
+    }
+
+    #[test]
+    fn apply_rotates_pixels_clockwise() {
+        // 2x1: R | B → orientation 6(시계 90°) → 1x2: R 위, B 아래
+        let img = image::DynamicImage::ImageRgb8(
+            image::RgbImage::from_raw(2, 1, vec![255, 0, 0, 0, 0, 255]).unwrap(),
+        );
+        let out = apply_to_image(img, 6).to_rgb8();
+        assert_eq!((out.width(), out.height()), (1, 2));
+        assert_eq!(out.get_pixel(0, 0), &image::Rgb([255, 0, 0]));
+        assert_eq!(out.get_pixel(0, 1), &image::Rgb([0, 0, 255]));
+    }
+
+    #[test]
+    fn apply_keeps_pixels_for_orientation_one() {
+        let img = image::DynamicImage::ImageRgb8(
+            image::RgbImage::from_raw(2, 1, vec![1, 2, 3, 4, 5, 6]).unwrap(),
+        );
+        let out = apply_to_image(img, 1).to_rgb8();
+        assert_eq!((out.width(), out.height()), (2, 1));
+        assert_eq!(out.get_pixel(0, 0), &image::Rgb([1, 2, 3]));
     }
 }

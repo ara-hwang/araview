@@ -159,6 +159,7 @@ fn png_chunks_animated(file: &mut std::io::BufReader<std::fs::File>) -> Option<b
 #[cfg(test)]
 mod tests {
     use super::sniff_mime;
+    use std::path::Path;
 
     #[test]
     fn video_signatures_are_not_sniffed() {
@@ -171,5 +172,109 @@ mod tests {
     #[test]
     fn animated_avif_brand_remains_an_image() {
         assert_eq!(sniff_mime(b"\x00\x00\x00\x1cftypavis"), Some("image/avif"));
+    }
+
+    #[test]
+    fn recognises_common_signatures() {
+        assert_eq!(
+            sniff_mime(&[0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a, 0]),
+            Some("image/png")
+        );
+        assert_eq!(sniff_mime(&[0xff, 0xd8, 0xff, 0xe0]), Some("image/jpeg"));
+        assert_eq!(sniff_mime(b"GIF89a\x01\x00"), Some("image/gif"));
+        assert_eq!(
+            sniff_mime(b"RIFF\x00\x00\x00\x00WEBPVP8 "),
+            Some("image/webp")
+        );
+        assert_eq!(sniff_mime(&[0, 0, 1, 0, 1, 0]), Some("image/x-icon"));
+        assert_eq!(
+            sniff_mime(b"8BPS\x00\x01"),
+            Some(crate::psd_sidecar::PSD_MIME)
+        );
+        assert_eq!(sniff_mime(b"DDS \x7c\x00"), Some("image/vnd.ms-dds"));
+        assert_eq!(
+            sniff_mime(&[0x76, 0x2f, 0x31, 0x01, 2, 0]),
+            Some("image/x-exr")
+        );
+        assert_eq!(sniff_mime(b"qoif\x00\x00\x03\x20"), Some("image/qoi"));
+    }
+
+    #[test]
+    fn bmp_needs_zero_reserved_fields() {
+        let mut bmp = b"BM".to_vec();
+        bmp.extend_from_slice(&[0x36, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x36, 0, 0, 0]);
+        assert_eq!(sniff_mime(&bmp), Some("image/bmp"));
+        assert_eq!(sniff_mime(b"BM is the start of this text file"), None);
+    }
+
+    #[test]
+    fn bmff_brands_split_heic_and_avif() {
+        fn bmff(brand: &[u8; 4]) -> Vec<u8> {
+            let mut v = vec![0, 0, 0, 24];
+            v.extend_from_slice(b"ftyp");
+            v.extend_from_slice(brand);
+            v.extend_from_slice(&[0; 12]);
+            v
+        }
+
+        assert_eq!(sniff_mime(&bmff(b"avif")), Some("image/avif"));
+        assert_eq!(sniff_mime(&bmff(b"heic")), Some("image/heic"));
+        // mif1 is shared by HEIF and AVIF; leave it to the extension.
+        assert_eq!(sniff_mime(&bmff(b"mif1")), None);
+    }
+
+    #[test]
+    fn unknown_and_short_input_is_undecided() {
+        assert_eq!(sniff_mime(b""), None);
+        assert_eq!(
+            sniff_mime(b"<svg xmlns=\"http://www.w3.org/2000/svg\">"),
+            None
+        );
+        assert_eq!(sniff_mime(b"PK\x03\x04"), None);
+    }
+
+    #[test]
+    fn png_animation_is_read_from_the_actl_chunk() {
+        let sample = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../samples/sample.apng");
+        assert_eq!(super::png_is_animated(&sample), Some(true));
+        let dir = tempfile::tempdir().unwrap();
+        let still = dir.path().join("still.png");
+        image::DynamicImage::ImageRgb8(image::RgbImage::new(2, 2))
+            .save(&still)
+            .unwrap();
+        assert_eq!(super::png_is_animated(&still), Some(false));
+        let other = dir.path().join("not-png.png");
+        std::fs::write(&other, b"GIF89a").unwrap();
+        assert_eq!(super::png_is_animated(&other), None);
+        assert_eq!(
+            super::png_is_animated(&dir.path().join("missing.png")),
+            None
+        );
+
+        assert_eq!(
+            super::sniff_file_with_animation(&sample),
+            (Some("image/png"), true)
+        );
+        assert_eq!(
+            super::sniff_file_with_animation(&still),
+            (Some("image/png"), false)
+        );
+        assert_eq!(
+            super::sniff_file_with_animation(&other),
+            (Some("image/gif"), false)
+        );
+        assert_eq!(
+            super::sniff_file_with_animation(&dir.path().join("missing.png")),
+            (None, false)
+        );
+    }
+
+    #[test]
+    fn sniff_file_reads_head_and_tolerates_missing_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("noext");
+        std::fs::write(&path, [0xff, 0xd8, 0xff, 0xe0, 0, 0]).unwrap();
+        assert_eq!(super::sniff_file(&path), Some("image/jpeg"));
+        assert_eq!(super::sniff_file(&dir.path().join("missing")), None);
     }
 }

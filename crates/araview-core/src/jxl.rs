@@ -227,3 +227,83 @@ pub(crate) fn decode_rgb8(source: &Path) -> Result<Rgb8, AppError> {
         bytes,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    fn sample(name: &str) -> PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../samples")
+            .join(name)
+    }
+
+    #[test]
+    fn sample_decodes_with_stable_dimensions_and_colour_info() {
+        let path = sample("sample.jxl");
+        let rgb = decode_rgb8(&path).expect("decode sample.jxl");
+        assert!(rgb.width > 0 && rgb.height > 0);
+        assert_eq!(
+            rgb.bytes.len(),
+            rgb.width as usize * rgb.height as usize * 3
+        );
+
+        // 헤더 경로와 전체 디코드 경로가 같은 치수를 본다.
+        assert_eq!(dimensions(&path), Some((rgb.width, rgb.height)));
+
+        let (mode, bits) = color_info(&path).expect("colour info");
+        assert!(
+            matches!(mode, "rgb" | "rgba" | "grayscale" | "grayscale-alpha"),
+            "{mode}"
+        );
+        assert!(bits >= 8, "{bits}");
+    }
+
+    #[test]
+    fn animated_sample_decodes_every_keyframe() {
+        let path = sample("sample-animated.jxl");
+        let decoded = decode_frames(&path, u64::MAX).expect("decode frames");
+        assert!(decoded.frames.len() > 1, "{}", decoded.frames.len());
+        let (width, height) = decoded.frames[0].0.dimensions();
+        for (frame, delay) in &decoded.frames {
+            assert_eq!(frame.dimensions(), (width, height));
+            assert!(*delay > 0);
+        }
+    }
+
+    #[test]
+    fn animation_budget_falls_back_to_the_first_frame() {
+        let path = sample("sample-animated.jxl");
+        let decoded = decode_frames(&path, 1).expect("decode first frame");
+        assert_eq!(decoded.frames.len(), 1);
+        assert_eq!(decoded.loop_count, None);
+    }
+
+    #[test]
+    fn garbage_is_corrupt_not_a_panic() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("broken.jxl");
+        fs::write(&path, b"not a jpeg xl file").unwrap();
+        assert_eq!(decode_rgb8(&path).unwrap_err().code, ErrorCode::Corrupt);
+        assert_eq!(dimensions(&path), None);
+        assert_eq!(color_info(&path), None);
+
+        let missing = dir.path().join("missing.jxl");
+        assert!(decode_rgb8(&missing).is_err());
+        assert_eq!(dimensions(&missing), None);
+    }
+
+    #[test]
+    fn sidecar_paths_are_namespaced_jxl() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("a.jxl");
+        fs::write(&path, b"x").unwrap();
+        let paint = SPEC.paint_path(&path).unwrap();
+        let name = paint.file_name().and_then(|n| n.to_str()).unwrap();
+        assert!(name.starts_with("jxl-"), "got {name}");
+        let thumb = SPEC.thumb_path(&path, 64).unwrap();
+        let name = thumb.file_name().and_then(|n| n.to_str()).unwrap();
+        assert!(name.starts_with("jxl-thumb-"), "got {name}");
+    }
+}

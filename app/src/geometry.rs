@@ -107,3 +107,123 @@ pub fn zoom_about(
     };
     clamp_position(moved, position_bounds(container, image, next_zoom))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const EPSILON: f32 = 0.0001;
+
+    fn assert_close(actual: f32, expected: f32) {
+        assert!(
+            (actual - expected).abs() < EPSILON,
+            "expected {expected}, got {actual}"
+        );
+    }
+
+    #[test]
+    fn position_bounds_are_zero_while_the_image_fits() {
+        let bounds = position_bounds(Size2::new(200.0, 100.0), Size2::new(100.0, 50.0), 1.0);
+        assert_eq!(bounds, Offset { x: 0.0, y: 0.0 });
+
+        // 배율이 붙어야 넘치는 축만 이동할 수 있다.
+        let bounds = position_bounds(Size2::new(200.0, 100.0), Size2::new(100.0, 50.0), 3.0);
+        assert_close(bounds.x, 50.0);
+        assert_close(bounds.y, 25.0);
+    }
+
+    #[test]
+    fn position_bounds_halve_the_overflow() {
+        let bounds = position_bounds(Size2::new(100.0, 100.0), Size2::new(400.0, 300.0), 1.0);
+        assert_close(bounds.x, 150.0);
+        assert_close(bounds.y, 100.0);
+    }
+
+    #[test]
+    fn clamp_position_keeps_the_image_inside_its_bounds() {
+        let max = Offset { x: 10.0, y: 20.0 };
+        assert_eq!(
+            clamp_position(Offset { x: 25.0, y: -40.0 }, max),
+            Offset { x: 10.0, y: -20.0 }
+        );
+        // 이동 여지가 없는 축은 항상 중앙이다.
+        assert_eq!(
+            clamp_position(Offset { x: 5.0, y: 5.0 }, Offset { x: 0.0, y: 0.0 }),
+            Offset { x: 0.0, y: 0.0 }
+        );
+    }
+
+    #[test]
+    fn zoom_for_fit_uses_the_remembered_mode() {
+        let container = Size2::new(200.0, 100.0);
+        let image = Size2::new(100.0, 100.0);
+        assert_close(zoom_for_fit(FitMode::Width, container, image), 2.0);
+        assert_close(zoom_for_fit(FitMode::Height, container, image), 1.0);
+        assert_close(zoom_for_fit(FitMode::Screen, container, image), 1.0);
+        // auto는 작은 이미지를 확대하지 않는다.
+        assert_close(zoom_for_fit(FitMode::Auto, container, image), 1.0);
+
+        let large = Size2::new(800.0, 400.0);
+        assert_close(zoom_for_fit(FitMode::Width, container, large), 0.25);
+        assert_close(zoom_for_fit(FitMode::Height, container, large), 0.25);
+        assert_close(zoom_for_fit(FitMode::Screen, container, large), 0.25);
+        assert_close(zoom_for_fit(FitMode::Auto, container, large), 0.25);
+    }
+
+    #[test]
+    fn zoom_for_fit_falls_back_to_100_percent_for_empty_sizes() {
+        let container = Size2::new(0.0, 100.0);
+        let image = Size2::new(10.0, 10.0);
+        assert_close(zoom_for_fit(FitMode::Screen, container, image), 1.0);
+        assert_close(zoom_for_fit(FitMode::Auto, container, image), 1.0);
+        assert_close(
+            zoom_for_fit(
+                FitMode::Auto,
+                Size2::new(100.0, 100.0),
+                Size2::new(0.0, 10.0),
+            ),
+            1.0,
+        );
+    }
+
+    #[test]
+    fn min_zoom_matches_the_auto_fit() {
+        let big = Size2::new(400.0, 400.0);
+        let container = Size2::new(200.0, 100.0);
+        assert_close(min_zoom(container, big), 0.25);
+        // 작은 이미지는 100%가 하한이다.
+        assert_close(min_zoom(container, Size2::new(20.0, 20.0)), 1.0);
+    }
+
+    #[test]
+    fn zoom_about_keeps_the_anchor_over_the_same_image_point() {
+        let container = Size2::new(100.0, 100.0);
+        let image = Size2::new(200.0, 200.0);
+        let anchor = Offset { x: 10.0, y: 0.0 };
+        let before = Offset { x: 0.0, y: 0.0 };
+
+        let after = zoom_about(container, image, 1.0, 2.0, before, anchor);
+        let point_before = (anchor.x - before.x) / 1.0;
+        let point_after = (anchor.x - after.x) / 2.0;
+        assert_close(point_before, point_after);
+        assert_close(after.x, -10.0);
+        assert_close(after.y, 0.0);
+    }
+
+    #[test]
+    fn zoom_about_clamps_position_when_zooming_out() {
+        // 축소하면 이동 여지가 사라지므로 위치는 중앙으로 돌아간다.
+        let container = Size2::new(100.0, 100.0);
+        let image = Size2::new(200.0, 200.0);
+        let position = Offset { x: 40.0, y: 40.0 };
+        let after = zoom_about(
+            container,
+            image,
+            2.0,
+            0.5,
+            position,
+            Offset { x: 0.0, y: 0.0 },
+        );
+        assert_eq!(after, Offset { x: 0.0, y: 0.0 });
+    }
+}

@@ -319,3 +319,145 @@ impl PsdThumbProvider_Impl {
         Ok(())
     }
 }
+
+#[cfg(test)]
+// 테스트의 unsafe는 전부 GDI 핸들 정리/조회 같은 셋업 코드라
+// SAFETY 주석을 요구하지 않는다. 프로덕션 코드에는 그대로 적용된다.
+#[allow(clippy::undocumented_unsafe_blocks)]
+mod tests {
+    use super::*;
+    use crate::registry::{CLSID_DEV_STR, CLSID_RELEASE_STR};
+    use windows::Win32::Graphics::Gdi::{DeleteObject, GetObjectW, BITMAP, HGDIOBJ};
+    use windows::Win32::UI::Shell::SHCreateMemStream;
+
+    fn sample_psd() -> Option<std::path::PathBuf> {
+        let path =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../samples/sample.psd");
+        path.is_file().then_some(path)
+    }
+
+    #[test]
+    fn binary_guids_match_registry_strings() {
+        for (guid, text) in [
+            (CLSID_RELEASE, CLSID_RELEASE_STR),
+            (CLSID_DEV, CLSID_DEV_STR),
+        ] {
+            let rendered = format!("{{{guid:?}}}").to_ascii_uppercase();
+            assert_eq!(rendered, text.to_ascii_uppercase());
+        }
+    }
+
+    #[test]
+    fn garbage_bytes_fail_thumbnail() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("garbage.psd");
+        std::fs::write(&path, b"this is not a psd at all").unwrap();
+        assert!(thumbnail_for_path(&path, 64).is_err());
+    }
+
+    #[test]
+    fn stream_copies_all_bytes_to_a_temp_file() {
+        let payload = vec![7u8; 100_000];
+        let stream: IStream =
+            unsafe { SHCreateMemStream(Some(&payload)) }.expect("SHCreateMemStream");
+        let file = stream_file(&stream).expect("copy mem stream");
+        assert_eq!(std::fs::read(file.path()).unwrap(), payload);
+    }
+
+    #[test]
+    fn valid_psd_bytes_produce_bitmap() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("tiny.psd");
+        std::fs::write(
+            &path,
+            crate::psd::tests::minimal_psd_bytes(4, 2, [10, 20, 30]),
+        )
+        .unwrap();
+
+        let hbmp = thumbnail_for_path(&path, 64).expect("thumbnail");
+        assert!(!hbmp.is_invalid());
+        unsafe {
+            let _ = DeleteObject(HGDIOBJ(hbmp.0));
+        }
+    }
+
+    /// Full COM plumbing without Explorer: real `QueryInterface` dispatch
+    /// through the generated vtables, `IInitializeWithFile` with the repo
+    /// `samples/sample.psd` fixture, then `GetThumbnail`.
+    #[test]
+    fn com_file_init_produces_sample_thumbnail() {
+        use std::os::windows::ffi::OsStrExt;
+
+        let Some(sample) = sample_psd() else {
+            return;
+        };
+        let unknown: IUnknown = PsdThumbProvider::default().into();
+        let ifile: IInitializeWithFile = unknown.cast().expect("QI IInitializeWithFile");
+        let wide: Vec<u16> = sample
+            .as_os_str()
+            .encode_wide()
+            .chain(std::iter::once(0))
+            .collect();
+        unsafe {
+            ifile
+                .Initialize(PCWSTR(wide.as_ptr()), 0)
+                .expect("file init");
+        }
+
+        let ithumb: IThumbnailProvider = unknown.cast().expect("QI IThumbnailProvider");
+        let mut hbmp = HBITMAP::default();
+        let mut alpha = WTSAT_RGB;
+        unsafe {
+            ithumb
+                .GetThumbnail(256, &mut hbmp, &mut alpha)
+                .expect("GetThumbnail");
+        }
+        assert!(!hbmp.is_invalid());
+        assert_eq!(alpha, WTSAT_RGB);
+
+        // sample.psd is 64x64; smaller than cx so no upscale happens.
+        let mut bm = BITMAP::default();
+        let written = unsafe {
+            GetObjectW(
+                HGDIOBJ(hbmp.0),
+                std::mem::size_of::<BITMAP>() as i32,
+                Some(&mut bm as *mut _ as *mut _),
+            )
+        };
+        assert!(written > 0, "GetObjectW failed");
+        assert_eq!((bm.bmWidth, bm.bmHeight), (64, 64));
+        unsafe {
+            let _ = DeleteObject(HGDIOBJ(hbmp.0));
+        }
+    }
+
+    /// Same path via `IInitializeWithStream`, the surrogate's init route.
+    #[test]
+    fn com_stream_init_produces_sample_thumbnail() {
+        let Some(sample) = sample_psd() else {
+            return;
+        };
+        let bytes = std::fs::read(&sample).expect("read sample.psd");
+        let stream: IStream =
+            unsafe { SHCreateMemStream(Some(&bytes)) }.expect("SHCreateMemStream");
+
+        let unknown: IUnknown = PsdThumbProvider::default().into();
+        let istream: IInitializeWithStream = unknown.cast().expect("QI IInitializeWithStream");
+        unsafe {
+            istream.Initialize(&stream, 0).expect("stream init");
+        }
+
+        let ithumb: IThumbnailProvider = unknown.cast().expect("QI IThumbnailProvider");
+        let mut hbmp = HBITMAP::default();
+        let mut alpha = WTSAT_RGB;
+        unsafe {
+            ithumb
+                .GetThumbnail(256, &mut hbmp, &mut alpha)
+                .expect("GetThumbnail");
+        }
+        assert!(!hbmp.is_invalid());
+        unsafe {
+            let _ = DeleteObject(HGDIOBJ(hbmp.0));
+        }
+    }
+}

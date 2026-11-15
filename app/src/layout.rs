@@ -269,3 +269,225 @@ pub fn comic_view_mode(
         _ => ViewMode::LeftToRight,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use araview_core::comic_info::ComicPage;
+
+    fn pages(entries: &[(u32, Option<&str>)]) -> ComicInfo {
+        ComicInfo {
+            pages: Some(
+                entries
+                    .iter()
+                    .map(|(image, page_type)| ComicPage {
+                        image: *image,
+                        page_type: page_type.map(str::to_owned),
+                    })
+                    .collect(),
+            ),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn step_index_moves_and_stops_at_the_bounds() {
+        assert_eq!(step_index(2, 5, 1, false, true), Some(3));
+        assert_eq!(step_index(0, 5, 1, false, false), None);
+        assert_eq!(step_index(1, 5, 2, false, false), None);
+        assert_eq!(step_index(0, 5, 2, true, false), Some(3));
+        assert_eq!(step_index(3, 5, 2, true, true), Some(0));
+        // 끝에서 멈춤 모드: 마지막 장 앞에서 크게 건너뛰면 마지막 장에 붙고,
+        // 마지막 장에서는 더 나아가지 않는다.
+        assert_eq!(step_index(2, 5, 3, false, true), Some(4));
+        assert_eq!(step_index(4, 5, 1, false, true), None);
+        assert_eq!(step_index(0, 0, 1, true, true), None);
+        assert_eq!(step_index(0, 1, 1, true, true), None);
+    }
+
+    #[test]
+    fn offset_index_wraps_or_clamps() {
+        assert_eq!(offset_index(1, 5, -3, true), 3);
+        assert_eq!(offset_index(1, 5, -3, false), 0);
+        assert_eq!(offset_index(3, 5, 3, true), 1);
+        assert_eq!(offset_index(3, 5, 3, false), 4);
+        assert_eq!(offset_index(0, 0, 1, true), 0);
+    }
+
+    #[test]
+    fn screen_starts_pair_pages_two_by_two() {
+        assert_eq!(screen_starts(5, &Solo::new(), None), vec![0, 2, 4]);
+        assert_eq!(screen_starts(6, &Solo::new(), None), vec![0, 2, 4]);
+        // 단독 페이지는 자기 화면을 갖고, 다음 쌍은 그 뒤에서 시작한다.
+        let solo: Solo = [0].into_iter().collect();
+        assert_eq!(screen_starts(5, &solo, None), vec![0, 1, 3]);
+    }
+
+    #[test]
+    fn screen_starts_keep_the_anchor_as_a_screen_start() {
+        // anchor 바로 앞 페이지는 짝을 잃고 혼자 남는다.
+        assert_eq!(screen_starts(5, &Solo::new(), Some(1)), vec![0, 1, 3]);
+    }
+
+    #[test]
+    fn pair_start_snaps_to_the_screen_that_shows_the_page() {
+        let solo = Solo::new();
+        assert_eq!(pair_start(3, 6, &solo, None), 2);
+        assert_eq!(pair_start(5, 6, &solo, None), 4);
+        assert_eq!(pair_start(0, 6, &solo, None), 0);
+        // 범위를 벗어난 인덱스는 마지막 페이지로 취급한다.
+        assert_eq!(pair_start(99, 6, &solo, None), 4);
+        assert_eq!(pair_start(0, 0, &solo, None), 0);
+    }
+
+    #[test]
+    fn dual_step_walks_screens_and_wraps_only_when_looped() {
+        let solo = Solo::new();
+        // total 3, anchor 0 → [0, 2]
+        assert_eq!(dual_step(0, 3, false, true, &solo), Some(2));
+        assert_eq!(dual_step(0, 3, false, false, &solo), None);
+        assert_eq!(dual_step(0, 3, true, false, &solo), Some(2));
+        assert_eq!(dual_step(2, 3, false, true, &solo), None);
+        assert_eq!(dual_step(2, 3, true, true, &solo), Some(0));
+        assert_eq!(dual_step(0, 1, true, true, &solo), None);
+    }
+
+    #[test]
+    fn screen_indices_include_the_paired_page() {
+        let solo = Solo::new();
+        assert_eq!(screen_indices(0, 5, false, &solo), vec![0, 1]);
+        assert_eq!(screen_indices(2, 5, false, &solo), vec![2, 3]);
+        assert_eq!(screen_indices(4, 5, false, &solo), vec![4]);
+        // 루프가 켜지면 마지막 홀수 장이 첫 장과 짝이 된다.
+        assert_eq!(screen_indices(4, 5, true, &solo), vec![4, 0]);
+        assert_eq!(screen_indices(0, 0, true, &solo), Vec::<usize>::new());
+    }
+
+    #[test]
+    fn explicit_cover_pages_keep_only_the_leading_run() {
+        let comic = pages(&[
+            (0, Some("FrontCover")),
+            (1, Some("frontcover")),
+            (2, Some("Story")),
+            (3, Some("FrontCover")),
+            (99, Some("FrontCover")),
+        ]);
+        assert_eq!(explicit_cover_pages(Some(&comic), 5), vec![0, 1]);
+        assert_eq!(explicit_cover_pages(None, 5), Vec::<usize>::new());
+        assert_eq!(
+            explicit_cover_pages(Some(&ComicInfo::default()), 5),
+            Vec::<usize>::new()
+        );
+    }
+
+    #[test]
+    fn cover_layout_prefers_archive_covers_over_the_default() {
+        assert_eq!(
+            cover_layout(None, 5, true),
+            CoverLayout {
+                alone: true,
+                index: 0,
+                count: 1
+            }
+        );
+        assert_eq!(
+            cover_layout(None, 0, false),
+            CoverLayout {
+                alone: false,
+                index: 0,
+                count: 1
+            }
+        );
+
+        let comic = pages(&[(0, Some("Story")), (1, Some("FrontCover"))]);
+        assert_eq!(
+            cover_layout(Some(&comic), 5, true),
+            CoverLayout {
+                alone: true,
+                index: 1,
+                count: 1
+            }
+        );
+
+        // 0번에 다른 Type이 명시돼 있으면 표지 없음이다.
+        let no_cover = pages(&[(0, Some("Story"))]);
+        assert_eq!(
+            cover_layout(Some(&no_cover), 5, true),
+            CoverLayout {
+                alone: false,
+                index: 0,
+                count: 1
+            }
+        );
+
+        // 범위 밖 FrontCover만 있으면 지정이 없는 것으로 본다.
+        let out_of_range = pages(&[(99, Some("FrontCover"))]);
+        assert!(cover_layout(Some(&out_of_range), 5, true).alone);
+    }
+
+    #[test]
+    fn cover_pages_render_only_while_alone() {
+        let layout = CoverLayout {
+            alone: true,
+            index: 2,
+            count: 2,
+        };
+        assert_eq!(layout.pages().collect::<Vec<_>>(), vec![2, 3]);
+        let paired = CoverLayout {
+            alone: false,
+            index: 2,
+            count: 2,
+        };
+        assert!(paired.pages().next().is_none());
+    }
+
+    #[test]
+    fn toggle_cover_page_keeps_the_run_contiguous() {
+        assert_eq!(toggle_cover_page(&[], 3), vec![3]);
+        assert_eq!(toggle_cover_page(&[3], 4), vec![3, 4]);
+        assert_eq!(toggle_cover_page(&[3, 4], 5), vec![3, 4, 5]);
+        // 떨어진 페이지를 켜면 기존 구간을 대체한다.
+        assert_eq!(toggle_cover_page(&[3, 4], 0), vec![0]);
+        // 구간 가운데를 끄면 남은 구간만 유지한다.
+        assert_eq!(toggle_cover_page(&[3, 4, 5], 4), vec![3]);
+        assert_eq!(toggle_cover_page(&[3], 3), Vec::<usize>::new());
+    }
+
+    #[test]
+    fn comic_view_mode_follows_auto_dual_and_metadata() {
+        assert_eq!(comic_view_mode(ViewMode::Single, false, None), None);
+        assert_eq!(comic_view_mode(ViewMode::Webtoon, true, None), None);
+        assert_eq!(
+            comic_view_mode(ViewMode::Single, true, None),
+            Some(ViewMode::LeftToRight)
+        );
+
+        let rtl = ComicInfo {
+            manga: Some("YesAndRightToLeft".into()),
+            ..Default::default()
+        };
+        assert_eq!(
+            comic_view_mode(ViewMode::Single, true, Some(&rtl)),
+            Some(ViewMode::RightToLeft)
+        );
+
+        let ltr = ComicInfo {
+            manga: Some("no".into()),
+            ..Default::default()
+        };
+        assert_eq!(
+            comic_view_mode(ViewMode::RightToLeft, true, Some(&ltr)),
+            Some(ViewMode::LeftToRight)
+        );
+
+        // 지정이 없으면 설정의 양쪽 방향을 따른다.
+        let unknown = ComicInfo {
+            manga: Some("unknown".into()),
+            ..Default::default()
+        };
+        assert_eq!(
+            comic_view_mode(ViewMode::RightToLeft, true, Some(&unknown)),
+            Some(ViewMode::RightToLeft)
+        );
+    }
+}

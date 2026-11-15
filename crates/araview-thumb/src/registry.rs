@@ -52,3 +52,38 @@ pub fn unregister() -> io::Result<()> {
         .map(|_| ())
         .map_err(io::Error::other)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn clsids_are_stable_and_channel_separated() {
+        assert_eq!(CLSID_RELEASE_STR, "{FD6BD976-2DF4-4656-94F2-1D166163EC59}");
+        assert_eq!(CLSID_DEV_STR, "{BD277595-1702-4AC5-AA7C-A67965C3D570}");
+        assert_ne!(CLSID_RELEASE_STR, CLSID_DEV_STR);
+    }
+
+    #[test]
+    fn iid_is_the_thumbnail_provider_slot() {
+        assert_eq!(
+            IID_ITHUMBNAILPROVIDER,
+            "{E357FCCD-A995-4576-B01F-234630154E96}"
+        );
+    }
+
+    #[test]
+    fn register_with_a_missing_dll_path_is_an_error() {
+        // 등록은 core가 담당하므로 여기서는 위임 경로의 실패 전달만 본다.
+        let dir = std::env::temp_dir().join(format!(
+            "araview-thumb-missing-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        let result = register_with_dll_path(&dir.join("araview_thumb.dll"));
+        assert!(result.is_err());
+    }
+}

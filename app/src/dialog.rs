@@ -147,3 +147,73 @@ pub fn watch_backdrop_click(
         })
         .detach();
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn point(x: f32, y: f32) -> Point<Pixels> {
+        Point { x: px(x), y: px(y) }
+    }
+
+    #[test]
+    fn press_records_one_pending_gesture() {
+        let click = BackdropClick::default();
+        assert!(!click.pending());
+        assert!(click.press(point(10.0, 10.0), None));
+        assert!(click.pending());
+        // 지켜보는 누름이 있으면 새 누름은 받지 않는다.
+        assert!(!click.press(point(20.0, 20.0), None));
+    }
+
+    #[test]
+    fn release_without_a_press_is_not_a_click() {
+        let click = BackdropClick::default();
+        assert!(!click.release(Some(point(1.0, 1.0)), None));
+        assert!(!click.release(None, None));
+    }
+
+    #[test]
+    fn releasing_near_the_press_is_a_click() {
+        let click = BackdropClick::default();
+        click.press(point(10.0, 10.0), None);
+        assert!(click.release(Some(point(13.0, 13.0)), None));
+        assert!(!click.pending());
+    }
+
+    #[test]
+    fn releasing_far_from_the_press_is_a_drag() {
+        let click = BackdropClick::default();
+        click.press(point(10.0, 10.0), None);
+        assert!(!click.release(Some(point(30.0, 30.0)), None));
+        assert!(!click.pending());
+    }
+
+    #[test]
+    fn release_falls_back_to_the_window_origin() {
+        let click = BackdropClick::default();
+        click.press(point(10.0, 10.0), Some((100, 100)));
+        // 뗀 자리를 모르면 창이 움직이지 않았을 때만 클릭이다.
+        assert!(click.release(None, Some((100, 100))));
+
+        let moved = BackdropClick::default();
+        moved.press(point(10.0, 10.0), Some((100, 100)));
+        assert!(!moved.release(None, Some((120, 100))));
+    }
+
+    #[test]
+    fn a_moved_window_wins_over_a_short_distance() {
+        let click = BackdropClick::default();
+        click.press(point(10.0, 10.0), Some((100, 100)));
+        // 자리는 가깝지만 창이 움직였으면 창 이동 드래그다.
+        assert!(!click.release(Some(point(11.0, 11.0)), Some((110, 100))));
+    }
+
+    #[test]
+    fn unknown_positions_still_complete_a_click() {
+        let click = BackdropClick::default();
+        click.press(point(10.0, 10.0), None);
+        assert!(click.release(None, None));
+        assert!(!click.pending());
+    }
+}

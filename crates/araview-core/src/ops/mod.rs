@@ -9,6 +9,8 @@ mod metadata;
 mod ocr;
 mod shell_thumbnail;
 mod system;
+#[cfg(test)]
+mod test_support;
 mod thumbnail;
 
 pub use archive::*;
