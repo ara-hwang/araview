@@ -3,11 +3,18 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 fn main() {
-    // 메인 스레드가 큰 이미지를 다루므로 이 크레이트의 실행 파일과 테스트의 스택을 넉넉히 둔다.
-    // (워크스페이스의 썸네일 DLL에는 적용하지 않으려고 링크 인자를 이 크레이트에만 건다.)
-    println!("cargo:rustc-link-arg=/STACK:8000000");
-    copy_vcpkg_runtime_dlls();
-    embed_icon();
+    // 빌드 스크립트의 cfg는 빌드를 돌리는 호스트 기준이라, 대상 OS는 Cargo가 알려주는 값으로 본다.
+    let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
+    if target_os == "windows" {
+        // 메인 스레드가 큰 이미지를 다루므로 이 크레이트의 실행 파일과 테스트의 스택을 넉넉히 둔다.
+        // (워크스페이스의 썸네일 DLL에는 적용하지 않으려고 링크 인자를 이 크레이트에만 건다.)
+        // `/STACK:`은 MSVC 링커 인자라 mingw 링크에서는 넘기지 않는다.
+        if env::var("CARGO_CFG_TARGET_ENV").as_deref() == Ok("msvc") {
+            println!("cargo:rustc-link-arg=/STACK:8000000");
+        }
+        copy_vcpkg_runtime_dlls();
+        embed_icon();
+    }
     collect_license_files(vcpkg_triplet());
 }
 
@@ -23,11 +30,17 @@ fn vcpkg_triplet() -> String {
 }
 
 /// 아이콘 리소스를 심는다. 아이콘이 빠져도 앱은 동작하므로 리소스 컴파일 실패로 빌드를 막지 않는다.
+#[cfg(windows)]
 fn embed_icon() {
     println!("cargo:rerun-if-changed=resources/app.rc");
     println!("cargo:rerun-if-changed=resources/icon.ico");
     let _ = embed_resource::compile("resources/app.rc", embed_resource::NONE).manifest_optional();
 }
+
+/// 빌드 스크립트는 호스트에서 컴파일된다. Windows 대상이어도 호스트가 다른 OS면
+/// `embed-resource` 빌드 의존성이 없으므로 아이콘 심기를 건너뛴다.
+#[cfg(not(windows))]
+fn embed_icon() {}
 
 /// vcpkg로 동적 링크한 이미지 코덱 런타임 DLL을 실행 파일 옆에 둔다.
 /// 없으면 앱이 시작되지 않는다.
