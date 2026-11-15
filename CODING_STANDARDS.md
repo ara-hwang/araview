@@ -20,7 +20,7 @@ Conventions the code does not confess on its own. Read the sections your change 
 
 ## Dialogs
 
-Dialogs use gpui-kit's `open_dialog`. Center them with `Dialog::centered` or `AlertDialog::centered` instead of estimating a top offset. Dialogs paint above the notification layer; keep dialog bodies at a fixed height (or a `max_h`) so scroll areas inside them have a bounded size.
+Dialogs use gpui-kit's `open_dialog`. Center them with `Dialog::centered` or `AlertDialog::centered` instead of estimating a top offset. While a dialog is open, `window.toast(...)` shows the message as an alert dialog instead of a toast (`src/toast.rs`); keep dialog bodies at a fixed height (or a `max_h`) so scroll areas inside them have a bounded size.
 
 ## Design non-negotiables
 

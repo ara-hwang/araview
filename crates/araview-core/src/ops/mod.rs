@@ -1,4 +1,4 @@
-//! 호스트 앱(Tauri 커맨드, GPUI 뷰)이 부르는 동기 구현. 디코드나 파일 I/O를
+//! GPUI 앱과 탐색기 썸네일 DLL이 부르는 동기 구현. 디코드나 파일 I/O를
 //! 하므로 호출자가 blocking 풀이나 백그라운드 executor에서 실행한다.
 
 mod archive;

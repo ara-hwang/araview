@@ -50,7 +50,7 @@ pub fn list_associations() -> Result<Vec<FileAssociation>, AppError> {
 
 /// OS picker를 열어 사용자가 직접 기본 앱을 고르게 한다.
 ///
-/// `associate`는 FE 호환용으로 유지되지만 무시된다. Windows UserChoice는
+/// `associate` 인자는 호출부 호환용으로 유지되지만 무시된다. Windows UserChoice는
 /// 앱이 직접 쓸 수 없어 연결/해제 모두 OS 확인이 필요하기 때문이다.
 /// `parent_hwnd`는 소유자 창의 HWND 값(없으면 0)이다. raw 포인터를 safe
 /// 시그니처로 노출하지 않기 위해 정수로 받고 FFI 직전에만 변환한다.

@@ -10,7 +10,7 @@ Rust와 [GPUI Kit](https://github.com/longbridge/gpui-kit)으로 만든 Windows 
 ## 요구 사항
 
 - Windows 11 (x64)
-- Rust stable(`rust-toolchain.toml`), `libheif` 1.21 이상(vcpkg의 `libheif[libde265,aom]:x64-windows`), Node.js `>= 24`(릴리스·문서 검사 스크립트용)
+- Rust stable(`rust-toolchain.toml`), `libheif` 1.21 이상(vcpkg 매니페스트 `vcpkg.json`이 `aom` feature를 켜고 `libde265`를 포함), Node.js `>= 24`(릴리스·문서 검사 스크립트용)
 - 환경 준비와 배포 묶음(Windows 설치 프로그램)은 `docs/development.md` 참고.
 
 ## 로컬 개발

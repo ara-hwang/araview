@@ -8,7 +8,7 @@ use crate::svg_size::svg_dimensions;
 
 #[derive(Serialize, Debug, Clone)]
 pub struct ImageInfo {
-    /// Bytes the WebView can decode. May be a JPEG/PNG sidecar, not the listing path.
+    /// Path the app loads for display. May be a JPEG/PNG sidecar, not the listing path.
     pub file_path: String,
     /// File the user opened. Never a sidecar; archive entries point at the
     /// extracted file. File operations (trash/rename/save/reveal) use this,
@@ -143,7 +143,7 @@ pub fn paint_strategy(mime: &str) -> PaintStrategy {
 
 /// 렌더 기준 치수. image 크레이트가 디코드하면 그 값을 쓰고,
 /// SVG처럼 미지원이면 헤더 파싱으로 복원한다.
-/// WebView2가 `<img>`에 EXIF orientation을 적용하므로 JPEG/TIFF는 회전된
+/// 표시 경로가 EXIF orientation을 픽셀에 적용하므로 JPEG/TIFF는 회전된
 /// 기준(5~8은 가로/세로 교환)으로 보고해 초기 fit이 표시와 어긋나지 않게 한다.
 pub(crate) fn render_dimensions(
     mime: &str,
@@ -638,7 +638,7 @@ mod restored_tests {
     }
 
     #[test]
-    fn paint_strategy_transcodes_only_formats_webview_cannot_paint() {
+    fn paint_strategy_transcodes_only_formats_the_viewer_cannot_paint() {
         assert_eq!(paint_strategy("image/heic"), PaintStrategy::TranscodeJpeg);
         assert_eq!(paint_strategy("image/heif"), PaintStrategy::TranscodeJpeg);
         assert_eq!(

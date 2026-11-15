@@ -5,7 +5,7 @@
 //! (nearest shrink breaks periodic tones like screentone), and published as a
 //! JPEG (PNG when the source has an alpha channel or the mode is pixelated)
 //! under `process_temp/scaled/`.
-//! The WebView then decodes the smaller copy, keeping peak memory bounded for
+//! The viewer then decodes the smaller copy, keeping peak memory bounded for
 //! huge images.
 //!
 //! Formats that must keep the original bytes are left alone: GIF (animation),
@@ -133,7 +133,7 @@ pub fn ensure_scaled_sidecar_with_mode(
     let lock_key = jpeg_dest.to_string_lossy().into_owned();
     // Protect both possible destinations before writing. A cache clear can run
     // concurrently with a large decode and must not remove a file after publish
-    // but before the WebView receives its asset URL.
+    // but before the viewer receives its path.
     crate::process_temp::mark_in_use(&jpeg_dest);
     crate::process_temp::mark_in_use(&png_dest);
     let dest = crate::sidecar::with_file_lock(&lock_key, "scaled sidecar lock", || {
@@ -208,7 +208,7 @@ pub fn ensure_scaled_sidecar_with_mode(
             Ok(jpeg_dest.clone())
         }
     })?;
-    // WebView가 이 경로로 asset URL을 유지하므로 축출에서 보호한다.
+    // 뷰어가 이 경로를 들고 있는 동안 축출에서 보호한다.
     crate::process_temp::mark_in_use(&dest);
     sidecar_info(&dest)
 }

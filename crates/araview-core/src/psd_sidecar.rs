@@ -1,11 +1,11 @@
 //! PSD(Photoshop) 미리보기용 JPEG sidecar.
 //!
-//! WebView2는 PSD를 네이티브 렌더할 수 없어 HEIC/HEIF와 같은 전제로
-//! 합성(composite) 픽셀을 JPEG sidecar로 변환해 렌더한다 (`heif.rs` 패턴).
+//! 뷰어는 PSD를 직접 렌더하지 않으므로 HEIC/HEIF와 같은 전제로
+//! 합성(composite) 픽셀을 JPEG sidecar로 변환해 표시한다 (`heif.rs` 패턴).
 //! - 디코더: `psd` 크레이트(순수 Rust, 네이티브 의존성 없음).
 //! - PSB(`8BPS` + version 2)는 미지원으로 명시 차단한다 (`psd` 크레이트도
 //!   PSB 미지원).
-//! - 편집 저장은 지원하지 않는다(읽기 전용). `save.rs`에서 진입 차단.
+//! - 편집 저장 경로는 없다(읽기 전용).
 //!
 //! `psd 0.3.5`의 합성 디코드에는 패닉 경로가 남아 있어(미구현 ZIP 압축,
 //! 16비트/꼬리 바이트 raw의 범위 초과 쓰기) `catch_unwind`로 감싸 손상
@@ -39,7 +39,7 @@ pub(crate) static SPEC: SidecarSpec = SidecarSpec {
 };
 
 /// PSD 합성 픽셀을 RGB8로 디코드. 투명은 흰 배경에 합성한다
-/// (JPEG에 알파가 없어 `save.rs` flatten과 같은 규칙).
+/// (JPEG에 알파가 없어 흰 배경 합성 규칙을 쓴다).
 pub(crate) fn decode_psd_rgb8(source: &Path) -> Result<Rgb8, AppError> {
     let meta = fs::metadata(source)
         .map_err(|e| AppError::io("Failed to read metadata", e, ErrorCode::Corrupt))?;

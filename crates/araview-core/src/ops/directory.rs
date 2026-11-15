@@ -78,7 +78,7 @@ fn index_of_current<S: AsRef<str>>(paths: &[S], current: &Path) -> Option<usize>
         .position(|p| p.as_ref().to_lowercase() == lowered)
 }
 
-/// 디렉토리 목록 정렬/수집 옵션 (프론트 settingsStore와 대응)
+/// 디렉토리 목록 정렬/수집 옵션 (설정의 정렬 키와 대응)
 #[derive(Debug, Default, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DirListOptions {

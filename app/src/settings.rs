@@ -340,8 +340,7 @@ impl Default for MouseMap {
     }
 }
 
-/// 단축키 동작 ID와 기본 키(SPEC §14.1). 키 표기는 프런트와 같은
-/// `Ctrl+Shift+E` 형식이다.
+/// 단축키 동작 ID와 기본 키(SPEC §14.1). 키 표기는 `Ctrl+Shift+E` 형식이다.
 pub const DEFAULT_SHORTCUTS: &[(&str, &str)] = &[
     ("navigatePrev", "ArrowLeft"),
     ("navigateNext", "ArrowRight"),

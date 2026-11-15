@@ -1,10 +1,10 @@
-//! Thumbnail generation with on-disk cache (S2).
+//! Thumbnail generation with on-disk cache.
 //!
-//! `ImageNavBar` used to load full-size originals for its thumbnail strip.
-//! This module decodes via the `image` crate, resizes to a bounded side
-//! length and stores a JPEG under `process_temp/thumbs/`, reusing the
-//! existing sidecar on repeat calls. Formats the `image` crate cannot decode
-//! (e.g. SVG, archive entry names) return an error so the frontend can
+//! Formats the `image` crate cannot read go through the dedicated `transcode`
+//! decoder and its JPEG sidecar; the rest use the `image` crate or the SVG
+//! rasterizer. Results resize to a bounded side length and store a JPEG under
+//! `process_temp/thumbs/`, reusing the existing sidecar on repeat calls.
+//! Unsupported inputs and archive entry names return an error so the UI can
 //! fall back to the original render path.
 //!
 //! Cache naming uses the stable hash in [`crate::sidecar`], and publishing
@@ -83,7 +83,7 @@ pub fn generate_thumbnail(source: &Path, max_side: u32) -> Result<ThumbnailInfo,
         });
     }
     let dest = thumb_path(source, max_side)?;
-    // 스트립이 이 경로로 asset URL을 유지하므로 캐시 축출에서 보호한다.
+    // 스트립이 이 경로를 들고 있으므로 캐시 축출에서 보호한다.
     crate::process_temp::mark_in_use(&dest);
     if dest.exists() {
         crate::process_temp::touch_cache_file(&dest);

@@ -1,9 +1,9 @@
 //! EXIF 패널용 부가 정보: RGB 히스토그램 + 파일 상세.
 //!
-//! - 히스토그램: `image` 크레이트로 디코드 가능한 포맷 + HEIC/HEIF/PSD(전용 디코더).
+//! - 히스토그램: `image` 크레이트로 디코드 가능한 포맷, SVG(래스터화),
+//!   HEIC/HEIF/AVIF/PSD/JXL/RAW(전용 디코더)를 RGB로 디코드한다.
 //!   최대 변 256px로 다운샘플 후 집계하므로 대용량 파일도 빠르게 처리한다.
-//!   `image` 크레이트가 디코드 불가한 입력(SVG, AVIF 등)은 에러를 내고,
-//!   프론트는 해당 섹션을 숨긴다.
+//!   디코드할 수 없는 입력은 에러를 내고, UI는 해당 섹션을 숨긴다.
 //! - 파일 상세: 크기/치수/색상 모드/비트뎁스/생성·수정 시각/EXIF 해상도(DPI)/
 //!   ICC 프로파일(JPEG APP2, PNG iCCP 스캔). EXIF가 없어도 명령은 성공한다.
 
@@ -29,7 +29,7 @@ pub struct Histogram {
 /// 히스토그램 집계 전 다운샘플 상한 (정사각형 기준 한 변).
 const HISTOGRAM_MAX_SIDE: u32 = 256;
 
-/// 히스토그램/색상 판정용 RGB 디코드. HEIC/HEIF/AVIF/PSD는 전용 디코더를 쓴다.
+/// 히스토그램/색상 판정용 RGB 디코드. HEIC/HEIF/AVIF/PSD/JXL/RAW는 전용 디코더를 쓴다.
 fn decode_rgb8(path: &Path) -> Result<image::RgbImage, AppError> {
     if !path.is_file() {
         return Err(AppError::not_found("File not found"));
@@ -657,7 +657,7 @@ mod tests {
 
     #[test]
     fn details_and_histogram_serialize_to_snake_case() {
-        // 프론트 TS 타입(file_path, icc_status, sampled_pixels 등)과 1:1 대응.
+        // UI가 읽는 snake_case 필드(file_path, icc_status, sampled_pixels 등)와 1:1 대응.
         // rename_all 누락/오남용 시 여기서 실패한다.
         let dir = tempfile::tempdir().unwrap();
         let source = dir.path().join("photo.png");

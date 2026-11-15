@@ -1,5 +1,5 @@
 //! AraView의 UI 비의존 코어: 포맷 판별, 디코드/트랜스코드, 파생 이미지 캐시,
-//! 아카이브, 썸네일, 메타데이터, 파일 작업. Tauri 앱과 GPUI 앱이 함께 쓴다.
+//! 아카이브, 썸네일, 메타데이터, 파일 작업. GPUI 앱과 탐색기 썸네일 DLL이 쓴다.
 
 pub mod app_error;
 pub mod archive;

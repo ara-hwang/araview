@@ -398,7 +398,7 @@ impl AraView {
         self.progress_held = self.archive.is_some() && !settings.resume_reading;
         // 아카이브 세션 보기 모드를 새로 정한다. 목록이 바뀔 때마다 내려놓으므로
         // 다른 목록으로 가면 세션 모드도 사라지고, 일반 이미지는 설정값으로
-        // 돌아간다(§15).
+        // 돌아간다(§6).
         self.comic_mode = self.archive.as_ref().and_then(|_| {
             layout::comic_view_mode(
                 settings.view_mode,
@@ -621,7 +621,7 @@ impl AraView {
 
     /// 헤더·설정·단축키에서 보기 모드를 직접 고른다. 아카이브를 보는 동안에는
     /// 설정값을 바꾸지 않고 세션 보기 모드(`comic_mode`)에만 적용해, 일반
-    /// 이미지는 아카이브를 열기 전 설정 그대로 열린다(§15).
+    /// 이미지는 아카이브를 열기 전 설정 그대로 열린다(§6).
     pub(super) fn set_view_mode(
         &mut self,
         mode: ViewMode,

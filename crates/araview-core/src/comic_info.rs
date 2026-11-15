@@ -22,7 +22,7 @@ pub const MAX_COMICINFO_BYTES: u64 = 1024 * 1024;
 /// `Pages` 배열 상한. 비정상적으로 긴 목록은 잘라서 표시용으로만 쓴다.
 const MAX_COMIC_PAGES: usize = 1000;
 
-/// 프론트와 공유하는 만화 메타데이터 (snake_case 직렬화).
+/// UI와 공유하는 만화 메타데이터 (snake_case 직렬화).
 #[derive(Serialize, Debug, Clone, PartialEq, Default)]
 #[serde(rename_all = "snake_case")]
 pub struct ComicInfo {

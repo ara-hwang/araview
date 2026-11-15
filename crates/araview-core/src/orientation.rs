@@ -1,8 +1,7 @@
 //! EXIF Orientation 처리.
 //!
-//! WebView2는 `<img>` 렌더 시 EXIF orientation을 자동 적용하므로 화면 표시는
-//! 이미 upright다. 반면 `image` 크레이트를 쓰는 경로(썸네일, 저장, 치수 계산,
-//! 파일 정보)는 회전을 모르기 때문에, 여기서 명시적으로 적용해 표시와 맞춘다.
+//! 표시 경로(`display.rs`)와 `image` 크레이트를 쓰는 경로(썸네일, 치수 계산,
+//! 파일 정보, 클립보드)가 같은 기준을 쓰도록 회전을 명시적으로 적용한다.
 //!
 //! 적용 범위는 JPEG/TIFF다. HEIC/HEIF는 libheif sidecar가 컨테이너 변환
 //! (irot/imir)을 반영하고, sidecar JPEG에는 EXIF가 없어 이 파이프라인을 타지

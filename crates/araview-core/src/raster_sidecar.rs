@@ -1,7 +1,7 @@
 //! TGA / DDS / OpenEXR / QOI / Radiance HDR / PNM(PBM·PGM·PPM·PNM·PAM) 미리보기용 JPEG sidecar.
 //!
-//! WebView2는 이 포맷들을 네이티브 렌더하지 못해 HEIC/PSD와 같은 전제로
-//! 디코드한 픽셀을 JPEG sidecar로 변환해 렌더한다.
+//! 뷰어는 이 포맷들을 직접 렌더하지 못해 HEIC/PSD와 같은 전제로
+//! 디코드한 픽셀을 JPEG sidecar로 변환해 표시한다.
 //! - 디코더: `image` 크레이트(이미 의존 중, 추가 의존성 없음).
 //! - DDS는 크레이트가 DXT1/3/5(BC1~BC3)만 지원한다. 그 외(BC7, 비압축)는
 //!   `unsupported`로 보고한다.
@@ -9,7 +9,7 @@
 //!   Radiance HDR도 같은 RGBE 선형 부동소수라 같은 변환을 쓴다.
 //! - PNM 계열(P1~P7)은 8비트·16비트 색상이며, 투명은 흰 배경에 합성한다.
 //! - QOI는 8비트 RGB/RGBA 손실 압축이며, 투명은 흰 배경에 합성한다.
-//! - 편집 저장은 지원하지 않는다(읽기 전용). `save.rs`에서 진입 차단.
+//! - 편집 저장 경로는 없다(읽기 전용).
 //!
 //! 파일 식별 해시, per-file 락, JPEG 원자적 발행, 다운스케일은
 //! 공용 `sidecar` 모듈을 사용한다.
@@ -58,7 +58,7 @@ pub(crate) static SPEC: SidecarSpec = SidecarSpec {
 };
 
 /// 합성 픽셀을 RGB8로 디코드. 투명은 흰 배경에 합성한다
-/// (JPEG에 알파가 없어 `psd_sidecar`/`save.rs` flatten과 같은 규칙).
+/// (JPEG에 알파가 없어 흰 배경 합성 규칙을 쓴다).
 pub(crate) fn decode_rgb8(source: &Path) -> Result<Rgb8, AppError> {
     // 렌더 경로를 정하는 `resolve_mime`을 그대로 따른다. 이름이 바뀐
     // QOI/DDS/EXR도 시그니처로 판별돼 같은 디코더로 들어온다.

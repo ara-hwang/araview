@@ -26,7 +26,7 @@ use crate::settings::{SettingsStore, ThemeChoice, WindowState};
 const INSTANCE_POLL: Duration = Duration::from_millis(150);
 
 /// 다이얼로그가 뒤 화면을 덮는 검정 불투명도. 라이트 테마 기본값(5%)이 너무 옅어
-/// 다크 기본값과 같은 세기로 맞춘다(SPEC §17).
+/// 다크 기본값과 같은 세기로 맞춘다(SPEC §1).
 const DIALOG_DIM_ALPHA: f32 = 0.2;
 /// `DIALOG_DIM_ALPHA`의 `#RRGGBBAA` 표기. 테마 설정은 문자열 색만 받는다.
 const DIALOG_DIM_HEX: &str = "#00000033";

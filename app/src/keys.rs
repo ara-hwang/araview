@@ -81,7 +81,7 @@ const KEY_NAMES: &[(&str, &str)] = &[
 /// 조합(`Meta`, `Tab`, §14.3)이면 `None`이다.
 pub fn spec_from_keystroke(keystroke: &Keystroke) -> Option<String> {
     let modifiers = keystroke.modifiers;
-    // 플랫폼 키(Windows 키)와 기능 키는 단축키로 쓰지 않는다(§14.3).
+    // 플랫폼 키(Windows 키)와 Fn 키는 단축키로 쓰지 않는다(§14.3).
     if modifiers.platform || modifiers.function {
         return None;
     }

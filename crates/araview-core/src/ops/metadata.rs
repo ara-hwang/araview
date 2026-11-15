@@ -25,7 +25,7 @@ pub fn get_exif_data_impl(file_path: &str) -> Result<HashMap<String, String>, Ap
         .map_err(|e| AppError::io("Failed to open file", e, ErrorCode::Corrupt))?;
     let mut reader = BufReader::new(file);
 
-    // EXIF가 없거나 읽을 수 없는 파일은 실패가 아니라 빈 결과다. 프론트는
+    // EXIF가 없거나 읽을 수 없는 파일은 실패가 아니라 빈 결과다. UI는
     // 빈 맵을 "EXIF 없음" 상태로 보여준다.
     let exif = match exif::Reader::new().read_from_container(&mut reader) {
         Ok(exif) => exif,

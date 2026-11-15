@@ -1,9 +1,9 @@
 //! 클립보드 복사용 PNG 파생 이미지(§11.3).
 //!
-//! Ctrl+C는 예전에 웹뷰 안에서 fetch → createImageBitmap → 풀사이즈 canvas →
+//! Ctrl+C는 예전 웹뷰 시절 fetch → createImageBitmap → 풀사이즈 canvas →
 //! canvas.toBlob(PNG)를 실행해 비트맵·캔버스·블롭(픽셀 데이터의 수 배)을
-//! WebView 프로세스에 올렸다. 이제 백엔드가 웹뷰가 그리는 같은 바이트를
-//! 디코드해 PNG로 인코딩하고, 프론트는 그 경로를 클립보드에 쓴다.
+//! WebView 프로세스에 올렸다. 지금은 코어가 표시에 쓰는 같은 바이트를
+//! 디코드해 PNG로 인코딩하고, 앱이 그 경로를 클립보드에 쓴다.
 //!
 //! 표시와의 정합(§18): JPEG/TIFF EXIF orientation은 표시와 같은 기준으로 반영하고,
 //! GIF/APNG/움직이는 WebP는 첫 프레임만 담는다. 알파는 유지한다. 픽셀 값은
@@ -47,7 +47,7 @@ pub fn export_clipboard_png(source: &Path) -> Result<ClipboardPng, AppError> {
     }
     let hash = crate::sidecar::file_identity_hash(source, FORMAT_REVISION)?;
     let dest = clipboard_dir()?.join(format!("{hash:016x}.png"));
-    // 프론트가 곧 이 경로를 asset URL로 fetch하므로 발행 전후로 보호한다.
+    // 앱이 곧 이 경로를 읽으므로 발행 전후로 보호한다.
     // 디코드 중에 캐시 clear가 실행돼도 반환된 경로가 사라지지 않게 한다.
     crate::process_temp::mark_in_use(&dest);
     if dest.exists() {
@@ -122,7 +122,7 @@ fn icc_matches_color(icc: &[u8], color: image::ColorType) -> bool {
     }
 }
 
-/// 웹뷰가 그리는 렌더 바이트를 표시와 같은 결과로 디코드한다. 판별은 내용
+/// 표시에 쓰는 렌더 바이트를 같은 결과로 디코드한다. 판별은 내용
 /// 기준([`crate::image::resolve_mime`])이라 이름이 바뀐 파일도 올바르게 간다.
 fn decode_for_clipboard(source: &Path) -> Result<Decoded, AppError> {
     match crate::image::resolve_mime(source) {
@@ -303,7 +303,7 @@ mod tests {
         let out = export_clipboard_png(&source).unwrap();
         let decoded = image::open(&out.file_path).unwrap().to_rgb8();
         assert_eq!((decoded.width(), decoded.height()), (4, 4));
-        // createImageBitmap과 같이 첫 프레임(빨강)만 담는다.
+        // 정지 이미지로 export하므로 첫 프레임(빨강)만 담는다.
         assert_eq!(decoded.get_pixel(0, 0).0, [255, 0, 0]);
         assert_eq!(decoded.get_pixel(3, 3).0, [255, 0, 0]);
     }

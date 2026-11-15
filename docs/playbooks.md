@@ -67,6 +67,17 @@ Done when every screen the change touches is reported PASS or FAIL, or listed as
 
 Run `node scripts/generate-license-data.mjs` after changing dependencies (needs `cargo install cargo-about --locked --features cli` and network). It rewrites `app/THIRD_PARTY_LICENSES.json` (embedded in the app) and the section 2 table of `THIRD_PARTY_LICENSES.md`.
 
+## Regenerate the app icon
+
+The app embeds only `app/resources/icon.ico` (`app/resources/app.rc`); `app/resources/icon.png` is the tracked 1024px copy. The SVG files in `site/` are website logos with a different grid (72px margin, 408px tiles, 64px gap, 48px radius), not the app icon source.
+
+1. Start from an SVG or 1024px PNG that follows the App Icon construction in `DESIGN.md`.
+2. Run `npx --yes @tauri-apps/cli@2.11.4 icon <source>` in a scratch folder.
+3. Copy the generated `icon.ico` and 1024px `icon.png` to `app/resources/`.
+4. Rebuild. Windows caches icons aggressively: log out/in or rebuild the icon cache to see the change.
+
+For the dark variant, use a dark source that follows the same construction, then replace `icon.ico` and rebuild.
+
 ## Test the installer without touching the real install
 
 `pwsh scripts/Build-Installer.ps1 -Suffix " Test" -OutFile target/AraView-Test-setup.exe` builds an installer whose install folder, uninstall entry, and shortcut carry the suffix, so installing it leaves a real AraView install alone.

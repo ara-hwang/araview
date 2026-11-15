@@ -4,7 +4,7 @@
 
 ## 기술 스택
 
-- **앱**: Rust, [GPUI Kit](https://github.com/longbridge/gpui-kit) 0.8(`app`)
+- **앱**: Rust, [GPUI Kit](https://github.com/longbridge/gpui-kit) 0.9(`app`)
 - **공용 코어**: `crates/araview-core`(디코드, 아카이브, 캐시, 썸네일, 파일 작업)
 - **탐색기 썸네일**: `crates/araview-thumb`(COM DLL, Windows 전용)
 - **배포 묶음**: Windows NSIS 설치 프로그램(`app/installer/araview.nsi`)
@@ -104,43 +104,30 @@ npm run licenses
 
 ## 앱 구조 요약
 
-- `app`는 UI와 입력만 맡고, 파일과 이미지 작업은 `araview-core`의 동기 함수(`ops/`)를 `cx.background_spawn`으로 호출합니다.
-- 렌더링: `araview-core`의 `display.rs`가 디코드한 RGBA 프레임을 GPU 타일로 그립니다. 큰 정지 JPEG/PNG는 `preview.rs`에서 축소 디코드/행 샘플링을 먼저 시도하고, ICC·인터레이스·애니메이션·알파 등 비지원 입력과 TIFF는 기존 full 디코드로 폴백합니다. GPUI 텍스처는 한 변 16384px 제한과 밉맵 없는 선형 보간뿐이라, 큰 이미지는 타일로 나누고 축소 단계를 CPU에서 만듭니다. 단계는 열 때 화면에 필요한 수준까지만 만들고 커밋 뒤 백그라운드로 채웁니다. 픽셀 보존 표시는 보이는 영역만 최근접 확대한 래스터로 그립니다.
-- 단축키: GPUI 키맵 대신 뷰어 루트의 키 입력에서 설정 맵을 직접 찾습니다(`src/keys.rs`).
-- 파일 열기 대화상자: GPUI의 경로 선택 창에는 형식 필터가 없어 `rfd`의 네이티브 대화상자를 씁니다.
-- 고대비: Windows 대비 테마 여부를 시작할 때, 테마를 바꿀 때, OS 테마 변화를 받았을 때, 창이 다시 활성화될 때 읽어 글자·테두리 대비를 올립니다. 테마 설정이 '시스템'이면 OS 밝기(라이트·다크) 변화를 Windows가 창에 알려 주는 즉시 새 테마로 다시 맞춥니다(`cx.observe_window_appearance`, `system.rs`의 `system_appearance_changed`). 모션 최소화는 Windows "애니메이션 효과" 설정을 따릅니다(`src/platform/`).
-- 플랫폼 계층: `app/src/platform/mod.rs`가 공개 함수 집합을 정의하고 `windows.rs`(Win32 직접 호출)가 구현합니다. 항상 위(`ALWAYS_ON_TOP_SUPPORTED`)가 켜져 있어 헤더 버튼, 설정 행, 명령 팔레트 항목이 항상 노출됩니다.
-- 단축키: Win/Super 키는 쓰지 않습니다(§14.3).
-- 설정은 `<설정 폴더>/<식별자>/settings.json`에 저장합니다(위 표). `settings`/`recentFiles`/`archiveProgress` 모양은 1.x(Tauri)와 같고 `theme`, `window`(창 위치·크기) 키가 더 있습니다. 그래서 1.x 설치본 위에 설치하면 설정과 최근 파일을 이어받습니다.
-- 단일 인스턴스: 두 번째 실행은 첫 인자를 기존 창에 넘기고 종료합니다. Windows는 명명된 파이프(`\\.\pipe\<식별자>`)를 씁니다.
-- 런타임 확인: 디버그 빌드는 실행 중인 창에 `araview action:<동작 ID>`(Windows는 `araview.exe`)로 동작을 실행시킬 수 있습니다(`src/app/menu.rs`의 `run_action`, 단축키 동작 ID와 `openSettings`, `viewLtr` 등). 릴리스 빌드에는 이 통로가 없습니다.
-- 제어 브리지(개발 빌드 전용): 디버그 빌드는 `\\.\pipe\<식별자>-control`을 열고 한 줄 JSON 요청에 한 줄 JSON 응답을 돌려줍니다(`src/app/bridge.rs`, 통로는 `src/platform/`). 입력은 창 메시지가 아니라 GPUI 입력 경로(`Window::dispatch_event`, `Window::dispatch_keystroke`)로 들어가므로 수식키 조합(ctrl-휠, ctrl-shift-c)과 파일 드롭이 그대로 살고 사용자의 마우스·키보드를 건드리지 않습니다. 상태(열린 파일, 인덱스, 보기 모드, 배율, 위치, 읽기 영역, 패널, 전체화면, 에러)를 함께 돌려줍니다. `scripts/araview-drive.ps1`(CLI), `scripts/araview-mcp.ps1`(MCP 서버), `scripts/AraViewControl.psm1`(캡처와 통로 클라이언트)이 이 통로를 씁니다. 릴리스 빌드에는 이 통로가 없습니다(The control channel is compiled out of release builds).
-- 업데이트: 동작 계약은 `SPEC.md` §20.1을 따른다(피드 `update-feed.json`, 공개키 `app/update-pubkey.txt`, `PLATFORM` 분기). 피드가 없으면(404) 확인 결과는 "최신"이다.
-- 업데이트 로컬 검증: `cargo run -p araview --example local_update_feed -- <setup.exe> <출력 폴더> http://127.0.0.1:8765`가 임시 키로 서명한 피드를 만듭니다. 그 폴더를 `python -m http.server 8765 --bind 127.0.0.1`로 띄우고, 디버그 빌드를 `ARAVIEW_UPDATE_FEED`(피드 주소)와 `ARAVIEW_UPDATE_PUBKEY`(`pubkey.txt` 내용)를 준 채 실행한 뒤 `action:checkUpdates`나 `action:installUpdate`를 보냅니다. 릴리스 빌드는 두 환경 변수를 읽지 않습니다.
-- 서드파티 라이선스: `npm run licenses`가 Rust 의존성을 `app/THIRD_PARTY_LICENSES.json`에 모으고, 앱이 이 파일을 컴파일 시점에 포함합니다. 같은 스크립트가 `THIRD_PARTY_LICENSES.md`의 2절 표도 다시 씁니다. 1절(네이티브 라이브러리)은 직접 고칩니다. 의존성을 바꾸면 다시 생성합니다. 허용하지 않은 라이선스와 RustSec 자문은 `cargo deny check`(설정 `deny.toml`, `cargo install cargo-deny --locked`)로 검사하며 CI와 릴리스 워크플로도 같은 검사를 합니다. 패키지에 LICENSE 파일이 없어 표준 템플릿("Copyright (c) <year> <owner>")이 나오는 크레이트는 스크립트가 경고로 알려 주며, 업스트림 LICENSE를 `licenses-extra/`에 복사하고 스크립트의 `EXTRA_LICENSES`에 추가합니다. 새 라이선스가 나오면 `about.toml`의 `accepted`와 `deny.toml`의 `allow`를 같이 고칩니다.
-- 스크롤: GPUI에는 휠 스크롤 감속이 없어 `src/smooth.rs`의 `SmoothScroll`이 홈, 설정, 정보 패널, 라이선스 창(원문과 목록), 썸네일 그리드의 휠 입력을 목표 오프셋으로 쌓아 프레임마다 따라가게 합니다. 가상 목록(그리드, 라이선스 목록, 도크)은 목록이 추적하는 핸들을 공유하고 기본 스크롤을 끈 뒤(`overflow_hidden`) 바깥에서 휠을 처리합니다. 웹툰 보기는 스크롤 핸들이 없어 `src/smooth.rs`의 `Glide`(남은 거리만 쌓는 상태)로 같은 감속을 쓰고, `src/app/viewport.rs`가 휠과 위·아래 키 스크롤을 프레임마다 나눠 반영합니다.
-- Tab 포커스 스크롤: `gpui-component` 포크의 버튼·스위치·선택 상자는 새 키보드 포커스를 받으면 `focus_reveal.rs`에서 `request_autoscroll`을 보냅니다. `SmoothScroll::area`·`h_area`는 자식의 요청만 받아 최소 거리로 즉시 이동하고, 중첩 영역은 이동 후 보이는 부분을 부모에 넘깁니다. 포커스 이동·탭 초기화처럼 즉시 이동할 때는 감속 세대를 바꿔 이미 예약된 휠 프레임도 무효화합니다.
-- 알림: GPUI 알림 레이어는 다이얼로그보다 아래에 그려지므로, 다이얼로그가 열려 있으면 `src/toast.rs`가 같은 내용을 경고창으로 띄웁니다.
-- 로딩 표시: 파일을 여는 중(200ms 이상)에는 홈 위에, 그림이 아직 없을 때는 가운데에, 그림이 떠 있는 채 새 페이지나 웹툰 페이지가 늦어지면(페이지 이동은 300ms 이상) 오른쪽 위에 스피너를 보입니다.
-- UI 통합 테스트: 헤드리스 UI 테스트는 없습니다. `cargo test`는 단위 테스트만 돌립니다. 키, 휠, 드래그, 드롭, 우클릭, 다이얼로그는 개발 빌드를 띄워 제어 브리지로 확인합니다(`docs/playbooks.md`의 "Runtime check").
+- `app`는 UI와 입력만 맡고, 파일·이미지 작업은 `araview-core`의 동기 `ops/` 함수를 `cx.background_spawn`으로 호출합니다.
+- 렌더링은 `display.rs`의 RGBA 프레임을 GPU 타일로 그리고, 큰 JPEG/PNG는 `preview.rs`의 축소 디코드/행 샘플링을 먼저 시도합니다. 큰 이미지의 타일·축소 단계 규칙은 `SPEC.md` §18을 따릅니다.
+- 단축키는 GPUI 키맵 대신 `src/keys.rs`에서 설정 맵을 직접 찾습니다. 파일 열기 대화상자는 `rfd`를 쓰고, Win/Super 키는 사용하지 않습니다(§14.3).
+- 고대비와 모션 최소화는 Windows 설정을 따릅니다(`src/platform/`, `system.rs`). 테마가 '시스템'이면 OS 밝기 변경을 즉시 반영합니다.
+- 플랫폼 계층은 `app/src/platform/mod.rs`의 공개 함수 집합을 `windows.rs`가 구현합니다. 항상 위는 항상 지원됩니다(`ALWAYS_ON_TOP_SUPPORTED`).
+- 설정은 `<설정 폴더>/<식별자>/settings.json`에 저장합니다. `settings`/`recentFiles`/`archiveProgress` 모양은 1.x(Tauri)와 같고 `theme`, `window`(창 위치·크기) 키가 더 있어 1.x 설치본의 설정과 최근 파일을 이어받습니다.
+- 단일 인스턴스: 두 번째 실행은 첫 인자를 명명된 파이프(`\\.\pipe\<식별자>`)로 기존 창에 넘기고 종료합니다.
+- 개발 빌드 제어: `scripts/araview-drive.ps1`(CLI)와 `scripts/araview-mcp.ps1`(MCP)이 `src/app/bridge.rs`의 제어 파이프를 씁니다. 입력은 `Window::dispatch_event`/`dispatch_keystroke`로 들어가 사용자의 마우스·키보드를 건드리지 않습니다. 릴리스 빌드에는 이 통로가 없습니다. 절차는 `docs/playbooks.md` "Runtime check".
+- 업데이트: 동작 계약은 `SPEC.md` §20.1. 로컬 검증은 `cargo run -p araview --example local_update_feed -- <setup.exe> <출력 폴더> <피드 URL>`로 피드를 만들고, `ARAVIEW_UPDATE_FEED`/`ARAVIEW_UPDATE_PUBKEY`를 준 디버그 빌드에서 확인합니다. 릴리스 빌드는 두 환경 변수를 읽지 않습니다.
+- 라이선스: `npm run licenses`가 `app/THIRD_PARTY_LICENSES.json`과 `.md` 2절을 만들고, `cargo deny check`가 라이선스·RustSec을 검사합니다. 예외는 `licenses-extra/`와 `EXTRA_LICENSES`, `about.toml`/`deny.toml`을 함께 고칩니다. 절차는 `docs/playbooks.md` "Update the third-party license data".
+- 스크롤: `src/smooth.rs`의 `SmoothScroll`이 휠 입력을 목표 오프셋으로 쌓고 프레임마다 따라갑니다. 가상 목록은 핸들을 공유하고 기본 스크롤을 끄며, 웹툰은 `Glide`로 같은 감속을 씁니다. Tab 포커스는 `focus_reveal.rs`가 최소 거리로 즉시 스크롤합니다.
+- 알림은 기본 토스트, 다이얼로그가 열려 있으면 경고창입니다(`src/toast.rs`). 파일을 여는 중(200ms 이상), 그림이 없을 때, 페이지 이동이 늦을 때(300ms 이상) 스피너를 보여줍니다.
+- UI 통합 테스트는 없습니다. `cargo test`는 단위 테스트만 돌리고, 키·휠·드래그·드롭·우클릭·다이얼로그는 개발 빌드와 제어 브리지로 확인합니다.
 
 ## 프로젝트 구조
 
 ```text
-Cargo.toml  # 워크스페이스(crates/*, app). Cargo.lock도 하나
-crates/araview-core/src/  # UI 비의존 코어. 경계: app=표현, ops/**=동기 연산
-  ops/  # 도메인별 동기 함수(directory, file_ops, archive, load, metadata, thumbnail, ocr, system)
-  decode/  # display, image(resolve_mime), sniff, heif, psd_sidecar, raster_sidecar, raw, jxl, svg_*, transcode
-  cache/  # process_temp, cache, sidecar, scaled, thumbnail, archive_index, comic_info
-  meta/  # image_info, orientation, natural_sort, ocr, dir_cache, file_availability, app_error, stable_hash, clipboard_png, file_assoc
-  araview-thumb/  # 탐색기 썸네일 COM DLL(Windows 전용)
-app/  # 표현 계층. 상세는 코드 읽기
-  src/app/  # 화면: pages, viewport, dock, grid, menu, info_panel, file_ops, ocr, settings_panel, system, update, licenses, bridge
-  src/  # layout, picture, geometry, settings, smooth, toast, keys, dialog, i18n, assets, platform/, build.rs
-  locales/ update-pubkey.txt THIRD_PARTY_LICENSES.json(생성물) installer/ resources/
-scripts/  # check-docs/release/licenses(.mjs), Build-Installer.ps1, araview-drive/mcp(.ps1)
-vendor/  # [patch.crates-io] 포크(HDR 실험용 gpui-pre-windows, 명령 팔레트 스크롤용 gpui-component)
-licenses-extra/  # 업스트림 LICENSE 사본
+Cargo.toml                 # 워크스페이스(crates/*, app), lock 하나
+app/                       # 표현·입력. build.rs는 아이콘, vcpkg DLL·라이선스, 링크 인자
+crates/araview-core/       # UI 비의존 코어. ops/는 동기 연산, 나머지는 평면 모듈
+crates/araview-thumb/      # 탐색기 썸네일 COM DLL(Windows 전용)
+scripts/                   # check-docs, release, generate-license-data, bench, Build-Installer, araview-drive/mcp, test-*
+vendor/                    # [patch.crates-io] 포크(gpui-pre-windows, gpui-component)
+licenses-extra/            # 업스트림 LICENSE 사본
 ```
 
 ## 파생 이미지 캐시

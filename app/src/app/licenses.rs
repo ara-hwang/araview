@@ -1,4 +1,4 @@
-//! 오픈소스 라이선스 창: 왼쪽 목록에서 고르고 오른쪽에서 원문을 본다(Tauri 앱과 같은 구성).
+//! 오픈소스 라이선스 창: 왼쪽 목록에서 고르고 오른쪽에서 원문을 본다.
 
 use std::collections::HashMap;
 use std::path::PathBuf;

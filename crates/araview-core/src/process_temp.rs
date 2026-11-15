@@ -135,7 +135,7 @@ pub fn initialize(app_cache: &Path, mode: CacheStorageMode) -> Result<PathBuf, A
     }
 }
 
-/// Fallback used when Tauri's cache directory cannot be initialized.
+/// Fallback used when the app cache directory cannot be initialized.
 pub fn initialize_temporary_fallback() -> Result<PathBuf, AppError> {
     let base = std::env::temp_dir().join(FALLBACK_TEMP_DIR);
     reset_temporary_base(&base)?;
@@ -215,7 +215,7 @@ pub fn process_temp_dir() -> Result<PathBuf, AppError> {
     Ok(path)
 }
 
-/// Explicitly remove a session cache root on a normal Tauri exit. Static
+/// Explicitly remove a session cache root on a normal app exit. Static
 /// values are not dropped at process termination, so TempDir's destructor alone
 /// is not sufficient. A crash is handled by resetting the named session base
 /// during the next startup.
@@ -364,11 +364,11 @@ pub(crate) fn touch_cache_file(path: &Path) {
     }
 }
 
-/// Cache paths recently handed to the frontend. The webview holds an
-/// `asset://` URL for whatever it renders, and nothing re-creates a cache file
-/// once that URL exists, so evicting one leaves a broken image. Bounded ring
-/// buffer: the oldest hand-out loses its protection first.
-/// Webtoon·대용량 아카이브에서 오래된 페이지 asset URL이 깨지지 않도록 여유를 둔다.
+/// Cache paths recently handed to the UI. The viewer holds the path it renders,
+/// and nothing re-creates a cache file once eviction removes it, so evicting one
+/// leaves a broken image. Bounded ring buffer: the oldest hand-out loses its
+/// protection first. Webtoon·대용량 아카이브에서 오래된 페이지 경로가 깨지지
+/// 않도록 여유를 둔다.
 const MAX_IN_USE: usize = 1024;
 
 static IN_USE_OVERFLOW_LOGGED: std::sync::atomic::AtomicBool =
@@ -689,7 +689,7 @@ pub(crate) fn collect_files(
 }
 
 /// When the total exceeds `max_bytes`, delete oldest-first until it is under
-/// `target_bytes` (at most `max_bytes`), skipping files the frontend is still
+/// `target_bytes` (at most `max_bytes`), skipping files the app is still
 /// displaying. Returns the total that remains.
 fn evict_oldest(mut files: Vec<(u128, u64, PathBuf)>, max_bytes: u64, target_bytes: u64) -> u64 {
     let mut total = files
@@ -705,7 +705,7 @@ fn evict_oldest(mut files: Vec<(u128, u64, PathBuf)>, max_bytes: u64, target_byt
             break;
         }
         // 스냅샷이 아니라 삭제 직전에 확인한다. 수집 이후 mark_in_use된 파일은
-        // FE가 이미 asset URL로 들고 있어 지우면 깨진 화면으로 남는다.
+        // UI가 아직 표시하고 있어 지우면 깨진 화면으로 남는다.
         if is_in_use(&path) {
             continue;
         }

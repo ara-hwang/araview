@@ -1,74 +1,6 @@
----
-name: araview
-description: Quiet offline image and comic viewer for the desktop; the picture is the interface.
-colors:
-  ink: "oklch(0.205 0 0)"
-  paper: "oklch(1 0 0)"
-  paper-ink: "oklch(0.145 0 0)"
-  muted-wash: "oklch(0.97 0 0)"
-  muted-ink: "oklch(0.556 0 0)"
-  rule: "oklch(0.922 0 0)"
-  focus-ring: "oklch(0.708 0 0)"
-  alarm: "oklch(0.577 0.245 27.325)"
-typography:
-  body:
-    fontFamily: "Pretendard Variable, Pretendard, -apple-system, Segoe UI, Malgun Gothic, sans-serif"
-    fontSize: "0.875rem"
-    fontWeight: 400
-    lineHeight: 1.5
-  label:
-    fontFamily: "Pretendard Variable, Pretendard, -apple-system, Segoe UI, Malgun Gothic, sans-serif"
-    fontSize: "0.75rem"
-    fontWeight: 600
-    lineHeight: 1.33
-    letterSpacing: "0.05em"
-  readout:
-    fontFamily: "Pretendard Variable, Pretendard, -apple-system, Segoe UI, Malgun Gothic, sans-serif"
-    fontSize: "0.875rem"
-    fontWeight: 500
-    fontFeature: "tnum"
-rounded:
-  sm: "0.375rem"
-  md: "0.5rem"
-  lg: "0.625rem"
-spacing:
-  sm: "8px"
-  md: "16px"
-components:
-  button-primary:
-    backgroundColor: "{colors.ink}"
-    textColor: "{colors.paper}"
-    rounded: "{rounded.lg}"
-    padding: "0 10px"
-    height: "32px"
-  button-outline:
-    backgroundColor: "{colors.paper}"
-    textColor: "{colors.paper-ink}"
-    rounded: "{rounded.lg}"
-    padding: "0 10px"
-    height: "32px"
-  button-ghost:
-    backgroundColor: "{colors.paper}"
-    textColor: "{colors.paper-ink}"
-    rounded: "{rounded.lg}"
-    padding: "0 10px"
-    height: "32px"
-  button-icon:
-    backgroundColor: "{colors.paper}"
-    textColor: "{colors.paper-ink}"
-    rounded: "{rounded.lg}"
-    size: "32px"
-  input-field:
-    backgroundColor: "{colors.paper}"
-    textColor: "{colors.paper-ink}"
-    rounded: "{rounded.md}"
-    padding: "4px 12px"
-    height: "36px"
----
-
-> Note: the token names and values below came from the original web UI (`App.css`). The GPUI app maps them onto the gpui-kit theme (`app`); the intent, scale, and rules here still apply, while CSS-specific mechanics (Tailwind utilities, `@theme`) do not.
-
 # Design System: AraView
+
+> Note: the token names and values in this document came from the original web UI (`App.css`). The GPUI app maps them onto the gpui-kit theme (`app`); the intent, scale, and rules still apply, while CSS-specific mechanics (Tailwind utilities, `@theme`) do not. The `app` theme is the runtime source of truth.
 
 ## Overview
 
@@ -85,7 +17,7 @@ A calm, paper-neutral room built for looking, not for clicking. The viewer chrom
 
 ## Colors
 
-One ink, one paper, warm-gray washes between. No accent hue exists; emphasis comes from ink weight and placement. Token values here mirror the original web tokens; the CSS is the runtime truth.
+One ink, one paper, warm-gray washes between. No accent hue exists; emphasis comes from ink weight and placement.
 
 ### Primary
 
@@ -119,7 +51,7 @@ Dark mode inverts the room: surfaces go ink, text goes paper (the dark theme).
 ## Typography
 
 **Display Font:** none. This product has no marketing surfaces; there is no display role.
-**Body Font:** Pretendard Variable (with Pretendard, system fallbacks). Reason in one line: the only typeface in the product must read Korean and Latin equally well at small UI sizes while staying quiet behind images.
+**Body Font:** GPUI `.SystemUIFont` (on Windows, the system UI family such as Segoe UI). Pretendard is not bundled. Reason in one line: the only typeface in the product must read Korean and Latin equally well at small UI sizes while staying quiet behind images.
 **Label/Mono Font:** same family; numerals use tabular figures (`tnum`) for readouts (zoom, page position, dimensions, file sizes, counts, slider values).
 
 **Character:** Restrained grotesk, small sizes, medium weights. Labels earn their place by being scannable, never by being loud.
@@ -139,11 +71,11 @@ Dark mode inverts the room: surfaces go ink, text goes paper (the dark theme).
 
 ## Layout
 
-Single-window app shell: a thin top toolbar (40px tall, 32px buttons with 4px of breathing room between them and above and below them, grouped controls separated by vertical rules), a content well that owns all remaining space, and optional side/bottom layers (EXIF panel, thumbnail strip, nav bar). The toolbar keeps its left and right menus and native caption buttons visible at the 500px minimum window width; labels collapse first, then fit/zoom below 690px, view modes below 840px, and single-image transforms below 1010px. Animation controls hide until their own cluster width fits alongside a 990px toolbar, with that width reserved before labels are added when visible. Button groups do not shrink into the native minimize/maximize/close area. The reading well never scrolls the page itself except in webtoon mode, where vertical scroll is the content. Spacing rhythm is 8px in chrome, 16px in dialogs and panels. Scrollbars are always visible (`ScrollbarMode::Always`, OS 자동 숨김 무시).
+Single-window app shell: a thin top toolbar (40px tall, 32px buttons with 4px of breathing room between them and above and below them, grouped controls separated by vertical rules), a content well that owns all remaining space, and optional side/bottom layers (EXIF panel, thumbnail strip, nav bar). The toolbar keeps its left and right menus and native caption buttons visible at the 500px minimum window width; labels collapse first, then fit/zoom below 690px, view modes below 840px, and single-image transforms below 1010px. Animation controls live in the bottom overlay, not the toolbar. Button groups do not shrink into the native minimize/maximize/close area. The reading well never scrolls the page itself except in webtoon mode, where vertical scroll is the content. Spacing rhythm is 8px in chrome, 16px in dialogs and panels. Scrollbars are always visible (`ScrollbarMode::Always`, OS 자동 숨김 무시).
 
 ### Layer Stack
 
-Lowest to highest: reading content with in-canvas overlays (`z-10`), floating callouts (`z-20`), the thumbnail grid overlay (`z-40`), popovers, tooltips, dialogs (`z-50`), toasts (`z-100`). A dialog scrim covers the whole window at 20% black and never closes the dialog on click; the Windows Snap hit-test overlay is OS-owned and sits above the maximize button outside this scale. While a dialog is open the caption controls do not respond (SPEC §17).
+Lowest to highest: reading content with in-canvas overlays (`z-10`), floating callouts (`z-20`), the thumbnail grid overlay (`z-40`), popovers, tooltips, dialogs (`z-50`), toasts (`z-100`). A dialog scrim covers the whole window at 20% black and never closes the dialog on click; the Windows Snap hit-test overlay is OS-owned and sits above the maximize button outside this scale. While a dialog is open the caption controls do not respond (SPEC §1).
 
 ## Elevation & Depth
 
@@ -177,16 +109,14 @@ Motion confirms state; it never decorates. GPUI has no CSS transitions. Scroll a
 
 ## App Icon
 
-The app icon is an obangsaek 2x2 grid: four sticky-note tiles in red, ochre, teal, and ink, with the bottom-right tile's outer corner cut away and folded back over the tile (the page-turn). The name stays Korean-first after the 아 monogram: 청・적・황・흑 carry the identity, and 백 (white) is the transparent gap itself.
+The app icon is an obangsaek 2x2 grid: four sticky-note tiles in red, ochre, teal, and ink, with the bottom-right tile's outer corner cut away and folded back over the tile (the page-turn). 청・적・황・흑 carry the identity, and 백 (white) is the transparent gap itself.
 
-- **Construction:** 1024 canvas, tile 440, gap 24, tile radius 68, fold 180 measured along the cut diagonal. Tiles at (60,60), (524,60), (60,524); the bottom-right tile is a cut-corner path whose cut corner stays transparent, with the solid fold triangle mirrored across the diagonal so it lies on the tile itself. In tile-edge units: radius 15.5%, fold 40.9%.
-- **Symmetry:** the grid is exactly mirror-symmetric left-right, up-down, and on both diagonals: 60 margin on every side, four 440 tiles, a 24 gap centred on 512, and one 68 radius shared by every corner. The ink tile's corners are circular arcs (`A`), so they match the `rx` corners of the other three tiles; quadratic Bézier corners are up to 4px tighter at this scale and break that match. The fold is the only asymmetry, and it keeps the main-diagonal mirror because the cut is a 45 degree isosceles triangle sitting on that diagonal.
-- **Light (default):** `#D9382B` / `#E5A81C` / `#2E8B7A` / ink `#171717`, fold `#525252`.
-- **Dark:** same first three tiles; bottom-right tile is paper `#F5F5F5` with an ink `#171717` fold, so it survives dark taskbars where the ink tile would merge.
-- **Why two variants:** Win32 `.ico` cannot switch with the Windows theme, so each variant is tuned for its own background. The light variant is the bundled default (matches the paper-first chrome and the default light taskbar).
-- **Small sizes:** verified at every size the bundled set ships (16, 24, 32, 48, 64, 128, 256, 512, 1024) on light and dark backgrounds. The 24-unit gap is 0.4px at 16px, so the four tiles fuse into one four-colour block there, show only a faint seam at 32px, and separate cleanly from 64px up; the cut corner still reads at 16px, and the gray fold triangle holds as a solid silhouette from 32px up.
-- **Sources of truth:** `design/icons/icon.svg` (bundled set, light variant), `design/icons/candidates/icon-obangsaek-grid-light.svg`, `design/icons/candidates/icon-obangsaek-grid-dark.svg`. Regenerate the full set from either SVG (square, transparency) or a 1024px PNG of it with `npx --yes @tauri-apps/cli@2.11.4 icon <source>` in a scratch folder. The app only embeds `icon.ico`, so copy that one file to `app/resources/icon.ico` and the site icons from the same SVG. The earlier obang mark is kept as history in `design/icons/candidates/icon-obang-light.svg` and `design/icons/candidates/icon-obang-dark.svg`.
-- **Switching to dark:** run the icon command above on `design/icons/candidates/icon-obangsaek-grid-dark.svg` in a scratch folder (`-o`), then copy `icon.ico` to `app/resources/icon.ico`. Switch back the same way with the light SVG. Windows caches icons aggressively; log out/in or rebuild the icon cache to see the change.
+- **Construction:** 1024 canvas, tile 440, gap 24, tile radius 68, fold 180 measured along the cut diagonal. Tiles at (60,60), (524,60), (60,524); the bottom-right tile is a cut-corner path whose cut corner stays transparent, and the solid fold triangle is mirrored across the diagonal onto the tile. In tile-edge units: radius 15.5%, fold 40.9%.
+- **Symmetry:** 60 margin on every side, four 440 tiles, a 24 gap centred on 512, and one 68 radius shared by every corner. The ink tile's corners are circular arcs (`A`), matching the `rx` corners of the other tiles; the fold is the only asymmetry and keeps the main-diagonal mirror.
+- **Light (default):** `#D9382B` / `#E5A81C` / `#2E8B7A` / ink `#171717`, fold `#525252`. **Dark:** the first three tiles stay; the bottom-right tile is paper `#F5F5F5` with an ink `#171717` fold, so it survives dark taskbars.
+- **Why two variants:** Win32 `.ico` cannot switch with the Windows theme, so each variant is tuned for its own background. The light variant is the bundled default.
+- **Small sizes:** verified at every size the app ships in `icon.ico` (16, 24, 32, 48, 64, 256) and at 1024px from `icon.png`, on light and dark backgrounds. The 24-unit gap is 0.4px at 16px, so the tiles fuse there, show a faint seam at 32px, and separate cleanly from 64px up.
+- **Sources and regeneration:** `app/resources/icon.ico` is the only embedded icon (`app/resources/app.rc`); `app/resources/icon.png` is the tracked 1024px copy. `site/icon-light.svg` and `site/icon-dark.svg` are website logos with a different grid, not the app icon source. Procedure: `docs/playbooks.md` "Regenerate the app icon".
 
 ## Components
 
@@ -200,7 +130,7 @@ Toolbar buttons with a quiet, tactile press (1px downward shift on active, excep
 - **Ghost:** borderless, used for in-canvas adjustments (fit, zoom, rotate, flip); hover shows muted wash.
 - **Icon:** 32px square ghost/outline for canvas transforms; every icon button carries an accessible label.
 - **Icon family:** viewer UI icons are Phosphor (regular weight; fill for the active pin and play/pause), the set the Tauri app used, bundled as SVG in `app/resources/phosphor/` and referenced through the `Ph` enum in `app/src/assets.rs`. Icons that only gpui-kit components draw internally stay on its default Lucide set.
-- **Window controls:** minimize, maximize/restore, and close are native-style caption buttons pinned to the top-right corner: 48px wide, full titlebar height (edge to edge, no gaps, square corners, no border), glyphs Minus/Square/Copy/X. Hover shows the muted wash; close hovers to alarm fill with paper glyph; focus uses a 2px inset ring so it is never clipped at the window edge. On Windows 11, hovering the maximize/restore button shows the OS Snap Layouts flyout (the maximize button is registered as the window's maximize control area, so Windows handles the hit test natively).
+- **Window controls:** minimize, maximize/restore, and close are native-style caption buttons pinned to the top-right corner: 34px wide, full header height (edge to edge, no gaps, square corners, no border), gpui-kit `IconName::WindowMinimize`/`WindowRestore`/`WindowMaximize`/`WindowClose`. Hover shows the muted wash; close hovers to alarm fill with paper glyph. Caption buttons are not focusable app controls; keyboard users close with the OS shortcut (`Alt+F4`). On Windows 11, hovering the maximize/restore button shows the OS Snap Layouts flyout (the maximize button is registered as the window's maximize control area, so Windows handles the hit test natively).
 - **Hover / Focus:** muted wash hover; visible focus ring on all variants; disabled at 50% opacity.
 
 ### Inputs / Fields
@@ -222,8 +152,8 @@ Toolbar buttons with a quiet, tactile press (1px downward shift on active, excep
 - **Command palette (`Ctrl+K`):** grouped commands (`file → navigate → view → display → system`), token AND matching, English aliases searchable in Korean UI.
 - **Peek overlay:** hidden-menu-bar mode hides the header together with app-drawn caption controls. Hovering anywhere across the top 24 logical px reveals both over the reading well; they stay visible within the top 48 logical px and close beyond that band or on window focus loss, never on `Esc` (`Esc` is reserved for closing the image). Returning home or disabling hiding clears the peek state.
 - **Auto-hide overlays:** while UI auto-hide is enabled, the header, thumbnail dock (at any edge), and status bar float over the image when revealed. The bottom chrome opens within the bottom 24 logical px across the window and stays visible within the bottom 150 logical px (exclusive boundaries). Revealing or hiding them never resizes or moves the reading well or changes image scale, pan, or webtoon reading position. Bottom and vertical docks stop above the status bar. With auto-hide disabled, the dock and status bar keep their normal flow layout.
-- **Dialogs:** the scrim covers the whole window at 20% black (`DIALOG_DIM_HEX`, `dialog.rs::centered`); background click does not close (palette and settings handle `BackdropClick` press/release themselves, the rest close only via `Esc`/buttons). While a dialog is open the caption buttons do not respond (`occlude()`, SPEC §17); no invisible shield may cover them beyond the dialog host.
-- **Toasts:** bottom-right stack (`z-100`), popover surface with floating shadow, destructive icon for failures. A toast never carries a failed load alone; the error card owns that.
+- **Dialogs:** the scrim covers the whole window at 20% black (`DIALOG_DIM_HEX`, `dialog.rs::centered`); background click does not close (palette and settings handle `BackdropClick` press/release themselves, the rest close only via `Esc`/buttons). While a dialog is open the caption buttons do not respond (`occlude()`, SPEC §1); no invisible shield may cover them beyond the dialog host.
+- **Toasts:** top-right stack (`z-100`), popover surface with floating shadow, destructive icon for failures. A toast never carries a failed load alone; the error card owns that.
 
 ### Viewer Layers (signature)
 

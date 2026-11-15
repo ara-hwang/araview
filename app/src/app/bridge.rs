@@ -466,7 +466,7 @@ impl AraView {
             "webtoon": { "anchor": self.wt_anchor, "offset": self.wt_offset },
             "error": self.error.as_ref().map(|error| error.error().clone()),
             "errorKind": self.error.as_ref().map(|error| error.kind()),
-            // 프레임 페이싱 통계(§14.4 벤치). 연속 동작의 히치를 에이전트가 잰다.
+            // 프레임 페이싱 통계(docs/playbooks.md "Runtime check"). 연속 동작의 히치를 에이전트가 잰다.
             "frameStats": {
                 "intervals": self.frame_stats.intervals,
                 "lastMs": self.frame_stats.last_ms,

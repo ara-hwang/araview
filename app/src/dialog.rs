@@ -30,7 +30,7 @@ pub fn estimated_dialog_top(window: &mut Window, estimated_height: f32) -> Pixel
 /// 어둡게 한다(색은 테마 `overlay` 토큰, `system::apply_theme`가 라이트·다크 모두 20%
 /// 검정으로 맞춘다). 배경 클릭으로 닫지는 않는다: 이 앱의 바깥 클릭 닫기는 명령
 /// 팔레트와 설정이 다이얼로그 안에서 직접 처리하며(`BackdropClick`), 나머지는
-/// `Esc`·버튼으로만 닫는다(SPEC §17). 배경이 창 전체에 `WindowControlArea::Drag` 히트 영역을 깔기 때문에
+/// `Esc`·버튼으로만 닫는다(SPEC §1). 배경이 창 전체에 `WindowControlArea::Drag` 히트 영역을 깔기 때문에
 /// 다이얼로그가 열려 있는 동안 Windows는 창 전체를 캡션으로 판정한다: 최소화/최대화/
 /// 닫기 버튼은 동작하지 않고(다이얼로그 호스트의 `occlude()`가 OS 히트테스트용 마우스
 /// 좌표 수집을 막는다), 배경을 잡아 끌면 창이 움직인다.

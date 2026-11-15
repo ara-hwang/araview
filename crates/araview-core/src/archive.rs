@@ -71,7 +71,7 @@ const MAX_ZIP_ENTRIES: usize = 200_000;
 const MAX_ENTRY_NAME_BYTES: usize = 4096;
 
 /// 아카이브별 추출 디렉터리 상한. 초과분은 가장 오래된 추출물부터 지운다.
-/// 아직 화면에 있는 추출물은 `mark_in_use`로 보호되고(FE가 이미 asset URL을
+/// 아직 화면에 있는 추출물은 `mark_in_use`로 보호되고(UI가 이미 그 경로를
 /// 들고 있어 재추출 계기가 없다), 나머지는 다음 접근 시 다시 추출된다.
 pub(crate) const MAX_ARCHIVE_DIR_BYTES: u64 = 1024 * 1024 * 1024;
 
@@ -170,7 +170,7 @@ impl<'a> ArchiveExtractor<'a> {
     pub(crate) fn extract(&mut self, entry_name: &str, protect: bool) -> Result<PathBuf, AppError> {
         let ext = archive_ext(self.archive_path);
         let out_path = extraction_out_path(self.temp_dir, entry_name);
-        // FE는 표시용으로 이 경로를 asset URL로 계속 참조한다. 선로딩은 보호하지
+        // UI는 표시용으로 이 경로를 계속 들고 있다. 선로딩은 보호하지
         // 않지만, 두 경로 모두 LRU hit 시 modification time을 갱신한다.
         if protect {
             crate::process_temp::mark_in_use(&out_path);
@@ -460,7 +460,7 @@ fn write_zip_with_entry(
     out.sync_all().map_err(io_err)
 }
 
-/// 이웃 페이지 선추출. FE 프리패치용 fire-and-forget.
+/// 이웃 페이지 선추출. UI 프리패치용 fire-and-forget.
 pub fn prefetch_archive_images(
     archive_path: &Path,
     entry_names: &[String],

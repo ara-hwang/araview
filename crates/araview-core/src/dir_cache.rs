@@ -48,7 +48,7 @@ const MAX_WATCHED_DIRS: usize = 64;
 
 #[derive(Debug, Clone)]
 pub(crate) struct ImageEntry {
-    /// IPC 응답이 문자열을 복사하지 않고 참조만 늘리도록 공유한다.
+    /// 디렉터리 목록 응답이 문자열을 복사하지 않고 참조만 늘리도록 공유한다.
     pub(crate) path: Arc<str>,
     pub(crate) modified: Option<SystemTime>,
     pub(crate) size: u64,

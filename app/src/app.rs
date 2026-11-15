@@ -66,7 +66,6 @@ const HEADER_EXTRA_LABELS_MIN_WIDTH: f32 = 1520.0;
 /// 좁은 창에서 우선 숨길 도구 그룹의 경계(논리 px). 그룹이 보일 때 우측 메뉴와 그립이
 /// Windows 캡션 버튼 3개(34px씩 102px) 앞에 들어가는 최소 폭에, 버튼 사이 간격이 늘어난
 /// 몫과 약 30px 여유를 더한 값이다.
-/// `header_never_overlaps_caption_controls` 테스트가 500~2000px 전체에서 이를 지킨다.
 const HEADER_FIT_CONTROLS_MIN_WIDTH: f32 = 690.0;
 const HEADER_VIEW_MODES_MIN_WIDTH: f32 = 840.0;
 const HEADER_TRANSFORM_CONTROLS_MIN_WIDTH: f32 = 1010.0;
@@ -128,7 +127,7 @@ pub struct AraView {
     relist_seq: u64,
     comic: pages::Comic,
     /// 아카이브 세션 보기 모드. 열 때 자동으로 정하고, 보는 동안 직접 고르면
-    /// 세션에만 바뀐다. 일반 이미지는 설정값을 그대로 쓴다(§15).
+    /// 세션에만 바뀐다. 일반 이미지는 설정값을 그대로 쓴다(§6).
     comic_mode: Option<ViewMode>,
     /// 열 때 캡처한 아카이브 파일 identity. 이어보기 기록에 함께 저장한다(§8).
     archive_identity: Option<FileIdentity>,

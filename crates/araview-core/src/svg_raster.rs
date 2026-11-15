@@ -1,5 +1,5 @@
-//! SVG 래스터화. `image` 크레이트는 SVG를 디코드하지 못하므로 썸네일과
-//! 히스토그램처럼 픽셀이 필요한 경로에서만 resvg를 쓴다. 표시는 WebView가 맡는다.
+//! SVG 래스터화. `image` 크레이트는 SVG를 디코드하지 못하므로 표시·썸네일·
+//! 히스토그램·클립보드처럼 픽셀이 필요한 경로에서 resvg를 쓴다.
 
 use std::io::Read;
 use std::path::Path;
@@ -94,8 +94,8 @@ pub fn rasterize(path: &Path, max_side: u32) -> Result<image::RgbImage, AppError
 }
 
 /// 내재 치수로 렌더링하고 알파를 유지한다. 긴 변이 `max_side`를 넘으면 그 값으로
-/// 줄인다. 프론트가 createImageBitmap으로 내재 치수 래스터를 얻던 클립보드 복사
-/// 경로와 맞춘 것으로, 투명 영역을 흰 배경으로 합성하지 않는다.
+/// 줄인다. 클립보드 복사 경로가 투명 영역을 흰 배경으로 합성하지 않도록 알파를
+/// 그대로 돌려준다.
 pub fn rasterize_rgba(path: &Path, max_side: u32) -> Result<image::RgbaImage, AppError> {
     let tree = parse_tree(path)?;
     let size = tree.size();

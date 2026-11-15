@@ -80,7 +80,7 @@ struct ChoiceDef<'a, T> {
     set: fn(&mut Settings, T),
     effect: Effect,
     /// 설정을 고치는 대신 뷰어에 바로 적용한다. 보기 모드 전용으로, 아카이브를
-    /// 보는 동안에는 설정값 대신 세션 보기 모드에만 반영한다(§15).
+    /// 보는 동안에는 설정값 대신 세션 보기 모드에만 반영한다(§6).
     view_pick: Option<ViewPick<T>>,
 }
 

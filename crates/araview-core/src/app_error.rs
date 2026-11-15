@@ -1,14 +1,12 @@
-//! Frontend와 공유하는 구조화 백엔드 에러 (Step 6).
+//! 코어 연산이 반환하는 구조화 에러.
 //!
-//! 모든 호스트 커맨드는 `Result<T, AppError>`를 반환한다.
-//! 프론트는 `code`로 분기하고(`src/utils/appError.ts`), `message`는
-//! 사람용 상세로 토스트/에러 카드에 그대로 보여준다.
-//! 새 코드를 추가하면 프론트 매핑표에도 행을 추가할 것.
+//! 코어의 공개 연산은 `Result<T, AppError>`를 반환한다.
+//! UI는 `code`로 분기하고, `message`는 사람용 상세로 토스트/에러 카드에 그대로 보여준다.
 
 use serde::Serialize;
 use std::io;
 
-/// `appError.ts`의 `BackendErrorCode`와 1:1 대응 (snake_case).
+/// `code`는 snake_case 문자열로 직렬화한다.
 #[derive(Serialize, Clone, Copy, PartialEq, Eq, Debug)]
 #[serde(rename_all = "snake_case")]
 pub enum ErrorCode {
@@ -22,7 +20,7 @@ pub enum ErrorCode {
     Unknown,
 }
 
-/// Tauri command의 Err 타입. `message` 문구는 기존과 동일하게 유지해
+/// 코어 연산의 Err 타입. `message` 문구는 기존과 동일하게 유지해
 /// 토스트/로그의 가독성을 바꾸지 않는다.
 #[derive(Serialize, Clone, PartialEq, Eq, Debug)]
 pub struct AppError {
@@ -71,7 +69,7 @@ impl AppError {
     }
 
     /// `std::io::Error` 매핑. NotFound/PermissionDenied는 정확히,
-    /// 나머지는 호출자가 고른 fallback (기존 FE 분류와 일치하게 고를 것).
+    /// 나머지는 호출자가 고른 fallback (기존 분류와 일치하게 고를 것).
     pub fn io(context: &str, error: io::Error, fallback: ErrorCode) -> Self {
         let code = match error.kind() {
             io::ErrorKind::NotFound => ErrorCode::NotFound,
