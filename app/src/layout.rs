@@ -454,6 +454,152 @@ mod tests {
     }
 
     #[test]
+    fn screen_layout_partitions_every_small_solo_and_anchor_combination() {
+        // 모든 단독 페이지 조합에서 페이지가 누락되거나 겹치지 않아야 한다.
+        for total in 0..=8 {
+            for mask in 0..(1usize << total) {
+                let solo: Solo = (0..total)
+                    .filter(|index| mask & (1 << index) != 0)
+                    .collect();
+                for anchor in std::iter::once(None).chain((0..total).map(Some)) {
+                    let starts = screen_starts(total, &solo, anchor);
+                    if let Some(anchor) = anchor {
+                        assert!(starts.contains(&anchor));
+                    }
+                    let mut shown = Vec::new();
+                    for (position, &start) in starts.iter().enumerate() {
+                        let end = starts.get(position + 1).copied().unwrap_or(total);
+                        let indices: Vec<_> = (start..end).collect();
+                        // screen_indices는 현재 화면을 새 anchor로 삼는다.
+                        // 기존 anchor 바로 앞의 단독 화면은 새 anchor에서 다시 짝이 될 수 있다.
+                        if anchor.is_none() || anchor == Some(start) {
+                            assert_eq!(screen_indices(start, total, false, &solo), indices);
+                        }
+                        assert!((1..=2).contains(&indices.len()));
+                        if indices.len() == 2 {
+                            assert!(indices.iter().all(|index| !solo.contains(index)));
+                        }
+                        for &index in &indices {
+                            assert_eq!(pair_start(index, total, &solo, anchor), start);
+                        }
+                        shown.extend(indices);
+                    }
+                    assert_eq!(shown, (0..total).collect::<Vec<_>>());
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn dual_step_keeps_solo_pages_and_their_unpaired_neighbors_reachable() {
+        let solo: Solo = [2, 3, 6].into_iter().collect();
+        let starts = [0, 2, 3, 4, 6, 7];
+        assert_eq!(screen_starts(9, &solo, None), starts);
+        for (position, &current) in starts.iter().enumerate() {
+            assert_eq!(
+                dual_step(current, 9, false, true, &solo),
+                starts.get(position + 1).copied()
+            );
+            assert_eq!(
+                dual_step(current, 9, false, false, &solo),
+                position.checked_sub(1).map(|previous| starts[previous])
+            );
+        }
+        assert_eq!(dual_step(7, 9, true, true, &solo), Some(0));
+        assert_eq!(dual_step(0, 9, true, false, &solo), Some(7));
+        assert_eq!(dual_step(9, 9, true, true, &solo), None);
+        for total in 0..=1 {
+            for forward in [false, true] {
+                assert_eq!(dual_step(0, total, true, forward, &solo), None);
+                assert_eq!(step_index(0, total, 10, true, forward), None);
+            }
+        }
+    }
+
+    #[test]
+    fn screen_indices_only_wrap_without_solo_pages() {
+        for solo in [Solo::from([0]), Solo::from([4])] {
+            assert_eq!(screen_indices(4, 5, true, &solo), vec![4]);
+        }
+        assert_eq!(screen_indices(99, 5, false, &Solo::new()), vec![4]);
+        assert_eq!(screen_indices(0, 1, true, &Solo::new()), vec![0]);
+    }
+
+    #[test]
+    fn navigation_handles_offsets_larger_than_the_page_count() {
+        assert_eq!(step_index(1, 5, 12, true, true), Some(3));
+        assert_eq!(step_index(1, 5, 12, true, false), Some(4));
+        assert_eq!(step_index(1, 5, 12, false, true), Some(4));
+        assert_eq!(step_index(1, 5, 12, false, false), None);
+        for (offset, expected) in [(-12, 4), (-10, 1), (0, 1), (10, 1), (12, 3)] {
+            assert_eq!(offset_index(1, 5, offset, true), expected);
+        }
+    }
+
+    #[test]
+    fn explicit_cover_pages_normalize_types_and_ignore_order_and_duplicates() {
+        let comic = pages(&[
+            (4, Some("FrontCover")),
+            (2, Some(" FRONTcover ")),
+            (1, Some("FrontCover")),
+            (2, Some("FrontCover")),
+            (0, Some("Story")),
+        ]);
+        assert_eq!(explicit_cover_pages(Some(&comic), 5), vec![1, 2]);
+        assert_eq!(explicit_cover_pages(Some(&comic), 0), Vec::<usize>::new());
+        for default_alone in [false, true] {
+            assert_eq!(
+                cover_layout(Some(&comic), 5, default_alone),
+                CoverLayout {
+                    alone: true,
+                    index: 1,
+                    count: 2
+                }
+            );
+            let unspecified = pages(&[(0, Some(" \t "))]);
+            assert_eq!(
+                cover_layout(Some(&unspecified), 5, default_alone).alone,
+                default_alone
+            );
+        }
+        assert_eq!(toggle_cover_page(&[2, 3, 4], 2), vec![3, 4]);
+        assert_eq!(toggle_cover_page(&[2, 3, 4], 4), vec![2, 3]);
+        assert_eq!(toggle_cover_page(&[2, 3], 1), vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn comic_view_mode_respects_opt_out_and_direction_precedence_for_every_base() {
+        for base in [
+            ViewMode::Single,
+            ViewMode::LeftToRight,
+            ViewMode::RightToLeft,
+            ViewMode::Webtoon,
+        ] {
+            let fallback = if base == ViewMode::RightToLeft {
+                ViewMode::RightToLeft
+            } else {
+                ViewMode::LeftToRight
+            };
+            for (manga, direction) in [
+                ("  yEsAnDrIgHtToLeFt \t", ViewMode::RightToLeft),
+                (" NO ", ViewMode::LeftToRight),
+                ("Yes", fallback),
+                ("Unknown", fallback),
+            ] {
+                let comic = ComicInfo {
+                    manga: Some(manga.into()),
+                    ..Default::default()
+                };
+                assert_eq!(comic_view_mode(base, false, Some(&comic)), None);
+                assert_eq!(
+                    comic_view_mode(base, true, Some(&comic)),
+                    (base != ViewMode::Webtoon).then_some(direction)
+                );
+            }
+        }
+    }
+
+    #[test]
     fn comic_view_mode_follows_auto_dual_and_metadata() {
         assert_eq!(comic_view_mode(ViewMode::Single, false, None), None);
         assert_eq!(comic_view_mode(ViewMode::Webtoon, true, None), None);

@@ -50,6 +50,26 @@ pub(in crate::app) enum PageSlot<P> {
     Failed(AppError),
 }
 
+impl<P> PageSlot<P> {
+    /// 상태가 들고 있는 그림. 대기·실패 상태에는 그림이 없다.
+    fn picture(&self) -> Option<&P> {
+        match self {
+            Self::Ready(page) => Some(page),
+            Self::Decoding { preview, .. } => preview.as_ref(),
+            Self::Queued(_) | Self::Failed(_) => None,
+        }
+    }
+
+    /// 상태를 소비하고 내려놓을 그림을 돌려준다.
+    fn into_picture(self) -> Option<P> {
+        match self {
+            Self::Ready(page) => Some(page),
+            Self::Decoding { preview, .. } => preview,
+            Self::Queued(_) | Self::Failed(_) => None,
+        }
+    }
+}
+
 /// 동시에 돌릴 수 있는 full 디코드 수. 현재 화면 요청이 먼저 시작되고 나머지
 /// 슬롯은 가까운 순을 채운다. 진행 중인 디코드는 도착 전까지 예산에 세지 않으므로
 /// 이 값이 일시적 초과의 상한이다(§9.1).
@@ -87,21 +107,13 @@ impl<P> PageSlots<P> {
         self.running.clear();
         std::mem::take(&mut self.slots)
             .into_values()
-            .filter_map(|slot| match slot {
-                PageSlot::Decoding { preview, .. } => preview,
-                PageSlot::Ready(page) => Some(page),
-                PageSlot::Queued(_) | PageSlot::Failed(_) => None,
-            })
+            .filter_map(PageSlot::into_picture)
             .collect()
     }
 
     /// 화면에 올릴 수 있는 그림: full 결과, 없으면 실행 중인 디코드의 미리보기.
     pub fn get(&self, index: usize) -> Option<&P> {
-        match self.slots.get(&index)? {
-            PageSlot::Ready(page) => Some(page),
-            PageSlot::Decoding { preview, .. } => preview.as_ref(),
-            PageSlot::Queued(_) | PageSlot::Failed(_) => None,
-        }
+        self.slots.get(&index)?.picture()
     }
 
     /// full 디코드가 끝난 페이지.
@@ -121,14 +133,9 @@ impl<P> PageSlots<P> {
 
     /// 들고 있는 모든 그림(full과 미리보기)과 그 인덱스.
     pub fn iter(&self) -> impl Iterator<Item = (usize, &P)> {
-        self.slots.iter().filter_map(|(index, slot)| match slot {
-            PageSlot::Ready(page) => Some((*index, page)),
-            PageSlot::Decoding {
-                preview: Some(page),
-                ..
-            } => Some((*index, page)),
-            _ => None,
-        })
+        self.slots
+            .iter()
+            .filter_map(|(index, slot)| slot.picture().map(|page| (*index, page)))
     }
 
     /// 들고 있는 그림 수(full과 미리보기). 제어 채널 상태에 싣는다.
@@ -243,11 +250,9 @@ impl<P> PageSlots<P> {
             Ok(page) => PageSlot::Ready(page),
             Err(error) => PageSlot::Failed(error),
         };
-        match self.slots.insert(index, next) {
-            Some(PageSlot::Decoding { preview, .. }) => preview,
-            Some(PageSlot::Ready(page)) => Some(page),
-            _ => None,
-        }
+        self.slots
+            .insert(index, next)
+            .and_then(PageSlot::into_picture)
     }
 
     /// 시작 전 요청 가운데 `cancel`이 `true`인 것을 버린다.
@@ -599,6 +604,241 @@ mod tests {
         // 실행 중 표시도 지워져 바로 다음 요청을 시작한다.
         slots.request(7, true, false);
         assert!(slots.start_next(7, |_| true).is_some());
+    }
+
+    #[test]
+    fn mixed_slots_expose_and_clear_only_ready_pictures_and_previews() {
+        let mut slots: PageSlots<&str> = PageSlots::default();
+        for (index, result) in [(1, Ok("ready")), (2, Err(error()))] {
+            slots.request(index, false, true);
+            slots.start_next(index, |_| true).unwrap();
+            slots.finish(index, result);
+        }
+        slots.request(3, true, false);
+        let preview = slots.start_next(3, |_| true).unwrap();
+        slots.offer_preview(3, preview.seq, "preview").unwrap();
+        slots.request(4, false, true);
+        slots.start_next(4, |_| true).unwrap();
+        slots.request(5, false, true);
+
+        let mut pictures: Vec<_> = slots.iter().map(|(index, page)| (index, *page)).collect();
+        pictures.sort();
+        assert_eq!(pictures, vec![(1, "ready"), (3, "preview")]);
+        assert_eq!(slots.len(), 2);
+        for (index, expected) in [
+            (1, Some(&"ready")),
+            (2, None),
+            (3, Some(&"preview")),
+            (4, None),
+            (5, None),
+        ] {
+            assert_eq!(slots.get(index), expected);
+        }
+
+        let mut released = slots.clear();
+        released.sort();
+        assert_eq!(released, vec!["preview", "ready"]);
+        assert_eq!(slots.iter().count(), 0);
+        assert_eq!(slots.len(), 0);
+        assert!(!slots.any_loading());
+        assert_eq!(slots.failed_indices().count(), 0);
+        assert!(slots.running.is_empty());
+    }
+
+    #[test]
+    fn finishing_over_a_ready_slot_returns_the_replaced_picture() {
+        let mut slots: PageSlots<&str> = PageSlots::default();
+        slots.request(1, true, false);
+        slots.start_next(1, |_| true).unwrap();
+        assert_eq!(slots.finish(1, Ok("first")), None);
+        assert_eq!(slots.finish(1, Ok("replacement")), Some("first"));
+        assert_eq!(slots.ready(1), Some(&"replacement"));
+        assert_eq!(slots.finish(1, Err(error())), Some("replacement"));
+        assert_eq!(slots.get(1), None);
+        assert!(slots.is_failed(1));
+        assert!(!slots.any_loading());
+    }
+
+    #[test]
+    fn retry_rejects_old_previews_and_replaces_only_its_own_preview() {
+        let mut slots = single_slots();
+        slots.request(2, true, false);
+        let first = slots.start_next(2, |_| true).unwrap();
+        assert_eq!(slots.offer_preview(2, first.seq, "first"), Ok(None));
+        assert_eq!(slots.finish(2, Err(error())), Some("first"));
+        slots.retain_failed(|_| false);
+
+        assert!(slots.request(2, true, false));
+        let retry = slots.start_next(2, |_| true).unwrap();
+        assert!(retry.seq > first.seq);
+        assert_eq!(slots.offer_preview(2, retry.seq, "retry"), Ok(None));
+        assert_eq!(slots.offer_preview(2, first.seq, "stale"), Err("stale"));
+        assert_eq!(slots.get(2), Some(&"retry"));
+        assert_eq!(
+            slots.offer_preview(2, retry.seq, "newer"),
+            Ok(Some("retry"))
+        );
+        assert_eq!(slots.finish(2, Ok("full")), Some("newer"));
+        assert!(!slots.any_loading());
+    }
+
+    #[test]
+    fn cancelling_queued_jobs_preserves_running_ready_and_failed_slots() {
+        let mut slots: PageSlots<&str> = PageSlots::default();
+        for index in 1..=3 {
+            slots.request(index, false, true);
+            slots.start_next(index, |_| true).unwrap();
+        }
+        slots.finish(1, Ok("ready"));
+        slots.finish(2, Err(error()));
+        let running_seq = match slots.slots.get(&3).unwrap() {
+            PageSlot::Decoding { seq, .. } => *seq,
+            _ => panic!("the third decode must still be running"),
+        };
+        slots.offer_preview(3, running_seq, "preview").unwrap();
+        slots.request(4, false, true);
+        slots.request(5, true, false);
+
+        slots.cancel_queued(|job| job.prefetch);
+        assert!(!slots.is_loading(4));
+        assert!(slots.is_loading(5));
+        assert_eq!(slots.ready(1), Some(&"ready"));
+        assert!(slots.is_failed(2));
+        assert_eq!(slots.get(3), Some(&"preview"));
+        assert!(slots.is_loading(3));
+        assert_eq!(slots.running.iter().copied().collect::<Vec<_>>(), vec![3]);
+        assert!(slots.request(4, true, false));
+        assert_eq!(slots.start_next(5, |_| true).unwrap().index, 5);
+    }
+
+    #[test]
+    fn rejecting_every_queued_job_leaves_capacity_for_a_fresh_request() {
+        let mut slots = single_slots();
+        slots.request(1, true, false);
+        slots.request(2, false, true);
+        let mut rejected = Vec::new();
+        assert_eq!(
+            slots.start_next(2, |job| {
+                rejected.push(job.index);
+                false
+            }),
+            None
+        );
+        assert_eq!(rejected, vec![1, 2]);
+        assert!(!slots.any_loading());
+        assert!(slots.slots.is_empty());
+        assert!(slots.running.is_empty());
+        assert!(slots.request(1, true, false));
+        assert_eq!(slots.start_next(1, |_| true).unwrap().index, 1);
+    }
+
+    #[test]
+    fn evicting_a_preview_does_not_free_a_running_slot() {
+        let mut slots = single_slots();
+        slots.request(1, true, false);
+        let running = slots.start_next(1, |_| true).unwrap();
+        slots.offer_preview(1, running.seq, "preview").unwrap();
+        slots.request(2, false, true);
+        assert_eq!(slots.evict(1), Some("preview"));
+        assert_eq!(slots.evict(1), None);
+        assert!(!slots.request(1, true, false));
+        assert_eq!(slots.start_next(2, |_| true), None);
+        assert_eq!(slots.offer_preview(1, running.seq, "replacement"), Ok(None));
+        assert_eq!(slots.finish(1, Err(error())), Some("replacement"));
+        assert_eq!(slots.start_next(2, |_| true).unwrap().index, 2);
+    }
+
+    #[test]
+    fn clear_drops_all_states_but_never_reuses_a_preview_sequence() {
+        let mut slots: PageSlots<&str> = PageSlots::default();
+        slots.request(1, true, false);
+        let old = slots.start_next(1, |_| true).unwrap();
+        slots.offer_preview(1, old.seq, "preview").unwrap();
+        for (index, result) in [(2, Ok("ready")), (3, Err(error()))] {
+            slots.request(index, false, true);
+            slots.start_next(index, |_| true).unwrap();
+            slots.finish(index, result);
+        }
+        slots.request(4, false, true);
+
+        let mut held = slots.clear();
+        held.sort();
+        assert_eq!(held, vec!["preview", "ready"]);
+        assert!(slots.slots.is_empty());
+        assert!(slots.running.is_empty());
+        assert_eq!(slots.clear(), Vec::<&str>::new());
+        assert_eq!(slots.offer_preview(1, old.seq, "late"), Err("late"));
+        assert!(slots.request(1, true, false));
+        let fresh = slots.start_next(1, |_| true).unwrap();
+        assert!(fresh.seq > old.seq);
+        assert_eq!(slots.offer_preview(1, old.seq, "stale"), Err("stale"));
+        assert_eq!(slots.offer_preview(1, fresh.seq, "fresh"), Ok(None));
+        assert_eq!(slots.get(1), Some(&"fresh"));
+    }
+
+    #[test]
+    fn nav_back_waiting_preserves_each_phases_commit_status() {
+        for phase in [
+            NavPhase::Committed,
+            NavPhase::Pending,
+            NavPhase::AwaitingBack { pending: false },
+            NavPhase::AwaitingBack { pending: true },
+        ] {
+            let mut nav = Nav {
+                phase,
+                ..Default::default()
+            };
+            let pending = nav.is_pending();
+            nav.cancel_back();
+            assert_eq!(nav.is_pending(), pending);
+            assert!(!nav.awaiting_back());
+            nav.wait_back();
+            nav.wait_back();
+            assert_eq!(nav.phase(), NavPhase::AwaitingBack { pending });
+            assert_eq!(nav.held_longer_than(Duration::ZERO), pending);
+            nav.commit();
+            nav.commit();
+            assert_eq!(nav.phase(), NavPhase::AwaitingBack { pending: false });
+            nav.reset();
+            assert_eq!(nav.phase(), NavPhase::Committed);
+            nav.cancel_back();
+            assert_eq!(nav.phase(), NavPhase::Committed);
+        }
+    }
+
+    #[test]
+    fn nav_restart_preserves_timing_direction_and_remaining_skip_budget() {
+        for phase in [
+            NavPhase::Committed,
+            NavPhase::Pending,
+            NavPhase::AwaitingBack { pending: false },
+            NavPhase::AwaitingBack { pending: true },
+        ] {
+            let started = Instant::now() - Duration::from_secs(10);
+            let mut nav = Nav {
+                phase,
+                started,
+                skips_left: 2,
+                forward: true,
+            };
+            nav.set_forward(false);
+            nav.restart();
+            assert_eq!(nav.phase(), NavPhase::Pending);
+            assert_eq!(nav.started, started);
+            assert!(nav.held_longer_than(Duration::from_secs(5)));
+            assert!(!nav.forward());
+            assert!(nav.take_skip());
+            nav.restart();
+            assert!(nav.take_skip());
+            assert!(!nav.take_skip());
+            nav.wait_back();
+            nav.start(1);
+            assert_eq!(nav.phase(), NavPhase::Pending);
+            assert!(nav.started > started);
+            assert!(!nav.forward());
+            assert!(nav.take_skip());
+            assert!(!nav.take_skip());
+        }
     }
 
     #[test]
