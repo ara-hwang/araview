@@ -189,7 +189,7 @@ jobs:
       # RustSec 자문(취약점·unsound), 허용 목록 밖의 라이선스(GPL 등), 알 수 없는
       # 레지스트리/git 소스가 들어오면 실패한다. 설정: deny.toml.
       - name: Install cargo-deny
-        uses: taiki-e/install-action@3a3daafd3b7f23b8f65d9f5ba2db203fb59b79e2 # v2
+        uses: taiki-e/install-action@cfdb7ed4ccc7c7dce37759eae89dc5674b469b39 # v2
         with:
           tool: cargo-deny@0.20.2
 
