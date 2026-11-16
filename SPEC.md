@@ -769,6 +769,7 @@ UI 분류 5종:
 진실: `app/installer/araview.nsi`, `scripts/Build-Installer.ps1`, `app/src/platform/`, `app/src/app/update.rs`, `docs/releasing.md`, `.github/workflows/release.yml`, `.github/workflows/ci.yml`.
 
 - 창: 제목 기본값 `AraView`(이미지가 열리면 파일명, 아니면 앱 이름), 1024x768, 최소 500x400, 프레임리스. 최소 너비 500은 Windows 11 Snap Layouts의 모든 배치에 창이 들어가기 위한 상한이다(Microsoft 권장 ≤500epx).
+- 선택적 `devtools` Cargo feature는 GPUI DevTools 검사 패널을 등록한다. `Ctrl+Alt+I`로 열고 닫으며 기본 빌드에는 포함되지 않는다. 실행과 제한은 `docs/development.md`를 따른다.
 - 창 틀: 타이틀바는 gpui-kit이 그린다. 오른쪽에 최소화/최대화/닫기 버튼 3개(34px씩)를 두고 헤더 보조 그룹을 그 앞에서 접는다. 창 이동은 마우스 처리를 끝낸 뒤 포스트하는 `WM_SYSCOMMAND`(`SC_MOVE | HTCAPTION`)다. 처리 안에서 `SendMessage`로 이동 루프에 들어가면 그 루프가 앱 상태를 빌린 채로 돌아 애니메이션이 그려지지 않는다. 캡션 드래그도 같은 이동 루프이며, 루프 중 이동 메시지에서 프레임을 다시 그린다.
 - 항상 위는 Windows(`SetWindowPos`)로 지원한다(`platform::ALWAYS_ON_TOP_SUPPORTED`).
 - 창 위치와 크기를 `settings.json`의 `window`에 저장하고 다음 실행에 복원한다.
@@ -786,6 +787,7 @@ UI 분류 5종:
 - 진입점: 시작 시 자동 확인(`autoCheckUpdates`가 true일 때), 설정 일반 탭의 `새 버전 확인` 버튼, 명령 팔레트의 `업데이트 확인`.
 - 흐름: 업데이트 확인 → 없으면 최신 안내(자동 확인은 조용히 넘어감), 있으면 대화상자에서 다운로드를 시작한다. 내려받은 설치 프로그램은 서명을 앱에 내장한 공개키로 확인한 뒤에만 실행하고, 실행하면 앱이 종료된다. 설치와 새 버전 재실행은 NSIS가 담당하므로 수동 재시작 UI는 없다. 다운로드하는 동안에는 진행 대화상자를 띄워 진행 막대와 받은 크기/전체 크기(%)를 보여 준다. 서버가 전체 크기를 알려 주지 않으면 막대는 불확정 표시가 되고 받은 크기만 보인다. 이 대화상자는 `취소` 버튼으로만 닫히며(`Esc`와 닫기 버튼 없음) 취소하면 받던 내용을 버린다. 취소는 응답이 멈춘 요청이 끝나기를 기다리지 않고 바로 다음 확인과 다운로드를 받을 수 있게 하며, 늦게 끝난 결과는 무시하고 이미 다 받은 설치 프로그램은 임시 폴더에서 지운다. 다운로드 실패는 알림으로 알린다. 중복 확인은 무시한다(자동 확인 중 수동 확인을 누르면 수동 확인이 무시되고, 반대로 자동 확인은 수동 확인이 끝나기 전에 시작하지 않는다). 자동 확인 전에 수동 확인이 이미 끝났으면 자동 확인은 하지 않는다.
 - HTTP 타임아웃: 확인 요청은 30초, 다운로드 요청은 10분(본문 수신을 포함한 요청 전체 기한)이다. 초과하면 각각 확인 실패와 다운로드 실패 알림으로 처리한다(자동 확인의 실패는 알리지 않는다).
+- HTTPS 인증서는 OS 신뢰 저장소로 검증한다. OS에서 신뢰한 프록시·조직 CA를 따르며 인증서 검증과 설치 프로그램 서명 확인을 생략하지 않는다.
 - 채널: 채널은 하나다. 앱은 항상 최신 정식 릴리스의 `update-feed.json`만 읽으므로 설정 화면에 채널 선택이 없다. 예전 설정 파일에 남은 `updateChannel`과 `updateChannelChosen`은 읽을 때 무시하고 다음 저장에서 지운다.
 - 피드: `https://github.com/ara-hwang/araview/releases/latest/download/update-feed.json` 하나를 읽는다. `releases/latest`는 프리릴리스를 제외하므로 프리릴리스가 정식 사용자에게 노출되지 않는다. 피드가 없으면(404) 최신으로 본다. 피드 내용은 버전, 노트, 플랫폼별 URL과 서명이다. 서명 공개키는 `app/update-pubkey.txt`다. 1.x(Tauri) 앱이 보던 `latest.json`은 1.2.3 피드로 함께 올려 1.x가 2.x로 자동 갱신되지 않게 한다.
 - 키 발급, 서명 빌드, 로컬 릴리스 절차는 `docs/releasing.md`를 따른다.

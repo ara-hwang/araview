@@ -54,6 +54,14 @@ cargo run -p araview -- "C:/path/to/image.png"
 
 Windows 개발 빌드는 확장자 연결이 설치 버전과 섞이지 않도록 `AraView (Dev)` 이름으로 등록됩니다. 기본 앱 목록에서 `AraView`(설치 버전)와 구분해 선택하세요. 확장자 연결 설정과 탐색기 썸네일은 Windows 셸 연동입니다.
 
+### UI 검사 도구
+
+GPUI Kit 기본 아이콘은 디버그 빌드에도 포함합니다(`rust-embed/debug-embed`). 크로스 빌드한 실행 파일을 빌드 머신의 소스 경로 없이 실행해도 창 버튼과 설정 컴포넌트 아이콘을 읽을 수 있습니다.
+
+`cargo run -p araview --features devtools`로 실행하면 [GPUI DevTools](https://github.com/joris-gallot/gpui-devtools)를 사용할 수 있습니다. `Ctrl+Alt+I`로 검사 패널을 열고 닫습니다. 요소 선택, 크기·여백·스타일 확인과 임시 스타일 편집을 지원합니다. 초기화는 GPUI Kit 다음에 수행합니다.
+
+`devtools`는 기본으로 꺼져 있습니다. 일반 개발 빌드와 기본 릴리스 빌드에는 포함되지 않으며, `--release --features devtools`를 명시하면 릴리스에도 포함됩니다. Keyboard 탭은 GPUI 액션을 보여 주므로, 자체 키 핸들러로 처리하는 뷰어 명령은 액션 목록에 모두 나타나지 않습니다.
+
 ### 개발 빌드 속도
 
 루트 `Cargo.toml`의 `[profile.dev.package]`는 워크스페이스 밖 의존성(`"*"`, `vendor/` 포크 포함)의 디버그 정보를 `debug = 1`로 줄입니다. 줄 번호와 스택 추적은 유지하지만 의존성 내부의 지역 변수와 타입 디버깅 정보는 생략합니다. `app`, `araview-core`, `araview-thumb`는 전체 디버그 정보를 그대로 유지합니다. 이 설정은 dev를 상속하는 test에도 적용되며, 기존 GPUI·이미지 처리 의존성의 최적화 수준과 release 설정은 바꾸지 않습니다.
@@ -113,6 +121,7 @@ npm run licenses
 - 단일 인스턴스: 두 번째 실행은 첫 인자를 명명된 파이프(`\\.\pipe\<식별자>`)로 기존 창에 넘기고 종료합니다.
 - 개발 빌드 제어: `scripts/araview-drive.ps1`(CLI)와 `scripts/araview-mcp.ps1`(MCP)이 `src/app/bridge.rs`의 제어 파이프를 씁니다. 입력은 `Window::dispatch_event`/`dispatch_keystroke`로 들어가 사용자의 마우스·키보드를 건드리지 않습니다. 릴리스 빌드에는 이 통로가 없습니다. 절차는 `docs/playbooks.md` "Runtime check".
 - 업데이트: 동작 계약은 `SPEC.md` §20.1. 로컬 검증은 `cargo run -p araview --example local_update_feed -- <setup.exe> <출력 폴더> <피드 URL>`로 피드를 만들고, `ARAVIEW_UPDATE_FEED`/`ARAVIEW_UPDATE_PUBKEY`를 준 디버그 빌드에서 확인합니다. 릴리스 빌드는 두 환경 변수를 읽지 않습니다.
+- 업데이트 TLS는 OS 신뢰 저장소를 사용합니다. 프록시·조직 CA는 OS에서 신뢰하도록 설치해야 하며, `UnknownIssuer`를 피하려고 검증을 끄지 않습니다. 실제 피드 연결 검사는 `cargo test -p araview live_update_feed_uses_trusted_roots -- --ignored --nocapture`로 명시적으로 실행합니다.
 - 라이선스: `npm run licenses`가 `app/THIRD_PARTY_LICENSES.json`과 `.md` 2절을 만들고, `cargo deny check`가 라이선스·RustSec을 검사합니다. 예외는 `licenses-extra/`와 `EXTRA_LICENSES`, `about.toml`/`deny.toml`을 함께 고칩니다. 절차는 `docs/playbooks.md` "Update the third-party license data".
 - 스크롤: `src/smooth.rs`의 `SmoothScroll`이 휠 입력을 목표 오프셋으로 쌓고 프레임마다 따라갑니다. 가상 목록은 핸들을 공유하고 기본 스크롤을 끄며, 웹툰은 `Glide`로 같은 감속을 씁니다. Tab 포커스는 `focus_reveal.rs`가 최소 거리로 즉시 스크롤합니다.
 - 알림은 기본 토스트, 다이얼로그가 열려 있으면 경고창입니다(`src/toast.rs`). 파일을 여는 중(200ms 이상), 그림이 없을 때, 페이지 이동이 늦을 때(300ms 이상) 스피너를 보여줍니다.

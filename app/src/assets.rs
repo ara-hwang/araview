@@ -156,6 +156,20 @@ mod tests {
     use super::*;
 
     #[test]
+    fn every_component_icon_loads_without_the_source_tree() {
+        let paths = ComponentAssets.list("icons/").expect("component icons");
+        assert!(!paths.is_empty());
+        for path in paths {
+            let bytes = AppAssets
+                .load(&path)
+                .unwrap_or_else(|error| panic!("{path}: {error}"))
+                .unwrap_or_else(|| panic!("{path}: no bytes"));
+            assert!(!bytes.is_empty(), "{path}: empty asset");
+            assert!(matches!(bytes, Cow::Borrowed(_)), "{path}: not embedded");
+        }
+    }
+
+    #[test]
     fn every_phosphor_icon_loads_as_svg() {
         for icon in Ph::ALL {
             let path = icon.path_str();

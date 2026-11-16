@@ -127,6 +127,8 @@ fn main() {
     let application = gpui_kit::application().with_assets(assets::AppAssets);
     application.run(move |cx| {
         gpui_kit::init(cx);
+        #[cfg(feature = "devtools")]
+        gpui_devtools::init(cx);
         let saved_window = store.window;
         cx.set_global(store);
 

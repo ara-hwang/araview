@@ -310,6 +310,11 @@ fn release_public_key() -> Result<String, String> {
 
 fn agent(timeout: Duration) -> ureq::Agent {
     ureq::Agent::config_builder()
+        .tls_config(
+            ureq::tls::TlsConfig::builder()
+                .root_certs(ureq::tls::RootCerts::PlatformVerifier)
+                .build(),
+        )
         .timeout_global(Some(timeout))
         .build()
         .into()
@@ -745,6 +750,12 @@ mod tests {
         is_allowed_asset_url, is_newer, parse_version, read_with_progress, verify_signature,
     };
     use base64::Engine as _;
+
+    #[test]
+    #[ignore = "connects to the live update feed; run explicitly for TLS verification"]
+    fn live_update_feed_uses_trusted_roots() {
+        super::fetch_latest().expect("update feed TLS verification");
+    }
 
     #[test]
     fn installer_signature_rejects_modified_bytes() {
