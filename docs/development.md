@@ -83,6 +83,7 @@ cargo run -p araview
 # 검사
 cargo fmt --all --check
 cargo clippy --workspace --all-targets -- -D warnings
+cargo check -p araview --features devtools   # 선택 feature는 위 clippy에 포함되지 않음
 cargo test --workspace
 
 # 실행 중인 창 조작(개발 빌드 전용, docs/playbooks.md "Runtime check")
