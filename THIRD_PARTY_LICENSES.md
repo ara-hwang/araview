@@ -171,6 +171,7 @@ dependencies and other-OS targets are excluded.
 | gpui-base | 0.9.1 | Apache-2.0 |
 | gpui-component | 0.9.1 | Apache-2.0 |
 | gpui-component-macros | 0.9.1 | Apache-2.0 |
+| gpui-devtools | 0.6.0 | MIT |
 | gpui-kit | 0.9.1 | Apache-2.0 |
 | gpui-kit-assets | 0.9.1 | Apache-2.0 |
 | gpui-pre | 0.3.12 | Apache-2.0 |
@@ -384,6 +385,7 @@ dependencies and other-OS targets are excluded.
 | rustix | 1.1.5 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT |
 | rustls | 0.23.46 | Apache-2.0 OR ISC OR MIT |
 | rustls-pki-types | 1.15.1 | MIT OR Apache-2.0 |
+| rustls-platform-verifier | 0.7.1 | MIT OR Apache-2.0 |
 | rustls-webpki | 0.103.16 | ISC |
 | rustversion | 1.0.23 | MIT OR Apache-2.0 |
 | rustybuzz | 0.20.1 | MIT |
@@ -527,6 +529,7 @@ dependencies and other-OS targets are excluded.
 | windows-result | 0.4.1 | MIT OR Apache-2.0 |
 | windows-strings | 0.1.0 | MIT OR Apache-2.0 |
 | windows-strings | 0.5.1 | MIT OR Apache-2.0 |
+| windows-sys | 0.52.0 | MIT OR Apache-2.0 |
 | windows-sys | 0.61.2 | MIT OR Apache-2.0 |
 | windows-targets | 0.52.6 | MIT OR Apache-2.0 |
 | windows-threading | 0.2.1 | MIT OR Apache-2.0 |

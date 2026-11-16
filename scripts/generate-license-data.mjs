@@ -26,7 +26,7 @@ function addText(raw) {
 
 // --- Rust (cargo-about) ---------------------------------------------------
 const aboutOut = join(mkdtempSync(join(tmpdir(), "araview-about-")), "about.json")
-execFileSync("cargo", ["about", "generate", "--format", "json", "-o", aboutOut], {
+execFileSync("cargo", ["about", "generate", "--features", "araview/devtools", "--format", "json", "-o", aboutOut], {
   cwd: root,
   stdio: ["ignore", "inherit", "inherit"]
 })

@@ -12,8 +12,12 @@ publish = false
 name = "araview"
 path = "src/main.rs"
 
+[features]
+devtools = ["dep:gpui-devtools", "gpui-kit/inspector"]
+
 [dependencies]
 gpui-kit = "0.9"
+gpui-devtools = { version = "0.6", optional = true }
 araview-core = { path = "../crates/araview-core" }
 anyhow = "1"
 image = { version = "0.25", default-features = false }
@@ -24,7 +28,9 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 smallvec = "1"
 raw-window-handle = "0.6"
-ureq = "3"
+ureq = { version = "3", features = ["platform-verifier"] }
+# GPUI Kit 기본 아이콘도 소스 경로 없이 개발 빌드에서 읽을 수 있게 포함한다.
+rust-embed = { version = "8", features = ["debug-embed"] }
 rfd = { version = "0.18", default-features = false }
 minisign-verify = "0.3"
 base64 = "0.23"
