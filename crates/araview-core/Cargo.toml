@@ -23,7 +23,7 @@ rawler = "0.8"
 trash = "5"
 image = { version = "0.25", default-features = false, features = ["rayon", "bmp", "dds", "exr", "ff", "gif", "hdr", "ico", "jpeg", "png", "pnm", "qoi", "tga", "tiff", "webp"] }
 psd = "0.3"
-resvg = { version = "0.49", default-features = false, features = ["text", "system-fonts"] }
+resvg = { version = "0.50", default-features = false, features = ["text", "system-fonts"] }
 notify = "8"
 rayon = "1"
 quick-xml = { version = "0.42", features = ["serialize"] }
@@ -37,7 +37,7 @@ winreg = "0.56.0"
 # 남기므로 기준선 비교는 저장소 스크립트(`scripts/bench.mjs`)가 읽는다.
 criterion = { version = "0.8", default-features = false, features = ["cargo_bench_support"] }
 # `examples/digest.rs`가 디코드 출력의 픽셀 다이제스트를 계산한다. 제품 이진에는 들어가지 않는다.
-sha2 = "0.10"
+sha2 = "0.11"
 
 [[bench]]
 name = "core_ops"
