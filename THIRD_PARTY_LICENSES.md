@@ -189,7 +189,7 @@ dependencies and other-OS targets are excluded.
 | gpui-pre-ztracing-macro | 0.3.12 | Apache-2.0 |
 | granit-parser | 1.3.0 | MIT OR Apache-2.0 |
 | half | 2.7.1 | MIT OR Apache-2.0 |
-| harfrust | 0.12.0 | MIT |
+| harfrust | 0.15.0 | MIT |
 | hash32 | 0.3.1 | MIT OR Apache-2.0 |
 | hashbrown | 0.16.1 | MIT OR Apache-2.0 |
 | hashbrown | 0.17.1 | MIT OR Apache-2.0 |
@@ -355,7 +355,7 @@ dependencies and other-OS targets are excluded.
 | rawler | 0.8.0 | LGPL-2.1 |
 | rayon | 1.12.0 | MIT OR Apache-2.0 |
 | rayon-core | 1.13.0 | MIT OR Apache-2.0 |
-| read-fonts | 0.41.0 | MIT OR Apache-2.0 |
+| read-fonts | 0.46.0 | MIT OR Apache-2.0 |
 | reborrow | 0.5.5 | MIT |
 | ref-cast | 1.0.27 | MIT OR Apache-2.0 |
 | ref-cast-impl | 1.0.27 | MIT OR Apache-2.0 |
@@ -364,8 +364,8 @@ dependencies and other-OS targets are excluded.
 | regex-syntax | 0.8.11 | MIT OR Apache-2.0 |
 | resvg | 0.45.1 | Apache-2.0 OR MIT |
 | resvg | 0.46.0 | Apache-2.0 OR MIT |
-| resvg | 0.49.0 | Apache-2.0 OR MIT |
-| rfd | 0.17.2 | MIT |
+| resvg | 0.50.0 | Apache-2.0 OR MIT |
+| rfd | 0.18.0 | MIT |
 | rgb | 0.8.53 | MIT |
 | ring | 0.17.14 | Apache-2.0 AND ISC |
 | rle-decode-fast | 1.0.3 | MIT OR Apache-2.0 |
@@ -414,7 +414,7 @@ dependencies and other-OS targets are excluded.
 | similar | 2.7.0 | Apache-2.0 |
 | simplecss | 0.2.2 | Apache-2.0 OR MIT |
 | siphasher | 1.0.4 | MIT OR Apache-2.0 |
-| skrifa | 0.44.0 | MIT OR Apache-2.0 |
+| skrifa | 0.49.0 | MIT OR Apache-2.0 |
 | slab | 0.4.12 | MIT |
 | slotmap | 1.1.1 | Zlib |
 | smallvec | 1.16.5 | MIT OR Apache-2.0 |
@@ -433,7 +433,7 @@ dependencies and other-OS targets are excluded.
 | subtle | 2.6.1 | BSD-3-Clause |
 | svg_fmt | 0.4.5 | MIT OR Apache-2.0 |
 | svgtypes | 0.15.3 | Apache-2.0 OR MIT |
-| svgtypes | 0.16.1 | Apache-2.0 OR MIT |
+| svgtypes | 0.16.2 | Apache-2.0 OR MIT |
 | syn | 2.0.119 | MIT OR Apache-2.0 |
 | syn | 3.0.9 | MIT OR Apache-2.0 |
 | synstructure | 0.14.0 | MIT |
@@ -486,12 +486,12 @@ dependencies and other-OS targets are excluded.
 | unicode-vo | 0.1.0 | MIT OR Apache-2.0 |
 | unicode-width | 0.2.2 | MIT OR Apache-2.0 |
 | untrusted | 0.9.0 | ISC |
-| ureq | 3.5.1 | MIT OR Apache-2.0 |
+| ureq | 3.5.2 | MIT OR Apache-2.0 |
 | ureq-proto | 0.7.1 | MIT OR Apache-2.0 |
 | url | 2.5.8 | MIT OR Apache-2.0 |
 | usvg | 0.45.1 | Apache-2.0 OR MIT |
 | usvg | 0.46.0 | Apache-2.0 OR MIT |
-| usvg | 0.49.0 | Apache-2.0 OR MIT |
+| usvg | 0.50.0 | Apache-2.0 OR MIT |
 | utf-8 | 0.7.6 | MIT OR Apache-2.0 |
 | utf8_iter | 1.0.4 | Apache-2.0 OR MIT |
 | utf8-zero | 0.8.1 | MIT OR Apache-2.0 |
@@ -547,7 +547,7 @@ dependencies and other-OS targets are excluded.
 | zerotrie | 0.2.5 | Unicode-3.0 |
 | zerovec | 0.11.9 | Unicode-3.0 |
 | zerovec-derive | 0.11.7 | Unicode-3.0 |
-| zip | 9.5.0 | MIT |
+| zip | 9.5.1 | MIT |
 | zlib-rs | 0.6.8 | Zlib |
 | zmij | 1.0.23 | MIT |
 | zopfli | 0.8.4 | Apache-2.0 |

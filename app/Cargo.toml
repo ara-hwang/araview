@@ -25,7 +25,7 @@ serde_json = "1"
 smallvec = "1"
 raw-window-handle = "0.6"
 ureq = "3"
-rfd = { version = "0.17", default-features = false }
+rfd = { version = "0.18", default-features = false }
 minisign-verify = "0.3"
 base64 = "0.23"
 tempfile = "3"
