@@ -216,6 +216,8 @@ fn apply_drop(request: &Value, window: &mut Window, cx: &mut App) -> Result<(), 
     }
     let (x, y) = logical_coords(request, window.scale_factor())?;
     let position = point(px(x), px(y));
+    let blocked_by_dialog = window.has_active_dialog(cx);
+    let wait_for_exit = window.has_closing_dialog(cx);
     window.dispatch_event(
         FileDropEvent::Entered {
             position,
@@ -235,13 +237,32 @@ fn apply_drop(request: &Value, window: &mut Window, cx: &mut App) -> Result<(), 
         .to_platform_input(),
         cx,
     );
-    // 놓기는 한 프레임 뒤에 보낸다. 실제 플랫폼도 끌어온 뒤 프레임을 한 번 그린 다음
-    // 놓기를 받으므로, 같은 순서로 맞춘다.
-    window.on_next_frame(move |window, cx| {
-        window.dispatch_event(FileDropEvent::Submit { position }.to_platform_input(), cx);
+    if blocked_by_dialog {
+        // 요청 시 열린 모달에 막힌 드롭은 나중에 닫혀도 다시 실행하지 않는다.
+        window.dispatch_event(FileDropEvent::Exited.to_platform_input(), cx);
+        return Ok(());
+    }
+    // GPUI 0.3.12는 next-frame 콜백을 dirty frame을 그리기 *전에* 실행한다.
+    // Entered 이후 draw를 보장하고, 닫히는 모달 표면은 exit unmount까지 기다린다.
+    window.on_next_frame(move |window, _| {
+        submit_drop_after_frame(position, wait_for_exit, window);
     });
     window.refresh();
     Ok(())
+}
+
+fn submit_drop_after_frame(position: Point<Pixels>, wait_for_exit: bool, window: &mut Window) {
+    window.on_next_frame(move |window, cx| {
+        if wait_for_exit {
+            // unmount는 draw 뒤 defer로 처리된다. 사라진 것을 처음 확인한 프레임에도
+            // Submit하지 않고 다음 draw가 이전 hitbox를 교체한 뒤에만 보낸다.
+            let closing = window.has_closing_dialog(cx);
+            submit_drop_after_frame(position, closing, window);
+        } else {
+            window.dispatch_event(FileDropEvent::Submit { position }.to_platform_input(), cx);
+        }
+    });
+    window.refresh();
 }
 
 /// 요청의 한 쌍 좌표를 창 논리 px로 옮긴다. 기본 좌표계는 캡처 이미지의 픽셀(물리 px)이다.
@@ -513,4 +534,199 @@ fn modifiers_field(request: &Value) -> Result<Modifiers, String> {
         }
     }
     Ok(modifiers)
+}
+
+#[cfg(test)]
+mod tests {
+    use gpui_kit as gpui;
+    use gpui_kit::prelude::*;
+    use gpui_kit::{
+        Context, ExternalPaths, IntoElement, Render, TestAppContext, Window, div, px, size,
+    };
+    use serde_json::json;
+
+    use super::apply_drop;
+
+    struct DropTarget {
+        covered: bool,
+        received: usize,
+    }
+
+    impl Render for DropTarget {
+        fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+            div()
+                .size_full()
+                .on_drop(cx.listener(|this, _: &ExternalPaths, _, _| this.received += 1))
+                .when(self.covered, |root| {
+                    root.child(div().absolute().inset_0().occlude())
+                })
+        }
+    }
+
+    fn check_drop(cx: &mut TestAppContext, initially_covered: bool, covered: bool) {
+        let (window, target) = cx.update(|cx| {
+            gpui_kit::init(cx);
+            gpui_kit::open_window(Default::default(), cx, |_, cx| {
+                cx.new(|_| DropTarget {
+                    covered: initially_covered,
+                    received: 0,
+                })
+            })
+            .unwrap()
+        });
+        window
+            .update(cx, |_, window, cx| {
+                // Preserve the last rendered overlay even though app state has closed it.
+                window.draw(cx).clear(cx);
+                target.update(cx, |target, cx| {
+                    target.covered = covered;
+                    cx.notify();
+                });
+                apply_drop(
+                    &json!({"paths": ["synthetic.png"], "x": 200, "y": 200, "space": "logical"}),
+                    window,
+                    cx,
+                )
+                .unwrap();
+            })
+            .unwrap();
+        window
+            .update(cx, |_, window, cx| {
+                // Match GPUI's actual ordering: callbacks first, then dirty-frame draw.
+                window.simulate_next_frame(cx);
+                assert_eq!(
+                    target.read(cx).received,
+                    0,
+                    "Submit must not use the old hitboxes"
+                );
+                window.draw(cx).clear(cx);
+            })
+            .unwrap();
+        window
+            .update(cx, |_, window, cx| {
+                window.simulate_next_frame(cx);
+                assert_eq!(target.read(cx).received, usize::from(!covered));
+                window.draw(cx).clear(cx);
+                // An ignored drop must not retry later after an overlay closes.
+                target.update(cx, |target, cx| {
+                    target.covered = false;
+                    cx.notify();
+                });
+                window.draw(cx).clear(cx);
+                window.simulate_next_frame(cx);
+                assert_eq!(target.read(cx).received, usize::from(!covered));
+            })
+            .unwrap();
+    }
+
+    #[gpui::test]
+    fn drop_after_overlay_close_uses_new_hitboxes(cx: &mut TestAppContext) {
+        check_drop(cx, true, false);
+    }
+
+    #[gpui::test]
+    fn drop_does_not_bypass_visible_overlay(cx: &mut TestAppContext) {
+        check_drop(cx, true, true);
+    }
+
+    #[gpui::test]
+    fn drop_on_uncovered_view_is_delivered_once(cx: &mut TestAppContext) {
+        check_drop(cx, false, false);
+    }
+
+    fn check_dialog_drop(
+        cx: &mut TestAppContext,
+        covered: bool,
+        active: bool,
+        reduce_motion: bool,
+    ) {
+        use gpui_kit::VisualTestContext;
+        use gpui_kit::component::WindowExt as _;
+        use std::time::Duration;
+
+        let (window, target) = cx.update(|cx| {
+            gpui_kit::init(cx);
+            cx.set_reduce_motion(reduce_motion);
+            gpui_kit::open_window(Default::default(), cx, |_, cx| {
+                cx.new(|_| DropTarget {
+                    covered,
+                    received: 0,
+                })
+            })
+            .unwrap()
+        });
+        let mut cx = VisualTestContext::from_window(window, cx);
+        cx.simulate_resize(size(px(1000.), px(800.)));
+        cx.update(|window, cx| {
+            window.open_dialog(cx, |dialog, _, _| {
+                dialog.title("Drop barrier").child(div().h(px(300.)))
+            });
+            window.draw(cx).clear(cx);
+            window.draw(cx).clear(cx);
+        });
+        cx.background_executor.advance_clock(Duration::from_secs(1));
+        cx.update(|window, cx| window.draw(cx).clear(cx));
+        let position = cx.debug_bounds("dialog-0").unwrap().center();
+        let request = json!({
+            "paths": ["synthetic.png"], "x": f32::from(position.x),
+            "y": f32::from(position.y), "space": "logical",
+        });
+        cx.update(|window, cx| {
+            if !active {
+                window.close_dialog(cx);
+                target.update(cx, |target, cx| {
+                    target.covered = false;
+                    cx.notify();
+                });
+            }
+            apply_drop(&request, window, cx).unwrap();
+            if active {
+                // A blocked request must not replay even if closed before its next frame.
+                window.close_dialog(cx);
+            }
+        });
+        for _ in 0..6 {
+            cx.update(|window, cx| {
+                window.simulate_next_frame(cx);
+                window.draw(cx).clear(cx);
+            });
+        }
+        if !reduce_motion {
+            cx.update(|window, cx| {
+                assert!(window.has_closing_dialog(cx));
+                assert_eq!(target.read(cx).received, 0, "exit surface still occludes");
+            });
+        }
+        cx.background_executor.advance_clock(Duration::from_secs(1));
+        for _ in 0..6 {
+            cx.update(|window, cx| {
+                window.simulate_next_frame(cx);
+                window.draw(cx).clear(cx);
+            });
+        }
+        cx.update(|window, cx| {
+            assert!(!window.has_closing_dialog(cx));
+            assert_eq!(target.read(cx).received, usize::from(!active));
+        });
+    }
+
+    #[gpui::test]
+    fn drop_waits_for_real_dialog_exit(cx: &mut TestAppContext) {
+        check_dialog_drop(cx, false, false, false);
+    }
+
+    #[gpui::test]
+    fn drop_after_dialog_and_grid_close(cx: &mut TestAppContext) {
+        check_dialog_drop(cx, true, false, false);
+    }
+
+    #[gpui::test]
+    fn active_dialog_drop_is_not_replayed_after_close(cx: &mut TestAppContext) {
+        check_dialog_drop(cx, false, true, false);
+    }
+
+    #[gpui::test]
+    fn reduced_motion_dialog_drop_finishes(cx: &mut TestAppContext) {
+        check_dialog_drop(cx, false, false, true);
+    }
 }
