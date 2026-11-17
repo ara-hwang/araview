@@ -41,6 +41,8 @@ cargo run -p araview -- "C:/path/to/image.png"
 
 이미지 처리 파이프라인 개선에 영감을 준 [yosh](https://github.com/the-database/yosh) 프로젝트에 감사드립니다.
 
+개발 과정에서 영감을 준 [Zed](https://zed.dev/)에 감사드립니다.
+
 ## 라이선스
 
 EUPL-1.2
