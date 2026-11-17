@@ -187,6 +187,72 @@ mod tests {
     }
 
     #[test]
+    fn zoom_for_fit_distinguishes_the_limiting_axis_and_allows_explicit_upscaling() {
+        let container = Size2::new(200.0, 100.0);
+        for (image, width, height, screen, auto) in [
+            (Size2::new(400.0, 100.0), 0.5, 1.0, 0.5, 0.5),
+            (Size2::new(100.0, 400.0), 2.0, 0.25, 0.25, 0.25),
+            (Size2::new(50.0, 25.0), 4.0, 4.0, 4.0, 1.0),
+        ] {
+            for (mode, expected) in [
+                (FitMode::Width, width),
+                (FitMode::Height, height),
+                (FitMode::Screen, screen),
+                (FitMode::Auto, auto),
+            ] {
+                assert_close(zoom_for_fit(mode, container, image), expected);
+            }
+            assert_close(min_zoom(container, image), auto);
+        }
+    }
+
+    #[test]
+    fn every_fit_mode_defaults_for_each_empty_dimension() {
+        let valid = Size2::new(200.0, 100.0);
+        for empty in [
+            Size2::new(0.0, 100.0),
+            Size2::new(100.0, 0.0),
+            Size2::new(-1.0, 100.0),
+            Size2::new(100.0, -1.0),
+        ] {
+            assert!(empty.is_empty());
+            for mode in [
+                FitMode::Width,
+                FitMode::Height,
+                FitMode::Screen,
+                FitMode::Auto,
+            ] {
+                assert_close(zoom_for_fit(mode, empty, valid), 1.0);
+                assert_close(zoom_for_fit(mode, valid, empty), 1.0);
+            }
+            assert_close(min_zoom(empty, valid), 1.0);
+            assert_close(min_zoom(valid, empty), 1.0);
+        }
+        assert!(!valid.is_empty());
+    }
+
+    #[test]
+    fn pan_bounds_and_clamping_are_independent_per_axis() {
+        let container = Size2::new(200.0, 100.0);
+        let bounds = position_bounds(container, Size2::new(200.0, 300.0), 1.0);
+        assert_eq!(bounds, Offset { x: 0.0, y: 100.0 });
+        assert_eq!(
+            clamp_position(Offset { x: 10.0, y: -100.0 }, bounds),
+            Offset { x: 0.0, y: -100.0 }
+        );
+        assert_eq!(
+            clamp_position(Offset { x: -10.0, y: 30.0 }, bounds),
+            Offset { x: 0.0, y: 30.0 }
+        );
+        let bounds = position_bounds(container, Size2::new(400.0, 50.0), 1.0);
+        assert_eq!(bounds, Offset { x: 100.0, y: 0.0 });
+        assert_eq!(
+            clamp_position(Offset { x: 150.0, y: -30.0 }, bounds),
+            Offset { x: 100.0, y: 0.0 }
+        );
+    }
+
+    #[test]
     fn min_zoom_matches_the_auto_fit() {
         let big = Size2::new(400.0, 400.0);
         let container = Size2::new(200.0, 100.0);
@@ -208,6 +274,32 @@ mod tests {
         assert_close(point_before, point_after);
         assert_close(after.x, -10.0);
         assert_close(after.y, 0.0);
+    }
+
+    #[test]
+    fn zoom_about_preserves_both_anchor_coordinates_with_an_existing_pan() {
+        let container = Size2::new(100.0, 100.0);
+        let image = Size2::new(800.0, 600.0);
+        let anchor = Offset { x: 20.0, y: -30.0 };
+        let position = Offset { x: -40.0, y: 50.0 };
+        for next_zoom in [0.5, 2.0] {
+            let after = zoom_about(container, image, 1.0, next_zoom, position, anchor);
+            assert_close((anchor.x - after.x) / next_zoom, anchor.x - position.x);
+            assert_close((anchor.y - after.y) / next_zoom, anchor.y - position.y);
+        }
+    }
+
+    #[test]
+    fn zoom_about_clamps_only_the_axis_that_reaches_its_boundary() {
+        let after = zoom_about(
+            Size2::new(100.0, 100.0),
+            Size2::new(200.0, 400.0),
+            1.0,
+            0.5,
+            Offset { x: 40.0, y: -40.0 },
+            Offset { x: -20.0, y: 10.0 },
+        );
+        assert_eq!(after, Offset { x: 0.0, y: -15.0 });
     }
 
     #[test]
