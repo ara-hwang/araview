@@ -235,10 +235,15 @@ fn apply_drop(request: &Value, window: &mut Window, cx: &mut App) -> Result<(), 
         .to_platform_input(),
         cx,
     );
-    // 놓기는 한 프레임 뒤에 보낸다. 실제 플랫폼도 끌어온 뒤 프레임을 한 번 그린 다음
-    // 놓기를 받으므로, 같은 순서로 맞춘다.
-    window.on_next_frame(move |window, cx| {
-        window.dispatch_event(FileDropEvent::Submit { position }.to_platform_input(), cx);
+    // GPUI 0.3.12는 next-frame 콜백을 dirty frame을 그리기 *전에* 실행한다.
+    // 첫 콜백에서 다시 그리기를 요청하고 두 번째 콜백에 놓기를 예약해야, 닫힌
+    // 그리드/모달의 이전 hitbox가 아닌 Entered 이후 프레임으로 드롭을 판정한다.
+    // 타이머로 대신하면 최소화/잠금 중 그리기가 멈춰도 Submit이 먼저 실행될 수 있다.
+    window.on_next_frame(move |window, _| {
+        window.refresh();
+        window.on_next_frame(move |window, cx| {
+            window.dispatch_event(FileDropEvent::Submit { position }.to_platform_input(), cx);
+        });
     });
     window.refresh();
     Ok(())
@@ -478,6 +483,101 @@ impl AraView {
                 "maxMs": self.frame_stats.max_ms,
             },
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use gpui_kit as gpui;
+    use gpui_kit::prelude::*;
+    use gpui_kit::{
+        AnyWindowHandle, Context, ExternalPaths, IntoElement, Render, TestAppContext, Window, div,
+    };
+    use serde_json::json;
+
+    use super::apply_drop;
+
+    struct DropTarget {
+        covered: bool,
+        received: usize,
+    }
+
+    impl Render for DropTarget {
+        fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+            div()
+                .size_full()
+                .on_drop(cx.listener(|this, _: &ExternalPaths, _, _| this.received += 1))
+                .when(self.covered, |root| {
+                    root.child(div().absolute().inset_0().occlude())
+                })
+        }
+    }
+
+    fn check_drop(cx: &mut TestAppContext, initially_covered: bool, covered: bool) {
+        let window = cx.add_window(|_, _| DropTarget {
+            covered: initially_covered,
+            received: 0,
+        });
+        let target = window.root(cx).unwrap();
+        let window: AnyWindowHandle = window.into();
+        window
+            .update(cx, |_, window, cx| {
+                // Preserve the last rendered overlay even though app state has closed it.
+                window.draw(cx).clear(cx);
+                target.update(cx, |target, cx| {
+                    target.covered = covered;
+                    cx.notify();
+                });
+                apply_drop(
+                    &json!({"paths": ["synthetic.png"], "x": 200, "y": 200, "space": "logical"}),
+                    window,
+                    cx,
+                )
+                .unwrap();
+            })
+            .unwrap();
+        window
+            .update(cx, |_, window, cx| {
+                // Match GPUI's actual ordering: callbacks first, then dirty-frame draw.
+                window.simulate_next_frame(cx);
+                assert_eq!(
+                    target.read(cx).received,
+                    0,
+                    "Submit must not use the old hitboxes"
+                );
+                window.draw(cx).clear(cx);
+            })
+            .unwrap();
+        window
+            .update(cx, |_, window, cx| {
+                window.simulate_next_frame(cx);
+                assert_eq!(target.read(cx).received, usize::from(!covered));
+                window.draw(cx).clear(cx);
+                // An ignored drop must not retry later after an overlay closes.
+                target.update(cx, |target, cx| {
+                    target.covered = false;
+                    cx.notify();
+                });
+                window.draw(cx).clear(cx);
+                window.simulate_next_frame(cx);
+                assert_eq!(target.read(cx).received, usize::from(!covered));
+            })
+            .unwrap();
+    }
+
+    #[gpui::test]
+    fn drop_after_overlay_close_uses_new_hitboxes(cx: &mut TestAppContext) {
+        check_drop(cx, true, false);
+    }
+
+    #[gpui::test]
+    fn drop_does_not_bypass_visible_overlay(cx: &mut TestAppContext) {
+        check_drop(cx, true, true);
+    }
+
+    #[gpui::test]
+    fn drop_on_uncovered_view_is_delivered_once(cx: &mut TestAppContext) {
+        check_drop(cx, false, false);
     }
 }
 
