@@ -10,7 +10,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 
-source = Path(os.environ.get("EVENTS_SOURCE", Path(__file__).resolve().parents[1] / "src/events.rs")).read_text()
+source = Path(os.environ.get("EVENTS_SOURCE", Path(__file__).resolve().parents[1] / "src/events.rs")).read_text(encoding="utf-8")
 start = source.index("    fn set_display(")
 end = source.index("    fn handle_hit_test_msg", start)
 method = source[start:end]
@@ -92,7 +92,7 @@ fn queued_notification_retains_state_until_dispatch() {
 with tempfile.TemporaryDirectory(prefix="araview-display-test-") as temporary:
     root = Path(temporary)
     test_source = root / "display_change.rs"
-    test_source.write_text(harness)
+    test_source.write_text(harness, encoding="utf-8")
     binary = root / ("display_change.exe" if os.name == "nt" else "display_change")
     subprocess.run(["rustc", "--edition", "2024", "--test", str(test_source), "-o", str(binary)], check=True)
     subprocess.run([str(binary)], check=True)

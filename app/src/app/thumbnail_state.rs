@@ -302,7 +302,7 @@ mod tests {
             (101, false, 21, 0),
             (101, false, 21, 1),
         ] {
-            assert!(!Rc::ptr_eq(&first, &cache.get(key, || vec![])));
+            assert!(!Rc::ptr_eq(&first, &cache.get(key, Vec::new)));
         }
     }
     #[test]

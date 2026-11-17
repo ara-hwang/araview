@@ -12,7 +12,7 @@ import subprocess
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = (ROOT / "crates/araview-core/src/dir_cache.rs").read_text()
+SOURCE = (ROOT / "crates/araview-core/src/dir_cache.rs").read_text(encoding="utf-8")
 
 
 def function(name):
@@ -131,6 +131,6 @@ assert "invalidate_after_watch_error();" in function("ensure_watched")
 with tempfile.TemporaryDirectory(prefix="araview-watcher-check-") as tmp:
     source = Path(tmp) / "watcher.rs"
     binary = Path(tmp) / ("watcher.exe" if os.name == "nt" else "watcher")
-    source.write_text(HEADER + functions + TESTS)
+    source.write_text(HEADER + functions + TESTS, encoding="utf-8")
     subprocess.run(["rustc", "--edition=2024", "-O", "--test", str(source), "-o", str(binary)], check=True)
     subprocess.run([str(binary), "--test-threads=1", "--nocapture"], check=True)

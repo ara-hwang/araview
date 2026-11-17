@@ -9,8 +9,9 @@ use super::thumbnail_state::BoundedLru;
 use gpui_kit::*;
 use std::sync::Arc;
 
-/// 썸네일은 생성 단계에서 긴 변을 256px로 제한한다. 512개 256² BGRA는
-/// 128MiB다. 이는 원시 픽셀의 상한 모델이지 GPU 드라이버 메모리 계측값이 아니다.
+/// 정상 생성 썸네일은 긴 변 256px다. 512개 256² BGRA의 계산 모델은
+/// 128MiB다. 보장하는 것은 항목 수이며, 이 수치는 원본 폴백·프레임 버퍼·
+/// GPU 드라이버 등을 포함한 바이트 상한이나 실제 GPU 계측값이 아니다.
 const THUMB_CACHE_ITEMS: usize = 512;
 
 pub(super) struct ThumbnailCache {
@@ -38,6 +39,18 @@ impl ThumbnailCache {
         }
     }
 
+    fn insert(
+        &mut self,
+        resource: Resource,
+        item: ImageCacheItem,
+        window: Option<&mut Window>,
+        cx: &mut App,
+    ) {
+        if let Some(evicted) = self.images.insert(resource, item) {
+            Self::release(evicted, window, cx);
+        }
+    }
+
     fn release(item: ImageCacheItem, window: Option<&mut Window>, cx: &mut App) {
         if let Some(Ok(image)) = item.get() {
             cx.drop_image(image, window);
@@ -58,17 +71,17 @@ impl ImageCache for ThumbnailCache {
         }
         let item = ImageCacheItem::new(resource, cx);
         let result = item.use_image(window);
-        if let Some(evicted) = self.images.insert(resource.clone(), item) {
-            Self::release(evicted, Some(window), cx);
-        }
+        self.insert(resource.clone(), item, Some(window), cx);
         result
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::ThumbnailCache;
+    use gpui::{ImageCacheItem, Resource, TestAppContext};
     use gpui_kit as gpui;
+    use std::sync::Arc;
 
     /// 실제 GPUI ImageCacheItem으로 디코드 완료·LRU 퇴출·명시적 clear·
     /// 엔티티 release를 검증한다. 드라이버/GPU VRAM 계측 테스트는 아니다.
@@ -84,25 +97,36 @@ mod tests {
                 Resource::from(path)
             })
             .collect();
-        let window = cx.add_window(|_, _| EmptyView);
         let cache = cx.update(|cx| ThumbnailCache::with_capacity(2, cx));
-        let load = |source: &Resource, cx: &mut TestAppContext| {
-            window
-                .update(cx, |_, window, cx| {
-                    cache.update(cx, |cache, cx| cache.load(source, window, cx))
-                })
-                .unwrap()
+        let start = |source: &Resource, cx: &mut TestAppContext| {
+            cache.update(cx, |cache, cx| {
+                let item = ImageCacheItem::new(source, cx);
+                cache.insert(source.clone(), item, None, cx);
+            });
         };
-        assert!(load(&sources[0], cx).is_none());
+        let loaded = |source: &Resource, cx: &mut TestAppContext| {
+            cache.update(cx, |cache, _| {
+                Arc::downgrade(
+                    &cache
+                        .images
+                        .get_mut(source)
+                        .unwrap()
+                        .get()
+                        .unwrap()
+                        .unwrap(),
+                )
+            })
+        };
+        start(&sources[0], cx);
         cx.run_until_parked();
-        let first = Arc::downgrade(&load(&sources[0], cx).unwrap().unwrap());
-        assert!(load(&sources[1], cx).is_none());
+        let first = loaded(&sources[0], cx);
+        start(&sources[1], cx);
         cx.run_until_parked();
-        let second = Arc::downgrade(&load(&sources[1], cx).unwrap().unwrap());
+        let second = loaded(&sources[1], cx);
         assert!(first.upgrade().is_some());
-        assert!(load(&sources[2], cx).is_none());
+        start(&sources[2], cx);
         cx.run_until_parked();
-        let third = Arc::downgrade(&load(&sources[2], cx).unwrap().unwrap());
+        let third = loaded(&sources[2], cx);
         assert!(
             first.upgrade().is_none(),
             "oldest decoded image must leave cache"
@@ -111,10 +135,10 @@ mod tests {
         cx.run_until_parked();
         assert!(second.upgrade().is_none());
         assert!(third.upgrade().is_none());
-        assert!(load(&sources[3], cx).is_none());
+        start(&sources[3], cx);
         cx.run_until_parked();
-        let last = Arc::downgrade(&load(&sources[3], cx).unwrap().unwrap());
-        drop(cache);
+        let last = loaded(&sources[3], cx);
+        cx.update(|_| drop(cache));
         cx.run_until_parked();
         assert!(
             last.upgrade().is_none(),

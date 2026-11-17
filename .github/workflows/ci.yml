@@ -162,6 +162,13 @@ jobs:
       - name: Cargo test (araview-core, araview-thumb)
         run: cargo test -p araview-core -p araview-thumb
 
+      - name: Display callback and directory watcher regressions
+        run: |
+          python vendor/gpui-pre-windows/tests/check_display_change.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python scripts/check-dir-cache-watcher.py
+          exit $LASTEXITCODE
+
   # 앱/의존성/빌드 설정이 바뀐 PR도 기존 앱 단위 테스트를 실제 실행한다.
   # 릴리스·수동 전체 검증과는 배타적이며, 기존 app shard의 캐시를 재사용한다.
   rust-app-test:
