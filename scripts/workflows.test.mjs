@@ -209,6 +209,9 @@ test("Windows workflow scripts parse in PowerShell", { skip: process.platform !=
   }
   assert.ok(scripts.length >= 8, "Expected compile, package, preflight and signing scripts")
   const result = spawnSync("pwsh", ["-NoProfile", "-NonInteractive", "-Command", `
+    # Node sends UTF-8 JSON, independent of the Windows console code page.
+    [Console]::InputEncoding = [System.Text.UTF8Encoding]::new($false)
+    [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
     $scripts = ConvertFrom-Json ([Console]::In.ReadToEnd())
     foreach ($script in $scripts) {
       $tokens = $null

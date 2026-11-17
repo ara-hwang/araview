@@ -156,12 +156,24 @@ impl Picture {
 
     /// 지연해 둔 축소 단계를 만들어 넣는다. 디코드와 같은 리샘플 비용이 들므로
     /// 백그라운드에서 부른다. 애니메이션은 단계가 없어 바로 끝난다.
+    #[cfg(test)]
+    #[cfg(test)]
     pub fn fill_levels(&self) {
-        self.fill_levels_before_publish(|| {});
+        self.fill_levels_until(|| true);
     }
 
-    fn fill_levels_before_publish(&self, before_publish: impl FnOnce()) {
-        if self.is_animated() || self.released.load(Ordering::Acquire) {
+    /// 세대/소유자가 사라지면 단계 사이에서 중단한다. 창이 이미 닫혀 release-in
+    /// 콜백을 실행할 수 없어도 외부 취소 토큰으로 CPU 작업 수명을 묶는다.
+    pub fn fill_levels_until(&self, should_continue: impl Fn() -> bool) {
+        self.fill_levels_before_publish(should_continue, || {});
+    }
+
+    fn fill_levels_before_publish(
+        &self,
+        should_continue: impl Fn() -> bool,
+        before_publish: impl FnOnce(),
+    ) {
+        if self.is_animated() || self.released.load(Ordering::Acquire) || !should_continue() {
             return;
         }
         let snapshot = self.levels();
@@ -179,7 +191,7 @@ impl Picture {
         let mut current = source;
         for (w, h) in &defined[chain.len()..] {
             // 동기 리샘플 자체를 선점하지 않고 단계 사이에서 멈춘다.
-            if self.released.load(Ordering::Acquire) {
+            if self.released.load(Ordering::Acquire) || !should_continue() {
                 return;
             }
             let next = imageops::thumbnail(&current, *w, *h);
@@ -191,7 +203,8 @@ impl Picture {
         before_publish();
         // 다른 채움 사이에 단계가 더 생겼을 수 있다. 더 완전한 목록만 놓는다.
         let mut levels = self.levels.lock().expect("picture levels");
-        if !self.released.load(Ordering::Acquire) && levels.len() < chain.len() {
+        if !self.released.load(Ordering::Acquire) && should_continue() && levels.len() < chain.len()
+        {
             *levels = Arc::new(chain);
         }
     }
@@ -716,11 +729,35 @@ mod tests {
             Some(view_fit(3000.0, 3000.0, false)),
         );
         let before = picture.levels();
-        picture.fill_levels_before_publish(|| {
-            assert_eq!(picture.release_images().len(), 1);
-        });
+        picture.fill_levels_before_publish(
+            || true,
+            || {
+                assert_eq!(picture.release_images().len(), 1);
+            },
+        );
         assert!(Arc::ptr_eq(&before, &picture.levels()));
         assert!(picture.release_images().is_empty());
+    }
+
+    #[test]
+    fn generation_cancellation_without_window_release_stops_mip_publication() {
+        let picture = build(
+            still(2048, 2048),
+            Orientation::default(),
+            None,
+            Some(view_fit(3000.0, 3000.0, false)),
+        );
+        let before = picture.levels();
+        let alive = AtomicBool::new(true);
+        picture.fill_levels_before_publish(
+            || alive.load(Ordering::Acquire),
+            || {
+                alive.store(false, Ordering::Release);
+            },
+        );
+        assert!(Arc::ptr_eq(&before, &picture.levels()));
+        assert!(!picture.released.load(Ordering::Acquire));
+        assert_eq!(picture.release_images().len(), 1);
     }
 
     #[test]

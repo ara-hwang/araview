@@ -1102,8 +1102,9 @@ impl AraView {
                 // 화면에 필요한 단계는 만들어 뒀고, 나머지는 지금부터 천천히 채운다.
                 if let Ok(page) = &result {
                     let picture = page.picture().clone();
+                    let cancellation = this.thumb_queue.cancellation();
                     cx.background_spawn(async move {
-                        picture.fill_levels();
+                        picture.fill_levels_until(|| !cancellation.is_cancelled());
                     })
                     .detach();
                 }
@@ -1336,8 +1337,9 @@ impl AraView {
                 let picture = Arc::new(picture);
                 // 화면에 필요한 단계는 만들어 뒀고, 나머지는 지금부터 천천히 채운다.
                 let chain = picture.clone();
+                let cancellation = this.thumb_queue.cancellation();
                 cx.background_spawn(async move {
-                    chain.fill_levels();
+                    chain.fill_levels_until(|| !cancellation.is_cancelled());
                 })
                 .detach();
                 if let Some(previous) = this.oriented.replace(picture.clone()) {

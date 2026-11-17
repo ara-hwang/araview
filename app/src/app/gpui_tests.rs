@@ -48,7 +48,9 @@ fn releasing_queue_entity_cancels_background_generation(cx: &mut TestAppContext)
     let queue = cx.new(|_| ThumbQueue::default());
     let token = queue.read_with(cx, |queue, _| queue.cancellation());
     let weak = queue.downgrade();
-    drop(queue);
+    // Entity release effects are flushed at the end of an App update, not by
+    // merely parking its executor. Match the actual GPUI owner-drop boundary.
+    cx.update(|_| drop(queue));
     cx.run_until_parked();
     assert!(token.is_cancelled());
     assert!(weak.update(cx, |_, _| ()).is_err());
@@ -86,7 +88,7 @@ fn late_open_result_cannot_replace_newer_request(cx: &mut TestAppContext) {
     });
     cx.update(|window, cx| view.update(cx, |view, cx| {
         view.finish_open_result(1, "first.png".into(), Err(super::AppError::not_found("old")), window, cx);
-        assert!(matches!(&view.error, Some(super::ViewError::Open { path, .. }) if path == "second.png"));
+        assert!(matches!(&view.error, Some(super::pages::ViewError::Open { path, .. }) if path == "second.png"));
     }));
 }
 

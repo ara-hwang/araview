@@ -748,7 +748,7 @@ UI 분류 5종:
 
 ## 18. 렌더링 경로
 
-- 코어는 디코드용 파일 경로를 돌려주고, UI는 그 파일을 `display.rs`로 RGBA 프레임으로 디코드해 GPU 텍스처(타일)로 올려 그린다. GPUI 텍스처는 한 변 16384px 제한과 밉맵 없는 선형 보간뿐이라 큰 이미지는 8192px 타일로 나누고 축소 단계를 CPU에서 만든다(`app/src/picture.rs`). 단계는 열 때 화면 맞춤(웹툰은 폭 맞춤, 나머지는 읽기 영역 맞춤)에 필요한 수준까지만 만들고, 페이지 커밋 뒤 백그라운드로 나머지를 채운다. 채워지기 전에는 만들어진 가장 작은 단계로 그린다. HDR 정지 이미지는 단계마다 등록이 따라가야 해서 전부 만든다.
+- 코어는 디코드용 파일 경로를 돌려주고, UI는 그 파일을 `display.rs`로 RGBA 프레임으로 디코드해 GPU 텍스처(타일)로 올려 그린다. GPUI 텍스처는 한 변 16384px 제한과 밉맵 없는 선형 보간뿐이라 큰 이미지는 8192px 타일로 나누고 축소 단계를 CPU에서 만든다(`app/src/picture.rs`). 단계는 열 때 화면 맞춤(웹툰은 폭 맞춤, 나머지는 읽기 영역 맞춤)에 필요한 수준까지만 만들고, 페이지 커밋 뒤 백그라운드로 나머지를 채운다. 후속 단계는 작업 세대가 바뀌거나 창 소유자가 해제되면 단계 사이와 최종 발행 직전에 협력적으로 중단한다. 이미지 정리는 멱등적이며 정리 뒤에는 늦은 밉을 발행하지 않는다. 채워지기 전에는 만들어진 가장 작은 단계로 그린다. HDR 정지 이미지는 단계마다 등록이 따라가야 해서 전부 만든다.
 - HDR 디스플레이 출력은 지원하지 않는다. Radiance HDR·EXR은 8비트 sRGB 변환으로 표시하고(2.3절), 스왑체인은 sRGB 8비트로 둔다. HDR 출력 도입 계획은 `docs/hdr-display.md`를 따른다. 개발용으로 Windows에서 `ARAVIEW_HDR_OUTPUT=1`이면 hwnd 스왑체인과 FP16 scRGB로 출력한다. 이때 Radiance HDR·EXR 정지 이미지는 원본을 선형 float로 다시 디코드해 SDR 흰색(Windows SDR 콘텐츠 밝기)을 넘는 하이라이트를 패널 피크까지 부드럽게 눌러 표시하고, 나머지 이미지와 UI는 SDR과 같은 밝기로 보인다.
 - 디코더가 따로 필요한 HEIC/HEIF/PSD/TGA/DDS/EXR/QOI/HDR/PNM/RAW는 JPEG sidecar를(`transcode.rs`가 디코더를 고르고 `sidecar.rs`의 `SidecarSpec` 파이프라인을 공유한다), 표시 해상도 제한이 걸린 큰 래스터는 `scaled/` 사본(9.4절)을 만든다. sidecar와 아카이브 추출물, 썸네일 캐시는 `cacheStorageMode`가 `persistent`면 `%LOCALAPPDATA%\<식별자>\`의 버전된 루트(`cache-v2/`)에, `temporary`면 프로세스 수명 TempDir에 둔다.
 - JPEG와 TIFF의 EXIF Orientation(1~8)은 디코드할 때 적용하고, 치수(`ImageInfo.width/height`, `get_image_details`)와 썸네일도 같은 기준으로 회전해 보고한다(SVG/WebP/PNG/HEIC는 대상 아님).
