@@ -5,6 +5,8 @@
 mod bridge;
 mod dock;
 mod file_ops;
+#[cfg(test)]
+mod gpui_tests;
 mod grid;
 mod info_panel;
 mod licenses;
@@ -13,6 +15,8 @@ mod ocr;
 mod pages;
 mod settings_panel;
 pub mod system;
+mod thumbnail_cache;
+mod thumbnail_state;
 mod update;
 mod viewport;
 
@@ -192,7 +196,10 @@ pub struct AraView {
     wt_dims: HashMap<usize, (u32, u32)>,
 
     thumbs: HashMap<Arc<str>, ThumbState>,
-    thumbs_pending: HashSet<Arc<str>>,
+    thumb_queue: thumbnail_state::ThumbQueue,
+    thumb_cache: Entity<thumbnail_cache::ThumbnailCache>,
+    dock_sizes: std::cell::RefCell<thumbnail_state::Prepared<(usize, bool, u32), Size<Pixels>>>,
+    grid_items_cache: std::cell::RefCell<thumbnail_state::GridItems>,
     /// 썸네일 그리드. 닫아도 필터 입력과 스크롤 상태를 남겨 둔다(`GridState::open`).
     grid: Option<grid::GridState>,
     /// 우클릭한 지점의 페이지(표지 지정 대상).
@@ -282,6 +289,10 @@ impl AraView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
+        cx.on_release_in(window, |this, window, cx| {
+            this.release_render_images(window, cx);
+        })
+        .detach();
         let focus = cx.focus_handle();
         focus.focus(window, cx);
         // 도크는 VirtualList가 핸들을 추적하고, 같은 핸들을 SmoothScroll이 움직인다.
@@ -335,7 +346,10 @@ impl AraView {
             wt_fit_width: false,
             wt_dims: HashMap::new(),
             thumbs: HashMap::new(),
-            thumbs_pending: HashSet::new(),
+            thumb_queue: thumbnail_state::ThumbQueue::default(),
+            thumb_cache: thumbnail_cache::ThumbnailCache::new(cx),
+            dock_sizes: std::cell::RefCell::default(),
+            grid_items_cache: std::cell::RefCell::default(),
             grid: None,
             context_page: None,
             info_open: false,
@@ -383,7 +397,9 @@ impl AraView {
         }
         // 개발 빌드는 실행 중인 창을 에이전트가 직접 조작할 수 있게 제어 통로를 연다.
         #[cfg(debug_assertions)]
-        bridge::listen(crate::IDENTIFIER, cx.entity(), window, cx);
+        if !cfg!(test) {
+            bridge::listen(crate::IDENTIFIER, cx.entity(), window, cx);
+        }
         let store = SettingsStore::global(cx);
         let auto_open = (store.settings.auto_open_last_file && store.settings.record_recent_files)
             .then(|| store.recent_files.first().cloned())
@@ -1220,17 +1236,18 @@ impl AraView {
     // ----- 입력 -----
 
     fn on_key(&mut self, event: &KeyDownEvent, window: &mut Window, cx: &mut Context<Self>) {
-        if self.grid_open() {
-            self.on_grid_key(event, window, cx);
-            return;
-        }
-        // 다이얼로그가 열려 있으면 뷰어 단축키를 막는다(SPEC §14.3).
-        if window.has_active_dialog(cx) {
-            return;
-        }
-        // 입력에 포커스가 있으면 뷰어 단축키를 막는다.
-        if window.has_focused_input(cx) {
-            return;
+        // 모달 > 입력 > 그리드 > 뷰어. 그리드도 모달·입력의 키를 가로채지 않는다.
+        match keys::key_route(
+            window.has_active_dialog(cx),
+            window.has_focused_input(cx),
+            self.grid_open(),
+        ) {
+            keys::KeyRoute::Blocked => return,
+            keys::KeyRoute::Grid => {
+                self.on_grid_key(event, window, cx);
+                return;
+            }
+            keys::KeyRoute::Viewer => {}
         }
         let action = keys::action_for(
             &SettingsStore::global(cx).settings.shortcuts,

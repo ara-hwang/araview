@@ -2,7 +2,6 @@
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::rc::Rc;
 use std::sync::Arc;
 
 use araview_core::file_availability::FileAvailability;
@@ -24,8 +23,6 @@ use crate::settings::{DockPosition, SettingsStore, ViewMode};
 
 /// 썸네일 생성 요청 한 변(px). 코어 캐시의 기본 크기와 같다.
 const THUMB_MAX_SIDE: u32 = 256;
-/// 한 번에 요청하는 썸네일 수. 끝난 청크부터 그린다.
-const THUMB_CHUNK: usize = 8;
 const DOCK_GAP: f32 = 6.0;
 const DOCK_PADDING: f32 = 8.0;
 /// 가로 스크롤바가 썸네일·라벨을 덮지 않도록 확보하는 공간.
@@ -70,16 +67,24 @@ impl AraView {
             .filter(|(index, item)| {
                 (allow_cloud || self.availability.get(*index) != Some(&FileAvailability::CloudOnly))
                     && !self.thumbs.contains_key(*item)
-                    && !self.thumbs_pending.contains(*item)
             })
             .map(|(_, item)| item.clone())
             .collect();
-        for chunk in wanted.chunks(THUMB_CHUNK) {
-            let chunk = chunk.to_vec();
-            self.thumbs_pending.extend(chunk.iter().cloned());
+        self.thumb_queue.enqueue(wanted);
+        self.pump_thumbs(window, cx);
+    }
+
+    /// 실행 중인 이전 세대까지 세어 두 청크만 시작한다. 각 배치 안의 동기
+    /// 디코더는 선점하지 않고 다음 배치 시작 경계에서 취소한다.
+    fn pump_thumbs(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        while let Some(batch) = self.thumb_queue.start_next() {
             let archive = self.archive.clone();
-            let generation = self.list_gen;
+            let cancellation = batch.cancellation.clone();
+            let chunk = batch.items.clone();
             let task = cx.background_spawn(async move {
+                if cancellation.is_cancelled() {
+                    return Vec::new();
+                }
                 let names: Vec<String> = chunk.iter().map(|item| item.to_string()).collect();
                 let thumbs: Vec<BatchThumb> = match &archive {
                     Some(archive) => ops::generate_archive_thumbnails_batch_impl(
@@ -103,29 +108,28 @@ impl AraView {
                         out
                     }
                 };
-                (chunk, thumbs)
+                thumbs
             });
             cx.spawn_in(window, async move |this, cx| {
-                let (chunk, thumbs) = task.await;
-                this.update(cx, |this, cx| {
-                    for item in &chunk {
-                        this.thumbs_pending.remove(item);
-                    }
-                    // 응답이 오기 전에 다른 목록으로 바뀌었으면 버린다.
-                    if this.list_gen != generation {
+                let thumbs = task.await;
+                this.update_in(cx, |this, window, cx| {
+                    // 세대 검사 전에 새 요청의 pending을 지우지 않는다.
+                    if !this.thumb_queue.finish(&batch) {
+                        this.pump_thumbs(window, cx);
                         return;
                     }
                     let mut by_source: HashMap<String, Option<PathBuf>> = thumbs
                         .into_iter()
                         .map(|item| (item.source, item.thumb.map(|thumb| thumb.file_path.into())))
                         .collect();
-                    for item in chunk {
+                    for item in batch.items {
                         let state = match by_source.remove(&*item).flatten() {
                             Some(path) => ThumbState::Ready(path),
                             None => ThumbState::Failed,
                         };
                         this.thumbs.insert(item, state);
                     }
+                    this.pump_thumbs(window, cx);
                     cx.notify();
                 })
                 .ok();
@@ -357,9 +361,12 @@ impl AraView {
                     .items_center()
                     .justify_center()
                     .map(|cell| match thumb {
-                        Some(path) => {
-                            cell.child(img(path).size_full().object_fit(ObjectFit::Cover))
-                        }
+                        Some(path) => cell.child(
+                            img(path)
+                                .image_cache(&self.thumb_cache)
+                                .size_full()
+                                .object_fit(ObjectFit::Cover),
+                        ),
                         None if failed => {
                             cell.child(Icon::new(Ph::WarningCircle).small().text_color(muted))
                         }
@@ -457,17 +464,20 @@ impl AraView {
         let (length, _) = self.dock_metrics(window, cx);
         let content = total as f32 * cell + DOCK_PADDING * 2.0;
         let lead = ((length - content) / 2.0).max(0.0);
-        let sizes: Rc<Vec<Size<Pixels>>> = Rc::new(
-            (0..total)
-                .map(|_| {
-                    if horizontal {
-                        size(px(cell), px(0.))
-                    } else {
-                        size(px(0.), px(cell))
-                    }
-                })
-                .collect(),
-        );
+        let sizes = self
+            .dock_sizes
+            .borrow_mut()
+            .get((total, horizontal, cell.to_bits()), || {
+                (0..total)
+                    .map(|_| {
+                        if horizontal {
+                            size(px(cell), px(0.))
+                        } else {
+                            size(px(0.), px(cell))
+                        }
+                    })
+                    .collect()
+            });
         let list = if horizontal {
             h_virtual_list(
                 cx.entity(),

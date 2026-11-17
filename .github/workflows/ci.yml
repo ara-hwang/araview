@@ -5,10 +5,10 @@ name: CI
 # 두 조각으로 나눠 병렬로 돈다)은 비용이 커서 Actions 탭 수동 실행(workflow_dispatch)과
 # 릴리스(release.yml이 workflow_call로 호출)에서만 돈다. 대신 Rust 쪽 파일이 바뀐 PR과
 # 브랜치 푸시에서는 가벼운 rust-check 잡(clippy -D warnings, araview-core·araview-thumb
-# 테스트까지)이 돌아 의존성 업데이트나 전용 경고·테스트가 빌드를 깨는 것을 병합 전에 잡는다.
+# 테스트까지)와 rust-app-test가 병렬 실행되어 앱 회귀까지 병합 전에 잡는다.
 # 브랜치 푸시에서도 rust-check를 돌리는 이유는 캐시다. PR은 자기 ref와 기본 브랜치의 캐시만
 # 복원할 수 있어서, main이 캐시를 저장해 두지 않으면 모든 PR이 빈 캐시로 시작한다.
-# main 자동 검사는 rust-check가, 수동 전체 검사는 core+thumb와 app 조각이 캐시를
+# main 자동 검사는 rust-check와 rust-app-test가, 수동 전체 검사는 두 조각이 캐시를
 # 저장한다. 두 경로는 동시에 돌지 않는다. PR과 태그는 복원만 한다.
 # 태그끼리는 캐시를 공유할 수 없으므로 release sccache도 main에서 예열한다.
 # 릴리스 검증은 이 파일을 그대로 재사용하므로 검증 항목은 여기서만 고친다.
@@ -135,7 +135,7 @@ jobs:
   # 생기는 경고(-D warnings)를 PR에서 잡는다. clippy는 check와 같은 산출물을 쓰므로
   # 비용 차이는 작다. core·thumb 테스트도 돌린다: Windows 전용 정렬·경로 동작이
   # 릴리스 검증에서야 드러나 릴리스가 연달아 실패한 적이 있다(2026-11).
-  # app 조각 테스트는 gpui 재컴파일 비용이 커서 여전히 릴리스 검증에만 둔다.
+  # 앱 테스트는 아래 rust-app-test에서 전용 캐시로 병렬 실행한다.
   rust-check:
     needs: changes
     if: >-
@@ -161,6 +161,53 @@ jobs:
 
       - name: Cargo test (araview-core, araview-thumb)
         run: cargo test -p araview-core -p araview-thumb
+
+      - name: Display callback and directory watcher regressions
+        run: |
+          python vendor/gpui-pre-windows/tests/check_display_change.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python scripts/check-dir-cache-watcher.py
+          exit $LASTEXITCODE
+
+  # 앱/의존성/빌드 설정이 바뀐 PR도 기존 앱 단위 테스트를 실제 실행한다.
+  # 릴리스·수동 전체 검증과는 배타적이며, 기존 app shard의 캐시를 재사용한다.
+  rust-app-test:
+    needs: changes
+    if: >-
+      ${{
+        !inputs.full-verification
+        && github.event_name != 'workflow_dispatch'
+        && needs.changes.outputs.rust == 'true'
+      }}
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Rust and native dependencies
+        uses: ./.github/actions/setup-rust-native
+        with:
+          cache-key: rust-app-windows
+          rust-cache-save-if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+
+      - name: Cargo test (araview — app/)
+        shell: pwsh
+        run: |
+          $timer = [System.Diagnostics.Stopwatch]::StartNew()
+          cargo test -p araview --timings
+          $testExit = $LASTEXITCODE
+          $timer.Stop()
+          "App tests: $([math]::Round($timer.Elapsed.TotalSeconds, 1)) seconds (exit $testExit). See setup cache logs for hit/miss and cargo-timings artifact for compilation costs." >> $env:GITHUB_STEP_SUMMARY
+          exit $testExit
+
+      - name: Upload app compilation timings
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: app-test-timings
+          path: target/cargo-timings/
+          if-no-files-found: ignore
+          retention-days: 7
 
   # 검사 잡은 fmt와 clippy·cargo-deny만 돌린다.
   rust:

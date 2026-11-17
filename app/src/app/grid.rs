@@ -117,21 +117,13 @@ impl AraView {
     }
 
     /// 파일명 필터를 통과한 목록 인덱스.
-    fn grid_items(&self, cx: &App) -> Vec<usize> {
+    fn grid_items(&self, cx: &App) -> std::rc::Rc<Vec<usize>> {
         let query = self
             .grid
             .as_ref()
             .map(|grid| grid.filter.read(cx).value().to_lowercase())
             .unwrap_or_default();
-        if query.is_empty() {
-            return (0..self.list.len()).collect();
-        }
-        self.list
-            .iter()
-            .enumerate()
-            .filter(|(_, item)| file_label(item).to_lowercase().contains(&query))
-            .map(|(index, _)| index)
-            .collect()
+        self.grid_items_cache.borrow_mut().get(&self.list, &query)
     }
 
     fn grid_confirm(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -259,9 +251,12 @@ impl AraView {
                     .items_center()
                     .justify_center()
                     .map(|cell| match thumb {
-                        Some(path) => {
-                            cell.child(img(path).size_full().object_fit(ObjectFit::Contain))
-                        }
+                        Some(path) => cell.child(
+                            img(path)
+                                .image_cache(&self.thumb_cache)
+                                .size_full()
+                                .object_fit(ObjectFit::Contain),
+                        ),
                         None if failed => cell.child(
                             v_flex()
                                 .items_center()

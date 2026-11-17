@@ -140,7 +140,10 @@ impl log::Log for TeeLogger {
             if recent.len() == RECENT_LIMIT {
                 recent.pop_front();
             }
-            recent.push_back(line);
+            recent.push_back(crate::diagnostic_summary::summary(
+                record.level().as_str(),
+                record.target(),
+            ));
         }
     }
 
@@ -153,6 +156,32 @@ impl log::Log for TeeLogger {
             let _ = handle.flush();
         }
     }
+}
+
+/// Keep the stable core code and a bounded operation in the log target, never derive
+/// diagnostic metadata from the human-readable (potentially private) error message.
+pub(crate) fn warn_core(operation: &'static str, error: &araview_core::app_error::AppError) {
+    log_core(log::Level::Warn, operation, error);
+}
+
+pub(crate) fn error_core(operation: &'static str, error: &araview_core::app_error::AppError) {
+    log_core(log::Level::Error, operation, error);
+}
+
+fn log_core(level: log::Level, operation: &'static str, error: &araview_core::app_error::AppError) {
+    use araview_core::app_error::ErrorCode;
+    let code = match error.code {
+        ErrorCode::NotFound => "not_found",
+        ErrorCode::Permission => "permission",
+        ErrorCode::Unsupported => "unsupported",
+        ErrorCode::TooLarge => "too_large",
+        ErrorCode::Corrupt => "corrupt",
+        ErrorCode::InvalidInput => "invalid_input",
+        ErrorCode::AlreadyExists => "already_exists",
+        ErrorCode::Unknown => "unknown",
+    };
+    let operation = crate::diagnostic_summary::operation(operation);
+    log::log!(target: &format!("araview::{operation}::{code}"), level, "{error}");
 }
 
 /// 로깅을 시작한다. `main`에서 설정을 읽기 전에 한 번 부른다.
@@ -244,6 +273,66 @@ fn civil_from_unix(seconds: i64) -> (i64, u32, u32, u32, u32, u32) {
 mod tests {
     use super::*;
     use std::fs;
+
+    #[test]
+    fn scoped_filters_keep_unrelated_modules_quiet() {
+        use log::Log as _;
+        let mut builder = env_logger::Builder::new();
+        builder.parse_filters("off,araview::update=debug");
+        let logger = TeeLogger {
+            console: Box::new(builder.build()),
+            file: Mutex::new(None),
+        };
+        fn metadata(target: &str) -> log::Metadata<'_> {
+            log::Metadata::builder()
+                .level(log::Level::Warn)
+                .target(target)
+                .build()
+        }
+        assert!(logger.enabled(&metadata("araview::update")));
+        assert!(!logger.enabled(&metadata("araview::cache")));
+    }
+
+    #[test]
+    fn recent_diagnostics_do_not_copy_raw_messages() {
+        use log::Log as _;
+        struct Quiet;
+        impl log::Log for Quiet {
+            fn enabled(&self, _: &log::Metadata) -> bool {
+                true
+            }
+            fn log(&self, _: &log::Record) {}
+            fn flush(&self) {}
+        }
+        let logger = TeeLogger {
+            console: Box::new(Quiet),
+            file: Mutex::new(None),
+        };
+        for detail in [
+            r"D:\client\photo.png",
+            r"\\server\private\scan.tif",
+            "panic payload private.jpg",
+        ] {
+            logger.log(
+                &log::Record::builder()
+                    .args(format_args!("{detail}"))
+                    .level(log::Level::Warn)
+                    .target("araview::decode::corrupt")
+                    .build(),
+            );
+        }
+        let summaries = recent_problems();
+        for line in &summaries {
+            assert!(!line.contains("photo.png"));
+            assert!(!line.contains("scan.tif"));
+            assert!(!line.contains("private.jpg"));
+        }
+        assert!(
+            summaries
+                .iter()
+                .any(|line| line.contains("decode code=corrupt"))
+        );
+    }
 
     #[test]
     fn timestamp_reads_utc() {

@@ -1,7 +1,8 @@
 //! 진단 정보(SPEC §17.1).
 //!
 //! 지원 요청에 붙일 환경 요약을 만든다. 사진 경로와 파일 이름, 환경 변수 값은 담지
-//! 않고, 홈 폴더는 `<home>`으로 가린다. 클립보드로만 나가며 네트워크로 보내지 않는다.
+//! 않는다. 경로는 논리 레이블로, 최근 오류는 허용한 모듈·코드로만 표시한다.
+//! 클립보드로만 나가며 네트워크로 보내지 않는다.
 //! 항목을 늘릴 때는 `docs/usage.md`의 "진단 정보와 로그"도 함께 고친다.
 
 use std::path::{Path, PathBuf};
@@ -51,8 +52,9 @@ pub(crate) fn collect(store: &SettingsStore) -> String {
                 .map(|line| format!("  {}", line.trim_end_matches('\n'))),
         );
     }
-    // 경로에 섞인 사용자 이름을 지운다. 로그 줄에 섞인 경로도 같은 규칙을 따른다.
-    format!("{}\n", mask_home(&lines.join("\n"), home_dir().as_deref()))
+    // Recent entries contain only allowlisted metadata, not raw warning messages.
+    // Cache/log locations below are logical labels rather than user-configured paths.
+    format!("{}\n", lines.join("\n"))
 }
 
 /// 실행 파일이 있는 폴더. Windows 배포본의 코덱 DLL도 여기에 있다.
@@ -112,11 +114,7 @@ fn cache_line(store: &SettingsStore) -> String {
         return "not set".to_owned();
     };
     let state = if dir.is_dir() { "exists" } else { "missing" };
-    format!(
-        "{} ({:?}, {state})",
-        dir.display(),
-        store.settings.cache_storage_mode
-    )
+    format!("<cache> ({:?}, {state})", store.settings.cache_storage_mode)
 }
 
 /// 로그 파일 경로와 지금 크기.
@@ -125,8 +123,8 @@ fn log_line() -> String {
         return "not set".to_owned();
     };
     match std::fs::metadata(&path) {
-        Ok(meta) => format!("{} ({})", path.display(), kib(meta.len())),
-        Err(_) => format!("{} (not written yet)", path.display()),
+        Ok(meta) => format!("logs/{} ({})", logging::FILE_NAME, kib(meta.len())),
+        Err(_) => format!("logs/{} (not written yet)", logging::FILE_NAME),
     }
 }
 
@@ -138,37 +136,10 @@ fn kib(bytes: u64) -> String {
     }
 }
 
-/// 홈 폴더 경로를 `<home>`으로 가린다.
-fn mask_home(text: &str, home: Option<&str>) -> String {
-    let Some(home) = home.map(str::trim).filter(|home| !home.is_empty()) else {
-        return text.to_owned();
-    };
-    text.replace(home, "<home>")
-}
-
-fn home_dir() -> Option<String> {
-    std::env::var("USERPROFILE")
-        .ok()
-        .filter(|value| !value.is_empty())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::fs;
-
-    #[test]
-    fn home_paths_are_masked() {
-        assert_eq!(
-            mask_home(
-                "Cache: /home/ara/.cache/com.araview.viewer (exists)",
-                Some("/home/ara")
-            ),
-            "Cache: <home>/.cache/com.araview.viewer (exists)"
-        );
-        assert_eq!(mask_home("Cache: /tmp/x", None), "Cache: /tmp/x");
-        assert_eq!(mask_home("Cache: /tmp/x", Some("  ")), "Cache: /tmp/x");
-    }
 
     #[test]
     fn windows_versions_follow_the_build_number() {

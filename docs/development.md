@@ -126,7 +126,9 @@ npm run licenses
 - 라이선스: `npm run licenses`가 `app/THIRD_PARTY_LICENSES.json`과 `.md` 2절을 만들고, `cargo deny check`가 라이선스·RustSec을 검사합니다. 예외는 `licenses-extra/`와 `EXTRA_LICENSES`, `about.toml`/`deny.toml`을 함께 고칩니다. 절차는 `docs/playbooks.md` "Update the third-party license data".
 - 스크롤: `src/smooth.rs`의 `SmoothScroll`이 휠 입력을 목표 오프셋으로 쌓고 프레임마다 따라갑니다. 가상 목록은 핸들을 공유하고 기본 스크롤을 끄며, 웹툰은 `Glide`로 같은 감속을 씁니다. Tab 포커스는 `focus_reveal.rs`가 최소 거리로 즉시 스크롤합니다.
 - 알림은 기본 토스트, 다이얼로그가 열려 있으면 경고창입니다(`src/toast.rs`). 파일을 여는 중(200ms 이상), 그림이 없을 때, 페이지 이동이 늦을 때(300ms 이상) 스피너를 보여줍니다.
-- UI 통합 테스트는 없습니다. `cargo test`는 단위 테스트만 돌리고, 키·휠·드래그·드롭·우클릭·다이얼로그는 개발 빌드와 제어 브리지로 확인합니다.
+- `cargo test -p araview`는 test-support 기능을 테스트 빌드에만 켜 GPUI의 결정적 executor·TestAppContext 회귀도 실행합니다. 이 검사는 실제 GPU·Win32·IME 검증을 대체하지 않습니다. 키·휠·드래그·드롭·우클릭·다이얼로그의 실제 Windows 동작은 개발 빌드와 제어 브리지로 확인합니다.
+- 썸네일 요청 큐·목록 준비 캐시는 `app/src/app/thumbnail_state.rs`, 창 수명의 디코드 이미지 LRU는 `thumbnail_cache.rs`입니다. 동시 배치 2개·대기 256항목·이미지 LRU 512항목이며 바이트 한도를 보장하지 않습니다. 순수 정책 벤치는 `rustc --edition=2024 -O --test app/tests/thumbnail_state.rs -o <출력>` 후 `--ignored --nocapture`로 실행합니다.
+- 설정 I/O는 `app/src/settings_writer.rs`의 단일 writer, 업데이트 I/O는 `app/src/app/update_io.rs`의 HTTP·시계·설치 경계, 안전한 진단 요약은 `diagnostic_summary.rs`, 로컬 panic 기록은 `panic_report.rs`가 맡습니다. 앱/core/thumb 크레이트 경계와 자체 updater는 유지합니다.
 
 ## 프로젝트 구조
 

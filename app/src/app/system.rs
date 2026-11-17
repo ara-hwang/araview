@@ -184,7 +184,7 @@ impl AraView {
 
     pub(super) fn cache_cleared(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.thumbs.clear();
-        self.thumbs_pending.clear();
+        // reload → clear_pages가 세대별 요청과 디코드/GPU 썸네일도 무효화한다.
         self.reload(window, cx);
         self.request_thumbs(window, cx);
     }

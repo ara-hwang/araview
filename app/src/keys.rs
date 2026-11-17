@@ -1,13 +1,17 @@
 //! 단축키 표기와 매칭(SPEC §14).
 //!
 //! 뷰어 단축키는 GPUI 키맵에 바인딩하지 않고 뷰어 루트의 키 입력에서 직접 찾는다.
-//! 설정에서 재할당하면 바로 반영되고, 다이얼로그나 입력에 포커스가 있을 때는 키
-//! 입력이 뷰어 루트로 오지 않아 자연히 막힌다.
+//! 설정에서 재할당하면 바로 반영된다. 루트는 다이얼로그·입력 포커스를 먼저
+//! 검사하고 그리드 또는 뷰어로 전달한다.
 
 use gpui_kit::component::kbd::Kbd;
 use gpui_kit::{Keystroke, OperatingSystem};
 
 use crate::settings::ShortcutMap;
+
+#[path = "key_routing.rs"]
+mod routing;
+pub(crate) use routing::{KeyRoute, key_route};
 
 /// 동작 ID와 그 이름의 번역 키.
 pub const ACTION_LABELS: &[(&str, &str)] = &[
