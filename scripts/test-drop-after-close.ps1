@@ -78,33 +78,48 @@ $png = [Convert]::FromBase64String('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJ
 try {
   foreach ($minimized in @($false, $true)) {
     $mode = if ($minimized) { 'minimized/restored' } else { 'visible' }
-    foreach ($overlay in @('grid', 'settings')) {
+    foreach ($overlay in @('grid', 'settings', 'grid-settings')) {
       for ($iteration = 1; $iteration -le $Iterations; $iteration++) {
         $null = Open-AraViewPath -Path $before -WaitMs 400
         $ready = Wait-AraView -Until @{ name = 'before.png'; opening = $false } -TimeoutMs 5000
         if ($ready.Timeout) { throw 'The baseline image did not finish opening' }
         Assert-Path $ready.State $before 'baseline image'
+        if ($overlay -eq 'grid-settings') {
+          $grid = Send-AraViewAction -Id toggleGrid -WaitMs 300
+          if (-not $grid.gridOpen) { throw "$mode/$overlay grid did not open" }
+        }
         $action = if ($overlay -eq 'grid') { 'toggleGrid' } else { 'openSettings' }
         $opened = Send-AraViewAction -Id $action -WaitMs 300
         $isOpen = if ($overlay -eq 'grid') { $opened.gridOpen } else { $opened.dialogOpen }
         if (-not $isOpen) { throw "$mode/$overlay did not open" }
+        if ($overlay -eq 'grid-settings' -and -not $opened.gridOpen) {
+          throw "$mode/$overlay settings did not preserve the grid"
+        }
 
-        if ($overlay -eq 'settings') {
+        if ($overlay -eq 'settings' -or $overlay -eq 'grid-settings') {
           # 실제로 보이는 모달은 드롭을 계속 막아야 한다. 현재 파일과 모달을 모두 확인한다.
           $blocked = Invoke-CheckedRequest @{
             cmd = 'drop'; paths = @($after); x = 200; y = 200; space = 'logical'; waitMs = 300
           }
-          Assert-Path $blocked $before "$mode/visible modal blocks drop"
+          Assert-Path $blocked $before "$mode/$overlay visible modal blocks drop"
           if (-not $blocked.dialogOpen) { throw 'A drop unexpectedly closed the settings modal' }
-          Write-Output "PASS $mode/visible modal blocks drop/$iteration"
+          Write-Output "PASS $mode/$overlay visible modal blocks drop/$iteration"
         }
 
         if ($minimized) { Set-Minimized $true }
-        # 이 두 요청 사이에는 상태 조회, 캡처, 좌표 변환, 대기를 넣지 않는다.
+        # 중첩된 경우 설정을 먼저 닫고 그리드를 닫는다. 모든 닫기 요청은 대기 없이 보낸다.
+        if ($overlay -eq 'grid-settings') {
+          $settingsClosed = Send-AraViewKey -Spec escape -WaitMs 0
+        }
+        # 마지막 닫기와 드롭 사이에는 상태 조회, 캡처, 좌표 변환, 대기를 넣지 않는다.
         # 최소화 상태에서는 이전 overlay 프레임이 남아 있어 stale hit-test 경로를 재현한다.
         $closed = Send-AraViewKey -Spec escape -WaitMs 0
         $dropped = Invoke-CheckedRequest @{
           cmd = 'drop'; paths = @($after); x = 200; y = 200; space = 'logical'; waitMs = 0
+        }
+        if ($overlay -eq 'grid-settings' -and
+            ($settingsClosed.dialogOpen -or -not $settingsClosed.gridOpen)) {
+          throw "$mode/$overlay closing settings did not leave only the grid open"
         }
         if ($closed.gridOpen -or $closed.dialogOpen) { throw "$mode/$overlay did not close" }
         if ($minimized) {
@@ -123,7 +138,10 @@ try {
 } finally {
   if ([AraViewDropRegression.Win32]::IsIconic($handle)) { Set-Minimized $false }
   $state = Get-AraViewState
-  if ($state.dialogOpen -or $state.gridOpen) { $null = Send-AraViewKey -Spec escape -WaitMs 200 }
+  # 중첩 설정/그리드 중간에서 실패했어도 두 레이어를 모두 닫는다.
+  for ($layer = 0; $layer -lt 2 -and ($state.dialogOpen -or $state.gridOpen); $layer++) {
+    $state = Send-AraViewKey -Spec escape -WaitMs 200
+  }
   if ($initial.path) {
     $null = Open-AraViewPath -Path $initial.path -WaitMs 400
   } else {

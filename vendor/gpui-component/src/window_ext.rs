@@ -108,6 +108,9 @@ pub trait WindowExt: Sized {
     /// accepts no input and will unmount when the transition finishes.
     fn has_active_dialog(&mut self, cx: &mut App) -> bool;
 
+    /// Return true while a closed dialog is still mounted for its exit transition.
+    fn has_closing_dialog(&mut self, cx: &mut App) -> bool;
+
     /// Closes the last active Dialog.
     fn close_dialog(&mut self, cx: &mut App);
 
@@ -198,6 +201,14 @@ impl WindowExt for Window {
             .active_dialogs
             .iter()
             .any(|dialog| !dialog.closing)
+    }
+
+    #[inline]
+    fn has_closing_dialog(&mut self, cx: &mut App) -> bool {
+        WindowState::read(self, cx)
+            .active_dialogs
+            .iter()
+            .any(|dialog| dialog.closing)
     }
 
     #[inline]
