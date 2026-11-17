@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::io::{Read as _, Write as _};
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::Ordering;
 use std::time::Duration;
 
 use crate::smooth::SmoothScroll;
@@ -38,8 +38,11 @@ const RELEASE_PAGE: &str = "https://github.com/ara-hwang/araview/releases";
 const PLATFORM: &str = "windows-x86_64";
 /// 설치 프로그램 크기 상한. 넘으면 받지 않는다.
 const MAX_INSTALLER_BYTES: u64 = 512 * 1024 * 1024;
-/// 본문을 읽는 조각 크기. 조각마다 받은 양을 기록하고 취소를 확인한다.
-const DOWNLOAD_CHUNK: usize = 64 * 1024;
+#[path = "update_io.rs"]
+mod update_io;
+use update_io::DownloadProgress;
+#[cfg(test)]
+use update_io::{DOWNLOAD_CHUNK, read_with_progress};
 /// 다운로드 대화상자의 진행 표시를 다시 그리는 간격.
 const PROGRESS_TICK: Duration = Duration::from_millis(100);
 /// 업데이트 서명 공개키(minisign, base64). 기존 1.x 릴리스와 같은 키를 쓴다.
@@ -60,32 +63,7 @@ struct UpdateFeed {
     platforms: HashMap<String, Asset>,
 }
 
-/// 다운로드 작업과 진행 대화상자가 함께 보는 상태.
-#[derive(Default)]
-struct DownloadProgress {
-    received: AtomicU64,
-    /// 전체 크기. 서버가 알려주지 않으면 0이다.
-    total: AtomicU64,
-    cancelled: AtomicBool,
-}
-
 impl DownloadProgress {
-    /// 다운로드를 취소한다. 배경 스레드는 다음 조각을 읽기 전에 이 표시를 보고 멈춘다.
-    fn cancel(&self) {
-        self.cancelled.store(true, Ordering::Relaxed);
-    }
-
-    fn is_cancelled(&self) -> bool {
-        self.cancelled.load(Ordering::Relaxed)
-    }
-
-    /// 받은 비율(0~100). 전체 크기를 모르면 None이다.
-    fn percent(&self) -> Option<f32> {
-        let total = self.total.load(Ordering::Relaxed);
-        let received = self.received.load(Ordering::Relaxed);
-        (total > 0).then(|| (received as f32 / total as f32 * 100.).min(100.))
-    }
-
     fn label(&self) -> SharedString {
         let received = super::format_bytes(self.received.load(Ordering::Relaxed));
         match self.percent() {
@@ -320,44 +298,40 @@ fn agent(timeout: Duration) -> ureq::Agent {
         .into()
 }
 
-/// 피드를 읽는다. 아직 GPUI 릴리스가 없어 피드가 없으면(404) 최신으로 본다.
-fn fetch_feed(url: &str) -> Result<Option<UpdateFeed>, String> {
-    let mut response = match agent(CHECK_TIMEOUT).get(url).call() {
-        Ok(response) => response,
-        Err(ureq::Error::StatusCode(404)) => return Ok(None),
-        Err(error) => return Err(error.to_string()),
-    };
-    let body = response
-        .body_mut()
-        .read_to_string()
-        .map_err(|error| error.to_string())?;
-    serde_json::from_str(&body)
-        .map(Some)
-        .map_err(|error| error.to_string())
-}
+/// OS trust roots and request-wide timeout are enforced only in this production adapter.
+struct SystemHttp;
 
-/// 본문을 조각 단위로 읽으며 받은 양을 기록한다. 도중에 취소되면 None이다.
-fn read_with_progress(
-    mut reader: impl std::io::Read,
-    progress: &DownloadProgress,
-) -> Result<Option<Vec<u8>>, String> {
-    let mut bytes = Vec::new();
-    let mut chunk = vec![0; DOWNLOAD_CHUNK];
-    loop {
-        if progress.is_cancelled() {
-            return Ok(None);
-        }
-        let read = match reader.read(&mut chunk) {
-            Ok(0) => return Ok(Some(bytes)),
-            Ok(read) => read,
-            Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
+impl update_io::Http for SystemHttp {
+    fn get<T>(
+        &self,
+        url: &str,
+        timeout: Duration,
+        consume: impl FnOnce(u64, &mut dyn std::io::Read) -> Result<T, String>,
+    ) -> Result<Option<T>, String> {
+        let mut response = match agent(timeout).get(url).call() {
+            Ok(response) => response,
+            Err(ureq::Error::StatusCode(404)) => return Ok(None),
             Err(error) => return Err(error.to_string()),
         };
-        bytes.extend_from_slice(&chunk[..read]);
-        progress
-            .received
-            .store(bytes.len() as u64, Ordering::Relaxed);
+        let total = response.body().content_length().unwrap_or(0);
+        consume(total, &mut response.body_mut().as_reader()).map(Some)
     }
+}
+
+/// 피드가 없으면(404) 최신으로 본다. 가짜 HTTP도 같은 파싱 경로를 거친다.
+fn fetch_feed_with(http: &impl update_io::Http, url: &str) -> Result<Option<UpdateFeed>, String> {
+    http.get(url, CHECK_TIMEOUT, |_, reader| {
+        let mut body = String::new();
+        reader
+            .take(10 * 1024 * 1024)
+            .read_to_string(&mut body)
+            .map_err(|error| error.to_string())?;
+        serde_json::from_str(&body).map_err(|error| error.to_string())
+    })
+}
+
+fn fetch_feed(url: &str) -> Result<Option<UpdateFeed>, String> {
+    fetch_feed_with(&SystemHttp, url)
 }
 
 /// 설치 프로그램은 HTTPS에서만 받는다. 디버그 빌드는 로컬 피드 검증을 위해
@@ -375,33 +349,46 @@ fn download_installer(
     if !is_allowed_asset_url(&asset.url) {
         return Err("update URL must use HTTPS".to_owned());
     }
-    let mut response = agent(DOWNLOAD_TIMEOUT)
-        .get(&asset.url)
-        .call()
-        .map_err(|error| error.to_string())?;
-    let total = response.body().content_length().unwrap_or(0);
-    progress.total.store(total, Ordering::Relaxed);
-    let reader = response
-        .body_mut()
-        .as_reader()
-        .take(MAX_INSTALLER_BYTES + 1);
-    let Some(bytes) = read_with_progress(reader, progress)? else {
-        return Ok(None);
-    };
-    if bytes.len() as u64 > MAX_INSTALLER_BYTES {
-        return Err("installer is larger than expected".to_owned());
+    update_io::download(
+        &SystemHttp,
+        &SystemInstaller,
+        &asset.url,
+        DOWNLOAD_TIMEOUT,
+        MAX_INSTALLER_BYTES,
+        progress,
+        |bytes| verify_signature(bytes, &asset.signature, public_key),
+    )
+}
+
+struct SystemInstaller;
+
+impl update_io::Installer for SystemInstaller {
+    fn save(&self, bytes: &[u8]) -> Result<PathBuf, String> {
+        // Never derive a local filename from the untrusted URL.
+        let mut file = tempfile::Builder::new()
+            .prefix("araview-update-")
+            .suffix(".exe")
+            .tempfile_in(std::env::temp_dir())
+            .map_err(|error| error.to_string())?;
+        file.write_all(bytes).map_err(|error| error.to_string())?;
+        let (_, path) = file.keep().map_err(|error| error.error.to_string())?;
+        Ok(path)
     }
-    verify_signature(&bytes, &asset.signature, public_key)?;
-    // URL에서 파일명을 가져오지 않는다. 고유한 임시 이름을 쓰면 경로 조작과
-    // 사전 배치(pre-planting)를 피할 수 있다. `.exe` 접미사는 유지한다.
-    let mut file = tempfile::Builder::new()
-        .prefix("araview-update-")
-        .suffix(".exe")
-        .tempfile_in(std::env::temp_dir())
-        .map_err(|error| error.to_string())?;
-    file.write_all(&bytes).map_err(|error| error.to_string())?;
-    let (_file, path) = file.keep().map_err(|error| error.error.to_string())?;
-    Ok(Some(path))
+
+    fn read(&self, path: &std::path::Path) -> Result<Vec<u8>, String> {
+        std::fs::read(path).map_err(|error| error.to_string())
+    }
+
+    fn launch(&self, path: &std::path::Path) -> Result<(), String> {
+        std::process::Command::new(path)
+            .spawn()
+            .map(|_| ())
+            .map_err(|error| error.to_string())
+    }
+
+    fn discard(&self, path: &std::path::Path) {
+        let _ = std::fs::remove_file(path);
+    }
 }
 
 /// 취소된 다운로드의 결과를 버린다. 다 받아 서명까지 확인한 뒤에 취소됐으면 임시 폴더에 남은
@@ -689,19 +676,9 @@ impl AraView {
                 window.close_dialog(cx);
                 let launched = result.and_then(|installer| {
                     let installer = installer.ok_or("download was cancelled")?;
-                    // 파일을 다시 읽어 실행 직전에 서명을 재검증한다. 다운로드와
-                    // 실행 사이에 임시 파일이 바뀌는 창을 닫는다.
-                    let bytes = std::fs::read(&installer).map_err(|error| error.to_string())?;
-                    if let Err(error) = verify_signature(&bytes, &signature, &public_key) {
-                        let _ = std::fs::remove_file(&installer);
-                        return Err(error);
-                    }
-                    std::process::Command::new(&installer)
-                        .spawn()
-                        .map_err(|error| {
-                            let _ = std::fs::remove_file(&installer);
-                            error.to_string()
-                        })
+                    update_io::launch_verified(&SystemInstaller, &installer, |bytes| {
+                        verify_signature(bytes, &signature, &public_key)
+                    })
                 });
                 match launched {
                     Ok(_) => {
@@ -775,6 +752,65 @@ mod tests {
 
         assert!(verify_signature(bytes, &signature, &public_key).is_ok());
         assert!(verify_signature(b"modified installer", &signature, &public_key).is_err());
+
+        struct BytesHttp<'a>(&'a [u8]);
+        impl super::update_io::Http for BytesHttp<'_> {
+            fn get<T>(
+                &self,
+                _: &str,
+                _: std::time::Duration,
+                consume: impl FnOnce(u64, &mut dyn std::io::Read) -> Result<T, String>,
+            ) -> Result<Option<T>, String> {
+                let mut body = self.0;
+                consume(body.len() as u64, &mut body).map(Some)
+            }
+        }
+        // Real minisign verification and production persistence, fake HTTP, no process launch.
+        let download = |body| {
+            super::update_io::download(
+                &BytesHttp(body),
+                &super::SystemInstaller,
+                "https://example.invalid/setup.exe",
+                super::DOWNLOAD_TIMEOUT,
+                super::MAX_INSTALLER_BYTES,
+                &DownloadProgress::default(),
+                |bytes| verify_signature(bytes, &signature, &public_key),
+            )
+        };
+        let path = download(bytes).unwrap().unwrap();
+        assert_eq!(std::fs::read(&path).unwrap(), bytes);
+        std::fs::remove_file(path).unwrap();
+        assert!(download(b"modified installer").is_err());
+    }
+
+    #[test]
+    fn fake_http_exercises_feed_status_timeout_and_parsing() {
+        struct FeedHttp(Result<Option<&'static str>, String>);
+        impl super::update_io::Http for FeedHttp {
+            fn get<T>(
+                &self,
+                url: &str,
+                timeout: std::time::Duration,
+                consume: impl FnOnce(u64, &mut dyn std::io::Read) -> Result<T, String>,
+            ) -> Result<Option<T>, String> {
+                assert_eq!(url, "https://example.invalid/feed");
+                assert_eq!(timeout, super::CHECK_TIMEOUT);
+                self.0
+                    .clone()?
+                    .map(|body| consume(body.len() as u64, &mut body.as_bytes()))
+                    .transpose()
+            }
+        }
+        let fetch =
+            |reply| super::fetch_feed_with(&FeedHttp(reply), "https://example.invalid/feed");
+        assert!(fetch(Ok(None)).unwrap().is_none());
+        assert!(fetch(Err("deadline exceeded".into())).is_err());
+        assert!(fetch(Ok(Some("truncated {"))).is_err());
+        let feed = fetch(Ok(Some(r#"{"version":"99.0.0","notes":"test"}"#)))
+            .unwrap()
+            .unwrap();
+        assert_eq!(feed.version, "99.0.0");
+        assert!(feed.platforms.is_empty());
     }
 
     /// 피드 주소는 최신 정식 릴리스의 자산을 가리킨다(SPEC §20.1).
@@ -881,6 +917,52 @@ mod cancel_tests {
         discard_cancelled_download(&Err("network".to_owned()));
         let dir = tempfile::tempdir().expect("임시 폴더");
         discard_cancelled_download(&Ok(Some(dir.path().join("missing.exe"))));
+    }
+}
+
+#[cfg(test)]
+mod gpui_state_tests {
+    use super::UpdateStatus;
+    use gpui::AppContext as _;
+    use gpui_kit as gpui;
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    // Own application scenario using GPUI's Apache-2.0 public testing API; no Zed
+    // application code. The token/state logic is also covered by the pure tests below.
+    #[gpui::test(seeds(1, 7, 42))]
+    fn late_download_completion_preserves_replacement_entity_state(cx: &mut gpui::TestAppContext) {
+        let status = cx.new(|_| UpdateStatus::default());
+        let first = status.update(cx, |status, _| status.begin_download().unwrap());
+        let old = first.clone();
+        let background = cx.background_spawn(async move { old });
+        let completed = Arc::new(AtomicBool::new(false));
+        let seen = completed.clone();
+        let replacement = status.update(cx, |status, cx| {
+            cx.spawn(async move |status, cx| {
+                let old = background.await;
+                status
+                    .update(cx, |status, _| {
+                        assert!(!status.finish_download(&old));
+                    })
+                    .unwrap();
+                seen.store(true, Ordering::Relaxed);
+            })
+            .detach();
+            status.cancel_download(&first);
+            status.begin_download().unwrap()
+        });
+        cx.run_until_parked();
+        assert!(
+            completed.load(Ordering::Relaxed),
+            "the executor must apply the old result"
+        );
+        status.update(cx, |status, _| {
+            assert!(status.is_busy());
+            assert!(status.is_downloading(&replacement));
+            assert!(status.finish_download(&replacement));
+            assert!(!status.is_busy());
+        });
     }
 }
 

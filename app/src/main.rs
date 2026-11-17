@@ -6,12 +6,14 @@
 mod app;
 mod assets;
 mod diag;
+mod diagnostic_summary;
 mod dialog;
 mod geometry;
 mod i18n;
 mod keys;
 mod layout;
 mod logging;
+mod panic_report;
 mod picture;
 mod platform;
 mod settings;
@@ -73,9 +75,9 @@ fn init_cache(mode: CacheStorageMode) {
         })
         .and_then(|dir| process_temp::initialize(&dir, mode));
     if let Err(error) = initialized {
-        log::warn!("[cache] persistent cache unavailable, using session cache: {error}");
+        logging::warn_core("cache", &error);
         if let Err(error) = process_temp::initialize_temporary_fallback() {
-            log::error!("[cache] no usable cache directory: {error}");
+            logging::error_core("cache", &error);
         }
     }
     process_temp::request_total_cap_scan();
@@ -108,6 +110,14 @@ fn restored_bounds(saved: Option<WindowState>, cx: &App) -> Option<WindowBounds>
 fn main() {
     // 콘솔과 파일(`logs/araview.log`)에 같은 기록을 남긴다(SPEC §17.1).
     logging::init();
+    if let Some(dir) = logging::log_dir()
+        && let Err(error) = panic_report::install(
+            &dir.join(panic_report::FILE_NAME),
+            env!("CARGO_PKG_VERSION"),
+        )
+    {
+        log::warn!(target: "araview::platform", "local panic report unavailable: {error}");
+    }
 
     // 파일 연결이나 터미널로 실행하면 경로를 첫 인자로 받는다.
     let initial = std::env::args().nth(1);

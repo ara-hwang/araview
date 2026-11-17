@@ -377,10 +377,7 @@ fn ensure_watched(canonical_parent: &Path, recursive: bool) -> bool {
                     // 이벤트가 유실됐을 수 있다. 재귀 목록은 mtime 검증 없이
                     // 워처만 신뢰하므로, 유실을 그대로 두면 캐시가 세션 내내
                     // stale해진다. 보수적으로 전체를 지우고 재스캔에 맡긴다.
-                    mark_scans_dirty(None);
-                    if let Ok(mut cache) = DIR_CACHE.lock() {
-                        cache.clear();
-                    }
+                    invalidate_after_watch_error();
                 }
             },
             notify::Config::default(),
@@ -499,6 +496,14 @@ fn canonical_event_parent(parent: &Path) -> Option<String> {
     Some(key)
 }
 
+/// 이벤트 유실의 범위를 알 수 없으므로 진행 중인 스캔과 캐시를 함께 버린다.
+fn invalidate_after_watch_error() {
+    mark_scans_dirty(None);
+    if let Ok(mut cache) = DIR_CACHE.lock() {
+        cache.clear();
+    }
+}
+
 fn invalidate_for_path(path: &Path) {
     // 이벤트 경로는 raw/canonical 어느 쪽으로 와도 매칭되게 후보를 모은다.
     // 삭제된 파일은 canonicalize가 실패하므로 부모 기준도 함께 검사한다.
@@ -549,7 +554,7 @@ fn collect_images(dir: &Path, recursive: bool, out: &mut Vec<ImageEntry>) -> Res
                     "Failed to read directory",
                     e,
                     ErrorCode::Corrupt,
-                ))
+                ));
             }
             Err(e) => {
                 log::warn!("[dir-cache] skip {}: {e}", current.display());

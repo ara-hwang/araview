@@ -7,7 +7,10 @@
 //! 만들고, 커밋 뒤 백그라운드로 나머지를 채운다.
 
 use std::path::Path;
-use std::sync::{Arc, Mutex};
+use std::sync::{
+    Arc, Mutex,
+    atomic::{AtomicBool, Ordering},
+};
 
 use araview_core::app_error::AppError;
 use araview_core::display::{DisplayImage, decode_for_display};
@@ -127,6 +130,8 @@ pub struct Picture {
     /// 화면에 필요한 단계만 먼저 만들고 나머지는 `fill_levels`가 채운다. 그리는
     /// 동안 채움이 끼어들지 않게 스냅숏(`levels`)으로 본다.
     levels: Mutex<Arc<Vec<Level>>>,
+    /// GPU 정리 이후에는 진행 중인 후속 밉도 새 단계를 발행하지 않는다.
+    released: AtomicBool,
     /// 프레임별 지연(ms). 정지 이미지는 길이 1.
     pub delays_ms: Vec<u32>,
     /// 유한 반복 횟수. `None`이면 무한 반복이다.
@@ -152,7 +157,11 @@ impl Picture {
     /// 지연해 둔 축소 단계를 만들어 넣는다. 디코드와 같은 리샘플 비용이 들므로
     /// 백그라운드에서 부른다. 애니메이션은 단계가 없어 바로 끝난다.
     pub fn fill_levels(&self) {
-        if self.is_animated() {
+        self.fill_levels_before_publish(|| {});
+    }
+
+    fn fill_levels_before_publish(&self, before_publish: impl FnOnce()) {
+        if self.is_animated() || self.released.load(Ordering::Acquire) {
             return;
         }
         let snapshot = self.levels();
@@ -169,27 +178,37 @@ impl Picture {
         let mut chain = (*snapshot).clone();
         let mut current = source;
         for (w, h) in &defined[chain.len()..] {
+            // 동기 리샘플 자체를 선점하지 않고 단계 사이에서 멈춘다.
+            if self.released.load(Ordering::Acquire) {
+                return;
+            }
             let next = imageops::thumbnail(&current, *w, *h);
             // 새 단계는 타일로 흩어지면서도 다음 단계의 소스여야 한다. 지연 단계는
             // 원본보다 기하급수적으로 작아 복사 값이 싸다.
             chain.push(tile_level(next.clone(), None));
             current = next;
         }
+        before_publish();
         // 다른 채움 사이에 단계가 더 생겼을 수 있다. 더 완전한 목록만 놓는다.
         let mut levels = self.levels.lock().expect("picture levels");
-        if levels.len() < chain.len() {
+        if !self.released.load(Ordering::Acquire) && levels.len() < chain.len() {
             *levels = Arc::new(chain);
         }
     }
 
-    /// 지금 만들어진 단계에 담긴 그림들. 뒤늦게 채워진 단계는 이후 호출에 나타난다.
-    pub fn images(&self) -> impl Iterator<Item = Arc<RenderImage>> {
-        self.levels()
+    /// 마지막 이미지 스냅숏과 후속 생성 중단을 같은 잠금에서 확정한다. 정리는
+    /// 멱등적이다. UI의 preview/full 교체·퇴출·종료가 같은 Picture를 공유해도
+    /// 한 번만 아틀라스에서 내리고 이후 밉이 추가되지 않게 한다.
+    pub fn release_images(&self) -> Vec<Arc<RenderImage>> {
+        let levels = self.levels.lock().expect("picture levels");
+        if self.released.swap(true, Ordering::AcqRel) {
+            return Vec::new();
+        }
+        levels
             .iter()
             .flat_map(|level| &level.tiles)
             .map(|tile| tile.image.clone())
-            .collect::<Vec<_>>()
-            .into_iter()
+            .collect()
     }
 }
 
@@ -335,6 +354,7 @@ pub fn build(
         return Picture {
             width,
             height,
+            released: AtomicBool::new(false),
             levels: Mutex::new(Arc::new(vec![Level {
                 width: level_w,
                 height: level_h,
@@ -399,6 +419,7 @@ pub fn build(
     Picture {
         width,
         height,
+        released: AtomicBool::new(false),
         levels: Mutex::new(Arc::new(levels)),
         delays_ms,
         loop_count,
@@ -668,6 +689,54 @@ mod tests {
         assert_eq!(retained_bytes(&picture), 2 * 4 * 300 * 200);
         picture.fill_levels();
         assert_eq!(picture.levels().len(), 1);
+    }
+
+    #[test]
+    fn release_is_idempotent_and_prevents_deferred_mip_publication() {
+        let picture = build(
+            still(2048, 2048),
+            Orientation::default(),
+            None,
+            Some(view_fit(3000.0, 3000.0, false)),
+        );
+        let before = picture.levels();
+        let expected_tiles: usize = before.iter().map(|level| level.tiles.len()).sum();
+        assert_eq!(picture.release_images().len(), expected_tiles);
+        assert!(picture.release_images().is_empty());
+        picture.fill_levels();
+        assert!(Arc::ptr_eq(&before, &picture.levels()));
+    }
+
+    #[test]
+    fn release_between_resampling_and_publication_keeps_cleanup_snapshot_final() {
+        let picture = build(
+            still(2048, 2048),
+            Orientation::default(),
+            None,
+            Some(view_fit(3000.0, 3000.0, false)),
+        );
+        let before = picture.levels();
+        picture.fill_levels_before_publish(|| {
+            assert_eq!(picture.release_images().len(), 1);
+        });
+        assert!(Arc::ptr_eq(&before, &picture.levels()));
+        assert!(picture.release_images().is_empty());
+    }
+
+    #[test]
+    fn preview_full_rotation_and_eviction_release_only_the_owned_tiles() {
+        let preview = build(still(48, 32), Orientation::default(), None, None);
+        let full = build(still(80, 40), Orientation::default(), None, None);
+        let rotated = build(still(80, 40), Orientation::default(), None, None);
+        // preview→full, 회전본 교체, 캐시 퇴출/목록 교체/종료의 공통 정리 경계.
+        assert_eq!(preview.release_images().len(), 1);
+        assert!(!full.released.load(Ordering::Acquire));
+        assert_eq!(full.release_images().len(), 1);
+        assert!(!rotated.released.load(Ordering::Acquire));
+        assert_eq!(rotated.release_images().len(), 1);
+        for picture in [&preview, &full, &rotated] {
+            assert!(picture.release_images().is_empty());
+        }
     }
 
     #[test]

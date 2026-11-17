@@ -356,38 +356,49 @@ impl AraView {
         cx.spawn_in(window, async move |this, cx| {
             let result = task.await;
             this.update_in(cx, |this, window, cx| {
-                if this.open_seq != seq {
-                    return;
-                }
-                this.opening = None;
-                match result {
-                    Ok(listing) => {
-                        if SettingsStore::global(cx).settings.record_recent_files {
-                            SettingsStore::push_recent(cx, &path);
-                        }
-                        this.commit_listing(listing, window, cx);
-                    }
-                    Err(error) => {
-                        let key = if is_archive_file(Path::new(&path)) {
-                            "toast.load.archiveFail"
-                        } else {
-                            "toast.load.imageFail"
-                        };
-                        window.toast(Toast::error(error.message.clone()).title(t(key)), cx);
-                        this.error = Some(ViewError::Open { path, error });
-                        cx.notify();
-                    }
-                }
+                this.finish_open_result(seq, path, result, window, cx);
             })
             .ok();
         })
         .detach();
     }
 
+    /// 디스크 I/O와 분리된 완료 경계. 연속 열기의 역순 완료를 결정적으로 검사한다.
+    pub(super) fn finish_open_result(
+        &mut self,
+        seq: u64,
+        path: String,
+        result: Result<Listing, AppError>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.open_seq != seq {
+            return;
+        }
+        self.opening = None;
+        match result {
+            Ok(listing) => {
+                if SettingsStore::global(cx).settings.record_recent_files {
+                    SettingsStore::push_recent(cx, &path);
+                }
+                self.commit_listing(listing, window, cx);
+            }
+            Err(error) => {
+                let key = if is_archive_file(Path::new(&path)) {
+                    "toast.load.archiveFail"
+                } else {
+                    "toast.load.imageFail"
+                };
+                window.toast(Toast::error(error.message.clone()).title(t(key)), cx);
+                self.error = Some(ViewError::Open { path, error });
+                cx.notify();
+            }
+        }
+    }
+
     fn commit_listing(&mut self, listing: Listing, window: &mut Window, cx: &mut Context<Self>) {
         self.clear_pages(window, cx);
         self.thumbs.clear();
-        self.thumbs_pending.clear();
         self.list = Arc::new(listing.items);
         self.availability = listing.availability;
         self.archive = listing.archive;
@@ -451,23 +462,51 @@ impl AraView {
     }
 
     pub(super) fn drop_picture(picture: &Picture, window: &mut Window, cx: &mut Context<Self>) {
-        for image in picture.images() {
+        for image in picture.release_images() {
             cx.drop_image(image.clone(), Some(window));
+        }
+    }
+
+    /// 엔티티 해제 경계. Context가 더는 없으므로 App으로만 GPU 이미지를 내린다.
+    /// Picture 쪽 정리가 멱등적이라 캐시와 표시 참조를 함께 순회해도 안전하다.
+    pub(super) fn release_render_images(&mut self, window: &mut Window, cx: &mut App) {
+        self.list_gen += 1;
+        self.thumb_queue.reset(self.list_gen);
+        self.thumb_cache
+            .update(cx, |cache, cx| cache.clear(Some(window), cx));
+        let mut pictures: Vec<_> = self
+            .pages
+            .clear()
+            .into_iter()
+            .map(|page| page.picture().clone())
+            .collect();
+        pictures.extend(self.oriented.take());
+        pictures.extend(self.picture.take());
+        for picture in pictures {
+            for image in picture.release_images() {
+                cx.drop_image(image, Some(window));
+            }
         }
     }
 
     /// 페이지 캐시와 표시 상태를 비우고 텍스처를 아틀라스에서 내린다.
     pub(super) fn clear_pages(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.list_gen += 1;
+        self.thumb_queue.reset(self.list_gen);
+        self.thumb_cache
+            .update(cx, |cache, cx| cache.clear(Some(window), cx));
         for page in self.pages.clear() {
             Self::drop_picture(page.picture(), window, cx);
         }
         if let Some(oriented) = self.oriented.take() {
             Self::drop_picture(&oriented, window, cx);
         }
+        // 캐시에서 먼저 퇴출됐지만 화면 참조로만 남은 프리뷰/페이지도 정리한다.
+        if let Some(picture) = self.picture.take() {
+            Self::drop_picture(&picture, window, cx);
+        }
         self.wide.clear();
         self.shown.clear();
-        self.picture = None;
         self.info = None;
         self.orientation = Orientation::default();
         // 진행 중인 회전 결과가 새 목록의 화면을 덮지 않게 한다.
@@ -498,7 +537,6 @@ impl AraView {
         self.comic_mode = None;
         self.index = 0;
         self.thumbs.clear();
-        self.thumbs_pending.clear();
         self.hide_grid();
         window.set_window_title(&t("app.title"));
         cx.notify();
@@ -933,7 +971,11 @@ impl AraView {
         let preview_task = if archive.is_none() && self.view_mode(cx) == ViewMode::Single {
             let preview_path = PathBuf::from(&*item);
             let preview_side = max_side.unwrap_or(2048).min(2048);
+            let cancellation = self.thumb_queue.cancellation();
             Some(cx.background_spawn(async move {
+                if cancellation.is_cancelled() {
+                    return None;
+                }
                 araview_core::display::decode_preview_for_display(&preview_path, preview_side).map(
                     |decoded| Arc::new(picture::build(decoded, Orientation::default(), None, None)),
                 )
@@ -941,7 +983,13 @@ impl AraView {
         } else {
             None
         };
+        let cancellation = self.thumb_queue.cancellation();
         let task = cx.background_spawn(async move {
+            // 세대가 끝났으면 아직 시작하지 않은 파일 I/O/디코드는 수행하지 않는다.
+            // 이미 들어간 동기 디코더는 선점 취소하지 않는다.
+            if cancellation.is_cancelled() {
+                return Err(AppError::unknown("Obsolete image request"));
+            }
             let (info, archive_preview) = match &archive {
                 Some(archive) => (
                     ops::load_archive_image_blocking(
@@ -973,6 +1021,9 @@ impl AraView {
                 }
                 None => (ops::load_image_blocking(&item, max_side, scaling)?, false),
             };
+            if cancellation.is_cancelled() {
+                return Err(AppError::unknown("Obsolete image request"));
+            }
             let picture = picture::load(
                 Path::new(&info.file_path),
                 Path::new(&info.source_path),

@@ -110,6 +110,24 @@ test("automatic main checks save Rust caches but PRs and tags do not", () => {
   assert.equal(evaluate(full, { ref: "refs/tags/v2.9.3" }), false)
 })
 
+test("automatic Rust changes run existing app tests with the dedicated cache and timings", () => {
+  const app = job(ci, "rust-app-test")
+  const expression = condition(app)
+  for (const event of ["push", "pull_request"]) {
+    assert.equal(evaluate(expression, { event }), true)
+    assert.equal(evaluate(expression, { event, rust: "false" }), false)
+    assert.equal(evaluate(expression, { event, full: true }), false)
+  }
+  assert.equal(evaluate(expression, { event: "workflow_dispatch" }), false)
+  assert.match(app, /cache-key: rust-app-windows/)
+  assert.match(app, /cargo test -p araview --timings/)
+  assert.match(app, /path: target\/cargo-timings\//)
+  assert.match(app, /GITHUB_STEP_SUMMARY/)
+  const save = cacheSave(app)
+  assert.equal(evaluate(save), true)
+  assert.equal(evaluate(save, { event: "pull_request", ref: "refs/pull/123/merge" }), false)
+})
+
 test("release cache warming is opt-in and main-only", () => {
   const expression = condition(job(ci, "warm-release-cache"))
   assert.equal(evaluate(expression, { event: "workflow_dispatch", warm: true }), true)
@@ -184,7 +202,7 @@ test("shared compilation preserves production flags and exposes timings", () => 
 
 test("Windows workflow scripts parse in PowerShell", { skip: process.platform !== "win32" }, () => {
   const scripts = []
-  for (const body of [job(build, "build"), job(release, "preflight"), job(release, "sign-windows")]) {
+  for (const body of [job(build, "build"), job(release, "preflight"), job(release, "sign-windows"), job(ci, "rust-app-test")]) {
     for (const match of body.matchAll(/^        run: \|\r?\n((?:(?: {10}.*)?\r?\n)+)/gm)) {
       scripts.push(match[1].replace(/^ {10}/gm, "").replace(/\$\{\{[\s\S]*?\}\}/g, "test"))
     }

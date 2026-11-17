@@ -21,7 +21,7 @@ Task-specific procedures for agents, reached from `../AGENTS.md`. Read the secti
 
 `cargo run -p araview` opens the dev build (identifier `com.araview.viewer.dev`; the installed build uses `com.araview.viewer`). The dev build accepts debug-only controls; release builds have neither channel.
 
-**No headless UI suite.** `cargo test -p araview` runs unit tests only; keys, wheel, drag, drop, context menus, dialogs, and the bridge's own commands go through the control channel below (`selftest`).
+**Deterministic tests are not native UI proof.** `cargo test -p araview` includes GPUI TestAppContext/executor regression tests with reproducible seeds. Actual Windows keys, wheel, drag, drop, context menus, dialogs, and the bridge's own commands still go through the control channel below (`selftest`).
 
 **Control channel (preferred).** `app/src/app/bridge.rs` opens `\\.\pipe\com.araview.viewer.dev-control` and handles one line of JSON per request. Input goes into GPUI's own event path (`Window::dispatch_event`, `Window::dispatch_keystroke`), so modifier combinations survive, the user's mouse and keyboard stay untouched, and the window does not have to be active or on top. Window messages cannot do this: GPUI reads modifiers from `GetKeyState`, which posting cannot set.
 

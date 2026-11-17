@@ -12,6 +12,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::i18n::Language;
 
+#[path = "settings_writer.rs"]
+mod writer;
+
 pub const RECENT_FILES_LIMIT: usize = 20;
 pub const ARCHIVE_PROGRESS_LIMIT: usize = 100;
 pub const PALETTE_MRU_LIMIT: usize = 5;
@@ -622,21 +625,51 @@ pub struct SettingsStore {
     /// 명령 팔레트에서 최근에 실행한 명령 ID(최신 먼저).
     pub palette_mru: Vec<String>,
     archive_progress: Vec<(String, ArchiveProgress)>,
-    path: Option<PathBuf>,
+    writer: Option<writer::SettingsWriter>,
 }
 
 impl Global for SettingsStore {}
 
 impl SettingsStore {
     /// `dir/settings.json`을 읽는다. 파일이 없거나 깨졌으면 기본값으로 시작하고,
-    /// 필드 단위로 손상된 값만 기본값으로 되돌린다.
+    /// 필드 단위로 손상된 값만 기본값으로 되돌린다. JSON 손상은 로그에 남기고
+    /// 다음 저장 전에 원본 바이트를 보존한다. 읽기 실패 시에는 덮어쓰지 않는다.
     pub fn load(dir: Option<PathBuf>) -> Self {
         let path = dir.map(|dir| dir.join("settings.json"));
+        let mut damaged = None;
+        let mut writable = true;
         let file = path
             .as_ref()
-            .and_then(|path| std::fs::read(path).ok())
-            .and_then(|bytes| serde_json::from_slice::<StoreFile>(&bytes).ok())
+            .and_then(|path| match std::fs::read(path) {
+                Ok(bytes) => match serde_json::from_slice::<StoreFile>(&bytes) {
+                    Ok(file) => Some(file),
+                    Err(error) => {
+                        log::warn!(
+                            "[settings] invalid JSON in {}: {error}; preserving original before save",
+                            path.display()
+                        );
+                        damaged = Some(bytes);
+                        None
+                    }
+                },
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+                Err(error) => {
+                    log::warn!(
+                        "[settings] failed to read {}: {error}; saving disabled for this session",
+                        path.display()
+                    );
+                    writable = false;
+                    None
+                }
+            })
             .unwrap_or_default();
+        let writer = path.filter(|_| writable).and_then(|path| {
+            writer::SettingsWriter::new(path, damaged, |path, error| {
+                log::warn!("[settings] failed to save {}: {error}", path.display());
+            })
+            .map_err(|error| log::warn!("[settings] failed to start writer: {error}"))
+            .ok()
+        });
         let has_language = file.settings.get("language").is_some();
         let mut settings = restore_settings(file.settings).sanitized();
         if !has_language {
@@ -652,7 +685,7 @@ impl SettingsStore {
             window: serde_json::from_value(file.window).ok(),
             palette_mru: file.palette_mru,
             archive_progress: file.archive_progress,
-            path,
+            writer,
         }
     }
 
@@ -660,7 +693,7 @@ impl SettingsStore {
         cx.global::<Self>()
     }
 
-    /// 설정을 고치고 저장한다.
+    /// 설정을 고치고 단일 writer에 불변 스냅샷을 순서대로 보낸다.
     pub fn update(cx: &mut App, edit: impl FnOnce(&mut Settings)) {
         let store = cx.global_mut::<Self>();
         edit(&mut store.settings);
@@ -679,7 +712,13 @@ impl SettingsStore {
     }
 
     pub fn flush(cx: &App) {
-        cx.global::<Self>().save();
+        let store = cx.global::<Self>();
+        store.save();
+        if let Some(writer) = &store.writer
+            && let Err(error) = writer.flush()
+        {
+            log::warn!("[settings] flush failed: {error}");
+        }
     }
 
     pub fn push_palette_mru(cx: &mut App, command: &str) {
@@ -692,8 +731,7 @@ impl SettingsStore {
 
     pub fn push_recent(cx: &mut App, path: &str) {
         let store = cx.global_mut::<Self>();
-        // 이미 맨 앞이면 파일 쓰기를 생략한다. 파일 열기마다 동기 저장이
-        // 일어나므로 같은 파일을 다시 열 때의 쓰기를 아낀다.
+        // 이미 맨 앞이면 저장 요청을 생략한다.
         if store
             .recent_files
             .first()
@@ -738,7 +776,7 @@ impl SettingsStore {
 
     pub fn set_archive_progress(cx: &mut App, archive: &str, progress: ArchiveProgress) {
         let store = cx.global_mut::<Self>();
-        // 같은 위치를 다시 저장하면 동기 파일 쓰기를 생략한다. 아카이브 웹툰에서
+        // 같은 위치를 다시 저장하면 저장 요청을 생략한다. 아카이브 웹툰에서
         // 중심 페이지가 바뀔 때마다 호출되므로 반복 저장을 아낀다.
         if store
             .archive_progress
@@ -758,7 +796,7 @@ impl SettingsStore {
     }
 
     fn save(&self) {
-        let Some(path) = &self.path else {
+        let Some(writer) = &self.writer else {
             return;
         };
         let file = StoreFile {
@@ -771,17 +809,9 @@ impl SettingsStore {
         };
         let result = serde_json::to_vec_pretty(&file)
             .map_err(std::io::Error::other)
-            .and_then(|bytes| {
-                if let Some(parent) = path.parent() {
-                    std::fs::create_dir_all(parent)?;
-                }
-                // 쓰는 도중 종료돼도 기존 파일이 깨지지 않게 임시 파일로 쓴 뒤 바꾼다.
-                let tmp = path.with_extension("json.tmp");
-                std::fs::write(&tmp, bytes)?;
-                std::fs::rename(&tmp, path)
-            });
+            .and_then(|bytes| writer.save(bytes));
         if let Err(error) = result {
-            log::warn!("[settings] failed to save {}: {error}", path.display());
+            log::warn!("[settings] failed to queue snapshot: {error}");
         }
     }
 }
@@ -816,6 +846,61 @@ fn restore_settings(saved: serde_json::Value) -> Settings {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn corrupt_document_is_preserved_before_recovery_save() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        let original = b"{not valid JSON\xff";
+        std::fs::write(&path, original).unwrap();
+        let store = SettingsStore::load(Some(dir.path().to_owned()));
+        assert_eq!(std::fs::read(&path).unwrap(), original);
+        store.save();
+        store.writer.as_ref().unwrap().flush().unwrap();
+        let recovered: StoreFile = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+        assert!(recovered.settings.is_object());
+        let backups: Vec<_> = std::fs::read_dir(dir.path())
+            .unwrap()
+            .map(|entry| entry.unwrap().path())
+            .filter(|entry| entry != &path)
+            .collect();
+        assert_eq!(backups.len(), 1);
+        assert_eq!(std::fs::read(&backups[0]).unwrap(), original);
+    }
+
+    #[test]
+    fn unreadable_document_is_not_silently_replaced() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        std::fs::create_dir(&path).unwrap();
+        let store = SettingsStore::load(Some(dir.path().to_owned()));
+        assert!(store.writer.is_none());
+        store.save();
+        assert!(path.is_dir());
+    }
+
+    #[test]
+    fn asynchronous_round_trip_keeps_legacy_recovery_and_camel_case() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        std::fs::write(
+            &path,
+            br#"{"settings":{"loopNavigation":true,"trashWithoutConfirm":"broken"},"recentFiles":["C:/book.png"]}"#,
+        )
+        .unwrap();
+        let store = SettingsStore::load(Some(dir.path().to_owned()));
+        assert!(store.settings.loop_navigation);
+        assert!(!store.settings.trash_without_confirm);
+        assert_eq!(store.recent_files, ["C:/book.png"]);
+        store.save();
+        store.writer.as_ref().unwrap().flush().unwrap();
+        let saved: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
+        assert_eq!(saved["settings"]["loopNavigation"], true);
+        assert_eq!(saved["settings"]["trashWithoutConfirm"], false);
+        assert!(saved.get("recentFiles").is_some());
+        assert!(saved["settings"].get("loop_navigation").is_none());
+    }
 
     /// 삭제 확인 생략은 꺼짐이 기본이다(SPEC §13).
     #[test]
