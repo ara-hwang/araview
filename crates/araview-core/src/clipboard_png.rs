@@ -42,6 +42,10 @@ pub struct ClipboardPng {
 /// 렌더 바이트(`file_path`)를 디코드해 PNG로 발행하고 경로를 돌려준다.
 /// 같은 원본의 반복 복사는 캐시 히트로 끝난다.
 pub fn export_clipboard_png(source: &Path) -> Result<ClipboardPng, AppError> {
+    crate::decode_guard::guard("clipboard", || clipboard_png(source))
+}
+
+fn clipboard_png(source: &Path) -> Result<ClipboardPng, AppError> {
     if !source.is_file() {
         return Err(AppError::not_found("File not found"));
     }

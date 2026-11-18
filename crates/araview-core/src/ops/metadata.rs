@@ -11,8 +11,10 @@ use crate::app_error::{AppError, ErrorCode};
 const MAX_EXIF_BYTES: u64 = 64 * 1024 * 1024;
 
 pub fn get_exif_data_impl(file_path: &str) -> Result<HashMap<String, String>, AppError> {
-    let path = Path::new(file_path);
+    crate::decode_guard::guard("exif", || exif_fields(Path::new(file_path)))
+}
 
+fn exif_fields(path: &Path) -> Result<HashMap<String, String>, AppError> {
     if !path.exists() {
         return Err(AppError::not_found("File not found"));
     }

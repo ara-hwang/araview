@@ -149,6 +149,20 @@ mod tests {
     /// 번역 키가 아닌데 카탈로그 최상위 이름으로 시작하는 문자열 리터럴.
     const NON_KEYS: &[&str] = &["settings.json"];
 
+    /// `format!`으로 조립해 쓰는 키의 (앞, 뒤) 모양. 소스에 리터럴로 나오지 않으므로
+    /// 조립하는 곳과 함께 적어 둔다.
+    const ASSEMBLED_KEYS: &[(&str, &str)] = &[
+        // `app.rs`의 에러 카드: `error.{kind}.title`, `error.{kind}.hint`.
+        ("error.", ".title"),
+        ("error.", ".hint"),
+        // `settings_panel.rs`의 파일 연결 목록: `ext.{확장자}`.
+        ("ext.", ""),
+        // `settings_panel.rs`의 캐시 관리: `settings.cacheManagement.categories.{분류}`.
+        ("settings.cacheManagement.categories.", ""),
+        // `settings_panel.rs`의 휠 동작: `settings.wheel.slot.{슬롯}`.
+        ("settings.wheel.slot.", ""),
+    ];
+
     fn placeholders(text: &str) -> BTreeSet<&str> {
         text.match_indices("{{")
             .filter_map(|(start, _)| {
@@ -162,6 +176,14 @@ mod tests {
         let mut out = Vec::new();
         let mut chars = source.chars();
         while let Some(ch) = chars.next() {
+            if ch == '\'' {
+                // 문자 리터럴 `'"'`의 따옴표를 문자열의 시작으로 읽지 않는다.
+                let mut ahead = chars.clone();
+                if ahead.next() == Some('"') && ahead.next() == Some('\'') {
+                    chars = ahead;
+                }
+                continue;
+            }
             if ch != '"' {
                 continue;
             }
@@ -278,6 +300,48 @@ mod tests {
             missing.is_empty(),
             "카탈로그에 없는 번역 키:\n{}",
             missing.into_iter().collect::<Vec<_>>().join("\n")
+        );
+    }
+
+    /// 쓰이지 않는 문구가 카탈로그에 쌓이지 않게 한다. 화면을 지우면서 남긴 키는 두
+    /// 언어의 번역 부담과 바이너리 크기로만 남는다.
+    #[test]
+    fn every_catalog_key_is_used_in_source() {
+        let mut files = Vec::new();
+        rust_sources(
+            &Path::new(env!("CARGO_MANIFEST_DIR")).join("src"),
+            &mut files,
+        );
+        let mut literals = BTreeSet::new();
+        for file in files {
+            let source = std::fs::read_to_string(&file).expect("소스 읽기");
+            literals.extend(string_literals(&source));
+        }
+        // 조립 키 목록이 실제 코드와 어긋나지 않게, 각 앞부분을 `{`로 잇는 리터럴이 있어야 한다.
+        for (prefix, _) in ASSEMBLED_KEYS {
+            assert!(
+                literals.iter().any(|literal| literal
+                    .strip_prefix(prefix)
+                    .is_some_and(|rest| rest.starts_with('{'))),
+                "조립하는 곳이 없는 키 모양: {prefix}"
+            );
+        }
+        let assembled = |key: &str| {
+            ASSEMBLED_KEYS.iter().any(|(prefix, suffix)| {
+                key.len() > prefix.len() + suffix.len()
+                    && key.starts_with(prefix)
+                    && key.ends_with(suffix)
+            })
+        };
+        let unused: BTreeSet<&str> = KO
+            .keys()
+            .map(String::as_str)
+            .filter(|key| !literals.contains(*key) && !assembled(key))
+            .collect();
+        assert!(
+            unused.is_empty(),
+            "소스에서 쓰지 않는 번역 키:\n{}",
+            unused.into_iter().collect::<Vec<_>>().join("\n")
         );
     }
 

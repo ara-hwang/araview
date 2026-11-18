@@ -250,8 +250,17 @@ pub fn load_viewable_with_limit(
     load_viewable_with_limit_mode(source, max_side, ImageScalingMode::Smooth)
 }
 
-/// 이미지 표시 정책까지 반영해 viewable ImageInfo를 만든다.
+/// 이미지 표시 정책까지 반영해 viewable ImageInfo를 만든다. sidecar 변환과 치수
+/// 판독 중에 디코더가 panic하면 `Corrupt` 에러다.
 pub fn load_viewable_with_limit_mode(
+    source: &Path,
+    max_side: Option<u32>,
+    mode: ImageScalingMode,
+) -> Result<ImageInfo, AppError> {
+    crate::decode_guard::guard("load", || viewable_info(source, max_side, mode))
+}
+
+fn viewable_info(
     source: &Path,
     max_side: Option<u32>,
     mode: ImageScalingMode,

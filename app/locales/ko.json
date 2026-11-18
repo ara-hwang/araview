@@ -8,14 +8,10 @@
     "fitWidth": "너비",
     "fitHeight": "높이",
     "fitScreen": "화면",
-    "fitGroup": "맞춤 모드",
-    "zoomGroup": "확대/축소",
-    "transformGroup": "회전/반전",
     "zoomOut": "축소",
     "zoomIn": "확대",
     "info": "정보",
     "settings": "설정",
-    "settingsTitle": "설정",
     "alwaysOnTop": "맨 위에 두기",
     "hideMenuBar": "상단바 숨기기",
     "showMenuBar": "상단바 보이기",
@@ -23,8 +19,6 @@
     "viewLtr": "좌→우",
     "viewRtl": "우→좌",
     "viewWebtoon": "웹툰",
-    "gifGroup": "애니메이션 재생 컨트롤",
-    "gifFrame": "애니메이션 프레임 {{index}}/{{total}}",
     "rotateCcw": "반시계",
     "rotateCw": "시계",
     "flipH": "좌우반전",
@@ -32,14 +26,10 @@
     "ocrHighlight": "글자 강조/선택",
     "onTop": "맨 위",
     "hideBar": "숨기기",
-    "showBar": "보이기",
-    "minimize": "최소화",
-    "maximize": "최대화 / 복원",
-    "close": "닫기"
+    "showBar": "보이기"
   },
   "settings": {
     "title": "환경 설정",
-    "desc": "이미지 뷰어 설정과 파일 확장자 연결을 변경합니다.",
     "tabs": {
       "general": "일반",
       "view": "보기",
@@ -51,24 +41,8 @@
     "reset": "초기화",
     "confirm": "확인",
     "selectPlaceholder": "선택하세요",
-    "general": {
-      "title": "일반 설정"
-    },
-    "viewTab": {
-      "title": "보기 설정"
-    },
-    "listTab": {
-      "title": "목록 설정"
-    },
-    "performanceTab": {
-      "title": "성능 설정"
-    },
-    "shortcutsTab": {
-      "title": "단축키와 마우스 설정"
-    },
     "shortcuts": {
       "title": "키보드 단축키",
-      "desc": "항목을 선택한 뒤 원하는 키를 누르세요. 같은 키는 한 동작에만 지정됩니다.",
       "captureHint": "변경할 항목을 선택하세요",
       "capturing": "입력 대기 중, Esc는 취소",
       "unbound": "없음",
@@ -79,12 +53,10 @@
       "conflictDesc": "{{key}} 키는 이미 {{action}}에 지정되어 있습니다. 교체할까요? 기존 동작은 해제로 바뀝니다.",
       "replace": "교체",
       "cancel": "취소",
-      "reserved": "Tab 키는 포커스 이동용이라 지정할 수 없습니다",
-      "invalid": "지정할 수 없는 키 조합입니다"
+      "reserved": "Tab 키는 포커스 이동용이라 지정할 수 없습니다"
     },
     "wheel": {
       "title": "휠 동작",
-      "desc": "수식키와 휠 방향 조합마다 수행할 동작을 고르세요. 웹툰 모드에서는 세로 스크롤이 우선합니다.",
       "plain": {
         "title": "휠 동작",
         "desc": "수식키 없이 휠을 굴릴 때 이전/다음 이미지로 넘길지, 이미지를 확대/축소할지 고릅니다. 조합별 세부 동작은 단축키 탭에서 바꿉니다.",
@@ -111,7 +83,6 @@
     },
     "mouse": {
       "title": "마우스 동작",
-      "desc": "클릭과 드래그 동작을 고르세요. 우클릭 메뉴를 다른 동작으로 바꾸면 설정 버튼으로 메뉴를 대신 여세요.",
       "trigger": {
         "leftDrag": "왼쪽 드래그",
         "middleClick": "가운데 클릭",
@@ -157,11 +128,9 @@
     },
     "update": {
       "title": "업데이트",
-      "desc": "시작할 때 새 버전을 자동으로 확인합니다. 꺼도 버튼으로 직접 확인할 수 있습니다.",
       "autoTitle": "시작 시 자동 확인",
       "autoDesc": "시작할 때 새 버전을 자동으로 확인합니다. 새 버전이 있을 때만 알립니다.",
       "current": "현재 버전 {{version}}",
-      "unknown": "알 수 없음",
       "check": "새 버전 확인",
       "checking": "확인 중"
     },
@@ -169,12 +138,7 @@
       "title": "오픈소스 라이선스",
       "desc": "AraView가 사용하는 오픈소스 구성요소의 고지와 라이선스 원문을 앱 안에서 봅니다.",
       "open": "라이선스 보기",
-      "notice": "고지 문서",
-      "loading": "불러오는 중",
       "loadFail": "라이선스를 불러오지 못했습니다",
-      "retry": "다시 시도",
-      "listLabel": "패키지 목록",
-      "tablePointer": "{{count}}개 패키지는 왼쪽 목록에서 선택하면 라이선스 전문을 볼 수 있습니다.",
       "templatedNote": "이 패키지는 라이선스 파일이 없어 표준 문구로 대체했습니다. 저작권자는 패키지 저장소에서 확인하세요.",
       "noLicenseFile": "이 패키지는 라이선스 파일을 동봉하지 않습니다.",
       "declared": "선언된 라이선스",
@@ -210,7 +174,6 @@
     },
     "reading": {
       "title": "읽기",
-      "desc": "만화(CBZ 등)를 다시 열 때 마지막으로 본 페이지에서 이어봅니다. 표지 단독은 양쪽 보기에서 첫 페이지를 혼자 보여주며, 뷰어에서 우클릭해 표지를 지정하거나 해제한 만화는 그 지정을 따릅니다.",
       "resume": "이어보기",
       "comicAutoDual": "만화 아카이브를 열면 자동으로 양쪽 보기 (ComicInfo의 읽기 방향 적용)",
       "coverAlone": "양쪽 보기에서 표지 단독 표시",
@@ -258,7 +221,6 @@
       "hideMenuBar": "상단바 숨기기 (화면 맨 위 가장자리에 마우스를 올리면 잠시 표시)"
     },
     "window": {
-      "title": "창",
       "desc": "다른 창 위에 항상 표시",
       "alwaysOnTop": "맨 위에 두기"
     },
@@ -278,14 +240,8 @@
       "2gb": "2 GB"
     },
     "cacheStorage": {
-      "title": "캐시 보관",
       "desc": "썸네일과 변환 이미지를 실행 종료 후 유지할지 선택합니다.",
-      "persistent": "영구 캐시 사용",
-      "persistentDesc": "앱을 다시 열어도 캐시를 재사용합니다. 기본값입니다.",
-      "temporaryDesc": "현재 실행 중에만 캐시를 유지하고 종료 시 삭제합니다.",
-      "toggle": "영구 캐시 사용 전환",
-      "pendingTitle": "다음 실행부터 적용됩니다",
-      "pendingDesc": "현재 실행의 캐시는 그대로 유지되며 저장 방식은 다음 실행에 변경됩니다."
+      "persistent": "영구 캐시 사용"
     },
     "cloud": {
       "title": "클라우드 파일 자동 내려받기",
@@ -293,18 +249,15 @@
     },
     "cacheManagement": {
       "title": "캐시 관리",
-      "desc": "현재 저장 방식의 이미지 파생 캐시 사용량을 확인하고 삭제합니다.",
       "refresh": "새로고침",
       "loading": "캐시 사용량을 확인하는 중",
       "errorTitle": "캐시 사용량을 불러오지 못했습니다",
-      "errorDescription": "캐시 사용량을 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.",
       "retry": "다시 시도",
       "emptyTitle": "캐시가 없습니다",
       "emptyDesc": "이미지를 열면 썸네일과 변환 캐시가 생성됩니다.",
       "total": "전체 사용량",
       "files": "파일 {{count}}개",
       "protected": "사용 중 {{count}}개 보존",
-      "limit": "자동 정리 상한 {{size}}",
       "categorySize": "{{size}} · 파일 {{count}}개",
       "clear": "삭제",
       "clearCategory": "{{name}} 삭제",
@@ -347,8 +300,6 @@
       "title": "확장자 연결",
       "desc": "연결을 바꾸면 해당 확장자의 기본 앱 선택 창이 열립니다. Windows는 앱이 기본 프로그램을 직접 지정하는 것을 허용하지 않습니다.",
       "loading": "연결 상태를 확인하는 중",
-      "blockedTitle": "Windows에서 기본 앱을 확인해야 합니다",
-      "blockedDesc": "Windows 10/11은 기본 앱 변경을 시스템 선택 창에서만 허용합니다. 열린 창에서 {{appName}}를 선택하세요.",
       "openSettings": "기본 앱 설정 열기"
     },
     "thumb": {
@@ -361,7 +312,6 @@
     }
   },
   "home": {
-    "drop": "여기에 놓아 열기",
     "openFile": "파일 열기",
     "recent": "최근 파일 {{count}}",
     "clearAll": "전체 지우기",
@@ -370,24 +320,19 @@
       "progress": "{{index}}/{{total}} 페이지"
     },
     "list": {
-      "open": "{{name}} 열기",
-      "loading": "불러오는 중",
-      "unavailable": "파일 정보를 불러오지 못했습니다"
+      "loading": "불러오는 중"
     }
   },
   "viewer": {
     "loading": "이미지 불러오는 중",
     "error": {
       "home": "홈으로 돌아가기",
-      "dismiss": "닫기",
       "retry": "다시 시도"
     },
     "nav": {
       "thumb": "이미지 {{index}}: {{name}}",
       "thumbError": "읽기 실패한 이미지 {{index}}: {{name}}",
-      "thumbRetry": "{{index}}번 썸네일 다시 시도",
       "cloudOnly": "클라우드에만 있음 {{index}}: {{name}}",
-      "grid": "썸네일 그리드",
       "gridTitle": "썸네일 그리드 (G)",
       "dockHide": "이미지 목록 숨기기",
       "prev": "이전 이미지",
@@ -395,11 +340,8 @@
       "dockShow": "이미지 목록 보이기"
     },
     "webtoon": {
-      "scrollRegion": "웹툰 읽기 영역",
       "position": "{{current}} / {{total}} · {{percent}}%",
-      "progressLabel": "{{current}}장 / {{total}}장, 전체 {{percent}}%",
-      "openThumbnails": "썸네일 그리드 열기",
-      "archiveHint": "「{{name}}」은 만화 파일입니다. 만화로 열어 읽을 수 있습니다."
+      "openThumbnails": "썸네일 그리드 열기"
     },
     "archivePreview": {
       "hint": "「{{name}}」은 만화 파일입니다. 첫 페이지만 미리 보고 있습니다.",
@@ -408,14 +350,12 @@
     },
     "grid": {
       "title": "썸네일 그리드",
-      "aria": "이미지 썸네일 그리드",
       "count": "{{current}}/{{total}}",
       "filter": "파일명 검색",
       "close": "그리드 닫기 (Esc)",
       "empty": "표시할 이미지가 없습니다",
       "noResults": "일치하는 파일이 없습니다",
-      "failed": "읽기 실패",
-      "cloudOnly": "클라우드에만 있음"
+      "failed": "읽기 실패"
     }
   },
   "exif": {
@@ -423,7 +363,6 @@
     "desc": "이미지 메타데이터 및 카메라 설정",
     "empty": "이 이미지에는 EXIF 데이터가 없습니다.",
     "loadFail": "EXIF를 불러오지 못했습니다.",
-    "retry": "다시 시도",
     "other": "기타",
     "loading": "정보를 불러오는 중입니다"
   },
@@ -453,9 +392,6 @@
   },
   "comic": {
     "section": "만화 정보",
-    "title": "제목",
-    "series": "시리즈",
-    "number": "번호",
     "volume": "볼륨",
     "count": "총 권수",
     "writer": "글",
@@ -476,24 +412,18 @@
     "pageCount": "페이지 수",
     "ageRating": "연령 등급",
     "rating": "평점",
-    "summary": "줄거리",
     "loadFail": "만화 정보를 읽지 못했습니다."
   },
   "histogram": {
     "title": "히스토그램",
     "unavailable": "이 형식은 히스토그램을 계산할 수 없습니다.",
-    "vectorUnavailable": "SVG 벡터 이미지라 히스토그램을 표시하지 않습니다.",
-    "chartLabel": "RGB 밝기 분포 차트",
-    "red": "빨강",
-    "green": "초록",
-    "blue": "파랑"
+    "vectorUnavailable": "SVG 벡터 이미지라 히스토그램을 표시하지 않습니다."
   },
   "dialog": {
     "cancel": "취소",
     "rename": {
       "title": "이름 변경",
       "desc": "같은 폴더 안에서 확장자 포함 전체 파일명을 입력하세요.",
-      "label": "파일 이름",
       "submit": "변경"
     },
     "update": {
@@ -503,25 +433,14 @@
       "releasePage": "GitHub 릴리스 페이지",
       "download": "다운로드",
       "later": "나중에",
-      "downloadingTitle": "업데이트 다운로드 중",
       "downloadingDesc": "버전 {{version}}을(를) 다운로드하고 있습니다. 완료될 때까지 앱을 종료하지 마세요.",
       "downloading": "업데이트 다운로드 중",
       "downloadedBytes": "{{size}} 다운로드됨",
       "downloadedOfTotal": "{{downloaded}} / {{total}} ({{pct}}%)",
       "downloadFail": "다운로드에 실패했습니다. 다시 시도하거나 나중에 확인하세요.",
-      "retry": "다시 시도",
       "installingTitle": "설치를 시작합니다",
-      "installingDesc": "다운로드가 완료되었습니다. 앱이 잠시 닫히고 설치가 진행된 뒤 새 버전이 자동으로 실행됩니다.",
-      "installFail": "설치를 시작하지 못했습니다. 다시 시도하거나 나중에 확인하세요."
+      "installingDesc": "다운로드가 완료되었습니다. 앱이 잠시 닫히고 설치가 진행된 뒤 새 버전이 자동으로 실행됩니다."
     }
-  },
-  "status": {
-    "barLabel": "이미지 상태 표시줄"
-  },
-  "notFound": {
-    "title": "페이지를 찾을 수 없습니다",
-    "desc": "주소가 바뀌었거나 존재하지 않습니다. 홈으로 돌아가세요.",
-    "home": "홈으로 돌아가기"
   },
   "menu": {
     "open": "파일 열기",
@@ -571,12 +490,10 @@
   },
   "palette": {
     "title": "명령 팔레트",
-    "desc": "실행할 명령을 검색하세요. 방향키로 이동하고 Enter로 실행합니다.",
     "search": "명령 검색",
     "open": "명령 팔레트",
     "settings": "설정 열기",
     "checkUpdates": "업데이트 확인",
-    "clear": "지우기",
     "recent": "최근 사용",
     "noResult": "일치하는 명령이 없습니다",
     "noResultHint": "다른 검색어로 다시 시도하세요.",
@@ -611,32 +528,20 @@
     }
   },
   "toast": {
-    "copyMessage": "오류 메시지 복사",
-    "copied": "복사됨",
     "diagnostics": {
       "done": "진단 정보를 복사했습니다"
     },
-    "close": "닫기",
     "settings": {
-      "saveFail": "설정 저장 실패",
       "resetDone": "설정을 초기화했습니다"
-    },
-    "dir": {
-      "refreshFail": "목록 새로고침 실패"
-    },
-    "fullscreen": {
-      "fail": "전체화면 전환 실패"
     },
     "alwaysOnTop": {
       "fail": "맨 위에 두기 전환 실패"
     },
     "reveal": {
-      "empty": "표시할 파일이 없습니다",
-      "fail": "탐색기에서 보기 실패"
+      "empty": "표시할 파일이 없습니다"
     },
     "external": {
-      "empty": "열 파일이 없습니다",
-      "fail": "외부 앱으로 열기 실패"
+      "empty": "열 파일이 없습니다"
     },
     "trash": {
       "empty": "삭제할 이미지가 없습니다",
@@ -646,8 +551,7 @@
     },
     "path": {
       "empty": "복사할 경로가 없습니다",
-      "done": "경로 복사 완료",
-      "fail": "경로 복사 실패"
+      "done": "경로 복사 완료"
     },
     "rename": {
       "empty": "이름을 바꿀 이미지가 없습니다",
@@ -722,12 +626,6 @@
     "resetSettings": {
       "title": "설정 초기화",
       "message": "모든 설정을 기본값으로 되돌릴까요? 언어 설정은 유지됩니다."
-    },
-    "cacheStorage": {
-      "disable": {
-        "title": "영구 캐시 끄기",
-        "message": "임시 캐시로 전환하면 다음 실행부터 기존 영구 캐시를 삭제합니다. 계속할까요?"
-      }
     },
     "cache": {
       "clearAll": {

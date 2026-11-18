@@ -74,7 +74,9 @@ pub fn decode_linear(source: &Path) -> Result<Option<image::Rgba32FImage>, AppEr
     let format = crate::image::resolve_mime(source).and_then(format_for_mime);
     match format {
         Some(format @ (ImageFormat::OpenExr | ImageFormat::Hdr)) => {
-            Ok(Some(decode_dynamic(source, format)?.into_rgba32f()))
+            crate::decode_guard::guard("linear decode", || {
+                Ok(Some(decode_dynamic(source, format)?.into_rgba32f()))
+            })
         }
         _ => Ok(None),
     }

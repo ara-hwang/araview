@@ -67,7 +67,14 @@ pub fn cached_thumbnail(source: &Path) -> Option<ThumbnailInfo> {
     }
     None
 }
+
+/// 썸네일을 만들거나 캐시에서 찾아 돌려준다. 디코더가 손상된 입력에서 panic하면
+/// `Corrupt` 에러라, 배치의 다른 항목과 호출자는 영향을 받지 않는다.
 pub fn generate_thumbnail(source: &Path, max_side: u32) -> Result<ThumbnailInfo, AppError> {
+    crate::decode_guard::guard("thumbnail", || thumbnail_for(source, max_side))
+}
+
+fn thumbnail_for(source: &Path, max_side: u32) -> Result<ThumbnailInfo, AppError> {
     if !source.is_file() {
         return Err(AppError::not_found("File not found"));
     }
@@ -210,7 +217,8 @@ impl BatchThumb {
 
 /// 항목별 독립 작업을 bounded 워커에 나눠 입력 순서대로 모은다.
 /// 생성 경로는 `with_file_lock`이 파일별로 직렬화하므로 디코드만 병렬화된다.
-/// 워커가 패닉하면 scope가 그대로 전파해 호출자(join)가 에러로 받는다.
+/// 워커가 panic하면 scope가 호출 스레드에서 다시 panic하므로, `f`는 디코더
+/// panic을 스스로 에러로 바꿔야 한다(`generate_thumbnail`이 그렇게 한다).
 pub(crate) fn map_with_workers<I, T, F>(items: &[I], f: F) -> Vec<T>
 where
     I: Sync,

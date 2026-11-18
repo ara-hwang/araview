@@ -7,6 +7,7 @@ pub mod archive_index;
 pub mod cache;
 pub mod clipboard_png;
 pub mod comic_info;
+mod decode_guard;
 pub mod dir_cache;
 pub mod display;
 pub mod file_assoc;

@@ -241,7 +241,8 @@ impl AraView {
                     }
                     // 그사이 다른 장으로 넘어갔으면 지금 보는 그림의 정보는 건드리지 않는다.
                     if renamed == Some(this.index) {
-                        window.set_window_title(&info.file_name);
+                        // 창 제목도 다른 화면과 같이 표시용으로 정리한 이름을 쓴다.
+                        window.set_window_title(&this.display_name(&info));
                         this.info = Some(info);
                     }
                     window.toast(Toast::success(t("toast.rename.done")), cx);
