@@ -77,21 +77,21 @@ pub(crate) const MAX_ARCHIVE_DIR_BYTES: u64 = 1024 * 1024 * 1024;
 
 /// 아카이브 내부의 이미지 엔트리 이름을 정렬된 순서로 반환
 pub fn list_archive_images(archive_path: &Path) -> Result<Vec<String>, AppError> {
-    let ext = archive_ext(archive_path);
-
-    match ext.as_str() {
-        "cbz" | "zip" => list_zip_images(archive_path),
-        _ => Err(AppError::unsupported("Unsupported archive format")),
-    }
+    Ok(Arc::unwrap_or_clone(
+        list_archive_entries(archive_path)?.images,
+    ))
 }
 
 /// 한 번의 스캔으로 이미지 + 전체 엔트리를 모두 수집한다.
 /// `archive_index` 캐시가 이 함수의 결과를 저장해 재스캔을 피한다.
+/// 중앙 디렉터리 파서가 손상된 아카이브에서 panic하면 `Corrupt` 에러다.
 pub fn list_archive_entries(archive_path: &Path) -> Result<ArchiveEntries, AppError> {
     let ext = archive_ext(archive_path);
 
     match ext.as_str() {
-        "cbz" | "zip" => collect_zip_entries(archive_path),
+        "cbz" | "zip" => {
+            crate::decode_guard::guard("archive list", || collect_zip_entries(archive_path))
+        }
         _ => Err(AppError::unsupported("Unsupported archive format")),
     }
 }
@@ -167,7 +167,15 @@ impl<'a> ArchiveExtractor<'a> {
         }
     }
 
+    /// 엔트리를 추출하고 그 경로를 돌려준다. 압축 해제기가 손상된 엔트리에서
+    /// panic하면 `Corrupt` 에러라, 배치의 다른 엔트리와 호출자는 영향을 받지 않는다.
     pub(crate) fn extract(&mut self, entry_name: &str, protect: bool) -> Result<PathBuf, AppError> {
+        crate::decode_guard::guard("archive extract", || {
+            self.extract_entry(entry_name, protect)
+        })
+    }
+
+    fn extract_entry(&mut self, entry_name: &str, protect: bool) -> Result<PathBuf, AppError> {
         let ext = archive_ext(self.archive_path);
         let out_path = extraction_out_path(self.temp_dir, entry_name);
         // UI는 표시용으로 이 경로를 계속 들고 있다. 선로딩은 보호하지
@@ -327,12 +335,6 @@ pub(crate) fn read_bounded(
     Ok(buf)
 }
 
-fn list_zip_images(archive_path: &Path) -> Result<Vec<String>, AppError> {
-    Ok(Arc::unwrap_or_clone(
-        collect_zip_entries(archive_path)?.images,
-    ))
-}
-
 /// ZIP/CBZ: 디렉터리·숨김 파일을 건너뛰고 이미지/전체 엔트리를 분류한다.
 fn collect_zip_entries(archive_path: &Path) -> Result<ArchiveEntries, AppError> {
     let mut archive = open_zip(archive_path)?;
@@ -374,7 +376,9 @@ pub(crate) fn read_archive_entry_bounded(
     limit: u64,
 ) -> Result<Vec<u8>, AppError> {
     match archive_ext(archive_path).as_str() {
-        "cbz" | "zip" => read_zip_entry_bounded(archive_path, entry_name, limit),
+        "cbz" | "zip" => crate::decode_guard::guard("archive read", || {
+            read_zip_entry_bounded(archive_path, entry_name, limit)
+        }),
         _ => Err(AppError::unsupported("Unsupported archive format")),
     }
 }
@@ -405,7 +409,10 @@ pub(crate) fn replace_archive_entry(
     match archive_ext(archive_path).as_str() {
         "cbz" | "zip" => {
             let tmp = crate::sidecar::scratch_path_for(archive_path);
-            let written = write_zip_with_entry(archive_path, entry_name, data, &tmp);
+            // 파서가 panic해도 아래에서 임시 파일을 지우고 원본을 그대로 둔다.
+            let written = crate::decode_guard::guard("archive write", || {
+                write_zip_with_entry(archive_path, entry_name, data, &tmp)
+            });
             let replaced = written.and_then(|()| {
                 fs::rename(&tmp, archive_path)
                     .map_err(|e| AppError::io("Failed to replace archive", e, ErrorCode::Unknown))

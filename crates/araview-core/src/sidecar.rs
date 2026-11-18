@@ -293,6 +293,13 @@ impl SidecarSpec {
         Ok(paint_dir()?.join(format!("{}{hash:016x}.jpg", self.thumb_prefix)))
     }
 
+    /// 원본을 RGB8로 디코드한다. 디코더가 손상된 입력에서 panic하면 `Corrupt`
+    /// 에러로 돌려준다(`decode_guard`). `decode` 필드는 직접 부르지 않고 이
+    /// 메서드로 부른다.
+    pub fn decode_rgb8(&self, source: &Path) -> Result<Rgb8, AppError> {
+        crate::decode_guard::guard("sidecar decode", || (self.decode)(source))
+    }
+
     pub fn ensure(&self, source: &Path) -> Result<PathBuf, AppError> {
         let dest = self.paint_path(source)?;
         self.publish(&dest, 90, downscale_to_fit_u16, source)
@@ -335,7 +342,7 @@ impl SidecarSpec {
                 crate::process_temp::touch_cache_file(dest);
                 return Ok(dest.to_path_buf());
             }
-            let rgb = shape((self.decode)(source)?);
+            let rgb = self.decode_rgb8(source).map(shape)?;
             write_rgb8_jpeg_atomic(dest, &rgb, quality)?;
             crate::process_temp::note_published(dest, MAX_PAINT_BYTES);
             Ok(dest.to_path_buf())

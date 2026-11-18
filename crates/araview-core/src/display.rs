@@ -75,14 +75,21 @@ impl From<DecodedFrames> for DisplayImage {
     }
 }
 
-/// `path`의 렌더 바이트를 디코드한다. SVG는 긴 변이 `svg_max_side`를 넘지 않게
-/// 래스터화한다.
+/// full 디코드보다 먼저 올릴 축소 미리보기. 만들 수 없는 포맷이나 파일은 `None`이다.
 pub fn decode_preview_for_display(path: &Path, max_side: u32) -> Option<DisplayImage> {
-    crate::preview::decode_static_preview(path, max_side)
-        .map(|image| DisplayImage::still(image, false))
+    crate::decode_guard::guard_option("display preview", || {
+        crate::preview::decode_static_preview(path, max_side)
+            .map(|image| DisplayImage::still(image, false))
+    })
 }
 
+/// `path`의 렌더 바이트를 디코드한다. SVG는 긴 변이 `svg_max_side`를 넘지 않게
+/// 래스터화한다. 디코더가 손상된 입력에서 panic하면 `Corrupt` 에러다.
 pub fn decode_for_display(path: &Path, svg_max_side: u32) -> Result<DisplayImage, AppError> {
+    crate::decode_guard::guard("display decode", || decode_by_mime(path, svg_max_side))
+}
+
+fn decode_by_mime(path: &Path, svg_max_side: u32) -> Result<DisplayImage, AppError> {
     let mime = crate::image::resolve_mime(path);
     match mime {
         Some("image/avif" | "image/heic" | "image/heif") => {

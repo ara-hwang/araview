@@ -558,17 +558,38 @@ impl ArchiveProgress {
     }
 }
 
+/// 파일의 최상위 키. 어느 키든 모양이 어긋나면 그 키만 버린다. 한 키 때문에 문서
+/// 전체가 손상으로 분류되면 멀쩡한 설정과 기록까지 기본값으로 돌아가기 때문이다.
 #[derive(Default, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 struct StoreFile {
     settings: serde_json::Value,
+    #[serde(deserialize_with = "lenient_strings")]
     recent_files: Vec<String>,
     /// 삽입 순서를 LRU로 쓰므로 (경로, 기록) 쌍 목록으로 들고, 파일에는 객체로 쓴다.
     #[serde(with = "progress_map")]
     archive_progress: Vec<(String, ArchiveProgress)>,
     theme: serde_json::Value,
     window: serde_json::Value,
+    #[serde(deserialize_with = "lenient_strings")]
     palette_mru: Vec<String>,
+}
+
+/// 문자열 배열을 읽되 어긋난 값은 버린다. 배열이 아니면 빈 목록이고, 문자열이 아닌
+/// 원소는 건너뛴다.
+fn lenient_strings<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Vec<String>, D::Error> {
+    Ok(match serde_json::Value::deserialize(deserializer)? {
+        serde_json::Value::Array(items) => items
+            .into_iter()
+            .filter_map(|item| match item {
+                serde_json::Value::String(text) => Some(text),
+                _ => None,
+            })
+            .collect(),
+        _ => Vec::new(),
+    })
 }
 
 mod progress_map {
@@ -611,8 +632,35 @@ mod progress_map {
                 }
                 Ok(out)
             }
+            // 객체가 아닌 값(null, 배열, 문자열 등)은 기록 없음으로 읽는다. 여기서
+            // 실패하면 설정 문서 전체가 손상으로 분류된다.
+            fn visit_unit<E: serde::de::Error>(self) -> Result<Self::Value, E> {
+                Ok(Vec::new())
+            }
+            fn visit_bool<E: serde::de::Error>(self, _: bool) -> Result<Self::Value, E> {
+                Ok(Vec::new())
+            }
+            fn visit_i64<E: serde::de::Error>(self, _: i64) -> Result<Self::Value, E> {
+                Ok(Vec::new())
+            }
+            fn visit_u64<E: serde::de::Error>(self, _: u64) -> Result<Self::Value, E> {
+                Ok(Vec::new())
+            }
+            fn visit_f64<E: serde::de::Error>(self, _: f64) -> Result<Self::Value, E> {
+                Ok(Vec::new())
+            }
+            fn visit_str<E: serde::de::Error>(self, _: &str) -> Result<Self::Value, E> {
+                Ok(Vec::new())
+            }
+            fn visit_seq<A: serde::de::SeqAccess<'de>>(
+                self,
+                mut access: A,
+            ) -> Result<Self::Value, A::Error> {
+                while access.next_element::<serde::de::IgnoredAny>()?.is_some() {}
+                Ok(Vec::new())
+            }
         }
-        deserializer.deserialize_map(Visitor)
+        deserializer.deserialize_any(Visitor)
     }
 }
 
@@ -675,16 +723,25 @@ impl SettingsStore {
         if !has_language {
             settings.language = crate::i18n::detect_system_language();
         }
+        // 손으로 고쳤거나 다른 버전이 쓴 파일이 한도를 넘어도 저장할 때와 같은 한도로 맞춘다.
         let mut recent_files = file.recent_files;
         recent_files.truncate(RECENT_FILES_LIMIT);
+        let mut palette_mru = file.palette_mru;
+        palette_mru.truncate(PALETTE_MRU_LIMIT);
+        // 이어보기 기록은 뒤쪽이 최근이라 앞에서부터 덜어 낸다.
+        let mut archive_progress = file.archive_progress;
+        let overflow = archive_progress
+            .len()
+            .saturating_sub(ARCHIVE_PROGRESS_LIMIT);
+        archive_progress.drain(..overflow);
         Self {
             settings,
             recent_files,
             // 손상된 값은 기본값으로 되돌린다.
             theme: serde_json::from_value(file.theme).unwrap_or_default(),
             window: serde_json::from_value(file.window).ok(),
-            palette_mru: file.palette_mru,
-            archive_progress: file.archive_progress,
+            palette_mru,
+            archive_progress,
             writer,
         }
     }
@@ -828,16 +885,38 @@ fn restore_settings(saved: serde_json::Value) -> Settings {
         Ok(serde_json::Value::Object(map)) => map,
         _ => return Settings::default(),
     };
+    let readable = |merged: &serde_json::Map<String, serde_json::Value>| {
+        serde_json::from_value::<Settings>(serde_json::Value::Object(merged.clone())).is_ok()
+    };
     for (key, value) in saved {
         // 값을 하나씩 넣어 보고 역직렬화가 실패하면 그 키만 기본값으로 되돌린다.
         // 모르는 키는 역직렬화가 무시하므로 넣어도 해가 없다.
-        let previous = merged.insert(key.clone(), value);
-        let candidate = serde_json::Value::Object(merged.clone());
-        if serde_json::from_value::<Settings>(candidate).is_err() {
-            match previous {
-                Some(previous) => merged.insert(key, previous),
-                None => merged.remove(&key),
-            };
+        let previous = merged.insert(key.clone(), value.clone());
+        if readable(&merged) {
+            continue;
+        }
+        match (previous, value) {
+            // 묶음 설정(단축키, 휠, 마우스)은 어긋난 항목만 기본값으로 두고 나머지
+            // 항목을 살린다. 한 항목 때문에 묶음 전체를 잃지 않는다.
+            (Some(serde_json::Value::Object(mut entries)), serde_json::Value::Object(saved)) => {
+                for (entry, value) in saved {
+                    let previous = entries.insert(entry.clone(), value);
+                    merged.insert(key.clone(), serde_json::Value::Object(entries.clone()));
+                    if !readable(&merged) {
+                        match previous {
+                            Some(previous) => entries.insert(entry, previous),
+                            None => entries.remove(&entry),
+                        };
+                    }
+                }
+                merged.insert(key, serde_json::Value::Object(entries));
+            }
+            (Some(previous), _) => {
+                merged.insert(key, previous);
+            }
+            (None, _) => {
+                merged.remove(&key);
+            }
         }
     }
     serde_json::from_value(serde_json::Value::Object(merged)).unwrap_or_default()
@@ -900,6 +979,118 @@ mod tests {
         assert_eq!(saved["settings"]["trashWithoutConfirm"], false);
         assert!(saved.get("recentFiles").is_some());
         assert!(saved["settings"].get("loop_navigation").is_none());
+    }
+
+    /// 최상위 키 하나의 모양이 어긋나도 문서 전체를 손상으로 보지 않는다. 그 키만
+    /// 버리고 설정과 나머지 기록은 그대로 읽으며, 원본 백업도 만들지 않는다(SPEC §12).
+    #[test]
+    fn a_malformed_top_level_key_only_drops_that_key() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        std::fs::write(
+            &path,
+            br#"{
+                "settings": {"loopNavigation": true},
+                "recentFiles": ["C:/a.png", 5, null, "C:/b.png"],
+                "archiveProgress": [],
+                "paletteMru": "openFile",
+                "theme": "dark"
+            }"#,
+        )
+        .unwrap();
+
+        let store = SettingsStore::load(Some(dir.path().to_owned()));
+
+        assert!(store.settings.loop_navigation);
+        assert_eq!(store.theme, ThemeChoice::Dark);
+        assert_eq!(store.recent_files, ["C:/a.png", "C:/b.png"]);
+        assert!(store.palette_mru.is_empty());
+        assert!(store.archive_progress.is_empty());
+        store.save();
+        store.writer.as_ref().unwrap().flush().unwrap();
+        assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 1);
+
+        for (key, value) in [
+            ("recentFiles", "null"),
+            ("recentFiles", "{}"),
+            ("archiveProgress", "null"),
+            ("archiveProgress", "\"none\""),
+            ("archiveProgress", "3"),
+            ("paletteMru", "null"),
+        ] {
+            let document = format!(r#"{{"settings":{{"loopNavigation":true}},"{key}":{value}}}"#);
+            let file: StoreFile = serde_json::from_str(&document)
+                .unwrap_or_else(|error| panic!("{key}: {value}: {error}"));
+            assert_eq!(file.settings["loopNavigation"], true, "{key}: {value}");
+        }
+    }
+
+    /// 손으로 고친 파일이 한도를 넘어도 저장할 때와 같은 한도로 읽는다. 이어보기
+    /// 기록은 최근 것(뒤쪽)을 남긴다.
+    #[test]
+    fn lists_over_their_limits_are_trimmed_on_load() {
+        let dir = tempfile::tempdir().unwrap();
+        let progress: serde_json::Map<String, serde_json::Value> = (0..ARCHIVE_PROGRESS_LIMIT + 3)
+            .map(|index| {
+                (
+                    format!("C:/book-{index:03}.cbz"),
+                    serde_json::json!({"entry": "001.jpg", "index": 0, "total": 1}),
+                )
+            })
+            .collect();
+        let document = serde_json::json!({
+            "paletteMru": ["a", "b", "c", "d", "e", "f", "g"],
+            "archiveProgress": progress,
+        });
+        std::fs::write(
+            dir.path().join("settings.json"),
+            serde_json::to_vec(&document).unwrap(),
+        )
+        .unwrap();
+
+        let store = SettingsStore::load(Some(dir.path().to_owned()));
+
+        assert_eq!(store.palette_mru, ["a", "b", "c", "d", "e"]);
+        assert_eq!(store.archive_progress.len(), ARCHIVE_PROGRESS_LIMIT);
+        assert_eq!(store.archive_progress[0].0, "C:/book-003.cbz");
+        assert!(store.archive_progress("C:/book-102.cbz").is_some());
+        assert!(store.archive_progress("C:/book-000.cbz").is_none());
+    }
+
+    /// 묶음 설정(단축키, 휠, 마우스)은 어긋난 항목만 기본값으로 돌아가고 나머지
+    /// 항목은 저장한 값을 유지한다.
+    #[test]
+    fn a_malformed_entry_in_a_map_setting_keeps_the_other_entries() {
+        let restored = restore_settings(serde_json::json!({
+            "loopNavigation": true,
+            "wheel": {"wheelUp": "zoomIn", "wheelDown": "bogus", "shift+wheelUp": "prev"},
+            "mouse": {"rightClick": "none", "middleClick": 7},
+            "shortcuts": {"zoomIn": 5, "navigateNext": "D"},
+        }))
+        .sanitized();
+        let defaults = Settings::default();
+
+        assert!(restored.loop_navigation);
+        assert_eq!(restored.wheel.wheel_up, WheelAction::ZoomIn);
+        assert_eq!(restored.wheel.shift_wheel_up, WheelAction::Prev);
+        assert_eq!(restored.wheel.wheel_down, defaults.wheel.wheel_down);
+        assert_eq!(restored.mouse.right_click, MouseAction::None);
+        assert_eq!(restored.mouse.middle_click, defaults.mouse.middle_click);
+        assert_eq!(
+            restored.shortcuts.get("navigateNext").map(String::as_str),
+            Some("D")
+        );
+        assert_eq!(
+            restored.shortcuts.get("zoomIn"),
+            defaults.shortcuts.get("zoomIn")
+        );
+        // 묶음 전체가 객체가 아니면 그 묶음만 기본값이다.
+        let restored = restore_settings(serde_json::json!({
+            "loopNavigation": true,
+            "wheel": "zoom",
+        }));
+        assert!(restored.loop_navigation);
+        assert_eq!(restored.wheel, defaults.wheel);
     }
 
     /// 삭제 확인 생략은 꺼짐이 기본이다(SPEC §13).

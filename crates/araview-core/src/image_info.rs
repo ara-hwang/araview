@@ -86,7 +86,7 @@ pub fn compute_histogram(rgb: &image::RgbImage) -> Histogram {
 }
 
 pub fn histogram_for_path(path: &Path) -> Result<Histogram, AppError> {
-    Ok(compute_histogram(&decode_rgb8(path)?))
+    crate::decode_guard::guard("histogram", || Ok(compute_histogram(&decode_rgb8(path)?)))
 }
 
 #[derive(Serialize, Debug, Clone, Copy, PartialEq)]
@@ -123,6 +123,10 @@ pub struct ImageDetails {
 }
 
 pub fn details_for_path(path: &Path) -> Result<ImageDetails, AppError> {
+    crate::decode_guard::guard("details", || image_details(path))
+}
+
+fn image_details(path: &Path) -> Result<ImageDetails, AppError> {
     if !path.is_file() {
         return Err(AppError::not_found("File not found"));
     }

@@ -82,7 +82,7 @@ pub fn cached_thumb(source: &Path, decoder: Decoder, max_side: u32) -> Option<Pa
 }
 
 pub fn decode_rgb8(source: &Path, decoder: Decoder) -> Result<Rgb8, AppError> {
-    (spec_for(decoder).decode)(source)
+    spec_for(decoder).decode_rgb8(source)
 }
 
 #[cfg(test)]

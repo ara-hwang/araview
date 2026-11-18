@@ -51,7 +51,7 @@ pub(crate) fn decode_psd_rgb8(source: &Path) -> Result<Rgb8, AppError> {
     reject_psb(&bytes)?;
     // `psd` 크레이트 내부 패닉(미구현 ZIP composite, raw 채널 범위 초과)을
     // 커맨드 스레드 밖으로 내보내지 않고 손상 에러로 바꾼다.
-    let decoded = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+    let (width, height, rgba) = crate::decode_guard::guard("psd decode", || {
         let psd = psd::Psd::from_bytes(&bytes)
             .map_err(|e| AppError::corrupt(format!("Failed to decode image: {e}")))?;
         // 16비트 raw는 red만 8비트로 줄이고 green/blue/alpha는 2바이트/픽셀
@@ -64,15 +64,7 @@ pub(crate) fn decode_psd_rgb8(source: &Path) -> Result<Rgb8, AppError> {
             return Err(AppError::too_large("PSD image dimensions are too large"));
         }
         Ok((width, height, psd.rgba()))
-    }));
-    let (width, height, rgba) = match decoded {
-        Ok(result) => result?,
-        Err(_) => {
-            return Err(AppError::corrupt(
-                "Failed to decode image: decoder panicked",
-            ))
-        }
-    };
+    })?;
     let expected = (width as usize)
         .checked_mul(height as usize)
         .and_then(|n| n.checked_mul(4));

@@ -334,6 +334,17 @@ fn fetch_feed(url: &str) -> Result<Option<UpdateFeed>, String> {
     fetch_feed_with(&SystemHttp, url)
 }
 
+/// 릴리스 노트의 링크로 열어도 되는 주소인지. 노트는 서명하지 않은 피드에서 온 글이라
+/// 웹 주소(`https://`, `http://`)만 연다. 그 밖의 대상(`file:` 주소, 로컬·UNC 경로, 다른
+/// 프로그램을 여는 프로토콜)은 셸에 넘기면 실행 파일이나 임의 핸들러가 열릴 수 있다.
+fn is_web_link(url: &str) -> bool {
+    let has_scheme = |scheme: &str| {
+        url.get(..scheme.len())
+            .is_some_and(|head| head.eq_ignore_ascii_case(scheme))
+    };
+    (has_scheme("https://") || has_scheme("http://")) && !url.chars().any(char::is_control)
+}
+
 /// 설치 프로그램은 HTTPS에서만 받는다. 디버그 빌드는 로컬 피드 검증을 위해
 /// HTTP도 허용한다.
 fn is_allowed_asset_url(url: &str) -> bool {
@@ -510,7 +521,13 @@ impl AraView {
                                     div().pr_3().text_sm().child(
                                         TextView::markdown("update-notes-text", notes.clone())
                                             .selectable(true)
-                                            .on_link_click(|url, _, _, cx| cx.open_url(url)),
+                                            // 우클릭과 길게 누르기는 열기가 아니다(기본 링크
+                                            // 동작과 같다).
+                                            .on_link_click(|url, event, _, cx| {
+                                                if !event.is_secondary() && is_web_link(url) {
+                                                    cx.open_url(url);
+                                                }
+                                            }),
                                     ),
                                 )
                                 .h(px(220.)),
@@ -724,7 +741,8 @@ mod tests {
     // `super::*`는 gpui의 `test` 매크로까지 끌어와 `#[test]`를 가린다.
     use super::{
         DOWNLOAD_CHUNK, DownloadProgress, Ordering, UPDATE_FEED, compare_versions, feed_url,
-        is_allowed_asset_url, is_newer, parse_version, read_with_progress, verify_signature,
+        is_allowed_asset_url, is_newer, is_web_link, parse_version, read_with_progress,
+        verify_signature,
     };
     use base64::Engine as _;
 
@@ -821,6 +839,34 @@ mod tests {
         }
         assert_eq!(feed_url(), UPDATE_FEED);
         assert!(feed_url().ends_with("/releases/latest/download/update-feed.json"));
+    }
+
+    /// 릴리스 노트의 링크는 웹 주소만 연다. 셸이 프로그램을 실행할 수 있는 대상은 막는다.
+    #[test]
+    fn release_note_links_open_web_addresses_only() {
+        for url in [
+            "https://github.com/ara-hwang/araview/releases",
+            "http://example.com/notes",
+            "HTTPS://Example.com/Notes",
+        ] {
+            assert!(is_web_link(url), "{url}");
+        }
+        for url in [
+            "",
+            "file:///C:/Windows/System32/calc.exe",
+            "C:\\Windows\\System32\\calc.exe",
+            "\\\\host\\share\\setup.exe",
+            "ms-settings:privacy",
+            "javascript:alert(1)",
+            "mailto:someone@example.com",
+            "//example.com/notes",
+            "example.com",
+            " https://example.com",
+            "https:/example.com",
+            "https://example.com/\nfile:///C:/x.exe",
+        ] {
+            assert!(!is_web_link(url), "{url}");
+        }
     }
 
     #[test]

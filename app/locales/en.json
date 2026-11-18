@@ -8,14 +8,10 @@
     "fitWidth": "Width",
     "fitHeight": "Height",
     "fitScreen": "Screen",
-    "fitGroup": "Fit mode",
-    "zoomGroup": "Zoom",
-    "transformGroup": "Rotate and flip",
     "zoomOut": "Zoom out",
     "zoomIn": "Zoom in",
     "info": "Info",
     "settings": "Settings",
-    "settingsTitle": "Settings",
     "alwaysOnTop": "Always on top",
     "hideMenuBar": "Hide menu bar",
     "showMenuBar": "Show menu bar",
@@ -23,8 +19,6 @@
     "viewLtr": "L→R",
     "viewRtl": "R→L",
     "viewWebtoon": "Webtoon",
-    "gifGroup": "Animation playback controls",
-    "gifFrame": "Animation frame {{index}} of {{total}}",
     "rotateCcw": "CCW",
     "rotateCw": "CW",
     "flipH": "Flip H",
@@ -32,14 +26,10 @@
     "ocrHighlight": "Highlight and select text",
     "onTop": "On top",
     "hideBar": "Hide bar",
-    "showBar": "Show bar",
-    "minimize": "Minimize",
-    "maximize": "Maximize / Restore",
-    "close": "Close"
+    "showBar": "Show bar"
   },
   "settings": {
     "title": "Settings",
-    "desc": "Change viewer settings and file associations.",
     "tabs": {
       "general": "General",
       "view": "View",
@@ -51,24 +41,8 @@
     "reset": "Reset",
     "confirm": "Done",
     "selectPlaceholder": "Please select",
-    "general": {
-      "title": "General settings"
-    },
-    "viewTab": {
-      "title": "View settings"
-    },
-    "listTab": {
-      "title": "Browsing settings"
-    },
-    "performanceTab": {
-      "title": "Performance settings"
-    },
-    "shortcutsTab": {
-      "title": "Shortcuts and mouse"
-    },
     "shortcuts": {
       "title": "Keyboard shortcuts",
-      "desc": "Select an item, then press the keys you want. Each key can belong to one action.",
       "captureHint": "Select an item to change it",
       "capturing": "Waiting for input, Esc cancels",
       "unbound": "None",
@@ -79,12 +53,10 @@
       "conflictDesc": "{{key}} is already assigned to {{action}}. Replace it? The other action becomes unassigned.",
       "replace": "Replace",
       "cancel": "Cancel",
-      "reserved": "Tab is reserved for focus navigation",
-      "invalid": "This key combination cannot be assigned"
+      "reserved": "Tab is reserved for focus navigation"
     },
     "wheel": {
       "title": "Wheel actions",
-      "desc": "Choose what each modifier plus wheel direction does. In webtoon mode vertical scroll wins.",
       "plain": {
         "title": "Wheel action",
         "desc": "Choose whether a plain wheel scroll moves to the previous/next image or zooms the image. Modifier combinations stay in the Shortcuts tab.",
@@ -111,7 +83,6 @@
     },
     "mouse": {
       "title": "Mouse actions",
-      "desc": "Choose click and drag behavior. If right-click no longer opens the menu, use the header settings button instead.",
       "trigger": {
         "leftDrag": "Left drag",
         "middleClick": "Middle click",
@@ -157,11 +128,9 @@
     },
     "update": {
       "title": "Updates",
-      "desc": "Automatically checks for new versions on startup. You can still check manually with the button.",
       "autoTitle": "Check automatically on startup",
       "autoDesc": "Checks for new versions on startup. Only notifies when a new version is available.",
       "current": "Current version {{version}}",
-      "unknown": "unknown",
       "check": "Check for new version",
       "checking": "Checking"
     },
@@ -169,12 +138,7 @@
       "title": "Open source licenses",
       "desc": "View notices and license texts for the open source components AraView uses.",
       "open": "View licenses",
-      "notice": "Notices",
-      "loading": "Loading",
       "loadFail": "Failed to load licenses",
-      "retry": "Retry",
-      "listLabel": "Packages",
-      "tablePointer": "For these {{count}} packages, select one in the list on the left to read its full license text.",
       "templatedNote": "This package ships no license file, so a standard template is shown. Check the package repository for the copyright holder.",
       "noLicenseFile": "This package does not ship a license file.",
       "declared": "Declared license",
@@ -210,7 +174,6 @@
     },
     "reading": {
       "title": "Reading",
-      "desc": "Resume comics (CBZ and other archives) from the last page you viewed. Cover alone shows the first page by itself in dual view. Comics with a cover set or unset from the viewer right-click menu follow that choice.",
       "resume": "Resume reading",
       "comicAutoDual": "Open comic archives in dual view automatically (follows ComicInfo reading direction)",
       "coverAlone": "Show cover alone in dual view",
@@ -258,7 +221,6 @@
       "hideMenuBar": "Hide top bar (hover the very top edge to show it)"
     },
     "window": {
-      "title": "Window",
       "desc": "Keep above other windows",
       "alwaysOnTop": "Always on top"
     },
@@ -278,14 +240,8 @@
       "2gb": "2 GB"
     },
     "cacheStorage": {
-      "title": "Cache retention",
       "desc": "Choose whether thumbnails and converted images survive app exit.",
-      "persistent": "Use persistent cache",
-      "persistentDesc": "Reuse cache after reopening the app. This is the default.",
-      "temporaryDesc": "Keep cache only during this run and delete it on exit.",
-      "toggle": "Toggle persistent cache",
-      "pendingTitle": "Applies on the next run",
-      "pendingDesc": "The current cache stays unchanged until the storage mode changes on the next run."
+      "persistent": "Use persistent cache"
     },
     "cloud": {
       "title": "Auto-download cloud files",
@@ -293,18 +249,15 @@
     },
     "cacheManagement": {
       "title": "Cache management",
-      "desc": "Review and delete image-derived cache files for the active storage mode.",
       "refresh": "Refresh",
       "loading": "Checking cache usage",
       "errorTitle": "Could not load cache usage",
-      "errorDescription": "Cache usage could not be checked. Try again in a moment.",
       "retry": "Try again",
       "emptyTitle": "No cache files",
       "emptyDesc": "Opening an image creates thumbnails and converted cache files.",
       "total": "Total usage",
       "files": "{{count}} files",
       "protected": "{{count}} in use",
-      "limit": "Automatic cleanup limit {{size}}",
       "categorySize": "{{size}} · {{count}} files",
       "clear": "Clear",
       "clearCategory": "Clear {{name}}",
@@ -347,8 +300,6 @@
       "title": "File associations",
       "desc": "Changing an association opens the default app picker for that extension. Windows does not allow apps to set defaults directly.",
       "loading": "Checking association status",
-      "blockedTitle": "Confirm the default app in Windows",
-      "blockedDesc": "Windows 10/11 only allows default app changes in the system picker. Select {{appName}} in the opened window.",
       "openSettings": "Open default apps"
     },
     "thumb": {
@@ -361,7 +312,6 @@
     }
   },
   "home": {
-    "drop": "Drop here to open",
     "openFile": "Open File",
     "recent": "Recent files {{count}}",
     "clearAll": "Clear all",
@@ -370,24 +320,19 @@
       "progress": "Page {{index}} of {{total}}"
     },
     "list": {
-      "open": "Open {{name}}",
-      "loading": "Loading",
-      "unavailable": "Could not load file info"
+      "loading": "Loading"
     }
   },
   "viewer": {
     "loading": "Loading image",
     "error": {
       "home": "Go home",
-      "dismiss": "Close",
       "retry": "Retry"
     },
     "nav": {
       "thumb": "Image {{index}}: {{name}}",
       "thumbError": "Failed image {{index}}: {{name}}",
-      "thumbRetry": "Retry thumbnail {{index}}",
       "cloudOnly": "Cloud only {{index}}: {{name}}",
-      "grid": "Thumbnail grid",
       "gridTitle": "Thumbnail grid (G)",
       "dockHide": "Hide image list",
       "prev": "Previous image",
@@ -395,11 +340,8 @@
       "dockShow": "Show image list"
     },
     "webtoon": {
-      "scrollRegion": "Webtoon reading area",
       "position": "{{current}} / {{total}} · {{percent}}%",
-      "progressLabel": "Page {{current}} of {{total}}, {{percent}} percent read",
-      "openThumbnails": "Open thumbnail grid",
-      "archiveHint": "\"{{name}}\" is a comic archive. Open it as a comic to read it."
+      "openThumbnails": "Open thumbnail grid"
     },
     "archivePreview": {
       "hint": "\"{{name}}\" is a comic archive. Showing the first page only.",
@@ -408,14 +350,12 @@
     },
     "grid": {
       "title": "Thumbnail grid",
-      "aria": "Image thumbnail grid",
       "count": "{{current}}/{{total}}",
       "filter": "Filter by name",
       "close": "Close grid (Esc)",
       "empty": "No images to show",
       "noResults": "No matching files",
-      "failed": "Failed",
-      "cloudOnly": "Cloud only"
+      "failed": "Failed"
     }
   },
   "exif": {
@@ -423,7 +363,6 @@
     "desc": "Image metadata and camera settings",
     "empty": "No EXIF data available for this image.",
     "loadFail": "Failed to load EXIF.",
-    "retry": "Retry",
     "other": "Other",
     "loading": "Loading information"
   },
@@ -453,9 +392,6 @@
   },
   "comic": {
     "section": "Comic",
-    "title": "Title",
-    "series": "Series",
-    "number": "Number",
     "volume": "Volume",
     "count": "Count",
     "writer": "Writer",
@@ -476,24 +412,18 @@
     "pageCount": "Page count",
     "ageRating": "Age rating",
     "rating": "Rating",
-    "summary": "Summary",
     "loadFail": "Could not read comic metadata."
   },
   "histogram": {
     "title": "Histogram",
     "unavailable": "Histogram is not available for this format.",
-    "vectorUnavailable": "Histograms are not shown for SVG vector images.",
-    "chartLabel": "RGB brightness distribution chart",
-    "red": "Red",
-    "green": "Green",
-    "blue": "Blue"
+    "vectorUnavailable": "Histograms are not shown for SVG vector images."
   },
   "dialog": {
     "cancel": "Cancel",
     "rename": {
       "title": "Rename",
       "desc": "Enter the full file name including extension, within the same folder.",
-      "label": "File name",
       "submit": "Rename"
     },
     "update": {
@@ -503,25 +433,14 @@
       "releasePage": "GitHub release page",
       "download": "Download",
       "later": "Later",
-      "downloadingTitle": "Downloading update",
       "downloadingDesc": "Downloading version {{version}}. Keep the app open until it finishes.",
       "downloading": "Downloading update",
       "downloadedBytes": "{{size}} downloaded",
       "downloadedOfTotal": "{{downloaded}} / {{total}} ({{pct}}%)",
       "downloadFail": "Download failed. Try again or check later.",
-      "retry": "Retry",
       "installingTitle": "Starting installation",
-      "installingDesc": "Download complete. The app will close briefly to install the update, then restart with the new version automatically.",
-      "installFail": "Could not start the installation. Try again or check later."
+      "installingDesc": "Download complete. The app will close briefly to install the update, then restart with the new version automatically."
     }
-  },
-  "status": {
-    "barLabel": "Image status bar"
-  },
-  "notFound": {
-    "title": "Page not found",
-    "desc": "The address changed or does not exist. Go back home.",
-    "home": "Go home"
   },
   "menu": {
     "open": "Open File",
@@ -571,12 +490,10 @@
   },
   "palette": {
     "title": "Command Palette",
-    "desc": "Search for a command. Move with arrow keys and press Enter to run it.",
     "search": "Search commands",
     "open": "Command Palette",
     "settings": "Open Settings",
     "checkUpdates": "Check for updates",
-    "clear": "Clear",
     "recent": "Recent",
     "noResult": "No matching commands",
     "noResultHint": "Try a different search term.",
@@ -611,32 +528,20 @@
     }
   },
   "toast": {
-    "copyMessage": "Copy error message",
-    "copied": "Copied",
     "diagnostics": {
       "done": "Diagnostics copied"
     },
-    "close": "Close",
     "settings": {
-      "saveFail": "Failed to save settings",
       "resetDone": "Settings reset"
-    },
-    "dir": {
-      "refreshFail": "Failed to refresh list"
-    },
-    "fullscreen": {
-      "fail": "Failed to toggle fullscreen"
     },
     "alwaysOnTop": {
       "fail": "Failed to toggle always on top"
     },
     "reveal": {
-      "empty": "No file to show",
-      "fail": "Failed to reveal in Explorer"
+      "empty": "No file to show"
     },
     "external": {
-      "empty": "No file to open",
-      "fail": "Failed to open with external app"
+      "empty": "No file to open"
     },
     "trash": {
       "empty": "No image to delete",
@@ -646,8 +551,7 @@
     },
     "path": {
       "empty": "No path to copy",
-      "done": "Path copied",
-      "fail": "Failed to copy path"
+      "done": "Path copied"
     },
     "rename": {
       "empty": "No image to rename",
@@ -722,12 +626,6 @@
     "resetSettings": {
       "title": "Reset settings",
       "message": "Reset all settings to their defaults? Your language setting will be kept."
-    },
-    "cacheStorage": {
-      "disable": {
-        "title": "Turn off persistent cache",
-        "message": "Switching to a session cache deletes the existing persistent cache on the next run. Continue?"
-      }
     },
     "cache": {
       "clearAll": {

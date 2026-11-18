@@ -217,8 +217,10 @@ fn decode_utf16(bytes: &[u8], little_endian: bool) -> Result<String, AppError> {
 /// XML 본문을 파싱하고 표시용으로 정규화한다 (trim, 빈 값 → None).
 pub fn parse_comic_info(bytes: &[u8]) -> Result<ComicInfo, AppError> {
     let text = decode_xml(bytes)?;
-    let raw: RawComicInfo = quick_xml::de::from_str(&text)
-        .map_err(|e| AppError::corrupt(format!("Failed to parse ComicInfo.xml: {e}")))?;
+    let raw: RawComicInfo = crate::decode_guard::guard("comic info", || {
+        quick_xml::de::from_str(&text)
+            .map_err(|e| AppError::corrupt(format!("Failed to parse ComicInfo.xml: {e}")))
+    })?;
 
     Ok(ComicInfo {
         title: normalize(raw.title),

@@ -10,8 +10,13 @@ use crate::app_error::AppError;
 use crate::sidecar::{downscale_rgb8, Rgb8};
 
 /// PSD, HEIC/HEIF/AVIF, EXR, RAW 및 CBZ/ZIP의 표지를 디코드한다.
-/// 호출자는 COM 경계에서 panic을 잡고, I/O를 UI 스레드 밖에서 수행한다.
+/// 디코더 panic은 `Corrupt` 에러로 돌려준다. 호출자는 그 밖의 panic을 COM
+/// 경계에서 잡고, I/O를 UI 스레드 밖에서 수행한다.
 pub fn decode_shell_thumbnail(source: &Path, max_side: u32) -> Result<Rgb8, AppError> {
+    crate::decode_guard::guard("shell thumbnail", || shell_thumbnail(source, max_side))
+}
+
+fn shell_thumbnail(source: &Path, max_side: u32) -> Result<Rgb8, AppError> {
     let max_side = max_side.clamp(16, 2560);
     if crate::image::is_archive_file(source) {
         let entries = crate::archive_index::get_archive_entries(source)?;
