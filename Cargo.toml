@@ -1,6 +1,8 @@
 [workspace]
 resolver = "3"
 members = ["crates/araview-core", "crates/araview-thumb", "app"]
+# upstream 단위 테스트는 워크스페이스 밖에서 해당 포크의 manifest로 실행한다.
+exclude = ["vendor/gpui-pre-scheduler", "vendor/rawler"]
 
 [profile.release]
 codegen-units = 1
@@ -23,6 +25,12 @@ image = { opt-level = 3 }
 # HDR 출력용 포크(docs/hdr-display.md M2): HDR 모드에서 hwnd 스왑체인을 쓴다.
 # 명령 팔레트의 휠을 부드러운 스크롤로 처리하는 포크(SPEC §14.4): 목록의 자체 휠
 # 스크롤을 끄고(`wheel_handoff`) 핸들을 앱의 `SmoothScroll`에 노출한다.
+# chrono의 유지보수 종료 대응: Windows 빌드에 필요한 Jiff 이전을 백포트한다.
+# 각 포크의 원본 버전과 제거 조건은 vendor/CHRONO-MIGRATION.md를 참고한다.
 [patch.crates-io]
 gpui-pre-windows = { path = "vendor/gpui-pre-windows" }
 gpui-component = { path = "vendor/gpui-component" }
+gpui-base = { path = "vendor/gpui-base" }
+gpui-pre = { path = "vendor/gpui-pre" }
+gpui-pre-scheduler = { path = "vendor/gpui-pre-scheduler" }
+rawler = { path = "vendor/rawler" }

@@ -87,7 +87,6 @@ dependencies and other-OS targets are excluded.
 | cc | 1.10.0 | MIT OR Apache-2.0 |
 | cfg-expr | 0.20.10 | MIT OR Apache-2.0 |
 | cfg-if | 1.0.5 | MIT OR Apache-2.0 |
-| chrono | 0.4.45 | MIT OR Apache-2.0 |
 | cipher | 0.5.2 | MIT OR Apache-2.0 |
 | cmov | 0.5.4 | Apache-2.0 OR MIT |
 | color_quant | 1.1.0 | MIT |
@@ -232,7 +231,13 @@ dependencies and other-OS targets are excluded.
 | itertools | 0.14.0 | MIT OR Apache-2.0 |
 | itoa | 1.0.18 | MIT OR Apache-2.0 |
 | jiff | 0.2.38 | Unlicense OR MIT |
+| jiff | 1.0.1 | Unlicense OR MIT |
 | jiff-core | 0.1.1 | Unlicense OR MIT |
+| jiff-core | 1.0.1 | Unlicense OR MIT |
+| jiff-tzdb | 0.1.10 | Unlicense OR MIT |
+| jiff-tzdb | 1.0.0 | Unlicense OR MIT |
+| jiff-tzdb-platform | 0.1.3 | Unlicense OR MIT |
+| jiff-tzdb-platform | 1.0.0 | Unlicense OR MIT |
 | jobserver | 0.1.35 | MIT OR Apache-2.0 |
 | jpeg-decoder | 0.3.2 | MIT OR Apache-2.0 |
 | jpeg-encoder | 0.7.1 | (MIT OR Apache-2.0) AND IJG |
@@ -470,7 +475,7 @@ dependencies and other-OS targets are excluded.
 | tracing | 0.1.44 | MIT |
 | tracing-attributes | 0.1.31 | MIT |
 | tracing-core | 0.1.36 | MIT |
-| trash | 5.3.0 | MIT |
+| trash | 5.4.0 | MIT |
 | triomphe | 0.1.17 | MIT OR Apache-2.0 |
 | ttf-parser | 0.25.1 | MIT OR Apache-2.0 |
 | typed-path | 0.13.0 | MIT OR Apache-2.0 |
@@ -529,7 +534,6 @@ dependencies and other-OS targets are excluded.
 | windows-result | 0.4.1 | MIT OR Apache-2.0 |
 | windows-strings | 0.1.0 | MIT OR Apache-2.0 |
 | windows-strings | 0.5.1 | MIT OR Apache-2.0 |
-| windows-sys | 0.52.0 | MIT OR Apache-2.0 |
 | windows-sys | 0.61.2 | MIT OR Apache-2.0 |
 | windows-targets | 0.52.6 | MIT OR Apache-2.0 |
 | windows-threading | 0.2.1 | MIT OR Apache-2.0 |
