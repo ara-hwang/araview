@@ -1,3 +1,5 @@
+// AraView fork (2026-11-19): migrate EXIF timestamp resolution to Jiff.
+
 use image::DynamicImage;
 use image::ImageBuffer;
 use image::ImageFormat;
@@ -410,7 +412,10 @@ mod exif_time_tests {
     let unexpected = || panic!("local zone must not be consulted");
     assert!(matches!(RawMetadata::default().last_modified_with_zone(unexpected), Ok(None)));
     for input in ["2024:02:30 04:05:06", "+ 2024:1:2 3:4:5", "2024:01:02 03:04:05 "] {
-      assert!(matches!(metadata(input, None, None).last_modified_with_zone(unexpected), Err(RawlerError::DecoderFailed(_))));
+      assert!(matches!(
+        metadata(input, None, None).last_modified_with_zone(unexpected),
+        Err(RawlerError::DecoderFailed(_))
+      ));
     }
     assert!(matches!(metadata("2024:01:02 03:04:05", None, None).last_modified_with_zone(|| None), Ok(None)));
   }
@@ -426,7 +431,9 @@ mod exif_time_tests {
       assert_eq!(actual, utc("2024-01-02T06:34:05Z"));
     }
 
-    let actual = metadata("2024:01:02 03:04:05", Some("+09:00"), Some(vec![1, -4])).last_modified().expect("valid EXIF");
+    let actual = metadata("2024:01:02 03:04:05", Some("+09:00"), Some(vec![1, -4]))
+      .last_modified()
+      .expect("valid EXIF");
     assert_eq!(actual, utc("2024-01-02T07:04:05Z"));
 
     for (offset, timezone_offset) in [("+09:00", Some(vec![1, 24])), ("+24:00", None), ("+12:60", None), ("Z", None)] {
@@ -445,9 +452,15 @@ mod exif_time_tests {
       ("2024:11:03 01:30:00", utc("2024-11-03T05:30:00Z")),
       ("2024:03:10 02:30:00", None),
     ] {
-      assert_eq!(metadata(input, None, None).last_modified_with_zone(zone).expect("valid EXIF"), expected, "{input}");
+      assert_eq!(
+        metadata(input, None, None).last_modified_with_zone(zone).expect("valid EXIF"),
+        expected,
+        "{input}"
+      );
     }
-    let explicit = metadata("2024:03:10 02:30:00", Some("-05:00"), None).last_modified_with_zone(zone).expect("fixed offset");
+    let explicit = metadata("2024:03:10 02:30:00", Some("-05:00"), None)
+      .last_modified_with_zone(zone)
+      .expect("fixed offset");
     assert_eq!(explicit, utc("2024-03-10T07:30:00Z"));
   }
 
@@ -455,9 +468,13 @@ mod exif_time_tests {
   fn leap_second_and_civil_range_preserve_system_time() {
     let leap = metadata("2016:12:31 23:59:60", Some("+00:00"), None).last_modified().expect("EXIF leap second");
     assert_eq!(leap, utc("2017-01-01T00:00:00Z"));
-    let pre_epoch = metadata("1969:12:31 23:59:59", Some("+00:00"), None).last_modified().expect("EXIF before epoch");
+    let pre_epoch = metadata("1969:12:31 23:59:59", Some("+00:00"), None)
+      .last_modified()
+      .expect("EXIF before epoch");
     assert_eq!(pre_epoch, utc("1969-12-31T23:59:59Z"));
-    let edge = metadata("9999:12:31 23:59:59", Some("+00:00"), None).last_modified().expect("four-digit EXIF year");
+    let edge = metadata("9999:12:31 23:59:59", Some("+00:00"), None)
+      .last_modified()
+      .expect("four-digit EXIF year");
     assert_eq!(edge, UNIX_EPOCH.checked_add(Duration::from_secs(253_402_300_799)));
   }
 }

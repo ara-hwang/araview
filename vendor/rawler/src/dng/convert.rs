@@ -1,3 +1,5 @@
+// AraView fork (2026-11-19): format the DNG modification time with Jiff.
+
 use std::{
   ffi::OsStr,
   io::{Cursor, Seek, Write},

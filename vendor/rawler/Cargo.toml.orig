@@ -1,3 +1,5 @@
+# AraView fork (2026-11-19): replace Chrono with Jiff for EXIF timestamps.
+
 [package]
 authors = ["Daniel Vogelbacher <daniel@chaospixel.com>", "Pedro Côrte-Real <pedro@pedrocr.net>"]
 categories = ["multimedia::images"]
