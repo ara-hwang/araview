@@ -399,6 +399,7 @@ impl AraView {
     fn commit_listing(&mut self, listing: Listing, window: &mut Window, cx: &mut Context<Self>) {
         self.clear_pages(window, cx);
         self.thumbs.clear();
+        self.thumb_via_shell.clear();
         self.list = Arc::new(listing.items);
         self.availability = listing.availability;
         self.archive = listing.archive;
@@ -537,6 +538,7 @@ impl AraView {
         self.comic_mode = None;
         self.index = 0;
         self.thumbs.clear();
+        self.thumb_via_shell.clear();
         self.hide_grid();
         window.set_window_title(&t("app.title"));
         cx.notify();

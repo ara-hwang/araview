@@ -96,6 +96,7 @@ impl AraView {
         let mut items = (*self.list).clone();
         let gone = items.remove(removed);
         self.thumbs.remove(&gone);
+        self.thumb_via_shell.remove(&gone);
         if items.is_empty() {
             self.close_image(window, cx);
             return;

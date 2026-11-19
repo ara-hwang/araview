@@ -90,6 +90,8 @@ const RECENT_CARD_WIDTH: f32 = 240.0;
 enum ThumbState {
     Ready(PathBuf),
     Failed,
+    /// 클라우드 전용 파일인데 셸에 미리보기가 없다. 실패 배지 대신 구름 아이콘만 둔다(SPEC §9.6).
+    CloudMissing,
 }
 
 struct DragState {
@@ -197,6 +199,8 @@ pub struct AraView {
 
     thumbs: HashMap<Arc<str>, ThumbState>,
     thumb_queue: thumbnail_state::ThumbQueue,
+    /// 내려받지 않고 셸 미리보기로만 썸네일을 만들 클라우드 전용 항목(SPEC §9.6).
+    thumb_via_shell: std::collections::HashSet<Arc<str>>,
     thumb_cache: Entity<thumbnail_cache::ThumbnailCache>,
     dock_sizes: std::cell::RefCell<thumbnail_state::Prepared<(usize, bool, u32), Size<Pixels>>>,
     grid_items_cache: std::cell::RefCell<thumbnail_state::GridItems>,
@@ -347,6 +351,7 @@ impl AraView {
             wt_dims: HashMap::new(),
             thumbs: HashMap::new(),
             thumb_queue: thumbnail_state::ThumbQueue::default(),
+            thumb_via_shell: std::collections::HashSet::new(),
             thumb_cache: thumbnail_cache::ThumbnailCache::new(cx),
             dock_sizes: std::cell::RefCell::default(),
             grid_items_cache: std::cell::RefCell::default(),

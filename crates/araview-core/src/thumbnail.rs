@@ -268,6 +268,40 @@ pub fn generate_thumbnails_batch(sources: &[String], max_side: u32) -> Vec<Batch
     })
 }
 
+/// 클라우드 전용(온디맨드) 파일의 썸네일을 파일을 내려받지 않고 만든다. 셸 썸네일
+/// 캐시나 동기화 공급자가 가진 미리보기만 쓰므로, 그런 미리보기가 없는 파일은
+/// 실패로 돌아온다(SPEC §9.6). 결과는 일반 썸네일과 같은 캐시에 남는다.
+pub fn generate_cloud_thumbnails_batch(sources: &[String], max_side: u32) -> Vec<BatchThumb> {
+    map_with_worker_state(sources, crate::shell_thumb::ComApartment::enter, |_, s| {
+        BatchThumb::from_result(s, cloud_thumbnail(Path::new(s), max_side))
+    })
+}
+
+fn cloud_thumbnail(source: &Path, max_side: u32) -> Result<ThumbnailInfo, AppError> {
+    let max_side = max_side.clamp(32, 1024);
+    // 셸 썸네일은 디코더 종류와 무관하므로 별도 캐시 키를 쓴다. 파일을 내려받은
+    // 뒤에는 일반 경로가 자기 키로 다시 만든다.
+    let mut extra = max_side.to_le_bytes().to_vec();
+    extra.extend_from_slice(b"shell-thumbnail");
+    let hash = crate::sidecar::file_identity_hash(source, &extra)?;
+    let dest = thumbs_dir()?.join(format!("{hash:016x}.jpg"));
+    crate::process_temp::mark_in_use(&dest);
+    if dest.exists() {
+        crate::process_temp::touch_cache_file(&dest);
+    } else {
+        let thumb = crate::shell_thumb::shell_thumbnail(source, max_side)?;
+        write_jpeg_atomic(&dest, &image::DynamicImage::ImageRgb8(thumb))?;
+        crate::process_temp::note_published(&dest, MAX_CACHE_BYTES);
+    }
+    let (width, height) = image::image_dimensions(&dest)
+        .map_err(|e| AppError::corrupt(format!("Failed to read thumbnail: {e}")))?;
+    Ok(ThumbnailInfo {
+        file_path: dest.to_string_lossy().to_string(),
+        width,
+        height,
+    })
+}
+
 pub(crate) const THUMBS_SUBDIR: &str = "thumbs";
 
 fn thumbs_dir() -> Result<PathBuf, AppError> {
