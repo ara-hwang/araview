@@ -42,7 +42,7 @@ fn file_label(item: &str) -> String {
 impl AraView {
     /// 썸네일을 요청한다. 이미 받았거나 요청 중인 항목은 건너뛰고, 8개 청크로
     /// 나눠 보내 끝난 청크부터 그린다. 클라우드 전용(온디맨드) 항목은 자동
-    /// 내려받기가 꺼져 있으면 대신 구름 아이콘만 남긴다(SPEC §9.6).
+    /// 내려받기가 꺼져 있으면 파일을 내려받지 않고 셸이 가진 미리보기만 쓴다(SPEC §9.6).
     pub(super) fn request_thumbs_for(
         &mut self,
         indices: impl IntoIterator<Item = usize>,
@@ -53,7 +53,7 @@ impl AraView {
         self.send_thumb_requests(indices, allow_cloud, window, cx);
     }
 
-    /// 썸네일 요청 본문(`allow_cloud`는 클라우드 전용 파일도 읽을지 여부).
+    /// 썸네일 요청 본문(`allow_cloud`는 클라우드 전용 파일도 내려받아 읽을지 여부).
     fn send_thumb_requests(
         &mut self,
         indices: impl IntoIterator<Item = usize>,
@@ -64,11 +64,26 @@ impl AraView {
         let wanted: Vec<Arc<str>> = indices
             .into_iter()
             .filter_map(|index| self.list.get(index).map(|item| (index, item)))
-            .filter(|(index, item)| {
-                (allow_cloud || self.availability.get(*index) != Some(&FileAvailability::CloudOnly))
-                    && !self.thumbs.contains_key(*item)
+            .filter_map(|(index, item)| {
+                let cloud_only = self.availability.get(index) == Some(&FileAvailability::CloudOnly);
+                let shell_only = cloud_only && !allow_cloud;
+                // 셸 미리보기가 없던 항목은 자동 내려받기를 켜거나 파일이 로컬이
+                // 되면 다시 만든다.
+                let wanted = match self.thumbs.get(item) {
+                    None => true,
+                    Some(ThumbState::CloudMissing) => !shell_only,
+                    Some(_) => false,
+                };
+                wanted.then_some((item, shell_only))
             })
-            .map(|(_, item)| item.clone())
+            .map(|(item, shell_only)| {
+                if shell_only {
+                    self.thumb_via_shell.insert(item.clone());
+                } else {
+                    self.thumb_via_shell.remove(item);
+                }
+                item.clone()
+            })
             .collect();
         self.thumb_queue.enqueue(wanted);
         self.pump_thumbs(window, cx);
@@ -81,12 +96,30 @@ impl AraView {
             let archive = self.archive.clone();
             let cancellation = batch.cancellation.clone();
             let chunk = batch.items.clone();
+            let via_shell: Vec<bool> = chunk
+                .iter()
+                .map(|item| self.thumb_via_shell.contains(item))
+                .collect();
             let task = cx.background_spawn(async move {
                 if cancellation.is_cancelled() {
                     return Vec::new();
                 }
-                let names: Vec<String> = chunk.iter().map(|item| item.to_string()).collect();
-                let thumbs: Vec<BatchThumb> = match &archive {
+                let mut shell = Vec::new();
+                let mut names = Vec::new();
+                for (item, via_shell) in chunk.iter().zip(&via_shell) {
+                    if *via_shell {
+                        shell.push(item.to_string());
+                    } else {
+                        names.push(item.to_string());
+                    }
+                }
+                // 클라우드 전용 항목은 내려받지 않도록 셸 미리보기만 쓴다(SPEC §9.6).
+                let shell_thumbs = if shell.is_empty() {
+                    Vec::new()
+                } else {
+                    araview_core::thumbnail::generate_cloud_thumbnails_batch(&shell, THUMB_MAX_SIDE)
+                };
+                let mut thumbs: Vec<BatchThumb> = match &archive {
                     Some(archive) => ops::generate_archive_thumbnails_batch_impl(
                         Path::new(&**archive),
                         &names,
@@ -108,6 +141,7 @@ impl AraView {
                         out
                     }
                 };
+                thumbs.extend(shell_thumbs);
                 thumbs
             });
             cx.spawn_in(window, async move |this, cx| {
@@ -125,6 +159,9 @@ impl AraView {
                     for item in batch.items {
                         let state = match by_source.remove(&*item).flatten() {
                             Some(path) => ThumbState::Ready(path),
+                            None if this.thumb_via_shell.contains(&item) => {
+                                ThumbState::CloudMissing
+                            }
                             None => ThumbState::Failed,
                         };
                         this.thumbs.insert(item, state);

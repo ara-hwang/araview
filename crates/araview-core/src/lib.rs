@@ -29,6 +29,7 @@ pub mod psd_sidecar;
 pub mod raster_sidecar;
 pub mod raw;
 pub mod scaled;
+mod shell_thumb;
 pub mod sidecar;
 pub mod sniff;
 pub mod stable_hash;
