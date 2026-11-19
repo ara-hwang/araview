@@ -6,7 +6,6 @@
 
 - Release: run `npm run release` only when the user explicitly asks, because the tag push publishes a public release. Flow: `docs/releasing.md`.
 - Never move the user's mouse or take over their input for a runtime check unless they agreed; prefer headless tests and the dev control channel (`docs/playbooks.md` "Runtime check").
-- Windows behaviour: judge a Windows-only change by running the Windows build under Wine before you call it broken or fixed (`docs/playbooks.md` "Check under Wine"). Treat a `c0000135` load failure as the app's import table until that table proves otherwise.
 - Agent memory lives in its own repo outside this one; never commit memory files here.
 
 ## Read first
