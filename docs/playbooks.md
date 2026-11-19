@@ -46,23 +46,6 @@ Two wrappers ship with it. Most commands need a running dev window; `launch` (CL
 
 **Caption-area hit testing.** `pwsh scripts/araview-drive.ps1 hittest` (`araview_hittest` over MCP) moves the *virtual* mouse to a point through the control channel to prime GPUI's hit-test cache, then sends `WM_NCHITTEST` with `SendMessage` and prints the code Windows returns (`HTCLIENT`, `HTCAPTION`, `HTCLOSE`, `HTMINBUTTON`, `HTMAXBUTTON`). The physical cursor never moves, so this needs no permission from the user. Baseline (no dialog open): the three caption buttons report `HTMINBUTTON`/`HTMAXBUTTON`/`HTCLOSE` and everything else `HTCLIENT`. With a dialog open the backdrop covers the window, so every point outside the dialog reports `HTCAPTION` (caption buttons stop acting, and a press there drags the window) while the dialog surface stays `HTCLIENT`. Not covered: the press-to-drag move loop itself, which only a real press starts. The selftest runs the same probe as a step, so a regression in window control areas (or a backdrop left over the window) fails the standard runtime check.
 
-## Check under Wine
-
-Judging Windows behaviour on Linux: build the Windows target, run it under Wine, and watch startup, DLL loading, and the window. The values below are what WineHQ stable 11.0 with `wine-stable-i386` does on this machine.
-
-```bash
-export WINEPREFIX=/data/workspace/wine-prefix        # ~1.4 GB per prefix
-export WINEDLLOVERRIDES="mscoree,mshtml="            # required, see below
-DISPLAY=:1 wineboot -i                               # ~8 s, exit 0
-wine target/x86_64-pc-windows-gnu/release/araview.exe FILE
-```
-
-- **Keep the prefix on real disk.** A prefix takes about 1.4 GB. On a tmpfs it fills up, and init then fails with `err:setupapi:... copy error 112` (disk full) and skips the nls files.
-- **The override is part of the setup.** This Wine package ships no wine-mono/wine-gecko MSI and `~/.cache/wine` is empty, so the first `wineboot` or app start opens a "Wine Mono Installer" dialog and stays there; a headless run times out instead.
-- **A healthy init** writes `drive_c`, `system32` (804 files), `syswow64`, and `*.reg`, exits 0, and repeats cleanly, including after `wineserver -k` cuts a boot short. `err:ole:start_rpcss` and `err:setupapi ... Unsupported style(s)` on the first run are expected.
-- **A missing DLL points at the app.** `err:module:import_dll Library X ... not found` with `status c0000135` (process exit code 53) means code imports a DLL the package does not ship: read the import table with `x86_64-w64-mingw32-objdump -p target/x86_64-pc-windows-gnu/release/araview.exe | grep 'DLL Name'` and remove the import. Wine has no `icuuc.dll`; #149 was this exact case.
-- **Screens.** `xvfb-run -s "-screen 0 1600x1000x24" wine ...`, then `import -window root shot.png` (ImageMagick). The Windows build keeps the named-pipe bridge and Wine has no PowerShell, so `scripts/araview-drive.ps1` and the `araview` MCP server stay out of reach: check the window from screenshots.
-
 Done when every screen the change touches is reported PASS or FAIL, or listed as unverified with the reason.
 
 ## Update the third-party license data
