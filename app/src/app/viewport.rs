@@ -548,9 +548,12 @@ impl AraView {
         match self.view_mode(cx) {
             ViewMode::Webtoon => {
                 if next != self.wt_zoom {
-                    // 페이지 높이가 같은 비율로 바뀌므로 읽던 위치도 함께 옮긴다.
-                    self.wt_offset *= next / self.wt_zoom;
+                    let before = self.webtoon_size(self.wt_anchor).1;
                     self.wt_zoom = next;
+                    let after = self.webtoon_size(self.wt_anchor).1;
+                    if before > 0.0 {
+                        self.wt_offset *= after / before;
+                    }
                     cx.notify();
                 }
             }
@@ -2065,6 +2068,81 @@ mod tests {
         rect, snap_to_device_pixels, zoom_step,
     };
     use std::time::{Duration, Instant};
+
+    type WebtoonZoomCase = (Option<(u32, u32)>, bool, f32, f32, f32);
+
+    fn check_webtoon_zoom(cx: &mut gpui_kit::TestAppContext, cases: &[WebtoonZoomCase]) {
+        use gpui_kit::AppContext as _;
+        let mut settings = crate::settings::SettingsStore::load(None);
+        settings.settings.auto_check_updates = false;
+        settings.settings.view_mode = crate::settings::ViewMode::Webtoon;
+        cx.set_global(settings);
+        cx.update(|cx| {
+            gpui_kit::init(cx);
+            gpui_kit::open_window(Default::default(), cx, |window, cx| {
+                cx.new(|cx| {
+                    let mut view = super::AraView::new(None, None, window, cx);
+                    view.viewport.set(rect(0.0, 0.0, 1024.0, 617.0));
+                    for &(dims, fit_width, start, next, expected) in cases {
+                        view.wt_dims.clear();
+                        if let Some(dims) = dims {
+                            view.wt_dims.insert(0, dims);
+                        }
+                        view.wt_fit_width = fit_width;
+                        view.wt_zoom = start;
+                        view.wt_offset = 120.0;
+                        view.apply_zoom(next, Default::default(), cx);
+                        assert!(
+                            (view.wt_offset - expected).abs() < 0.001,
+                            "dims={dims:?}, fit_width={fit_width}, zoom={start}->{next}: offset={}, expected={expected}",
+                            view.wt_offset
+                        );
+                        assert_eq!(view.wt_zoom, next);
+                    }
+                    view
+                })
+            })
+            .unwrap();
+        });
+    }
+
+    #[gpui_kit::test]
+    fn webtoon_zoom_preserves_reading_fraction(cx: &mut gpui_kit::TestAppContext) {
+        check_webtoon_zoom(
+            cx,
+            &[
+                (Some((800, 600)), false, 1.0, 1.25, 150.0),
+                (Some((800, 600)), false, 1.25, 1.0, 96.0),
+            ],
+        );
+    }
+
+    #[gpui_kit::test]
+    fn webtoon_zoom_preserves_offset_at_width_limits(cx: &mut gpui_kit::TestAppContext) {
+        check_webtoon_zoom(
+            cx,
+            &[
+                (Some((800, 600)), false, 1.5625, 1.953125, 120.0),
+                (Some((800, 600)), false, 1.0, 1.5625, 153.6),
+                (Some((800, 600)), true, 1.0, 1.25, 120.0),
+                (Some((800, 600)), true, 1.25, 1.0, 120.0),
+                (Some((64, 128)), false, 0.5, 0.625, 120.0),
+            ],
+        );
+    }
+
+    #[gpui_kit::test]
+    fn webtoon_zoom_handles_missing_and_zero_dimensions(cx: &mut gpui_kit::TestAppContext) {
+        check_webtoon_zoom(
+            cx,
+            &[
+                (None, false, 1.0, 1.25, 150.0),
+                (None, false, 2.0, 2.5, 120.0),
+                (Some((0, 0)), false, 1.0, 1.25, 150.0),
+                (Some((800, 0)), false, 1.0, 1.25, 120.0),
+            ],
+        );
+    }
 
     /// 1:1에 가까운 배율에서 반쪽 픽셀에 걸린 사각형이 기기 픽셀 격자로 맞는지.
     #[test]
